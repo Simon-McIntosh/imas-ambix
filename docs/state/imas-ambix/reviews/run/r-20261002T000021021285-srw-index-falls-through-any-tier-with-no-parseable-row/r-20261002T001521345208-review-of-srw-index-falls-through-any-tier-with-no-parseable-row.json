@@ -1,0 +1,81 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite (classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null), so its own arms cannot supply the delta. This review therefore measured the reviewed node's declared telemetry gate in two scratch trees built from the reviewed commit's own object store (both extracted with git archive into $TMPDIR/arms, no git worktree created): base arm gate-base.log (revision 8c6920d5: 71 passed, EXIT=0) and head arm gate-head.log (revision c43e59e: 72 passed, EXIT=0). The head set is a superset of the base set (one test added, none removed), so both arms are green and head failing ids ([]) minus base failing ids ([]) is 0. The defect was reproduced independently, not accepted: carrying the head test file into the base source (base 8c6920d5 plus the head tests/test_telemetry_index.py) reddens the new test test_a_job_with_no_raw_and_an_unparseable_minute_file_reads_hour (1 failed, 55 deselected, EXIT=1, gate-repro-base-with-head-test.log).",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_telemetry_index.py tests/test_telemetry_ingest.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T001521345208-review-of-srw-index-falls-through-any-tier-with-no-parseable-row/gate-head.log",
+    "revision": "c43e59ebb84b26db56bb9fc3d67b3e745638698f"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_telemetry_index.py tests/test_telemetry_ingest.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T001521345208-review-of-srw-index-falls-through-any-tier-with-no-parseable-row/gate-base.log",
+    "revision": "8c6920d5fe5354caf18c136c99a74fdfc840d91d"
+  },
+  "completed_at": "2026-10-02T00:36:07.857Z",
+  "dispatched_at": "2026-10-02T00:15:28Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "1030,1073",
+      "severity": "follow-on",
+      "text": "follow-on: the absence scan widened from the raw tier to every tier now lexes a minute or hour file that carries no parseable row on every ingest pass until it settles. _holds_a_record_line stops at the first line that parses, so a settled tier costs one line and the cost is bounded by the file, which is at most the size of the tier the ingest already reads; it is recorded, not raised, because a pathologically large all-unparseable minute or hour file would pay a full read per pass where the previous raw-only predicate returned immediately."
+    }
+  ],
+  "follow_ons": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "1030,1073",
+      "severity": "follow-on",
+      "text": "The parse-based absence scan, widened from the raw tier to every tier, runs per discovered tier file per ingest pass; a minute or hour file whose every line fails to parse is lexed until it settles. Bounded by the file and unchanged for the common settled case (the scan stops at the first parsing line), so recorded rather than raised."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "_tier_has_no_row has exactly one production call site, ingest's per-pass offering filter at imas_ambix/agent/telemetry_index.py:927; one_tier_per_job is called only from ingest at :928 and re-exported at :1598. TelemetryIndex, whose .ingest reaches the changed predicate, is constructed in production at imas_ambix/agent/watch.py:919 and :1020, imas_ambix/agent/telemetry_ingest.py:299, imas_ambix/agent/cli.py:2813 and imas_ambix/agent/telemetry_retention.py:337-343. Verified by grep over the head tree's imas_ambix and tests.",
+    "diff": "Read commits f34dc1d5 (implementation), a99f4fbc (test rename for the 88-column ruff limit) and c43e59e (evidence fragment) against base 8c6920d5; three files changed: imas_ambix/agent/telemetry_index.py (+?/-? across the offering filter and the renamed predicate and its docstring), tests/test_telemetry_index.py (+31/-3 adding the new test and shortening one name), and the node's own evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-index-falls-through-any-tier-with-no-parseable-row.html (+61).",
+    "done_when": "Read the node's measure: the review record stores a parsed record scoring all five dimensions in 0..20, reviewed_base_sha and reviewed_head_sha, and added_failure_count/added_failure_ids. This record carries all of those (94 across the five dimensions, base 8c6920d5, head c43e59e, added_failure_count 0). The reviewed run was dispatched unarmed (baseline_suite and after_suite null), so the delta is derived from this review's own two arms of the reviewed node's declared telemetry gate (base 71 passed EXIT=0, head 72 passed EXIT=0) recorded under baseline_suite and after_suite.",
+    "goal": "The node's goal is that the per-job tier choice drop any tier file, raw or minute (hour follows the same predicate), that carries no parseable record line, so the selection falls through to the finest tier carrying rows. The change delivers it: imas_ambix/agent/telemetry_index.py:1048 now tests `if info is None` instead of `info[1] != _RAW_TIER`, so _tier_has_no_row (renamed from _raw_has_no_row at :1030) judges every tier; ingest's offering filter at :927 drops such a file and one_tier_per_job at :928 falls through. The new test answers a job with no raw file and a minute file of only a blank line and an unparseable line from hour with totals generation 2000 / prompt 1000 / uncached 800 and held tier {hour}, and passes.",
+    "manifest": "Read; it states the three-command gate green (72 passed / serving-python parse guard 1 passed / ruff All checks passed!, each EXIT=0), a negative control 1 failed EXIT=1, and names changed_paths imas_ambix/agent/telemetry_index.py, tests/test_telemetry_index.py and the evidence fragment. The manifest declares no baseline_suite/after_suite arms, so this review reconstructed them.",
+    "write_paths": "Read the manifest's declared paths (imas_ambix/agent/telemetry_index.py, tests/test_telemetry_index.py, the evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-index-falls-through-any-tier-with-no-parseable-row.html, and the figures dir docs/figures/serving-record-warehouse/srw-index-falls-through-any-tier-with-no-parseable-row); the diff touches exactly the source and test files inside that set, plus the fragment; the figures dir was not written (under-delivery of a declared but unused path, not a scope breach). No plan, index or sprint state is mutated."
+  },
+  "justifications": {
+    "durability": "The added test asserts literal totals 2000/1000/800 independent of the module under test and reproduces the defect when run against the base source (gate-repro-base-with-head-test.log: 1 failed EXIT=1), so it fails if the change regresses.",
+    "evidence": "The declared gate ran green at the reviewed head (gate-head.log 72 passed EXIT=0) and this review rebuilt both arms from the commit's own object store (gate-base.log 71 passed, gate-head.log 72 passed), so the one added test is the whole delta and added_failure_count is 0.",
+    "fit": "The rename _raw_has_no_row->_tier_has_no_row at imas_ambix/agent/telemetry_index.py:1030 keeps the module's own naming and docstring grammar, and no plan label, ticket reference, version suffix or attribution appears in the diff.",
+    "goal_fidelity": "Read the landed change against the node goal: imas_ambix/agent/telemetry_index.py:1048 now judges absence on the file itself (`if info is None`), so ingest's offering filter at :927 drops any tier with no parseable row and one_tier_per_job at :928 falls through, exactly what the goal states.",
+    "scope_discipline": "Diff 8c6920d5..c43e59e touches exactly imas_ambix/agent/telemetry_index.py, tests/test_telemetry_index.py and the node's own evidence fragment, every one inside the manifest's declared write paths."
+  },
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-index-falls-through-any-tier-with-no-parseable-row",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "review_kind": "review",
+  "review_run_id": "r-20261002T001521345208-review-of-srw-index-falls-through-any-tier-with-no-parseable-row",
+  "reviewed_base_sha": "8c6920d5fe5354caf18c136c99a74fdfc840d91d",
+  "reviewed_head_sha": "c43e59ebb84b26db56bb9fc3d67b3e745638698f",
+  "reviewed_run_id": "r-20261002T000021021285-srw-index-falls-through-any-tier-with-no-parseable-row",
+  "reviewer": "review-of-srw-index-falls-through-any-tier-with-no-parseable-row",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "section": "s8",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T00:32:04+00:00",
+  "total": 94
+}

@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T03:06:25.643Z",
+  "dispatched_at": "2026-10-07T02:59:51Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/gs/machine_identity.py:174",
+      "id": "deep_module-1",
+      "reason": "the plan must state how the bare-digest form of `identity_for_representation` resolves its machine (require a keyword, or retire the form and migrate its call sites), or \u00a77's registry change is half-wired for exactly the caller the plan lists among the four that \"change\".",
+      "text": "the plan says \u00a77's `identity_for_representation` \"receives a table signature, which carries its machine, so with no registry passed each takes the registry for that signature's machine\", but that function's own contract (docstring, line 174) is \"Accepts the signature object **or a bare digest string**\", and a bare digest string carries no machine \u2014 the nine call sites in tests/gs/test_machine_identity.py (e.g. :87, :97, :124, :139) pass a bare `FROZEN_REPRESENTATION_DIGEST` with no machine, so under a machine-keyed `default_registry` those calls cannot select a registry at all, and the plan does not say whether the bare-digest form gains a required machine keyword or is retired \u2014 the same defect it correctly identifies and fixes for `identity_for_shot` (which it gives a required `machine` keyword) is left open one function over",
+      "type": "deep_module",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "d5dd12f1b87f9a28ed57cd9a433a06c115ab1afba69bb6cd9f402569ad5dc4c2",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 292,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "deep_module-1",
+      "reason": "",
+      "when": "2026-10-07T03:07:32.542200+00:00"
+    }
+  ],
+  "responses": {
+    "deep_module-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T03:07:32.542200+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v292.json",
+  "review_run_id": "r-20261007T025937202648-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "26f0ae310950b4bcde2eae4e9254a50138be3f14",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 one interface is not fully absorbed by the module it changes: the machine-keying change leaves the bare-digest form of `identity_for_representation` without a machine.",
+    "duplicate_owner": "pass \u2014 the plan finds the real duplicate owner and names both sites: `imas_ambix/data/tokamap_export.py:147` `_cocos_transformation` is byte-for-byte the same walk as `packages/imas-alambic/src/imas_alambic/transform_engine.py:411` `_target_cocos_transformation`, and `tests/data/test_tokamap_export.py` recomputes the expected scale from `canonical_factor` instead of asking the engine. The plan retires the exporter's copy into the engine owner and re-points the round-trip test at the engine resolver, which is extension, not a fork.",
+    "interface_budget": "pass \u2014 `public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0`; no section adds public surface without naming what it retires or stating why nothing can be. \u00a72 adds the engine resolver and retires the exporter's private copy; \u00a77 adds the machine-keyed pin table and retires `PINNED_SEMANTIC_IDENTITY`/`PINNED_PHYSICAL_DIGEST`/`PINNED_REGISTRY_DIGEST` and the `machine_artifact_arm` re-export; \u00a77's machine-keyed frozen-set table \"retires and merges nothing\" and says why; the registry key and the selector signature each state \"two silent MAST defaults retired ... nothing added\" and \"one default retired and nothing added\". Each is accounted for in the section's own text.",
+    "reuse_search": "pass \u2014 the plan names the mechanisms it extends and I opened each one: `imas_ambix/eval/efit_referee.py:120` `read_efit_geometry` with its `loader=` seam and `_gate_open` firewall; `imas_ambix/worldmodel/equilibrium_labels.py:465` `build_geometry_from_arrays`; `imas_ambix/gs/machine_identity.py:145` `default_registry`; `imas_alambic/cocos.py:64` `canonical_factor`. Each exists at the cited path, so the plan extends rather than rebuilds.",
+    "thin_wrapper": "pass \u2014 \u00a72 promotes the engine's own private resolver (`packages/imas-alambic/src/imas_alambic/transform_engine.py:411` `_target_cocos_transformation`) and retires the exporter's copy (`imas_ambix/data/tokamap_export.py:147` `_cocos_transformation`) rather than adding a wrapper beside either; no new thin layer over existing machinery is proposed."
+  },
+  "section_digests": {
+    "_document": "fa1ac12babfb5075067014e58134a70e56320c1981ff01843fbadc8e7b128556",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "358f29179742761c7c1873b21f00d686d1ddf6404970be8ee4aaf774e786224e",
+    "s7": "670daaf565233ade07d8a4d07c6a2759077c693ee2a50fa4961111dbefdc7292",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T03:07:10.202093+00:00"
+}

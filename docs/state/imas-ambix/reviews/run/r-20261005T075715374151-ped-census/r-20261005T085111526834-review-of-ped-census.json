@@ -1,0 +1,68 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed manifest carries no baseline_suite and no after_suite key, so the reviewed run ran no suite-wide before/after arm to difference; both read as null. added_failure_count 0 and added_failure_ids [] record that absence of an arm, not a green suite. The reviewed run's declared done-when gate is the focused census test, independently re-run at head be101b86 (1 passed, 1 xfailed, exit 0); the xfailed assertion is the intended census failure (21 undeclared lines, log census-render.log), matching section 2's done-when that the run fails against the current declaration with one line per undeclared default or optional distribution.",
+  "after_suite": null,
+  "baseline_suite": null,
+  "completed_at": "2026-10-05T09:01:30.838Z",
+  "dispatched_at": "2026-10-05T08:51:25Z",
+  "findings": [
+    {
+      "file": "tests/test_declared_dependencies.py",
+      "line": "67",
+      "severity": "follow-on",
+      "text": "OPTIONAL_SUBSYSTEM_ROOTS names only imas_ambix/agent (GPU model serving) and imas_ambix/train (training stack). Section 2 names four optional subsystems: the documentation build, GPU model serving, the FAIR-MAST acquisition stack and the training stack. The FAIR-MAST acquisition stack lives under imas_ambix/data/ (imas_ambix/data/__init__.py docstring: 'FAIR-MAST data acquisition and access') and is not among the roots, so a distribution reached only from imas_ambix/data/ will be classified default rather than optional. Latent today: an independent scan found no directly imported distribution reached only from imas_ambix/data/, so the current census is unaffected. The documentation build exposes no Python imports. Add imas_ambix/data to the roots, or record why the acquisition stack is a default subsystem."
+    },
+    {
+      "file": "tests/test_declared_dependencies.py",
+      "line": "12-16",
+      "severity": "follow-on",
+      "text": "The classifier treats a scripts-only distribution as optional, a base not in section 2's list of optional subsystems; section 2 states the default rule for imas_ambix/ and tests/ and leaves scripts-only distributions unclassified. The node documents the resolution in the docstring and follow_ons. It decides whether imas-ink (reached only from scripts/, declared extra:viz) is optional or default, and my independent scan found imas-ink is the only such distribution. Section 3 should confirm the reading before relocking."
+    },
+    {
+      "file": "manifest.md",
+      "line": "negative_control_note",
+      "severity": "follow-on",
+      "text": "The reviewed manifest's negative_control_note names the deciding file 'census_worker.py', which does not exist in the tree; the negative-control log and the tree name 'cosmos_worker.py' (imas_ambix/bench/cosmos_worker.py imports numpy). The log is correct; the manifest note is a transcription error. Recommend correcting the note so the quoted line matches the log it cites."
+    },
+    {
+      "file": "tests/test_declared_dependencies.py",
+      "line": "203-217",
+      "severity": "follow-on",
+      "text": "local_top_level_names adds every module stem under imas_ambix/, tests/ and scripts/ as a local name, so a third-party top-level module sharing a stem with any local file is masked rather than classified. No collision is evident in the current census; the cost of one is a silently missed declaration. A targeted test would make the assumption explicit."
+    },
+    {
+      "file": "tests/test_declared_dependencies.py",
+      "line": "313-318",
+      "severity": "follow-on",
+      "text": "The census adds five tooling rows with deciding file '(no import; tooling)' (mypy, ruff, pytest-timeout, pytest-xdist, tokamap) to the 39-row table, so the fragment's 'one row per directly imported distribution' is 34 imported distributions plus 5 tooling rows. Section 2's tooling clause makes this intended, recorded so a reader counts rows against the right denominator."
+    }
+  ],
+  "model": "deepseek-v4.1-flash",
+  "negative_control": {
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T075715374151-ped-census/negative-control/negative_control.log",
+    "mutation": "numpy>=2.2 line removed from a temp copy of pyproject.toml; build_census pointed at that copy",
+    "reproduced": true,
+    "reproduction": "Independently re-ran build_census (imported from tests/test_declared_dependencies.py at be101b86) against a temp pyproject with the 'numpy>=2.2' line removed: failure count 21 -> 22, with numpy named in exactly one line reading 'default numpy (imported by imas_ambix/bench/cosmos_worker.py) is declared as none, not in [project.dependencies] or the dev dependency group', matching the reviewed run's log first line. The assertion genuinely fires."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20261005T075715374151-ped-census at head be101b86 against base 04af8472 (supersedes the earlier review at d3124645).\n\nGoal (section 2 census, committed as a test): SATISFIED. tests/test_declared_dependencies.py exists with build_census feeding both test_every_directly_imported_distribution_is_declared and test_fragment_matches_census. All three done-when clauses are met: the gate log shows the assertion failing (xfail strict) with one line per undeclared default or optional distribution (census-render.log, 21 lines); the fragment docs/evidence/fragments/project-environment-declared/ped-census.html holds 39 rows (34 directly imported distributions + 5 tooling rows) plus a 248-entry transitive list; and it lists the 18 declared dependencies nothing imports.\n\nEvidence: the declared done-when gate was independently re-run at head be101b86 in the reviewed worktree: 1 passed, 1 xfailed in 47.6s, exit 0, identical to the run's log (test_fragment_matches_census proves the committed fragment renders from the committed census). The negative control was independently reproduced: removing numpy>=2.2 from a temp pyproject raises the failure count 21 -> 22, numpy named in exactly one line (cosmos_worker.py), matching the reviewed log. The amended commit's body is clean of plan references, has no AI attribution, and carries a body.\n\nAmendment: the diff d3124645..be101b86 removes exactly the plan references a prior review flagged - the docstring's plan/section mentions, the xfail reason, the fragment meta line and the assertion-heading - with no behavioural change; the commit body was likewise cleaned. Fit therefore rises from the prior review's 13.\n\nScope: git diff --stat 04af8472..be101b86 touches exactly the two declared write paths, 814 insertions, no deletions; the worktree is clean. No other tree is touched.\n\nFit: the module, symbols and comments are plan-free after the amendment; remaining fit concerns are the two classification judgment calls recorded as follow-ons, both documented by the node.\n",
+  "review_run_id": "r-20261005T085111526834-review-of-ped-census",
+  "reviewed_base_sha": "04af84727bdd401c3cc216d2546cbe4eb199e4f5",
+  "reviewed_head_sha": "be101b86bdf8b03404dc5a844c64ee5fcb944589",
+  "reviewed_run_id": "r-20261005T075715374151-ped-census",
+  "reviewer": "review-of-ped-census",
+  "scores": {
+    "durability": 20,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T09:02:00+00:00",
+  "total": 96
+}

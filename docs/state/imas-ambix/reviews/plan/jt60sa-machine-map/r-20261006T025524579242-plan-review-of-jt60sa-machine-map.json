@@ -1,0 +1,51 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T03:01:11.509Z",
+  "dispatched_at": "2026-10-06T02:55:34Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/gs/operator.py:582",
+      "id": "reuse_search-1",
+      "reason": "it should build the JT-60SA operator from the description (declaring the MMSYS channels as the conductors' drive) and reuse `assemble_pf_currents` unchanged, rather than adding a parallel placement step, which is the reuse map the plan's own \u00a76 preamble asks for.",
+      "text": "the plan states \"the only JT-60SA addition is the step that places the measured MMSYS coil currents on the operator's `G_pf` columns, because `assemble_pf_currents` reads MAST's raw amc channels\"; the method is not MAST-bound \u2014 it reads `self.pf_amc_channels`, which `build_operator` populates from `geometry.conductors`' declared drive channel (`operator.py:337`), with the MAST label\u2192amc table (`operator.py:240) only a fallback for geometry that declares none \u2014 so a JT-60SA operator built from the \u00a74 description already places the currents and the proposed step duplicates it.",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "6627019da78494de485867c3af56292080d14497826315a8c3cb6b615433a229",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 89,
+  "project": "imas-ambix",
+  "responses": {
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "coordinator",
+      "reason": "Acted in plan v90: section 6 reuses ForwardOperator.assemble_pf_currents unchanged, with MMSYS channels declared as the coils' drive.",
+      "when": "2026-10-06T03:16:33.125200+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T025524579242-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "2f0917325eb0d40aace17a0c2ecbbe54bb0d57f5",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new behaviour hides behind small interfaces that carry real work: one binding slot carrying named-struct-entry selection that composes with rank/position (`imas_ambix/data/transform_engine.py:193` `_read_ids_path`), one converter entry point (`imas_ambix/data/selene_deck.py`), one exporter function (`imas_ambix/data/tokamap_export.py:349`), and extensions to owners (`StoreEngine.open`, `eddb.py`, `artifact_resolution` pins) rather than a spread of wrappers over one mechanism.",
+    "duplicate_owner": "pass \u2014 the sections name the owner each extends: `eddb.py` gains the grid writer beside `write_channel` (no second store), `gs/artifact_resolution.py` owns the machine-keyed pins, `gs/machine_selection.py`/`machine_identity.py` own selection, `spine_bench/shots.py` owns the shot set, `data/signal_map.py` and `tokamap_export._unit_factor` retain unit conversion, and `data/cocos_convention.py` plus `challenge/convention.py` are extended rather than forked. The reference-equilibrium read is the one place two shapes coexist (`challenge/loader.py` `EfitLabels` for the convention kernel, `worldmodel/equilibrium_labels.py` `EquilibriumGeometry` for the referee); those serve distinct consumers, so the plan's \"one equilibrium has one shape\" is scoped to \u00a76 rather than a fork \u2014 noted, not a finding.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0. Every section that adds surface carries its own accounting: \u00a72's exporter \"retires nothing, because ambix has no exporter\"; \u00a74's struct selector \"widens one binding contract and retires nothing\"; \u00a75 \"adds one data file and no public definition or refusal family\"; \u00a77's EQDB rung \"adds one remote script and one fetch entry \u2026 retires nothing, because no equilibrium-database reader exists\" and \"adds two record fields and retires nothing\".",
+    "reuse_search": "a finding \u2014 the plan asserts one JT-60SA-specific coil-current placement step onto the operator's `G_pf` columns, but `ForwardOperator.assemble_pf_currents` is already description-driven through `pf_amc_channels`, which `build_operator` fills from each conductor's declared drive channel (`imas_ambix/gs/operator.py:337`), not from MAST constants.",
+    "thin_wrapper": "pass \u2014 where the plan adds a layer it names why the underlying machinery cannot carry it: the tokamap exporter is kept out of the loaders because they read the ambix schema and must not learn tokamap's (`imas_ambix/data/tokamap_export.py` vs `machine_map.py`), the EQDB rung reuses `SshTransport` (`imas_ambix/data/eddb_remote.py`) rather than a second transport, and the SELENE reference enters `read_efit_geometry(loader=...)` (`imas_ambix/eval/efit_referee.py:120`) rather than a parallel comparator."
+  },
+  "section_digests": {
+    "_document": "81c30464997a0bb8e491a2ec9da6b8861cd25ff2cfad20808b2f114dc78a477d",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "978348f9ca560d52451e65fd8e70efba5d44976616b33aa9e3cef8464d8b75a2",
+    "s5": "b8fd563c68e5e8518654b5d37d9929467a10f841b4291cd34c629a84f4798199",
+    "s6": "bea1116148586bbd2262f1fe35d5d47d04478ac4fae890249b7e2281ea206d0f",
+    "s7": "ae2174e4845ce08936def8d3d6eafed254620d52bf8fb710080e045bbefb8083",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T03:16:12.971260+00:00"
+}

@@ -1,0 +1,77 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "clive",
+  "completed_at": "",
+  "dispatched_at": "2026-09-21T10:18:53.087526+00:00",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "331",
+      "text": "A same-length in-place rewrite that leaves the last consumed line byte-identical is missed: an index holding rows 10, 20, 30 in a 225-byte serve.jsonl answered 60.0 after the file was rewritten to 40, 50, 30 at the same 225 bytes with an identical final line."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "327",
+      "text": "A source row whose tail_sha is NULL is judged by size alone, so UPDATE source SET tail_sha = NULL followed by rewriting 10, 20, 30 to 10, 20, 90 at the same 225 bytes also left the index answering 60.0 while the file sums to 180."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "187",
+      "text": "The default pattern \"*.jsonl*\" selects a text file that merely contains .jsonl in its name, and the pass then dies: with my-notes.jsonl.summary present, ingest raised ValueError invalid record JSON at .../my-notes.jsonl.summary:0 and serve.jsonl and serve.jsonl.1 were never consumed."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "305",
+      "text": "A compressed roll is selected and never read: serve.jsonl.2.gz of one record (75 bytes, no 0x0A) reported bytes_read=0, rows_inserted=0, malformed=0, while the same name built from 50 records (331 bytes, contains 0x0A) raised ValueError, so the outcome follows the compressed bytes and the report's malformed field counts neither."
+    },
+    {
+      "file": "docs/evidence/archive/serve-telemetry-spine-landed.html",
+      "line": "315",
+      "text": "The corrected mutation count does not reproduce at the revision it describes: replaying INSERT OR IGNORE INTO sample -> INSERT INTO sample at 75c33012 reddens only test_reingest_after_lost_tail_state_is_still_one_copy (1 failed / 18 passed), because imas_ambix/agent/telemetry_index.py:295 now deletes the rebuilt inode's samples before re-reading and the second path the record names inserts no duplicate."
+    },
+    {
+      "file": "docs/plans/serve-telemetry-spine.html",
+      "line": "321",
+      "text": "The section still says the index is the consumer collect_receipt_bins and summarise_receipt_rows were written for, which the change does not satisfy for collect_receipt_bins and which the run left in place although its manifest declared this file a write path."
+    },
+    {
+      "file": "tests/test_telemetry_index.py",
+      "line": "388",
+      "text": "The expected value comes from the module under test: assert report == summarise_receipt_rows(rows) compares the index's aggregation to the aggregator it calls, over rows the test's own _direct_rows (line 54) reads, so a defect in the shared aggregator passes; the test predates this range and belongs in follow_ons."
+    }
+  ],
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "I read the whole diff of the three commits and found the rebuild path changed to delete an inode's samples before re-reading, the receipt entry point documented as unwired on purpose, four new guard tests, and the record's corrected mutation count, which the replay does not reproduce.",
+    "done_when": "I replayed every control log in the run directory against a scratch copy of the reviewed head rather than trusting its counts, and every declared mutation except the insert mutation reddened exactly one named test while the insert mutation reddened one test rather than the two the record claims.",
+    "goal": "I read the goal statement in the run manifest and the landed record against the diff of 823e4041..75c33012, and found the rebuild detected by content and each declared guard held by a test whose red I reproduced from the control logs.",
+    "manifest": "I read the run manifest's counts against the reviewed tree, where tests/test_telemetry_index.py holds 2 + 17 + 0 tests and the receipt suite holds 2, so its 15-passed base predates the four added tests it lists and its 21-passed after run is consistent.",
+    "write_paths": "I compared the run manifest's declared write paths against the four changed paths in the reviewed range and found every changed path declared, with docs/plans/serve-telemetry-spine.html declared and left unmodified."
+  },
+  "justifications": {
+    "durability": "each held behaviour sits in a committed test (tests/test_telemetry_index.py:393, 415, 455, 487) whose red was reproduced rather than read.",
+    "evidence": "replaying the exact replacement recorded in controls/finding1-mutation.log at the reviewed head gives 1 failed / 18 passed, not the two failures docs/evidence/archive/serve-telemetry-spine-landed.html:315 records.",
+    "fit": "imas_ambix/agent/receipt_bins.py:108 states the path-reading entry point is unwired on purpose, while docs/plans/serve-telemetry-spine.html:321 still claims the index is the consumer both entry points were written for.",
+    "goal_fidelity": "imas_ambix/agent/telemetry_index.py:331 re-reads the last consumed line and compares its digest, which caught a changed tail in probe case b (60.0 -> 120.0) but not a same-length rewrite that leaves that line alone.",
+    "scope_discipline": "all four changed paths are declared on the run manifest's third line and no file outside them changed in the reviewed range."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: I read the goal statement in the run manifest and the landed record against the diff of 823e4041..75c33012, and found the rebuild detected by content and each declared guard held by a test whose red I reproduced from the control logs.\nVERDICT done_when: I replayed every control log in the run directory against a scratch copy of the reviewed head rather than trusting its counts, and every declared mutation except the insert mutation reddened exactly one named test while the insert mutation reddened one test rather than the two the record claims.\nVERDICT write_paths: I compared the run manifest's declared write paths against the four changed paths in the reviewed range and found every changed path declared, with docs/plans/serve-telemetry-spine.html declared and left unmodified.\nVERDICT manifest: I read the run manifest's counts against the reviewed tree, where tests/test_telemetry_index.py holds 2 + 17 + 0 tests and the receipt suite holds 2, so its 15-passed base predates the four added tests it lists and its 21-passed after run is consistent.\nVERDICT diff: I read the whole diff of the three commits and found the rebuild path changed to delete an inode's samples before re-reading, the receipt entry point documented as unwired on purpose, four new guard tests, and the record's corrected mutation count, which the replay does not reproduce.\nSCORE goal_fidelity: 15\nJUSTIFICATION goal_fidelity: imas_ambix/agent/telemetry_index.py:331 re-reads the last consumed line and compares its digest, which caught a changed tail in probe case b (60.0 -> 120.0) but not a same-length rewrite that leaves that line alone.\nSCORE evidence: 13\nJUSTIFICATION evidence: replaying the exact replacement recorded in controls/finding1-mutation.log at the reviewed head gives 1 failed / 18 passed, not the two failures docs/evidence/archive/serve-telemetry-spine-landed.html:315 records.\nSCORE scope_discipline: 17\nJUSTIFICATION scope_discipline: all four changed paths are declared on the run manifest's third line and no file outside them changed in the reviewed range.\nSCORE durability: 15\nJUSTIFICATION durability: each held behaviour sits in a committed test (tests/test_telemetry_index.py:393, 415, 455, 487) whose red was reproduced rather than read.\nSCORE fit: 14\nJUSTIFICATION fit: imas_ambix/agent/receipt_bins.py:108 states the path-reading entry point is unwired on purpose, while docs/plans/serve-telemetry-spine.html:321 still claims the index is the consumer both entry points were written for.\nFINDING imas_ambix/agent/telemetry_index.py:331 A same-length in-place rewrite that leaves the last consumed line byte-identical is missed: an index holding rows 10, 20, 30 in a 225-byte serve.jsonl answered 60.0 after the file was rewritten to 40, 50, 30 at the same 225 bytes with an identical final line.\nFINDING imas_ambix/agent/telemetry_index.py:327 A source row whose tail_sha is NULL is judged by size alone, so UPDATE source SET tail_sha = NULL followed by rewriting 10, 20, 30 to 10, 20, 90 at the same 225 bytes also left the index answering 60.0 while the file sums to 180.\nFINDING imas_ambix/agent/telemetry_index.py:187 The default pattern \"*.jsonl*\" selects a text file that merely contains .jsonl in its name, and the pass then dies: with my-notes.jsonl.summary present, ingest raised ValueError invalid record JSON at .../my-notes.jsonl.summary:0 and serve.jsonl and serve.jsonl.1 were never consumed.\nFINDING imas_ambix/agent/telemetry_index.py:305 A compressed roll is selected and never read: serve.jsonl.2.gz of one record (75 bytes, no 0x0A) reported bytes_read=0, rows_inserted=0, malformed=0, while the same name built from 50 records (331 bytes, contains 0x0A) raised ValueError, so the outcome follows the compressed bytes and the report's malformed field counts neither.\nFINDING docs/evidence/archive/serve-telemetry-spine-landed.html:315 The corrected mutation count does not reproduce at the revision it describes: replaying INSERT OR IGNORE INTO sample -> INSERT INTO sample at 75c33012 reddens only test_reingest_after_lost_tail_state_is_still_one_copy (1 failed / 18 passed), because imas_ambix/agent/telemetry_index.py:295 now deletes the rebuilt inode's samples before re-reading and the second path the record names inserts no duplicate.\nFINDING docs/plans/serve-telemetry-spine.html:321 The section still says the index is the consumer collect_receipt_bins and summarise_receipt_rows were written for, which the change does not satisfy for collect_receipt_bins and which the run left in place although its manifest declared this file a write path.\nFINDING tests/test_telemetry_index.py:388 The expected value comes from the module under test: assert report == summarise_receipt_rows(rows) compares the index's aggregation to the aggregator it calls, over rows the test's own _direct_rows (line 54) reads, so a defect in the shared aggregator passes; the test predates this range and belongs in follow_ons.\n",
+  "review_run_id": "r-20260921T101853087526-review-of-the-index-guards",
+  "reviewed_base": "823e404172a45fddfa3c95e5c337aaef76683b2f",
+  "reviewed_commit": "75c330123b94853346f40bfe8367ddac23479b6f",
+  "reviewed_run_id": "r-20260921T084801304762-index-guards-are-asserted",
+  "scores": {
+    "durability": 15,
+    "evidence": 13,
+    "fit": 14,
+    "goal_fidelity": 15,
+    "scope_discipline": 17
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-21T11:25:25.758211+00:00",
+  "total": 74
+}

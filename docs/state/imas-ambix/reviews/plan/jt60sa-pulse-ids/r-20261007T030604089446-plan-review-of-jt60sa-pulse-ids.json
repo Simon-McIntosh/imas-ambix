@@ -1,0 +1,101 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T03:15:15.495Z",
+  "dispatched_at": "2026-10-07T03:06:18Z",
+  "findings": [
+    {
+      "anchor": "scripts/figures_jt60sa_signals.py:37",
+      "id": "reuse_search-1",
+      "reason": "a reviewer reading only the plan would re-implement a pulse reader that exists, which is the failure this review exists to catch.",
+      "text": "the plan's \u00a74 reuse map checks the two JT-60SA imas-ink drivers but reads figures_jt60sa_signals.py only as \"draws time traces\"; that script already owns `_read_pulse_ids` (line 37) with `PULSE_DIR = Path(JT60SA_ROOT) / \"ids\" / SHOT` (line 34), the exact reader \u00a74 proposes to add to the geometry driver, and its docstring at line 12 asserts it is \"the one place that layout is known\" \u2014 the plan neither cites this reader nor says whether \u00a74 shares it or replaces it",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "scripts/figures_jt60sa_signals.py:34",
+      "id": "duplicate_owner-1",
+      "reason": "the plan should name pulse_writer.py as the owner of the layout and require \u00a74 to read through that owner, migrating `_read_pulse_ids` to it, or the \"change in one place\" claim in \u00a74 is false.",
+      "text": "the writer's output layout (one `{ids}.nc` per IDS under `<root>/<shot>/`) is known at packages/imas-alambic/src/imas_alambic/pulse_writer.py:307 and :335 (writer), and at scripts/figures_jt60sa_signals.py:34 and :37 (`PULSE_DIR`, `_read_pulse_ids`, whose own docstring calls itself the one place it is known); \u00a74 (scripts/figures_jt60sa_geometry.py:45 `_read_ids`, :53 `_open_phase`, which today read the description store, not a minted pulse) would make it three, and jt60sa-facility-mint \u00a78 is about to change it to one flat run file per pulse",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "packages/imas-alambic/src/imas_alambic/pulse_writer.py:307",
+      "id": "interface_budget-1",
+      "reason": "the interface account must state that the inline layout construction is replaced by the new accessor, and how write_pulse's contract gains the equilibrium without a parallel path.",
+      "text": "\u00a72 says it \"reaches the layout through the writer's own path rule\" and adds one \"if the writer exposes no such rule\", but the writer exposes none (the layout is inline at :307 and :335) and \u00a72 also widens what write_pulse emits (the equilibrium IDS joins IDS_NAMES), both public-definition surface; the section does not say what it retires or merges, or why nothing can be retired",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "61b84b287db33117d9f6a4be355105c68852c2ef20aa067bead6ac151079429c",
+  "plan_slug": "jt60sa-pulse-ids",
+  "plan_version": 23,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "declined",
+      "by": "",
+      "finding": "reuse_search-1",
+      "reason": "deferred to the layout owner: jt60sa-facility-mint section 8 is replacing the writer's per-IDS layout with one run file per pulse and is asked to add the public path rule to imas_alambic/pulse_writer.py, retiring the inline construction at :307 and :335, with scripts/figures_jt60sa_signals.py _read_pulse_ids migrated to it. Sections 2 and 4 are blocked on jt60sa-machine-map section 7 and are re-specified to read through that rule before either is dispatched; recorded on section 2. This review gates sections 5 and 6, which touch neither the layout nor any reader of it",
+      "when": "2026-10-07T03:16:38.081155+00:00"
+    },
+    {
+      "action": "declined",
+      "by": "",
+      "finding": "duplicate_owner-1",
+      "reason": "deferred to the layout owner: jt60sa-facility-mint section 8 is replacing the writer's per-IDS layout with one run file per pulse and is asked to add the public path rule to imas_alambic/pulse_writer.py, retiring the inline construction at :307 and :335, with scripts/figures_jt60sa_signals.py _read_pulse_ids migrated to it. Sections 2 and 4 are blocked on jt60sa-machine-map section 7 and are re-specified to read through that rule before either is dispatched; recorded on section 2. This review gates sections 5 and 6, which touch neither the layout nor any reader of it",
+      "when": "2026-10-07T03:16:42.909322+00:00"
+    },
+    {
+      "action": "declined",
+      "by": "",
+      "finding": "interface_budget-1",
+      "reason": "deferred to the layout owner: jt60sa-facility-mint section 8 is replacing the writer's per-IDS layout with one run file per pulse and is asked to add the public path rule to imas_alambic/pulse_writer.py, retiring the inline construction at :307 and :335, with scripts/figures_jt60sa_signals.py _read_pulse_ids migrated to it. Sections 2 and 4 are blocked on jt60sa-machine-map section 7 and are re-specified to read through that rule before either is dispatched; recorded on section 2. This review gates sections 5 and 6, which touch neither the layout nor any reader of it. The equilibrium joining the writer's IDS set is section 2's interface account, written at that re-specification",
+      "when": "2026-10-07T03:16:47.515163+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "",
+      "reason": "deferred to the layout owner: jt60sa-facility-mint section 8 is replacing the writer's per-IDS layout with one run file per pulse and is asked to add the public path rule to imas_alambic/pulse_writer.py, retiring the inline construction at :307 and :335, with scripts/figures_jt60sa_signals.py _read_pulse_ids migrated to it. Sections 2 and 4 are blocked on jt60sa-machine-map section 7 and are re-specified to read through that rule before either is dispatched; recorded on section 2. This review gates sections 5 and 6, which touch neither the layout nor any reader of it",
+      "when": "2026-10-07T03:16:42.909322+00:00"
+    },
+    "interface_budget-1": {
+      "action": "declined",
+      "by": "",
+      "reason": "deferred to the layout owner: jt60sa-facility-mint section 8 is replacing the writer's per-IDS layout with one run file per pulse and is asked to add the public path rule to imas_alambic/pulse_writer.py, retiring the inline construction at :307 and :335, with scripts/figures_jt60sa_signals.py _read_pulse_ids migrated to it. Sections 2 and 4 are blocked on jt60sa-machine-map section 7 and are re-specified to read through that rule before either is dispatched; recorded on section 2. This review gates sections 5 and 6, which touch neither the layout nor any reader of it. The equilibrium joining the writer's IDS set is section 2's interface account, written at that re-specification",
+      "when": "2026-10-07T03:16:47.515163+00:00"
+    },
+    "reuse_search-1": {
+      "action": "declined",
+      "by": "",
+      "reason": "deferred to the layout owner: jt60sa-facility-mint section 8 is replacing the writer's per-IDS layout with one run file per pulse and is asked to add the public path rule to imas_alambic/pulse_writer.py, retiring the inline construction at :307 and :335, with scripts/figures_jt60sa_signals.py _read_pulse_ids migrated to it. Sections 2 and 4 are blocked on jt60sa-machine-map section 7 and are re-specified to read through that rule before either is dispatched; recorded on section 2. This review gates sections 5 and 6, which touch neither the layout nor any reader of it",
+      "when": "2026-10-07T03:16:38.081155+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-pulse-ids.v23.json",
+  "review_run_id": "r-20261007T030604089446-plan-review-of-jt60sa-pulse-ids",
+  "reviewed_blob_sha": "94d9fe25752f89660aeeaff3e2a1864dc61fdcc8",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the join stays behind write_pulse and the animation adds a mode to one existing driver rather than a family of shallow wrappers; no section spreads one behaviour across several modules.",
+    "duplicate_owner": "a finding \u2014 the plan's stated goal of one site. The writer's output layout already has two knowers and the plan adds a third without naming the owner to extend.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a72 adds a path-rule accessor (pulse_writer.py exposes none today) and widens write_pulse's output contract without naming what it retires or merges, or why nothing can be.",
+    "reuse_search": "a finding \u2014 \u00a72's ambix citations are all accurate and present (latent/topology.read_topology, camera_topology_targets._strike_points, equilibrium_labels.xpoint_null_set, `_axis_and_boundary`), but the \u00a74 reuse map names scripts/figures_jt60sa_signals.py only as a time-trace drawer and misses that it already owns a reader of the writer's output.",
+    "thin_wrapper": "pass \u2014 \u00a74 extends scripts/figures_jt60sa_geometry.py rather than adding a parallel script, and states why (the animation needs that driver's geometry, and imas-ink owns rendering); \u00a72 extends pulse_writer.py rather than restating the layout."
+  },
+  "section_digests": {
+    "_document": "a84208ff0730a61956c723f4f7575c53b37d0a167744af5b8e1e6708c3f482e8",
+    "s1": "03eeaedd2c5502c88ec72ea09f8ea2eec7ce704b95be59fa080894ef4214bc98",
+    "s2": "8f78601f167dc255786cc9a8f6b49d0098d1f3ca14090d4106b14ccf2ed1d203",
+    "s3": "e0c752d72775115b7987ba7db0722d7fe24721ae7a504604a237ca7050f3775d",
+    "s4": "181a42b6bf8c74edb3710bd11a1bc408ce6d67da65064e96d0b7b7d5c47573e8",
+    "s5": "9608a9e9845820be16630c8d0c7b2fbb071050d5a6c67535d8b03ab97d87bb9b",
+    "s6": "2c6593901fa8f276d5dec8e1375bc8758c01752768154670ac419bb42efa19ab"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T03:16:35.437719+00:00"
+}

@@ -1,0 +1,62 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names neither baseline_suite nor after_suite (classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null), so its own arms cannot supply the delta. This review therefore measured the reviewed node's declared gate in two scratch trees built from the reviewed worktree's own object store with `git archive` into $TMPDIR/arms (no git worktree created; the reviewed worktree is not writable by this node). The commit is test-only (its diff touches tests/test_agent_telemetry_watch.py and the evidence fragment), so the base arm is the base tree at 375cbe6f (old test file, watch.py identical) and the head arm is the head tree at e5f415bc; both run with TMPDIR set to a path containing `ledger`, the failing condition. Base arm logs/review-base-arm.log: 3 failed, 19 passed, EXIT=1. Head arm logs/review-head-arm.log: 22 passed, EXIT=0. Head failing ids ([]) minus base failing ids (3) is 0 added failures. The reviewed run's own logs agree: repro-ledger-tmpdir.log 3 failed EXIT=1 at 375cbe6f and gate-ledger-tmpdir.log / gate-clean-tmpdir.log 22 passed EXIT=0 at e5f415bc.",
+  "after_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD TMPDIR=/tmp/ledger-review-head uv run --no-sync pytest tests/test_agent_telemetry_watch.py -p no:cacheprovider -q",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T095442531219-review-of-srw-watch-tests-read-ledger-absence-from-rows/logs/review-head-arm.log",
+    "revision": "e5f415bcdf472940691ef8a1c4dfde765b8358c9"
+  },
+  "baseline_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD TMPDIR=/tmp/ledger-review-base uv run --no-sync pytest tests/test_agent_telemetry_watch.py -p no:cacheprovider -q",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 3,
+    "failure_ids": [
+      "tests/test_agent_telemetry_watch.py::test_a_missing_index_is_reported_and_not_created",
+      "tests/test_agent_telemetry_watch.py::test_a_zero_byte_index_is_reported_unreadable",
+      "tests/test_agent_telemetry_watch.py::test_a_locked_index_is_reported_with_a_short_timeout"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T095442531219-review-of-srw-watch-tests-read-ledger-absence-from-rows/logs/review-base-arm.log",
+    "revision": "375cbe6fb64b6a3bd719af8df3fd3e398542fe40"
+  },
+  "completed_at": "2026-10-05T10:03:58.250Z",
+  "dispatched_at": "2026-10-05T09:54:51Z",
+  "findings": [],
+  "follow_ons": [],
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "call_sites": "the three tests test_a_missing_index_is_reported_and_not_created, test_a_zero_byte_index_is_reported_unreadable and test_a_locked_index_is_reported_with_a_short_timeout are the only callers of `_assert_no_ledger_block`; all three replaced the bare `assert \"ledger\" not in text`.",
+    "diff": "read commit e5f415bc against base 375cbe6f; two files changed, +19/-3, both inside the declared write paths: tests/test_agent_telemetry_watch.py (+18/-3) and docs/evidence/fragments/serving-record-warehouse/srw-watch-tests-read-ledger-absence-from-rows.html (+4). No other file touched.",
+    "done_when": "Three clauses: (1) tests/test_agent_telemetry_watch.py passes with TMPDIR containing `ledger` and with a clean TMPDIR -- head arm reproduced 22 passed EXIT=0 with TMPDIR=/tmp/ledger-review-head, and the reviewed run's own gate-clean-tmpdir.log shows 22 passed with a clean TMPDIR; (2) the three tests still fail if the reader prints a ledger block beside an index report -- reproduced independently, appending render_ledger_rows output to both index-report returns in the head scratch tree reddens exactly the three tests, 3 failed EXIT=1 (logs/review-negative-control.log); (3) `ruff check imas_ambix tests` exits 0 -- reproduced, EXIT=0 (logs/review-ruff.log). All three hold.",
+    "goal": "Plan section 16 asks the three index-report tests to assert the absence of the ledger block by its header line and period rows rather than the bare word `ledger` that an index path may carry, with the reader unchanged. Delivered: a module-level helper `_assert_no_ledger_block` asserts `LEDGER_HEADER` absent and no `f\"{label:>8}  \"` period row present, called by the three tests; the reader imas_ambix/agent/watch.py is untouched.",
+    "implementation": "LEDGER_HEADER equals the plain text render_ledger_rows prints above its rows (`ledger  period . covered . in . cached . out . cards . cost`, after rich strips the bold/dim markup); `_assert_no_ledger_block` also rejects any `render_ledger_rows` period-row prefix from `watch.LEDGER_PERIODS`. The assertion is now sensitive to the block, not to any substring of the index path.",
+    "manifest": "read; status complete; changed_paths names the test file and the fragment; test_logs names the two gate logs, the repro log, the negative control and ruff; declares baseline_suite and after_suite neither, so the arms are this review's own.",
+    "write_paths": "the manifest grants two paths; the diff touches both. The reader is correctly outside the change."
+  },
+  "justifications": "Independent review of run r-20261005T094714092208-srw-watch-tests-read-ledger-absence-from-rows, base 375cbe6fb64b6a3bd719af8df3fd3e398542fe40, head e5f415bcdf472940691ef8a1c4dfde765b8358c9, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 19, evidence 17, scope_discipline 19, durability 17, fit 18 -- total 90, added_failure_count 0 with added_failure_ids [] derived from this review's own two arms of the reviewed node's declared gate (the reviewed run was dispatched unarmed): base arm logs/review-base-arm.log (scratch tree $TMPDIR/arms/base, revision 375cbe6f, TMPDIR containing `ledger`: 3 failed, EXIT=1) and head arm logs/review-head-arm.log (scratch tree $TMPDIR/arms/head, revision e5f415bc, same condition: 22 passed, EXIT=0). The defect reproduces at base exactly as the plan measured -- the report prints the index path, so `assert \"ledger\" not in text` fails on the path, not on a ledger row, for all three tests. The fix is at the assertion, not a clamp: `_assert_no_ledger_block` asserts the absence of the ledger block itself (its header line and any period row) rather than a substring that an index path may carry, and the reader is unchanged. The declared negative control was reproduced independently rather than accepted: appending `render_ledger_rows` output to both index-report returns in a scratch copy of the head watch.py reddens exactly the three guarded tests (3 failed, EXIT=1, logs/review-negative-control.log); mutated to the missing-index return alone it reddens only test_a_missing_index (1 failed), which confirms the two unreadable-path tests are guarded by their own return. Note on the plan's wording: the done-when says 'the three tests still fail if the reader prints a ledger block beside an index report', and the declared control names only the missing-index report; reaching all three requires the mutation on both index-report returns, which is what the reviewed run did and this review reproduced. ruff check imas_ambix tests exits 0 (logs/review-ruff.log). The commit is entirely inside its declared write paths and changes no reader. No findings.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T095442531219-review-of-srw-watch-tests-read-ledger-absence-from-rows",
+  "reviewed_base_sha": "375cbe6fb64b6a3bd719af8df3fd3e398542fe40",
+  "reviewed_head_sha": "e5f415bcdf472940691ef8a1c4dfde765b8358c9",
+  "reviewed_run_id": "r-20261005T094714092208-srw-watch-tests-read-ledger-absence-from-rows",
+  "reviewer": "review-of-srw-watch-tests-read-ledger-absence-from-rows",
+  "scores": {
+    "durability": 17,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T10:03:00+00:00",
+  "total": 90
+}

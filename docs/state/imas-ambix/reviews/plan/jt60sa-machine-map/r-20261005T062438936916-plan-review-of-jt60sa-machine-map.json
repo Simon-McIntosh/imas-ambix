@@ -1,0 +1,96 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T06:27:59.089Z",
+  "dispatched_at": "2026-10-05T06:24:44Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html#s7",
+      "id": "reuse_search-1",
+      "reason": "naming the owner turns \"build a comparator\" into \"add a SELENE reference loader to the existing judge\", which removes a module from the plan and is the reuse claim it makes in prose if it is true.",
+      "text": "the plan says the SELENE comparison \"is the MAST benchmark pattern with SELENE in EFIT's seat\" but does not cite imas_ambix/eval/efit_referee.py, whose judge_geometry/GeometryVerdict already computes boundary RMS, axis position and q comparison from any injected loader",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html#s6",
+      "id": "reuse_search-2",
+      "reason": "the reusable part is the psi/GS-integral kernel (_integrated_current), not the entry point, so \u00a76 must name the generalization step or drop the reuse claim; left uncited it reads as a working instrument and silently becomes new code.",
+      "text": "the plan claims \"the ambix convention scorer ... is the same instrument that measured the DIII-D challenge corpus\", but the only shipped scorer, imas_ambix/challenge/convention.py:266 measure_diiid_convention, reads DIII-D-specific keys (efit_psirz, efit_grid_R, magnetics_bcoil, DIIID_CONVENTION) and accepts no EQDB/SELENE record",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/eval/efit_referee.py:272",
+      "id": "duplicate_owner-1",
+      "reason": "extending the owner (adding a SELENE loader and its firewall tier) is the honest change; a parallel comparator forks the same metric and the two drift, and the file is the one a reader will edit next.",
+      "text": "the \u00a77 gate describes boundary-distance, axis-position and q95 scored against SELENE as new work, but judge_geometry already owns \"score model geometry against a reference equilibrium\" and is loader-injectable",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html#s3",
+      "id": "duplicate_owner-2",
+      "reason": "the plan opened the code, named the owner, gave the dependency-isolation reason, and pre-committed the trigger (a second remote facility makes a shared core cheaper), so the duplication is a reasoned decision rather than an unseen one.",
+      "text": "the \u00a73 extractor is a second ssh/remote-execution path beside imas-codex's (imas_codex/remote/executor.py, ssh_worker.py, serialization.py)",
+      "type": "duplicate_owner",
+      "would_change": false
+    },
+    {
+      "anchor": "imas_ambix/data/description_reader.py:81",
+      "id": "duplicate_owner-3",
+      "reason": "if JT-60SA geometry reaches the private kernel it must flow through this owner, so \u00a74 should name it as the extension point and say how the md netCDF addressing and the probe-angle branch resolve per machine, or the \u00a74 done-when \"zero machine-name branches\" is asserted at a layer below the one that has the branch.",
+      "text": "\u00a74 targets geometry_table_from_description (the machine-agnostic adapter) but not read_geometry_table, the file's own \"sole machine-description acquisition route\", which still resolves a fixed store_format/store_root and carries a `machine == \"mast\"` branch",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "44c899febeb577208e7325e7f7bef905fe5224066ecddf11a4e350135d03c4c2",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 15,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T06:32:04.030212+00:00"
+    },
+    "duplicate_owner-2": {
+      "action": "declined",
+      "by": "",
+      "reason": "the plan already names imas-codex's remote layer, gives the dependency-isolation reason, and states the trigger (a second ambix facility) at which a shared core is extracted; the review marks it as not changing the plan",
+      "when": "2026-10-05T06:32:04.939433+00:00"
+    },
+    "duplicate_owner-3": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T06:32:04.494414+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T06:32:03.133197+00:00"
+    },
+    "reuse_search-2": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T06:32:03.582882+00:00"
+    }
+  },
+  "review_run_id": "r-20261005T062438936916-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "f727c250f2bb5fa895a486c06292f2aee42f6058",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new towkamap exporter is one function that hides directory/group/globals/templating generation, and the extractor hides one ssh batch, array serialization and cache write behind one batch-fetch entry plus one cache writer; no spread of shallow wrappers over one mechanism.",
+    "duplicate_owner": "a finding \u2014 the \u00a77 reconstruction gate re-implements model-vs-reference equilibrium scoring that imas_ambix/eval/efit_referee.py:judge_geometry already owns.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface (\u00a72 exporter, \u00a73 extractor+cache, \u00a77 EQDB reader) states in its own text \"it retires nothing, because ...\", and \u00a73 adds that it adds no `ambix data` command.",
+    "reuse_search": "a finding \u2014 the plan names the \"MAST benchmark pattern\" and \"the ambix convention scorer\" as machinery it reuses, but the concrete owners are not cited and the scorer as shipped (imas_ambix/challenge/convention.py) is bound to the DIII-D corpus schema it cannot read SELENE through.",
+    "thin_wrapper": "pass \u2014 each new thin layer states in its own text why the existing mechanism cannot be extended instead (the loaders must not learn towkamap; importing imas-codex's remote layer would make it a runtime dependency of every ambix read; the cache shares the path owner and zarr layout but takes none of the manifest/download machinery)."
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T06:31:53.000119+00:00"
+}

@@ -1,0 +1,50 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "local",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-09-25T13:26:10Z",
+  "dispatched_at": "2026-09-25T13:14:05Z",
+  "findings": [
+    {
+      "file": "tests/test_agent_lane_sglang.py:19-33",
+      "line": "19-33",
+      "text": "The SGLang parser test does not assert the new generation_tokens field, and LaneCapacity declares that field compare=False at imas_ambix/agent/lane.py:98. The current parser is correct (an independent positive control reads generation_tokens=104 from the fixture), but omitting the assignment would leave the equality test green and silently keep the controller on the memory rule; add a direct assertion for the counter in the lane-reader test."
+    }
+  ],
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "call_sites": "no unreviewed production call sites found",
+    "diff": "Read a39e6111..619dc060: eight commits, six changed paths, 1081 insertions and 18 deletions. The source change adds the cumulative generation-token reading, a bounded throughput search, health guards, integer-to-auto handoff and published mode/reason; the test module covers the controller surface, and the plan/evidence record plus convergence figure are updated. The final commit after the last source/test commit changes only the two declared HTML records.",
+    "done_when": "The target manifest's final receipt reports the amended three-module gate at 36 passed and whole-tree Ruff exit 0 on a6965051; 619dc060 is docs-only after that receipt. I independently reran the controller module at 619dc060: 16 passed in 0.56 s. The full two-file named gate could not bind its localhost aiohttp fixtures in this review sandbox (8 unrelated socket-bind failures), so that environmental refusal is retained in independent-review-gate-retry.log rather than presented as a source failure.",
+    "goal": "The controller required by \u00a714 part (1) is present and exercised: it differences the cumulative counter, searches by \u00b12 with a noise margin, converges from the memory-cap start and from below the knee, respects the memory ceiling and per-stream floor, holds without demand, reacts to sustained prefix/KV/per-stream health, discards counter resets, preserves an integer-to-auto handoff, and publishes width_mode and width_reason. Production deployment and the speculative-depth/served-settings work remain explicit follow-ons in the target manifest.",
+    "manifest": "The target manifest is complete at orientation base a39e6111 and head 619dc060, names all eight commits and six changed paths, records the reproduction and negative-control receipts, and separates the remaining deployment/sweep work. The review record is stored parsed with five 0..20 scores and both required review paths.",
+    "write_paths": "git diff --name-only a39e6111 619dc060 contains exactly imas_ambix/agent/router.py, imas_ambix/agent/lane.py, tests/test_agent_router_width_controller.py, the plan HTML, the cumulative evidence HTML and the declared convergence figure; each is within the target manifest's fence, and the target worktree is clean."
+  },
+  "justifications": {
+    "durability": "The new controller module has 16 focused tests covering both starting sides, cap/floor, demand hold, idle sentinel, noisy and sustained health windows, queue-free health, handoff, reset, publication and the converged width. The target's scratch negative controls are real red receipts: the memory substitution reports 6 failed/5 passed, the no-epsilon rule 5 failed/6 passed, the per-scrape health mutation 2 failed, and the demand-gated health mutation 1 failed. I docked durability because the new LaneCapacity counter is excluded from dataclass equality and the existing lane parser test never asserts it, leaving the metric-to-controller seam vulnerable to silent omission; the focused tests also drive private controller state rather than a complete metrics-to-router integration path.",
+    "evidence": "The target's final receipt is quantitative: 36/36 focused tests at a6965051, whole-tree Ruff exit 0, and the negative-control logs quote their mutations and red results. I checked that no source changed between a6965051 and the reviewed head, read the reproduction logs for the idle sentinel and integer-to-auto defects, and independently ran 16/16 controller tests at 619dc060. The positive parser control reads generation_tokens=104 from the checked-in SGLang fixture. I docked for the missing direct parser assertion and because the review sandbox's full gate could not open localhost sockets; the target's own full receipt remains the usable integrated result.",
+    "fit": "The implementation keeps pool arithmetic as a ceiling, uses the canonical engine counter role, documents counter reset and demand semantics, and publishes the controller's mode and reason in the existing lane document. The convergence figure is committed under the declared project-absolute figure path, and the plan/evidence update records the measured limits, controls and un-deployed status. I docked only for the test seam's reliance on private fields and the missing explicit assertion for the newly threaded lane metric.",
+    "goal_fidelity": "The node's scoped goal is the \u00a714 part (1) width controller, not the later quiet-lane sweep or an authorised production relaunch. The implementation and 16 focused tests cover the amended done-when from both starts, the knee tolerance, memory cap, controller floor, demand hold, prefix-hit response, publication, counter reset and both handoff corrections. The target manifest honestly leaves deployment, the sweep and live-window re-derivation as follow-ons, so those omissions do not reduce fidelity to this node's goal.",
+    "scope_discipline": "The target worktree is clean and its eight commits touch only the six declared paths. The final source/test commit is a conventional implementation change with a body; the later 619dc060 commit is limited to the two declared HTML records. No deployment, router restart, operator-file edit, sweep, or out-of-fence mutation is claimed."
+  },
+  "model": "gpt-5",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20260925T102202073023-s14-width-controller at head 619dc060430c94853641a9148c5f1d645aaf0d35 against base a39e611107f4533df43eb47e8f478e36f16ab211.\n\nVERDICT goal: the scoped \u00a714 part (1) width controller is implemented and tested; production deployment, the speculative-depth sweep and served-settings re-derivation remain explicit follow-ons.\nVERDICT done_when: the target's final receipt reports 36/36 focused tests and whole-tree Ruff exit 0 at a6965051, with the reviewed head 619dc060 docs-only after that source/test commit; an independent controller-module rerun at the reviewed head is 16 passed in 0.56 s. The full two-file rerun in this sandbox is recorded separately as an environmental localhost socket-bind refusal, not a code failure.\nVERDICT write_paths: a39e6111..619dc060 contains exactly the six paths declared by the target manifest, and the target worktree is clean.\nVERDICT manifest: the target manifest is complete, names all eight commits and six paths, records reproduction and negative-control receipts, and leaves deployment/sweep work as follow-ons; this review record is parsed with five bounded scores and stored at both required paths.\nVERDICT diff: the implementation adds cumulative generation-token plumbing, a bounded noisy throughput search, demand-independent health guards, integer-to-auto handoff preservation, publication fields and focused tests, plus the declared plan/evidence/figure updates.\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: the amended part (1) contract is covered from starts 36 and 4, below the default memory floor, under a cap, with a per-stream floor, demand hold, prefix/KV/health guards, reset discard, auto handoff and publication. The target does not claim the separately authorised deployment or remaining sweep work.\nSCORE evidence: 17\nJUSTIFICATION evidence: the target's 36/36 integrated receipt, Ruff receipt, reproduction logs and four red scratch controls are quantitative; the controller module independently reruns 16/16. The counter parser is currently positive at 104 but lacks a direct assertion because compare=False makes the existing equality test insensitive, and the review sandbox could not bind localhost fixtures.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the clean target worktree and git diff contain exactly the six fenced paths; no live service or operator file was changed.\nSCORE durability: 15\nJUSTIFICATION durability: the 16 focused tests and real red controls protect the controller algorithm, but the metric-to-controller seam has no direct parser assertion and the tests reach private state rather than exercising the full published metrics path.\nSCORE fit: 18\nJUSTIFICATION fit: the code comments explain mechanism and provenance, the figure is committed at the declared project-absolute path, the HTML evidence is cumulative and the un-deployed boundary is explicit; only the unasserted counter seam and private-state test style reduce maintainability.\nFINDING tests/test_agent_lane_sglang.py:19-33 The parser test omits an assertion for generation_tokens, while LaneCapacity marks that field compare=False. The current fixture parses generation_tokens=104, but omitting the assignment would keep the equality test green and silently disable measured throughput control; add the direct assertion.\n",
+  "review_run_id": "r-20260925T131355843412-review-of-s14-width-controller",
+  "reviewed_base_sha": "a39e611107f4533df43eb47e8f478e36f16ab211",
+  "reviewed_head_sha": "619dc060430c94853641a9148c5f1d645aaf0d35",
+  "reviewed_run_id": "r-20260925T102202073023-s14-width-controller",
+  "scores": {
+    "durability": 15,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-25T15:21:21+02:00",
+  "total": 90
+}

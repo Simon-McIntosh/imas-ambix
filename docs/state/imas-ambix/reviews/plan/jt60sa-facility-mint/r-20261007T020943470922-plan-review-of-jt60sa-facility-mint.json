@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T02:14:41.197Z",
+  "dispatched_at": "2026-10-07T02:09:57Z",
+  "findings": [
+    {
+      "anchor": "packages/imas-alambic/src/imas_alambic/machine_map.py:204",
+      "id": "duplicate_owner-1",
+      "reason": "if \u00a78 does not state that its home-derived default becomes the `IMAS_ALAMBIC_MAP_PATH` search root consumed by `discover_bundles`, the author will add a second map-path resolver beside the one at machine_map.py:204 and the two will drift.",
+      "text": "\u00a78 lists `IMAS_ALAMBIC_MAP_PATH` (level 2) and the home-derived default `$IMAS_ALAMBIC_HOME/maps/current` (level 3) as the sources for the maps, but the file that owns map-path resolution is `discover_bundles` at `packages/imas-alambic/src/imas_alambic/machine_map.py:182`-`222`, which reads `IMAS_ALAMBIC_MAP_PATH` itself and is the sole consumer of the search root; \u00a78 names `resolve_description_store_root` (for the retired cache key) but never names `discover_bundles` for the map default, so the new facility default can be resolved in parallel to the owner rather than fed into it",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "packages/imas-alambic/src/imas_alambic/machine_map.py:1121",
+      "id": "thin_wrapper-1",
+      "reason": "two unrelated things both named \"layout\" will be read as one, and the plan should name the distinction and say why the catalogue-level mechanism is not the one extended.",
+      "text": "\u00a79 introduces a bundle-level `\"layout\": \"flat\"` (with vocabulary flat/multi-machine) while the codebase already carries a layout mechanism for the same description store: the `description_store_layout` field at machine_map.py:1121, its vocabulary `_DESCRIPTION_STORE_LAYOUTS = {\"per-shot\", \"static-over-map\"}` at machine_map.py:36, and its consumer at packages/imas-alambic/src/imas_alambic/pulse_mint.py:144; \u00a79 says the resolvers \"read either layout\" but does not state why the existing `description_store_layout` cannot carry the flat/multi-machine distinction, nor how the two axes compose when a flat bundle declares a store root",
+      "type": "thin_wrapper",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "339e58cfbc14df4f029a16dd3de1df8de3f169b686013add5ae7b7cd11e0458d",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 39,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "duplicate_owner-1",
+      "reason": "v40 s8: the home-derived map default is not resolved separately; it joins the search path discover_bundles (machine_map.py:182) reads, as if IMAS_ALAMBIC_MAP_PATH named it, so discover_bundles stays the one owner.",
+      "when": "2026-10-07T02:15:44.668677+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "thin_wrapper-1",
+      "reason": "v40 s9: the bundle 'layout' key is dropped; a flat bundle declares \"machine\": \"<name>\" and a multi-machine one \"machines\": [...], so the key present selects addressing with no new vocabulary; s9 states description_store_layout (per-shot/static-over-map) is the orthogonal axis of how a store is keyed over shots, and a flat bundle declares it as before.",
+      "when": "2026-10-07T02:15:44.673196+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v40 s8: the home-derived map default is not resolved separately; it joins the search path discover_bundles (machine_map.py:182) reads, as if IMAS_ALAMBIC_MAP_PATH named it, so discover_bundles stays the one owner.",
+      "when": "2026-10-07T02:15:44.668677+00:00"
+    },
+    "thin_wrapper-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v40 s9: the bundle 'layout' key is dropped; a flat bundle declares \"machine\": \"<name>\" and a multi-machine one \"machines\": [...], so the key present selects addressing with no new vocabulary; s9 states description_store_layout (per-shot/static-over-map) is the orthogonal axis of how a store is keyed over shots, and a flat bundle declares it as before.",
+      "when": "2026-10-07T02:15:44.673196+00:00"
+    }
+  },
+  "review_run_id": "r-20261007T020943470922-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "99fe37cc18caaacc8c3ada9e8448ac04fedde76d",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a79 hides flat/multi-machine directory addressing behind `MapBundle`'s two path accessors plus the store-root resolver, and \u00a78 hides a four-level precedence ladder behind one settings resolver with `config` as its inspection view; both present a small interface over substantial behaviour.",
+    "duplicate_owner": "a finding \u2014 \u00a78 derives the map default `$IMAS_ALAMBIC_HOME/maps/current` without naming `discover_bundles`, the owner of the map search path that consumes `IMAS_ALAMBIC_MAP_PATH`, so the derived default risks a second resolution path beside the owner.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a78 accounts for each surface it adds against a retirement (`IMAS_ALAMBIC_HOME`\u2192\u00a74 `env.sh`, `IMAS_ALAMBIC_IDS_ROOT`\u2192required `--out`, `IMAS_ALAMBIC_CACHE`\u2192the machine-named store-root key, `--overwrite`\u2192silent replacement of an existing file, `--run` stated as a new coordinate), \u00a79 states \"No refusal family is added\", and \u00a77's `mint`\u2192`write` is a rename, not an addition.",
+    "reuse_search": "pass \u2014 \u00a71 runs a re-runnable, verifiable census (re-run here, it returns exactly the 20 files \u00a71 lists) and \u00a79 extends the existing bundle resolvers by name (`MapBundle.machine_map_path`/`signal_map_path`, `load_bundle_descriptor`, `resolve_description_store_root`), so the plan searched the codebase it is about to extend.",
+    "thin_wrapper": "a finding \u2014 \u00a79 adds a second concept named \"layout\" (a bundle `\"layout\"` key) beside the catalogue's existing `description_store_layout`, without stating why that existing mechanism cannot express a flat bundle."
+  },
+  "section_digests": {
+    "_document": "2d17566147222e851c26e944a58262704c9bbcabc81bc90bc619eed262ed76eb",
+    "s1": "6651e63275c4e04babee6561156d979872ff4e6afe804378bb9c9466b64ed5c7",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "56812a38380cfae64d6f806e8c53db03be6427472f3ea0a000d60ef09c723453",
+    "s6": "1ccc061c74e3a3eab0fbd07825bc5bf11d8207248d01b1a9aecba35a37e20560",
+    "s7": "8c5f7724383f68ff8363e74b3048d56c7c65de031315418c74383b05513f3556",
+    "s8": "118bdd84a8a9685724d270c60a94768775bedb044145beb69c66643968a8c87c",
+    "s9": "3c93e7c7c121e0a3f2281f6d4fa6a20261389739c88517861329db65ded9366c"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T02:15:44.659288+00:00"
+}

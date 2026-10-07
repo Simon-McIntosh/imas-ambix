@@ -1,0 +1,79 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T03:14:47.931Z",
+  "dispatched_at": "2026-10-06T03:09:55Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/cocos_convention.py:490",
+      "id": "duplicate_owner-1",
+      "reason": "forces \u00a76 to state whether it generalises `read_level2_observation` (as it does `challenge/convention.py`) or adds a parallel EDDB observation reader, so the duplicated reader is either avoided or justified in the section that needs it.",
+      "text": "\u00a76 says JT-60SA will \"supply an observation cohort\" to `score_convention`, and it correctly identifies the scorer's owner, but it never names the owner of the reader that produces a `ShotSignObservation`: `read_level2_observation` is the sole producer in the tree (nothing else imports or constructs the type), and it is hard-wired to the MAST level-2 zarr layout and MAST channel names (`magnetics/ip`, `magnetics/flux_loop_flux`, `equilibrium/psi` under `{root}/{shot}.zarr`). A JT-60SA cohort can therefore only come from a second observation reader over the \u00a73 EDDB store, which \u00a76 neither cites nor generalises nor forbids \u2014 whereas \u00a76 generalises the analogous equilibrium-side entry point explicitly.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/eddb_remote.py:283 (plan \u00a77)",
+      "id": "thin_wrapper-1",
+      "reason": "the section should either extend the \u00a73 extractor (a call it already owns) or state in its own text why the EQDB call cannot ride it, which changes how \u00a77's node is scoped.",
+      "text": "\u00a77's EQDB reader \"adds one remote script and one fetch entry beside the \u00a73 extractor's\" and justifies this only by \"reuses its ssh transport\". Reusing `SshTransport` does not answer why the extractor's own `RemoteEddbExtractor`/`encode_batch`/`decode_batch` machinery (the per-batch request/refusal contract, the module-loaded-python remote command, the niced process) cannot be extended to issue the `eqdbget` call, so the plan is adding a parallel script over shared infrastructure without the \"why this cannot be an extension\" statement the item requires.",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/challenge/convention.py:315 (plan \u00a76)",
+      "id": "interface_budget-1",
+      "reason": "the interface-budget rule requires \u00a76 to carry the retire/merge-or-why-not clause for the surface it changes, as \u00a72/\u00a74/\u00a75/\u00a77 already do for theirs.",
+      "text": "\u00a76 generalises the public entry point `measure_diiid_convention`, moves the exported constants `MINIMUM_AUDIT_SHOTS`, `MINIMUM_PLASMA_CURRENT_KA`, `STANDARD_FIELD_BCOIL_MAXIMUM` (all listed in `__all__`) into per-loader declarations, and adds a SELENE loader and a FAME loader. It says the kernel is \"reused rather than rewritten\", which accounts for the scorer family, but it does not name what its own public-definition change retires or merges (the fate of the three exported names, and whether `measure_diiid_convention` is renamed or kept) nor why nothing can be.",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "40b2dcd0ef6fdf541c035495bd36d3d09172cce8031ddb6c2912fa29bbb07b08",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 92,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "coordinator",
+      "reason": "Valid, and scoped to section 6, which the two section 4 nodes being dispatched (the JT-60SA catalogue and the selector rank repair) do not touch. Section 6's text will name read_level2_observation as the observation reader it generalises for the EDDB store, or state why a parallel reader is needed before any section 6 node is dispatched; that edit gets its own review.",
+      "when": "2026-10-06T03:16:33.108190+00:00"
+    },
+    "interface_budget-1": {
+      "action": "declined",
+      "by": "coordinator",
+      "reason": "Valid, and scoped to section 6, which the two section 4 nodes being dispatched (the JT-60SA catalogue and the selector rank repair) do not touch. Section 6's text will name the fate of measure_diiid_convention and the three exported eligibility constants before any section 6 node is dispatched; that edit gets its own review.",
+      "when": "2026-10-06T03:16:33.111203+00:00"
+    },
+    "thin_wrapper-1": {
+      "action": "declined",
+      "by": "coordinator",
+      "reason": "Valid, and scoped to section 7, which the two section 4 nodes being dispatched (the JT-60SA catalogue and the selector rank repair) do not touch. Section 7's text will state whether the eqdbget call extends RemoteEddbExtractor's batch contract or why it cannot before any section 7 node is dispatched; that edit gets its own review.",
+      "when": "2026-10-06T03:16:33.109969+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T030945305456-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "4076a626107b96d53ceb20de927bdbbbe690ade2",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the surface the plan adds is small and hides real behaviour behind it: one `export_tokamap_directory` for the whole unit\u00d7sign\u00d7COCOS collapse, one `struct_array_entry` binding-selection slot composed into the existing traversal, and one grid writer beside `write_channel` sharing the store's invariants rather than restating them.",
+    "duplicate_owner": "a finding \u2014 \u00a76 names the owner of the convention *scorer* but not the owner of the observation *reader*, so it silently proposes a second producer of `ShotSignObservation` rather than extending `imas_ambix/data/cocos_convention.py:490 read_level2_observation`.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a76 changes the exported surface of `imas_ambix/challenge/convention.py` without naming in its own text what that family retires or merges, or why nothing can be.",
+    "reuse_search": "pass \u2014 the plan searched both named codebases and, for each mechanism it extends, cites the existing owner (transform engine, eddb store, cocos scorer, challenge/v3 loaders, forward operator, artifact resolver, shots module, EFIT referee); I verified each file exists and matches the plan's account.",
+    "thin_wrapper": "a finding \u2014 the \u00a77 EQDB reader adds a second remote-extraction script beside the \u00a73 extractor while the plan argues only that it reuses the ssh transport, not why the existing extractor cannot carry the EQDB call."
+  },
+  "section_digests": {
+    "_document": "81c30464997a0bb8e491a2ec9da6b8861cd25ff2cfad20808b2f114dc78a477d",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "978348f9ca560d52451e65fd8e70efba5d44976616b33aa9e3cef8464d8b75a2",
+    "s5": "b8fd563c68e5e8518654b5d37d9929467a10f841b4291cd34c629a84f4798199",
+    "s6": "b61354a632fd81f227422c6c51c361bb59de062a5fa39a99fbec3279af74370f",
+    "s7": "ae2174e4845ce08936def8d3d6eafed254620d52bf8fb710080e045bbefb8083",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T03:16:12.967165+00:00"
+}

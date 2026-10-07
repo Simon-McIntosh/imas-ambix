@@ -1,0 +1,58 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/watch.py:_span",
+    "imas_ambix/agent/watch.py:_cached_span",
+    "imas_ambix/agent/watch.py:period_row"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T10:36:33.178474+00:00",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "1105",
+      "text": "the coverage figure sums each run's clipped span instead of taking the union its docstring promises at imas_ambix/agent/telemetry_index.py:257, so runs from concurrent recorders that overlap in time double-count wall clock and inflate the denominator the plan's throughput and utilisation queries divide by."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "1104",
+      "text": "a run whose only in-window reading is its opening is differenced against itself, taking total from None to 0.0, though the docstring promises None when no run of the window had two endpoints to difference -- a window the record never bracketed then reports a measured zero rather than declining."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "read commit by commit against 1ed11332 -- 2d4a115a adds the partition and rewrites the two tests that had encoded the single-difference behaviour, and 464f6506 is docs-only (evidence record, figure, plan comment), which I verified leaves the gated code byte-identical to the reviewed head.",
+    "done_when": "the done_when names two assertions plus the serving-interpreter guard and whole-tree lint; tests/test_telemetry_index.py:558 asserts 200.0 for a window spanning two serves beside the negative counter_span at tests/test_telemetry_index.py:551, tests/test_telemetry_index.py:594 asserts 10.0 of coverage for a 100 s window, and my re-run of both files at the reviewed head is 55 passed with 1 passed for the registry guard and ruff clean.",
+    "goal": "the goal asks for a window totalled by partitioning it into contiguous counter runs, summing the per-run differences, and reporting the runs' union as the window's coverage; TelemetryIndex.partitioned_total (imas_ambix/agent/telemetry_index.py:1064) returns the total, the contributing run count and the coverage behind it through _counter_runs (imas_ambix/agent/telemetry_index.py:553), and watch.period_row reads it at imas_ambix/agent/watch.py:485 and imas_ambix/agent/watch.py:499.",
+    "manifest": "read and its load-bearing claims re-derived rather than believed -- my re-run at the reviewed tree resolves imas_ambix to the partitioned-totals worktree and reports 55 passed, logs/gate-partition-semantics.log carries the three named partition tests at 3 passed, logs/negative-control.log repeats the declared string verbatim as its first line with the three named tests red, and the figure artifact exists as a 1080x450 PNG under the declared figures directory.",
+    "write_paths": "the manifest declares seven paths -- two agent modules, two test files, the evidence archive, the figures directory and the plan -- and git diff --numstat 1ed11332 464f6506 lists exactly those seven paths and nothing else."
+  },
+  "justifications": {
+    "durability": "reinstating the outermost-difference defect reddens all three tests the gate names, the coverage assertion among them at tests/test_telemetry_index.py:594, and the two rewritten tests now assert the partitioned behaviour instead of encoding the old one; docked because that coverage test concedes at tests/test_telemetry_index.py:593 that the runs are disjoint, so neither the sum-versus-union departure nor the single-reading-run total has a test that would redden on it.",
+    "evidence": "the three gate logs exist with revision 2d4a115a and the worktree in their headers, the control's first line matches the declared string verbatim and reddens the coverage assertion at tests/test_telemetry_index.py:594, and my own re-run at 464f6506 is 55 passed / 1 passed / ruff clean -- docked because the logs name the code commit while the reviewed head is a later docs-only commit, a link the record leaves to its reader.",
+    "fit": "PartitionedTotal follows the module's frozen-dataclass IngestReport-style precedent at imas_ambix/agent/telemetry_index.py:253 and 239, the helpers carry why-first docstrings in the surrounding idiom, and the naming checks over the added lines are clean.",
+    "goal_fidelity": "imas_ambix/agent/telemetry_index.py:1105 sums each run's clipped span into coverage, which equals the goal's \"union of those runs\" only while the runs are disjoint -- true for today's single recorder and wrong for the concurrent per-model recorders the plan's own later node introduces.",
+    "scope_discipline": "every path in git diff --numstat 1ed11332 464f6506 is inside the manifest's seven declared write paths, the plan hunk touches neither the plan-version nor the plan-modified meta line, and the naming checks over all 258 added lines return nothing."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the goal asks for a window totalled by partitioning it into contiguous counter runs, summing the per-run differences, and reporting the runs' union as the window's coverage; TelemetryIndex.partitioned_total (imas_ambix/agent/telemetry_index.py:1064) returns the total, the contributing run count and the coverage behind it through _counter_runs (imas_ambix/agent/telemetry_index.py:553), and watch.period_row reads it at imas_ambix/agent/watch.py:485 and imas_ambix/agent/watch.py:499.\nVERDICT done_when: the done_when names two assertions plus the serving-interpreter guard and whole-tree lint; tests/test_telemetry_index.py:558 asserts 200.0 for a window spanning two serves beside the negative counter_span at tests/test_telemetry_index.py:551, tests/test_telemetry_index.py:594 asserts 10.0 of coverage for a 100 s window, and my re-run of both files at the reviewed head is 55 passed with 1 passed for the registry guard and ruff clean.\nVERDICT write_paths: the manifest declares seven paths -- two agent modules, two test files, the evidence archive, the figures directory and the plan -- and git diff --numstat 1ed11332 464f6506 lists exactly those seven paths and nothing else.\nVERDICT manifest: read and its load-bearing claims re-derived rather than believed -- my re-run at the reviewed tree resolves imas_ambix to the partitioned-totals worktree and reports 55 passed, logs/gate-partition-semantics.log carries the three named partition tests at 3 passed, logs/negative-control.log repeats the declared string verbatim as its first line with the three named tests red, and the figure artifact exists as a 1080x450 PNG under the declared figures directory.\nVERDICT diff: read commit by commit against 1ed11332 -- 2d4a115a adds the partition and rewrites the two tests that had encoded the single-difference behaviour, and 464f6506 is docs-only (evidence record, figure, plan comment), which I verified leaves the gated code byte-identical to the reviewed head.\nCALL_SITES: imas_ambix/agent/watch.py:_span, imas_ambix/agent/watch.py:_cached_span, imas_ambix/agent/watch.py:period_row\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/agent/telemetry_index.py:1105 sums each run's clipped span into coverage, which equals the goal's \"union of those runs\" only while the runs are disjoint -- true for today's single recorder and wrong for the concurrent per-model recorders the plan's own later node introduces.\nSCORE evidence: 19\nJUSTIFICATION evidence: the three gate logs exist with revision 2d4a115a and the worktree in their headers, the control's first line matches the declared string verbatim and reddens the coverage assertion at tests/test_telemetry_index.py:594, and my own re-run at 464f6506 is 55 passed / 1 passed / ruff clean -- docked because the logs name the code commit while the reviewed head is a later docs-only commit, a link the record leaves to its reader.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: every path in git diff --numstat 1ed11332 464f6506 is inside the manifest's seven declared write paths, the plan hunk touches neither the plan-version nor the plan-modified meta line, and the naming checks over all 258 added lines return nothing.\nSCORE durability: 17\nJUSTIFICATION durability: reinstating the outermost-difference defect reddens all three tests the gate names, the coverage assertion among them at tests/test_telemetry_index.py:594, and the two rewritten tests now assert the partitioned behaviour instead of encoding the old one; docked because that coverage test concedes at tests/test_telemetry_index.py:593 that the runs are disjoint, so neither the sum-versus-union departure nor the single-reading-run total has a test that would redden on it.\nSCORE fit: 20\nJUSTIFICATION fit: PartitionedTotal follows the module's frozen-dataclass IngestReport-style precedent at imas_ambix/agent/telemetry_index.py:253 and 239, the helpers carry why-first docstrings in the surrounding idiom, and the naming checks over the added lines are clean.\nFINDING imas_ambix/agent/telemetry_index.py:1105 the coverage figure sums each run's clipped span instead of taking the union its docstring promises at imas_ambix/agent/telemetry_index.py:257, so runs from concurrent recorders that overlap in time double-count wall clock and inflate the denominator the plan's throughput and utilisation queries divide by.\nFINDING imas_ambix/agent/telemetry_index.py:1104 a run whose only in-window reading is its opening is differenced against itself, taking total from None to 0.0, though the docstring promises None when no run of the window had two endpoints to difference -- a window the record never bracketed then reports a measured zero rather than declining.",
+  "review_run_id": "r-20260923T103633178474-review-of-partitioned-totals-and-honest-coverage",
+  "reviewed_base_sha": "1ed1133250c0eac38787dd968c141aaead54f7e8",
+  "reviewed_head_sha": "464f6506f8dbc5d5ec2c649decfc24ed7ac35180",
+  "reviewed_run_id": "r-20260923T093113870760-partitioned-totals-and-honest-coverage",
+  "scores": {
+    "durability": 17,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 18,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-23T10:52:47.999025+00:00",
+  "total": 94
+}

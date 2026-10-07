@@ -1,0 +1,66 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "local",
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:219",
+    "imas_ambix/agent/slurm.py:90",
+    "imas_ambix/agent/cli.py:308",
+    "imas_ambix/agent/router.py:1245",
+    "imas_ambix/agent/serving_receipts.py:124"
+  ],
+  "completed_at": "2026-09-26T10:20:40.091Z",
+  "dispatched_at": "2026-09-26T09:25:09Z",
+  "findings": [
+    {
+      "file": "docs/plans/local-lane-admission-control.html",
+      "line": "807",
+      "text": "\"This node's write paths reach no test path\" is false -- the declared fence includes tests and the diff edits tests/test_agent_pool_and_hicache.py and tests/test_agent_sweep_options.py -- and the same sentence is repeated at docs/evidence/archive/local-lane-admission-control-landed.html:1804 beside a manifest that does carry the red log, so the sentence should be corrected or the requirement it denies restated."
+    },
+    {
+      "file": "docs/plans/local-lane-admission-control.html",
+      "line": "803",
+      "text": "the faithful-render counts (0 and 0) are the evidence the landing paragraph rests on, but that run left no persisted log -- the run directory holds dryrun-plain.txt, dryrun-worktree.txt and negative-control.txt only -- so a later reader cannot open the command or the output that produced the headline counts."
+    },
+    {
+      "file": "imas_ambix/agent/AGENTS.md",
+      "line": "1692",
+      "text": "the agent guide still states the committed tuning carries DSpark speculative decoding with both keys, which the landed change makes false; the node reported it as a follow-on, but it is now false documentation for the next operator and needs its own node."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 5 production call site(s)",
+    "diff": "Read commit by commit against base 053513de: the profile loses both keys and gains a comment block recording the measured curve (lines 183-211), two pool/hicache assertions invert to assert absence, the sweep-options tests take an injected DSpark profile so the --dspark-block-size override path stays exercised, and the plan paragraph, cumulative evidence section and SVG land with them.",
+    "done_when": "The done_when names the two removed keys, the two dry-run counts, the four-file gate, the lint gate and the verbatim negative control; I re-ran the gate at head (44 passed, EXIT=0, gate-at-head.txt) and read every recorded element, and each one holds.",
+    "goal": "The goal is that the deepseek-v4-1-flash profile serve without speculative decoding by default; at 67acf64f imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:202-203 declares neither speculative_algorithm nor speculative_dspark_block_size, and imas_ambix/agent/slurm.py:90-97 emits no flag for a None value, so the rendered serve script carries none.",
+    "manifest": "Read the reviewed manifest (written 2026-09-26 11:23:36 +0200, about 31 minutes after the 10:52 dispatch); its commit 67acf64f equals `git rev-parse HEAD` in the reviewed worktree, its gate line matches gate.txt, and its follow_ons correctly name the stale agent guide.",
+    "write_paths": "The declared fence covers the profile, tests, the landed evidence record, docs/figures/local-lane-admission-control and the plan; all six files in `git show --stat 67acf64f` sit inside those paths, and the cumulative landed record gained a section with zero deletions."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_pool_and_hicache.py:36-37 fail the moment either key returns to the profile and :64 fails if any render path re-emits --speculative, and the node's own scratch mutation demonstrated exactly that reddening.",
+    "evidence": "gate-at-head.txt records 44 passed, EXIT=0 at 67acf64f with the worktree's own module.__file__, and negative-control.txt:1 repeats the declared mutation verbatim with its mutated render carrying both flags; but the faithful-render counts at docs/plans/local-lane-admission-control.html:803 have no persisted log, and the write-path claim at docs/plans/local-lane-admission-control.html:807 is false.",
+    "fit": "the profile's comment block at imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:183 follows the file's existing measured-curve idiom, and no name in the diff carries a plan label or a version suffix.",
+    "goal_fidelity": "imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:202-203 states the profile declares neither key and the file at 67acf64f carries neither, and tests/test_agent_pool_and_hicache.py:36-37 pass green in the reviewed worktree at that revision.",
+    "scope_discipline": "the six paths in `git show --stat 67acf64f` all sit inside the five fenced paths, and docs/evidence/archive/local-lane-admission-control-landed.html gained 75 lines with zero deletions."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20260926T085150181093-s14-profile-serves-without-speculation\nreviewed_base_sha: 053513decf20d76c58c2beac1e5636514d8029a2\nreviewed_head_sha: 67acf64fd91cf5209eaac41e25f8553ffee60965\n\nVERDICT goal: The goal is that the deepseek-v4-1-flash profile serve without speculative decoding by default; at 67acf64f imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:202-203 declares neither speculative_algorithm nor speculative_dspark_block_size, and imas_ambix/agent/slurm.py:90-97 emits no flag for a None value, so the rendered serve script carries none.\nVERDICT done_when: The done_when names the two removed keys, the two dry-run counts, the four-file gate, the lint gate and the verbatim negative control; I re-ran the gate at head (44 passed, EXIT=0, gate-at-head.txt) and read every recorded element, and each one holds.\nVERDICT write_paths: The declared fence covers the profile, tests, the landed evidence record, docs/figures/local-lane-admission-control and the plan; all six files in `git show --stat 67acf64f` sit inside those paths, and the cumulative landed record gained a section with zero deletions.\nVERDICT manifest: Read the reviewed manifest (written 2026-09-26 11:23:36 +0200, about 31 minutes after the 10:52 dispatch); its commit 67acf64f equals `git rev-parse HEAD` in the reviewed worktree, its gate line matches gate.txt, and its follow_ons correctly name the stale agent guide.\nVERDICT diff: Read commit by commit against base 053513de: the profile loses both keys and gains a comment block recording the measured curve (lines 183-211), two pool/hicache assertions invert to assert absence, the sweep-options tests take an injected DSpark profile so the --dspark-block-size override path stays exercised, and the plan paragraph, cumulative evidence section and SVG land with them.\nCALL_SITES: imas_ambix/agent/cli.py:219, imas_ambix/agent/slurm.py:90, imas_ambix/agent/cli.py:308, imas_ambix/agent/router.py:1245, imas_ambix/agent/serving_receipts.py:124\nSCORE goal_fidelity: 20\nSCORE evidence: 18\nSCORE scope_discipline: 20\nSCORE durability: 20\nSCORE fit: 20\nJUSTIFICATION goal_fidelity: imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:202-203 states the profile declares neither key and the file at 67acf64f carries neither, and tests/test_agent_pool_and_hicache.py:36-37 pass green in the reviewed worktree at that revision.\nJUSTIFICATION evidence: gate-at-head.txt records 44 passed, EXIT=0 at 67acf64f with the worktree's own module.__file__, and negative-control.txt:1 repeats the declared mutation verbatim with its mutated render carrying both flags; but the faithful-render counts at docs/plans/local-lane-admission-control.html:803 have no persisted log, and the write-path claim at docs/plans/local-lane-admission-control.html:807 is false.\nJUSTIFICATION scope_discipline: the six paths in `git show --stat 67acf64f` all sit inside the five fenced paths, and docs/evidence/archive/local-lane-admission-control-landed.html gained 75 lines with zero deletions.\nJUSTIFICATION durability: tests/test_agent_pool_and_hicache.py:36-37 fail the moment either key returns to the profile and :64 fails if any render path re-emits --speculative, and the node's own scratch mutation demonstrated exactly that reddening.\nJUSTIFICATION fit: the profile's comment block at imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:183 follows the file's existing measured-curve idiom, and no name in the diff carries a plan label or a version suffix.\nFINDING docs/plans/local-lane-admission-control.html:807 \"This node's write paths reach no test path\" is false -- the declared fence includes tests and the diff edits tests/test_agent_pool_and_hicache.py and tests/test_agent_sweep_options.py -- and the same sentence is repeated at docs/evidence/archive/local-lane-admission-control-landed.html:1804 beside a manifest that does carry the red log, so the sentence should be corrected or the requirement it denies restated.\nFINDING docs/plans/local-lane-admission-control.html:803 the faithful-render counts (0 and 0) are the evidence the landing paragraph rests on, but that run left no persisted log -- the run directory holds dryrun-plain.txt, dryrun-worktree.txt and negative-control.txt only -- so a later reader cannot open the command or the output that produced the headline counts.\nFINDING imas_ambix/agent/AGENTS.md:1692 the agent guide still states the committed tuning carries DSpark speculative decoding with both keys, which the landed change makes false; the node reported it as a follow-on, but it is now false documentation for the next operator and needs its own node.",
+  "review_run_id": "r-20260926T092458205104-review-of-s14-profile-serves-without-speculation",
+  "reviewed_base_sha": "053513decf20d76c58c2beac1e5636514d8029a2",
+  "reviewed_head_sha": "67acf64fd91cf5209eaac41e25f8553ffee60965",
+  "reviewed_run_id": "r-20260926T085150181093-s14-profile-serves-without-speculation",
+  "scores": {
+    "durability": 20,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-26T10:20:40.001502+00:00",
+  "total": 98
+}

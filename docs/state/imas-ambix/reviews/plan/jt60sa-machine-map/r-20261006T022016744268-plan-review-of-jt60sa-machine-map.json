@@ -1,0 +1,51 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T02:25:31.322Z",
+  "dispatched_at": "2026-10-06T02:20:27Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/gs/operator.py:578",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a76 should extend `gs/operator.py` (which is machine-agnostic by construction, taking the geometry table and coil currents) and say so, or state why Nova's operator is required where ambix's own already covers the identical prediction.",
+      "text": "\u00a76 (plan snapshot line 478) names \"Nova's Biot\u2013Savart operators\" as the instrument that predicts loop flux and probe field from measured coil currents and the declared \u00a74 geometry, but ambix already owns exactly that mechanism: `ForwardOperator.predict(sensor) = G_pf\u00b7I_pf + G_plasma\u00b7c_plasma + G_passive\u00b7c_passive` builds the geometry-only Green's matrices from a geometry table, and `ForwardOperator.vacuum_prediction(i_pf)` is documented as \"the vacuum-field signature\" \u2014 the PF-only term the plan's `_magnetics_residual` vacuum block and the MAST vacuum-stratum validation already use (85 shots); reaching to Nova forks a second forward model for the same physics and makes the \u00a76 per-channel verdicts inconsistent with the \u00a77 reconstruction's own vacuum term",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "c8b2d5b2ac8223c836b8c2bdaadc8a0549ad0b7f503c2711f5dc961f21c89ccf",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 87,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "coordinator",
+      "reason": "Valid, and scoped to section 6 (sign adjudication), which the section 4 static-entry-selector node being dispatched does not touch. Section 6's text will name imas_ambix/gs/operator.py ForwardOperator.vacuum_prediction as the vacuum predictor in place of Nova's operators before any section 6 node is dispatched; that edit gets its own review.",
+      "when": "2026-10-06T02:26:18.302687+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T022016744268-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "cce72eff735f4ed7f0d8d009fae4092800d9e9aa",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new modules hide substantial behaviour behind one entry point each (`eddb_remote.py` transport+batch+refusal behind `fetch_channels`, `selene_deck.py` three deck grammars behind one converter entry, `tokamap_export.py` DD-path derivation + unit/sign/COCOS collapse behind one directory writer), not a spread of shallow wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a76 adopts Nova's Biot\u2013Savart operators as the vacuum predictor for loop-flux and probe-field adjudication, while `imas_ambix/gs/operator.py` already owns a geometry-only forward operator with a PF-only vacuum signature and is the same operator the spine's magnetics residual uses.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every remaining section states what it retires or why nothing can be (\u00a74 retires `read_geometry_table`'s `machine == \"mast\"` branch and widens one binding contract; \u00a75 adds one data file and no public definition or refusal family; \u00a77 adds two record fields and a shot-set set, retiring nothing with the reason given), so no section adds to these families unaccounted.",
+    "reuse_search": "pass \u2014 the plan names and I verified the owner for every mechanism it extends (`load_packaged_signal_map`, `cocos_convention.score_convention`, `efit_referee.judge_geometry`/`read_efit_geometry`, `eddb_remote.SshTransport`, `artifact_resolution.resolve_machine_description`, `shots.BenchShot`), and the one mechanism it adds (the tokamap exporter, the SELENE converter, the EDDB extractor) is genuinely absent from ambix.",
+    "thin_wrapper": "pass \u2014 the one layering the plan introduces at the schema boundary (\u00a74's struct-array name selector, \u00a75's unit spelling table) is explicitly justified as a widening of an existing contract rather than a parallel reader, and \u00a75 names the conversion owners (`signal_map.unit_factor`, `tokamap_export._unit_factor`) it does not duplicate."
+  },
+  "section_digests": {
+    "_document": "81c30464997a0bb8e491a2ec9da6b8861cd25ff2cfad20808b2f114dc78a477d",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "51ac97c47be7a1ece70913a4cd27b4209c42ed5364d09144900c7fde4af294c1",
+    "s5": "b8fd563c68e5e8518654b5d37d9929467a10f841b4291cd34c629a84f4798199",
+    "s6": "c35de046f0a85a90468ca3326027efcdba7affaac3752fb890a1e987d3ba0277",
+    "s7": "ae2174e4845ce08936def8d3d6eafed254620d52bf8fb710080e045bbefb8083",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T02:26:03.716909+00:00"
+}

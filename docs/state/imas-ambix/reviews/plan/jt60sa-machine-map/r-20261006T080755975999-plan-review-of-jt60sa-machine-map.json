@@ -1,0 +1,65 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T08:13:25.823Z",
+  "dispatched_at": "2026-10-06T08:08:03Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/description_reader.py:116",
+      "id": "duplicate_owner-1",
+      "reason": "a JT-60SA shot integer reaching any of these eight sites reads MAST's store rather than being refused, so \u00a74/\u00a77 must make the machine required (or thread the declared machine) at read_geometry_table, or state why the MAST default is safe.",
+      "text": "read_geometry_table declares machine: str = \"mast\", so the machine a shot resolves to has two owners: \u00a77 introduces the declared per-shot-set/catalogue as the authority and states \"the machine is never inferred\", yet this reader infers MAST whenever the keyword is omitted; every no-machine caller in the repository therefore reads MAST's level-2 catalogue for any shot integer \u2014 imas_ambix/gs/grounding.py:473, imas_ambix/tokenizer/signal_hf_encode.py:549, imas_ambix/spine_bench/transform_geometry_source.py:325, imas_ambix/spine_bench/runner.py:273, imas_ambix/latent/data.py:421, imas_ambix/latent/data.py:457, imas_ambix/statespace/enkf_baseline.py:948, imas_ambix/statespace/enkf_baseline.py:956, and the plan's own \u00a74 extension point",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/description_reader.py:53,imas_ambix/spine_bench/transform_geometry_source.py:266",
+      "id": "duplicate_owner-2",
+      "reason": "the plan already enumerates all three, names read_geometry_table as the single owner for the JT-60SA route and justifies leaving the MAST-only paths unchanged, so consolidation is a follow-up rather than a change to this plan.",
+      "text": "probe-angle supply for a geometry table has two implementations: _supply_declared_probe_angles derives angles from an acquisition-address prefix in description_reader, and _supply_probe_orientations joins them by amb_channel from the efm campaign sensor map in spine_bench; \u00a74 enumerates both (plus the dead gs/geometry.load_tables path) and \u00a76 adds a third sourcing (the emitted poloidal_angle) as a description branch inside read_geometry_table, so three code paths now fill the same table field",
+      "type": "duplicate_owner",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "874ca9f642fb4fd1c1fa9113fa65ffdd390b0e5ded1b0673352aab03c02f46b9",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 129,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "coordinator",
+      "reason": "Measured 2026-10-06: read_geometry_table(101173) and read_geometry_table(60033) at the MAST default raise LookupError (shot resolves to 0 machine maps), because MAST maps cover only 11766-30471 and map_for_shot refuses any other integer. A JT-60SA shot reaching a defaulted caller fails loudly rather than reading MAST. Making machine required would change about 60 MAST-only call sites across imas_ambix, scripts and tests with no behavioural change for this plan; a machine whose shot range overlaps MAST is the case worth guarding, and it belongs to the MAST reader owner, not the JT-60SA map.",
+      "when": "2026-10-06T08:50:32.164994+00:00"
+    },
+    "duplicate_owner-2": {
+      "action": "declined",
+      "by": "coordinator",
+      "reason": "The three probe-angle supply paths are enumerated in the plan, which names read_geometry_table as the one owner on the JT-60SA route; the two MAST-only paths predate it, and the review judges consolidation a follow-up outside this plan.",
+      "when": "2026-10-06T08:50:32.166641+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T080755975999-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "dc6492b6a71ec80cfaff588ae2cf5e21abd1e531",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new modules hide substantial behaviour behind interfaces smaller than what they hide: selene_deck.py exposes one entry point (write_phase_description, __all__ = [\"write_phase_description\"]) over three file grammars and five IDSs; eddb_remote.py hides the ssh transport, niced module-loaded remote command and framing behind one request/record pair and RemoteEddbExtractor.fetch_batch; eddb.py hides the pulse-group token, half-written-channel and refuse-to-overwrite invariants behind fetch_channels/write_channel. No spread of shallow wrappers is proposed.",
+    "duplicate_owner": "a finding \u2014 read_geometry_table keeps machine: str = \"mast\" as a defaulted parameter, a second owner of \"which machine does this shot resolve to\" beside the per-shot-set/catalogue declaration \u00a77 introduces, and seven no-machine call sites in the repository therefore silently resolve MAST's catalogue for any shot integer.",
+    "interface_budget": "pass \u2014 supplied counts are public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface names what it retires, merges, or why nothing can \u2014 \u00a72 one exporter \"retires nothing, because ambix has no exporter\"; \u00a73 two modules and two refusal families (EddbRemoteError, EddbCacheError) \"retire nothing, because ambix had no remote reader\"; \u00a74 the struct_array_entry slot \"widens one binding contract and retires nothing\" and the probe-angle key \"retires the machine branch\"; \u00a75 \"adds one data file and no public definition or refusal family\"; \u00a76 retires mast_angle_to_canonical and adds the measure_convention public definition, both stated; \u00a77 the EQDB request/record pair and two record fields each \"retire nothing, because no ... exists\".",
+    "reuse_search": "pass \u2014 the plan searched the codebase it extends and cites the mechanism for nearly every proposal; I opened each named owner and each exists as described: load_packaged_signal_map/PACKAGED_MAP_ROOT (imas_ambix/data/signal_map.py:43,631), read_geometry_table (imas_ambix/data/description_reader.py:113), StoreEngine.open / _read_ids_path (imas_ambix/data/../transform_engine.py), score_convention/score_conventions/read_level2_observation (imas_ambix/data/cocos_convention.py:329,382,490), measure_diiid_convention/_integrated_current (imas_ambix/challenge/convention.py:245,266), the eddb.py write invariants (imas_ambix/data/eddb.py:208,179), judge_geometry/read_efit_geometry/GeometryVerdict (imas_ambix/eval/efit_referee.py:120,174,272), MachineArtifactGeometrySource (imas_ambix/spine_bench/machine_artifact_arm.py:100) and the machine-keyed pin constants (imas_ambix/gs/artifact_resolution.py:69-78). No proposal rebuilds an owner that already exists.",
+    "thin_wrapper": "pass \u2014 the additions are extensions whose extension point the plan names, not parallel layers: measure_convention subsumes the DIII-D kernel (measure_diiid_convention becomes a call to it), the pol_angle_like class joins nova's existing TRANSFORMATIONS table (verified present, keys psi_like, dodpsi_like, one_like, ip_like, q_like, b0_like) rather than a second ambix table, and the catalogue slots extend load_machine_map. The retained measure_diiid_convention entry is a caller-compatibility alias over the new kernel, which the plan states."
+  },
+  "section_digests": {
+    "_document": "e4b0cc75b9a3fb44531af1649188cf6eb74db12b73613504036b707d874bebf0",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "9358d81e117c8e6b4ccb1aa64f86f2d25c6688ee501ec105e7e99ab2a726c674",
+    "s5": "6982251ed4c8a9182fe0265da5219217b9926e5b6c7490ef0149bf2754a8efc3",
+    "s6": "10440bdbac8b2013ab5929cf988707dcfc402e2b5b9d046d482930a9126bcc06",
+    "s7": "2fdd08fcace1ef13efb5b3672debe534f973a41ecf2688c5d713ff3fe312a92d",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T08:50:30.498378+00:00"
+}

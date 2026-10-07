@@ -1,0 +1,79 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: both of its own arm fields are null in its record (baseline_suite null, after_suite null) and its manifest names neither, so it supplies no base/head gate pair to difference. This review therefore measured both arms independently from the commit's own object store into $TMPDIR scratch trees (no branch or worktree created) and ran the node's declared four-file gate in each with the repository venv. Base 181fb2a3a255d5649d94681e9505f9838b53ea5b collected 104 items, 104 passed, EXIT=0, failure_ids [] (logs/baseline.log); head 956aa35dc59eb4f444a96630268e6ae7d2ad06ee collected 106 items, 106 passed, EXIT=0, failure_ids [] (logs/head.log). Head failing ids ([]) minus base failing ids ([]) is 0, so added_failure_count is 0 with no added ids. The 104-to-106 delta is exactly the two tests the node adds, test_a_zero_byte_index_is_reported_unreadable and test_a_locked_index_is_reported_with_a_short_timeout, neither removed nor renamed, which is the positive control that the arm instrument sees the change.",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py tests/test_agent_watch_cost.py tests/test_telemetry_index.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T100128961896-review-of-srw-watch-reports-an-unreadable-index/logs/head.log",
+    "revision": "956aa35dc59eb4f444a96630268e6ae7d2ad06ee"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py tests/test_agent_watch_cost.py tests/test_telemetry_index.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T100128961896-review-of-srw-watch-reports-an-unreadable-index/logs/baseline.log",
+    "revision": "181fb2a3a255d5649d94681e9505f9838b53ea5b"
+  },
+  "completed_at": "2026-10-02T10:20:19.884Z",
+  "dispatched_at": "2026-10-02T10:01:35Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T093515993377-srw-watch-reports-an-unreadable-index/negative-control.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "The reviewed run's negative-control log header names the wrong revision: line 1 reads '# revision: 181fb2a3a255d5649d94681e9505f9838b53ea5b (scratch mutation: DatabaseError handler removed from watch_document) tree: .../srw-watch-reports-an-unreadable-index', but the tree it names is the reviewed worktree, whose classification records git-head 956aa35dc59eb4f444a96630268e6ae7d2ad06ee. The mutation it ran removes a handler that exists only at head, so the log records the base revision for a head-tree run: a later reader reconciling the record cannot tell which revision the run read. The header also describes the mutation as 'handler removed' while the manifest's negative_control_note calls it 'narrowing to IntegrityError'. Neither affects the guard's validity -- this review independently falsified the same guard with its own mutation (DatabaseError -> IntegrityError in both handlers reddens both new tests, logs/negative-control.log) -- but the receipt names a revision it did not read."
+    }
+  ],
+  "follow_ons": [
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "878-883",
+      "text": "The unreadable-index text block names the path and quotes the error but, unlike the absent-index block, does not name the standing ingest service, so an operator who reaches it is told the index could not be read and not who repairs it. The preceding review of r-20261002T082940729305 suggested exactly this pointer ('a could-not-be-read report naming the standing ingest'), and the repair delivers the report without it. Not a defect against this node's goal, but the one line that closes the recovery loop."
+    }
+  ],
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "Read commit by commit: single commit 956aa35d touches imas_ambix/agent/watch.py (+65/-18 approx), imas_ambix/agent/telemetry_index.py (+9/-5), tests/test_agent_telemetry_watch.py (+82/-2) and adds the node's own evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-watch-reports-an-unreadable-index.html (+4). watch.py imports sqlite3, wraps the index open+read in try/except sqlite3.DatabaseError in both watch_text and watch_document, adds a readable=false branch to render_index, and threads a timeout kwarg (default 5.0) into both readers; telemetry_index.py gives TelemetryIndex.readonly the timeout keyword (default 5.0) and folds one unrelated 3-line SQL call onto one line. No line of test_agent_watch_live.py, test_agent_watch_cost.py or test_telemetry_index.py is touched.",
+    "done_when": "Read the node's measure: a parsed record scoring all five dimensions in 0..20, reviewed_base_sha and reviewed_head_sha, and added_failure_count/added_failure_ids derived from the reviewed run's baseline_suite and after_schema arms. This record carries all of them: total 94 (goal_fidelity 20, evidence 18, scope_discipline 20, durability 17, fit 19), base 181fb2a3, head 956aa35d, added_failure_count 0 with no added ids. The reviewed run armed neither arm, so the values are taken from this review's own base/head reproduction of the node's declared four-file gate (base 104 passed EXIT=0, head 106 passed EXIT=0), stated in added_failures_basis.",
+    "goal": "The node's goal is 'Make agent watch report an index it cannot read instead of raising a traceback'. Verified delivered on both surfaces. At base 181fb2a3 a zero-byte index file makes watch_text and watch_document both raise sqlite3.OperationalError('no such table: sample') out to the caller (logs/probe-base.log). At head 956aa35d watch_text returns text carrying 'could not be read' and the quoted error with no ledger rows and leaves the file at zero bytes, and watch_document returns index {exists true, readable false, error 'no such table: sample'} with record {}, ledger [], periods [] (logs/probe-head.log). A lock held with BEGIN EXCLUSIVE is likewise reported ('database is locked') rather than waited out, under the caller's timeout. A readable index yields index.readable true with no error and text that does not say unreadable (probe2).",
+    "manifest": "Read; status complete, the three-command gate green at 956aa35d (106 passed / serving-interpreter parse guard 1 passed / whole-tree ruff clean), negative_control_log negative-control.log, artifact and evidence_inputs fields populated. The manifest arms no baseline_suite or after_suite (both null), so the run supplies no base/head pair, which is why this review measured its own. follow_ons none, blockers none.",
+    "write_paths": "The manifest declares imas_ambix/agent/watch.py, imas_ambix/agent/telemetry_index.py, tests/test_agent_telemetry_watch.py, the evidence fragment and a figures directory; git diff --name-status 181fb2a3..956aa35d lists exactly those four (the figures directory unused, which the done-when permits). No plan, shared index or sprint state is edited; the reviewed worktree is clean at 956aa35d and the head is not yet an ancestor of main, which belongs to the orchestrator. This reviewer wrote only the two fenced review-record paths, with its scratch trees, logs and probes under $TMPDIR and its evidence logs copied under this run's own directory."
+  },
+  "justifications": {
+    "durability": "The property the change exists to hold -- that an index that cannot be read is reported, not raised -- is pinned by two real tests that redden when it is removed: narrowing or removing the DatabaseError handler leaves both test_a_zero_byte_index_is_reported_unreadable and test_a_locked_index_is_reported_with_a_short_timeout red (this review's own mutation, 2 failed EXIT=1). Both the zero-byte and the lock state are exercised, so the guard is shown to fire rather than merely to pass. ruff check imas_ambix tests exits 0 at head and the two tests are additions, so nothing prior regressed. Held at 17: the readable-true half of the new contract (index.readable true when the reads succeed) is asserted by no test -- this review verified it only by an out-of-suite probe -- so an edit that dropped that assignment would leave the suite green.",
+    "evidence": "Both arms reproduce green from the commit's own object store (base 104 EXIT=0, head 106 EXIT=0) and the head set is the base set plus exactly the two new tests, so added_failure_count is 0 with a positive control that the arm instrument sees the change. The repaired defect was reproduced at base before being credited (both surfaces raise 'no such table: sample' at base, logs/probe-base.log) and reported at head (logs/probe-head.log), and an independent mutation of the head tree (DatabaseError -> IntegrityError in both handlers) reddens both new tests (2 failed EXIT=1, logs/negative-control.log). Held at 18 rather than 20 because the reviewed run's own negative-control log header names the base revision for a head-tree run (see the finding), so the run's own receipt cannot be reconciled to the revision it read, and because the reviewed run armed no base/head arms of its own.",
+    "fit": "The new symbols are named by mechanism (readable, error, timeout) and their docstrings state why a read must not build the store and why the wait is bounded, matching telemetry_index.py's existing read-only contract. No plan label, sprint id, ticket reference, version suffix or attribution appears in the changed source, tests or fragment; the naming scans are clean. ruff check exits 0 at head and the serving-interpreter parse guard passes 1/1, so the module keeps the repository's whole-tree gate and its serving-python idiom. Held at 19 because the unreadable-index message omits the ingest pointer the absent-index message carries, a small internal inconsistency in the reader's own vocabulary.",
+    "goal_fidelity": "Read the landed change against the node goal. watch_text and watch_document both catch sqlite3.DatabaseError from opening or querying the read-only handle and report the index unreadable instead of raising; the defect is reproduced at base for both surfaces at a zero-byte index and shown reported at head, and the lock case is shown reported under a caller-supplied short timeout. telemetry_index.readonly gains the timeout keyword the report needs to bound the wait. Every clause of the goal is delivered and independently measured (logs/probe-base.log, logs/probe-head.log). Full marks; the missing recovery pointer in the message is recorded as a follow-on rather than a goal miss because the goal asks for a report, not for the report to name the repairer.",
+    "scope_discipline": "git diff --name-status 181fb2a3..956aa35d touches exactly imas_ambix/agent/watch.py, imas_ambix/agent/telemetry_index.py, tests/test_agent_telemetry_watch.py and the node's own evidence fragment, all inside the manifest's declared write paths, with only the declared figures directory unused (permitted). No plan, shared index or sprint state is mutated; the reviewed worktree is clean at 956aa35d. The naming scans over the changed source paths and contents are clean. This reviewer wrote only the two fenced record paths."
+  },
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-watch-reports-an-unreadable-index",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "review_kind": "review",
+  "review_run_id": "r-20261002T100128961896-review-of-srw-watch-reports-an-unreadable-index",
+  "reviewed_base_sha": "181fb2a3a255d5649d94681e9505f9838b53ea5b",
+  "reviewed_head_sha": "956aa35dc59eb4f444a96630268e6ae7d2ad06ee",
+  "reviewed_run_id": "r-20261002T093515993377-srw-watch-reports-an-unreadable-index",
+  "reviewer": "review-of-srw-watch-reports-an-unreadable-index",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "section": "s5",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T10:16:00+00:00",
+  "total": 94
+}

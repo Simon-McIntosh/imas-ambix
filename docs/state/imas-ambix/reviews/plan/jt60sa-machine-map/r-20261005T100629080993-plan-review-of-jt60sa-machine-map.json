@@ -1,0 +1,54 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T10:13:56.641Z",
+  "dispatched_at": "2026-10-05T10:06:34Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/spine_bench/transform_geometry_source.py:492",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a77 claims one geometry route where the code has two, and either routing the JT-60SA stamp through the pinned artifact or stating why the two legitimately differ changes \u00a77's design and its done-when.",
+      "text": "\u00a77 sends the JT-60SA stamp through resolve_geometry_source \"rather than a second resolver, so the stamp and the spine read one geometry route\", but the stamp's sources (TransformGeometrySource.table_for at :320/:325, IdentityBoundCampaignGeometrySource, CampaignGeometrySource) read geometry via imas_ambix/data/description_reader.py read_geometry_table, whereas the spine's description comes from gs/artifact_resolution.py resolve_machine_description (imported and called at gs/machine_selection.py:130) \u2014 a machine-keyed frozen shot set added to resolve_geometry_source does not unify the two, so the map-under-test and the reference geometry the spine is scored against can diverge without any assertion catching it",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas-codex remote layer (executor.py, ssh_worker.py, serialization.py; cited by the plan as imas_codex/remote/scripts/enumerate_edas.py)",
+      "id": "duplicate_owner-2",
+      "reason": "the plan names that owner and justifies the fork on dependency direction (importing codex would make its graph/LLM/tool-install graph a dependency of every ambix read), which is the extension-vs-fork decision the item asks to be stated.",
+      "text": "\u00a73 builds a second EDDB-over-ssh transport and msgpack array format in eddb_remote.py where imas-codex already owns one",
+      "type": "duplicate_owner",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "3a5b89a7fcdd21885375ac477563a95902efc07a756f244ad4a3de0aafadc334",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 55,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T10:29:01.265466+00:00"
+    },
+    "duplicate_owner-2": {
+      "action": "declined",
+      "by": "",
+      "reason": "\u00a73 names imas-codex's remote layer and states why ambix does not import it: its graph, LLM and tool-install dependencies would become a dependency of every ambix read. The reviewer recorded that this would not change the plan.",
+      "when": "2026-10-05T10:29:02.147050+00:00"
+    }
+  },
+  "review_run_id": "r-20261005T100629080993-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "46149ced7cc67b9bcb4052c071bee06292fd27e5",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each new module hides substantial behaviour behind one driving interface: tokamap_export (one exporter function over the catalogue and signal maps), eddb_remote.RemoteEddbExtractor.fetch_batch plus eddb.fetch_channels/write_channel over raw EDDB bytes, selene_deck.write_phase_description over three deck grammars and five IDSs, and the \u00a77 EQDB reader riding the \u00a73 transport. The per-IDS build_* helpers, transport/record DTOs and presence predicates are internal to that depth rather than parallel public entry points.",
+    "duplicate_owner": "a finding \u2014 \u00a77 asserts the benchmark stamp and the spine \"read one geometry route\", but the benchmark's geometry sources read through description_reader.read_geometry_table while the spine reads its machine description through gs/artifact_resolution.resolve_machine_description (nova's pinned artifact), so a JT-60SA machine key added to each keeps two owners for one machine description.",
+    "interface_budget": "public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; pass \u2014 every section that adds surface states what it retires or why nothing can be: \u00a72 \"it retires nothing, because ambix has no exporter\", \u00a73 adds no `ambix data` command and \"retires nothing, because ambix has no remote reader today\", \u00a74 \"widens one protocol method and retires nothing\" and its store-addressing keys \"retire nothing\", \u00a76 generalises the entry point \"rather than writing a second scorer\", \u00a77 \"retires nothing, because no equilibrium-database reader exists in ambix\".",
+    "reuse_search": "pass \u2014 the plan searched both named codebases and cites by symbol the mechanisms it extends rather than rebuilds, and the citations resolve in code: description_reader.read_geometry_table, virtual_zarr.VirtualZarrView, cocos_convention.score_convention/score_conventions, challenge.convention._integrated_current, challenge.loader.load_shot/ChallengeShot, eval.efit_referee.judge_geometry/GeometryVerdict, spine_bench.runner._magnetics_residual, machine_map.MachineMapCatalog.flux_loop_positions_for and DescriptionSupplement, gs.artifact_resolution, gs.machine_selection, gs.machine_identity, spine_bench.transform_geometry_source, plus imas-codex's remote/EDAS layer.",
+    "thin_wrapper": "pass \u2014 every thin layer names in its own text why the underlying machinery cannot be extended: the \u00a73 extractor owns its script rather than importing imas-codex (dependency direction), the cache shares paths.py and the zarr layout but takes none of the manifest/download CLI machinery, and the \u00a77 EQDB reader uses the \u00a73 transport and cache rather than a second path."
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T10:14:42.429135+00:00"
+}

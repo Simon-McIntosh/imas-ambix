@@ -1,0 +1,58 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 5,
+  "call_sites": [
+    "ops/lane-cycle/AGENTS.md:37-41 \u2014 executable live-coordinator discovery command",
+    "ops/lane-cycle/AGENTS.md:97-112 \u2014 producer-status-preserving dry-run worktree guard",
+    "ops/lane-cycle/AGENTS.md:174-199 \u2014 measured cycle receipt fields and append command",
+    "docs/evidence/archive/local-lane-admission-control-landed.html:13-670 \u2014 s17 verification binding and cumulative repair evidence",
+    "docs/plans/local-lane-admission-control.html:991-992 \u2014 s17 landing comment for the repair run"
+  ],
+  "completed_at": "2026-09-25T13:43:38Z",
+  "dispatched_at": "2026-09-25T13:23:11Z",
+  "findings": [],
+  "follow_ons": [
+    "The plan audit still reports four pre-existing section-without-contract errors for s6, s8, s9 and s10; these are outside the reviewed commits and target write scope."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified five documentation integration sites; no production call site or shared service was changed",
+    "diff": "read 42d8ea9e, f4047b37 and 2daaee80 from 37640906; the complete diff contains exactly the three intended documentation paths",
+    "done_when": "the runbook has the step 1 lookup, producer-status-preserving dry-run check, exact four-field step 7 append command and non-empty receipt guards; target Ruff and evidence audits pass",
+    "goal": "the repair closes both defects while preserving the s17 router-pause cycle, coordinator boundary, bounds, rollback, resume and restart distinction",
+    "manifest": "the target manifest names base, commits, paths, reproductions, repaired-guard outcomes, green lint, clean tree and no-serving-mutation boundary; this review is stored parsed at both paths",
+    "write_paths": "git diff --name-only 37640906..2daaee80 is exactly the three target paths and the target worktree is clean at 2daaee800f4e82ef4dcfa3212b5048573022cf4d"
+  },
+  "justifications": {
+    "durability": "The shell guard refuses producer failure and forbidden output, receipt fields refuse missing values, the evidence anchor binds s17, and the target tree is clean.",
+    "evidence": "The target reproduction and independent three-arm harness are quantitative; evidence audit and independent Ruff pass. The four plan audit errors are pre-existing and outside scope.",
+    "fit": "The changes follow the scoped AGENTS.md runbook, cumulative evidence and existing s17 plan-comment conventions.",
+    "goal_fidelity": "The producer failure mode is fixed and both missing exact-command requirements are filled; the s17 procedure and coordinator-only boundary remain intact.",
+    "scope_discipline": "The supplied commits modify exactly three declared documentation/plan paths; no source, test, serving configuration or live service changed."
+  },
+  "justifications_detail": {
+    "independent_receipts": "independent-guard.log records exits 7, 0 and 1 for failing, clean and forbidden producers; independent-ruff.log records All checks passed and exit 0; independent-evidence-audit.log records OK and exit 0; independent-plan-audit.log records only pre-existing s6, s8, s9 and s10 errors.",
+    "negative_control": "No negative control was declared by the documentation node; the independent guard harness intentionally supplied failing, clean and forbidden producers without mutating the target tree.",
+    "review_basis": "Read live plan section s17 at version 69, target prompt and manifest, all target commits, complete runbook and records, target logs, and independently ran guard, audit, Ruff and diff/scope checks."
+  },
+  "model": "gpt-5",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260925T130830267275-s17-runbook-review-repair at head 2daaee800f4e82ef4dcfa3212b5048573022cf4d against base 37640906e9122c5d467a44fa3e33b52f4a010f97.\n\nLive plan section s17 was read at version 69. Commits 42d8ea9e, f4047b37 and 2daaee80 are clean, and the complete diff contains exactly three intended documentation paths. The prior defects reproduce in the target receipts: false | grep -c x prints 0 while the producer exits 1, and steps 1 and 7 previously lacked executable command blocks. The repaired runbook captures producer status before counting .reckon-worktrees matches, adds the coordinator directory command, names the lane-cycle.jsonl receipt and guards all four measured values.\n\nThe independent guard harness produced failed producer exit 7, clean zero-match producer exit 0 and forbidden-path producer exit 1. The evidence audit exited 0. The exact Ruff gate passed with All checks passed after using a writable /tmp uv cache because the shared cache was read-only. The plan audit remains red only for pre-existing errors on s6, s8, s9 and s10, outside this scope. No serving mutation was run.\n\nVERDICT goal: both runbook defects are repaired while the s17 router-pause procedure and coordinator boundary remain intact.\nVERDICT done_when: executable step-1 and step-7 commands, producer failure refusal, zero-match acceptance, forbidden-path refusal, four-value receipt guards, green evidence audit and green Ruff gate are evidenced.\nVERDICT write_paths: exactly three intended paths changed and the target tree is clean.\nVERDICT manifest: the target manifest names the base, all commits and paths, reproductions, repaired-guard outcomes, green lint, clean tree and no-serving-mutation boundary; this review is stored parsed at both paths.\nVERDICT diff: the three commits add only the producer-status guard, coordinator and receipt commands, the missing-value guards, and cumulative plan/evidence records; no unrelated implementation surface is present.\nVERDICT evidence: the negative reproduction, repaired guard outcomes, cumulative s17 binding, evidence audit and independent gate are readable receipts.\nVERDICT fit: the scoped runbook and cumulative-record architecture are appropriate.\nCALL_SITES: ops/lane-cycle/AGENTS.md:37-41, ops/lane-cycle/AGENTS.md:97-112, ops/lane-cycle/AGENTS.md:174-199, docs/evidence/archive/local-lane-admission-control-landed.html:13-670, docs/plans/local-lane-admission-control.html:991-992\n\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: the repaired commands and fail-closed producer check meet the plan's exact-command and safety requirements.\nSCORE evidence: 20\nJUSTIFICATION evidence: the defect, repairs, negative controls, audits and independent gate have readable quantitative receipts; unrelated plan audit findings are separated.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff contains exactly the three intended paths and no operational mutation.\nSCORE durability: 20\nJUSTIFICATION durability: producer and missing-value refusals are exercised and cumulative evidence is bound to s17.\nSCORE fit: 20\nJUSTIFICATION fit: the changes use repository-native scoped runbook and cumulative evidence conventions.",
+  "review_run_id": "r-20260925T132301653274-review-of-s17-runbook-review-repair",
+  "reviewed_base_sha": "37640906e9122c5d467a44fa3e33b52f4a010f97",
+  "reviewed_head_sha": "2daaee800f4e82ef4dcfa3212b5048573022cf4d",
+  "reviewed_run_id": "r-20260925T130830267275-s17-runbook-review-repair",
+  "reviewer": "review-of-s17-runbook-review-repair",
+  "scores": {
+    "durability": 20,
+    "evidence": 20,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-25T15:35:19+02:00",
+  "total": 100
+}

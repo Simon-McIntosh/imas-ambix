@@ -1,0 +1,77 @@
+{
+  "absent": [
+    "A source receipt for the plan's later claim that aggregate output reached about 500 tok/s near width 22 and fell to about 340 past it.",
+    "The required revision, tree, command and exit sentinel in the manifest-named knee_srun.log receipt."
+  ],
+  "absent_items": [
+    "source for the 500-to-340 comparison instrument",
+    "self-describing terminal SLURM gate receipt"
+  ],
+  "call_site_count": 5,
+  "call_sites": [
+    "docs/figures/local-lane-admission/knee_measure.py:116 summarise_widths filters and reports each qualifying exact-width bin",
+    "docs/figures/local-lane-admission/knee_measure.py:150 analyse_log binds source bytes, parse census, peak and operating-band reductions",
+    "docs/figures/local-lane-admission/knee_measure.py:219 run_control drives the same reducer with planted peaks",
+    "docs/figures/local-lane-admission/knee_measure.py:237 plot_jobs renders one panel per serve job",
+    "docs/figures/local-lane-admission/knee_measure.py:278 main applies the pipeline to both named logs and writes the three artifacts"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T08:33:11.059216+00:00",
+  "findings": [
+    {
+      "file": "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "line": "75",
+      "text": "The record attributes the plan's ~500-to-340 discrepancy to a window-mean instrument, but the cited prior evidence record contains a 328.9 tok/s window at mean concurrency 23.05 rather than the ~500 tok/s claim, and no repository source contains that figure outside the plan and this new record. The worker manifest itself says explaining ~500 would require the instrument that produced it. The new per-step census disproves 500 in the two parsed logs, but it does not establish what produced the conflicting claim or whether job, prompt mix, pool size or instrument caused the disagreement."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T062351884099-knee-remeasure/knee_srun.log",
+      "line": "1",
+      "text": "The manifest-named gate receipt begins with a slurmstepd TMPDIR warning and contains only the two summaries plus control result. It has no revision, tree, command or EXIT line, even though the node contract requires those in the receipt. The run stream shows that an earlier invocation emitted the required header and that later srun invocations overwrote the same file; the stream supports all_debug execution and exit zero, but the durable receipt named by the manifest does not."
+    },
+    {
+      "file": "docs/figures/local-lane-admission/knee_measure.py",
+      "line": "108",
+      "text": "The 95% intervals resample individual consecutive decode steps as independent observations. These steps come from repeated batches within time-clustered traffic windows, and the report itself notes that all width-29-and-higher observations came from one mid-run window. An IID percentile bootstrap therefore understates uncertainty across workload windows and cannot carry the record's traffic-level flatness adjudication without a block-by-time bootstrap or an explicit statement that the whiskers describe only the empirical per-step distribution."
+    },
+    {
+      "file": "docs/plans/local-lane-admission-control.html",
+      "line": "28",
+      "text": "The evidence commit changes plan-version from 1 to 2 even though the dispatch contract explicitly says not to edit plan-version or plan-modified because concurrent workers make that meta line a merge-conflict hotspot. Every changed path remained inside the file fence, but this line is an explicit within-path scope violation."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified the complete measurement path from exact-width grouping through source anchoring, control generation, two-job reduction and plotting",
+    "diff": "read both commits from base 4ae97e315 through edcfd999e, the final driver, generated JSON and PNG, synthetic controls, plan landing block, cumulative evidence record, manifest, named receipt and relevant run-stream command records",
+    "done_when": "knee.json contains every emitted qualifying bin with count, median and nominal 95% interval for both jobs; peaks and operating ratios are present; the two-panel PNG is legible; the committed peak-12 and peak-25 fixtures independently reran through the same reducer and returned both planted widths at exit 0. The all_debug invocation is visible in the run stream, but its named receipt was overwritten without provenance or exit status.",
+    "goal": "the run performs the requested exact-width decode-log census and shows a 17-32 plateau rather than an observed interior knee, with the high-width peak correctly qualified as cap-bound and workload-confounded. It does not prove why the separate ~500-to-340 claim differs because the instrument behind that claim was not identified.",
+    "manifest": "records both commits, all eight changed paths, source sizes and digests, peak widths, operating ratios, control result and the unresolved origin of the ~500 figure. Its stated srun exit is supported by the stream rather than by the named log, and its complete status is stronger than its own follow-on caveat about the missing comparison instrument.",
+    "write_paths": "git diff 4ae97e315..edcfd999e touches eight paths, all under the four assigned path prefixes, and no live lane mutation occurred. The plan-version line is nevertheless an explicit prohibited edit inside an allowed file."
+  },
+  "justifications": {
+    "durability": "The reducer, full measurement document, figure and two planted-peak fixtures are committed and source readings are bound to byte size and SHA-256. The control is load-bearing for peak selection, but it does not exercise the 20-sample boundary, malformed-line census, operating-band ratio or confidence-interval behavior, and the durable srun receipt lost its header and exit sentinel.",
+    "evidence": "The run preserves 79,436 and 1,151 parsed intervals with zero malformed decode lines, all qualifying per-width values, two source digests, a clear two-panel figure and a discriminating planted-peak control; this review reran both committed controls and ruff successfully. Evidence is weakened by the overwritten gate receipt, the unsourced ~500 comparison, and nominal 95% intervals that ignore serial/time-window dependence.",
+    "fit": "The driver reuses the existing decode parser, remains under the plan's figure/evidence surface, makes no runtime or lane change and emits portable JSON plus a project-absolute figure reference. The interpretation is appropriately separated from serving code; the main fit qualification is an evidence narrative that over-resolves an unidentified comparison instrument.",
+    "goal_fidelity": "All structural section-3 deliverables are present for both named jobs: exact-width bins above the sample threshold, medians, intervals, counts, peak widths, operating-to-peak ratios, a figure and a planted-width control on all_debug. The required explanation of why the two earlier claims disagree remains unproved because the source of the ~500-to-340 claim is absent, so the data can reject that level in these logs but cannot attribute its origin.",
+    "scope_discipline": "All eight changed paths are within the declared prefixes, the heavy parse ran through all_debug, and the worker made no live service mutation. One explicitly forbidden plan-version edit reduces the score despite otherwise clean scope and commits."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260923T062351884099-knee-remeasure, base 4ae97e315202b821e41ee70a01a528c318d84362, reviewed head edcfd999ec35be4bdd5aadd1863de46d3821ead0. Read the live plan section 3, target dispatch, manifest, both commit diffs, final reducer, measurement JSON, synthetic fixtures, plotted artifact, plan and evidence prose, named SLURM receipt, relevant run-stream invocation records and the prior throughput evidence named by the manifest. Independently reran both committed planted-peak logs through the same reducer and ruff at the reviewed head.\n\nVERDICT goal: the run performs the requested exact-width decode-log census and shows a 17-32 plateau rather than an observed interior knee, with the high-width peak correctly qualified as cap-bound and workload-confounded. It does not prove why the separate ~500-to-340 claim differs because the instrument behind that claim was not identified.\nVERDICT done_when: knee.json contains every emitted qualifying bin with count, median and nominal 95% interval for both jobs; peaks and operating ratios are present; the two-panel PNG is legible; the committed peak-12 and peak-25 fixtures independently reran through the same reducer and returned both planted widths at exit 0. The all_debug invocation is visible in the run stream, but its named receipt was overwritten without provenance or exit status.\nVERDICT write_paths: git diff 4ae97e315..edcfd999e touches eight paths, all under the four assigned path prefixes, and no live lane mutation occurred. The plan-version line is nevertheless an explicit prohibited edit inside an allowed file.\nVERDICT manifest: records both commits, all eight changed paths, source sizes and digests, peak widths, operating ratios, control result and the unresolved origin of the ~500 figure. Its stated srun exit is supported by the stream rather than by the named log, and its complete status is stronger than its own follow-on caveat about the missing comparison instrument.\nVERDICT diff: read both commits from base 4ae97e315 through edcfd999e, the final driver, generated JSON and PNG, synthetic controls, plan landing block, cumulative evidence record, manifest, named receipt and relevant run-stream command records.\nCALL_SITES: knee_measure.py:116 exact-width summaries; knee_measure.py:150 source-bound per-job analysis; knee_measure.py:219 planted-peak control; knee_measure.py:237 two-job figure; knee_measure.py:278 CLI artifact emission.\nSCORE goal_fidelity: 16\nJUSTIFICATION goal_fidelity: all structural section-3 outputs exist for both jobs, but the cause of the semantic authority's conflicting ~500-to-340 claim remains unproved because its source instrument is absent.\nSCORE evidence: 15\nJUSTIFICATION evidence: full per-width census, source digests, figure and discriminating controls are strong; the named srun log is not a self-describing terminal receipt, the comparison source is missing, and the nominal intervals ignore serial dependence.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: all paths and runtime actions stayed inside the fence, except for the explicitly forbidden plan-version edit.\nSCORE durability: 16\nJUSTIFICATION durability: the committed reducer and controls are reproducible, but the control covers only peak selection and the durable heavy-gate receipt was overwritten.\nSCORE fit: 18\nJUSTIFICATION fit: the analysis reuses the existing parser, stays out of serving runtime, links artifacts correctly and isolates interpretation in evidence; only the over-resolved unsourced comparison weakens integration fit.\nFINDING docs/evidence/archive/local-lane-admission-control-landed.html:75 the record attributes the ~500-to-340 disagreement to a window-mean instrument, but the cited prior record tops out at 328.9 and the manifest admits the ~500 instrument is unidentified.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T062351884099-knee-remeasure/knee_srun.log:1 the named receipt was overwritten and contains neither revision/tree/command nor an exit sentinel.\nFINDING docs/figures/local-lane-admission/knee_measure.py:108 individual sequential decode steps are bootstrapped as IID despite time-clustered traffic, so the whiskers are not a traffic-window 95% uncertainty interval.\nFINDING docs/plans/local-lane-admission-control.html:28 the commit changes plan-version despite an explicit instruction not to edit that meta line.\nREVISION: edcfd999ec35be4bdd5aadd1863de46d3821ead0",
+  "review_run_id": "r-20260923T083311059216-review-of-knee-remeasure",
+  "reviewed_base_sha": "4ae97e315202b821e41ee70a01a528c318d84362",
+  "reviewed_head_sha": "edcfd999ec35be4bdd5aadd1863de46d3821ead0",
+  "reviewed_revision": "edcfd999ec35be4bdd5aadd1863de46d3821ead0",
+  "reviewed_run_id": "r-20260923T062351884099-knee-remeasure",
+  "reviewer": "review-of-knee-remeasure",
+  "scores": {
+    "durability": 16,
+    "evidence": 15,
+    "fit": 18,
+    "goal_fidelity": 16,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-23T11:53:03+02:00",
+  "total": 83
+}

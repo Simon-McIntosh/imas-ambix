@@ -1,0 +1,104 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "measured by this review independently of the reviewed manifest: the head arm at fb620ebc over tests/test_telemetry_ingest.py and tests/test_telemetry_index.py reports no FAILED or ERROR line, and the base arm at 93a4fb55 driving the reviewed test file reports the two new behavioural tests red, so the set difference is empty. The read path still annotates this run unmeasured because the reviewed manifest names no baseline_suite or after_suite -- the node was not armed -- so the two arms below are the measurement.",
+  "after_suite": {
+    "command": "review-head-gate.sh: uv run --no-sync pytest -p no:cacheprovider -q tests/test_telemetry_ingest.py tests/test_telemetry_index.py; uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python; uv run --no-sync ruff check imas_ambix tests -- all in /tmp/review-srw-ingest.loop/head (a git archive of fb620ebc)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T112259539608-review-of-srw-ingest-loop-holds-no-history/review-head-gate.log",
+    "revision": "fb620ebc91831bca6974163027cdb445d481a2ad"
+  },
+  "baseline_suite": {
+    "command": "review-base-gate.sh: the reviewed (head) test file copied into /tmp/review-srw-ingest.loop/base (a git archive of 93a4fb55) and run there, then the base tree's own tests/test_telemetry_index.py and the serving-interpreter parse guard",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 2,
+    "failure_ids": [
+      "tests/test_telemetry_ingest.py::test_a_loop_without_iterations_keeps_at_most_the_latest_report",
+      "tests/test_telemetry_ingest.py::test_zero_iterations_takes_no_tick"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T112259539608-review-of-srw-ingest-loop-holds-no-history/review-base-gate.log",
+    "revision": "93a4fb55e199a153133029236aded94be90a702e"
+  },
+  "call_site_count": 12,
+  "call_sites": [
+    "imas_ambix/agent/telemetry_ingest.py:205 (iterations=0 returns before the first tick)",
+    "imas_ambix/agent/telemetry_ingest.py:212-219 (the rebinding that bounds the endless loop)",
+    "imas_ambix/agent/telemetry_ingest.py:259-278 (main; no console script",
+    "no service unit",
+    "no production caller in the tree)",
+    "imas_ambix/agent/watch.py:64 (DEFAULT_INDEX_PATH)",
+    "imas_ambix/agent/watch.py:729-735 (reader still ingests on every read)",
+    "imas_ambix/agent/watch.py:778-786 (second reader entry point still ingests)",
+    "tests/test_telemetry_ingest.py:230-262 (hand-off spy test and the assertion at :258)",
+    "tests/test_telemetry_ingest.py:265-280 (sqlite3.connect spy with its positive control)",
+    "tests/test_telemetry_ingest.py:283-306 (retention measurement)",
+    "tests/test_telemetry_ingest.py:309-319 (zero-iteration test)"
+  ],
+  "completed_at": "2026-09-29T12:01:46.061Z",
+  "dispatched_at": "2026-09-29T11:23:06Z",
+  "findings": [
+    {
+      "file": "tests/test_telemetry_ingest.py",
+      "line": "306",
+      "text": "the retention test asserts max(live) <= 1 but never shows its counter can see a live report: an instrument that went blind would read 0 and pass, so within the suite the assertion cannot distinguish keeps-the-latest from keeps-nothing; the teeth are demonstrated only by out-of-tree arms, and some are stronger still in a scratch copy, where removing the rebinding turns this line red with max(live)=1000 for the right reason."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T105226281756-srw-ingest-loop-holds-no-history/logs/negative-control-handoff-spy.log",
+      "line": "42",
+      "text": "the log's traceback names tests/test_telemetry_ingest.py:262 but the assertion it quotes sits at line 258 at both reviewed commits and at the delivered head; the log was produced from an uncommitted intermediate file state four lines longer, which the later ruff-format collapse of the two run(...) call sites explains exactly, so the line reference resolves to nothing in the revision the log is evidence about, while the declared string, the mutation and the failure reason all check out and this review's independent application of the same mutation fails the same assertion at line 258."
+    }
+  ],
+  "follow_ons": [
+    "plan section 5's remaining half: imas_ambix/agent/watch.py:729-735 and :778-786 still call index.ingest on every read against DEFAULT_INDEX_PATH (watch.py:64), so the single-writer property this module's docstring now scopes to itself is still shared with readers; nothing in the tree schedules telemetry_ingest.main (no console script in pyproject.toml, no service unit, no CLI subcommand).",
+    "tests/test_telemetry_ingest.py:306 -- give the add a positive control (assert the peak live count is at least 1 before asserting it is at most 1), so a counter that went blind cannot read as a bounded by an absence.",
+    "the reviewed run's manifest names no baseline_suite or after_suite (armed-only, so not a defect), which makes reckon.crew.review.annotate_review_of_run report its stored review's added-failure count as unmeasured; a reader that wants the measured value reads the review record's own suite arms."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 12 production call site(s)",
+    "diff": "read in full; the retention rebinding, the zero-iteration return and the docstring rewrite are mechanism-named with no plan or ticket labels, and the two new tests carry their own anti-vacuity commentary.",
+    "done_when": "this review re-ran the declared gate at fb620ebc in a git-archive scratch tree with module.__file__ inside it (62 passed, serving guard 1 passed, ruff clean) and ran the reviewed test file against the base tree where exactly the two new tests go red (max live reports 1000; iterations=0 takes one tick), so the recorded defect reproduces and the change adds no failing test.",
+    "goal": "all four properties the done-when names are implemented and green, the gate is reproduced independently green at the head, and both new behavioural guards are falsified by mutation; the single-writer wording now matches a correct mechanism claim after the earlier finding that it overstated the system.",
+    "manifest": "the delivered manifest is complete with all required keys and its figures verify (gate 62 passed at 035c416e; 1000-tick retention 1000 before, 1 after; the declared negative-control string repeats verbatim on the log's first line), but it names no baseline_suite or after_suite because the node was not armed, and its negative-control log's traceback names a line that does not resolve at the delivered revision.",
+    "write_paths": "git diff 93a4fb55..fb620ebc contains exactly the three declared paths (module, test, fragment) across two commits with a clean worktree at the head; the declared figure root is unused and no plan file, plan meta line or index state is touched."
+  },
+  "justifications": {
+    "durability": "the endless loop now holds one report instead of one per tick and the zero-iteration boundary is defined and tested, but the retention guarantee is invisible to callers so only the test pins it, and the reader-side writer that shares the index remains until the reader node lands.",
+    "evidence": "the gate is independently reproduced in a scratch archive with module.__file__ inside it, the base arm reproduces the defect, and both new guards are falsified by mutation, but the retention counter has no positive control and the reviewed negative-control log's traceback line does not resolve at the delivered revision.",
+    "fit": "it uses the existing tick/index API, names by mechanism, keeps the recorded cadence, and matches the sibling modules' idioms; the module still has no production call site, which the plan sequences as a later node rather than a defect of this one.",
+    "goal_fidelity": "everything the done-when names is delivered and green at fb620ebc, but the retention measurement is asserted as a bound the suite cannot distinguish from a blind counter and the docstring's reader clause is reworded rather than the reader fixed, which the plan sequences as separate work.",
+    "scope_discipline": "exactly the three declared paths in two commits with a clean worktree at the head and no plan or index metadata touched; the declared figure root went unused, which is a declared-and-unneeded root rather than a stray write."
+  },
+  "justifications_detail": {
+    "independent_receipts": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T112259539608-review-of-srw-ingest-loop-holds-no-history/review-head-gate.log re-ran the declared gate at fb620ebc91831bca6974163027cdb445d481a2ad in /tmp/review-srw-ingest.loop/head with module.__file__ printed inside the tree (62 passed EXIT=0; serving guard 1 passed EXIT=0; ruff All checks passed EXIT=0); /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T112259539608-review-of-srw-ingest-loop-holds-no-history/review-base-gate.log drove the reviewed test file against a git archive of 93a4fb55 (2 failed, 60 passed, EXIT=1) -- the two failures are test_a_loop_without_iterations_keeps_at_most_the_latest_report (max live count 1000 against the assertion's 1) and test_zero_iterations_takes_no_tick (1 report, EXIT at the empty-list assertion) -- the base tree's own index suite and parse guard pass (60 of which 47 are index tests; guard 1 passed); /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T112259539608-review-of-srw-ingest-loop-holds-no-history/review-mutation-probe.log applied three mutations of this review's own to a scratch copy: removing the retention rebinding reddens the retention test at :306 with max(live)=1000, removing the iterations==0 return reddens the zero-iteration test at :316, and handing states instead of pending to index.ingest reproduces the reviewed node's declared negative control independently (red at :258 with the settled source present), then the scratch module is restored byte-identical",
+    "negative_control_note": "the reviewed run's negative control as declared in its manifest, reproduced here: negative-control-handoff-spy.log line 1 repeats the declared string verbatim and the run is red at the hand-off assertion with the settled source present in the second hand-off, which is the failure the declared edit must produce; the one caveat is that the traceback names line 262 (see the finding above), while this review's own application of the same mutation at the delivered head fails the same assertion at line 258",
+    "out_of_scope_observations": "watch.py:729-735 and :778-786 still call index.ingest on every read against DEFAULT_INDEX_PATH (watch.py:64), and nothing in the tree schedules telemetry module_id so the standing service is still absent; that work is plan section 5's reader half and the followup naming the ingest service",
+    "review_basis": "read plan section 5 of docs/plans/serving-record-warehouse.html in full (including the recorded five-second cadence and placement paragraph), the reviewed node's prompt.txt and manifest.md, its three gate logs, the two commits 035c416e and fb620ebc and their complete diff, the module at head in full, the test file at head in full, the evidence fragment, and the reader paths in imas_ambix/agent/watch.py",
+    "reviewed_manifest_state": "the delivered manifest is 17 lines and complete: orientation, status complete, commits 035c416e and fb620ebc, changed_paths, a landing line stating the 1000-against-1 measurement, tests with all three commands and EXIT=0, three test_logs that all exist, a negative_control_log whose first line repeats the declared string, an evidence_inputs note explaining the docstring wording, follow_ons naming the reader half, and blockers none. It names no baseline_suite or after_suite, which the prompt marks armed-only, so their absence is not a missing field here; the consequence is that the read path annotates this run's stored review unmeasured, which is why the review record itself carries the two arms"
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260929T105226281756-srw-ingest-loop-holds-no-history at head fb620ebc91831bca6974163027cdb445d481a2ad against base 93a4fb55e199a153133029236aded94be90a702e. The node makes the scheduled ingest loop safe to run forever and makes its tests observe what a tick hands the index rather than what the index happens to hold.\n\nThe change is two commits over three declared paths: imas_ambix/agent/telemetry_ingest.py gains an early return for iterations=0 and, with iterations None, rebinds the report list to the latest report instead of appending forever; tests/test_telemetry_ingest.py gains a spy on TelemetryIndex.ingest pinning the exact hand-off set, a spy on sqlite3.connect pinning that the reader cache index is never connected, a 1000-tick weakref measurement asserting the loop keeps at most the latest report, and a zero-iteration test; a 68-line evidence fragment records all of it. The docstring no longer claims the single-writer property for the system: it says the index is written by this module alone and that a reader still ingests until the reader-side change lands, which is what the tree still does (watch.py:729-735 and :778-786).\n\nVERDICT goal: all four properties the done-when names are implemented and green, the gate is reproduced independently green at the head, and both new behavioural guards are falsified by mutation; the single-writer wording now matches a correct mechanism claim after the earlier finding that it overstated the system.\nVERDICT done_when: this review re-ran the declared gate at fb620ebc in a git-archive scratch tree with module.__file__ inside it (62 passed, serving guard 1 passed, ruff clean) and ran the reviewed test file against the base tree where exactly the two new tests go red (max live reports 1000; iterations=0 takes one tick), so the recorded defect reproduces and the change adds no failing test.\nVERDICT write_paths: git diff 93a4fb55..fb620ebc contains exactly the three declared paths (module, test, fragment) across two commits with a clean worktree at the head; the declared figure root is unused and no plan file, plan meta line or index state is touched.\nVERDICT manifest: the delivered manifest is complete with all required keys and its figures verify (gate 62 passed at 035c416e; 1000-tick retention 1000 before, 1 after; the declared negative-control string repeats verbatim on the log's first line), but it names no baseline_suite or after_suite because the node was not armed, and its negative-control log's traceback names a line that does not resolve at the delivered revision.\nVERDICT diff: read in full; the retention rebinding, the zero-iteration return and the docstring rewrite are mechanism-named with no plan or ticket labels, and the two new tests carry their own anti-vacuity commentary.\nCALL_SITES: imas_ambix/agent/telemetry_ingest.py:205 (iterations=0 returns before the first tick), imas_ambix/agent/telemetry_ingest.py:212-219 (the rebinding that bounds the endless loop), imas_ambix/agent/telemetry_ingest.py:259-278 (main; no console script, no service unit, no production caller in the tree), imas_ambix/agent/watch.py:64 (DEFAULT_INDEX_PATH), imas_ambix/agent/watch.py:729-735 (reader still ingests on every read), imas_ambix/agent/watch.py:778-786 (second reader entry point still ingests), tests/test_telemetry_ingest.py:230-262 (hand-off spy test and the assertion at :258), tests/test_telemetry_ingest.py:265-280 (sqlite3.connect spy with its positive control), tests/test_telemetry_ingest.py:283-306 (retention measurement), tests/test_telemetry_ingest.py:309-319 (zero-iteration test)\n\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: everything the done-when names is delivered and green at fb620ebc, but the retention measurement is asserted as a bound the suite cannot distinguish from a blind counter and the docstring's reader clause is reworded rather than the reader fixed, which the plan sequences as separate work.\nSCORE evidence: 16\nJUSTIFICATION evidence: the gate is independently reproduced in a scratch archive with module.__file__ inside it, the base arm reproduces the defect, and both new guards are falsified by mutation, but the retention counter has no positive control and the reviewed negative-control log's traceback line does not resolve at the delivered revision.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: exactly the three declared paths in two commits with a clean worktree at the head and no plan or index metadata touched; the declared figure root went unused, which is a declared-and-unneeded root rather than a stray write.\nSCORE durability: 17\nJUSTIFICATION durability: the endless loop now holds one report instead of one per tick and the zero-iteration boundary is defined and tested, but the retention guarantee is invisible to callers so only the test pins it, and the reader-side writer that shares the index remains until the reader node lands.\nSCORE fit: 18\nJUSTIFICATION fit: it uses the existing tick/index API, names by mechanism, keeps the recorded cadence, and matches the sibling modules' idioms; the module still has no production call site, which the plan sequences as a later node rather than a defect of this one.\n\nFINDING tests/test_telemetry_ingest.py:306 the retention test asserts max(live) <= 1 but never shows its counter can see a live report: an instrument that went blind would read 0 and pass, so within the suite the assertion cannot distinguish keeps-the-latest from keeps-nothing; the teeth are demonstrated only by out-of-tree arms, and some are stronger still in a scratch copy, where removing the rebinding turns this line red with max(live)=1000 for the right reason.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T105226281756-srw-ingest-loop-holds-no-history/logs/negative-control-handoff-spy.log:42 the log's traceback names tests/test_telemetry_ingest.py:262 but the assertion it quotes sits at line 258 at both reviewed commits and at the delivered head; the log was produced from an uncommitted intermediate file state four lines longer, which the later ruff-format collapse of the two run(...) call sites explains exactly, so the line reference resolves to nothing in the revision the log is evidence about, while the declared string, the mutation and the failure reason all check out and this review's independent application of the same mutation fails the same assertion at line 258.\n",
+  "review_run_id": "r-20260929T112259539608-review-of-srw-ingest-loop-holds-no-history",
+  "reviewed_base_sha": "93a4fb55e199a153133029236aded94be90a702e",
+  "reviewed_head_sha": "fb620ebc91831bca6974163027cdb445d481a2ad",
+  "reviewed_run_id": "r-20260929T105226281756-srw-ingest-loop-holds-no-history",
+  "reviewer": "review-of-srw-ingest-loop-holds-no-history",
+  "scores": {
+    "durability": 17,
+    "evidence": 16,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T13:57:46.387167+02:00",
+  "total": 88
+}

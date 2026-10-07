@@ -1,0 +1,59 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "clive",
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/router.py:859 (_publish_lane folding each fresh capacity reading into the gate through observe_lane)",
+    "imas_ambix/agent/router.py:218 (_settings_from_payload resolving the auto width on every settings() refresh at router.py:133 reached by every admission)",
+    "imas_ambix/agent/router.py:338 (snapshot publishing effective_width and context_estimate into lane.json through _publish_gate_snapshot at router.py:873)"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T13:28:28.473782+00:00",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": "859",
+      "text": "no test reaches the gate through _publish_lane \u2014 every added test seeds the estimate by calling observe_lane directly (tests/test_agent_router_gate.py:586,596,600,615,636,649) \u2014 so deleting this call site leaves the suite green at 52 passed (measured) and the gate silently falls back to the floor width, with no test failing while the mode the node exists to add is unreachable from the running router."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T125610955585-gate-auto-width/manifest.md",
+      "line": "9",
+      "text": "the two gate logs it names record `revision: 42dc9a705ea39774366efac6a87111365a5e9025` \u2014 the base \u2014 because the gate ran 47 s and 37 s before commit 468ef62a (15:10:01 and 15:10:11 against 15:10:48) on a tree whose change was uncommitted, and the manifest does not say so, so the record alone cannot establish that the recorded 52 passed measured the landed bytes at all; this review's re-run at c451c6c5 with both blobs verified identical to 468ef62a is the corroboration the record cannot supply as written."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "read the single commit against base 42dc9a70 \u2014 imas_ambix/agent/router.py +154/-13 and tests/test_agent_router_gate.py +108, no third file \u2014 matching the manifest's changed_paths.",
+    "done_when": "the done-when names the three-context clamp test, the 2x-outlier EMA test, the hold test, the integer-width test, the lane.json publication and the declared negative control with its log; tests/test_agent_router_gate.py:577-660 carries all five tests at three contexts inside and outside the clamp, the control log's first line repeats the declared string verbatim with `assert 180 == 36` behind it, and I re-ran the named gate at the landed revision myself (52 passed, EXIT=0).",
+    "goal": "the goal asks for the auto width mode of \u00a76 in the router generation gate, and the landed diff implements it inside the gate itself: imas_ambix/agent/router.py:235 clamps floor(pool_tokens * occupancy_target / estimate) to [width_floor, width_cap] and router.py:242 folds only fresh measured readings into the 600 s estimate.",
+    "manifest": "read in full; it names commit 468ef62a, the gate command with 52 passed and its two logs, the declared control string with its log, and changed_paths that match the diff exactly, but its gate logs name the base revision because the tree was uncommitted when they were written, which the FINDING at manifest.md:9 records.",
+    "write_paths": "the declared scope is five paths and `git diff --name-status 42dc9a70 468ef62a` lists imas_ambix/agent/router.py and tests/test_agent_router_gate.py only, both inside it, leaving the plan and the evidence record untouched as this node's done-when required."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_router_gate.py:586 reddens under the clamp mutation (measured: assert 180 == 36) and :603 under an unfolded outlier, but removing the feed at router.py:859 leaves all 52 green (measured in callsite-mutation.log of this review's run), so the wiring that makes the mode live is held by no assertion.",
+    "evidence": "every measurement reproduces on the landed bytes \u2014 my re-run at c451c6c5 with router.py blob 4af71cb3 and tests blob dd54bd2c verified identical to 468ef62a gave 52 passed / EXIT=0, ruff exited 0, and the re-armed clamp mutation went red at `assert 180 == 36` \u2014 but the record's own logs name the base revision as the FINDING below records, and its evidence_inputs rounds the EMA figure 104877.06 to 104880.",
+    "fit": "the constants at router.py:68-77 follow the module's existing DEFAULT_* notation, the mode is a gate-file key beside the others, and the commit, symbols and comments carry no plan, version or ticket identifier.",
+    "goal_fidelity": "router.py:223-247 carries every clause of the plan's \u00a76 paragraph \u2014 the \"auto\" literal with the three optional keys and defaults 0.90/16/36, the clamp, the hold-on-no-reading and integer-width behaviour, and the two new lane.json keys \u2014 with no gap I could find.",
+    "scope_discipline": "`git diff --name-status 42dc9a70 468ef62a` lists only imas_ambix/agent/router.py and tests/test_agent_router_gate.py, both declared write paths, and the diff carries nothing the goal does not imply."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the goal asks for the auto width mode of \u00a76 in the router generation gate, and the landed diff implements it inside the gate itself: imas_ambix/agent/router.py:235 clamps floor(pool_tokens * occupancy_target / estimate) to [width_floor, width_cap] and router.py:242 folds only fresh measured readings into the 600 s estimate.\nVERDICT done_when: the done-when names the three-context clamp test, the 2x-outlier EMA test, the hold test, the integer-width test, the lane.json publication and the declared negative control with its log; tests/test_agent_router_gate.py:577-660 carries all five tests at three contexts inside and outside the clamp, the control log's first line repeats the declared string verbatim with `assert 180 == 36` behind it, and I re-ran the named gate at the landed revision myself (52 passed, EXIT=0).\nVERDICT write_paths: the declared scope is five paths and `git diff --name-status 42dc9a70 468ef62a` lists imas_ambix/agent/router.py and tests/test_agent_router_gate.py only, both inside it, leaving the plan and the evidence record untouched as this node's done-when required.\nVERDICT manifest: read in full; it names commit 468ef62a, the gate command with 52 passed and its two logs, the declared control string with its log, and changed_paths that match the diff exactly, but its gate logs name the base revision because the tree was uncommitted when they were written, which the FINDING at manifest.md:9 records.\nVERDICT diff: read the single commit against base 42dc9a70 \u2014 imas_ambix/agent/router.py +154/-13 and tests/test_agent_router_gate.py +108, no third file \u2014 matching the manifest's changed_paths.\nCALL_SITES: imas_ambix/agent/router.py:859 (_publish_lane folding each fresh capacity reading into the gate through observe_lane), imas_ambix/agent/router.py:218 (_settings_from_payload resolving the auto width on every settings() refresh at router.py:133 reached by every admission), imas_ambix/agent/router.py:338 (snapshot publishing effective_width and context_estimate into lane.json through _publish_gate_snapshot at router.py:873)\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: router.py:223-247 carries every clause of the plan's \u00a76 paragraph \u2014 the \"auto\" literal with the three optional keys and defaults 0.90/16/36, the clamp, the hold-on-no-reading and integer-width behaviour, and the two new lane.json keys \u2014 with no gap I could find.\nSCORE evidence: 18\nJUSTIFICATION evidence: every measurement reproduces on the landed bytes \u2014 my re-run at c451c6c5 with router.py blob 4af71cb3 and tests blob dd54bd2c verified identical to 468ef62a gave 52 passed / EXIT=0, ruff exited 0, and the re-armed clamp mutation went red at `assert 180 == 36` \u2014 but the record's own logs name the base revision as the FINDING below records, and its evidence_inputs rounds the EMA figure 104877.06 to 104880.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: `git diff --name-status 42dc9a70 468ef62a` lists only imas_ambix/agent/router.py and tests/test_agent_router_gate.py, both declared write paths, and the diff carries nothing the goal does not imply.\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_agent_router_gate.py:586 reddens under the clamp mutation (measured: assert 180 == 36) and :603 under an unfolded outlier, but removing the feed at router.py:859 leaves all 52 green (measured in callsite-mutation.log of this review's run), so the wiring that makes the mode live is held by no assertion.\nSCORE fit: 20\nJUSTIFICATION fit: the constants at router.py:68-77 follow the module's existing DEFAULT_* notation, the mode is a gate-file key beside the others, and the commit, symbols and comments carry no plan, version or ticket identifier.\nFINDING imas_ambix/agent/router.py:859 no test reaches the gate through _publish_lane \u2014 every added test seeds the estimate by calling observe_lane directly (tests/test_agent_router_gate.py:586,596,600,615,636,649) \u2014 so deleting this call site leaves the suite green at 52 passed (measured) and the gate silently falls back to the floor width, with no test failing while the mode the node exists to add is unreachable from the running router.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T125610955585-gate-auto-width/manifest.md:9 the two gate logs it names record `revision: 42dc9a705ea39774366efac6a87111365a5e9025` \u2014 the base \u2014 because the gate ran 47 s and 37 s before commit 468ef62a (15:10:01 and 15:10:11 against 15:10:48) on a tree whose change was uncommitted, and the manifest does not say so, so the record alone cannot establish that the recorded 52 passed measured the landed bytes at all; this review's re-run at c451c6c5 with both blobs verified identical to 468ef62a is the corroboration the record cannot supply as written.",
+  "review_run_id": "r-20260923T132828473782-review-of-gate-auto-width",
+  "reviewed_base_sha": "42dc9a705ea39774366efac6a87111365a5e9025",
+  "reviewed_head_sha": "468ef62a93644107fc7a7461a3d704c021d12922",
+  "reviewed_run_id": "r-20260923T125610955585-gate-auto-width",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-23T15:18:12.771107+00:00",
+  "total": 96
+}

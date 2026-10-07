@@ -1,0 +1,82 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite and classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null, so its own arms cannot supply the delta. This review therefore built two scratch arms from the reviewed commit's own object store (git archive into $TMPDIR/arms/{base,head}, no git worktree created, and the reviewed worktree is not writable by this node). The reviewed gate file tests/data/test_eddb_cache.py is added by the change and is absent at base, so a same-selection delta is measured on the pre-existing tests that exercise the modules the change integrates with: tests/data/test_virtual_zarr.py tests/data/test_transform_engine.py tests/data/test_signal_map.py. Both arms are green and identical: base arm 21 passed EXIT=0 (gate-base.log, rev 0111d5a1), head arm 21 passed EXIT=0 (gate-head.log, rev 5949dfcf). The reviewed node's own gate arm (tests/data/test_eddb_cache.py at 5949dfcf) re-run in the head scratch arm is 10 passed EXIT=0 (gate-head-review.log), matching the node's gate.log. Head failing ids ([]) minus base failing ids ([]) is 0, and the additive test file contributes 0 failures, so added_failure_count is 0.",
+  "after_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider -q tests/data/test_virtual_zarr.py tests/data/test_transform_engine.py tests/data/test_signal_map.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T064405401974-review-of-jtmm-eddb-extractor/gate-head.log",
+    "revision": "5949dfcfd67894c035a01afd765d55ccf78254ac"
+  },
+  "baseline_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider -q tests/data/test_virtual_zarr.py tests/data/test_transform_engine.py tests/data/test_signal_map.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T064405401974-review-of-jtmm-eddb-extractor/gate-base.log",
+    "revision": "0111d5a1d575ab015e142c102d25fa3274c68bf4"
+  },
+  "completed_at": "2026-10-05T06:54:02.564Z",
+  "dispatched_at": "2026-10-05T06:44:11Z",
+  "findings": [
+    {
+      "category": "missing-deliverable",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-eddb-extractor.html",
+      "line": "section jtmm-eddb-extractor-landing",
+      "severity": "follow-on",
+      "text": "follow-on: the plan \u00a73 done-when has three clauses and the node's evidence fragment carries none of the measured ones. \u00a73 requires 'a cold fetch of one OP2 shot's first-pass signals completes through the extractor in a single ssh session; a warm read of the same signals through the view touches no network; and the extractor's wall time per signal and bytes per signal are recorded in the evidence'. The delivered fragment states only that the code exists. The single-ssh-session and no-network-on-warm-read properties are asserted against a fake transport (tests/data/test_eddb_cache.py::test_one_transport_process_per_batch and ::test_a_cached_channel_causes_no_transport_call), which is legitimate for a unit gate, but the wall-time-per-signal and bytes-per-signal measurement \u2014 the clause whose stated purpose is 'so the cache for a shot set is sized rather than guessed' \u2014 is absent, and no real cold fetch was run (the ssh link to IFERC dropped; plan \u00a75). The node's manifest does not list this as a follow-on, so a reader of the landing record would take \u00a73's measurement clause as satisfied when it is not. The follow-on is to run one real OP2 cold fetch on the healthy link and record seconds and bytes per signal in the evidence."
+    },
+    {
+      "category": "integration-seam",
+      "file": "imas_ambix/data/eddb.py",
+      "line": "68",
+      "severity": "follow-on",
+      "text": "follow-on, flagged by the node and confirmed here: the cache directory is named by the raw EDDB shot token ('{shot}.zarr') while ZarrTransformEngine/VirtualZarrView open a pulse as f\"{int(shot)}.zarr\". The integration test test_cached_store_opens_through_engine_and_view_with_no_transport_call uses shot='51234', which is int-convertible, so it never exercises the case the plan says is live \u2014 \u00a73 records that 'the current shot is a coil-commissioning pulse (C-series)'. A C-series or E-series token is not int-convertible, so the cache's headline property (readable by the existing engine with no new reader) does not hold for the shot class in use. The node records this in evidence_inputs and as a follow-on; it is out of this node's code scope, but it is the gap between the delivered layout and the section's real read path."
+    },
+    {
+      "category": "untested-surface",
+      "file": "imas_ambix/data/eddb_remote.py",
+      "line": "269",
+      "severity": "follow-on",
+      "text": "follow-on: REMOTE_SCRIPT, the half of the extractor that actually calls eddbreadTime/eddbreadOne against libeddb, is never executed by any test. test_the_remote_script_uses_stdlib_numpy_and_the_wrapper_only only substring-matches the source text ('eddb_pwrapper' in REMOTE_SCRIPT, 'import requests' not in REMOTE_SCRIPT). The client-side envelope is round-tripped in-process (test_envelope_round_trips_through_encode_and_decode) but the remote producer of that same envelope is unverified, so the equivalence the module docstring claims ('the client decodes both identically') rests on inspection alone. Unreachable from a test by design; the follow-on is a one-shot smoke run of the script against the analysis server on a healthy link, comparing its bytes to encode_batch's for a known record."
+    },
+    {
+      "category": "evidence-note",
+      "file": "imas_ambix/data/eddb.py",
+      "line": "84",
+      "severity": "follow-on",
+      "text": "follow-on, evidence integrity: the reviewed run's negative_control_note names the mutation as '(create_array overwrite=True)', but that change alone does not disable the overwrite guard. The guard is the explicit membership test 'if record.dname in category: raise EddbCacheError(...)' at eddb.py:82-87, which fires before create_array is reached. Reproduced this review: a head tree with only create_array(overwrite=True) applied still passes the gate 10/10 (negative-control.log, EXIT=0); a head tree with the membership guard removed fails exactly test_writing_over_an_existing_channel_is_refused with 'DID NOT RAISE EddbCacheError' (negative-control-2.log, EXIT=1), matching the node's own red log. So the guard is real and falsifiable, but the note misdescribes the mutation a reproducer must apply; the note should name the membership check."
+    },
+    {
+      "category": "edge-case",
+      "file": "imas_ambix/data/eddb.py",
+      "line": "47",
+      "severity": "follow-on",
+      "text": "follow-on (minor): is_cached() returns False when the on-disk path exists but does not open as a zarr array (KeyError/ValueError/OSError), while write_channel() then raises EddbCacheError because the name is present in the group. The two predicates disagree for a path that exists but is unreadable or is a group rather than an array: fetch_channels would treat the channel as missing, call the transport, and then write_channel would refuse, so the batch fetch is spent before the refusal. Single-writer and normally consistent, so no test exercises it; a corrupt or half-written channel is the only path there. No action required for this node; noted for the next reader."
+    }
+  ],
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T064405401974-review-of-jtmm-eddb-extractor",
+  "reviewed_base_sha": "0111d5a1d575ab015e142c102d25fa3274c68bf4",
+  "reviewed_head_sha": "5949dfcfd67894c035a01afd765d55ccf78254ac",
+  "reviewed_run_id": "r-20261005T063225542614-jtmm-eddb-extractor",
+  "reviewer": "review-of-jtmm-eddb-extractor",
+  "scores": {
+    "durability": 14,
+    "evidence": 15,
+    "fit": 16,
+    "goal_fidelity": 15,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T06:51:51+00:00",
+  "total": 79
+}

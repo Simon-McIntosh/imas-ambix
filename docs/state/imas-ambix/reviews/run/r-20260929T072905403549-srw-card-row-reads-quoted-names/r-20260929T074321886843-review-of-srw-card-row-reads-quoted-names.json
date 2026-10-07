@@ -1,0 +1,69 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/node_probe.py:429 read_cards calls parse_cards",
+    "imas_ambix/agent/node_probe.py:739 NodeProbe.sample calls read_cards",
+    "imas_ambix/agent/serving_receipts.py:677 the serving recorder constructs NodeProbe behind args.no_node_probe"
+  ],
+  "completed_at": "2026-09-29T08:26:54.929Z",
+  "dispatched_at": "2026-09-29T07:43:28Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T072905403549-srw-card-row-reads-quoted-names/manifest.md",
+      "line": "15",
+      "text": "the quoted base-arm reproduction misstates the base card's last two numeric fields (it reports memory_* values one step further shifted than the measurement: memory_used_mib=0.0 and memory_total_mib=405.0, where loading the base blob gives memory_used_mib=405.0 and memory_total_mib=726.0 with utilisation_percent omitted), so a reader checking the claim against the artefact finds different values."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T072905403549-srw-card-row-reads-quoted-names/gate-pytest-node_probe.log",
+      "line": "1",
+      "text": "the three gate logs name rev 41ef8974, the base, because the gates ran 09:35-09:37 while the commit landed at 09:40:54, so the logs cannot be tied to the delivered revision f8ded1dc without a re-run at the head, which I performed (1 passed)."
+    }
+  ],
+  "follow_ons": [
+    "the gate logs of run r-20260929T072905403549 name the worktree's base revision because the gates ran before the commit, so the log's first line cannot identify the content exercised; the manifest contract and the log-stamping convention are reckon's, outside this node's fence"
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "read the single commit f8ded1dc against base 41ef8974; two files, 34 insertions and 2 deletions: the csv import, the reader loop replacing the positional split, one quoted-name fixture and one test.",
+    "done_when": "the fence asks tests/test_node_probe.py to drive a quoted-comma name asserting the whole name and every numeric field, with the unquoted rows unchanged, plus the serving-interpreter guard and the whole-tree ruff gate; the manifest records all three with their logs (44 passed; 1 passed 8 deselected; All checks passed) and I re-ran the named test at the reviewed head f8ded1dc myself (1 passed, 43 deselected, 0.13s, module resolving to the reviewed worktree).",
+    "goal": "the node's goal is to parse the nvidia-smi card row with the csv module so a quoted comma in a card name cannot shift the numeric columns; imas_ambix/agent/node_probe.py:381 reads each line through csv.reader(skipinitialspace=True), and loading the base blob from 41ef8974 on the very row the manifest quotes shows the name truncated and every numeric one column early.",
+    "manifest": "read the whole manifest; it names the commit, the changed paths, the three gate logs, the negative control and a base-arm reproduction whose shape is confirmed, but its quoted reproduction at line 15 misstates two of the base card's fields and the gate logs' first lines name the base revision rather than the delivered head.",
+    "write_paths": "the fence declares imas_ambix/agent/node_probe.py, tests/test_node_probe.py, an evidence fragment and a figure directory; git diff --name-status 41ef8974..f8ded1dc lists exactly the two source paths, and the small-node rule releases the fragment and the figure."
+  },
+  "justifications": {
+    "durability": "the negative control shows tests/test_node_probe.py:319 reddening on the restored positional split (assert '\"NVIDIA H200' == 'NVIDIA H200, NVL'), so the guard names the regression it catches, with only the quoted-without-a-leading-space shape left unpinned.",
+    "evidence": "tests/test_node_probe.py:319 carries the quoted-row assertion and the manifest names the gate logs, but gate-pytest-node_probe.log:1 names rev 41ef8974 rather than the delivered head f8ded1dc and manifest.md:15's quoted reproduction is wrong in two fields, so both recorded claims needed my own re-run and my own base load to be tied to the artefact.",
+    "fit": "imas_ambix/agent/node_probe.py:381 adopts the stdlib csv module the plan's card-row item prescribes, matches the module's existing comment and naming rules, and the commit carries a conventional subject and a body with no plan or ticket identifiers.",
+    "goal_fidelity": "imas_ambix/agent/node_probe.py:381 parses every card line through csv.reader(skipinitialspace=True), and my own measurement of the head module on the quoted row returns the name whole with all eight numeric fields at the columns the query wrote.",
+    "scope_discipline": "git diff --name-status 41ef8974..f8ded1dc lists only imas_ambix/agent/node_probe.py and tests/test_node_probe.py, both inside the declared fence, with nothing the goal does not imply."
+  },
+  "justifications_detail": {
+    "independent_receipts": "review-gate-head.log re-ran the named test at f8ded1dc from the main checkout's environment with PYTHONPATH at the reviewed worktree (1 passed, 43 deselected, EXIT=0), the header naming the imported module and the tree; review-base-repro.log loaded the base blob from 41ef8974 standalone in a scratch tree and drove the quoted row through it (name truncated to '\"NVIDIA H200', temperature_c 0.0, power_draw_w 41.0, power_cap_w 12.62, sm_clock_mhz 72.0, mem_clock_mhz 210.0, memory_used_mib 405.0, memory_total_mib 726.0), against the head module's whole name and memory_total_mib 23034.0.",
+    "review_basis": "the reviewed node's dispatch contract (goal, done-when, scope fence, manifest template), the reviewed manifest, the one commit 41ef8974..f8ded1dc with its full diff, all three gate logs and the negative-control log, the call sites of parse_cards in the reviewed worktree, and plan section s7 with the driving item f-srw-004."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is to parse the nvidia-smi card row with the csv module so a quoted comma in a card name cannot shift the numeric columns; imas_ambix/agent/node_probe.py:381 reads each line through csv.reader(skipinitialspace=True), and loading the base blob from 41ef8974 on the very row the manifest quotes shows the name truncated and every numeric one column early.\nVERDICT done_when: the fence asks tests/test_node_probe.py to drive a quoted-comma name asserting the whole name and every numeric field, with the unquoted rows unchanged, plus the serving-interpreter guard and the whole-tree ruff gate; the manifest records all three with their logs (44 passed; 1 passed 8 deselected; All checks passed) and I re-ran the named test at the reviewed head f8ded1dc myself (1 passed, 43 deselected, 0.13s, module resolving to the reviewed worktree).\nVERDICT write_paths: the fence declares imas_ambix/agent/node_probe.py, tests/test_node_probe.py, an evidence fragment and a figure directory; git diff --name-status 41ef8974..f8ded1dc lists exactly the two source paths, and the small-node rule releases the fragment and the figure.\nVERDICT manifest: read the whole manifest; it names the commit, the changed paths, the three gate logs, the negative control and a base-arm reproduction whose shape is confirmed, but its quoted reproduction at line 15 misstates two of the base card's fields and the gate logs' first lines name the base revision rather than the delivered head.\nVERDICT diff: read the single commit f8ded1dc against base 41ef8974; two files, 34 insertions and 2 deletions: the csv import, the reader loop replacing the positional split, one quoted-name fixture and one test.\nCALL_SITES: imas_ambix/agent/node_probe.py:429 read_cards calls parse_cards, imas_ambix/agent/node_probe.py:739 NodeProbe.sample calls read_cards, imas_ambix/agent/serving_receipts.py:677 the serving recorder constructs NodeProbe behind args.no_node_probe\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: imas_ambix/agent/node_probe.py:381 parses every card line through csv.reader(skipinitialspace=True), and my own measurement of the head module on the quoted row returns the name whole with all eight numeric fields at the columns the query wrote.\nSCORE evidence: 17\nJUSTIFICATION evidence: tests/test_node_probe.py:319 carries the quoted-row assertion and the manifest names the gate logs, but gate-pytest-node_probe.log:1 names rev 41ef8974 rather than the delivered head f8ded1dc and manifest.md:15's quoted reproduction is wrong in two fields, so both recorded claims needed my own re-run and my own base load to be tied to the artefact.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-status 41ef8974..f8ded1dc lists only imas_ambix/agent/node_probe.py and tests/test_node_probe.py, both inside the declared fence, with nothing the goal does not imply.\nSCORE durability: 19\nJUSTIFICATION durability: the negative control shows tests/test_node_probe.py:319 reddening on the restored positional split (assert '\"NVIDIA H200' == 'NVIDIA H200, NVL'), so the guard names the regression it catches, with only the quoted-without-a-leading-space shape left unpinned.\nSCORE fit: 20\nJUSTIFICATION fit: imas_ambix/agent/node_probe.py:381 adopts the stdlib csv module the plan's card-row item prescribes, matches the module's existing comment and naming rules, and the commit carries a conventional subject and a body with no plan or ticket identifiers.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T072905403549-srw-card-row-reads-quoted-names/manifest.md:15 the quoted base-arm reproduction misstates the base card's last two numeric fields (it reports memory_* values one step further shifted than the measurement: memory_used_mib=0.0 and memory_total_mib=405.0, where loading the base blob gives memory_used_mib=405.0 and memory_total_mib=726.0 with utilisation_percent omitted), so a reader checking the claim against the artefact finds different values.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T072905403549-srw-card-row-reads-quoted-names/gate-pytest-node_probe.log:1 the three gate logs name rev 41ef8974, the base, because the gates ran 09:35-09:37 while the commit landed at 09:40:54, so the logs cannot be tied to the delivered revision f8ded1dc without a re-run at the head, which I performed (1 passed).\n",
+  "review_run_id": "r-20260929T074321886843-review-of-srw-card-row-reads-quoted-names",
+  "reviewed_base_sha": "41ef8974aee89b85dc8cd941454ec20ca1a8fc6d",
+  "reviewed_head_sha": "f8ded1dc080340113ccaaff9a9f979c65fcaad4d",
+  "reviewed_run_id": "r-20260929T072905403549-srw-card-row-reads-quoted-names",
+  "reviewer": "review-of-srw-card-row-reads-quoted-names",
+  "scores": {
+    "durability": 19,
+    "evidence": 17,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T08:22:05.368819+00:00",
+  "total": 96
+}

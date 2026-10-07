@@ -1,0 +1,103 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T02:57:27.510Z",
+  "dispatched_at": "2026-10-07T02:51:14Z",
+  "findings": [
+    {
+      "anchor": "packages/imas-alambic/src/imas_alambic/machine_map.py:204",
+      "id": "deep_module-1",
+      "reason": "naming the one function that owns settings resolution and the parameter it passes to `discover_bundles` is what keeps \u00a78's five settings behind one interface rather than five shallow touch points.",
+      "text": "\u00a78 says the home-derived map default joins the search path \"exactly as if IMAS_ALAMBIC_MAP_PATH named it\" but does not name the seam: `discover_bundles()` takes no argument and reads `os.environ` directly at machine_map.py:204, so an implementer must either give it a parameter or have the settings layer mutate the environment, and the latter produces the parallel search path the same sentence disclaims while scattering precedence across cli.py, machine_map.py and the writer",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "packages/imas-alambic/src/imas_alambic/machine_map.py:244",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a78 also retires the machine-named key `JT60SA_ROOT` and asserts this stays \"the one owner of store-root lookup\", so the name must match the widened role set or the next reader looks for a description store when resolving a cache.",
+      "text": "\u00a78 resolves the `eddb_cache` role through `resolve_description_store_root`, the function named, documented and worded as the description-store root owner (\"no bundle declares description store root {name!r}\"), and \u00a79 then lists `description` and `eddb_cache` as sibling store roots; the owner should be generalised (a store-root resolver) with its message and name following, rather than overloading the description-store name for a cache",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "packages/imas-alambic/src/imas_alambic/pulse_writer.py:1",
+      "id": "duplicate_owner-2",
+      "reason": "a \u00a77 build node would now re-implement landed work, and \u00a71's census and \u00a78's \"\u00a78 waits for \u00a77's rename to merge\" must be re-based on `7e8b6db4`, where the file is `pulse_writer.py`.",
+      "text": "\u00a77's rename of the engine verb and module (`mint`\u2192`write`, `pulse_mint.py`\u2192`pulse_writer.py`) is already on `main` at `c2db8bdd`/`7e8b6db4`, landed 2026-10-07T02:53:50Z, after this snapshot's base `50a0907c`; the snapshot still declares \u00a77 `implementable` and lists `pulse_mint.py` in \u00a71's census",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "ec3bce2cb0bc1fea9eb524f3a4648e91e05828170ff7c138715116f7920df39c",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 42,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "deep_module-1",
+      "reason": "v45 s8: names the owner: a new imas_alambic/settings.py whose resolve_settings(flags) is the only reader of IMAS_ALAMBIC_* and returns each setting with its source; discover_bundles stops reading os.environ and takes the resolved search path as a parameter (default: ask resolve_settings); nothing mutates the environment; done-when greps that the variables are read only in settings.py.",
+      "when": "2026-10-07T02:59:11.874353+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "duplicate_owner-1",
+      "reason": "v45 s8: resolve_description_store_root is renamed resolve_store_root (it serves more than the description store), gains an optional form for undeclared roles, and its refusal names the kind of root so description lookups still say 'description store root'; every caller moves with the rename; the done-when grep covers both spellings.",
+      "when": "2026-10-07T02:59:11.883247+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "duplicate_owner-2",
+      "reason": "v45-46: s7 collapsed as landed (worker c2db8bdd, merge 7e8b6db4, review 118/120); s1's census names pulse_writer.py and test_pulse_writer.py; s8's retired key cites pulse_writer.py; s8 now links s7 and s9.",
+      "when": "2026-10-07T02:59:11.888809+00:00"
+    }
+  ],
+  "responses": {
+    "deep_module-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v45 s8: names the owner: a new imas_alambic/settings.py whose resolve_settings(flags) is the only reader of IMAS_ALAMBIC_* and returns each setting with its source; discover_bundles stops reading os.environ and takes the resolved search path as a parameter (default: ask resolve_settings); nothing mutates the environment; done-when greps that the variables are read only in settings.py.",
+      "when": "2026-10-07T02:59:11.874353+00:00"
+    },
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v45 s8: resolve_description_store_root is renamed resolve_store_root (it serves more than the description store), gains an optional form for undeclared roles, and its refusal names the kind of root so description lookups still say 'description store root'; every caller moves with the rename; the done-when grep covers both spellings.",
+      "when": "2026-10-07T02:59:11.883247+00:00"
+    },
+    "duplicate_owner-2": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v45-46: s7 collapsed as landed (worker c2db8bdd, merge 7e8b6db4, review 118/120); s1's census names pulse_writer.py and test_pulse_writer.py; s8's retired key cites pulse_writer.py; s8 now links s7 and s9.",
+      "when": "2026-10-07T02:59:11.888809+00:00"
+    }
+  },
+  "review_run_id": "r-20261007T025055696735-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "f15cf44791d147ddf3d7651591cb46d6870f92e1",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 \u00a78 adds a settings/precedence mechanism (flag, three env vars, home-derived defaults, bundle role, `config` view) but names no module or function that owns the resolution, and leaves the seam by which the home-derived map default reaches `discover_bundles` undescribed, so the complexity lands on whichever of cli.py, machine_map.py and the writer the implementer picks.",
+    "duplicate_owner": "a finding \u2014 \u00a78 resolves the EDDB cache root through `resolve_description_store_root`, whose name, docstring (\"Resolve a declared store-root name\") and refusal text are the *description-store* owner, so a cache role resolved through it gives the mechanism a second, mis-named meaning; and \u00a78's home-derived map default risks a second map-search owner beside `discover_bundles` unless the plan names how the derived root is handed to that one owner. A third, external fact: \u00a77's rename is already on `main`.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a78 carries an explicit interface account that names, per addition, what it retires (`IMAS_ALAMBIC_HOME` retires \u00a74's `env.sh`; `IMAS_ALAMBIC_IDS_ROOT` retires `--out` as required; `--maps/--out/--cache` are flag forms of the same three settings; `--run` and `config` state why nothing can be retired), \u00a77 states its rename adds no command or option, and \u00a79 states the `machine` key retires nothing because single-machine addressing never existed.",
+    "reuse_search": "pass \u2014 the plan searched the repository it extends and cites the mechanism each section edits, and its \u00a71 census reproduces exactly: `git grep -l -E \"jt-60sa|JT60SA_ROOT|JT60SA_DESCRIPTION_DIR|/work/projects/imas_gpu/jt60sa\" -- imas_ambix scripts tests packages ':!*.json'` returns the same 20 files the plan lists, and \u00a79's three named edit sites (`MapBundle.machine_map_path`/`signal_map_path`, `load_bundle_descriptor`) are the only structure builders.",
+    "thin_wrapper": "pass \u2014 the sections that touch existing code extend it rather than wrapping it: \u00a78 widens `discover_bundles` and `resolve_description_store_root`, \u00a79 widens `MapBundle`/`load_bundle_descriptor`, and \u00a77 is a rename that adds no layer; \u00a75's `install/imasdb.sh` is deployment shell, not a wrapper over engine machinery."
+  },
+  "section_digests": {
+    "_document": "2d17566147222e851c26e944a58262704c9bbcabc81bc90bc619eed262ed76eb",
+    "s1": "714e108f8661d4f9f4540036ec89a5677ac6810b0101717370eeed30b5b6d88e",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "56812a38380cfae64d6f806e8c53db03be6427472f3ea0a000d60ef09c723453",
+    "s6": "1ccc061c74e3a3eab0fbd07825bc5bf11d8207248d01b1a9aecba35a37e20560",
+    "s7": "8c5f7724383f68ff8363e74b3048d56c7c65de031315418c74383b05513f3556",
+    "s8": "392d80aee2ef0977205364ac3fa3bc39eda23ebb9714cbd017aa366ad369318b",
+    "s9": "59069a25fd3c20d7f75abe6c08c10b3927e4630f1a96ce4061a0d75098aecf10"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T02:59:11.850543+00:00"
+}

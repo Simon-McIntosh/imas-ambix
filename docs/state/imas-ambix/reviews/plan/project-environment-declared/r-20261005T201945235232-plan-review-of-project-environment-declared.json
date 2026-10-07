@@ -1,0 +1,24 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T20:23:22.079Z",
+  "dispatched_at": "2026-10-05T20:19:51Z",
+  "findings": [],
+  "plan_fingerprint": "392e1a7dc540d6e16a98e64f336903b3b8fb1f4e5edc99280e5a584ced1e8729",
+  "plan_slug": "project-environment-declared",
+  "plan_version": 46,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T201945235232-plan-review-of-project-environment-declared",
+  "reviewed_blob_sha": "35066ac033f92b209266e3bf9657b1d6fe4378d1",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 `imas_ambix/_thread_pools.py` exposes one function over the three-variable load-time pin, and the test entrypoint `apply_worker_thread_cap` (tests/conftest.py:101) hides affinity reading, the environment pin, already-loaded-pool limiting and torch pool sizing behind a single call; the helper functions it is decomposed into (`available_cpus`, `worker_share`, `_limit_loaded_pools`, `_resolve_torch`) serve distinct concerns rather than wrapping one machinery.",
+    "duplicate_owner": "pass \u2014 the plan's \u00a75 is a de-duplication, not a fork: it installs one owner for the environment-variable pin and refactors the existing inline copy in `imas_ambix/statespace/oracle_probe.py` to call it, and it touches none of the recurring duplicate families (placement, path resolution, scheduler queries, state readers); no second copy of the pin exists in the Python tree (grep for OMP/OPENBLAS/MKL assignment finds only `_thread_pools.py`).",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a75, the only section that adds surface, adds none of the four families (a function in a private `_`-prefixed module, test-scope helpers, and a pytest marker) and its own text names what it retires (\"retiring its inline loop\") and merges (\"one owner instead of a second copy\").",
+    "reuse_search": "pass \u2014 the plan extends the machinery it cites rather than rebuilding it: \u00a75 names the existing inline BLAS/OpenMP pin in `imas_ambix/statespace/oracle_probe.py` (verified: it now calls `pin_thread_pools(4)` before importing numpy at oracle_probe.py:53-55), names `threadpoolctl` as an existing dependency reachable through `scikit-learn` (verified: `pyproject.toml:76` declares scikit-learn; `threadpoolctl` enters `uv.lock` at :1187), and names the CPU-share source (`PYTEST_XDIST_WORKER_COUNT` + CPUs available to the process); the ordering claim it rests on \u2014 that neither `imas_ambix/__init__.py` nor `imas_ambix/statespace/__init__.py` imports anything that loads BLAS \u2014 is verified true (both are docstring-only).",
+    "thin_wrapper": "pass \u2014 the one thin layer, `pin_thread_pools` over three `os.environ.setdefault` calls, carries the justification the item requires in its own text: it replaces the second copy (oracle_probe's inline loop) with one owner, and is kept stdlib-only so the pin lands before any BLAS library loads."
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T20:24:05.724681+00:00"
+}

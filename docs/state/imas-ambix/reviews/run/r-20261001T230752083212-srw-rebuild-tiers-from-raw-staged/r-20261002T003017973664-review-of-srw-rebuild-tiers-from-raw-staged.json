@@ -1,0 +1,83 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite (the run's classification.json records manifest.data.baseline_suite and manifest.data.after_suite both null), so its own arms cannot supply the delta. The reviewed commit 013eea8a is docs-only (one new fragment, +27 lines, no source touched: telemetry_store.py is byte-identical md5 8fada96e24d94c67adf1baa360992e11 at base 509f1236 and head 013eea8a). This review therefore reconstructed two arms from the reviewed commit's own object store, extracted with git archive into $TMPDIR scratch trees (no git worktree created), and ran the suite that covers the code the reviewed node exercised (telemetry_store.compact_file and telemetry_retention.compare_tiers): base arm gate-base.log (revision 509f1236: 40 passed, EXIT=0) and head arm gate-head.log (revision 013eea8a: 40 passed, EXIT=0). Both arms green, so head failing ids ([]) minus base failing ids ([]) is 0. The reviewed node's own data gate was reproduced independently rather than accepted: rebuilding tiers for one failing job (1271728, old flat-key raw) and one passing job (1278060) with the base tree's code reproduces the node's per-job verdicts and totals exactly (repro-data.log), and this review's own mutation at a copied staged minute tier reddens the check (independent-mutation.log).",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q --timeout=300 tests/test_telemetry_retention.py tests/test_telemetry_store.py tests/test_telemetry_compaction_runs.py tests/test_telemetry_compaction_leaves.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T003017973664-review-of-srw-rebuild-tiers-from-raw-staged/gate-head.log",
+    "reproduced_from": "review",
+    "revision": "013eea8aef3b99347f8a589aaa14d3e3e05aa301"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q --timeout=300 tests/test_telemetry_retention.py tests/test_telemetry_store.py tests/test_telemetry_compaction_runs.py tests/test_telemetry_compaction_leaves.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T003017973664-review-of-srw-rebuild-tiers-from-raw-staged/gate-base.log",
+    "reproduced_from": "review",
+    "revision": "509f12367effe3c4633cd2ecdcf753fbc9dbf0db"
+  },
+  "completed_at": "2026-10-02T00:46:10.073Z",
+  "dispatched_at": "2026-10-02T00:30:25Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_retention.py",
+      "line": "359",
+      "severity": "follow-on",
+      "text": "follow-on: compare_tiers marks a job failed whenever raw_total is None (line 359: 'not (raw_total is not None and ...)'), so an old flat-key raw file with no engine section -- every counter absent, and every tier built from it also absent -- is reported as a disagreement even though no totals disagree. The reviewed node reproduced this exactly: it labelled 10 old-format jobs 'failed', and the node's own fragment describes them correctly as 'the check reports that no agreement could be computed'. But plan rule 2 (retention block) reads 'the partitioned totals ... must be equal exactly. A job fails if any one window or any one counter differs' -- on that reading absent==absent is equal, so the 10 jobs would pass, whereas the shared tool that the retire-raw listing also uses makes them permanently ineligible for retirement. This is a plan/tooling question the node could not settle from its brief, not a defect it introduced: the node used the plan's own compare_tiers unchanged and reported its result faithfully. Recorded because those 10 raw files will never become eligible under the rule-2 check as written, and a decision is owed on whether that is intended."
+    }
+  ],
+  "follow_ons": [
+    {
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-rebuild-tiers-from-raw-staged.html",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "The reviewed node's brief (FENCE \u2014 EVIDENCE) asked it to run the per-hour three-counter check on every candidate; it ran it on 36 of 54 and deferred 18 (check.md totals: 2 passed, 10 failed, 24 skipped, 18 deferred), because compare_tiers ingest cost far exceeded the plan's recorded 8.9 s/MB (the node measured 353 s for an 808 KB file, job 1271376). The deferral is documented in the fragment, the manifest checkpoint and the follow_ons, and the retire-raw listing runs the same check before any file becomes eligible, so no unsound deletion is licensed. Recorded as an incomplete per-job check rather than a defect: rule 2's per-job equality is unverified for those 18 jobs until the retire-raw listing runs, and the dependency is one node away."
+    },
+    {
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-rebuild-tiers-from-raw-staged.html",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "The staged rebuilt tiers differ by sha256 from the record directory's installed compacted files even for passing jobs (rebuild_results.json: minute_differs=true, hour_differs=true for the two passed jobs 1278049 and 1278060), which is expected -- the rebuild is under the corrected compaction while the installed tiers predate it -- and the totals agree. This is a positive signal that the rebuild is not a no-op, but it means the staged tiers are a correction of the installed ones, not a byte-copy; a later reader should not treat 'differs' as a fault. No action owed by this node."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "Read commits 5c3b7062 (first anchor of the fragment) and 013eea8a (deferred-check wording) against base 509f1236: one file changed, docs/evidence/fragments/serving-record-warehouse/srw-rebuild-tiers-from-raw-staged.html, +27/-0 net (27 insertions over the two commits). No source file is touched; telemetry_store.py is byte-identical at base and head. The diff is entirely a new evidence fragment.",
+    "done_when": "Read the review's own measure: store a parsed record scoring all five dimensions in 0..20, reviewing_base_sha and reviewed_head_sha, and added_failure_count/added_failure_ids. This record carries all of them. The reviewed run declares neither baseline_suite nor after_suite (it is unarmed), so the delta is derived from this review's own two arms of the suite covering the reviewed node's exercised code (base 40 passed EXIT=0, head 40 passed EXIT=0), recorded under baseline_suite and after_suite.",
+    "gate": "The reviewed node's gate is rebuild_tiers_check.py against the real corpus at /work/projects/imas_gpu/agents/receipts, exercised through the main checkout's code; the module resolved to /home/ITER/mcintos/Code/imas-ambix/imas_ambix/agent/telemetry_store.py and the run printed cwd and module on its log headers (run1.log). This review re-ran the node's gate semantics on the base tree's code for one failing and one passing job and reproduced its verdicts and totals exactly; it also falsified the check with an independent mutation (corrupting one staged minute row's engine.generation_tokens for 1278060 flips that job's per-counter agrees from [True, True, True] to [False, True, True], NEGCTL_CAUGHT=True).",
+    "goal": "The reviewed node's declared goal (plan \u00a78 rule 2, and its brief) is: rebuild every ended job's minute and hour tiers from raw under the corrected compaction into a staging directory, and check each rebuilt job's per-hour, per-counter partitioned totals (engine.generation_tokens, engine.prompt_tokens, engine.uncached_prompt_tokens...) against raw. Delivery: all 54 candidate jobs' minute and hour tiers were rebuilt into tiers/ (rebuild_results.json carries 54 records, each with staged_minute_size, staged_hour_size and counter tuples), which is the core of the goal and is reproduced by this review. The check ran on 36 of 54: 2 passed (1278049, 1278060) and 10 failed for a reason the node states and this review confirms -- old flat-key raw files with no engine section, so all three counters are absent in every tier and no agreement can be computed (1271728 reproduced: raw=None minute=None hour=None agrees=False for all three). 24 were skipped correctly (0-byte files, no parseable row: e.g. 1270033 is 0 bytes). 18 were deferred. Independent reproduction of one failing job and one passing job matches the node's records exactly (1278060 totals 166682/285196/247296 in raw, minute and hour, matching rebuild_results.json).",
+    "manifest": "Read; status complete; changed_paths names the fragment; commits 5c3b7062 and 013eea8a; tests names the three rebuild_tiers_check.py passes and render_check.py; test_logs names run1.log, run2.log, negctl.log and check.md; negative_control_note records the by-hand mutation on job 1278060. The manifest declares no baseline_suite/after_suite arms, so this review reconstructed them, and this review independently reproduced the declared negative control (see added_failures_basis).",
+    "write_paths": "Read the manifest's declared write paths (the report directory .../srw-rebuild-tiers-from-raw-staged, the fragment docs/evidence/fragments/serving-record-warehouse/srw-rebuild-tiers-from-raw-staged.html, and the figures dir docs/figures/serving-record-warehouse/srw-rebuild-tiers-from-raw-staged). The diff touches exactly the fragment inside that set; the receipts directory /work/projects/imas_gpu/agents/receipts was opened read-only and nothing there was written (verified: no new file and no modified file in the receipts dir attributable to the run; the staged outputs all land under the report directory). No plan, index or sprint state is mutated. The declared figures dir was not written -- under-delivery of the declared figures dir, not a scope breach."
+  },
+  "justifications": "independent review of run r-20261001T230752083212-srw-rebuild-tiers-from-raw-staged, base 509f1236, head 013eea8a, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 15, evidence 18, scope_discipline 19, durability 17, fit 18 -- total 87, added_failure_count 0 with added_failure_ids [] derived from this review's own two arms of the suite covering the reviewed node's exercised code (the reviewed run was dispatched unarmed, so its own baseline_suite and after_suite are null): base arm gate-base.log (scratch tree $TMPDIR/.../arms/base, revision 509f1236: 40 passed, EXIT=0) and head arm gate-head.log (scratch tree $TMPDIR/.../arms/head, revision 013eea8a: 40 passed, EXIT=0). The reviewed node's declared goal -- plan \u00a78 rule 2, rebuild every ended job's tiers from raw and check them against raw. All 54 candidate jobs' tiers were rebuilt, which this review confirms against the node's own records. The check ran on 36, and the node's verdicts reproduce: job 1278060 passes with 166682/285196/247296 tokens agreeing across raw, minute and hour (exactly the node's record), and job 1271728 fails because its old flat-key raw carries no engine section so all three counters are absent in every tier. The 24 skips are 0-byte files with no parseable row, verified against the corpus. The negative control reproduces independently. goal_fidelity loses five points because the brief asked to run the named check on every candidate but 18 were deferred to the retire-raw listing -- a documented cost-driven deviation, not an unsound one, but the per-job equality is unverified for those until another node runs; one further point for a decision the node could not settle from its brief (the 10 old-format jobs are structurally unretireable under the shared compare_tiers because it treats all-absent as a disagreement, whereas rule 2's per-window equality reads absent==absent as equal). evidence loses two points only for the same deferred arm, being otherwise strong and independently reproduced. scope_discipline and fit are near-full: the diff is one new fragment inside the declared paths, the receipts directory is opened read-only, and the node uses the plan's own compact_file and compare_tiers rather than inventing a parallel check. durability loses three points because the central evidence (check.md, rebuild_results.json, tiers/, the gate logs) lives under the run report directory rather than a committed path; the fragment itself is committed with an accurate self-description.",
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-rebuild-tiers-from-raw-staged",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "review_kind": "review",
+  "review_run_id": "r-20261002T003017973664-review-of-srw-rebuild-tiers-from-raw-staged",
+  "reviewed_base_sha": "509f12367effe3c4633cd2ecdcf753fbc9dbf0db",
+  "reviewed_head_sha": "013eea8aef3b99347f8a589aaa14d3e3e05aa301",
+  "reviewed_run_id": "r-20261001T230752083212-srw-rebuild-tiers-from-raw-staged",
+  "reviewer": "review-of-srw-rebuild-tiers-from-raw-staged",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 15,
+    "scope_discipline": 19
+  },
+  "section": "s8",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T00:43:33+00:00",
+  "total": 87
+}

@@ -1,0 +1,83 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "Derived from the reviewed run's own armed arms (its manifest baseline_suite and after_suite, both completed:true on their summary lines). Base arm e092f8ab: 2 failed, 47 passed, EXIT=1, failing ids [test_every_binding_targets_a_writable_shape_compatible_dd_leaf, test_every_mast_map_range_is_one_geometry_transition] (gate-base.log). Head arm 8b025036: 2 failed, 51 passed, EXIT=1, the same two ids (gate.log). The head arm's failure set equals the base arm's, so the added failures are 0 with ids []. Both head failures were inspected: each is 'Failed: Timeout (>300.0s) from pytest-timeout' inside _machine_description_inventory at tests/data/test_machine_map.py:249 reading a large MAST zarr consolidated_metadata JSON on GPFS, the identical cause the base arm shows, so neither is introduced by this node. The 51-vs-47 pass difference is the node's four new tests, which this reviewer re-ran independently: an unmutated git-archive export of the reviewed head at 97cc0dd6 ran tests/data/test_transform_engine.py to 14 passed, EXIT=0 (review-head-transform-engine.log).",
+  "after_suite": {
+    "command": "RECKON_ALLOW_NESTED_LAUNCH=1 srun --partition=all_debug --time=00:59:00 --cpus-per-task=8 --mem=32G --cpu-bind=none bash -lc 'export TMPDIR=/tmp; unset -f uv; cd $PWD; UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider -n 8 tests/data/test_transform_engine.py tests/data/test_machine_map.py tests/data/test_description_reader.py tests/data/test_description_identity.py'",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 2,
+    "failure_ids": [
+      "tests/data/test_machine_map.py::test_every_binding_targets_a_writable_shape_compatible_dd_leaf",
+      "tests/data/test_machine_map.py::test_every_mast_map_range_is_one_geometry_transition"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T022627509647-jtmm-static-entry-selector/gate.log",
+    "revision": "8b02503607eac3137285a70dd4afcdebdec97e77"
+  },
+  "baseline_suite": {
+    "command": "env -C /home/ITER/mcintos/.cache/jtmm-base2.cznYYI/tree UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/home/ITER/mcintos/.cache/jtmm-base2.cznYYI/tree command uv run --no-sync pytest -p no:cacheprovider -n 8 tests/data/test_transform_engine.py tests/data/test_machine_map.py tests/data/test_description_reader.py tests/data/test_description_identity.py",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 2,
+    "failure_ids": [
+      "tests/data/test_machine_map.py::test_every_binding_targets_a_writable_shape_compatible_dd_leaf",
+      "tests/data/test_machine_map.py::test_every_mast_map_range_is_one_geometry_transition"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T022627509647-jtmm-static-entry-selector/gate-base.log",
+    "revision": "e092f8ab7513407d50fa44983c4f02346b531b6b"
+  },
+  "completed_at": "2026-10-06T03:08:17.653Z",
+  "dispatched_at": "2026-10-06T02:59:35Z",
+  "findings": [
+    {
+      "category": "test-coverage",
+      "file": "tests/data/test_transform_engine.py",
+      "line": "test_netcdf_binding_reads_one_named_entry_of_a_ragged_struct_array",
+      "severity": "follow-on",
+      "text": "The plan's section 4 states the selector composes with the existing traversal: 'source_rank then counts the leaf and the struct levels below it, and _struct_array_positions and the preserved-position rule apply to those levels as today.' All four new tests set source_rank=1, which for the ragged synthetic store (positions coil and element) leaves structural_rank 0 and preserved_positions empty, so no test exercises struct_array_entry together with a preserved position below the selected level (structural_rank >= 1, where positions[-structural_rank:] must name only levels below the consumed first struct array). The implementation reads as correct for that case -- it consumes index positions[0] and preserves the deepest levels -- but the composition the plan asserts is untested, so a future change to positions/preserved could break it silently. Not a defect; a coverage gap."
+    },
+    {
+      "category": "robustness",
+      "file": "imas_ambix/data/transform_engine.py",
+      "line": "298",
+      "severity": "follow-on",
+      "text": "When a binding declares struct_array_entry but the first struct array on its dd_path is present yet empty, _struct_array_positions (line 183-184) raises a bare KeyError('/'.join(components)) before the new 'holds no struct array to select an entry from' BindingTransformError can speak, and _NetCDFStoreArrays.read catches only OSError, so the caller sees a KeyError rather than the TransformEngineError/BindingTransformError family the plan names for this slot. The new guard fires only when there is no struct array at all, not when the array is empty. The JT-60SA store's coils are non-empty (element counts 6..40), so this is unreachable for the binding the slot was added for; recorded as a robustness note, not a defect."
+    }
+  ],
+  "follow_ons": [
+    "The two tests/data/test_machine_map.py failures (test_every_binding_targets_a_writable_shape_compatible_dd_leaf, test_every_mast_map_range_is_one_geometry_transition) are pytest-timeout (>300s) reads of a large MAST zarr consolidated-metadata JSON on GPFS, reproduce identically at the base revision, and are outside this node's declared write scope; raising the pytest timeout or caching that read is a separate node's work (declared by the reviewed run).",
+    "The catalogue node that consumes this slot is next: imas_ambix/data/machine_maps/jt-60sa.json declares one binding family and one structure assembly per pf_active coil, each binding carrying struct_array_entry by coil name, and must declare source_rank so structural_rank counts only the levels below the consumed first struct array (the composition untested here, finding 1).",
+    "The empty-first-struct-array case (finding 2) would be worth a guard if any future static store can carry an empty struct array."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "grep over imas_ambix and tests: _read_ids_path is referenced only within transform_engine.py; struct_array_entry appears only in schema.yaml, machine_map.py, transform_engine.py and the new tests; the ChannelBinding constructions in tests/data/test_eddb_cache.py use keyword arguments and are unaffected by the defaulted field. No machine-name branch is introduced (the plan's rule).",
+    "diff": "The feature commit 0ff9e8e7 adds: a defaulted dataclass field (so existing bindings are unaffected) and an optional key in from_dict's allowed set (so it round-trips and rejects empty/non-string via _text); the schema.yaml slot declaration; a zarr refusal at the point of read; _select_struct_array_entry and _stack_struct_array_rows; and the select_entry threading through _read_ids_path that consumes the first struct-array level. Signature change is internal: _read_ids_path and _struct_array_positions have no callers outside transform_engine.py (checked), and the dataclass field is defaulted, so no external construction breaks.",
+    "done_when": "The node's measure is the code path plus the four new tests and the real-store read. Independently reproduced: tests/data/test_transform_engine.py at the reviewed head 97cc0dd6 -> 14 passed, EXIT=0 (review-head-transform-engine.log); ruff check imas_ambix tests -> exit 0 (reviewer-ruff.log). The node's declared negative control reproduced: ignoring the selection slot (read passes select_entry=None) reddens test_netcdf_binding_reads_one_named_entry_of_a_ragged_struct_array with EXIT=1 (reviewer-negative-control.log).",
+    "goal": "Plan section 4's engine repair is delivered: ChannelBinding gains an optional struct_array_entry slot (machine_map.py dataclass field + from_dict, schema.yaml slot and class entry) naming one entry of the first struct array on the binding's dd_path by that entry's name leaf, and the netCDF engine (_read_ids_path) reads that one entry's arrays rather than stacking every entry. Verified against the real converted store: the twelve OP1 coils read element lengths [40, 40, 40, 40, 16, 16, 16, 16, 16, 16, 6, 6]. A binding without the slot reads exactly as before; a selection matching no entry is refused under BindingTransformError; a ragged read without a selection now names its dd_path and the unequal counts; the zarr engine refuses the slot rather than ignoring it.",
+    "manifest": "The run manifest reads status complete and its claims reconcile with the artefacts: commits [0ff9e8e7, 37bd3aea, 8b025036, 97cc0dd6] are the four commits of the change; the base and head gate logs exist and carry the counts and failing ids the manifest states (2 failed/47 passed base, 2 failed/51 passed head); the negative control log exists and shows EXIT=1 on the stated test id. measurement_module and measurement_cwd name the base-arm scratch export, matching gate-base.log's header.",
+    "write_paths": "Only declared paths changed. git diff --stat e092f8ab..97cc0dd6: imas_ambix/data/machine_map.py +10/-? , imas_ambix/data/machine_maps/schema.yaml +8, imas_ambix/data/transform_engine.py +76/-?, tests/data/test_transform_engine.py +151, docs/evidence/fragments/jt60sa-machine-map/jtmm-static-entry-selector.html +30; 5 files, 269 insertions, 6 deletions. mast.json and diii-d.json are untouched and no jt-60sa.json is added. The reviewed worktree at 97cc0dd6 is clean."
+  },
+  "justifications": "Independent review of run r-20261006T022627509647-jtmm-static-entry-selector (plan imas-ambix:jt60sa-machine-map section 4), reviewed_base_sha e092f8ab7513407d50fa44983c4f02346b531b6b, reviewed_head_sha 97cc0dd6c3aa284f5a72fea5fb9cce507d821f35, stored as a parsed record scoring all six dimensions in 0..20 -- goal_fidelity 19, evidence 19, scope_discipline 20, durability 18, fit 19, reuse 20 -- total 115/120, added_failure_count 0 with added_failure_ids []. The node implements section 4's engine repair faithfully: an optional struct_array_entry binding slot lets a static netCDF binding read one named entry of the first struct array on its dd_path, which is exactly the per-coil reach the plan's repair names, and the twelve real OP1 coils read as element lengths [40,40,40,40,16,16,16,16,16,16,6,6]. Scope is clean (five declared files, no data artefacts touched). Durability is the weakest dimension only because the selector-plus-preserved-position composition the plan asserts is untested (finding 1) and the shared MAST-zarr read still times out at the base (a declared out-of-scope follow-on); the four new tests do carry a guard that fires, which I reproduced. Fit and reuse are strong: the change extends the existing _read_ids_path traversal and the existing error family rather than adding a parallel path, threaded by a defaulted dataclass field that leaves every existing binding unchanged, and it adds no machine-name branch. Two follow-on findings recorded, neither a regression.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261006T025925726270-review-of-jtmm-static-entry-selector",
+  "reviewed_base_sha": "e092f8ab7513407d50fa44983c4f02346b531b6b",
+  "reviewed_head_sha": "97cc0dd6c3aa284f5a72fea5fb9cce507d821f35",
+  "reviewed_run_id": "r-20261006T022627509647-jtmm-static-entry-selector",
+  "reviewer": "review-of-jtmm-static-entry-selector",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T03:06:30+00:00",
+  "total": 115
+}

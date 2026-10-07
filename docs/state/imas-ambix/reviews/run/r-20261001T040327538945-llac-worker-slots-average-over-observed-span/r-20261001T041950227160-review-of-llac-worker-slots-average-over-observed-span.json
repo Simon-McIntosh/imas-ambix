@@ -1,0 +1,71 @@
+{
+  "absent": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's two arms of the reviewed node's declared three-file gate: base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T041950227160-review-of-llac-worker-slots-average-over-observed-span/review-base-gate.log (23 passed, exit 0, revision dc059543130d514510dd00110d9bdb8b337961be) and head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T041950227160-review-of-llac-worker-slots-average-over-observed-span/review-head-gate.log (24 passed, exit 0, revision 8ed79194bd0d1f67081114acceff0c8f0a03c88a). The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite, and its own gate.log carries the head-side receipt only (24 passed, exit 0). Both arms were run in scratch trees extracted with git archive (base /tmp/rev-llac-span/base, head /tmp/rev-llac-span/head, each importing its own imas_ambix/agent/router.py), so neither added a git worktree. Zero added failures: the head arm is green and the head arm is a superset of the base arm's tests.",
+  "after_suite": {
+    "command": "cd /tmp/rev-llac-span/head && PYTHONPATH=/tmp/rev-llac-span/head /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider tests/test_agent_router_worker_slots.py tests/test_agent_router_admission.py tests/test_agent_router_lane_publish.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T041950227160-review-of-llac-worker-slots-average-over-observed-span/review-head-gate.log",
+    "revision": "8ed79194bd0d1f67081114acceff0c8f0a03c88a"
+  },
+  "baseline_suite": {
+    "command": "cd /tmp/rev-llac-span/base && PYTHONPATH=/tmp/rev-llac-span/base /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider tests/test_agent_router_worker_slots.py tests/test_agent_router_admission.py tests/test_agent_router_lane_publish.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T041950227160-review-of-llac-worker-slots-average-over-observed-span/review-base-gate.log",
+    "revision": "dc059543130d514510dd00110d9bdb8b337961be"
+  },
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/agent/router.py:320 the observed-span divisor the snapshot publishes as observed_seconds",
+    "imas_ambix/agent/router.py:354 published_ratio = round(keyed_busy / observed / live_runs, 3) \u2014 the changed divisor",
+    "imas_ambix/agent/router.py:370 worker_slots = max(0, floor(effective_width / published_ratio) - live_runs), from the published ratio",
+    "tests/test_agent_router_worker_slots.py:53 the new observed-span test; tests/test_agent_router_worker_slots.py:33 and :169 the two fixtures moved to open one full window before the snapshot"
+  ],
+  "completed_at": "2026-10-01T04:46:38.438Z",
+  "dispatched_at": "2026-10-01T04:20:12Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": "354",
+      "severity": "follow-on",
+      "text": "The change divides keyed busy time by min(window, now - first admission) rather than the window length, but section 21's change 2 and its definitions still define requests_per_run as the busy request-seconds divided by the window length and name only two null conditions for the derived figures (fewer than three live runs, or under 300 s of router history). The code now carries a third regime (300 s <= observed < 900 s) whose published ratio and worker_slots differ from the plan's literal formula; on the plan's own acceptance fixture (14 runs, 5,940 busy seconds 'over a 900 s window') the plan's literal rule gives 0.471 and the node's rule gives 0.707 unless the fixture's admissions open a full window before the snapshot, which the node moved them to do (tests/test_agent_router_worker_slots.py:33 now admits at now-900, not now-600). The behaviour is the correct mean-simultaneous-requests-per-run and is exactly what the workstation dispatch rule anticipates ('unless the admission block also publishes observed_seconds'), so nothing under imas_ambix/ is wrong; what is missing is the plan text, which should name the observed-span divisor, carry observed_seconds, and fix that regime's precedence."
+    },
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": "320",
+      "severity": "follow-on",
+      "text": "observed_seconds is published beside window_seconds, but no test asserts it when the router has observed the full window: the fleet fixture asserts window_seconds == 900 and the ratio 0.471, never observed_seconds, so the min(window, ...) cap is pinned only from below (the 320 s and 600 s cases). A cap removed or raised would still pass the head gate because every fixture sits at or below the window."
+    }
+  ],
+  "follow_ons": [
+    "section 21's definitions should carry the observed-span divisor and the observed_seconds field, and state the precedence of the 300 s-<900 s regime over both the plan's literal full-window divisor and the congested clamp; until then the code and the plan text disagree on what requests_per_run means for a router younger than its window.",
+    "the observed_seconds cap at the window is unpinned in the suite (no fixture runs with first admission 900 s or more before the snapshot and asserts observed_seconds == window_seconds)."
+  ],
+  "item_verdicts": {},
+  "justifications": "independent review of run r-20261001T040327538945-llac-worker-slots-average-over-observed-span (base dc059543, head 8ed79194) stored as a parsed record scoring all five dimensions in 0..20 - goal_fidelity 18, evidence 18, scope_discipline 20, durability 18, fit 19 - total 93 - with added_failure_count 0 and added_failure_ids [] derived from this review's own two arms of the node's declared three-file gate (base 23 passed exit 0; head 24 passed exit 0), the reviewed run having been dispatched unarmed. The observed-span division is the correct mean of simultaneous requests per live run and matches the observed_seconds field the workstation dispatch rule already expects; scope is exactly the declared paths. Two findings recorded, both follow-on: the plan section 21 definitions still define requests_per_run over the window length and name no third regime for 300 s <= observed < 900 s (imas_ambix/agent/router.py:354), and the observed_seconds cap at the window is unpinned by any test (imas_ambix/agent/router.py:320).",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261001T041950227160-review-of-llac-worker-slots-average-over-observed-span",
+  "reviewed_base_sha": "dc059543130d514510dd00110d9bdb8b337961be",
+  "reviewed_head_sha": "8ed79194bd0d1f67081114acceff0c8f0a03c88a",
+  "reviewed_run_id": "r-20261001T040327538945-llac-worker-slots-average-over-observed-span",
+  "reviewer": "review-of-llac-worker-slots-average-over-observed-span",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 18,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-01T04:32:17+00:00",
+  "total": 93
+}

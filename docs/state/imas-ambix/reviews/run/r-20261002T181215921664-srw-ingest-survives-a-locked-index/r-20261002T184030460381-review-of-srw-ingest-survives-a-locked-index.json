@@ -1,0 +1,71 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite (classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null), so its own arms cannot supply the delta. This review therefore measured the reviewed node's declared three-file gate in two scratch trees built from the reviewed commits' own object store (both extracted with git archive into $TMPDIR/arms, no git worktree created; the reviewed object store is not writable by this node and neither is its worktree): base arm gate-base.log (revision 175631f8f90c921a2f638c16783a4303febb05ad: 84 passed, EXIT=0) and head arm gate-head.log a(revision e95b68adbab38a87c2d8d37bf78d3fd607835bd9: 87 passed, EXIT=0). The head arm was measured at the product commit e95b68ad; the evidence-fragment commit 8befa8bb (reviewed_head_sha) adds only the evidence fragment html and touches no test or source file, so the head arm's result carries. The head test set is a strict superset: three tests were added and none removed, so head collects 87 where base collects 84. Both arms are green, so head failing ids ([]) minus base failing ids ([]) is 0.",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_telemetry_ingest.py tests/test_agent_ingest_cli.py tests/test_telemetry_index.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T184030460381-review-of-srw-ingest-survives-a-locked-index/gate-head.log",
+    "revision": "e95b68adbab38a87c2d8d37bf78d3fd607835bd9"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_telemetry_ingest.py tests/test_agent_ingest_cli.py tests/test_telemetry_index.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T184030460381-review-of-srw-ingest-survives-a-locked-index/gate-base.log",
+    "revision": "175631f8f90c921a2f638c16783a4303febb05ad"
+  },
+  "completed_at": "2026-10-02T19:19:26.575Z",
+  "dispatched_at": "2026-10-02T18:40:38Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "947",
+      "severity": "follow-on",
+      "text": "follow-on: the new public TelemetryIndex.rollback method and the run() call to it are documented as necessary -- the run() docstring and the landed evidence fragment both say a lock error can leave an open transaction that must be discarded before the next tick -- but the call is not load-bearing for the reproduced path. The lock in the reproduced defect is raised by the resume lookup _consumed_whole_and_untouched, a SELECT issued before the pass's try block; under sqlite3's default isolation_level a SELECT opens no transaction, so there is nothing to roll back at that point. Demonstrated: removing the index.rollback() call from a scratch copy of the head telemetry_ingest.py leaves tests/test_telemetry_ingest.py green (19 passed, EXIT=0, independent-mutation-rollback.log), identical to head. The method is harmless and a reasonable defensive guard for a path that could leave a transaction open, but today no such path exists and no test exercises the rollback. Recorded so the rollback is not read as a proven requirement."
+    }
+  ],
+  "follow_ons": [
+    {
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-ingest-survives-a-locked-index.html",
+      "line": "27,30",
+      "severity": "follow-on",
+      "text": "The landed evidence fragment asserts 'That statement sits outside the ingest pass's own try/except BaseException, which is why the failed pass left an artifact that needed to be rolled back explicitly'. The first clause is accurate (the resume lookup is a SELECT issued before the pass's try block); the second is not demonstrated, because a SELECT opens no transaction and removing index.rollback() leaves the locked-index test green (. independent-mutation-rollback.log). The fragment is the reviewed node's own landed record and is not this review's to edit, so no finding is raised against it; it is recorded so a reader does not take the rollback as a proven need."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "the new public TelemetryIndex.rollback is called only from the run() lock handler; the new timeout kwarg on TelemetryIndex.__init__ (default 5.0) matches readonly's existing parameter of the same name (readonly(path, *, host, boot_id, timeout=5.0)) and no production caller passes a bare positional before it.",
+    "diff": "read commits e95b68ad (product+tests) and 8befa8bb (evidence) against base 175631f8; four files changed, +241/-15, all inside the declared write paths. Product commit e95b68ad: imas_ambix/agent/telemetry_index.py +22/-1, imas_ambix/agent/telemetry_ingest.py +75/-15, tests/test_telemetry_ingest.py +94. Evidence commit 8befa8bb: docs/evidence/fragments/serving-record-warehouse/srw-ingest-survives-a-locked-index.html +65. No other file touched.",
+    "done_when": "The node's measure: store a parsed review record scoring all five dimensions 0..20 with reviewed_base_sha and reviewed_head_sha and added_failure_count/ids from the reviewed run's arms. The reviewed run declares neither arm, so this review measured its declared three-file gate in two scratch arms.",
+    "gate_reproduced": "independently reproduced the declared gate at head (87 passed, EXIT=0) and at base (84 passed, EXIT=0) from scratch trees; reproduced the parse test (1 passed, 8 deselected, EXIT=0) and ruff (All checks passed!). The node's negative control was independently falsified: making _is_lock_error return False reddens test_a_locked_index_fails_one_tick_and_the_next_ingests_what_was_pending (1 failed, EXIT=1, independent-mutation.log).",
+    "goal": "The node's goal is that the standing ingest survive a locked index rather than ending its process on transient contention. The change does exactly that: run() wraps tick() in a try, and on a sqlite3.OperationalError whose message names a locked or busy file (the new _is_lock_error predicate) it discards the failed tick's transaction, keeps the fingerprints the tick began from, announces the failure on one flushed line, and ticks again. Every other OperationalError still propagates, shown by test_an_operational_error_that_is_not_a_lock_still_ends_the_process. A failed tick now counts as one of a finite iterations, so a bounded caller cannot spin on a lock that never clears. This is the code counterpart of section 5's 'Readings settled after the read-back' bullet, where the supervisor relaunches the ingest on exit: a transient lock no longer forces that restart.",
+    "manifest": "read; status complete, commits e95b68ad and 8befa8bb, a three-command gate green (87 passed / 1 passed, 8 deselected / ruff All checks passed), a negative control 1 failed EXIT=1, and changed_paths matching the diff exactly.",
+    "write_paths": "read the manifest's declared paths; the diff touches imas_ambix/agent/telemetry_index.py, imas_ambix/agent/telemetry_ingest.py, tests/test_telemetry_ingest.py and docs/evidence/fragments/serving-record-warehouse/srw-ingest-survives-a-locked-index.html, all inside them. The declared figures directory is not written; that is the only under-delivery, not a scope breach."
+  },
+  "justifications": "independent review of run r-20261002T181215921664-srw-ingest-survives-a-locked-index, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 18, evidence 16, scope_discipline 19, durability 18, fit 17 -- total 88, added_failure_count 0 with added_failure_ids [] derived from this review's own two arms of the reviewed run's declared three-file gate (the reviewed run was dispatched unarmed, so its own baseline_suite and after_suite are null): base arm gate-base.log (scratch tree $TMPDIR/arms/base, revision 175631f8: 84 passed, EXIT=0) and head arm gate-head.log (scratch tree $TMPDIR/arms/head, revision e95b68ad: 87 passed, EXIT=0); the head set adds three tests and removes none, so the delta is 0. The change reproduces independently: the ingest loop now catches SQLite's lock error, and the guarded behaviour was made to happen (a second connection holds BEGIN EXCLUSIVE) rather than read off a green suite. The node's negative control was reproduced in spirit and independently falsified: the reviewer's own mutation, making _is_lock_error always return False so a lock propagates, reddens test_a_locked_index_fails_one_tick_and_the_next_ingests_what_was_pending (1 failed, EXIT=1, independent-mutation.log). One finding: TelemetryIndex.rollback and its run() call are documented as needed, but removing the call leaves the suite green (independent-mutation-rollback.log, 19 passed, EXIT=0), so the rollback is defensive rather than load-bearing for the reproduced path, and the landed evidence fragment's claim that the failed pass left an artifact needing explicit rollback was not reproducible. Scope is clean (exactly the declared paths, nothing outside), durability is sound (conventional commits with bodies, no AI attribution, evidence fragment committed, tree clean, three tests added).",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261002T184030460381-review-of-srw-ingest-survives-a-locked-index",
+  "reviewed_base_sha": "175631f8f90c921a2f638c16783a4303febb05ad",
+  "reviewed_head_sha": "8befa8bbd6af5c838b02317dd57d9adca6a7b9b8",
+  "reviewed_run_id": "r-20261002T181215921664-srw-ingest-survives-a-locked-index",
+  "reviewer": "review-of-srw-ingest-survives-a-locked-index",
+  "scores": {
+    "durability": 18,
+    "evidence": 16,
+    "fit": 17,
+    "goal_fidelity": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T18:53:00+00:00",
+  "total": 88
+}

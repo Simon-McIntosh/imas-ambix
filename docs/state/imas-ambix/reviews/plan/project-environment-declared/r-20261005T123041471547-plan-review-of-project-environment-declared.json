@@ -1,0 +1,40 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T12:34:40.630Z",
+  "dispatched_at": "2026-10-05T12:30:47Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/gs/artifact_resolution.py:149",
+      "id": "duplicate_owner-1",
+      "reason": "a fresh venv is not a machine artifact, so a distinct path under `$TMPDIR` is the correct placement and the design does not change; only the sentence should state that it follows the owner's node-local convention rather than implying the owner supplies the path.",
+      "text": "\u00a74 says the fresh environment is placed where \"the root `imas_ambix/gs/artifact_resolution.py` `staging_cache_root()` already uses for node-local work\", but that function returns `$TMPDIR/imas-ambix-machine-artifact`, a machine-artifact-specific root it does not provide for a fresh virtualenv, and \u00a74 then hardcodes `$TMPDIR/ped-fresh-<run>` without naming the owner's function; a reader is told the placement is owned but is not shown whether it is reused, extended or forked",
+      "type": "duplicate_owner",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "ddb709cb212f21bd6a03e8a2a25840fbb835e04f20b39c5e74092dee3cddb224",
+  "plan_slug": "project-environment-declared",
+  "plan_version": 16,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T15:14:09.765592+00:00"
+    }
+  },
+  "review_run_id": "r-20261005T123041471547-plan-review-of-project-environment-declared",
+  "reviewed_blob_sha": "ec39616e679423a0267dac28f1bdaef88b826920",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the plan adds no module. \u00a74's driver is deliberately a run artifact beside its gate log, and \u00a75 only attaches per-test `@pytest.mark.timeout(N)` marks to existing tests; neither puts shallow, spread-out new surface in front of the machinery. The one module in play, `tests/test_declared_dependencies.py`, is already the deep module: `build_census()` hides the tree walk, the import\u2192distribution map and the transitive closure behind one result that both the assertion and the renderer read.",
+    "duplicate_owner": "a finding \u2014 \u00a74 attributes its fresh-environment's node-local placement to `staging_cache_root()`, the node-local placement owner, but resolves a new hardcoded `$TMPDIR/ped-fresh-<run>` instead of the owner's path, so the citation and the mechanism do not match.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0. \u00a74 and \u00a75 add no public definition, CLI option, MCP view or refusal family: the \u00a74 fragment is an evidence artifact and its optional set is written to run scratch, and \u00a75's `timeout` marker is the plugin's registered marker, not a new pytest marker family under `--strict-markers`. There is nothing to retire or merge.",
+    "reuse_search": "pass \u2014 \u00a74 cites and reuses the existing owners rather than re-declaring them: `staging_cache_root()` for node-local placement (`imas_ambix/gs/artifact_resolution.py:149`) and `OPTIONAL_SUBSYSTEM_ROOTS` (`tests/test_declared_dependencies.py:71`) / `build_census()` (`:288`) for the optional contract, all confirmed present at those lines.",
+    "thin_wrapper": "pass \u2014 the proof drives `uv sync` and the census owner directly, with no intermediate layer; \u00a75 uses pytest-timeout's own marker, the plugin the repo already declares (`pyproject.toml:137`, `timeout = 300` at `:242`), rather than wrapping it."
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T12:35:22.012539+00:00"
+}

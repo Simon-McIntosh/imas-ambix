@@ -1,0 +1,52 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T09:16:46.103Z",
+  "dispatched_at": "2026-10-06T09:07:40Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:779",
+      "id": "duplicate_owner-1",
+      "reason": "a JT-60SA selection that reaches the artifact reader without a machine is silently tagged \"mast\", colliding with MAST's SetupSignature.key and exercising the machine-name branch \u00a74's done-when claims the route has none of; the author must name the single owner of the shot\u2192machine fact and thread it into the reader.",
+      "text": "\u00a77 states the selector \"takes the machine from the catalogue the shot belongs to\" (line 779) while the design requires the frozen shot set to declare it (line 783), and it does not name two further owners of the machine tag on the route: MachineArtifactGeometryReader.machine defaults to \"mast\" (imas_ambix/gs/artifact_geometry.py:758) and ArtifactMachineSelector._read constructs it without a machine (imas_ambix/gs/machine_selection.py:176-183), which builds SetupSignature(machine=\"mast\") at imas_ambix/gs/artifact_geometry.py:874; SetupSignature.key then special-cases the machine name (imas_ambix/gs/geometry.py:487, prefix = \"\" if self.machine == \"mast\" else f\"{self.machine}-\")",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:770",
+      "id": "interface_budget-1",
+      "reason": "the section changes three exported definitions and, under the interface rule, must say whether they remain as MAST sentinels, become the MAST row of the table, or are retired.",
+      "text": "\u00a77 converts the exported constants PINNED_SEMANTIC_IDENTITY, PINNED_PHYSICAL_DIGEST and PINNED_REGISTRY_DIGEST (all in imas_ambix/gs/artifact_resolution.py __all__:387-389, and imported as field defaults by imas_ambix/spine_bench/machine_artifact_arm.py:141-142) into \"a table keyed by machine\" without stating what becomes of those three public names",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "62c623cc9279858a34f3193a46549f81fc888df463d20b9c2e0fcdbe618af109",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 134,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T090729893392-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "210b84ac58b6a6849ed79c2dfca583e03a2b5825",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a74's selene_deck.py, \u00a73's eddb_remote.py + eddb.py and \u00a77's EQDB extension each hide parsing, transport and record-shaping behind a small entry point, and \u00a74 actively narrows the converter's surface to the one entry point write_phase_description under an __all__ rather than exposing its internals.",
+    "duplicate_owner": "a finding \u2014 \u00a77 extends the artifact selector to carry the machine but leaves the machine tag owned in two further places on the JT-60SA route unnamed, and names two competing sources for the shot\u2192machine fact.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a77 turns three exported public constants into a machine-keyed table without naming what becomes of those public names, so the section changes an interface family it does not account for.",
+    "reuse_search": "pass \u2014 the plan searched both repositories it names and cites the existing owner of every mechanism it extends (StoreEngine/NetCDFTransformEngine, ArtifactMachineSelector/identity_for_shot, cocos_convention, challenge.convention, efit_referee, tokamap_export, description_reader); I opened each named symbol and confirmed it exists as cited.",
+    "thin_wrapper": "pass \u2014 every proposed layer is an extension of an existing owner (StoreEngine.open gains the selected map, default_registry gains the machine key, read_level2_observation and measure_diiid_convention are generalised, the EDDB grid writer shares write_channel's token/overwrite helpers), so no parallel wrapper is added without a stated reason; \u00a75 and \u00a74 add data files and retire surface instead of wrapping."
+  },
+  "section_digests": {
+    "_document": "11103a67744ccbfabb4b590c94e197c0ac226a28096d44d7985e48b9dc0eb35c",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "24d858bcde5036a0d08d7d2de20dd1d41f295241d8331041179f7d8e10cd6a4e",
+    "s5": "6982251ed4c8a9182fe0265da5219217b9926e5b6c7490ef0149bf2754a8efc3",
+    "s6": "10440bdbac8b2013ab5929cf988707dcfc402e2b5b9d046d482930a9126bcc06",
+    "s7": "2fdd08fcace1ef13efb5b3672debe534f973a41ecf2688c5d713ff3fe312a92d",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T10:04:39.761327+00:00"
+}

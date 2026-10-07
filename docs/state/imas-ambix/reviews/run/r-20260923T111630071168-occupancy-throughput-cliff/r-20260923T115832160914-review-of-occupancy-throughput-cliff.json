@@ -1,0 +1,60 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T11:58:32.160914+00:00",
+  "findings": [
+    {
+      "file": "docs/plans/local-lane-admission-control.html",
+      "line": "270",
+      "text": "the collapse exemplar \"2026-09-23 08:30:10 at occupancy 0.84, 36 running, 151 tok/s\" does not resolve in either named log: the live log's only 08:30:10 line is an HTTP /metrics request, the nearest decode line is 08:30:36 at occupancy 0.90 width 36 with 151.5 tok/s, and no decode line at occupancy 0.84 carries 150-153 tok/s in either log; the same quote is repeated in the run manifest and docs/evidence/archive/local-lane-admission-control-landed.html:308, so the receipt a reader checks names a different regime than the claim it supports."
+    },
+    {
+      "file": "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "line": "310",
+      "text": "the claim that collapsed intervals are a small fraction of every occupancy bin (\"five-day job: 0%\") is contradicted by occupancy.json, whose 0.00-0.05 bins are 95.0% collapsed on the five-day job and 85.5% on the live job, because the 200 tok/s threshold flags small-width batches below the cliff; the statement holds only for the bins at or above 0.80, and the run manifest's evidence_inputs generalizes it the same way."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T111630071168-occupancy-throughput-cliff/manifest.md",
+      "line": "13",
+      "text": "the tests field records a template carrying unsubstituted <worktree> and <log> placeholders rather than the command that ran - the resolved invocation survives only in the run's lane-change-2 stream - and the named gate log occupancy_run.log opens with slurmstepd TMPDIR errors instead of the revision, tree and command header its dispatch requires."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read commit by commit against base 5e472aa8; 5fb5f9be adds the reducer, b9d27528 its tail diagnostics, 2af0e18b the plan landing note and the archive section, with no production code or test in the diff.",
+    "done_when": "the done_when is a measured occupancy target from both decode logs, and its gate is the reducer's own planted-cliff control; I reproduced that control on the merged tree (planted 0.80 detected 0.80 matched true) and reproduced its refusal under the declared mutation degraded = False (detected 0.90, matched false, main() returns 1).",
+    "goal": "the node's goal is the measured KV-occupancy target that plan section 6 layer 2 feeds to the width writer; docs/figures/local-lane-occupancy/occupancy_measure.py:253 selects the highest bin holding both thresholds, returns 0.90 on both jobs, and docs/plans/local-lane-admission-control.html:258-289 records that 0.90 is the engine cap rather than a boundary the data found.",
+    "manifest": "read the manifest and audited it clean; commits, changed_paths census, artifact list, control record and negative control are accurate, but its tests field carries unsubstituted placeholders, its named gate log has no provenance header, and one quoted collapse exemplar does not resolve against the named logs.",
+    "write_paths": "the manifest declares docs/figures/local-lane-occupancy, docs/figures/local-lane-admission-control, docs/evidence/archive/local-lane-admission-control-landed.html and docs/plans/local-lane-admission-control.html, and all seven paths of diff 5e472aa8..2af0e18b fall inside them with no production source touched."
+  },
+  "justifications": {
+    "durability": "the planted-cliff control at docs/figures/local-lane-occupancy/occupancy_measure.py:343 is a live guard - reinstating the plant removal as degraded = False reddens it, reproduced - but no assertion pins the real-log numbers, so a parse regression would move the measurement while the control stayed green.",
+    "evidence": "the measurement reproduces exactly - my SLURM re-run of docs/figures/local-lane-occupancy/occupancy_measure.py reproduced all 18 bins of the frozen log with zero field diffs and the same gate on the grown live log - but docs/evidence/archive/local-lane-admission-control-landed.html:308 quotes a collapse exemplar that neither named log contains.",
+    "fit": "the reducer and its artifacts follow the docs/figures convention with an absolute figure src, a seeded deterministic bootstrap at occupancy_measure.py:42, no plan or ticket label in any symbol or path, and section 6's selection rule plus one throughput condition stated in the module docstring.",
+    "goal_fidelity": "the deliverable exists on the merged tree and my re-run reproduced it (qualifying bin 0.85-0.90, target 0.90, implied width 36), and docs/plans/local-lane-admission-control.html:268-289 carries the honest reading that the rule returns the cap.",
+    "scope_discipline": "every path in the diff lies inside the manifest's declared write paths, the plan edit is confined to this node's own section, and the only external writes are the run directory and the two logs it read."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is the measured KV-occupancy target that plan section 6 layer 2 feeds to the width writer; docs/figures/local-lane-occupancy/occupancy_measure.py:253 selects the highest bin holding both thresholds, returns 0.90 on both jobs, and docs/plans/local-lane-admission-control.html:258-289 records that 0.90 is the engine cap rather than a boundary the data found.\nVERDICT done_when: the done_when is a measured occupancy target from both decode logs, and its gate is the reducer's own planted-cliff control; I reproduced that control on the merged tree (planted 0.80 detected 0.80 matched true) and reproduced its refusal under the declared mutation degraded = False (detected 0.90, matched false, main() returns 1).\nVERDICT write_paths: the manifest declares docs/figures/local-lane-occupancy, docs/figures/local-lane-admission-control, docs/evidence/archive/local-lane-admission-control-landed.html and docs/plans/local-lane-admission-control.html, and all seven paths of diff 5e472aa8..2af0e18b fall inside them with no production source touched.\nVERDICT manifest: read the manifest and audited it clean; commits, changed_paths census, artifact list, control record and negative control are accurate, but its tests field carries unsubstituted placeholders, its named gate log has no provenance header, and one quoted collapse exemplar does not resolve against the named logs.\nVERDICT diff: read commit by commit against base 5e472aa8; 5fb5f9be adds the reducer, b9d27528 its tail diagnostics, 2af0e18b the plan landing note and the archive section, with no production code or test in the diff.\nCALL_SITES: none\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: the deliverable exists on the merged tree and my re-run reproduced it (qualifying bin 0.85-0.90, target 0.90, implied width 36), and docs/plans/local-lane-admission-control.html:268-289 carries the honest reading that the rule returns the cap.\nSCORE evidence: 15\nJUSTIFICATION evidence: the measurement reproduces exactly - my SLURM re-run of docs/figures/local-lane-occupancy/occupancy_measure.py reproduced all 18 bins of the frozen log with zero field diffs and the same gate on the grown live log - but docs/evidence/archive/local-lane-admission-control-landed.html:308 quotes a collapse exemplar that neither named log contains.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: every path in the diff lies inside the manifest's declared write paths, the plan edit is confined to this node's own section, and the only external writes are the run directory and the two logs it read.\nSCORE durability: 16\nJUSTIFICATION durability: the planted-cliff control at docs/figures/local-lane-occupancy/occupancy_measure.py:343 is a live guard - reinstating the plant removal as degraded = False reddens it, reproduced - but no assertion pins the real-log numbers, so a parse regression would move the measurement while the control stayed green.\nSCORE fit: 18\nJUSTIFICATION fit: the reducer and its artifacts follow the docs/figures convention with an absolute figure src, a seeded deterministic bootstrap at occupancy_measure.py:42, no plan or ticket label in any symbol or path, and section 6's selection rule plus one throughput condition stated in the module docstring.\nFINDING docs/plans/local-lane-admission-control.html:270 the collapse exemplar \"2026-09-23 08:30:10 at occupancy 0.84, 36 running, 151 tok/s\" does not resolve in either named log: the live log's only 08:30:10 line is an HTTP /metrics request, the nearest decode line is 08:30:36 at occupancy 0.90 width 36 with 151.5 tok/s, and no decode line at occupancy 0.84 carries 150-153 tok/s in either log; the same quote is repeated in the run manifest and docs/evidence/archive/local-lane-admission-control-landed.html:308, so the receipt a reader checks names a different regime than the claim it supports.\nFINDING docs/evidence/archive/local-lane-admission-control-landed.html:310 the claim that collapsed intervals are a small fraction of every occupancy bin (\"five-day job: 0%\") is contradicted by occupancy.json, whose 0.00-0.05 bins are 95.0% collapsed on the five-day job and 85.5% on the live job, because the 200 tok/s threshold flags small-width batches below the cliff; the statement holds only for the bins at or above 0.80, and the run manifest's evidence_inputs generalizes it the same way.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T111630071168-occupancy-throughput-cliff/manifest.md:13 the tests field records a template carrying unsubstituted <worktree> and <log> placeholders rather than the command that ran - the resolved invocation survives only in the run's lane-change-2 stream - and the named gate log occupancy_run.log opens with slurmstepd TMPDIR errors instead of the revision, tree and command header its dispatch requires.\n",
+  "review_run_id": "r-20260923T115832160914-review-of-occupancy-throughput-cliff",
+  "reviewed_base_sha": "5e472aa83b2f277abc47f39ee0fb622a4a6a4120",
+  "reviewed_head_sha": "2af0e18b62797068b1d2c858d3fb51a677e33935",
+  "reviewed_revision": "2af0e18b62797068b1d2c858d3fb51a677e33935",
+  "reviewed_run_id": "r-20260923T111630071168-occupancy-throughput-cliff",
+  "reviewer": "review-of-occupancy-throughput-cliff",
+  "scores": {
+    "durability": 16,
+    "evidence": 15,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-23T15:11:41.770529+02:00",
+  "total": 85
+}

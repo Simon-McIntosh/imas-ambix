@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T08:18:45.710Z",
+  "dispatched_at": "2026-10-05T08:09:46Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html#s6",
+      "id": "duplicate_owner-1",
+      "reason": "naming an external operator instead of this owner invites a second forward path beside the spine's, and the adjudication must use the operator built from the \u00a74 geometry so its verdicts are the spine's own.",
+      "text": "the plan proposes Nova's Biot\u2013Savart operators to predict loop-flux and probe-field from the mapped coil currents, but `imas_ambix/gs/operator.py` already owns exactly that: `build_operator(table)` builds a `ForwardOperator` from a `GeometryTable` (the \u00a74 description product) and `ForwardOperator.vacuum_prediction(i_pf)` returns the PF-only sensor prediction in Wb/T, with `assemble_pf_currents` building `i_pf` from the raw coil-current channels (MMSYS on JT-60SA, amc on MAST); it is the shared owner called by `latent/data.py:457`, `statespace/enkf_baseline.py:956`, `gs/grounding.py:479`",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html#s6",
+      "id": "reuse_search-1",
+      "reason": "\u00a76 already chose the correct pattern for the equilibrium side (\"a record contract with canonical keys\u2026 rather than writing a second scorer\") and must state the same loader-boundary decision for the raw-side `ShotSignObservation`, naming the owner it extends.",
+      "text": "\u00a76 says \"JT-60SA supplies an observation cohort\" to `cocos_convention.score_conventions` but never names the cohort builder, and the existing one, `data/cocos_convention.py:490 read_level2_observation`, is MAST-store-specific (hard-codes `MAST_LEVEL2_ROOT`, `magnetics[\"flux_loop_flux\"]`, `equilibrium[\"psi\"]`), so a JT-60SA cohort reader is implied as a parallel class of reader without the plan saying whether it extends `read_level2_observation`'s store seam or is a second one",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "6574782691978f770b0322eaa4e4183dbf8ac9675f41a461afdc390d40d4acf7",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 38,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T080941682813-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "4c4f676d7ba9463cb835c4ff6fc7ca76b188e700",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new modules named by the plan (the \u00a73 remote extractor + on-demand cache, the \u00a74 deck converter, the \u00a72 exporter) each hide substantial behaviour (ssh batch transport, deck grammar parsing, tokamap directory layout) behind one small entry point, and the \u00a73 module already demonstrates this by reusing the zarr layout and `paths.py` owner rather than adding a reader.",
+    "duplicate_owner": "a finding \u2014 \u00a76 names \"Nova's Biot\u2013Savart operators\" to predict the vacuum sensor response, but ambix already owns that forward model in `imas_ambix/gs/operator.py build_operator` / `ForwardOperator.vacuum_prediction`, fed by the same `GeometryTable` \u00a74 produces; the owner to extend is `imas_ambix/gs/operator.py`, not an external operator.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; each surface-adding section states retirement or why nothing can be retired (\u00a72 exporter \"retires nothing, ambix has no exporter\"; \u00a73 \"adds no `ambix data` command\"; \u00a74 engine extension \"retires the machine branch\"; \u00a76 generalises `measure_diiid_convention` \"rather than writing a second scorer\"; \u00a77 \"adds two record fields and retires nothing\").",
+    "reuse_search": "a finding \u2014 the plan reuses the convention scorer (`data/cocos_convention.py`) but does not cite the owner that builds the observation cohort it scores, `data/cocos_convention.py:490 read_level2_observation`, so the JT-60SA observation reader is proposed without naming what it extends.",
+    "thin_wrapper": "pass \u2014 the plan's wrappers state why the target cannot be extended: the \u00a73 extractor declines to import imas-codex's remote layer because that would drag the graph/LLM/tool-install stack into every ambix read, and \u00a77's EQDB reader reuses the \u00a73 transport and cache rather than a second path."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.870901+00:00"
+}

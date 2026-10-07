@@ -1,0 +1,47 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T06:16:27.256Z",
+  "dispatched_at": "2026-10-06T06:11:47Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-geometry-and-signal-figures.html:167",
+      "id": "interface_budget-1",
+      "reason": "the author would add one sentence to \u00a73 naming what the new script merges (or why the geometry script's reader cannot be extended to carry the signal figures), bringing \u00a73 to the same accounting standard \u00a71 and \u00a71b already meet.",
+      "text": "\u00a73 adds scripts/figures_jt60sa_signals.py as a second figure entry point (new module and its own CLI options) but its text claims no retirement, merge, or reason nothing can be retired, so the plan adds interface surface that neither \u00a71's accounting nor \u00a71b's covers",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "450bbc7171e85c004292e606fb8c22053af54fde3ea0f3b100de5238ee35d679",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 18,
+  "project": "imas-ambix",
+  "responses": {
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v19 \u00a73 states the signals script is a separate entry point because it reads the EDDB cache and shares no reader with the geometry script, adds no option or public name, and retires or merges nothing",
+      "when": "2026-10-06T06:17:10.850180+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T061141751182-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "77088fcf3254cc6efa324857ebaba9cf30aac1b1",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the three new files partition by concern, not by wrapper layer: imas_ambix/plot_style.py hides the data-ink application, the role\u2192colour contract and the shared direct-label helper behind four names (apply_data_ink, palette, direct_label, COMPONENT_ROLES); figures_jt60sa_geometry.py exposes one reader and one cross-section function; figures_jt60sa_signals.py exposes one reader and three figures. No module spreads its behaviour across a family of single-line forwards.",
+    "duplicate_owner": "pass \u2014 the two duplicates the landed \u00a71 introduced are both retired by \u00a71b against a named owner: the element-shape dispatch (_shape_from_geometry, _GEOMETRY_TYPES, scripts/figures_jt60sa_geometry.py:169,46) is replaced by the artifact_geometry struct-level readers owned by imas_ambix/gs/artifact_geometry.py, and the root-and-name join (scripts/figures_jt60sa_geometry.py:253) by NetCDFTransformEngine.open, owner of the static-over-map layout rule (imas_ambix/data/transform_engine.py:361). \u00a71b cites both owners rather than only describing the duplicate.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 (docs/plans/jt60sa-geometry-and-signal-figures.html:167) introduces a new script scripts/figures_jt60sa_signals.py, a new public module and CLI surface, without naming what it retires or merges or stating why nothing can be, whereas \u00a71 discharged that duty for plot_style.py and --palette-candidates and \u00a71b explicitly adds \"no option, module or public name\".",
+    "reuse_search": "pass \u2014 \u00a71's reuse paragraph was verified against the tree: paths.JT60SA_ROOT/JT60SA_DESCRIPTION_DIR (imas_ambix/data/paths.py:33-34), eddb.channel_path/channel_time_path/UNIT_ATTR (imas_ambix/data/eddb.py:104,118,51), the artifact_geometry struct-level readers read_artifact_pf_active/pf_passive/magnetics/limiter (imas_ambix/gs/artifact_geometry.py:302,409,577,671), the JT-60SA catalogue and NetCDFTransformEngine.open's static-over-map branch (imas_ambix/data/machine_maps/jt-60sa.json; imas_ambix/data/transform_engine.py:343,361), and the declined routes (description_reader.read_geometry_table, MachineArtifactGeometryReader at artifact_geometry.py:726, VirtualZarrView at virtual_zarr.py:89) all exist as named; each decline states why the existing owner cannot serve the figure.",
+    "thin_wrapper": "pass \u2014 the one genuinely thin layer, the geometry script's reader, opens a phase's IDSs and calls the four artifact_geometry readers, and \u00a71 names the machinery it declines to wrap (MachineArtifactGeometryReader) with the reason (content-addressed nova artifact by manifest/digest, and it assembles a GeometryTable the figure does not need). plot_style.py applies an external stylesheet; \u00a71 states the repository holds no plotting-style code, so there is no in-repo machinery to extend instead."
+  },
+  "section_digests": {
+    "_document": "d608f2360eef134e400abf9b7d123c3dd66ad748bc83882079b1f12c05272af6",
+    "s1": "5b125ada143d3b6e604ca62a14027f5c37dba8b384262e9ae2df523e88080890",
+    "s1b": "cbfae6a492a04f71fa8a74827ab270f9032c8561608b20a59e9df6b236e48615",
+    "s2": "b391ea9d406a4719464d8a231cfcece8ad1fa20156ea57d91f78655b36962d48",
+    "s3": "412d685335710bd6f5f357e93d8240bc3eecde6d6630573d29e2bdcd32c98cbf"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T06:16:50.044369+00:00"
+}

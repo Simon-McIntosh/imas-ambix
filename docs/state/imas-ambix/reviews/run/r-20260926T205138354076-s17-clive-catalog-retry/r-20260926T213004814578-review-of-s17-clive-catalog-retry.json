@@ -1,0 +1,80 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/agent/clive.py:220-251 \u2014 fetch_catalog owns the retry loop and creates a fresh deadline for each origin",
+    "imas_ambix/agent/clive.py:391-394 \u2014 legacy global-origin discovery, the single-origin path matching the live router 503 incident",
+    "imas_ambix/agent/clive.py:484-501 \u2014 endpoint-document discovery calls cached_catalog once for every engine origin",
+    "imas_ambix/agent/clive.py:503-514 \u2014 routing-origin discovery can make additional independently bounded catalog fetches"
+  ],
+  "completed_at": "2026-09-26T21:42:38Z",
+  "dispatched_at": "2026-09-26T21:30:13Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/clive.py",
+      "line": "220",
+      "text": "the promised 900-second total bound is only per origin: fetch_catalog creates deadline = monotonic() + 900 on every invocation, while endpoint-document mode invokes it sequentially for each engine origin at lines 484-501 and each routing origin at lines 503-514. Two absent origins can therefore hold a launch for about 1,800 seconds, and N origins for N times the advertised bound; the new tests exercise only SiteConfig(global_origin=origin), so they cannot see this. The exact live router path has one origin and is repaired, but the supported endpoint-document path needs one catalog-discovery deadline shared by every fetch, with a multi-origin test proving the whole launch stays inside the bound."
+    },
+    {
+      "file": "imas_ambix/agent/clive.py",
+      "line": "202",
+      "text": "the two inherited test-scaling variables can remove the production bound because retry_seconds accepts every float without a finite or range check. CLIVE_CATALOG_RETRY_BOUND=inf or any value above 900 extends the advertised ceiling, NaN makes all deadline comparisons false and can retry indefinitely, and a non-positive or non-finite start value can busy-loop or fail inside sleep. Keep the test scaling, but require finite positive values, cap the bound at 900 and the start at 30, and test the refused values."
+    },
+    {
+      "file": "tests/test_agent_clive_catalog_retry.py",
+      "line": "109",
+      "text": "all three new tests drive only HTTP responses through the legacy single-origin route: 503 recovery, 503 exhaustion and immediate 404. None reaches the classification added in 4ceb3fb6 for URLError(ConnectionRefusedError), URLError(ConnectionResetError), or URLError(TimeoutError), and none reaches endpoint-document discovery. Consequently reverting wrapped timeouts to retryable, dropping refused/reset retries, or multiplying the deadline across origins leaves the declared 26-test gate green. Add socketless or controlled-stub cases for refused, reset and timeout plus a two-origin total-budget case."
+    },
+    {
+      "file": "docs/plans/local-lane-admission-control.html",
+      "line": "28",
+      "text": "commit 3f0f0118 increments plan-version from 122 to 123 even though the dispatch contract explicitly said not to edit plan-version or plan-modified. The source manifest then says the plan paragraph has metadata lines unchanged, which is false for the reviewed ae3780f6..fe33bfbc range. The semantic landing paragraph itself is accurate after fe33bfbc, but the forbidden metadata byte should be removed or explicitly reconciled so the record and merge surface agree."
+    }
+  ],
+  "follow_ons": [
+    "Share one finite catalog-discovery deadline across all origins and constrain test-scaling values to safe positive maxima.",
+    "Add direct generated-launcher coverage for refused, reset and timeout errors plus a multi-origin total-budget case.",
+    "Reconcile the forbidden plan-version edit and correct the manifest's metadata-unchanged claim before promotion."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified the single legacy global-origin path that matches the live incident and both endpoint-document loops that share fetch_catalog; 404 and a direct or wrapped timeout currently return no transient label and therefore raise after their first request, while 502/503 and refused/reset connections retry",
+    "diff": "read all four commits in ae3780f64168e6e3808d2ee2344d734bdd176e3d..fe33bfbc504e2aa6bf905068a7d75bc157812655, including 0729fc32 rather than accepting the manifest's reset orientation base; 0729fc32 adds the retry and tests, 3f0f0118 adds the records, 4ceb3fb6 narrows connection classification and prevents a post-deadline request, and fe33bfbc binds the records to that final code",
+    "done_when": "the exact live 503 is reproduced at ae3780f6 as one request followed by exit 2, the final source-run receipt records 26/26 focused tests and green whole-tree Ruff at fe33bfbc, and the negative control fails the 503 recovery test 1/1 selected; the nominal one-origin retry behavior is met, but the endpoint-document total bound and non-HTTP transient branches are not guarded",
+    "goal": "the live failure is covered exactly: a legacy global catalog returning HTTP 503 twice is retried until the real catalog arrives, and the launch proceeds; a 404 makes one request with no retry, and source inspection of transient_failure shows a direct or URLError-wrapped timeout receives no label and therefore fails after the one five-second request rather than entering backoff",
+    "manifest": "the source manifest is complete, recognised and names all four commits, four changed paths, base reproduction, final gate, Ruff and the verbatim negative-control log; its orientation base was reset to 0729fc32 as warned by the review brief, so this review used ae3780f6 explicitly, and its claim that plan metadata is unchanged is contradicted by the plan-version diff",
+    "write_paths": "git diff --name-status ae3780f6..fe33bfbc contains exactly clive.py, the new retry test, the cumulative evidence record and the plan, all within the declared scope; the target tree is clean, but the plan-version line inside that allowed file violates the narrower explicit no-metadata-edit contract"
+  },
+  "justifications": {
+    "durability": "The 503 success, bounded exhaustion, immediate 404 and remove-the-retry negative control are useful guards, but the follow-up commit's refused/reset/timeout branches, invalid retry settings and multi-origin total budget can all regress while the complete declared gate remains green.",
+    "evidence": "The base receipt quotes the exact production error and proves one request then exit 2; final source receipts bind 26 passing tests, green Ruff and a discriminating red control to fe33bfbc. Independent re-execution reached collection but this review sandbox denies loopback socket creation, causing all 26 cases to fail at ThreadingHTTPServer construction rather than in changed behavior; the source receipt remains the usable dynamic evidence.",
+    "fit": "The change stays in the generated launcher, uses urllib's existing opener and keeps deployment outside the node, matching repository conventions. Deductions cover the per-origin rather than launch-wide deadline and inherited environment knobs that are presented as test scaling but are not constrained to safe production values.",
+    "goal_fidelity": "The exact live router 503 on /v1/models is retried and succeeds in the declared scenario, while 404 and timeout remain fail-fast. The score is reduced because supported endpoint-document discovery can multiply the stated 900-second total bound across origins.",
+    "scope_discipline": "Only the four declared paths changed and no launcher, serve or lane state was mutated. The explicit instruction not to edit plan-version was nevertheless violated, and the manifest inaccurately describes those metadata lines as unchanged."
+  },
+  "justifications_detail": {
+    "independent_receipts": "review-gate-head.log records that the exact uv form could not initialise its read-only shared cache in the review sandbox. review-gate-head-direct.log then records the same 26 tests collecting at fe33bfbc under the project interpreter, but all 26 are refused before their assertions because this sandbox prohibits loopback socket creation. Neither failure is attributed to the reviewed code.",
+    "negative_control": "The source red log begins with the declared mutation verbatim and shows that removing the retry makes the 503-twice-then-catalog test fail with return code 2 after the first 503; the final green receipt and clean tree show restoration.",
+    "review_basis": "Read the live plan section 17, repository and agent guidance, target prompt and manifest, base reproduction, final focused gate, final Ruff receipt, verbatim negative control, every commit and the complete ae3780f6..fe33bfbc diff. Checked target cleanliness and git diff --check."
+  },
+  "model": "gpt-5",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260926T205138354076-s17-clive-catalog-retry at head fe33bfbc504e2aa6bf905068a7d75bc157812655 against the true pre-change base ae3780f64168e6e3808d2ee2344d734bdd176e3d. The review intentionally includes 0729fc32, 3f0f0118, 4ceb3fb6 and fe33bfbc; the manifest's orientation base was reset after the first implementation commit and is not the review boundary.\n\nThe live defect is reproduced exactly in the source receipt: against a 503 catalog the base launcher made one /v1/models request, exited 2 and printed `clive: global catalog is unreachable: HTTP Error 503: Service Unavailable`. At the reviewed head, the legacy global-origin path retries 502/503 and direct or URL-wrapped refused/reset connections with 2-to-30-second exponential delay. A 404 is demonstrated by the new test to make exactly one request with no retry line. A direct or URL-wrapped timeout is unlabelled by transient_failure and therefore raises after its one five-second request rather than entering retry. The source run's final receipt records 26/26 focused tests and whole-tree Ruff exit 0 at fe33bfbc; its verbatim negative control fails the one selected 503 recovery test and is restored.\n\nThe nominal live path is correct, but the total bound is not global in the endpoint-document path: every distinct engine and routing origin gets a new 900-second deadline, so the overall launch can wait N times the advertised bound. The inherited test-scaling variables also accept infinity, NaN, values above 900 and non-positive values. Tests cover only HTTP status behavior through SiteConfig(global_origin=origin); they do not guard refused/reset/timeout classification or the multi-origin path. Finally, commit 3f0f0118 changes plan-version despite the explicit no-metadata-edit instruction, while the manifest says metadata was unchanged.\n\nThe review's own exact uv invocation could not initialise the shared read-only uv cache. Running the same files directly under the shared project interpreter collected all 26 at fe33bfbc, then the sandbox denied every loopback ThreadingHTTPServer socket before any changed assertion ran. Those infrastructure failures are preserved in review-gate-head.log and review-gate-head-direct.log and are not treated as product failures. The target tree remained clean and git diff --check passed.\n\nVERDICT goal: the exact one-origin live 503 failure is fixed; 404 and timeout fail without retry, but the total 900-second ceiling is not preserved across multiple endpoint-document origins.\nVERDICT done_when: base reproduction, source-run 26/26 gate, green Ruff and discriminating negative control are present and bound to the reviewed commits; important non-HTTP and multi-origin branches are untested.\nVERDICT write_paths: exactly four declared paths changed, with one explicitly forbidden plan-version edit inside the allowed plan file.\nVERDICT manifest: complete and recognised, but its reset base is not the true review base and its metadata-unchanged statement is false.\nVERDICT diff: all four commits were read; the repair follow-up is included and the final record cites both source commits.\nCALL_SITES: clive.py:220-251, clive.py:391-394, clive.py:484-501, clive.py:503-514.\n\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: exact live behavior is repaired and immediate 404/timeout semantics survive, with a deduction for the multiplied total bound in endpoint-document mode.\nSCORE evidence: 17\nJUSTIFICATION evidence: exact reproduction, final green receipts and a useful negative control exist, but key branches have no direct tests and sandbox restrictions prevented an independent dynamic pass.\nSCORE scope_discipline: 17\nJUSTIFICATION scope_discipline: paths are exact and operational state untouched, but plan-version was changed against an explicit instruction and the manifest denies that byte.\nSCORE durability: 15\nJUSTIFICATION durability: the HTTP cases are durable; refused/reset/timeout, safe configuration ranges and launch-wide budget behavior are not.\nSCORE fit: 17\nJUSTIFICATION fit: generator placement and deployment boundary fit the repository, while per-origin deadlines and unsafe test knobs weaken the implementation shape.\n\nFINDING imas_ambix/agent/clive.py:220 each origin receives a fresh deadline, so endpoint-document discovery can exceed the promised total bound by a factor equal to the number of absent origins.\nFINDING imas_ambix/agent/clive.py:202 inherited retry settings accept non-finite and over-limit values, defeating or destabilising the bound.\nFINDING tests/test_agent_clive_catalog_retry.py:109 the declared gate never exercises refused, reset, timeout or multiple origins, including the behavior added by 4ceb3fb6.\nFINDING docs/plans/local-lane-admission-control.html:28 plan-version changed despite the no-metadata-edit contract, and the manifest inaccurately says metadata was unchanged.",
+  "review_run_id": "r-20260926T213004814578-review-of-s17-clive-catalog-retry",
+  "reviewed_base_sha": "ae3780f64168e6e3808d2ee2344d734bdd176e3d",
+  "reviewed_head_sha": "fe33bfbc504e2aa6bf905068a7d75bc157812655",
+  "reviewed_run_id": "r-20260926T205138354076-s17-clive-catalog-retry",
+  "reviewer": "review-of-s17-clive-catalog-retry",
+  "scores": {
+    "durability": 15,
+    "evidence": 17,
+    "fit": 17,
+    "goal_fidelity": 18,
+    "scope_discipline": 17
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-26T23:37:02+02:00",
+  "total": 84
+}

@@ -1,0 +1,24 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T10:39:06.683Z",
+  "dispatched_at": "2026-10-05T10:35:43Z",
+  "findings": [],
+  "plan_fingerprint": "2cc91cc5dcb2df95cf17c92fc4fd4577bf6692bff4397d7c79a7c0b87eb70378",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 62,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T103533930380-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "8b6f057ddb62ce65b87de7c508e902c25b0dc851",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each new module hides substantial behaviour behind one entry point: selene_deck.py parses three deck grammars into five IDS netCDF, tokamap_export.py collapses unit\u00d7sign\u00d7COCOS into a validated directory, eddb_remote.py runs one batch in one remote process, and the \u00a77 EQDB reader reuses the \u00a73 transport and cache rather than adding a path.",
+    "duplicate_owner": "pass \u2014 the plan routes every shared concern to its existing owner: `JT60SA_ROOT` declared in imas_ambix/data/paths.py:33 beside `MIRROR_ROOT`, shot ranges and pulse identity to the catalogue and `signal_map.load_packaged_signal_map`, description store addressing to `transform_engine.StoreEngine.open`, geometry publication to `gs/artifact_resolution.py`, shot\u2192machine to `spine_bench/shots.py`, and the SELENE comparator to `eval/efit_referee.py` `judge_geometry`; the one cross-repo duplication (\u00a73's own ssh extractor beside codex's remote layer) is named and declined with the locked reason that codex must not become a runtime dependency of an ambix read, which the map-persistence decision fixes.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface states in its own text what it retires or why nothing can be (\u00a72 exporter \"retires nothing, because ambix has no exporter\"; \u00a73 \"adds no `ambix data` command\", \"retires nothing, because ambix has no remote reader today\"; \u00a74 \"widens one protocol method and retires nothing\", the probe-angle key \"retires the machine branch\"; \u00a74/\u00a77 \"adds two record fields and retires nothing, because no scalar reference comparison exists yet\").",
+    "reuse_search": "pass \u2014 the plan searched both codebases it names: \u00a71 enumerates codex's EDAS scanner, wiki adapters and LLM pipeline, \u00a73 cites codex's `imas_codex/remote/scripts/enumerate_edas.py`, `executor.py`, `ssh_worker.py` and `serialization.py` as the remote layer it declines to import, and \u00a72 cites tokamap/libtokamap; every ambix mechanism it proposes reuses is named with its file and verified present (paths.py `MIRROR_ROOT`, transform_engine `StoreEngine`/`NetCDFTransformEngine`, description_reader `read_geometry_table`, cocos_convention `score_convention`, challenge/loader `load_shot`, artifact_resolution pins, machine_selection `ArtifactMachineSelector`, spine_bench/shots `resolve_shotset_version`, eval/efit_referee `judge_geometry`).",
+    "thin_wrapper": "pass \u2014 no layer is proposed that merely forwards to an existing mechanism; the \u00a74 store-layout change widens `StoreEngine.open` in place (transform_engine.py:62) and the \u00a76 change generalises `measure_diiid_convention` through a loader contract, each with the reason the existing mechanism cannot simply be called unchanged."
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T10:42:26.803693+00:00"
+}

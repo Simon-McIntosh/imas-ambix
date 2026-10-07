@@ -1,0 +1,99 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "This review covers only the commit gained since the prior review: the prior review r-20261005T064405401974 reviewed base 0111d5a1 -> head 5949dfcf, so reviewed_base_sha here is 5949dfcf (that reviewed head) and reviewed_head_sha is 41074219, the single new commit. The reviewed run was dispatched unarmed a second time: its manifest carries no baseline_suite and no after_suite and classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null, so its own arms cannot supply the delta. Two same-selection scratch arms were therefore built from the reviewed commits' own object store (git archive 5949dfcf and 41074219 into $TMPDIR/arms/, no git worktree created; the reviewed worktree is not writable by this node) and the reviewed gate file tests/data/test_eddb_cache.py was run in each. The file is modified by the delta, so the selection is identical across arms: base arm 10 passed EXIT=0 (gate-base.log, rev 5949dfcf) and head arm 15 passed EXIT=0 (gate-head.log, rev 41074219). Head failing ids ([]) minus base failing ids ([]) is 0, and the five additive tests in the delta contribute 0 failures, so added_failure_count is 0 and added_failure_ids is []. The reviewed run's own gate.log for this head records 15 passed EXIT=0, matching the head arm.",
+  "after_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider -q tests/data/test_eddb_cache.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T070004515547-review-of-jtmm-eddb-extractor/gate-head.log",
+    "revision": "41074219f3661e2b2708e654812bc00aecd51d16"
+  },
+  "baseline_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider -q tests/data/test_eddb_cache.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T070004515547-review-of-jtmm-eddb-extractor/gate-base.log",
+    "revision": "5949dfcfd67894c035a01afd765d55ccf78254ac"
+  },
+  "completed_at": "2026-10-05T07:07:36.225Z",
+  "dispatched_at": "2026-10-05T07:00:10Z",
+  "findings": [
+    {
+      "category": "missing-deliverable",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-eddb-extractor.html",
+      "line": "section jtmm-eddb-extractor-landing",
+      "severity": "follow-on",
+      "text": "follow-on (persisted from the prior review): plan \u00a73's done-when has three clauses and the evidence fragment still carries none of the measured ones. \u00a73 requires 'a cold fetch of one OP2 shot's first-pass signals completes through the extractor in a single ssh session; a warm read of the same signals through the view touches no network; and the extractor's wall time per signal and bytes per signal are recorded in the evidence so the cache for a shot set is sized rather than guessed.' The single-session and no-network-on-warm-read properties are asserted against a fake transport (legitimate for a unit gate), but the wall-time-per-signal and bytes-per-signal measurement is still absent and no real cold fetch was run (the ssh link to IFERC is down, \u00a75). The delta did not attempt this clause. The follow-on is to run one real OP2 cold fetch on the healthy link and record seconds and bytes per signal in the evidence."
+    },
+    {
+      "category": "evidence-note",
+      "file": "imas_ambix/data/eddb_remote.py",
+      "line": "228",
+      "severity": "follow-on",
+      "text": "follow-on (evidence integrity, minor): the reviewed run's gate.log first line names rev 5949dfcf, but its recorded result (15 passed) is only reachable at 41074219 - the base arm at 5949dfcf yields 10 passed, reproduced this review (gate-base.log). The remote-script-execution and module/nice tests that take the count from 10 to 15 exist only at the repaired revision. So the gate log's header names a revision whose tree cannot produce the number beneath it, most likely because the gate was run on the repaired working tree before the repair was committed (the header reads the last commit, not the tree content). The log should name the revision the content came from, or state that it ran on an uncommitted repair. Not a correctness defect in the code; the reviewed manifest's own 'commits: 5949dfcf, 41074219' and 'gate 15 passed' make the intent recoverable."
+    },
+    {
+      "category": "integration-seam",
+      "file": "imas_ambix/data/eddb.py",
+      "line": "56",
+      "severity": "follow-on",
+      "text": "follow-on (persisted, out of scope): normalised_shot does str(int(shot)), so an EDDB shot token that is not int-convertible (a non-numeric E-series or C-series token) raises ValueError. The plan \u00a73 records that 'the current shot is a coil-commissioning pulse (C-series)', so the cache's headline property - readable by the existing engine with no new reader - still does not hold for the shot class in use if its token is non-numeric. The delta resolved the numeric-token seam (051234 -> 51234.zarr now opens through the engine, test_the_shot_token_is_normalised_to_its_int_form), which was the prior review's finding (b); the non-numeric case remains. The node records it as a follow-on; it needs the engine's shot-naming contract settled, which is outside this node's scope."
+    },
+    {
+      "category": "untested-surface",
+      "file": "imas_ambix/data/eddb_remote.py",
+      "line": "238",
+      "severity": "follow-on",
+      "text": "follow-on (partly resolved, residual): the delta now executes the real REMOTE_SCRIPT locally against a fake eddb_pwrapper and decodes its envelope (test_remote_script_executes_and_decodes_a_known_record, test_remote_script_refuses_a_record_with_no_time_base), which closes the prior review's finding (c) for the client/server byte-equivalence. Residual: the remote shell command's 'module unload python/3.5.6; module load python/3.12' depends on environment modules being initialised in ssh's non-interactive command shell, and the real libeddb path is still never exercised. Unverifiable without the live link; the follow-on is the same one-shot smoke run against the analysis server on a healthy link."
+    },
+    {
+      "category": "edge-case",
+      "file": "imas_ambix/data/eddb.py",
+      "line": "127",
+      "severity": "follow-on",
+      "text": "follow-on (edge case, noted for the next reader, not reproduced): write_channel writes the data array and then the sibling time array with two separate create_array calls. _channel_present keys only on the data path, so if the data array lands but the time-array write fails (crash, I/O fault), the channel is thereafter treated as present: is_cached returns True and a retry is refused as already-cached, leaving a channel without its _time sibling. Conversely a node present with _time but not the data array would make the data create succeed and the time create raise zarr ContainsArrayError rather than EddbCacheError. Single-writer and sequential, so no test exercises it; a half-written channel is the only path there. Recorded by reading the code, not by a failed run."
+    },
+    {
+      "category": "design-note",
+      "file": "imas_ambix/data/eddb_remote.py",
+      "line": "363",
+      "severity": "follow-on",
+      "text": "follow-on (by design, noted): _read_one now raises RuntimeError when the EDDB response carries no time base, and main() lets it propagate (only eddbClose runs in finally), so one channel without a time base aborts the entire batch - every channel already serialised into segments is discarded and nothing is written. This is the intended 'refuse rather than fabricate' behaviour and matches \u00a73's raw-units contract, but a batch mixing one bad channel with good ones loses the good ones. A per-request skip that still refuses the bad record would preserve batch value; the plan does not settle it, so it is noted rather than required."
+    }
+  ],
+  "model": "deepseek-v4.1-flash",
+  "negative_control": {
+    "exit_status": 1,
+    "failing_ids": [
+      "tests/data/test_eddb_cache.py::test_writing_over_an_existing_channel_is_refused",
+      "tests/data/test_eddb_cache.py::test_a_present_channel_is_cached_and_refused_even_when_not_an_array"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T070004515547-review-of-jtmm-eddb-extractor/negative-control.log",
+    "mutation": "write_channel: the explicit membership guard `if _channel_present(root, record.shot, record.category, record.dname): raise EddbCacheError(...)` neutralised",
+    "note": "Independently reproduced this review: neutralising the guard on a scratch copy of the head arm turns the gate red (EXIT=1) on exactly the two refusal tests, neither of which the head arm fails. The reviewed node's own negative_control.log names the same two ids, so the guard is real and falsifiable, contradicting the prior review's finding (d) that the node's stated mutation did not disable it - the node has since re-recorded the note to name the membership guard."
+  },
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T070004515547-review-of-jtmm-eddb-extractor",
+  "reviewed_base_sha": "5949dfcfd67894c035a01afd765d55ccf78254ac",
+  "reviewed_head_sha": "41074219f3661e2b2708e654812bc00aecd51d16",
+  "reviewed_run_id": "r-20261005T063225542614-jtmm-eddb-extractor",
+  "reviewer": "review-of-jtmm-eddb-extractor",
+  "scores": {
+    "durability": 17,
+    "evidence": 16,
+    "fit": 17,
+    "goal_fidelity": 16,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T07:06:26+00:00",
+  "total": 85
+}

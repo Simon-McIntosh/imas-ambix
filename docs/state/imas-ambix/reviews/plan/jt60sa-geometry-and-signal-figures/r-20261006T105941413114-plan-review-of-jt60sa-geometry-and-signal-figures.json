@@ -1,0 +1,76 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T11:04:28.947Z",
+  "dispatched_at": "2026-10-06T10:59:50Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/description_reader.py:113",
+      "id": "reuse_search-1",
+      "reason": "the plan should route \u00a72's read through the owner it already named, or say why the owner cannot serve raw IDS to `imas_ink.extract.extract_geometry`, instead of hand-rolling a parallel reader.",
+      "text": "\u00a72's geometry script is to load the jt-60sa catalogue, call `description_store_root_path()`, open the store with `NetCDFTransformEngine.open` and read `wall`/`pf_active`/`magnetics` with `imas.DBEntry`; `imas_ambix/data/description_reader.py:1-6` states it \"is the sole machine-description acquisition route\" so \"consumers do not need to know which source arrays or store layout supplied the description\", and its `read_geometry_table` (line 113) plus `transform_machine_description` already resolve format, root and layout from the same catalogue \u2014 the plan neither cites nor opens this module. The plan itself already knew this path exists: its own comment at `docs/plans/jt60sa-geometry-and-signal-figures.html:214` says \"the reader moves onto artifact_geometry in \u00a71b\", yet \u00a71b never moves it and \u00a72 ignores `artifact_geometry` entirely.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/description_reader.py:113",
+      "id": "duplicate_owner-1",
+      "reason": "two readers of one store drift from each other, and the existing readers already carry the DDv3/DDv4 fallbacks and unresolved-turn guards \u00a72 would have to re-derive.",
+      "text": "the \u00a72 reader duplicates a route the codebase already owns, and the census of the same reader type is `imas_ambix/gs/artifact_geometry.py:672` (`read_artifact_limiter`, wall\u2192contour), `:302` (`read_artifact_pf_active`, pf_active\u2192filaments/drives) and `:577` (`read_artifact_magnetics`, magnetics\u2192probes/flux loops), all reading the same three IDSs \u00a72 proposes to open; the honest change is to extend this owner, not to fork a second reader beside it.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/eddb.py:25",
+      "id": "thin_wrapper-1",
+      "reason": "the plan must either extend the engine view to carry the cached time base (it already carries units) or restate the real distinction \u2014 the raw EDDB `UNIT_ATTR` unit and raw sign versus the engine's canonical `target_unit` \u2014 before committing to a second read path.",
+      "text": "\u00a73 adds `read_channel` to `imas_ambix/data/eddb.py` as a cache-specific raw reader placed beside the engine path, justified by the claim that \"the engine path those maps feed (`ZarrTransformEngine`, `VirtualZarrView`) returns values with no time base and no unit\"; `VirtualArray.attrs` at `imas_ambix/data/virtual_zarr.py:62-71` already returns `\"units\": rule.target_unit` (with `cocos`, `standard_name`, `target_path`), so the \"no unit\" half of the justification is false, and the module docstring it corrects (`imas_ambix/data/eddb.py:25`, \"no new engine and no cache-specific reader\") already under-describes a raw reader that exists there (`read_eddb_token`, `imas_ambix/data/eddb.py:128`).",
+      "type": "thin_wrapper",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "5b7972afb3306c642f093dab85b8c7819db34976c3870368e49a21486fa9f71f",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 34,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "declined (restates findings declined at v13, v27 and v31): description_reader.read_geometry_table returns the geometry adapter's GeometryTable and the gs artifact readers return forward-operator types, while imas-ink's extract_geometry, the extraction owner for the ink figure (lead ruling figure-owner), takes the raw wall, pf_active and magnetics IDSs; the script's read is the catalogue-addressed DBEntry.get of those three",
+      "when": "2026-10-06T11:05:10.683602+00:00"
+    },
+    "reuse_search-1": {
+      "action": "declined",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "declined (restates findings declined at v13, v27 and v31): description_reader.read_geometry_table returns the geometry adapter's GeometryTable and the gs artifact readers return forward-operator types, while imas-ink's extract_geometry, the extraction owner for the ink figure (lead ruling figure-owner), takes the raw wall, pf_active and magnetics IDSs; the script's read is the catalogue-addressed DBEntry.get of those three",
+      "when": "2026-10-06T11:05:10.682351+00:00"
+    },
+    "thin_wrapper-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v35 \u00a73 corrects the claim: VirtualArray.attrs carry the bound channel's target unit, which the figure takes from there; read_channel is kept for the missing time base and the unbound flux loops",
+      "when": "2026-10-06T11:05:10.686075+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T105941413114-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "81abeecb1235aa065a58cd44835632a30489f527",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a72's geometry script, \u00a73's signals script and \u00a73's `read_channel` each hide catalogue addressing, per-IDS reading and render orchestration behind a small interface; none spreads one piece of machinery across several shallow wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a72 duplicates the acquisition route owned by `imas_ambix/data/description_reader.py` and the per-IDS readers in `imas_ambix/gs/artifact_geometry.py`, both of which already read the same store.",
+    "interface_budget": "pass \u2014 every section that touches a counted family accounts for it in its own text: \u00a71b \"adds nothing\", \u00a73 names `read_channel` as its one public addition and says it \"retires nothing\", \u00a73's signals script \"adds one script with no command-line option and no public name\", and \u00a74 names its one field and states it \"retires nothing\"; \u00a72's script replaces the one \u00a71b deletes, so the net public surface is zero.",
+    "reuse_search": "a finding \u2014 \u00a72 re-derives JT-60SA description-store addressing instead of citing `imas_ambix/data/description_reader.py`, whose docstring declares itself the sole machine-description acquisition route.",
+    "thin_wrapper": "a finding \u2014 \u00a73 adds `read_channel` as a second raw read path over the JT-60SA cache beside `ZarrTransformEngine`/`VirtualZarrView`, and its stated justification (\"no time base and no unit\") is contradicted by `VirtualArray.attrs`, which already exposes `units`."
+  },
+  "section_digests": {
+    "_document": "c4d50308e63f65de45060a4c4c4f25b6b24fa640af64022bcbd95e0abdfa4f11",
+    "s1": "bb8d550544a521bde0263696163651a2d7a045188e07eb5e9a5e525932df317a",
+    "s1b": "9ec381e606c1e32ff38ae066d53ee93b49c010495ada772c8d37fedc05cbf0ab",
+    "s2": "4bf0dbb81a9efc203ec45ce4bd4197177aba0cb6444c6ce59390f558a04d9748",
+    "s3": "97a196b8df1890e21b112b58d703141df167b5bf5c527af95cf57d98b4a56dc2",
+    "s4": "ed6d5b8d0a5d98145a24fe9d1ab0e074e3d9c40bfd067beba80e2b1992dbbf26"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T11:05:10.679328+00:00"
+}

@@ -1,0 +1,50 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "clive",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "",
+  "dispatched_at": "2026-09-25T03:20:18.167463+00:00",
+  "findings": [
+    {
+      "file": "docs/evidence/archive/agent-sessions-live-on-the-fleet-node-landed.html",
+      "line": "166",
+      "text": "an unmatched `</strong>` closes the new anchor's Gate paragraph, where the three earlier anchors in the same file end 'dispatched test node.</p>' with no stray tag, so the landed evidence record carries an invalid tag that reckon audit-doc does not catch."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "three commits, all docs; the note hunk removes exactly the six lines of the old explanation and installs the mandated five, the archive gains one anchor with zero deletions (the cumulative record is spliced, not rewritten), the plan gains one comment under its s9 comment list, and two evidence files are new.",
+    "done_when": "the fence's three clauses were re-verified at head 333fd18e - the mandated sentence is present character-for-character once HTML entities are decoded and line wrapping collapsed, grep -c 'waits for a 500' reads 0 at head against 1 at base, and `reckon audit-doc docs/research/fleet-view-rendering.html` exited 0 when I re-ran it on the head revision's file.",
+    "goal": "the node's goal was to replace the fleet-view note's incorrect explanation of the resize-figure gap with a statement that the cause is not settled; docs/research/fleet-view-rendering.html:198-202 now carries the fence's text and no trace of the old explanation remains (grep for 'is not a reproduction' and 'comparison holds within each probe' returns 0 at head).",
+    "manifest": "read at status complete, base de87263a, head 333fd18e, three commits, with the gate log and the before/after grep counts named by path; its quoted figures re-derived true (grep 1 before and 0 after; audit-doc exit 0; evidence-probe/log-shell-50000.timed carries resize_first_ms=13 resize_render_ms=439).",
+    "write_paths": "git diff --numstat de87263a 333fd18e lists five files (archive +32/-0, gate.log +7/-0, negative-control.txt +5/-0, plan +3/-0, note +5/-6), every one inside the four declared write paths; the plan's plan-version and plan-modified meta lines read identically at base and head."
+  },
+  "justifications": {
+    "durability": "no test in tests/ references the note (grep for the note's wording returns nothing), so nothing reddens if the sentence regresses - the change is guarded only by the one-off before/after counts recorded in docs/figures/agent-sessions-live-on-the-fleet-node/negative-control.txt.",
+    "evidence": "I re-ran the gate at head (audit-doc exit 0 on docs/research/fleet-view-rendering.html) and the grep counts reproduce (0 at head, 1 at de87263a), but audit-doc asserts nothing about the prose or tag balance - the archive's stray tag at agent-sessions-live-on-the-fleet-node-landed.html:166 passed it - so the sentence's support rests on receipts I verified by reading both harnesses.",
+    "fit": "the new sentence reads in the note's register though it cites its receipt as bare (evidence-probe/log-shell-50000.timed) where the note's other receipt references use the full docs/figures path in code style (fence-dictated wording, so not charged to the node), and the archive anchor it added closes 'Gate.' with an unmatched </strong> at line 166.",
+    "goal_fidelity": "docs/research/fleet-view-rendering.html:198-202 replaces the incorrect explanation with the mandated text verbatim, and its clause 'both probes time a resize the same way' is true - probe4.py:71,102 and probe-second-client/multitab_client.py:69,176 both report last-byte-minus-resize-moment, with the earlier probe's quiet threshold (0.5 s) bounding only its read loop.",
+    "scope_discipline": "every one of the five files in git diff --numstat de87263a 333fd18e sits inside the manifest's declared write paths, the archive hunk carries no deletions, and the plan's meta lines are identical at both revisions."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20260925T030908916465-fleet-view-resize-gap-wording at head 333fd18e01afd57d850e51f61b8de2d93541b1a3 against base de87263a91514af9ddb235a5fc86dec07f4c3004.\n\nVERDICT goal: the node's goal was to replace the fleet-view note's incorrect explanation of the resize-figure gap with a statement that the cause is not settled; docs/research/fleet-view-rendering.html:198-202 now carries the fence's text and no trace of the old explanation remains (grep for 'is not a reproduction' and 'comparison holds within each probe' returns 0 at head).\nVERDICT done_when: the fence's three clauses were re-verified at head 333fd18e - the mandated sentence is present character-for-character once HTML entities are decoded and line wrapping collapsed, grep -c 'waits for a 500' reads 0 at head against 1 at base, and `reckon audit-doc docs/research/fleet-view-rendering.html` exited 0 when I re-ran it on the head revision's file.\nVERDICT write_paths: git diff --numstat de87263a 333fd18e lists five files (archive +32/-0, gate.log +7/-0, negative-control.txt +5/-0, plan +3/-0, note +5/-6), every one inside the four declared write paths; the plan's plan-version and plan-modified meta lines read identically at base and head.\nVERDICT manifest: read at status complete, base de87263a, head 333fd18e, three commits, with the gate log and the before/after grep counts named by path; its quoted figures re-derived true (grep 1 before and 0 after; audit-doc exit 0; evidence-probe/log-shell-50000.timed carries resize_first_ms=13 resize_render_ms=439).\nVERDICT diff: three commits, all docs; the note hunk removes exactly the six lines of the old explanation and installs the mandated five, the archive gains one anchor with zero deletions (the cumulative record is spliced, not rewritten), the plan gains one comment under its s9 comment list, and two evidence files are new.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: docs/research/fleet-view-rendering.html:198-202 replaces the incorrect explanation with the mandated text verbatim, and its clause 'both probes time a resize the same way' is true - probe4.py:71,102 and probe-second-client/multitab_client.py:69,176 both report last-byte-minus-resize-moment, with the earlier probe's quiet threshold (0.5 s) bounding only its read loop.\nSCORE evidence: 16\nJUSTIFICATION evidence: I re-ran the gate at head (audit-doc exit 0 on docs/research/fleet-view-rendering.html) and the grep counts reproduce (0 at head, 1 at de87263a), but audit-doc asserts nothing about the prose or tag balance - the archive's stray tag at agent-sessions-live-on-the-fleet-node-landed.html:166 passed it - so the sentence's support rests on receipts I verified by reading both harnesses.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: every one of the five files in git diff --numstat de87263a 333fd18e sits inside the manifest's declared write paths, the archive hunk carries no deletions, and the plan's meta lines are identical at both revisions.\nSCORE durability: 9\nJUSTIFICATION durability: no test in tests/ references the note (grep for the note's wording returns nothing), so nothing reddens if the sentence regresses - the change is guarded only by the one-off before/after counts recorded in docs/figures/agent-sessions-live-on-the-fleet-node/negative-control.txt.\nSCORE fit: 17\nJUSTIFICATION fit: the new sentence reads in the note's register though it cites its receipt as bare (evidence-probe/log-shell-50000.timed) where the note's other receipt references use the full docs/figures path in code style (fence-dictated wording, so not charged to the node), and the archive anchor it added closes 'Gate.' with an unmatched </strong> at line 166.\nFINDING docs/evidence/archive/agent-sessions-live-on-the-fleet-node-landed.html:166 an unmatched `</strong>` closes the new anchor's Gate paragraph, where the three earlier anchors in the same file end 'dispatched test node.</p>' with no stray tag, so the landed evidence record carries an invalid tag that reckon audit-doc does not catch.\n",
+  "review_run_id": "r-20260925T032018167463-review-of-fleet-view-resize-gap-wording",
+  "reviewed_base_sha": "de87263a91514af9ddb235a5fc86dec07f4c3004",
+  "reviewed_head_sha": "333fd18e01afd57d850e51f61b8de2d93541b1a3",
+  "reviewed_run_id": "r-20260925T030908916465-fleet-view-resize-gap-wording",
+  "scores": {
+    "durability": 9,
+    "evidence": 16,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-25T03:37:12.709943+00:00",
+  "total": 81
+}

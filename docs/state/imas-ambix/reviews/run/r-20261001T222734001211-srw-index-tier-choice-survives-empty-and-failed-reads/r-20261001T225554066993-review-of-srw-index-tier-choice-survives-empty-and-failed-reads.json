@@ -1,0 +1,68 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite (the run's classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null), so its own arms cannot supply the delta. This review therefore measured the reviewed node's declared five-file gate in two scratch trees built from the reviewed commit's own object store (both extracted with git archive from this reviewer's own worktree, which shares that object store, into $TMPDIR/arms: base at arms/base and head at arms/head; no git worktree created, the reviewed object store is not writable by this node and neither is its worktree): base arm gate-base.log (revision 1c871e0f94c991dab55f3fd844974f9855c26526: 92 passed, EXIT=0) and head arm gate-head.log (revision e7fa17da18bc5c6c17b6aad5773a9ddfa7843694: 95 passed, EXIT=0). The head set is a superset of the base set (three tests added, none removed), so both arms are green and head failing ids ([]) minus base failing ids ([]) is 0.",
+  "after_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_index.py tests/test_telemetry_ingest.py tests/test_telemetry_compaction_runs.py tests/test_agent_telemetry_watch.py tests/test_agent_ingest_cli.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T225554066993-review-of-srw-index-tier-choice-survives-empty-and-failed-reads/gate-head.log",
+    "revision": "e7fa17da18bc5c6c17b6aad5773a9ddfa7843694"
+  },
+  "baseline_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_index.py tests/test_telemetry_ingest.py tests/test_telemetry_compaction_runs.py tests/test_agent_telemetry_watch.py tests/test_agent_ingest_cli.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T225554066993-review-of-srw-index-tier-choice-survives-empty-and-failed-reads/gate-base.log",
+    "revision": "1c871e0f94c991dab55f3fd844974f9855c26526"
+  },
+  "completed_at": "2026-10-01T23:25:07.486Z",
+  "dispatched_at": "2026-10-01T22:56:02Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "472,913,1016",
+      "severity": "follow-on",
+      "text": "The fall-through past an absent raw file keys on 'no non-blank line' (_holds_a_record_line), not on 'no parseable row', so a raw file whose only content is an unparseable (but non-blank) line is still selected, the read raises, and the minute tier that holds the rows is never read -- the opposite of the retention block's settled reading (line 576: 'A raw file with no parseable row does not stop the fall-through, so the index reads that job's minute tier') and of the antecedent review's own framing of this boundary ('the implementation must decide tier by whether the file actually yields rows'). _raw_has_no_row returns True only when the file cannot be opened (OSError) or holds no non-blank line; a truncated or corrupt record line is not blank, so the file is offered and _parse refuses it in place. The node documents this choice deliberately ('the fall-through is for an absent tier, not for corrupt data'), and the plan's first sentence ('empty or unreadable ... counts as absent') admits the narrower reading -- corrupt content is neither empty nor unopenable -- so this is a genuine ambiguity, not a plain miss; but the plan's second sentence names exactly this case and the fix does not cover it, and the reviewed run's own new test pins the narrower behaviour by asserting the read raises. Reproduced at the reviewed head (probe-corrupt.log): with a valid minute and hour tier beside a raw file whose only line is a truncated JSON record, one tick raises ValueError 'invalid record JSON', the job's held tiers are set() and its token totals are None/None/None, while the minute tier (which holds 2000/1000/800) was never read. No test covers the unparseable-line fall-through; the empty-raw test uses raw.write_text(\"\"), i.e. zero bytes."
+    }
+  ],
+  "follow_ons": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified the two production call sites of index.ingest that offer a directory -- imas_ambix/agent/watch.py:920 and imas_ambix/agent/watch.py:1020 -- both pass discover(directory), the whole directory; telemetry_ingest.tick hands index.ingest the whole discovered set (telemetry_ingest.py:190). The fall-through therefore sees every tier a job offers, and the selection can move a job from raw to minute.",
+    "diff": "Read commits 3d14085c (implementation) and e7fa17da (evidence fragment) against base 1c871e0f. 3d14085c: four files, +161/-25 -- imas_ambix/agent/telemetry_index.py (+71), imas_ambix/agent/telemetry_ingest.py (+39/-25 line churn), tests/test_telemetry_index.py (+56), tests/test_telemetry_ingest.py (+20/-4). e7fa17da: docs/evidence/fragments/serving-record-warehouse/srw-index-tier-choice-survives-empty-and-failed-reads.html (+97). Both commits carry a conventional subject and a body; neither carries an AI trailer; no plan, sprint or ticket identifier appears in either message or in the changed source.",
+    "done_when": "The node's done-when (as dispatched) asks that a raw file with no parseable row be treated as absent, that the deselected-tier drop happen only after the selected tier is read 'in the same transaction', that DEFAULT_CADENCE_SECONDS be 60.0, and that the named tests and gate pass. The gate passes (95 passed, guard not in this run's declared set, ruff clean per the reviewed run's own logs; this review re-ran the five-file gate green at both arms). The empty-raw and failed-read tests exist and pass; the 60 s default test exists and passes. The done-when's literal wording 'no parseable row' is only partly met -- the implementation's predicate is 'no non-blank line', which diverges for an unparseable line (the finding). The 'in the same transaction' clause is met in guarantee but not in mechanism: the drop is a separate transaction ordered after the read's commit, not folded into it; the observable guarantee the clause exists to give -- a read that raises leaves the samples in place -- holds, and the antecedent review that named this repair explicitly offered 'read first and drop after' as an equivalent local repair, so this is recorded as a satisfied deviation rather than a defect. The gate log's first line names the commit it ran at (3d14085c) and each command records EXIT=0/1; the evidence fragment ends with a trailing newline (verified).",
+    "goal": "The node's declared goal is to make the one-tier choice fall through past an empty raw file and never lose a job's samples to a failed read. Both limbs are implemented and verified: ingest drops from the offered set any raw file that _raw_has_no_row reports carries no record line (telemetry_index.py:913), so one_tier_per_job selects the finest tier that holds rows and the job is read from its minute (then hour) tier; and _drop_deselected_tiers(chosen) now runs after the read loop and its commit (telemetry_index.py:1007), so a read that raises on the selected file leaves the previously held samples in place. The declared empty-raw behaviour is asserted and passes (test_a_job_whose_raw_file_is_empty_is_answered_from_its_minute_tier: totals 2000/1000/800, held tier {minute}). The cadence limb also holds: DEFAULT_CADENCE_SECONDS is 60.0 and the module and entry point describe the standing loop the fleet supervisor runs, matching the plan's locked ingest-cadence decision (plan line 747-755: every 60 s under the fleet supervisor). Goal fidelity loses points only for the unparseable-line boundary the plan's reading 10 names and the fix does not cover -- see the finding.",
+    "manifest": "Read; it records orientation_base_sha 1c871e0f, status complete, commits [3d14085c, e7fa17da], changed_paths the four source/test files, a three-command gate green (95 passed / serving-parser guard 1 passed / ruff exit 0, each EXIT=0), and a negative control (drop moved before the read, scratch edit restored) where test_a_job_keeps_its_minute_samples_when_its_selected_raw_file_raises reddens -- reproduced independently in this review.",
+    "write_paths": "Read the manifest's declared changed_paths against the reviewed diff; the diff touches exactly imas_ambix/agent/telemetry_index.py, imas_ambix/agent/telemetry_ingest.py, tests/test_telemetry_index.py, tests/test_telemetry_ingest.py and the node's own evidence fragment, all inside the declared set. No plan, index or sprint state is mutated by the commits. The reviewed run's own gate and this review's arms ran on the fleet compute node (job 1277272), no srun/sbatch."
+  },
+  "justifications": "independent review of run r-20261001T222734001211-srw-index-tier-choice-survives-empty-and-failed-reads, reviewed_run_id r-20261001T222734001211-srw-index-tier-choice-survives-empty-and-failed-reads, base 1c871e0f, head e7fa17da, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 17, evidence 18, scope_discipline 20, durability 17, fit 18 -- total 90, added_failure_count 0 with added_failure_ids [] derived from this review's own two arms of the reviewed run's declared five-file gate (the reviewed run was dispatched unarmed, so its own baseline_suite and after_suite are null): base arm gate-base.log (scratch tree $TMPDIR/arms/base, revision 1c871e0f: 92 passed, EXIT=0) and head arm gate-head.log (scratch tree $TMPDIR/arms/head, revision e7fa17da: 95 passed, EXIT=0). The head set is a superset of the base set (three tests added, none removed). The previously recorded defect was reproduced rather than accepted: the reviewed head's two new tests injected into the base tree fail at base (2 failed, 52 deselected, EXIT=1, repro.log) -- the empty-raw case pins the job to a file with no samples and the failed-read case finds the minute samples already dropped -- and pass at the head. The run's own negative control was reproduced independently: moving _drop_deselected_tiers(chosen) back before the read loop reddens test_a_job_keeps_its_minute_samples_when_its_selected_raw_file_raises (1 failed, EXIT=1, nc.log). One defect is recorded: the absence test keys on 'no non-blank line rather than no parseable row, so a raw file whose only content is an unparseable line raises and never falls through to its minute tier (probe-corrupt.log: ValueError, held tiers set(), totals None), against the plan's reading 10; the plan's first sentence admits the narrower reading and the node documents the choice, so it is recorded as a genuine-ambiguity finding rather than a plain miss. scope_discipline is full: the diff is entirely inside the declared write paths, no plan or index state is touched, and the new symbols (_holds_a_record_line, _raw_has_no_row) are named by what they do with no plan, ticket or version identifiers, which the naming scan confirmed. durability loses points only for the untested unparseable-line boundary that the new test actively pins the other way; the two named behaviours and the cadence default are each guarded by a test and each guard was shown to redden. fit is near-full: the fall-through reuses the existing one_tier_per_job/discover/tick flow, the drop relocation is local, and the change matches the plan's locked 60 s standing-loop decision (plan lines 234, 246, 747-755).",
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-index-tier-choice-survives-empty-and-failed-reads",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "review_kind": "review",
+  "review_run_id": "r-20261001T225554066993-review-of-srw-index-tier-choice-survives-empty-and-failed-reads",
+  "reviewed_base_sha": "1c871e0f94c991dab55f3fd844974f9855c26526",
+  "reviewed_head_sha": "e7fa17da18bc5c6c17b6aad5773a9ddfa7843694",
+  "reviewed_run_id": "r-20261001T222734001211-srw-index-tier-choice-survives-empty-and-failed-reads",
+  "reviewer": "review-of-srw-index-tier-choice-survives-empty-and-failed-reads",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 17,
+    "scope_discipline": 20
+  },
+  "section": "s8",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T01:05:00+00:00",
+  "total": 90
+}

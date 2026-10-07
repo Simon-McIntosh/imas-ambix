@@ -1,0 +1,44 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T01:49:19.406Z",
+  "dispatched_at": "2026-10-06T01:45:00Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/challenge/convention.py:245",
+      "id": "duplicate_owner-1",
+      "reason": "the plan should have the kernel read `EfitLabels` (declaring the axis/boundary keys on it) and delete the parallel contract, which removes a layer rather than adding one.",
+      "text": "\u00a76 says the equilibrium kernel (`_integrated_current`, `_axis_and_boundary`) will read a \"record contract with canonical keys for the grid, psi, axis and boundary\" that the DIII-D loader maps onto, but `imas_ambix/challenge/loader.py:54 EfitLabels` already carries exactly that data (`grid_r_m`, `grid_z_m`, `psirz`, `scalars`, `cocos`) and `ChallengeShot` already wraps it; a separate canonical-key contract is a second representation of one record and gives the DIII-D path two shapes for the same equilibrium",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "0cb7e4fb49a489870ebc713ce72a5abc2a20dc9a288a56532d763461a7e1ec98",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 83,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T014451610129-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "7df1e199fb275fdcfb76d868fd1340f0beb8a452",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new modules hide substantial behaviour behind small interfaces: `selene_deck.py` is one converter entry point over three deck grammars plus IDS emission and receipts; `tokamap_export.py` exposes one public function (`export_tokamap_directory`, imas_ambix/data/tokamap_export.py:349) over key mapping, unit/sign/COCOS collapse and group filtering; `eddb.py` exposes `fetch_channels`/`write_channel`/`is_cached`/`channel_path` over transport-free cache state. No section spreads one behaviour across shallow wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a76 proposes a new canonical-key equilibrium record contract (grid, psi, axis, boundary) that duplicates the typed record `challenge/loader.py` already owns.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0. Every section that adds surface states in its own text what it retires or merges, or why nothing can be: \u00a72 \"retires nothing, because ambix has no exporter\"; \u00a73 \"retire nothing ... merge into nothing, because the FAIR-MAST mirror ... downloads from an object store\"; \u00a74 \"widens one protocol method and retires nothing\"; \u00a77 \"adds two record fields and retires nothing\". No section adds to any of the four families without that accounting.",
+    "reuse_search": "pass \u2014 the plan names the mechanism it extends for every layer it touches, and each named mechanism exists: `load_packaged_signal_map` (imas_ambix/data/signal_map.py:631), `read_geometry_table` and `_supply_declared_probe_angles` (imas_ambix/data/description_reader.py:113,53), the identity proofs (imas_ambix/data/description_identity.py:67,106,129), the convention owners (imas_ambix/data/cocos_convention.py:329 score_convention, :606 format_sign_report; imas_ambix/challenge/convention.py:266 measure_diiid_convention), the gated reference seam (imas_ambix/eval/efit_referee.py:120 read_efit_geometry, :272 judge_geometry), the artifact resolver (imas_ambix/gs/artifact_resolution.py:304,344), the remote store (imas_ambix/data/eddb.py:208 write_channel, imas_ambix/data/eddb_remote.py:160 SshTransport), the declaration classes (imas_ambix/data/machine_map.py:767 FluxLoopPositionDeclaration, :1033 flux_loop_positions_for), the shot set (imas_ambix/spine_bench/shots.py:27,60) and the residual owner (imas_ambix/spine_bench/runner.py:161). The plan also correctly reports a genuine absence \u2014 no shot\u2192catalogue mapping exists (`grep` for `machine_for_shot` returns nothing) and DIII-D's map spans 0\u20132147483647 (imas_ambix/data/machine_maps/diii-d.json), so `map_for_shot` cannot disambiguate \u2014 which is why the machine must be declared rather than inferred.",
+    "thin_wrapper": "pass \u2014 every proposed layer states why the owner is extended rather than a parallel path built: \u00a74 widens `StoreEngine.open` for the selected map rather than adding an engine; \u00a76 generalises `measure_diiid_convention` rather than writing a second scorer; \u00a77 reuses `SshTransport` rather than a second remote path and adds a grid writer beside `write_channel` in the same store."
+  },
+  "section_digests": {
+    "_document": "81c30464997a0bb8e491a2ec9da6b8861cd25ff2cfad20808b2f114dc78a477d",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "0c6d3ad9d5cf1da1fe7fe4da9f6aaed64bad292c46c517e591b53b1561cdda5b",
+    "s5": "83fb72d7ab35eaa0286bd0c4b0b1807b76fc0846bbc4b153f8b5efd32a27c265",
+    "s6": "2a80a7a62c8dc5613a449b07cfc23202673e04b88f6ee73ab77207f7bd29e8e7",
+    "s7": "d58647ed5f6919b3ea6ef1c13c5f002f5a96def1edf03c3c66c629e0a2180518",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.816285+00:00"
+}

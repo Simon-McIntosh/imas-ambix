@@ -1,0 +1,78 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's own two arms of the reviewed node's declared gate, because the reviewed manifest arms no baseline_suite/after_suite: base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T115411929066-review-of-srw-tiers-carry-openings/review-base-arm.log (revision d43898f5ca59fcc0d462bbf91e3dd52b49cdc478 carrying the head's test file -> 3 failing node ids) against head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T115411929066-review-of-srw-tiers-carry-openings/review-head-arm.log (reviewed head fc28c7e4f2b139e851c830a9e704086c734a1212 -> 0), so the reviewed run adds no failing test; the reviewed node's own gate log gate-pytest-telemetry.log (90 passed, EXIT=0 at a8f39d11) corroborates the head limb.",
+  "after_suite": {
+    "command": "python -m pytest -p no:cacheprovider tests/test_telemetry_store.py tests/test_telemetry_index.py tests/test_agent_telemetry_watch.py tests/test_telemetry_compaction_runs.py; python -m pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python; ruff check --no-cache imas_ambix tests (at the reviewed head, in a scratch tree)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T115411929066-review-of-srw-tiers-carry-openings/review-head-arm.log",
+    "revision": "fc28c7e4f2b139e851c830a9e704086c734a1212"
+  },
+  "baseline_suite": {
+    "command": "python -m pytest -p no:cacheprovider tests/test_telemetry_compaction_runs.py in a scratch tree extracted from the base revision, carrying the reviewed head's test file",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 3,
+    "failure_ids": [
+      "tests/test_telemetry_compaction_runs.py::test_an_hour_opening_carries_the_runs_opening_through_the_tier_chain",
+      "tests/test_telemetry_compaction_runs.py::test_every_tier_file_totals_a_null_rich_window_the_same",
+      "tests/test_telemetry_compaction_runs.py::test_every_tier_file_totals_a_restart_window_the_same"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T115411929066-review-of-srw-tiers-carry-openings/review-base-arm.log",
+    "revision": "d43898f5ca59fcc0d462bbf91e3dd52b49cdc478"
+  },
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/agent/serving_receipts.py:543",
+    "imas_ambix/agent/telemetry_index.py:630",
+    "imas_ambix/agent/watch.py:382",
+    "imas_ambix/agent/watch.py:488"
+  ],
+  "completed_at": "2026-09-29T12:51:30.041Z",
+  "dispatched_at": "2026-09-29T11:54:19Z",
+  "findings": [],
+  "follow_ons": [
+    "tests/test_telemetry_compaction_runs.py:212-275 every compacted-file total in the suite is a query window aligned with the compaction window and holding one compacted row per run; a window whose start falls inside a multi-row compacted window (the shape a watch window over minute files has) is not pinned, and there the carried opening is the value at the row's own window start rather than at the query start.",
+    "carried forward from the plan and untouched by this node: the index ingests raw and compacted files into one sample table with no query distinguishing them, so a window covered by both is answered from both; the plan leaves the choice of owner open."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 4 production call site(s)",
+    "diff": "the change is coherent and minimal -- telemetry_store gains _open_reading (imas_ambix/agent/telemetry_store.py:352) and uses it where a window's first entry for a counter is set (imas_ambix/agent/telemetry_store.py:576-582), telemetry_index carries the opening as an indexed measurement (imas_ambix/agent/telemetry_index.py:138,630) and reads it through one correlated subquery (imas_ambix/agent/telemetry_index.py:1227,1231), so the query-layer half needs no second schema; the tests add the tier chain plus per-tier totals, and the evidence fragment records both equalities, the gate and the negative control.",
+    "done_when": "the node's declared equality is measured, not asserted -- at the reviewed base d43898f5 with the head's own test file the three tier-chain tests fail (3 failed, 3 passed, EXIT=1, review-base-arm.log), at the reviewed head the declared gate is green (90 passed, the serving-interpreter guard 1 passed, ruff clean, review-head-arm.log), and the run's own negative control reddens exactly those three tests with the chained hour opening at 2,000 where the direct hour opens at 0 and the hour total collapsing to 0.0 (runs/r-20260929T111511601344-srw-tiers-carry-openings/negative-control.log).",
+    "goal": "delivered on both limbs -- imas_ambix/agent/telemetry_store.py:569,582 at head reads a source row's opening block when a window opens a counter, so an hour carries the opening the minute tier recorded instead of the first minute row's closing, and imas_ambix/agent/telemetry_index.py:1252-1255 differences each run between its carried opening and its closing, so a window totalled through any single tier's file alone gives the figure the raw rows give (520,000 for the restart window and 600 for the null-rich stretch, tests/test_telemetry_compaction_runs.py:233,255).",
+    "manifest": "the reviewed manifest records the two commits with bodies, the four changed paths, the gate commands with their logs and the negative-control log whose first line repeats the dispatch's declared string, but it arms no baseline_suite or after_suite field, so a reader annotating this review from that manifest alone reads the added-failure count as unmeasured; this review took the count from its own two arms of the same gate and names them under added_failures_basis.",
+    "write_paths": "the diff stays inside the reviewed node's declared paths -- git diff --stat over the range is 4 files, 313 insertions, 34 deletions, three of them the declared code and test paths (imas_ambix/agent/telemetry_store.py, imas_ambix/agent/telemetry_index.py, tests/test_telemetry_compaction_runs.py) plus the declared evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-tiers-carry-openings.html, with the declared figures path unused -- and the reviewed worktree reads clean at fc28c7e4 with no trace of the negative-control scratch edit."
+  },
+  "justifications": {
+    "durability": "the repaired equality is pinned at every tier and the query-layer change is a bounded read of one extra measurement per run, but every compacted-file total in the suite is a window aligned with the compaction window and holding one row per run (tests/test_telemetry_compaction_runs.py:233,255), so a window whose start falls inside a multi-row compacted window (a watch window over minute files) is not pinned by a test.",
+    "evidence": "every claim in the reviewed fragment is reproduced independently here -- the defect is red at the base revision (3 failed, 3 passed, base d43898f5 carrying the head's test file), the head gate is green (90 passed, serving-interpreter guard 1 passed, ruff exit 0), and both equalities (520,000 restart, 600 null-rich) are read through the index of each tier's own file alone (tests/test_telemetry_compaction_runs.py:212-275), so the assertions are capable of failing, as the base arm and the run's own negative control each demonstrate.",
+    "fit": "the change follows the module's existing shapes rather than adding machinery -- the opening travels as an ordinary indexed measurement under the store's own key spelling with a prefix (imas_ambix/agent/telemetry_index.py:138), _open_reading mirrors _counter_reading's numeric filtering, and the two compaction levels still call the one shared run-boundary predicate (tests/test_telemetry_compaction_runs.py:147).",
+    "goal_fidelity": "both limbs of the stated goal are delivered and reached from production paths -- the recorder compacts raw to minute and minute to hour on its tick (imas_ambix/agent/serving_receipts.py:543-544, through compact_record into compact_file) and the live watch reads partitioned_total for its windowed counter totals (imas_ambix/agent/watch.py:382,488).",
+    "scope_discipline": "the diff touches only the reviewed node's declared paths (4 files, 313 insertions, 34 deletions: the three declared code and test paths plus the declared fragment), the reviewed worktree is clean at the reviewed head, and both commits carry conventional subjects with bodies and no attribution line."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Review of run r-20260929T111511601344-srw-tiers-carry-openings (plan imas-ambix:serving-record-warehouse, node srw-tiers-carry-openings), base d43898f5ca59fcc0d462bbf91e3dd52b49cdc478 -> head fc28c7e4f2b139e851c830a9e704086c734a1212 (fix a8f39d11 plus evidence fc28c7e4). Judged from artefacts only: the diff, the two gate logs, the negative-control log, and an independent two-arm re-run of the reviewed node's own declared gate by this review.\n\nVERDICT goal: delivered on both limbs -- imas_ambix/agent/telemetry_store.py:569,582 at head reads a source row's opening block when a window opens a counter, so an hour carries the opening the minute tier recorded instead of the first minute row's closing, and imas_ambix/agent/telemetry_index.py:1252-1255 differences each run between its carried opening and its closing, so a window totalled through any single tier's file alone gives the figure the raw rows give (520,000 for the restart window and 600 for the null-rich stretch, tests/test_telemetry_compaction_runs.py:233,255).\n\nVERDICT done_when: the node's declared equality is measured, not asserted -- at the reviewed base d43898f5 with the head's own test file the three tier-chain tests fail (3 failed, 3 passed, EXIT=1, review-base-arm.log), at the reviewed head the declared gate is green (90 passed, the serving-interpreter guard 1 passed, ruff clean, review-head-arm.log), and the run's own negative control reddens exactly those three tests with the chained hour opening at 2,000 where the direct hour opens at 0 and the hour total collapsing to 0.0 (runs/r-20260929T111511601344-srw-tiers-carry-openings/negative-control.log).\n\nVERDICT write_paths: the diff stays inside the reviewed node's declared paths -- git diff --stat over the range is 4 files, 313 insertions, 34 deletions, three of them the declared code and test paths (imas_ambix/agent/telemetry_store.py, imas_ambix/agent/telemetry_index.py, tests/test_telemetry_compaction_runs.py) plus the declared evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-tiers-carry-openings.html, with the declared figures path unused -- and the reviewed worktree reads clean at fc28c7e4 with no trace of the negative-control scratch edit.\n\nVERDICT manifest: the reviewed manifest records the two commits with bodies, the four changed paths, the gate commands with their logs and the negative-control log whose first line repeats the dispatch's declared string, but it arms no baseline_suite or after_suite field, so a reader annotating this review from that manifest alone reads the added-failure count as unmeasured; this review took the count from its own two arms of the same gate and names them under added_failures_basis.\n\nVERDICT diff: the change is coherent and minimal -- telemetry_store gains _open_reading (imas_ambix/agent/telemetry_store.py:352) and uses it where a window's first entry for a counter is set (imas_ambix/agent/telemetry_store.py:576-582), telemetry_index carries the opening as an indexed measurement (imas_ambix/agent/telemetry_index.py:138,630) and reads it through one correlated subquery (imas_ambix/agent/telemetry_index.py:1227,1231), so the query-layer half needs no second schema; the tests add the tier chain plus per-tier totals, and the evidence fragment records both equalities, the gate and the negative control.\n\nCALL_SITES: imas_ambix/agent/serving_receipts.py:543, imas_ambix/agent/telemetry_index.py:630, imas_ambix/agent/watch.py:382, imas_ambix/agent/watch.py:488\n\nSCORE goal_fidelity: 20\nSCORE evidence: 20\nSCORE scope_discipline: 20\nSCORE durability: 19\nSCORE fit: 20\n\nJUSTIFICATION goal_fidelity: both limbs of the stated goal are delivered and reached from production paths -- the recorder compacts raw to minute and minute to hour on its tick (imas_ambix/agent/serving_receipts.py:543-544, through compact_record into compact_file) and the live watch reads partitioned_total for its windowed counter totals (imas_ambix/agent/watch.py:382,488).\n\nJUSTIFICATION evidence: every claim in the reviewed fragment is reproduced independently here -- the defect is red at the base revision (3 failed, 3 passed, base d43898f5 carrying the head's test file), the head gate is green (90 passed, serving-interpreter guard 1 passed, ruff exit 0), and both equalities (520,000 restart, 600 null-rich) are read through the index of each tier's own file alone (tests/test_telemetry_compaction_runs.py:212-275), so the assertions are capable of failing, as the base arm and the run's own negative control each demonstrate.\n\nJUSTIFICATION scope_discipline: the diff touches only the reviewed node's declared paths (4 files, 313 insertions, 34 deletions: the three declared code and test paths plus the declared fragment), the reviewed worktree is clean at the reviewed head, and both commits carry conventional subjects with bodies and no attribution line.\n\nJUSTIFICATION durability: the repaired equality is pinned at every tier and the query-layer change is a bounded read of one extra measurement per run, but every compacted-file total in the suite is a window aligned with the compaction window and holding one row per run (tests/test_telemetry_compaction_runs.py:233,255), so a window whose start falls inside a multi-row compacted window (a watch window over minute files) is not pinned by a test.\n\nJUSTIFICATION fit: the change follows the module's existing shapes rather than adding machinery -- the opening travels as an ordinary indexed measurement under the store's own key spelling with a prefix (imas_ambix/agent/telemetry_index.py:138), _open_reading mirrors _counter_reading's numeric filtering, and the two compaction levels still call the one shared run-boundary predicate (tests/test_telemetry_compaction_runs.py:147).",
+  "review_run_id": "r-20260929T115411929066-review-of-srw-tiers-carry-openings",
+  "reviewed_base_sha": "d43898f5ca59fcc0d462bbf91e3dd52b49cdc478",
+  "reviewed_head_sha": "fc28c7e4f2b139e851c830a9e704086c734a1212",
+  "reviewed_run_id": "r-20260929T111511601344-srw-tiers-carry-openings",
+  "reviewer": "review-of-srw-tiers-carry-openings",
+  "scores": {
+    "durability": 19,
+    "evidence": 20,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T12:46:58.090766+00:00",
+  "total": 99
+}

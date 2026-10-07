@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T03:57:01.991Z",
+  "dispatched_at": "2026-10-07T03:51:49Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/tokamap_export.py:147",
+      "id": "duplicate_owner-1",
+      "reason": "the plan already names this owner and schedules the promotion and retirement under \u00a72's jtmm-tokamap-jt60sa node, so the plan text is already correct; the finding records the census rather than proposing a change.",
+      "text": "the exporter's _cocos_transformation duplicates packages/imas-alambic/src/imas_alambic/transform_engine.py:411 _target_cocos_transformation, both resolving a DD path's COCOS label through the same imas DD node attribute, so the two can drift with the round-trip test still green (it recomputes the expected scale from canonical_factor without asking the engine)",
+      "type": "duplicate_owner",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "16b0a123946e7ebf1378c27fc2d8776f112be5ffbadb091b798625b40e211a38",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 300,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "The plan already names this duplicate and schedules its retirement: section 2's jtmm-tokamap-jt60sa promotes the engine's _target_cocos_transformation to public, retires the exporter's _cocos_transformation, and repoints the round-trip test at the engine resolver. The reviewer marks it would-not-change for that reason.",
+      "when": "2026-10-07T03:58:06.774612+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "The plan already names this duplicate and schedules its retirement: section 2's jtmm-tokamap-jt60sa promotes the engine's _target_cocos_transformation to public, retires the exporter's _cocos_transformation, and repoints the round-trip test at the engine resolver. The reviewer marks it would-not-change for that reason.",
+      "when": "2026-10-07T03:58:06.774612+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v300.json",
+  "review_run_id": "r-20261007T035136537989-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "91f3e3344f6c8c55cdb8d7d16611ab17c2899f7f",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new surface hides substantial behaviour behind small interfaces: eddb_remote.py (SshTransport + RemoteEddbExtractor batching N channel requests through one ssh process) and eddb.py (fetch_channels/write_channel/is_cached/channel_path over the zarr cache) hide transport, batching, refusal bookkeeping and cache layout behind a handful of names; tokamap_export.py hides four JSON files, two formats and a partition/sign/unit collapse behind export_tokamap_directory. No spread of many one-line wrappers over the same machinery.",
+    "duplicate_owner": "pass \u2014 the one duplicate in the tree is named by the plan with the owner to extend and the retirement: imas_ambix/data/tokamap_export.py:147 _cocos_transformation re-implements packages/imas-alambic/src/imas_alambic/transform_engine.py:411 _target_cocos_transformation (same `getattr(node, \"cocos_label_transformation\")` lookup), and \u00a72 promotes the engine's resolver to public and retires the exporter's copy. Every other shared mechanism is extended in place rather than forked: the probe-angle route stays in imas_ambix/data/description_reader.py read_geometry_table:222 (its probe_angle_source == \"description\" branch, beside _supply_declared_probe_angles:55), the SELENE reference enters through the existing efit_referee.read_efit_geometry loader seam, and the registry is keyed by machine in imas_ambix/gs/machine_identity.py default_registry:145. The caller census the plan states is complete and correct: identity_for_shot has exactly the three production callers named (artifact_geometry.py:804, machine_selection.py:138, machine_identity.py:245), and default_registry() is fallen back to at exactly the four resolvers named (machine_identity.py:187, 216, 241, 259).",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that touches the remaining surface states its account in its own text: \u00a72 adds one public definition (the engine resolver) and retires the exporter's private copy, stating no public name can be retired in its place; \u00a73 adds two public modules and two refusal families and states they retire nothing because ambix had no remote reader; \u00a76 retires mast_angle_to_canonical with no addition; \u00a77 retires three pin constants, one re-export, one defaulted machine parameter and two silent MAST defaults, adding the pin table, the machine-keyed shot-set table and two record fields. Each addition is paired with a named retirement or a stated reason none can be.",
+    "reuse_search": "pass \u2014 the plan named and searched the machinery it extends, and every claimed target was confirmed by opening the code: the ambix machine-map schema and loaders (imas_alambic/machine_map.py), the transform engine (packages/imas-alambic/src/imas_alambic/transform_engine.py), the green's-operator forward model (imas_ambix/gs/operator.py build_operator/assemble_pf_currents), the reference-equilibrium seam (imas_ambix/eval/efit_referee.py read_efit_geometry:120, judge_geometry:272), the geometry builder (imas_ambix/worldmodel/equilibrium_labels.py build_geometry_from_arrays:465), the machine-identity registry (imas_ambix/gs/machine_identity.py default_registry:145), and the frozen shot set (imas_ambix/spine_bench/shots.py). grep confirms no prior tokamap exporter and no prior remote EDDB reader exist, so \u00a72 and \u00a73 add genuinely new machinery rather than rebuilding one.",
+    "thin_wrapper": "pass \u2014 the two layers the plan does add are format boundaries, not wrappers over existing machinery, and it says so: \u00a72 keeps tokamap_export.py out of the loaders because the loaders read the ambix schema and must not learn tokamap's, and \u00a73 states the FAIR-MAST mirror (imas_ambix/data/manifest.py, cli.py) downloads from an object store rather than running a process on a facility host, so the remote reader cannot merge into it. Both justify a new module where neither existing mechanism can be extended."
+  },
+  "section_digests": {
+    "_document": "81682cdac402b9ecabca41fe98b8c82173a82b136ee12a571083be06863673be",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "3e6ebff0568a3bc178057dab0387846dfc11568fa87e507a060cc8fdceeae7e8",
+    "s7": "4c5c0d83b27b3eaa7baf45b5c334a7573ea4203de411b501a5d7d4182109d782",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T03:58:03.552882+00:00"
+}

@@ -1,0 +1,47 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "local",
+  "call_site_count": 2,
+  "call_sites": [
+    "imas_ambix/agent/lane.py:448",
+    "imas_ambix/agent/router.py:1358"
+  ],
+  "completed_at": "2026-09-25T13:59:08.163Z",
+  "dispatched_at": "2026-09-25T13:43:58Z",
+  "findings": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 2 production call site(s)",
+    "diff": "read both commits; 57928a20 adds the one-line assertion with a body, 4e89b38f adds the cumulative evidence section and the plan landing record, and no deletion is carried.",
+    "done_when": "the done_when is the declared gate uv run --no-sync pytest -p no:cacheprovider tests/test_agent_lane_sglang.py, and I re-ran it at the reviewed head in a scratch export, 3 passed exit 0, with whole-tree ruff check imas_ambix tests exit 0.",
+    "goal": "the node's goal is to make the lane reader's cumulative generation-token counter an asserted contract; tests/test_agent_lane_sglang.py:35 now asserts capacity.generation_tokens == 104 read from the recorded SGLang fixture, and the change does exactly that.",
+    "manifest": "the manifest names both commits, the three changed paths, the gate and negative-control logs with their results; the target worktree is clean and its HEAD is 4e89b38f.",
+    "write_paths": "the diff a30208fa..4e89b38f touches exactly tests/test_agent_lane_sglang.py, docs/plans/local-lane-admission-control.html and docs/evidence/archive/local-lane-admission-control-landed.html, all inside the node's declared fence, and imas_ambix/ is unchanged between base and head."
+  },
+  "justifications": {
+    "durability": "the added assertion fails when the defect returns, which my own removal of the generation_tokens assignment at imas_ambix/agent/lane.py:448 showed; the vLLM arm of the same parser keeps no positive assertion for the counter, so that binding is unguarded.",
+    "evidence": "the plan's claim that the control reddens at assert None == 104 is exact; I reproduced the mutation in a scratch tree and got 1 failed, 2 passed at assert None == 104, restored byte-identically, and re-ran green.",
+    "fit": "the assertion sits in the existing fixture test beside the equality check and documents compare=False at imas_ambix/agent/lane.py:98; the commits are conventional with bodies and carry no plan or ticket identifiers.",
+    "goal_fidelity": "tests/test_agent_lane_sglang.py:35 asserts the parsed counter against the fixture's own sglang:generation_tokens_total 104.0, which is the seam the predecessor review at imas_ambix/agent/lane.py:98 flagged as unasserted.",
+    "scope_discipline": "git diff --stat a30208fa..4e89b38f carries three files and 23 insertions with no deletions, and git diff imas_ambix/ between the two is empty."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20260925T132848508461-s14-parser-counter-assertion at head 4e89b38f5c075f4b8a5ea22e7c8c1d0cf64d6d6d against base a30208faba5b9d127391502df33e1f7e84f4f027.\n\nVERDICT goal: the node's goal is to make the lane reader's cumulative generation-token counter an asserted contract; tests/test_agent_lane_sglang.py:35 now asserts capacity.generation_tokens == 104 read from the recorded SGLang fixture, and the change does exactly that.\nVERDICT done_when: the done_when is the declared gate uv run --no-sync pytest -p no:cacheprovider tests/test_agent_lane_sglang.py, and I re-ran it at the reviewed head in a scratch export, 3 passed exit 0, with whole-tree ruff check imas_ambix tests exit 0.\nVERDICT write_paths: the diff a30208fa..4e89b38f touches exactly tests/test_agent_lane_sglang.py, docs/plans/local-lane-admission-control.html and docs/evidence/archive/local-lane-admission-control-landed.html, all inside the node's declared fence, and imas_ambix/ is unchanged between base and head.\nVERDICT manifest: the manifest names both commits, the three changed paths, the gate and negative-control logs with their results; the target worktree is clean and its HEAD is 4e89b38f.\nVERDICT diff: read both commits; 57928a20 adds the one-line assertion with a body, 4e89b38f adds the cumulative evidence section and the plan landing record, and no deletion is carried.\nCALL_SITES: imas_ambix/agent/lane.py:448, imas_ambix/agent/router.py:1358\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: tests/test_agent_lane_sglang.py:35 asserts the parsed counter against the fixture's own sglang:generation_tokens_total 104.0, which is the seam the predecessor review at imas_ambix/agent/lane.py:98 flagged as unasserted.\nSCORE evidence: 19\nJUSTIFICATION evidence: the plan's claim that the control reddens at assert None == 104 is exact; I reproduced the mutation in a scratch tree and got 1 failed, 2 passed at assert None == 104, restored byte-identically, and re-ran green.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --stat a30208fa..4e89b38f carries three files and 23 insertions with no deletions, and git diff imas_ambix/ between the two is empty.\nSCORE durability: 19\nJUSTIFICATION durability: the added assertion fails when the defect returns, which my own removal of the generation_tokens assignment at imas_ambix/agent/lane.py:448 showed; the vLLM arm of the same parser keeps no positive assertion for the counter, so that binding is unguarded.\nSCORE fit: 20\nJUSTIFICATION fit: the assertion sits in the existing fixture test beside the equality check and documents compare=False at imas_ambix/agent/lane.py:98; the commits are conventional with bodies and carry no plan or ticket identifiers.",
+  "review_run_id": "r-20260925T134350232311-review-of-s14-parser-counter-assertion",
+  "reviewed_base_sha": "a30208faba5b9d127391502df33e1f7e84f4f027",
+  "reviewed_head_sha": "4e89b38f5c075f4b8a5ea22e7c8c1d0cf64d6d6d",
+  "reviewed_run_id": "r-20260925T132848508461-s14-parser-counter-assertion",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-25T13:58:37.893823+00:00",
+  "total": 98
+}

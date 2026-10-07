@@ -1,0 +1,68 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "local",
+  "call_site_count": 2,
+  "call_sites": [
+    "imas_ambix/agent/watch.py:689",
+    "imas_ambix/agent/watch.py:732"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-09-22T07:11:12.004360+00:00",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "370",
+      "text": "the refusal tests len(completed.stdout.split()) != 1, but sacct prints a multi-node allocation as one compressed hostlist token: sacct -j 1207375 -X -n -o NodeList prints 98dci4-clu-[50+ (the 14-node allocation 98dci4-clu-[5073-5086] at default column width) and receipts_host returns that string as though it were a hostname, where the goal required refusal rather than a guess; reproduced on the head tree, latent only because no receipts file in the production directory today carries a multi-node job and the helper has no production caller."
+    },
+    {
+      "file": "tests/test_telemetry_index.py",
+      "line": "799",
+      "text": "the multi-node case is modelled as sacct printing node-a and node-b on two lines, a shape this cluster's sacct does not produce, so the test asserts a refusal for a fixture that cannot occur and covers nothing about the one multi-node form that does -- the single compressed token that imas_ambix/agent/telemetry_index.py:370 returns as a host."
+    },
+    {
+      "file": "docs/evidence/archive/serve-telemetry-spine-landed.html",
+      "line": "2423",
+      "text": "the anchor states that the helper raises when sacct prints anything other than exactly one node and that a host is never inferred, which a multi-node allocation's one-token output contradicts, so the landed record claims a refusal the code does not implement."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/host-attribution-gate.log",
+      "line": "1",
+      "text": "the gate, ruff and negative-control logs all stamp rev=d9e89c5b while their trees and content measure the repaired working tree -- the commit that content became, a08c59a8, is dated 09:08:46, after all three logs were written at 09:06 -- so the same revision label appears on the 34-passed base measurement and the 38-passed repaired one and a reader keying by revision cannot tell which content a number came from; the manifest itself names a08c59a8 correctly, so the defect is in the log headers."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 2 production call site(s)",
+    "diff": "read commit by commit (one commit, five files): the host is resolved per row at imas_ambix/agent/telemetry_index.py:581 and the key kind is derived from the host sentinel by key_scope at :585, the reader identity leaves the constructor at :507, os moves into the TYPE_CHECKING block, five tests are added, and one defect is found in receipts_host.",
+    "done_when": "all four parts of the measure are present and re-derived here -- 38 passed at head against a 34-passed base, the whole-tree lint gate at exit 0, the mutated line quoted verbatim beside the test it reddens, and the already-built-index statement checked against the schema -- with the revision defect in the measurement logs recorded as a finding.",
+    "goal": "two of the three clauses are delivered -- a row that names no host is keyed under the unknown-host marker (imas_ambix/agent/telemetry_index.py:306 returns UNKNOWN_HOST, and the real record now stores ('', '', 'unknown-host') where the base stored the reader's host and boot) -- while the third, a helper that refuses rather than guesses, holds for four of its five shapes and not for a multi-node allocation.",
+    "manifest": "read; it reports complete at a08c59a8 and every number it states reproduced here -- 34 to 38, the control's exact mutation and the test it reddens, the record's key change -- except the revision its gate, ruff and control log headers name.",
+    "write_paths": "git diff --numstat over d9e89c5b..a08c59a8 lists exactly the five fenced paths and nothing else -- the three documents and the figure additions only, 111, 95 and 3 added against zero deleted, the code and tests 129/24 and 104/8 -- with the plan's meta lines untouched."
+  },
+  "justifications": {
+    "durability": "tests/test_telemetry_index.py:719 reddens if the constructor takes back the reader identity (replayed: 1 failed, 37 passed), so the core regression is held; docked five because the refusal branch is held only against the two-line fixture at :799, a shape this cluster's sacct does not print, so the multi-node path can return a non-host with the suite green.",
+    "evidence": "re-derived here against the head tree: 38 passed against a 34-passed base, the lint gate clean, the declared mutation replaying to exactly 1 failed and 37 passed with the named test, and the real-record ingest matching the manifest; docked three because three log headers stamp the base revision on measurements of the repair, understating which content produced which number.",
+    "fit": "the change reuses the module's own sentinel-plus-key_kind idiom (imas_ambix/agent/telemetry_index.py:142) for a case the boot sentinel already covers and names every addition by mechanism; docked two because receipts_host's docstring at :342-351 states a refusal its parse cannot deliver, so a caller reading it is promised a contract the code does not hold.",
+    "goal_fidelity": "the real record's key moves from ('98dci4-srv-1006.iter.org', '82c41dfa-a445-4fb2-8416-04b44c3d874c', 'host+boot') to ('', '', 'unknown-host') and no row can adopt the reading machine's identity at imas_ambix/agent/telemetry_index.py:507, but the goal's third clause is not held for a multi-node allocation, where :370 returns the hostlist token rather than refusing.",
+    "scope_discipline": "the diff lists the five fenced paths and no other file, the three documents and the figure carry additions only with the plan meta untouched, and nothing outside the goal's reach changed."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "REVIEW of run r-20260922T065950923251-host-attribution (imas-ambix:serve-telemetry-spine section 5), head a08c59a8 against base d9e89c5b. Read: the run prompt (goal, done_when, fenced write paths), the manifest at /home/ITER/mcintos/.config/reckon/crew/reports/host-attribution.md with its five logs, and the single commit's diff over five files. Independently reproduced: the test file at head (38 passed) and at base (34 passed), the whole-tree lint gate at head (clean), the declared mutation replayed (1 failed, 37 passed), the ingest of the real record /work/projects/imas_gpu/agents/receipts/deepseek-v4-1-flash-1271709.jsonl by both trees, receipts_host over the production receipts directory (44 files, all single-node) and against a multi-node allocation.\n\nVERDICT goal: two of the three clauses are delivered -- a row that names no host is keyed under the unknown-host marker (imas_ambix/agent/telemetry_index.py:306 returns UNKNOWN_HOST, and the real record now stores ('', '', 'unknown-host') where the base stored the reader's host and boot) -- while the third, a helper that refuses rather than guesses, holds for four of its five shapes and not for a multi-node allocation.\nVERDICT done_when: all four parts of the measure are present and re-derived here -- 38 passed at head against a 34-passed base, the whole-tree lint gate at exit 0, the mutated line quoted verbatim beside the test it reddens, and the already-built-index statement checked against the schema -- with the revision defect in the measurement logs recorded as a finding.\nVERDICT write_paths: git diff --numstat over d9e89c5b..a08c59a8 lists exactly the five fenced paths and nothing else -- the three documents and the figure additions only, 111, 95 and 3 added against zero deleted, the code and tests 129/24 and 104/8 -- with the plan's meta lines untouched.\nVERDICT manifest: read; it reports complete at a08c59a8 and every number it states reproduced here -- 34 to 38, the control's exact mutation and the test it reddens, the record's key change -- except the revision its gate, ruff and control log headers name.\nVERDICT diff: read commit by commit (one commit, five files): the host is resolved per row at imas_ambix/agent/telemetry_index.py:581 and the key kind is derived from the host sentinel by key_scope at :585, the reader identity leaves the constructor at :507, os moves into the TYPE_CHECKING block, five tests are added, and one defect is found in receipts_host.\nCALL_SITES: imas_ambix/agent/watch.py:689, imas_ambix/agent/watch.py:732\nSCORE goal_fidelity: 16\nJUSTIFICATION goal_fidelity: the real record's key moves from ('98dci4-srv-1006.iter.org', '82c41dfa-a445-4fb2-8416-04b44c3d874c', 'host+boot') to ('', '', 'unknown-host') and no row can adopt the reading machine's identity at imas_ambix/agent/telemetry_index.py:507, but the goal's third clause is not held for a multi-node allocation, where :370 returns the hostlist token rather than refusing.\nSCORE evidence: 17\nJUSTIFICATION evidence: re-derived here against the head tree: 38 passed against a 34-passed base, the lint gate clean, the declared mutation replaying to exactly 1 failed and 37 passed with the named test, and the real-record ingest matching the manifest; docked three because three log headers stamp the base revision on measurements of the repair, understating which content produced which number.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff lists the five fenced paths and no other file, the three documents and the figure carry additions only with the plan meta untouched, and nothing outside the goal's reach changed.\nSCORE durability: 15\nJUSTIFICATION durability: tests/test_telemetry_index.py:719 reddens if the constructor takes back the reader identity (replayed: 1 failed, 37 passed), so the core regression is held; docked five because the refusal branch is held only against the two-line fixture at :799, a shape this cluster's sacct does not print, so the multi-node path can return a non-host with the suite green.\nSCORE fit: 18\nJUSTIFICATION fit: the change reuses the module's own sentinel-plus-key_kind idiom (imas_ambix/agent/telemetry_index.py:142) for a case the boot sentinel already covers and names every addition by mechanism; docked two because receipts_host's docstring at :342-351 states a refusal its parse cannot deliver, so a caller reading it is promised a contract the code does not hold.\nFINDING imas_ambix/agent/telemetry_index.py:370 the refusal tests len(completed.stdout.split()) != 1, but sacct prints a multi-node allocation as one compressed hostlist token: sacct -j 1207375 -X -n -o NodeList prints 98dci4-clu-[50+ (the 14-node allocation 98dci4-clu-[5073-5086] at default column width) and receipts_host returns that string as though it were a hostname, where the goal required refusal rather than a guess; reproduced on the head tree, latent only because no receipts file in the production directory today carries a multi-node job and the helper has no production caller.\nFINDING tests/test_telemetry_index.py:799 the multi-node case is modelled as sacct printing node-a and node-b on two lines, a shape this cluster's sacct does not produce, so the test asserts a refusal for a fixture that cannot occur and covers nothing about the one multi-node form that does -- the single compressed token that imas_ambix/agent/telemetry_index.py:370 returns as a host.\nFINDING docs/evidence/archive/serve-telemetry-spine-landed.html:2423 the anchor states that the helper raises when sacct prints anything other than exactly one node and that a host is never inferred, which a multi-node allocation's one-token output contradicts, so the landed record claims a refusal the code does not implement.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/host-attribution-gate.log:1 the gate, ruff and negative-control logs all stamp rev=d9e89c5b while their trees and content measure the repaired working tree -- the commit that content became, a08c59a8, is dated 09:08:46, after all three logs were written at 09:06 -- so the same revision label appears on the 34-passed base measurement and the 38-passed repaired one and a reader keying by revision cannot tell which content a number came from; the manifest itself names a08c59a8 correctly, so the defect is in the log headers.",
+  "review_run_id": "r-20260922T071112004360-review-of-host-attribution",
+  "reviewed_base": "d9e89c5b9a9ad031919e3c2f78499b879b032cdc",
+  "reviewed_commit": "a08c59a87f0dec12ca83807e86484485fd218dcb",
+  "reviewed_run_id": "r-20260922T065950923251-host-attribution",
+  "scores": {
+    "durability": 15,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 16,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-22T07:27:58.741063+00:00",
+  "total": 86
+}

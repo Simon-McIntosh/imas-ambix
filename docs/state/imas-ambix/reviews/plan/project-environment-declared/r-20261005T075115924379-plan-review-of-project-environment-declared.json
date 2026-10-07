@@ -1,0 +1,40 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T07:55:59.338Z",
+  "dispatched_at": "2026-10-05T07:51:21Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/project-environment-declared.html:100",
+      "id": "deep_module-1",
+      "reason": "the \u00a72 done-when should require the census mechanism to emit the fragment from the same classification object it asserts on, so the evidence table and the guard cannot diverge and one deep mechanism owns both.",
+      "text": "the done-when requires the fragment to hold \"one row per directly imported distribution\" plus the transitive list, a strictly larger set than the test's failure log (\"one line per undeclared default or optional distribution\"), yet the plan never states the test emits the fragment \u2014 so the full classification is produced once by the test (for the failing subset) and again separately by the node (for the whole table), and the fragment can drift from the test that owns the classification, which is the exact drift this plan exists to prevent",
+      "type": "deep_module",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "46c9f4bffd7e16531f8fefab22a497e38dbc09d6a78a29450d5f0e9d6989b990",
+  "plan_slug": "project-environment-declared",
+  "plan_version": 4,
+  "project": "imas-ambix",
+  "responses": {
+    "deep_module-1": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T07:57:13.730047+00:00"
+    }
+  },
+  "review_run_id": "r-20261005T075115924379-plan-review-of-project-environment-declared",
+  "reviewed_blob_sha": "9e9fa215f23e0de0f952aee66eb1a56298638e1d",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 \u00a72 splits the census across two producers (the test's failure list, and a separately authored fragment table) instead of one mechanism that both asserts and emits.",
+    "duplicate_owner": "pass \u2014 no repo-wide owner (placement, path resolution, scheduler queries, state readers) is re-implemented; the one adjacent file, `tests/physics/test_dependency_contract.py`, is scoped to the Nova facade contract, and the plan names it and distinguishes its own general census from it rather than forking it.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the plan adds to none of the four families and \u00a73 explicitly retires the `dev` extra, moving its members into a `[dependency-groups]` dev group that a plain `uv sync` installs.",
+    "reuse_search": "pass \u2014 verified both cited mechanisms exist and are accurately described: `tests/physics/test_dependency_contract.py` reads `pyproject.toml`/`uv.lock` for the Nova path source, and `scripts/circular_assertion_audit.py` is the ast-walking precedent; a tree-wide grep confirms `importlib.metadata.packages_distributions` is used nowhere, so no prior owner of module\u2192distribution mapping is rebuilt, and no competing manifest (requirements/environment/setup/constraints) exists to reconcile with.",
+    "thin_wrapper": "pass \u2014 the plan introduces no wrapper over existing machinery; it edits `pyproject.toml` in place, extends the existing declaration-check concern, and runs the existing whole-tree ruff gate rather than layering over any of them."
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T07:57:06.011489+00:00"
+}

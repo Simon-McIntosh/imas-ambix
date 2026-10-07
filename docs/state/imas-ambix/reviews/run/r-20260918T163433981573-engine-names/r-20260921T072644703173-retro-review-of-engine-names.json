@@ -1,0 +1,82 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "clive",
+  "completed_at": "",
+  "dispatched_at": "2026-09-21T07:26:44.703173+00:00",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/engine_metrics.py",
+      "line": 276,
+      "text": "F1 knob accepted, never applied: series_total (276), series_first (291) and series_labels (305) each take `family` and never reference it in the body; the only effect of the parameter is on the caller's reading of the signature. Concrete input: series_total(parse_metrics('vllm:prompt_tokens_total{engine=\"0\"} 10000.0'), FAMILY_SGLANG, ('prompt_tokens_total',)) returns 10000.0, where a family-scoped reader must report absence; series_first and series_labels answer identically for the wrong family. Both call sites pass it explicitly (lane.py:317-319, engine_metrics.py:491-499), so nothing at the call site can reveal that it is inert. The same shape repeats one level up: serving_receipts.py:245-251 and 255 fill the flat vLLM-spelled fields from the canonical values, so a reader of the flat columns cannot tell which family's name answered."
+    },
+    {
+      "file": "tests/test_engine_metrics.py",
+      "line": 279,
+      "text": "F2 guard present, never shown refusing: test_vllm_reason_series_are_not_folded_into_the_total cannot fail. Deleting the reason filter at engine_metrics.py:265-266 leaves 31 passed / 0 failed, because the assertion at line 284 reads a GAUGE through series_first, which returns the first matching sample (2.0) whether or not the reason=\"capacity\" 4.0 sample is filtered out. Concrete input: the test's own _vllm_metrics() body (line 68). The filter's only reachable effect is on series_total (the counter path), and no test feeds a reason-labelled counter through it, so the rule the test is named for is unverified in both directions."
+    },
+    {
+      "file": "imas_ambix/agent/engine_metrics.py",
+      "line": 263,
+      "text": "F3 rank-zero discipline unverified, and the premise it rests on is not discriminated by the evidence: removing the tp_rank != \"0\" filter (263-264) leaves 31 passed / 0 failed, because tests/test_engine_metrics.py:266-273 gives all four ranks 7.0 and series_first returns rank 0's sample first either way. The recorded scrape cannot settle it either: for sglang:prefill_effective_tokens_total the fixture publishes a non-zero on rank 0 and 0.0 on ranks 1-3, which is consistent both with a repeated pool (rank 0 is the measurement) and with a partitioned pool (ranks 1-3 idle). Concrete input: the fixture's per-rank series. So the comment's claim (one shared pool rather than N pools to sum) is assumed, and no test or recorded artifact would fail if it were false."
+    },
+    {
+      "file": "tests/test_engine_metrics.py",
+      "line": 341,
+      "text": "F4 the flat vocabulary still writes null for a quantity the family does not publish, and the test codifies it: test_the_row_omits_the_quantity_sglang_does_not_publish asserts absence only inside the canonical `engine` section, whose docstring states \"The legacy flat fields stay nullable; the canonical section is the record.\" Concrete input: tests/data/sglang_metrics_sample.txt through serving_receipts.build_receipt_row gives 21 fields with 14 nulls -- 4 caller metadata (job_id/profile_slug/served_name/gpus were None here) and 10 measured quantities (six prefix_cache_*, four spec_*). The pre-change code at base 0237dbb2 gives 13 nulls of 20 for the same input, so the repair removed exactly three (num_requests_running, num_requests_waiting, kv_cache_usage_perc -- the vLLM-only spellings) and left ten in place. The rows the 13,791-row complaint was counted from were read through those flat columns, and a null there still reads as a reading. One instance is sharper than the rest: prefix_cache_hit_rate is None on this row (serving_receipts.py:144-155 computes it only from the vLLM-shaped cumulative counters) while the same scrape publishes sglang:cache_hit_rate 0.0 (fixture line 158), which lane.py resolves through engine_metrics role prefix_hit_rate -- so one reader reports the quantity as 0.0 and another, on the same scrape, as absent."
+    },
+    {
+      "file": "tests/test_engine_metrics.py",
+      "line": 50,
+      "text": "F5 done-when clause (b) is asserted against a synthesized body, not a recorded fixture: _vllm_metrics() builds the vLLM confrontation in the test file itself, and grep -rl '^vllm:' tests/ returns nothing. Concrete input: the test file is the fixture. Every vLLM assertion therefore tests the reader against the author's model of vLLM's exposition; a name, label shape or namespace error in that model cannot fail any assertion. The SGLang side has a genuine recorded artifact (tests/data/sglang_metrics_sample.txt, committed 9b955f0e on 2026-09-15, before the reviewed run), so the asymmetry is real rather than a general absence."
+    },
+    {
+      "file": "imas_ambix/agent/engine_metrics.py",
+      "line": 367,
+      "text": "F6 negative-remainder refusal present, never shown refusing: replacing `uncached = remainder if remainder >= 0 else None` with `uncached = remainder` leaves 31 passed / 0 failed. The guard does fire -- concrete input: read_metrics('vllm:prompt_tokens_total{engine=\"0\"} 100.0\\nvllm:prefix_cache_hits_total{engine=\"0\"} 5000.0') yields uncached_prompt_tokens None and drops the key from row_section() -- but nothing in the suite distinguishes the refusing implementation from the reporting one, so a later edit that publishes a negative token count passes the gate."
+    },
+    {
+      "file": "imas_ambix/agent/bench.py",
+      "line": 1007,
+      "text": "F7 the section's goal names bench.py and the merge does not touch it: _parse_prometheus_text (1007), _bare_metric_name (1034) and _SPEC_DECODE_COUNTER_NAMES (1048) remain a second exposition parser and a second spec-decode table alongside the canonical module, so 'one shared engine-family module that lane.py, bench.py and the recorder all call' is two of three callers. Not a defect in the reviewed file -- the node disclosed it as a follow-on and staged no bench.py change -- but the section's own done-when is silent on the third caller, so a reader of the plan cannot tell that the stated goal is two-thirds met."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260918T163433981573-engine-names/manifest.md",
+      "line": 1,
+      "text": "F8 checklist item 5 unmet by construction: the reviewed run's dispatch (prompt.txt, 119 lines) declares no negative_control, no stream (stream.jsonl, resume-1.jsonl, resume-2.jsonl) or manifest in its run directory carries a mutation log, and its manifest has no negative_control_log key -- so no log names a declared mutation verbatim, and the plan's landing claim ('a mutated reader ... reproduces the original defect (prefix_cache_queries: None)') is an assertion without a durable record. It is nevertheless true and independently reproducible: mutating the absent-not-null construction in row_section so a name absent from `values` is written as None yields 4 failed / 27 passed, naming test_unpublished_quantities_are_absent_rather_than_null_or_zero, test_a_document_from_neither_family_reads_as_nothing, test_a_recorded_row_carries_the_canonical_section_per_family and test_the_row_omits_the_quantity_sglang_does_not_publish. A faithful reproduction of the original defect (substring/stem match that folds the _created companion into the token total: `any(n.removesuffix(\"_total\") in _bare(name) for n in names)`) yields 4 failed / 9 passed and names test_created_companions_are_not_counted_as_data, so the suite genuinely constrains that defect. The defect is guarded better than the record shows; what is missing is the record."
+    }
+  ],
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "done_when_asserted": "partial: (a) asserted (test_sglang_scrape_resolves_through_the_shared_reader, test_both_families_report_every_quantity_they_publish); (b) asserted but against a body synthesized inside the test (F5); (c) asserted and shown refusing (test_unpublished_quantities_are_absent_rather_than_null_or_zero fails under mutation); (d) independently verified: `uv run --no-sync ruff check imas_ambix tests` exits 0, 'All checks passed!'",
+    "guards_shown_refusing": "partial: the absent-not-null rule is shown refusing (4 tests fail under mutation, 31 pass unmutated); the reason-substitution filter, the rank-zero filter and the negative-remainder refusal each survive deletion with 31/31 green (F2, F3, F6) -- present, not proven",
+    "knobs_reach_their_call_site": "no: the `family` argument of series_total/series_first/series_labels is accepted and never read (F1), so a knob that reads as family-scoping at every call site is inert; and the flat row fields resolve from the canonical values regardless of family (F4)",
+    "naming_hygiene": "yes: the mandated checks over the five changed source/test paths return only regex character-class false positives; no plan label, ticket reference, version suffix or author attribution in any name, comment or docstring",
+    "negative_control": "no: the reviewed dispatch declared no negative control and no mutation log exists; the landing text's mutation claim is independently reproducible (F8) but is not a log naming a declared mutation"
+  },
+  "justifications": {
+    "durability": "The change is structured to survive: family tables as data rather than branches, absence-by-omission carried through the recorder, and a suite that pins the canonical vocabulary per family. The load-bearing new guard (a family's unpublished quantity is absent, not null or zero) is genuinely constrained -- it fails four tests when mutated. Three neighbouring guards are not (F2, F3, F6), and one test (F4) locks in the residual flat nulls as intended behaviour, so a future repair of the flat columns will have to change that test deliberately rather than being caught by it.",
+    "evidence": "A genuine recorded live scrape is the SGLang-side fixture and predates the run, and the live-scrape claim is backed by numbers I could re-derive; the focused gate is green (31 passed in 1.40s) and ruff exits 0, both reproduced. What is missing is adversarial evidence: the vLLM side has no recorded artifact behind it (F5), three of four selection guards are unconstrained by the suite (F2, F3, F6), and no negative-control log was recorded (F8). The central claim survives an independent mutation, which is why this is not lower.",
+    "fit": "Kept to the repo's idioms: module under imas_ambix/agent/, frozen dataclass row, sparse dict section, ruff clean, and the canonical vocabulary expressed once in tables that the reader and the recorder share. The one fit defect is the inert `family` parameter -- a signature that promises a scoping it does not apply is exactly the kind of thing the next reader trusts instead of checking -- and the legacy flat vocabulary's residual nulls are the price of keeping saved runs readable, documented rather than hidden.",
+    "goal_fidelity": "The canonical engine-family reader landed and works: one module resolves both families' mappings, the recorder and lane.py both read through it, and I reproduced the canonical section fully populated from the recorded SGLang scrape and from the vLLM-shaped body (family, model_id, all gauges, counters, tier split, histograms and spec-decode present). Two of the three callers named in the section's goal are migrated; the third (bench.py) is not, so the stated goal is not yet met in full. The inert `family` argument is a fidelity defect in the same direction: the module advertises per-family discipline at three signatures and applies it only in eligible_samples.",
+    "scope_discipline": "The merge touches exactly the declared write paths -- engine_metrics.py (new), lane.py, serving_receipts.py, tests/test_engine_metrics.py (new), the plan section, its evidence artifact and one figure -- and the plan's own write-path list is honest about bench.py being untouched, which the landing text discloses as a follow-on rather than silently dropping. No shared index, sprint state or foreign plan was mutated; plan state was recorded per the reckon skill rather than by hand. Naming hygiene is clean under the mandated checks."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT: approve with findings\n\nSCORE goal_fidelity 15/20 -- canonical reader landed for two of the three named callers; bench.py untouched; `family` inert at three signatures\nSCORE evidence 13/20 -- real recorded SGLang scrape and reproduced 31-passed gate; vLLM side synthesized in-test; three selection guards unconstrained; no negative-control log\nSCORE scope_discipline 19/20 -- merge confined to declared paths; plan state recorded through the skill; naming checks clean\nSCORE durability 15/20 -- absent-not-null rule shown refusing (4 tests fail under mutation); reason, rank and negative-remainder guards each survive deletion with 31/31 green\nSCORE fit 16/20 -- repo idioms kept; inert family argument and residual flat nulls are the debts\nTOTAL 78/100\n\nREVISION READ: eea7259f68ef5e155c52ec9e8999f0a44261647d (merge into main), base 0237dbb281c89a18fb53cf1eadf86e2598483cd2. The five reviewed paths are byte-identical at the worktree head b254807b10ad (git diff --stat eea7259f..HEAD over those paths is empty), so the revision read is the revision on main.\n\nGATE: UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD uv run --no-sync pytest tests/test_engine_metrics.py tests/test_agent_lane_sglang.py tests/test_agent_serving_receipts.py -> 31 passed in 1.40s. ruff check imas_ambix tests -> exit 0, All checks passed. Mutations applied to a scratch copy shadowed through sys.modules: records-unobserved-quantities 4 failed/27 passed; folds-reason-breakdowns 31 passed; keeps-every-tp-rank 31 passed; reports-negative-uncached 31 passed; substring-series-match (faithful stem fold of _created) 4 failed/9 passed.\n\nCHECKLIST: (1) three of four done-when clauses asserted, the vLLM one against a synthesized body; (2) `family` does not reach behaviour at its call sites; (3) one of four guards shown refusing; (4) naming clean; (5) no declared mutation and no log.\n\nF1 engine_metrics.py:276,291,305 -- family accepted, never read; series_total(samples, FAMILY_SGLANG, ('prompt_tokens_total',)) returns 10000.0 for a vLLM body\nF2 tests/test_engine_metrics.py:279 with engine_metrics.py:265 -- reason filter deleted, 31/31 still green; assertion reads a gauge through series_first\nF3 engine_metrics.py:263 with tests/test_engine_metrics.py:264 -- rank filter deleted, 31/31 still green; fixture's per-rank zeros discriminate neither premise\nF4 tests/test_engine_metrics.py:341 with serving_receipts.py:245 -- SGLang row: 21 fields, 14 nulls, of which 10 are measured quantities (13 nulls of 20 before); prefix_cache_hit_rate None while the scrape publishes sglang:cache_hit_rate 0.0 (fixture:158)\nF5 tests/test_engine_metrics.py:50 -- 'recorded fixture of vLLM output' is a string built in the test; grep -rl '^vllm:' tests/ is empty\nF6 engine_metrics.py:367 -- negative remainder published instead of refused leaves 31/31 green; guard does fire on prompt 100.0 + hits 5000.0\nF7 bench.py:1007,1034,1048 -- second exposition parser and spec-decode table remain; declared write path untouched; stated goal two-thirds met\nF8 run manifest:1 -- no declared mutation, no negative_control_log; landing claim reproduced independently (4 failed/27 passed)\n\nSCOPE OF REVIEW: read-only. No repository file was modified, no commit was made, no branch created. Writes are confined to this review record and the node's own run directory.",
+  "review_run_id": "r-20260921T072644703173-retro-review-of-engine-names",
+  "reviewed_base": "0237dbb281c89a18fb53cf1eadf86e2598483cd2",
+  "reviewed_commit": "eea7259f68ef5e155c52ec9e8999f0a44261647d",
+  "reviewed_run_id": "r-20260918T163433981573-engine-names",
+  "scores": {
+    "durability": 15,
+    "evidence": 13,
+    "fit": 16,
+    "goal_fidelity": 15,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-21T07:56:00Z",
+  "total": 78
+}

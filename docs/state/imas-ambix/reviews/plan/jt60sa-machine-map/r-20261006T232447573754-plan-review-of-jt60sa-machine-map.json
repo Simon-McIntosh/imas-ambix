@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T23:27:50.915Z",
+  "dispatched_at": "2026-10-06T23:24:56Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/cocos_convention.py:661",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a76 is exactly where JT-60SA first supplies an observation cohort, so the plan should state whether JT-60SA declares its own thresholds or reuses these defaults, and move them into the declaration it already builds.",
+      "text": "`read_level2_observation` and `read_signal_map_observation` (line 810) both declare `minimum_current_a: float = 50_000.0` and `baseline_current_a: float = 10_000.0` as function-parameter defaults, so the corpus thresholds for an auditable observation live in two reader signatures rather than in the `ConventionEligibility` declaration (`imas_ambix/challenge/convention.py:57`) that the plan's own \u00a76 says owns per-corpus eligibility; JT-60SA's reader will silently inherit MAST/DIII-D's floors",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "jt60sa-machine-map#s7",
+      "id": "interface_budget-1",
+      "reason": "the section must name these two changes in its interface account, since a required constructor argument and a changed public key format are surface changes a reviewer of the merged diff will look for and not find named.",
+      "text": "\u00a77 makes `MachineArtifactGeometryReader.machine` required (from a `\"mast\"` default) and changes `SetupSignature.key` so every non-MAST machine's key carries a prefix, both public-facing changes, while the section's interface account only counts the pin-table retirement and the shotset table; the reader-signature change and the key-format change are unaccounted",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "1288988627bddfe39ea781ea58a50d63310cc5824adb570aa4362f79a98a1cc5",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 263,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T23:29:32.212946+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "interface_budget-1",
+      "reason": "",
+      "when": "2026-10-06T23:29:50.811627+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T23:29:32.212946+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T23:29:50.811627+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v263.json",
+  "review_run_id": "r-20261006T232447573754-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "36125672612bc7c010de6d7440173ca85facedbf",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the design concentrates rather than spreads: one SELENE reader (`EfitLabels`) with two adapters (\u00a76/\u00a77), one sign-observation kernel shared by the level-2 and signal-map readers, one geometry reducer. The agent-facing surface per concept is a single entry.",
+    "duplicate_owner": "a finding \u2014 the sign-observation readers carry corpus thresholds as hardcoded defaults rather than in a declaration, and the plan does not account for them when it hands JT-60SA an observation cohort.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a77 changes a public class constructor to a required argument and changes the public `SetupSignature.key` format without naming what it retires or merges.",
+    "reuse_search": "pass \u2014 the plan names the existing owner for each mechanism it touches and I confirmed each exists: `imas_ambix/data/eddb.py` `channel_path` (eddb.py:106) owns the store layout it routes the EQDB grid writer through; `imas_ambix/data/transform_engine.py` `_target_cocos_transformation` (transform_engine.py:411) is the COCOS-label resolver the exporter forks; `imas_ambix/data/cocos_convention.py` `_observation_from_series` (cocos_convention.py:512) is the read-independent kernel and `read_signal_map_observation` (cocos_convention.py:804) the reader; `imas_ambix/challenge/convention.py` `measure_convention` (convention.py:283) the generalised sign entry; `imas_ambix/eval/efit_referee.py` `judge_geometry` (efit_referee.py:272) and `imas_ambix/worldmodel/equilibrium_labels.py` `build_geometry_from_arrays` (equilibrium_labels.py:465) the reference-equilibrium scorer and reducer. No proposed subsystem is built where one already exists. `read_signal_map_observation` reads through `VirtualZarrView.raw_series` (verified at cocos_convention.py:851,858,868), so it does not re-resolve rules as the plan claims.",
+    "thin_wrapper": "pass \u2014 the two layers the plan adds are justified extensions of named owners, not parallel machinery: the EQDB request/record/refusal types extend `eddb_remote.py` (widening a `(shot, category, dname)` channel contract that an equilibrium record does not fit), and the tokamap `scale` half is split to the engine's resolver rather than a fourth copy."
+  },
+  "section_digests": {
+    "_document": "6c9fce456e952b00ce33548944718af59d6fb116c0739501f2daf9af22a5e5e8",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "5253ff07c75d9c1a3bb2cd1ff91a6278d3535fee40f693bc99f54d076b185860",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "dbc75167dc3584aefa92c51361a9151ea2970cae2cf5b6995ff0c426b20515a2",
+    "s7": "f62b1b71de3f5287b7d20834ef9a0dafc94f9d0a7c954bc69e5032845f6e972f",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T23:29:14.257711+00:00"
+}

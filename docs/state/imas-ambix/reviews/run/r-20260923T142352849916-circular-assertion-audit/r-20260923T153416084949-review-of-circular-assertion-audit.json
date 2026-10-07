@@ -1,0 +1,67 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "clive",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T15:34:16.084949+00:00",
+  "findings": [
+    {
+      "file": "scripts/circular_assertion_audit.py",
+      "line": "263",
+      "text": "claim (a) holds \u2014 an aliased constant escapes the audit: the reference filter runs before the anchoring check, so `expected = router.LaneCapacity.OCCUPANCY_TARGET` then `assert produced == expected` yields 0 findings where the unaliased spelling yields 1 (logs/experiments.log A0 vs A1). That is the exact circular shape section 1 describes."
+    },
+    {
+      "file": "scripts/circular_assertion_audit.py",
+      "line": "188",
+      "text": "claim (b) holds \u2014 _bound_literals unions literal bindings across every scope of the file, so a sound pin in one test function anchors a same-named chain in another (logs/experiments.log B0 vs B1 differ only in the local variable's name)."
+    },
+    {
+      "file": "scripts/circular_assertion_audit.py",
+      "line": "118",
+      "text": "claim (c) fails for literal operands, holds for module-bound literal names \u2014 0 of the 135 carries an operand with a module-bound literal name and 0 conveys a guard-anchored operand, but `_is_literal` does not see written-out data behind a constructor, so three chains that already pin their value are reported: tests/camdyn/test_conditioning.py:57 and tests/camdyn/test_field_leakage_guard.py:30 (frozenset({'efm', 'esm', 'xdc'}) == BANNED_CONDITIONING_SOURCES), and tests/spine_bench/test_parity.py:371 (pytest.approx(0.001245365781787239) == parity.MIGRATION_SEAM_RESIDUAL_BUDGET) - see logs/predicates.log."
+    },
+    {
+      "file": "scripts/circular_assertion_audit.py",
+      "line": "335",
+      "text": "the audit aborts on the first unparsable module, so under an interpreter below the project's 3.14 the run exits 2 with no findings at all rather than scanning the rest; the repository already carries that class of module (tests/test_agent_router_gate:404); reproduce in logs/abort-under-3.11.log."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read both commits against base ccf89ec6a4bda729370204d26033f4f60508bc9e; the change is the script, its allowlist schema, its tests and the landing record.",
+    "done_when": "read the six-part gate; re-ran its core myself under the project interpreter at the reviewed revision and it holds (135 findings, exit 1; the committed twelve tests pass, logs/guard-tests-at-reviewed-head.log).",
+    "goal": "read the node goal (one AST check over tests/ plus a TOML allowlist keyed on file and symbol); scripts/circular_assertion_audit.py:322-361 implements it.",
+    "manifest": "read; it states both commits, the 12-test result, ruff status, the log paths and a negative-control note naming the mutation and its revert.",
+    "write_paths": "read the six declared paths; both commits touch exactly those paths and nothing else."
+  },
+  "justifications": {
+    "durability": "the two silence tests are anchored to independently asserted literals, not to a value the tests themselves passed in.",
+    "evidence": "the gate's own command reproduced byte-identical from the same worktree at fda5e4bf (TOTAL 135, exit 1; my logs/guard-real-tree-rerun.log vs the node's logs/audit-real-tree.log), and the node's negative-control log names the mutation and shows it reverted.",
+    "fit": "no plan, sprint or ticket identifier in any filename, symbol or comment; the module docstring states the mechanism.",
+    "goal_fidelity": "scripts/circular_assertion_audit.py:250-280 applies the plan's three-way anchor rule, and scripts/circular_assertion_audit.py:312 refuses any allowlist entry with no reason.",
+    "scope_discipline": "git -C <worktree> show --name-only on 0574f371 (three files), with the first path in both listings being one of the six declared write paths."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: read the node goal (one AST check over tests/ plus a TOML allowlist keyed on file and symbol); scripts/circular_assertion_audit.py:322-361 implements it.\nVERDICT done_when: read the six-part gate; re-ran its core myself under the project interpreter at the reviewed revision and it holds (135 findings, exit 1; the committed twelve tests pass, logs/guard-tests-at-reviewed-head.log).\nVERDICT write_paths: read the six declared paths; both commits touch exactly those paths and nothing else.\nVERDICT manifest: read; it states both commits, the 12-test result, ruff status, the log paths and a negative-control note naming the mutation and its revert.\nVERDICT diff: read both commits against base ccf89ec6a4bda729370204d26033f4f60508bc9e; the change is the script, its allowlist schema, its tests and the landing record.\nCALL_SITES: none\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: scripts/circular_assertion_audit.py:250-280 applies the plan's three-way anchor rule, and scripts/circular_assertion_audit.py:312 refuses any allowlist entry with no reason.\nSCORE evidence: 18\nJUSTIFICATION evidence: the gate's own command reproduced byte-identical from the same worktree at fda5e4bf (TOTAL 135, exit 1; my logs/guard-real-tree-rerun.log vs the node's logs/audit-real-tree.log), and the node's negative-control log names the mutation and shows it reverted.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: git -C <worktree> show --name-only on 0574f371 (three files), with the first path in both listings being one of the six declared write paths.\nSCORE durability: 17\nJUSTIFICATION durability: the two silence tests are anchored to independently asserted literals, not to a value the tests themselves passed in.\nSCORE fit: 18\nJUSTIFICATION fit: no plan, sprint or ticket identifier in any filename, symbol or comment; the module docstring states the mechanism.\nFINDING scripts/circular_assertion_audit.py:263 claim (a) holds \u2014 an aliased constant escapes the audit: the reference filter runs before the anchoring check, so `expected = router.LaneCapacity.OCCUPANCY_TARGET` then `assert produced == expected` yields 0 findings where the unaliased spelling yields 1 (logs/experiments.log A0 vs A1). That is the exact circular shape section 1 describes.\nFINDING scripts/circular_assertion_audit.py:188 claim (b) holds \u2014 _bound_literals unions literal bindings across every scope of the file, so a sound pin in one test function anchors a same-named chain in another (logs/experiments.log B0 vs B1 differ only in the local variable's name).\nFINDING scripts/circular_assertion_audit.py:118 claim (c) fails for literal operands, holds for module-bound literal names \u2014 0 of the 135 carries an operand with a module-bound literal name and 0 conveys a guard-anchored operand, but `_is_literal` does not see written-out data behind a constructor, so three chains that already pin their value are reported: tests/camdyn/test_conditioning.py:57 and tests/camdyn/test_field_leakage_guard.py:30 (frozenset({'efm', 'esm', 'xdc'}) == BANNED_CONDITIONING_SOURCES), and tests/spine_bench/test_parity.py:371 (pytest.approx(0.001245365781787239) == parity.MIGRATION_SEAM_RESIDUAL_BUDGET) - see logs/predicates.log.\nFINDING scripts/circular_assertion_audit.py:335 the audit aborts on the first unparsable module, so under an interpreter below the project's 3.14 the run exits 2 with no findings at all rather than scanning the rest; the repository already carries that class of module (tests/test_agent_router_gate:404); reproduce in logs/abort-under-3.11.log.",
+  "review_run_id": "r-20260923T153416084949-review-of-circular-assertion-audit",
+  "reviewed_base": "ccf89ec6a4bda729370204d26033f4f60508bc9e",
+  "reviewed_base_sha": "ccf89ec6a4bda729370204d26033f4f60508bc9e",
+  "reviewed_commit": "fda5e4bfe8f2d2a0a52793dfb59a44d31a1123c0",
+  "reviewed_head_sha": "fda5e4bfe8f2d2a0a52793dfb59a44d31a1123c0",
+  "reviewed_run_id": "r-20260923T142352849916-circular-assertion-audit",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-10-07T04:36:21.151379+00:00",
+  "total": 90
+}

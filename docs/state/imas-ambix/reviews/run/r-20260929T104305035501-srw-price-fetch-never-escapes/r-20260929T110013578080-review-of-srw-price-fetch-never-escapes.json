@@ -1,0 +1,66 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_from_suite_arms": {
+    "base_arm": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T110013578080-review-of-srw-price-fetch-never-escapes/review-base-suite.log",
+    "count": 0,
+    "head_arm": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T110013578080-review-of-srw-price-fetch-never-escapes/review-gate-head.log",
+    "ids": [],
+    "note": "the reviewed manifest names no baseline_suite/after_suite, so the read-path derivation is unmeasured; the review's own two suite arms (tests/test_provider_prices.py at base e523cb78, 11 passed; at the delivered head 2e231522, 13 passed) add no failing test, and the reviewed run's own arms agree (repro-before-fix.log red only at the unfixed module, gate.log green at 518fe803)"
+  },
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "after_suite": "none: the reviewed run's manifest names no after_suite; its gate.log records 13 passed at 518fe803, and the review re-ran the file at the reviewed head 2e231522 (review-gate-head.log, 13 passed)",
+  "baseline_suite": "none: the reviewed manifest names no baseline_suite, so no base gate log exists to difference against; the run's own repro-before-fix.log is its base-facing arm (2 failed, both new tests, at the unfixed module)",
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/watch.py:707 _owned_prices calls provider_prices.refresh",
+    "imas_ambix/agent/watch.py:732 watch_text is the text render",
+    "imas_ambix/agent/watch.py:781 watch_document is the JSON document",
+    "imas_ambix/agent/cli.py:2705 agent watch --json",
+    "imas_ambix/agent/cli.py:2710 agent watch"
+  ],
+  "completed_at": "2026-09-29T11:52:03.890Z",
+  "dispatched_at": "2026-09-29T11:00:21Z",
+  "findings": [],
+  "follow_ons": [
+    "the read-path added-failure derivation is unmeasured because the reviewed manifest names no baseline_suite/after_suite; its own arms support zero added failures at the delivered head (repro-before-fix.log red only at the unfixed module, gate.log green at 518fe803)",
+    "watch.py:732 watch_text discards the Refresh age and error (prices, _ = _owned_prices()), so a contained fetch fault is visible only through the JSON document's price_age; pre-existing at the base and untouched by this node"
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 5 production call site(s)",
+    "diff": "read both commits against base e523cb78; 518fe803 widens the fetch catch to Exception and states the containment in the docstring, 2e231522 adds the landing fragment, both commits carry a conventional subject and a body with no AI trailer.",
+    "done_when": "tests/test_provider_prices.py:171 and :188 drive the truncated body and the b\"[]\" body, each asserting refresh returns, refreshed is False, error is set, the cached age and byte-identical content, exactly as the done-when states; the manifest records the three named gates at 518fe803 and I re-ran all three in a scratch tree extracted at 2e231522 (review-gate-head.log: 13 passed; 1 passed, 8 deselected; All checks passed).",
+    "goal": "the node goal is to contain every price-fetch or parse failure inside provider_prices.refresh so the cached table carries the render; imas_ambix/agent/provider_prices.py:197-199 contains the fetch and the parse inside one try, and my own two-arm driver (review-base-arm.log) shows both named faults escaping refresh at base e523cb78 (http.client.IncompleteRead; AttributeError: 'list' object has no attribute 'get') and returning refreshed False with the same error names, age 259200.0 and cached bytes unchanged at head 2e231522.",
+    "manifest": "read whole; its commits 518fe803 and 2e231522, its changed_paths, its three gate results (13 passed; 1 passed 8 deselected; ruff EXIT=0) and its negative_control_note match the logs on disk, the negative control log's first line repeats the declared string verbatim, and its claim of 11 tests before and +2 after matches the base and head file counts (11, 13).",
+    "write_paths": "the fence declares imas_ambix/agent/provider_prices.py, tests/test_provider_prices.py, docs/evidence/fragments/serving-record-warehouse/srw-price-fetch-never-escapes.html and a figure directory; git diff --name-status e523cb78..2e231522 lists exactly the three declared files (A fragment, M module, M tests) with no figure, 65 insertions and 1 deletion in the code and 32 added fragment lines."
+  },
+  "justifications": {
+    "durability": "tests/test_provider_prices.py:171 and :188 redden under the declared negative control (narrowing the caught tuple) and under my independent two-arm driver, each asserting the cached bytes and the true age so a regression reinstating either escape fails them.",
+    "evidence": "gate.log:1 names 518fe803, the code commit, carrying tree, module and cwd headers, and its three results match the manifest; the delivered head 2e231522 differs from it by the fragment commit alone, which my scratch-tree re-run at 2e231522 reproduces (review-gate-head.log).",
+    "fit": "the widened catch and the docstring paragraph at provider_prices.py:184-187 follow the module's own idiom, and the naming greps over the three changed paths return no plan label, ticket reference, changelog prose or authorship attribution.",
+    "goal_fidelity": "provider_prices.py:197-199 contains both the fetch call and the parse it drives, and review-base-arm.log shows each fault escaping at the base revision and contained at the head with the cached table byte-identical and its true age reported.",
+    "scope_discipline": "git diff --name-status e523cb78..2e231522 lists exactly the three declared paths and no figure, and neither code file carries anything the goal does not imply."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is to contain every price-fetch or parse failure inside provider_prices.refresh so the cached table carries the render; imas_ambix/agent/provider_prices.py:197-199 contains the fetch and the parse inside one try, and my own two-arm driver (review-base-arm.log) shows both named faults escaping refresh at base e523cb78 (http.client.IncompleteRead; AttributeError: 'list' object has no attribute 'get') and returning refreshed False with the same error names, age 259200.0 and cached bytes unchanged at head 2e231522.\nVERDICT done_when: tests/test_provider_prices.py:171 and :188 drive the truncated body and the b\"[]\" body, each asserting refresh returns, refreshed is False, error is set, the cached age and byte-identical content, exactly as the done-when states; the manifest records the three named gates at 518fe803 and I re-ran all three in a scratch tree extracted at 2e231522 (review-gate-head.log: 13 passed; 1 passed, 8 deselected; All checks passed).\nVERDICT write_paths: the fence declares imas_ambix/agent/provider_prices.py, tests/test_provider_prices.py, docs/evidence/fragments/serving-record-warehouse/srw-price-fetch-never-escapes.html and a figure directory; git diff --name-status e523cb78..2e231522 lists exactly the three declared files (A fragment, M module, M tests) with no figure, 65 insertions and 1 deletion in the code and 32 added fragment lines.\nVERDICT manifest: read whole; its commits 518fe803 and 2e231522, its changed_paths, its three gate results (13 passed; 1 passed 8 deselected; ruff EXIT=0) and its negative_control_note match the logs on disk, the negative control log's first line repeats the declared string verbatim, and its claim of 11 tests before and +2 after matches the base and head file counts (11, 13).\nVERDICT diff: read both commits against base e523cb78; 518fe803 widens the fetch catch to Exception and states the containment in the docstring, 2e231522 adds the landing fragment, both commits carry a conventional subject and a body with no AI trailer.\nCALL_SITES: imas_ambix/agent/watch.py:707 _owned_prices calls provider_prices.refresh, imas_ambix/agent/watch.py:732 watch_text is the text render, imas_ambix/agent/watch.py:781 watch_document is the JSON document, imas_ambix/agent/cli.py:2705 agent watch --json, imas_ambix/agent/cli.py:2710 agent watch\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: provider_prices.py:197-199 contains both the fetch call and the parse it drives, and review-base-arm.log shows each fault escaping at the base revision and contained at the head with the cached table byte-identical and its true age reported.\nSCORE evidence: 19\nJUSTIFICATION evidence: gate.log:1 names 518fe803, the code commit, carrying tree, module and cwd headers, and its three results match the manifest; the delivered head 2e231522 differs from it by the fragment commit alone, which my scratch-tree re-run at 2e231522 reproduces (review-gate-head.log).\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-status e523cb78..2e231522 lists exactly the three declared paths and no figure, and neither code file carries anything the goal does not imply.\nSCORE durability: 20\nJUSTIFICATION durability: tests/test_provider_prices.py:171 and :188 redden under the declared negative control (narrowing the caught tuple) and under my independent two-arm driver, each asserting the cached bytes and the true age so a regression reinstating either escape fails them.\nSCORE fit: 20\nJUSTIFICATION fit: the widened catch and the docstring paragraph at provider_prices.py:184-187 follow the module's own idiom, and the naming greps over the three changed paths return no plan label, ticket reference, changelog prose or authorship attribution.",
+  "review_run_id": "r-20260929T110013578080-review-of-srw-price-fetch-never-escapes",
+  "reviewed_base_sha": "e523cb78daf427948b7669bff8c843e611cadff3",
+  "reviewed_head_sha": "2e2315223d6a514e3263fa627fd9df5f1b5d0326",
+  "reviewed_run_id": "r-20260929T104305035501-srw-price-fetch-never-escapes",
+  "reviewer": "review-of-srw-price-fetch-never-escapes",
+  "scores": {
+    "durability": 20,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T11:44:46.597897+00:00",
+  "total": 99
+}

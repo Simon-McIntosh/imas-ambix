@@ -1,0 +1,80 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's two arms of the reviewed node's declared three-file gate (tests/test_agent_watch_cost.py tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py): base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T053737580018-review-of-srw-estimated-cost-claims-are-checkable/review-base-gate.log (scratch tree /tmp/rev-srw-claims/base, revision 6f829d2d9a957fe1995756437e46cda3344f9d86: 43 passed, EXIT=0) and head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T053737580018-review-of-srw-estimated-cost-claims-are-checkable/review-head-gate.log (scratch tree /tmp/rev-srw-claims/head, revision c8742f739909535925b43f1d0e165d45ab21b9cc: 44 passed, EXIT=0). Both arms were run in scratch trees built from the reviewed worktree's own object store (the reviewed object store is not writable by this node), each importing its own imas_ambix/agent/watch.py, so neither added a git worktree. The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite, and its own gate log carries the head-side receipt only (44 passed, EXIT=0) and its negative-control log (1 failed, EXIT=1). The head arm's test set is a superset of the base arm's (the head arm adds the \"0.5\" case to test_estimated_cost_refuses_a_rate_outside_the_unit_interval), and both arms are green, so head ids minus base ids is 0.",
+  "after_suite": {
+    "command": "env -C /tmp/rev-srw-claims/head PYTHONPATH=/tmp/rev-srw-claims/head /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_agent_watch_cost.py tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T053737580018-review-of-srw-estimated-cost-claims-are-checkable/review-head-gate.log",
+    "revision": "c8742f739909535925b43f1d0e165d45ab21b9cc"
+  },
+  "baseline_suite": {
+    "command": "env -C /tmp/rev-srw-claims/base PYTHONPATH=/tmp/rev-srw-claims/base /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_agent_watch_cost.py tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T053737580018-review-of-srw-estimated-cost-claims-are-checkable/review-base-gate.log",
+    "revision": "6f829d2d9a957fe1995756437e46cda3344f9d86"
+  },
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/watch.py:401 estimated_cost, the documented function (docstring is the deliverable)",
+    "imas_ambix/agent/watch.py:649 the production caller in the period row (cost = estimated_cost(...))",
+    "tests/test_agent_watch_cost.py:216 and :368 the test callers, the second the parametrised refusal"
+  ],
+  "completed_at": "2026-10-01T06:01:44.619Z",
+  "dispatched_at": "2026-10-01T05:37:45Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "415",
+      "severity": "minor",
+      "text": "The rewritten sentence names the small-turn third-party hit-rate record as the source of the 278,174 input tokens but keeps the h 0.93 and 'our own 0.975' rates and the about-1.07x total from the other stratum: the small-turn record's own hit rate is 0.858 (h 0.8581679), while 0.93 is the production-size record's h (0.929855). The arithmetic is correct at the stated h -- input-term ratio 1.9910 and total ratio 1.0712 at h 0.93 over 278,174 in / 40,000 out -- but no single record carries 278,174 input tokens at h 0.93, so the illustrated period is a mix of two measured strata and cannot be checked against one record. At the small-turn h 0.858 the same tokens give a total ratio of 1.1848, not 1.07. The label 'assumed' on the output count is honest; the stratum pairing is what remains unstated. Residual of the node's own goal (every claim checkable), not a new defect introduced by this commit."
+    },
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "416",
+      "severity": "follow-on",
+      "text": "The docstring identifies the 278,174 source as 'the small-turn third-party hit-rate record' by description only, with no path or in-repo citation, so a reader of the source alone cannot resolve it; the figure is grounded in ~/.config/reckon/crew/reports/imas-ambix/0c4316b2-.../third-party-hit-rate/third-party-hit-rate.json (prompt_tokens 278174) and in the committed fragment docs/evidence/fragments/serving-record-warehouse/srw-third-party-hit-rate-measured.html, neither of which the docstring names."
+    }
+  ],
+  "follow_ons": [
+    "name the small-turn third-party hit-rate record with a resolvable in-repo citation (for example docs/evidence/fragments/serving-record-warehouse/srw-third-party-hit-rate-measured.html) so the 278,174 figure is locatable from the docstring rather than by description alone.",
+    "resolve the stratum mix in the estimated_cost illustration: either price the small-turn 278,174 input tokens at that record's own h 0.858 (total ratio about 1.18), or price the production-size record's prompt count at h 0.93, so the illustrated period is one recorded period rather than two",
+    "the reviewed run wrote no evidence fragment (its write paths included docs/evidence/fragments/serving-record-warehouse/srw-estimated-cost-claims-are-checkable.html and a figures dir); the done-when makes a fragment conditional, so this is not a defect, but no fragment records this change"
+  ],
+  "item_aggregate": 7,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "read commit c8742f73 against base 6f829d2d; two files changed, +5/-4, both inside the declared write paths, no other file touched (git diff --stat 6f829d2d c8742f73 = watch.py 7 +/-, test 2 +/-).",
+    "done_when": "read the node's done-when; the docstring no longer presents the 40,000 output count as recorded, the 278,174 input is attributed to its record, the about-1.07x total is kept, and the parametrised refusal test gains the \"0.5\" string case (watch.py:415-417, tests/test_agent_watch_cost.py:356).",
+    "goal": "the node's goal is to make every claim in the estimated_cost docstring checkable against a recorded figure or a test; the docstring now attributes the 278,174 input figure to the small-turn third-party hit-rate record and labels the 40,000 output count as assumed, closing the prior review's unrecorded-output finding, and the test gains the non-numeric case.",
+    "manifest": "read; it states the three-file gate 44 passed EXIT=0, the serving-interpreter parse check 1 passed EXIT=0, ruff all checks passed EXIT=0, and a negative control 1 failed EXIT=1.",
+    "write_paths": "read the manifest's declared paths; the diff touches imas_ambix/agent/watch.py and tests/test_agent_watch_cost.py, both inside them."
+  },
+  "justifications": "independent review of run r-20261001T052729800306-srw-estimated-cost-claims-are-checkable (base 6f829d2d, head c8742f73) stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 20, evidence 19, scope_discipline 20, durability 18, fit 19 -- total 96. The run is a follow-up to r-20261001T042425021081 and closes both findings the prior review left: the docstring now attributes the 278,174 input figure to the small-turn third-party hit-rate record and labels the 40,000 output count as an assumed illustration instead of a recorded period, and the parametrised refusal test gains the non-numeric \"0.5\" case so the not-isinstance branch is exercised rather than only the range branch. Verified independently: the small-turn record (~/.config/reckon/crew/reports/imas-ambix/0c4316b2-.../third-party-hit-rate/third-party-hit-rate.json) carries prompt_tokens 278174 and cached_prompt_tokens 238720 and no output/completion count, so the 40,000 figure has no recorded source and 'assumed' is the honest label; the docstring's arithmetic is correct at its stated h 0.93 (input-term ratio 1.9910, total ratio 1.0712 over 278,174 in / 40,000 out). Both gate arms ran in scratch trees extracted with git archive (base /tmp/rev-srw-claims/base, head /tmp/rev-srw-claims/head, each importing its own imas_ambix/agent/watch.py): base 43 passed EXIT=0, head 44 passed EXIT=0, head tests a superset of base, so added_failure_count is 0. The reviewed run was dispatched unarmed (its manifest names no baseline_suite and no after_suite); its own gate log carries the head-side receipt only (44 passed EXIT=0 at c8742f73). The new test case was falsified independently: removing the not-isinstance clause from estimated_cost (reducing the guard to isinstance(rate, bool)) in a scratch copy makes [0.5] fail with DID NOT RAISE while the four pre-existing cases pass (1 failed, 4 passed, EXIT=1), so the case discriminates the branch it was added for. Two findings bound the score: the rewritten sentence still pairs the small-turn record's 278,174 tokens with the production-size h 0.93 rather than the small-turn h 0.858 (the 1.07 total ratio holds only at h 0.93), and the docstring names its source record by description with no resolvable path.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261001T053737580018-review-of-srw-estimated-cost-claims-are-checkable",
+  "reviewed_base_sha": "6f829d2d9a957fe1995756437e46cda3344f9d86",
+  "reviewed_head_sha": "c8742f739909535925b43f1d0e165d45ab21b9cc",
+  "reviewed_run_id": "r-20261001T052729800306-srw-estimated-cost-claims-are-checkable",
+  "reviewer": "review-of-srw-estimated-cost-claims-are-checkable",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-01T05:57:30+00:00",
+  "total": 96
+}

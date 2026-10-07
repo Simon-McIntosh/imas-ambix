@@ -1,0 +1,65 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed and is a read-only investigation: its manifest carries no baseline_suite and no after_suite (classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null), so its own arms cannot supply a delta. Its recorded gate is the ssh probe in psrc-probe.log (EXIT=0, no failing test id), and this review independently reproduced that probe's headline reads over ssh from the Naka server: E101154 PSRC magFluxLp1 -> ok True irc 0 shape (2001,), E101173 PSRC magFluxLp1 -> ok False irc 1015, E101154 MDAC magFlxLp1 -> irc 0 (2000,), E101154/E101173 PID '1626 S007' -> (2001,)/(1,). No failing id is added.",
+  "after_suite": null,
+  "baseline_suite": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-05T10:13:05.915Z",
+  "dispatched_at": "2026-10-05T10:05:51Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-read-path.html",
+      "line": "10",
+      "severity": "follow-on",
+      "text": "follow-on: the landing sentence reads \"it is populated on E101154 (irc 1015 on the newest E-shot E101173)\", attaching the refusal code to the populated shot's clause, so a reader of the bold claim can take E101154 as the 1015 case; the outcome table disambiguates but the headline should place 1015 on E101173 explicitly."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-read-path.html",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the node declared a figures write path (docs/figures/jt60sa-machine-map/jtmm-psrc-read-path) and landed no figure; the two naming routes and the three return codes are a natural diagram and the evidence-doc figure mandate applies, so this is under-delivery against the declared write set rather than a scope breach."
+    }
+  ],
+  "follow_ons": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read the reviewed change against its base; one file changed, +132 lines, the evidence fragment alone.",
+    "done_when": "the node's measure is that its fragment names the working call or states PSRC is unpopulated for E101173 with the shot it is populated for; the fragment names both E101154 and E101011, and the run's gate (psrc-probe.log) is recorded.",
+    "goal": "the node's goal is to name the EDDB call that returns JT-60SA PSRC magnetics and say whether PSRC is populated on E101173; docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-read-path.html does both, naming eddbreadTime(shot, cat='PSRC', dname='magFluxLp1') (irc 0, shape (2001,)) on E101154 and irc 1015 on E101173.",
+    "manifest": "read; it declares status complete, names the ssh probe as its gate, and cites psrc-probe.log; it carries no baseline_suite and no after_suite because the node was a read-only investigation.",
+    "write_paths": "read the reviewed manifest; the diff touches only docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-read-path.html, inside the declared write paths."
+  },
+  "justifications": {
+    "durability": "the deliverable is a documentary fragment with no code and no test that fails if it regresses; its reproducibility rests on a remote server and the /tmp probe scripts the manifest references, which are not committed.",
+    "evidence": "the gate is recorded in psrc-probe.log and this review independently re-ran the read on the Naka server, reproducing irc 0/(2001,) on E101154 and irc 1015 on E101173.",
+    "fit": "docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-read-path.html follows the sibling fragment idiom (docs-project/reckon-type/plan-slug meta, plan-doc sections) and introduces no banned name.",
+    "goal_fidelity": "docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-read-path.html names the PSRC call and the E101154/E101173 outcomes the goal asks for; the headline sentence at line 10 attaches the 1015 code to the populated shot's clause, a clarity slip the table below repairs.",
+    "reuse": "the change adds a document, not a mechanism; no capability is forked and no owner exists to extend.",
+    "scope_discipline": "the reviewed diff shows only docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-read-path.html changed; the declared figures write path was declared but nothing was written there."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is to name the EDDB call that returns JT-60SA PSRC magnetics and say whether PSRC is populated on E101173; docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-read-path.html does both, naming eddbreadTime(shot, cat='PSRC', dname='magFluxLp1') (irc 0, shape (2001,)) on E101154 and irc 1015 on E101173.\nVERDICT done_when: the node's measure is that its fragment names the working call or states PSRC is unpopulated for E101173 with the shot it is populated for; the fragment names both E101154 and E101011, and the run's gate (psrc-probe.log) is recorded.\nVERDICT write_paths: read the reviewed manifest; the diff touches only docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-read-path.html, inside the declared write paths.\nVERDICT manifest: read; it declares status complete, names the ssh probe as its gate, and cites psrc-probe.log; it carries no baseline_suite and no after_suite because the node was a read-only investigation.\nVERDICT diff: read the reviewed change against its base; one file changed, +132 lines, the evidence fragment alone.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-read-path.html names the PSRC call and the E101154/E101173 outcomes the goal asks for; the headline sentence at line 10 attaches the 1015 code to the populated shot's clause, a clarity slip the table below repairs.\nSCORE evidence: 19\nJUSTIFICATION evidence: the gate is recorded in psrc-probe.log and this review independently re-ran the read on the Naka server, reproducing irc 0/(2001,) on E101154 and irc 1015 on E101173.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: the reviewed diff shows only docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-read-path.html changed; the declared figures write path was declared but nothing was written there.\nSCORE durability: 14\nJUSTIFICATION durability: the deliverable is a documentary fragment with no code and no test that fails if it regresses; its reproducibility rests on a remote server and the /tmp probe scripts the manifest references, which are not committed.\nSCORE fit: 18\nJUSTIFICATION fit: docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-read-path.html follows the sibling fragment idiom (docs-project/reckon-type/plan-slug meta, plan-doc sections) and introduces no banned name.\nSCORE reuse: 20\nJUSTIFICATION reuse: the change adds a document, not a mechanism; no capability is forked and no owner exists to extend.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-read-path.html:10 follow-on: the landing sentence reads \"it is populated on E101154 (irc 1015 on the newest E-shot E101173)\", attaching the refusal code to the populated shot's clause, so a reader of the bold claim can take E101154 as the 1015 case; the outcome table disambiguates but the headline should place 1015 on E101173 explicitly.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-read-path.html:1 follow-on: the node declared a figures write path (docs/figures/jt60sa-machine-map/jtmm-psrc-read-path) and landed no figure; the two naming routes and the three return codes are a natural diagram and the evidence-doc figure mandate applies, so this is under-delivery against the declared write set rather than a scope breach.\n",
+  "review_run_id": "r-20261005T100545538723-review-of-jtmm-psrc-read-path",
+  "reviewed_base_sha": "aabe46422886ef4f8fec68165ef616135fb89fb8",
+  "reviewed_head_sha": "cb4a77fc70a709d683ebc87bc99df5e23eae20d9",
+  "reviewed_run_id": "r-20261005T084129278336-jtmm-psrc-read-path",
+  "reviewer": "review-of-jtmm-psrc-read-path",
+  "scores": {
+    "durability": 14,
+    "evidence": 19,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T10:10:58.153343+00:00",
+  "total": 108
+}

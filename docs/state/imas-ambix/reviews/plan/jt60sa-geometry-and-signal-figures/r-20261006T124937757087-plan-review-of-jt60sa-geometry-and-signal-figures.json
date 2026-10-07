@@ -1,0 +1,49 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T12:53:47.678Z",
+  "dispatched_at": "2026-10-06T12:49:43Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-geometry-and-signal-figures.html:80 (owner: imas_ambix/data/signal_map.py:117 SignalRule.static_scale, applied through imas_ambix/data/virtual_zarr.py:75 VirtualArray.__getitem__)",
+      "id": "duplicate_owner-1",
+      "reason": "reading values through the bound VirtualArray (whose scale is the map's) and using read_channel only for the time base the engine lacks makes the map the single owner of the conversion, so a later unit_factor or COCOS bound into a map is drawn correctly instead of silently dropped.",
+      "text": "\u00a73 draws the bound coil-current and plasma-current channels by reading raw values through the new read_channel and multiplying by the map's channel_factor alone, while the map that owns that conversion reduces it to unit_factor * channel_factor * convention_factor (SignalRule.static_scale) and the engine path already applies it in VirtualArray.__getitem__; the plan even opens the bound VirtualArray to take the target unit from its attrs but takes the values elsewhere, so the conversion is re-implemented outside its owner in a partial form that happens to be numerically exact only because every JT-60SA pf_active rule currently carries unit_factor 1.0 and no COCOS transformation (imas_ambix/data/maps/jt-60sa/pf_active.json)",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "c0f9333c22d2a784a5221cb6ee22da43191c2cab97fd47b493d9493372a8c92c",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 43,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v45 \u00a73 takes each bound channel's values from VirtualZarrView, whose VirtualArray applies the map's whole conversion (channel_factor and SignalRule.static_scale), never scaling raw values; this matches the landed run, which already drew bound values through VirtualZarrView",
+      "when": "2026-10-06T12:55:10.749637+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T124937757087-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "688042726d6d980fcbc8250f51702fc5e8c8428b",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the plan adds one data function (\u00a73 read_channel) and one test (\u00a72b), each hiding a small amount of work behind a single name; nothing is spread across a family of shallow wrappers.",
+    "duplicate_owner": "a finding \u2014 the plan re-derives the map-owned source-to-target conversion by applying only channel_factor while reading values raw, rather than letting the bound VirtualArray apply the map's full scale.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 adds the single public name read_channel and states in its own text that it \"retires nothing\" and is \"the read counterpart nothing there provides\", \u00a74 states \"it retires nothing; it is the one public addition, reusing the type the 3D path already exports\", and \u00a72b adds no public name \u2014 so every section that touches a family accounts for it.",
+    "reuse_search": "pass \u2014 the plan searched the two codebases it names: \u00a72/\u00a74 rebuild no imas-ink machinery (they call extract_geometry/geometry_figure_mpl, and \u00a74 correctly records that imas-ink's shipped geometry-figure-vessel-units plan now owns the vessel reading), and \u00a73's read_channel has no predecessor in imas_ambix/data/eddb.py or elsewhere (grep for a cache reader returns nothing); the one unshipped dependency \u2014 imas-ink's trace-figure-display-resolution (draft v1, no sections) \u2014 is declared in plan-section-depends-on, so the search is accounted for.",
+    "thin_wrapper": "pass \u2014 \u00a73 states why the existing value path cannot serve: VirtualZarrView/ZarrTransformEngine return values with no time base (virtual_zarr.py:75-76 returns only the transformed slice), and read_channel is the raw read counterpart eddb.py lacks; the wrapper is justified rather than parallel."
+  },
+  "section_digests": {
+    "_document": "88997c3bedfc09e9e8e7c088a8bd3c6e2f920a84b4f31e0131b9ad549249bf9b",
+    "s1": "bb8d550544a521bde0263696163651a2d7a045188e07eb5e9a5e525932df317a",
+    "s1b": "844dff090679558edecc0cbbeca77e332dbe493edcbf84a5baec67bd6cd0d692",
+    "s2": "2565e40e98e8d0857a479584a4eaba693f80a101caf05bae3dbfb7c8ff0e2275",
+    "s2b": "7b4d49c27321bde0841c29af88705c7d63c0728c12930427774984e11584bbf4",
+    "s3": "54ee161c74e73565088cc63f27620ab88afd7955e0dac2b42da68fb6fee9f18c",
+    "s4": "ed6d5b8d0a5d98145a24fe9d1ab0e074e3d9c40bfd067beba80e2b1992dbbf26"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T12:55:10.747459+00:00"
+}

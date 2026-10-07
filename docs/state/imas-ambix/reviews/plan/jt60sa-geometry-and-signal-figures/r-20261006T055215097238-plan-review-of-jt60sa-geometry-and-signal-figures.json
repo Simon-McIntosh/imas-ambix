@@ -1,0 +1,75 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T05:56:22.521Z",
+  "dispatched_at": "2026-10-06T05:52:21Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/gs/artifact_geometry.py:302",
+      "id": "duplicate_owner-1",
+      "reason": "the plan should call these existing struct-level readers on the raw store's IDS objects (they carry no adapter transform) or state why they cannot serve, rather than fork a parallel extractor that will drift from the owner.",
+      "text": "\u00a71's single reader (\"one reader turns a phase's store into drawable families (coil elements, vessel filaments, wall outline, flux loops, probes)\", plan lines 108\u2013111) re-implements `read_artifact_pf_active` (line 302), `read_artifact_pf_passive` (line 409), `read_artifact_magnetics` (line 577) and `read_artifact_limiter` (line 671), which already take raw `pf_active` / `pf_passive` / `magnetics` / `wall` IDS structs and return `PFFilament` + `PolygonSection`, `PassiveStructure`, `BProbe` + `FluxLoop`, and a limiter R/Z contour \u2014 the exact drawable families the plan wants; the plan cites only the higher `gs` facade (`MachineGeometryService.operator()`, `build_geometry_fields_from_table`), which sits behind the artifact cache, and never names these struct-level readers, so a second, drifting extractor is proposed for behaviour that already exists and is directly callable on the `DBEntry` store.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-geometry-and-signal-figures.html:110",
+      "id": "thin_wrapper-1",
+      "reason": "the plan must reuse the struct-level extractors (or state why a fresh layer is needed); the stated reason for bypassing the adapter does not apply to them.",
+      "text": "\u00a71 justifies reading the store directly with `imas.DBEntry` instead of `description_reader.read_geometry_table` on the ground that \"that route hands back the geometry adapter's table, transformed before the figure would see it\", but the reader it then adds is a thin layer whose real subject \u2014 element\u2192vertices, probe/loop positions, limiter contour \u2014 is already provided by `artifact_*` extractors that are pure functions of the IDS struct and pass through no adapter transform; the justification therefore does not reach the machinery being duplicated.",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-geometry-and-signal-figures.html:186",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the added interface surface in its own text, as \u00a71 already does for `plot_style.py`.",
+      "text": "\u00a71b adds a `--palette-candidates` command-line option to `scripts/figures_jt60sa_geometry.py` (and a further eight-candidate surface) without naming what it retires or merges, or stating why nothing can be, while \u00a71 does account for its surface (\"it is the first and retires nothing\").",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "78d61da2187671058f0e5cadba9a8e6d7213e2e6d8e6a3c79eb770b5a40e581d",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 10,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v13 \u00a71 has the reader pass the DBEntry IDS to read_artifact_pf_active/pf_passive/magnetics/limiter and draw what they return; \u00a71b moves the landed reader onto them and retires its own element dispatch",
+      "when": "2026-10-06T05:57:39.711465+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v13 \u00a71b states it widens the table behind the existing --palette-candidates option and adds no option, module or public name",
+      "when": "2026-10-06T05:57:39.714248+00:00"
+    },
+    "thin_wrapper-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v13 \u00a71 states the artifact_geometry struct-level readers carry no adapter transform and reuses them; the DBEntry read is kept only to open the store",
+      "when": "2026-10-06T05:57:39.713100+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T055215097238-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "9e82b4d82ec1cdd283d3c7808bf67948251daf47",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a71's `imas_ambix/plot_style.py` (named colour roles, the sheet-apply function and the shared direct-label helper) and the geometry script's single reader, reused by \u00a71 and \u00a72 (\"calls the same reader rather than reading the store a second time\"), hide store traversal behind a surface smaller than what they hide.",
+    "duplicate_owner": "a finding \u2014 the plan's store\u2192drawable-families reader duplicates the element readers owned by `imas_ambix/gs/artifact_geometry.py` (`read_artifact_pf_active`, `read_artifact_pf_passive`, `read_artifact_magnetics`, `read_artifact_limiter`) rather than extending or calling them.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a71b adds a `--palette-candidates` CLI option without naming what it retires or merges, or why nothing can be.",
+    "reuse_search": "pass \u2014 the plan states and rests on a 2026-10-06 search of `imas_ambix/data/`, `imas_ambix/gs/` and `scripts/`, naming `paths.py`, `eddb.py`, the machine-map catalogue (`load_packaged_machine_map`, `description_store_root_path`), the `gs` facade and `scripts/validate_mast_geometry.py`; it is a searched plan, though the search missed `gs/artifact_geometry.py` (carried by `duplicate_owner` below).",
+    "thin_wrapper": "a finding \u2014 the reader \u00a71 adds to `scripts/figures_jt60sa_geometry.py` is a thin re-derivation of element geometry that `imas_ambix/gs/artifact_geometry.py` already extracts from the same raw IDS structs; the plan's stated reason for not extending the existing route does not reach that machinery."
+  },
+  "section_digests": {
+    "_document": "0e65058252d0ab4bde21b9c35c53f1385c98dc79e86ef6e87685bbc459367536",
+    "s1": "d3de3577bc7ebaf14dc557102cee4b6744028f146b5cccc76fde7c278ed00d76",
+    "s1b": "944fc168eaf819c61b9b7a1553d84d9156f16407cadcd551bde3523ca9a9c5f1",
+    "s2": "fc8adc967440ae64b1c7a63e7407b27d196476fbd357916e6389e16d8ec9ae4d",
+    "s3": "412d685335710bd6f5f357e93d8240bc3eecde6d6630573d29e2bdcd32c98cbf"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T05:57:05.797553+00:00"
+}

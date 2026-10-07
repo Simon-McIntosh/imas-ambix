@@ -1,0 +1,65 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T01:54:49.461Z",
+  "dispatched_at": "2026-10-06T01:51:02Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/tokamap_export.py:101",
+      "id": "duplicate_owner-1",
+      "reason": "one sentence naming whether the normalisation table becomes the shared unit owner the exporter reads, or is a packaged data file the exporter consumes, removes the fork.",
+      "text": "\u00a75 adds a second unit-conversion mechanism (the EDDB free-text \u2192 DD-unit normalisation table) without naming an owner or relating it to `_unit_factor`/`_UNIT_CONVERSIONS`, the only unit-conversion table in the repo; a forked unit vocabulary will disagree with the exporter's on the same unit pairs",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html#s5",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the surface it adds in its own text, as \u00a72, \u00a74, \u00a76 and \u00a77 already do.",
+      "text": "\u00a75 alone among the sections adds public surface (a normalisation table and a unit-normalisation refusal family) and neither names what it retires or merges nor states why nothing can be, against zero counts across all four families",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "809fbb58eaf51627628879381c6b72c5eaa77908a31622c4e93127942160b2cb",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 84,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "coordinator",
+      "reason": "Valid, and scoped to section 5 (EDDB unit normalisation), which the section 4 catalogue node being dispatched does not touch. Section 5's text will name one unit owner, relating it to tokamap_export's _UNIT_CONVERSIONS, before any section 5 node is dispatched; that edit gets its own review.",
+      "when": "2026-10-06T01:57:10.595656+00:00"
+    },
+    "interface_budget-1": {
+      "action": "declined",
+      "by": "coordinator",
+      "reason": "Valid, and scoped to section 5; the section 4 catalogue node adds no unit table or refusal family. Section 5's text will account for the surface it adds before any section 5 node is dispatched; that edit gets its own review.",
+      "when": "2026-10-06T01:57:10.596755+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T015052312318-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "b6a31e696e50c7cc02d420a16009b09deb8a1c2c",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 remaining work is one catalogue document plus bindings routed through existing entry points (`transform_machine_description`, `read_geometry_table`, `load_packaged_signal_map`, `export_tokamap_directory`); no new deep module is proposed and no behaviour is re-spread across wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a75 introduces an EDDB-unit \"normalisation table\" with no named home, beside the repo's only unit-conversion mechanism, `_unit_factor`/`_UNIT_CONVERSIONS` in `imas_ambix/data/tokamap_export.py`.",
+    "interface_budget": "a finding \u2014 supplied counts this week are public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a75 adds a normalisation table (a public definition) and a binding-blocking refusal for an unnormalisable unit string, yet its text names no retirement/merge and no \"retires nothing\" clause, unlike every sibling section.",
+    "reuse_search": "pass \u2014 the plan names the mechanism it extends for every subsystem it touches, and each was verified present: `score_convention`/`surviving_conventions` (cocos_convention.py), `judge_geometry`/`read_efit_geometry(loader=)` (eval/efit_referee.py), `_integrated_current`/`EfitLabels` (challenge/convention.py, challenge/loader.py), `publish_object`/`resolve_machine_description` (gs/artifact_resolution.py), `StoreEngine.open`/`read_geometry_table` (transform_engine.py, description_reader.py), `load_packaged_signal_map` (signal_map.py), `export_tokamap_directory` (tokamap_export.py).",
+    "thin_wrapper": "pass \u2014 the one new reader (\u00a77 EQDB over `SshTransport`) is justified by the absence of any equilibrium-database reader in the repo (grep for `eqdb`/`fame` readers returns nothing) and reuses the \u00a73 transport rather than forking it; \u00a74's static-store read is an extension of `StoreEngine.open`, not a layer over it."
+  },
+  "section_digests": {
+    "_document": "81c30464997a0bb8e491a2ec9da6b8861cd25ff2cfad20808b2f114dc78a477d",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "0c6d3ad9d5cf1da1fe7fe4da9f6aaed64bad292c46c517e591b53b1561cdda5b",
+    "s5": "83fb72d7ab35eaa0286bd0c4b0b1807b76fc0846bbc4b153f8b5efd32a27c265",
+    "s6": "c35de046f0a85a90468ca3326027efcdba7affaac3752fb890a1e987d3ba0277",
+    "s7": "d58647ed5f6919b3ea6ef1c13c5f002f5a96def1edf03c3c66c629e0a2180518",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.814254+00:00"
+}

@@ -1,0 +1,44 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T01:43:21.642Z",
+  "dispatched_at": "2026-10-06T01:38:53Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-machine-map.html#s7",
+      "id": "duplicate_owner-1",
+      "reason": "the author should name eddb.py (or the zarr store owner) and extend it with a record kind, or state in the section why the existing store cannot carry a grid record, so the reader does not fork placement/state ownership.",
+      "text": "the \u00a77 EQDB reader declares \"the record store ... beside the cache\" and justifies skipping eddb.write_channel only on the array shape it stores ((channel,time) versus psi on a grid); it does not name the store owner it would extend nor show that eddb.py's zarr store (which writes an N-d data array under {shot}.zarr/{category}/{dname} with sibling arrays) cannot hold an EQDB grid record, so two stores would sit over the same JT60SA_ROOT zarr substrate",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "dcf31c4db79725cc59b953d33d9f62b7426b22bad34a93e82f4ac2cc640d6d00",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 82,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T013843972411-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "4827e84932606e20191c82f2fe90bbfc7e48b081",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 every proposed mechanism is one deep entry point hiding its transport, store or format behind few names (RemoteEddbExtractor hides ssh+batching, eddb.py hides the cache layout, selene_deck.py the deck grammars, tokamap_export one public function, the \u00a77 EQDB reader one remote script reusing SshTransport); \u00a77's many touch-points are extensions of distinct existing owners, not a spread of shallow wrappers over one machine.",
+    "duplicate_owner": "a finding \u2014 the \u00a77 EQDB reader forks a second record store \"beside the cache\" instead of naming and extending a store owner, and the stated reason (write_channel is (channel,time)) argues only against the writer, not against the zarr store substrate that eddb.py already owns.",
+    "interface_budget": "pass \u2014 supplied counts are public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every remaining section that touches these families states its retirement in its own text (\u00a72 exporter \"retires nothing, because ambix has no exporter\"; \u00a74 store-layout widening \"retires nothing, because no engine has a way to see the map today\", the probe-angle key \"retires the machine branch\"; \u00a75 \"the JT-60SA maps add files and no loader\"; \u00a76 moves eligibility into each loader's declaration, retiring the hard-coded guards; \u00a77 EQDB reader \"retires nothing, because no equilibrium-database reader exists\", the machine field and second set \"retire nothing, because no shot set records its machine today\").",
+    "reuse_search": "pass \u2014 the plan searched the codebase it is about to extend and cites a verified existing owner for every mechanism it proposes: signal_map.load_packaged_signal_map, transform_engine.StoreEngine.open, description_reader.read_geometry_table, cocos_convention.score_convention, challenge/convention.measure_diiid_convention with challenge/loader.load_shot, eval/efit_referee.judge_geometry / read_efit_geometry, gs/artifact_resolution (publish_object, resolve_machine_description, PINNED_*), gs/machine_selection.ArtifactMachineSelector, spine_bench/shots.BenchShot, spine_bench/machine_artifact_arm.MachineArtifactGeometrySource, data/description_identity, and eddb_remote.SshTransport; each is opened and exists.",
+    "thin_wrapper": "pass \u2014 where the plan adds a layer rather than extending, it names why: the tokamap exporter is kept out of the loaders because they read the ambix schema and must not learn tokamap's; \u00a74's static store is a declared layout on the existing engine rather than a second engine; \u00a76 generalises measure_diiid_convention through a loader rather than writing a second scorer; \u00a74 supplies DescriptionSupplement/StructureAssembly as mast.json uses them."
+  },
+  "section_digests": {
+    "_document": "81c30464997a0bb8e491a2ec9da6b8861cd25ff2cfad20808b2f114dc78a477d",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "0c6d3ad9d5cf1da1fe7fe4da9f6aaed64bad292c46c517e591b53b1561cdda5b",
+    "s5": "83fb72d7ab35eaa0286bd0c4b0b1807b76fc0846bbc4b153f8b5efd32a27c265",
+    "s6": "2a80a7a62c8dc5613a449b07cfc23202673e04b88f6ee73ab77207f7bd29e8e7",
+    "s7": "b753e704713b13bdd39dcf61e10b96b732b5eb044ef49b52bfe9895619460933",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.827217+00:00"
+}

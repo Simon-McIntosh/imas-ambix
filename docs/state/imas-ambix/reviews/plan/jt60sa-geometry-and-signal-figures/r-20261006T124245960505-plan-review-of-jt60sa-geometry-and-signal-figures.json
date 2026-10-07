@@ -1,0 +1,76 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T12:48:36.251Z",
+  "dispatched_at": "2026-10-06T12:42:52Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-geometry-and-signal-figures.html:164",
+      "id": "reuse_search-1",
+      "reason": "the section proposes work already shipped in imas-ink and points the author at a file that does not contain the function, so an implementer following it would re-add an existing reading or edit the wrong owner.",
+      "text": "\u00a74 states ``extract_vessel_shells`` lives in ``imas_ink/three_d/walls.py:151`` and \"reads an annular unit's centreline (with thickness) or a plain outline, but not outline_inner and outline_outer ... the section adds that reading\"; the function is actually at `imas_ink/extract.py:473` (walls.py:151 is inside `revolve_wall_outline`) and it **already** reads `outline_inner`/`outline_outer`, one `VesselShell` per skin, ahead of the centreline path (`imas_ink/extract.py:518-519`), and `MachineGeometry.vessel_shells` already feeds the viewport and both wall renderers \u2014 the imas-ink plan `geometry-figure-vessel-units` has landed (node `ink-vessel-units`, merge `94bd8f3`)",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-geometry-and-signal-figures.html:66",
+      "id": "reuse_search-2",
+      "reason": "\u00a72's stated wait (\"waits on ... geometry-figure-vessel-units\") and its description of the figure's current limits are both stale, so the node's premise and its dependency list need correcting before dispatch.",
+      "text": "\u00a72 says the geometry figure \"today makes its own axes and has no second-outline style\" and \u00a73 says the raw/processed flux-loop panel comes \"through the multi-series panel imas-ink's geometry-figure-vessel-units plan adds (its \u00a73)\"; both are already in the checkout: `geometry_figure_mpl` takes an `ax` argument and draws `vessel_shells` (`imas_ink/figures.py:154`, `:203-209`), and `time_trace_figure_mpl` already accepts a list of `TimeSeries` on one panel (`imas_ink/figures.py:99-107`, landed `f1eadd8`)",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-geometry-and-signal-figures.html:78",
+      "id": "reuse_search-3",
+      "reason": "the wording only needs to name the mechanism imas-ink already exports; it does not change the figure's design.",
+      "text": "\u00a72 asserts the second figure distinguishes phases \"by line style alone\", but imas-ink's reference vocabulary is a colour+linestyle pair (`ref_lcfs_color`/`ref_lcfs_linestyle`, `imas_ink/style.py:146` and `imas_ink/mpl.py:203,218,247`), so a line-style-only phase distinction must be shown to be expressible through the landed style module rather than assumed",
+      "type": "reuse_search",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "213e39716c59cb205a5116cc1969eeb1b82da4ba0befde6a524ce54c8991dcc5",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 40,
+  "project": "imas-ambix",
+  "responses": {
+    "reuse_search-1": {
+      "action": "declined",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "\u00a74 is a deferred record of why the vessel work moved to imas-ink, kept as written when it was deferred; the landed state is recorded in imas-ink:geometry-figure-vessel-units, shipped",
+      "when": "2026-10-06T12:49:26.659979+00:00"
+    },
+    "reuse_search-2": {
+      "action": "declined",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "superseded by plan v41: \u00a72 collapsed to its landed summary (merge 6f251699, figures embedded); \u00a73's remaining wait is on imas-ink:trace-figure-display-resolution",
+      "when": "2026-10-06T12:49:26.661223+00:00"
+    },
+    "reuse_search-3": {
+      "action": "declined",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "the reviewer marks it not plan-changing; the landed overlay (docs/figures/jt60sa-geometry/op1-op2-overlay.svg) distinguishes the phases with wall_linestyle alone, as drawn",
+      "when": "2026-10-06T12:49:26.662559+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T124245960505-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "fa2fdbcfbff7635d0d9ab770c2b1af94d30b96a5",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 `read_channel` hides channel-path resolution, the time base and the unit behind one function beside `write_channel`, and the two figure scripts delegate all rendering to imas-ink's deep module rather than re-implementing it.",
+    "duplicate_owner": "pass \u2014 `read_channel` extends the cache's own owner (`imas_ambix/data/eddb.py`) beside `write_channel` rather than forking a second cache reader; the plan states this explicitly.",
+    "interface_budget": "pass \u2014 supplied counts public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 names its one public addition (`read_channel`) and states it retires nothing, and both scripts add no CLI option and no public name.",
+    "reuse_search": "a finding \u2014 the plan cites imas-ink as the renderer (good) but \u00a72/\u00a73/\u00a74 describe already-landed imas-ink capabilities as pending and \u00a74 names the wrong owner file for `extract_vessel_shells`.",
+    "thin_wrapper": "pass \u2014 each script is a wrapper, but the figure-owner ruling (drawing belongs to imas-ink) is stated as why the drawing cannot live in ambix, and each script reads a store imas-ink does not own (the description store; the EDDB cache), which is the reason a second caller is needed rather than one extended mechanism."
+  },
+  "section_digests": {
+    "_document": "dab340f6b8171dd2afe24e13951667932cb307ee33e3097cc64ae5700a6a0cec",
+    "s1": "bb8d550544a521bde0263696163651a2d7a045188e07eb5e9a5e525932df317a",
+    "s1b": "844dff090679558edecc0cbbeca77e332dbe493edcbf84a5baec67bd6cd0d692",
+    "s2": "4bf0dbb81a9efc203ec45ce4bd4197177aba0cb6444c6ce59390f558a04d9748",
+    "s3": "54ee161c74e73565088cc63f27620ab88afd7955e0dac2b42da68fb6fee9f18c",
+    "s4": "ed6d5b8d0a5d98145a24fe9d1ab0e074e3d9c40bfd067beba80e2b1992dbbf26"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T12:49:26.658635+00:00"
+}

@@ -1,0 +1,114 @@
+{
+  "absent": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed run's manifest carries no baseline_suite and no after_suite arm (both fields absent), so no added-failure delta can be derived from its own gate logs. The reviewed run is an implementation node whose own gate is a single head run; this review reproduced that gate independently at the reviewed head (58 passed, EXIT=0).",
+  "blockers": [],
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T08:15:32.064Z",
+  "dispatched_at": "2026-10-06T08:06:48Z",
+  "evidence_inputs": [
+    "Independent store readback at DD 4.1.1 (/work/projects/imas_gpu/jt60sa/machine_description): OP1 pf_passive VV 63 @7.760e-7 + CRYOSTAT 57 @7.200e-7; OP2 pf_passive VV 98 @7.200e-7 + CRYOSTAT 57 @7.200e-7; OP1 wall type.index 2, limiter 150 pts, one vessel unit with annular inner 364/outer 365 pts; OP2 wall type.index 1, limiter 51 pts, no vessel unit.",
+    "CRYOSTAT element r and z arrays are identical between OP1 and OP2 (numpy array_equal True, 57 each); the OP1 VV r array is not equal to OP2's (63 vs 98).",
+    "All seven store sha256 values in the fragment reproduce, including the unchanged pf_active aa623601..1ab08777, magnetics bc8ed1ac..3fdcfa, tf c5549058..7ec0d2 (identical across phases) and OP2 wall 5d26b2cc..8f721f5.",
+    "Re-running the parent converter revision 17eeb037 on the three sha256-verified deck copies reproduced the fragment's before-hashes for OP1 and OP2 pf_passive.nc and OP1 wall.nc byte-for-byte (OP2 wall unchanged); the receipt.json before-hashes differ only because a receipt embeds the converter commit, which the fragment states it captures as a prefix.",
+    "The three source decks hash to provenance.json's recorded values: EQSLE.DATA d2e9f0ac.., geo.in de826dc8.., coil_vv_OP2.dat 0077a024..",
+    "The OP1 receipt records blocks NV vessel (lines 293-355, 63), NV cryostat (356-412, 57), first wall (426-458, 33) and vessel skins (414-425, 12), matching the fragment's line ranges; converter.git_commit 5db8f075 matches source_revision converter-5db8f075.",
+    "Gate reproduced in a scratch extraction of 1d71de9f: 58 passed, EXIT=0; ruff check imas_ambix tests clean (EXIT=0). Negative control reproduced: the declared VV2 mutation makes test_cryostat_loop_carries_57_filaments_in_both_phases fail with KeyError 'CRYOSTAT', EXIT=1.",
+    "DD 4.1.1 confirms wall/description_2d/vessel/unit/annular/outline_inner/r, outline_outer/r, limiter/unit/outline/r, type/index, pf_passive/loop/name and pf_passive/loop/element/name all exist."
+  ],
+  "findings": [
+    {
+      "file": "tests/data/test_jt60sa_machine_map.py",
+      "line": "312",
+      "severity": "follow-on",
+      "text": "The wall half of test_phase_boundary_changes_only_the_vessel_and_wall is near-vacuous: `assert any(key not in shared or key in changed for key in wall_keys)` passes because OP1's four vessel-unit bindings are absent from OP2, so it would still pass if the shared limiter bindings were unchanged. The vessel and cryostat halves of the same test are strong (each vessel key must be in changed, each cryostat key must be byte-equal), but the wall assertion does not pin the limiter change it names."
+    },
+    {
+      "file": "imas_ambix/data/selene_deck.py",
+      "line": "347",
+      "severity": "follow-on",
+      "text": "split_passive_groups classifies the passive block positionally (first resistivity run = vessel, second = cryostat); the deck carries no label. CryostatEnvelopeError refuses a second group that falls inside the vessel's R/Z bounding box, which is a box test rather than a physical containment, so a second vessel material lying wholly outside that box would still be labelled CRYOSTAT. This is a bounded heuristic on a source that happens to separate the two runs; no defect was observed on the real OP1/OP2 data."
+    },
+    {
+      "file": "/work/projects/imas_gpu/jt60sa/machine_description/.convert-1165829",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "The store rewrite left an empty staging directory .convert-1165829 beside OP1/ and OP2/. Harmless, but the fragment's claim that each new file was staged in a sibling temp directory and os.replace'd into place is consistent with a staging dir that was not removed on the success path. Outside this node's write scope."
+    }
+  ],
+  "follow_ons": [
+    "tests/data/test_jt60sa_machine_map.py: the wall assertion in test_phase_boundary_changes_only_the_vessel_and_wall is near-vacuous and should require the shared limiter bindings to be in 'changed'.",
+    "imas_ambix/data/selene_deck.py: split_passive_groups classifies the two passive runs positionally; a deck whose vessel itself had two resistivity runs would rely on the bounding-box envelope refusal alone.",
+    "/work/projects/imas_gpu/jt60sa/machine_description/.convert-1165829: empty staging directory left behind by the store rewrite."
+  ],
+  "gate_logs": {
+    "envelope_guard_probe": {
+      "completed": true,
+      "exit_status": 0,
+      "note": "build_pf_passive called with the real OP1 63-filament vessel and a synthetic filament at R=4.0 Z=0.0 (inside the vessel envelope R=[1.449,4.937] Z=[-3.292,3.292]) raised CryostatEnvelopeError, so the guard is live on real geometry."
+    },
+    "negative_control": {
+      "completed": true,
+      "exit_status": 1,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T080640162342-review-of-jtmm-passive-cryostat-and-wall/review_negative_control.log",
+      "note": "declared mutation (label the cryostat group VV2 rather than CRYOSTAT) re-applied to build_pf_passive; the named test fails with KeyError 'CRYOSTAT'.",
+      "revision": "1d71de9f758a3d118047d194fd1fed4f68670f9d"
+    },
+    "pytest_head_arm_rereun": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T080640162342-review-of-jtmm-passive-cryostat-and-wall/review_gate_head.log",
+      "revision": "1d71de9f758a3d118047d194fd1fed4f68670f9d",
+      "tree": "/tmp/reckon-crew-scratch/r-20261006T080640162342-review-of-jtmm-passive-cryostat-and-wall/head-review-1319503"
+    }
+  },
+  "item_verdicts": {
+    "call_sites": "No production call sites outside the converter: the renamed EqSleDeck fields are used only within selene_deck.py and the tests, and every remaining limiter_and_first_wall reference is on CoilVesselDeck, whose field name is unchanged.",
+    "diff": "Read the full range: selene_deck.py adds split_passive_groups, CryostatEnvelopeError and _require_outside_envelope, rewrites _parse_segments to read the segment kind by column so a trailing date on a labelled row does not hide it and to target by section label, replaces limiter_and_first_wall on EqSleDeck with first_wall plus vessel_skin_inner/outer, extends build_pf_passive to loops VV/CRYOSTAT and build_wall to a limiter unit plus an optional annular vessel unit, and records the new block line ranges (NV vessel, NV cryostat, first wall, vessel skins) in the receipt. jt-60sa.json replaces the VV1/VV2 identifiers with VV/CRYOSTAT, adds OP2's CRYOSTAT binding group and structure assembly, and adds the OP1 wall vessel-unit bindings. The tests gain the cryostat-envelope refusal, the 57-filament cross-phase cryostat equality and the parcel of wall-skin assertions.",
+    "done_when": "The section's own landed text fixes the contract: VV and CRYOSTAT named loops in both phases, the wall limiter as the plasma-facing contour alone, the vessel skins as the annular outlines at wall/description_2d/vessel/unit/annular/outline_inner and outline_outer. Verified against the re-converted store: OP1 pf_passive = VV 63 @7.76e-7 + CRYOSTAT 57 @7.20e-7; OP2 pf_passive = VV 98 @7.20e-7 + CRYOSTAT 57 @7.20e-7; OP1 wall type.index 2 with a 150-point limiter and one vessel unit (annular inner 364 pts, outer 365 pts); OP2 wall type.index 1 with a 51-point limiter and no vessel unit.",
+    "goal": "Plan jt60sa-machine-map section 4 states 'Two converter corrections follow from drawing the OP1 store': the passive block's second resistivity group is the cryostat (not VV2), and by the cryostat-in-both-phases decision both phases must carry the vacuum vessel and the cryostat as separately named loops with the cryostat read from EQSLE.DATA in both; and the OP1 wall's concatenated 638-point polygon must split so the first wall is the limiter unit and the two vessel skins are one annular vessel unit's inner/outer outlines. The diff does exactly this: split_passive_groups separates the two runs, build_pf_passive writes loops VV and CRYOSTAT (vessel from each phase's deck, cryostat from EQSLE.DATA in both), and build_wall writes the limiter unit plus an annular vessel unit whose skins come from the labelled contour runs.",
+    "manifest": "Read at 1d71de9f, manifest.md records status complete, the three commits [5db8f075, 9596fbbc, 1d71de9f], the six changed paths, the gate (58 passed, exit 0; ruff clean), the declared negative control, and the store re-conversion; the changed_paths and tests fields reconcile with what the tree holds.",
+    "write_paths": "The range touches exactly the six declared/expected paths: imas_ambix/data/selene_deck.py, tests/data/test_selene_deck.py, tests/data/test_jt60sa_machine_map.py, imas_ambix/data/machine_maps/jt-60sa.json, docs/evidence/fragments/jt60sa-machine-map/jtmm-passive-cryostat-and-wall.html and the figure passive-groups.png under docs/figures/jt60sa-machine-map/. git diff --stat 17eeb037..1d71de9f shows those six alone. No other module or plan file was touched."
+  },
+  "justifications": {
+    "durability": "Committed, with new tests and two guards (CryostatEnvelopeError and the closed-limiter-contour assertion). Docked two: the phase-boundary test's wall half can pass without the limiter changing, and the positional classification of the two passive runs is protected only by a bounding-box envelope test.",
+    "evidence": "The store was re-read independently through imas.DBEntry at DD 4.1.1 and every quoted measure reproduces: the loop names, filament counts and resistivities, the wall type indices and outline sizes, and all seven sha256 values in the fragment's before/after table. The before column is not merely asserted: re-running the parent converter 17eeb037 on the same sha256-verified decks reproduced OP1 pf_passive 102322ae..c7b6956d, OP1 wall 31404ff7..97a7bd583f and OP2 pf_passive db24219e..3ed3bd2c9d byte-for-byte. Docked one for the receipt before-hashes being captured as prefixes only (they embed the converter commit, which the fragment says) and for the weak wall assertion in the boundary test.",
+    "fit": "Follows the module's existing shape (a build_* per IDS, Provenance on every element, receipt block line ranges) and the DD 4.1.1 wall vessel/annular paths, which were confirmed present in the dictionary.",
+    "goal_fidelity": "Both corrections the section names are implemented and the store proves them: the second resistivity run is written as CRYOSTAT, both phases carry vessel and cryostat as separate named loops with the cryostat read from EQSLE.DATA in both, and the OP1 wall is a limiter unit plus an annular vessel unit rather than one concatenated polygon.",
+    "reuse": "Reuses _resistivity_blocks, _wall_outline, the Segment/Provenance machinery and the existing catalogue binding and structure-assembly schema; the only new mechanism is the envelope refusal, which the section's own decision calls for.",
+    "scope_discipline": "The diff is confined to the six declared paths and changes no rule, unit or transform outside the passive/wall writer and its catalogue entries and tests."
+  },
+  "node": "review-of-jtmm-passive-cryostat-and-wall",
+  "prior_review": null,
+  "project": "imas-ambix",
+  "review_run_id": "r-20261006T080640162342-review-of-jtmm-passive-cryostat-and-wall",
+  "review_scope": "Whole of node jtmm-passive-cryostat-and-wall (three commits, base 17eeb037 to head 1d71de9f): the SELENE converter now parses the passive block into two resistivity runs and writes them as the named pf_passive loops VV and CRYOSTAT, refusing to call a group CRYOSTAT unless every filament lies outside the vessel group's R/Z envelope; the wall's trailing contour table is split by label so the first wall becomes the limiter unit and the two vessel skins become the annular vessel unit's outline_inner/outline_outer. The catalogue binds VV and CRYOSTAT in both phase sets and the OP1 wall's vessel unit; both phases were re-converted from the sha256-verified source copies. Read at 1d71de9f: the diff, both test modules, jt-60sa.json, and the evidence fragment. The gate and a declared negative control were re-run in a scratch extraction of the reviewed head under TMPDIR, never in the reviewed tree; the store's IDS were read back independently through imas.DBEntry at DD 4.1.1 and the pre-change .nc hashes reproduced by re-running the parent converter 17eeb037 on the same decks.",
+  "reviewed_base_sha": "17eeb03737ff321053662d421ab48b6a1ce473de",
+  "reviewed_commits": [
+    "1d71de9f758a3d118047d194fd1fed4f68670f9d",
+    "9596fbbcd38b7c93581a1b9f00331a4914cfb47f",
+    "5db8f075d96a7ccd0b93a4b1f6961cf353bb2b23"
+  ],
+  "reviewed_head_sha": "1d71de9f758a3d118047d194fd1fed4f68670f9d",
+  "reviewed_run_id": "r-20261006T073451752408-jtmm-passive-cryostat-and-wall",
+  "reviewer": "review-of-jtmm-passive-cryostat-and-wall",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T08:14:57.463669+00:00",
+  "total": 115,
+  "verification_logs": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T080640162342-review-of-jtmm-passive-cryostat-and-wall/review_gate_head.log",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T080640162342-review-of-jtmm-passive-cryostat-and-wall/review_negative_control.log",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T080640162342-review-of-jtmm-passive-cryostat-and-wall/review_ruff.log"
+  ]
+}

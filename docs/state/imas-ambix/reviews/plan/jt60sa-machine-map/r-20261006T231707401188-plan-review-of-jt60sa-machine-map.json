@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T23:22:23.352Z",
+  "dispatched_at": "2026-10-06T23:17:15Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/eddb.py:210",
+      "id": "duplicate_owner-1",
+      "reason": "the section must name the grid record's reader in `eddb.py` (or state that the loader reuses one), so the store keeps a single reader/writer owner.",
+      "text": "\u00a76 adds a grid record writer to `eddb.py` \"beside `write_channel`\" under the shared `{shot}.zarr/{category}/{name}` layout, but names no symmetric grid reader: `eddb.py` owns the store and reads every channel through `read_channel` (eddb.py:280), yet the SELENE loader is only said to \"turn the cached record into an `EfitLabels`\" with no reader named, so the plan can land a store whose writer lives in `eddb.py` while its reader opens zarr directly \u2014 the exact second-owner drift `channel_path` was introduced to prevent",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/eddb_remote.py:121",
+      "id": "interface_budget-1",
+      "reason": "the section should name the added `BatchResult` field and its header section, so the shared envelope's change is explicit rather than implied.",
+      "text": "\u00a76's EQDB refusal is \"carried in the same `BatchResult` beside the channel refusals\" and `encode_batch`/`decode_batch` gain the EQDB framing, but `BatchResult` today is exactly `records: list[ChannelRecord]` + `refusals: list[ChannelRefusal]` (eddb_remote.py:121-131) and its docstring says the two fields partition the requests, so the third refusal kind forces a third field and a new envelope section the section does not name while asserting it \"retires nothing\"; with the week's four families all reading 0, this is the one place the section adds shared-contract surface without accounting for it",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "b6328c8b25cf1765ae09606a491ca84090987fb9a0456da3f9b7a1a2df956588",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 262,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T23:23:32.717842+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "interface_budget-1",
+      "reason": "",
+      "when": "2026-10-06T23:23:51.209396+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T23:23:32.717842+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T23:23:51.209396+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v262.json",
+  "review_run_id": "r-20261006T231707401188-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "dfbf73b9a04320da441d8d4ec6014b0270af8e4f",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the additions extend deep modules behind their existing interfaces (`eddb_remote`'s extractor dispatch, `eddb`'s single store, `transform_engine`'s resolver, `spine_bench`'s shot-set/parity tables) rather than fanning complexity across new shallow wrappers; the plan's own \u00a76 rejects the two thin alternatives (a parallel EDDB reader, a re-derived field-per-ampere relation).",
+    "duplicate_owner": "a finding \u2014 the store's write owner is named (`eddb.py channel_path` / `write_channel`) but the grid record's read side names no owner, so the EQDB store risks a second reader beside `eddb.py read_channel`.",
+    "interface_budget": "a finding \u2014 supplied counts public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a76's EQDB addition states what it retires but does not name the added shared-structure surface on `BatchResult`/the batch envelope, only the new record type.",
+    "reuse_search": "pass \u2014 the open sections name the machinery they extend and every citation I opened resolves: COCOS factors via `cocos.py:63 canonical_factor`, the probe-angle supplier via `description_reader.py:253` `read_geometry_table`'s `probe_angle_source` branch, the machine registry via `machine_identity.py:145 default_registry`, the SELENE-comparison seat via `efit_referee.py:120 read_efit_geometry(loader=...)` and `equilibrium_labels.py:465 build_geometry_from_arrays`; no subsystem is rebuilt that already exists.",
+    "thin_wrapper": "pass \u2014 the one wrapper-shaped proposal, \u00a76's EQDB request/record types beside `ChannelRequest`/`ChannelRecord`, states why the channel types cannot be widened (an EQDB request is keyed `(shot, record)` and answers a 2D psi grid, not a `(channel, time)` array) and keeps the extractor's refusal and `SshTransport` contract, so it is an extension of the owner rather than a parallel path."
+  },
+  "section_digests": {
+    "_document": "6c9fce456e952b00ce33548944718af59d6fb116c0739501f2daf9af22a5e5e8",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "5253ff07c75d9c1a3bb2cd1ff91a6278d3535fee40f693bc99f54d076b185860",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "a72c20ddfe0ddfdbb53d2722a2abd11d490a7cf80f36a02d82ea30d7b01c09d7",
+    "s7": "f62b1b71de3f5287b7d20834ef9a0dafc94f9d0a7c954bc69e5032845f6e972f",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T23:23:15.660130+00:00"
+}

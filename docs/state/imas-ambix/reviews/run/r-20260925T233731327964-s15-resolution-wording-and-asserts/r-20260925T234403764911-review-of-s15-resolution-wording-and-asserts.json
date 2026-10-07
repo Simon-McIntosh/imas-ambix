@@ -1,0 +1,58 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "local",
+  "call_site_count": 7,
+  "call_sites": [
+    "imas_ambix/agent/router.py:1261",
+    "imas_ambix/agent/cli.py:3302",
+    "imas_ambix/agent/cli.py:3446",
+    "imas_ambix/agent/cli.py:3487",
+    "imas_ambix/agent/cli.py:3535",
+    "imas_ambix/agent/cli.py:1794",
+    "imas_ambix/agent/slurm.py:1042"
+  ],
+  "completed_at": "2026-09-25T23:49:48.400Z",
+  "dispatched_at": "2026-09-25T23:44:09Z",
+  "findings": [
+    {
+      "file": "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "line": "1583",
+      "text": "the record states that the two repaired tests would have passed an unexpanded path, but both also carried an assertion against the emitted output -- the line this diff removes -- so an unexpanded path reddened them and only two assertions within them were unfailable, as the previous node's recorded negative control found; an overstated defect overstates the repair and misleads the next reader who weighs whether the tests were ever load-bearing."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 7 production call site(s)",
+    "diff": "read commit by commit against ca089acf -- 95b92478 states the site step in the cli.py and slurm.py wording, 56bb9100 reflows the slurm.py comment onto one source line, abd9502b adds the plan record -- and every code hunk sits inside a docstring, a help string or a comment, so the claim of no behaviour change in imas_ambix/ holds.",
+    "done_when": "the done-when names the four-source order in the help strings, docstrings and comments, the two repaired assertions, the new foreground-router test, a grep listing of the hits and the declared gate; I re-ran that gate at abd9502b (58 passed, exit 0) and reproduced the grep myself at 5 hits in cli.py and 2 in slurm.py, each inside an order statement naming the site step.",
+    "goal": "the goal is that every statement of the gate control resolution order names the site default and that the gate-path tests can fail; the seven statements at imas_ambix/agent/cli.py:1737,3295,3417,3476,3508 and imas_ambix/agent/slurm.py:988,1049 now each name the site control path as the step before the lane sibling, so the wording clause holds at head abd9502b.",
+    "manifest": "read at /home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T233731327964-s15-resolution-wording-and-asserts/manifest.md, status complete; it states the gate command and its 58-passed result, the negative control's first line and its byte-identical restoration, and changed_paths matching the diff I read.",
+    "write_paths": "the declared paths are imas_ambix/agent/cli.py, imas_ambix/agent/slurm.py, tests/test_agent_gate_control_path.py, tests/test_agent_gate_site_default.py, docs/evidence/archive/local-lane-admission-control-landed.html, docs/figures/local-lane-admission-control and docs/plans/local-lane-admission-control.html; git diff --numstat ca089acf..abd9502b lists exactly those seven entries and no other path."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_gate_control_path.py:496 reads the emitted export line back instead of a value the test derived, so restoring the regression at imas_ambix/agent/cli.py:1759 reddens it, and the declared negative control reddened the new test at tests/test_agent_gate_control_path.py:530 with PosixPath('~/ambix-gate.json') not absolute.",
+    "evidence": "the declared gate exits 0 at 58 passed under my own re-run at abd9502b and the negative control log's first line repeats the declared mutation verbatim, but the evidence record's account of the defect it repaired at docs/evidence/archive/local-lane-admission-control-landed.html:1583 overstates it.",
+    "fit": "the corrected help strings keep the shape of the ones they replace at imas_ambix/agent/cli.py:1734 and the slurm.py comment stays appended to the unset line at :1047, and the naming checks over the changed files find no plan label and no changelog prose.",
+    "goal_fidelity": "the plan paragraph at docs/plans/local-lane-admission-control.html:867 named the stale resolution-order wording and the un-failable assertions, and every statement of the order I could reach at imas_ambix/agent/cli.py:1737 and imas_ambix/agent/slurm.py:988 now carries the site step.",
+    "scope_discipline": "git diff --numstat ca089acf..abd9502b lists exactly the seven declared entries, and tests/test_agent_gate_control_path.py:93 and :152 set the site value empty so the concurrently-owned sibling assertions stay satisfiable."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the goal is that every statement of the gate control resolution order names the site default and that the gate-path tests can fail; the seven statements at imas_ambix/agent/cli.py:1737,3295,3417,3476,3508 and imas_ambix/agent/slurm.py:988,1049 now each name the site control path as the step before the lane sibling, so the wording clause holds at head abd9502b.\nVERDICT done_when: the done-when names the four-source order in the help strings, docstrings and comments, the two repaired assertions, the new foreground-router test, a grep listing of the hits and the declared gate; I re-ran that gate at abd9502b (58 passed, exit 0) and reproduced the grep myself at 5 hits in cli.py and 2 in slurm.py, each inside an order statement naming the site step.\nVERDICT write_paths: the declared paths are imas_ambix/agent/cli.py, imas_ambix/agent/slurm.py, tests/test_agent_gate_control_path.py, tests/test_agent_gate_site_default.py, docs/evidence/archive/local-lane-admission-control-landed.html, docs/figures/local-lane-admission-control and docs/plans/local-lane-admission-control.html; git diff --numstat ca089acf..abd9502b lists exactly those seven entries and no other path.\nVERDICT manifest: read at /home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T233731327964-s15-resolution-wording-and-asserts/manifest.md, status complete; it states the gate command and its 58-passed result, the negative control's first line and its byte-identical restoration, and changed_paths matching the diff I read.\nVERDICT diff: read commit by commit against ca089acf -- 95b92478 states the site step in the cli.py and slurm.py wording, 56bb9100 reflows the slurm.py comment onto one source line, abd9502b adds the plan record -- and every code hunk sits inside a docstring, a help string or a comment, so the claim of no behaviour change in imas_ambix/ holds.\nCALL_SITES: imas_ambix/agent/router.py:1261, imas_ambix/agent/cli.py:3302, imas_ambix/agent/cli.py:3446, imas_ambix/agent/cli.py:3487, imas_ambix/agent/cli.py:3535, imas_ambix/agent/cli.py:1794, imas_ambix/agent/slurm.py:1042\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: the plan paragraph at docs/plans/local-lane-admission-control.html:867 named the stale resolution-order wording and the un-failable assertions, and every statement of the order I could reach at imas_ambix/agent/cli.py:1737 and imas_ambix/agent/slurm.py:988 now carries the site step.\nSCORE evidence: 18\nJUSTIFICATION evidence: the declared gate exits 0 at 58 passed under my own re-run at abd9502b and the negative control log's first line repeats the declared mutation verbatim, but the evidence record's account of the defect it repaired at docs/evidence/archive/local-lane-admission-control-landed.html:1583 overstates it.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --numstat ca089acf..abd9502b lists exactly the seven declared entries, and tests/test_agent_gate_control_path.py:93 and :152 set the site value empty so the concurrently-owned sibling assertions stay satisfiable.\nSCORE durability: 19\nJUSTIFICATION durability: tests/test_agent_gate_control_path.py:496 reads the emitted export line back instead of a value the test derived, so restoring the regression at imas_ambix/agent/cli.py:1759 reddens it, and the declared negative control reddened the new test at tests/test_agent_gate_control_path.py:530 with PosixPath('~/ambix-gate.json') not absolute.\nSCORE fit: 20\nJUSTIFICATION fit: the corrected help strings keep the shape of the ones they replace at imas_ambix/agent/cli.py:1734 and the slurm.py comment stays appended to the unset line at :1047, and the naming checks over the changed files find no plan label and no changelog prose.\nFINDING docs/evidence/archive/local-lane-admission-control-landed.html:1583 the record states that the two repaired tests would have passed an unexpanded path, but both also carried an assertion against the emitted output -- the line this diff removes -- so an unexpanded path reddened them and only two assertions within them were unfailable, as the previous node's recorded negative control found; an overstated defect overstates the repair and misleads the next reader who weighs whether the tests were ever load-bearing.",
+  "review_run_id": "r-20260925T234403764911-review-of-s15-resolution-wording-and-asserts",
+  "reviewed_base_sha": "ca089acfe5ce357341c3fdb912fb946cceb9617c",
+  "reviewed_head_sha": "abd9502b8a00f7234adfab85f9527e8b98bf0c77",
+  "reviewed_run_id": "r-20260925T233731327964-s15-resolution-wording-and-asserts",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-25T23:48:58.332491+00:00",
+  "total": 97
+}

@@ -1,0 +1,80 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived from this review's own two arms of the reviewed node's declared gate, because the reviewed manifest arms no baseline_suite or after_suite: the base arm (3affc34b in a scratch tree carrying the reviewed head's test file) fails the four new node ids, 4 failed 76 passed EXIT=1 in review-base-arm.log, and the head arm (reviewed head f7ad1f81) is clean, 80 passed EXIT=0 in review-head-arm.log, so the reviewed run adds no failing test; the reviewed node's own gate log gate-48a908a8.log (80 passed, EXIT=0) corroborates the head limb.",
+  "after_suite": {
+    "command": "pytest no:cacheprovider on the four telemetry test files; the serving-interpreter guard; ruff check imas_ambix tests (at the reviewed head, in a scratch tree)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T132245252316-review-of-srw-tiers-carry-leaf-counts-and-peaks/review-head-arm.log",
+    "revision": "f7ad1f814e177c264eb4d9f91b615b75fab7842f"
+  },
+  "baseline_suite": {
+    "command": "pytest no:cacheprovider on the four telemetry test files (at the base revision, in a scratch tree carrying the reviewed head's test file)",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 4,
+    "failure_ids": [
+      "tests/test_telemetry_compaction_leaves.py::test_a_gauge_null_in_most_of_a_window_reports_only_its_observed_count",
+      "tests/test_telemetry_compaction_leaves.py::test_a_non_peak_gauge_carries_a_count_but_no_extremes",
+      "tests/test_telemetry_compaction_leaves.py::test_a_kv_spike_survives_as_the_windows_maximum_through_the_tier_chain",
+      "tests/test_telemetry_compaction_leaves.py::test_re_compaction_sums_leaf_counts_rather_than_taking_the_latest"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T132245252316-review-of-srw-tiers-carry-leaf-counts-and-peaks/review-base-arm.log",
+    "revision": "3affc34b3a707a10cfc7087720370e677e5efdf8"
+  },
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/agent/serving_receipts.py:415",
+    "imas_ambix/agent/serving_receipts.py:545",
+    "imas_ambix/agent/serving_receipts.py:546",
+    "imas_ambix/agent/serving_receipts.py:687"
+  ],
+  "completed_at": "2026-09-29T14:02:18.204Z",
+  "dispatched_at": "2026-09-29T13:22:53Z",
+  "findings": [],
+  "follow_ons": [
+    "legacy chaining fallback: a row compacted before this change carries no obs.leaves, so chaining it counts one observation per row, unpinned by a test",
+    "the index walker ingests obs.leaves.n and peak min/max as measurements (telemetry_index.py measure_row walks the whole row)",
+    "carried forward from the plan: the index ingests raw and compacted files into one sample table with no query distinguishing them"
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 4 production call site(s)",
+    "diff": "the change is coherent and minimal -- _Mean gains a count and a peak flag beside its weighted sum; _merge threads one declared-stats mapping keyed by the same dotted path _leaf_stats writes, lists indexed so a per-card leaf keeps its own count; _declared_leaf_stats accepts a row's block only where n is a true int and returns an empty mapping for a raw row, whose every present leaf counts once; no schema, query or retention code is touched.",
+    "done_when": "the declared tests are red without the change and green with it -- at the reviewed base 3affc34b carrying the head's own test file the four new tests fail (4 failed, 76 passed, EXIT=1, review-base-arm.log), at the reviewed head the declared gate is green (80 passed EXIT=0, the serving-interpreter guard 1 passed 8 deselected EXIT=0, ruff All checks passed EXIT=0, review-head-arm.log); the run's own negative control reddens all four tests with the declared count-summing mutation, and this review's own scratch mutation of _Mean.add reproduces exactly that (4 failed, restored by cmp, independent-negative-control.log).",
+    "goal": "delivered on every element the node declared -- each gauge leaf reports how many source samples observed it (a gauge null in 9 of 12 samples reports n=3 beside obs.samples 12), the five peak-read gauges carry min and max (a KV spike to 1.0 in a 0.4 minute is max 1.0, count 12, mean 0.45 in both the raw-to-hour and raw-to-minute-to-hour rows), and re-compaction sums counts and folds extremes (two minutes of six observations each give minute counts [6, 6] and an hour count of 12 direct and chained); code at imas_ambix/agent/telemetry_store.py:163 (PEAK_LEAF_NAMES), 207-233 (_Mean.add), 257 (_is_peak_leaf), 380-437 (per-leaf stats), 741-767 (declared stats read back and obs.leaves written), tests at tests/test_telemetry_compaction_leaves.py:49-133.",
+    "manifest": "the reviewed manifest records both commits with conventional subjects, bodies and no AI trailer, the three changed paths, each gate command with its log, and a negative-control log whose first line repeats the node's declared mutation; it arms no baseline_suite or after_suite, so a reader annotating this review from that manifest alone reads the added-failure count as unmeasured, and this review supplies the count from its own two arms, named under added_failures_basis.",
+    "write_paths": "the diff stays inside the reviewed node's declared paths -- git diff --stat over the range is 3 files, 388 insertions, 24 deletions: the two declared code and test paths (imas_ambix/agent/telemetry_store.py, tests/test_telemetry_compaction_leaves.py) plus the declared evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-tiers-carry-leaf-counts-and-peaks.html, with the declared figures path unused -- and the reviewed worktree reads clean at f7ad1f81 with no trace of the negative-control scratch edit."
+  },
+  "justifications": {
+    "durability": "the counts and extremes are pinned through both tier chains and the peak set is named once (imas_ambix/agent/telemetry_store.py:163), so the record keeps what the finer tier measured; but the legacy path is unpinned -- a compacted row written before this change declares no leaves block, so chaining it into the hour counts one observation per source row rather than per raw sample (_declared_leaf_stats returns an empty mapping and _merge falls back to count=1, imas_ambix/agent/telemetry_store.py:415-437, 741-750), and no test exercises that fallback, which existing telemetry on disk will pass through.",
+    "evidence": "every claim in the reviewed fragment is reproduced independently here -- the four new tests are red at the base revision carrying the head's test file (4 failed, 76 passed, EXIT=1), green at the reviewed head (80 passed; guard 1 passed; ruff exit 0), and the count-summing guard is falsified both by the run's own negative control and by this review's own scratch mutation of _Mean.add, which reddens all four tests and was restored by cmp; the fragment's asserted figures match the tests that carry them.",
+    "fit": "the change follows the module's existing shapes rather than adding machinery -- the per-leaf record rides the existing obs block beside samples and seconds, the peak set sits beside COUNTER_LEAF_NAMES with the same name-based classification, _Mean extends its own accumulator rather than introducing a parallel structure, and the dotted path the writer produces is exactly the path _merge already keys values on, so writer and reader cannot drift.",
+    "goal_fidelity": "each element of the declared goal is delivered and reached from production paths -- the recorder's tick compacts raw to minute and minute to hour (imas_ambix/agent/serving_receipts.py:545-546 through compact_record into compact_file at imas_ambix/agent/serving_receipts.py:415), which is the chain the counts and extremes must survive, and the packaged CLI reaches the same compaction at imas_ambix/agent/serving_receipts.py:687.",
+    "scope_discipline": "the diff touches only the reviewed node's declared paths (3 files, 388 insertions, 24 deletions: the two declared code and test paths plus the declared fragment), the reviewed worktree is clean at the reviewed head, and both commits carry conventional subjects with bodies and no attribution line."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Review of run r-20260929T124929797725-srw-tiers-carry-leaf-counts-and-peaks (plan imas-ambix:serving-record-warehouse, node srw-tiers-carry-leaf-counts-and-peaks), base 3affc34b3a707a10cfc7087720370e677e5efdf8 -> head f7ad1f814e177c264eb4d9f91b615b75fab7842f (feature 48a908a8, evidence f7ad1f81). Judged from artefacts only: the diff, the gate log, the negative-control log, and an independent two-arm re-run of the reviewed node's own declared gate by this review.\n\nVERDICT goal: delivered on every element the node declared -- imas_ambix/agent/telemetry_store.py:207-233 (_Mean.add) counts one observation per raw sample and folds a compacted row's declared count by sum and its declared extremes by min/max; imas_ambix/agent/telemetry_store.py:163 names the five peak-read gauges and imas_ambix/agent/telemetry_store.py:257 classifies them by leaf name, so each carries its window's min and max; imas_ambix/agent/telemetry_store.py:380-437 writes both to obs.leaves keyed by the same dotted path _merge reads back at imas_ambix/agent/telemetry_store.py:741-750, so a second compaction level sums and folds rather than recounting; the measured figures are the declared ones -- a gauge null in 9 of 12 samples reports n=3 beside obs.samples 12, a KV spike to 1.0 in a 0.4 minute reaches max 1.0 with count 12 and mean 0.45 in both the raw-to-hour and raw-to-minute-to-hour rows, and two minutes of six observations each give minute counts [6, 6] and an hour count of 12 direct and chained (tests/test_telemetry_compaction_leaves.py:49-133).\n\nVERDICT done_when: the change is what makes the declared tests pass -- at the reviewed base 3affc34b in a scratch tree carrying the head's own test file the four new tests fail (4 failed, 76 passed, EXIT=1, review-base-arm.log), at the reviewed head the declared gate is green (80 passed EXIT=0, the serving-interpreter guard 1 passed 8 deselected EXIT=0, ruff All checks passed EXIT=0, review-head-arm.log); the run's own negative control reddens all four tests with the declared count-summing mutation, and this review's own scratch mutation of _Mean.add reproduces exactly that (4 failed, restored by cmp, independent-negative-control.log).\n\nVERDICT write_paths: the diff stays inside the reviewed node's declared paths -- git diff --stat over the range is 3 files, 388 insertions, 24 deletions: the two declared code and test paths (imas_ambix/agent/telemetry_store.py, tests/test_telemetry_compaction_leaves.py) plus the declared evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-tiers-carry-leaf-counts-and-peaks.html, with the declared figures path unused -- and the reviewed worktree reads clean at f7ad1f81 with no trace of the negative-control scratch edit.\n\nVERDICT manifest: the reviewed manifest records both commits with conventional subjects, bodies and no AI trailer, the three changed paths, each gate command with its log, and a negative-control log whose first line repeats the node's declared mutation; it arms no baseline_suite or after_suite, so a reader annotating this review from that manifest alone reads the added-failure count as unmeasured -- this review supplies the count from its own two arms and names them under added_failures_basis.\n\nVERDICT diff: the change is coherent and minimal -- _Mean gains a count and a peak flag beside its weighted sum; _merge threads one declared-stats mapping keyed by the same dotted path _leaf_stats writes, lists indexed so a per-card leaf keeps its own count; _declared_leaf_stats accepts a row's block only where n is a true int and returns an empty mapping for a raw row, whose every present leaf counts once; no schema, query or retention code is touched.\n\nCALL_SITES: imas_ambix/agent/serving_receipts.py:415, imas_ambix/agent/serving_receipts.py:545, imas_ambix/agent/serving_receipts.py:546, imas_ambix/agent/serving_receipts.py:687\n\nSCORE goal_fidelity: 20\nSCORE evidence: 20\nSCORE scope_discipline: 20\nSCORE durability: 19\nSCORE fit: 20\n\nJUSTIFICATION goal_fidelity: each element of the declared goal is delivered and reached from production paths -- the recorder's tick compacts raw to minute and minute to hour (imas_ambix/agent/serving_receipts.py:545-546 through compact_record into compact_file at imas_ambix/agent/serving_receipts.py:415), which is the chain the counts and extremes must survive, and the packaged CLI reaches the same compaction at imas_ambix/agent/serving_receipts.py:687.\n\nJUSTIFICATION evidence: every claim in the reviewed fragment is reproduced independently here -- the four new tests are red at the base revision carrying the head's test file (4 failed, 76 passed, EXIT=1), green at the reviewed head (80 passed; guard 1 passed; ruff exit 0), and the count-summing guard is falsified both by the run's own negative control and by this review's own scratch mutation of _Mean.add, which reddens all four tests and was restored by cmp.\n\nJUSTIFICATION scope_discipline: the diff touches only the reviewed node's declared paths (3 files, 388 insertions, 24 deletions: the two declared code and test paths plus the declared fragment), the reviewed worktree is clean at the reviewed head, and both commits carry conventional subjects with bodies and no attribution line.\n\nJUSTIFICATION durability: the counts and extremes are pinned through both tier chains and the peak set is named once (imas_ambix/agent/telemetry_store.py:163), so the record keeps what the finer tier measured; but the legacy path is unpinned -- a compacted row written before this change declares no leaves block, so chaining it into the hour counts one observation per source row rather than per raw sample, and no test exercises that fallback, which existing telemetry on disk will pass through.\n\nJUSTIFICATION fit: the change follows the module's existing shapes rather than adding machinery -- the per-leaf record rides the existing obs block beside samples and seconds, the peak set sits beside COUNTER_LEAF_NAMES with the same name-based classification, _Mean extends its own accumulator rather than introducing a parallel structure, and the dotted path the writer produces is exactly the path _merge already keys values on, so writer and reader cannot drift.",
+  "review_run_id": "r-20260929T132245252316-review-of-srw-tiers-carry-leaf-counts-and-peaks",
+  "reviewed_base_sha": "3affc34b3a707a10cfc7087720370e677e5efdf8",
+  "reviewed_head_sha": "f7ad1f814e177c264eb4d9f91b615b75fab7842f",
+  "reviewed_run_id": "r-20260929T124929797725-srw-tiers-carry-leaf-counts-and-peaks",
+  "reviewer": "review-of-srw-tiers-carry-leaf-counts-and-peaks",
+  "scores": {
+    "durability": 19,
+    "evidence": 20,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T13:43:39.398792+00:00",
+  "total": 99
+}

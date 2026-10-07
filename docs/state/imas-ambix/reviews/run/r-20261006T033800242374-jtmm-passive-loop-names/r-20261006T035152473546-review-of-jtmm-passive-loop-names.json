@@ -1,0 +1,67 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest (an implement-role node) names no baseline_suite or after_suite gate log, so the production read-time annotation yields an unmeasured count; I derived the pair myself by running the reviewed node's own gate, pytest tests/data/test_selene_deck.py, in a scratch tree at base 95f80f71 (12 passed) and at head df77f9a0 (18 passed); the node-id set difference is empty, so the run added 0 failing tests",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -n 4 tests/data/test_selene_deck.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T035152473546-review-of-jtmm-passive-loop-names/logs/review_head_suite.log",
+    "revision": "df77f9a0f496dd990874b192059c674ce490685b"
+  },
+  "base_log_revision": "95f80f7124602128682f631bcc1c824dd4ff7fd3",
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -n 4 tests/data/test_selene_deck.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T035152473546-review-of-jtmm-passive-loop-names/logs/review_base_suite.log",
+    "revision": "95f80f7124602128682f631bcc1c824dd4ff7fd3"
+  },
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T04:05:13.115Z",
+  "dispatched_at": "2026-10-06T03:52:05Z",
+  "findings": [],
+  "head_log_revision": "df77f9a0f496dd990874b192059c674ce490685b",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "Read commit by commit against base 95f80f71; 5c255d8d adds three name assignments plus six tests, df77f9a0 adds the evidence fragment, both inside scope.",
+    "done_when": "The done-when names tests/data/test_selene_deck.py and the receipted re-conversion; the manifest records the gate at 18 passed EXIT=0, and I reproduced it independently at base 95f80f71 (12 passed) and head df77f9a0 (18 passed), reading back the OP1/OP2 names and element counts.",
+    "goal": "The node names every struct-array entry the SELENE deck converter writes and re-converts the store; imas_ambix/data/selene_deck.py:547, :575 and :731 assign the circuit, loop and tf-coil name leaves, and the live store read-back at DD 4.1.1 returns loops VV1/VV2, tf coil TF1 and pf_active coils/circuits CS1..FPPC_DOWN.",
+    "manifest": "Read; it records the gate command and its 18-passed result, the negative-control log, the read-back artifacts and the sha256-verified source provenance.",
+    "write_paths": "Read the manifest's four declared paths; the diff touches imas_ambix/data/selene_deck.py, tests/data/test_selene_deck.py and docs/evidence/fragments/jt60sa-machine-map/jtmm-passive-loop-names.html, every one inside them."
+  },
+  "justifications": {
+    "durability": "removing the loop name assignment reddens tests/data/test_selene_deck.py on pf_passive/loop[0] and on the deck-order test, and the expected-name assertions compare against literal VV1/CS1/TF1 rather than the code's own output.",
+    "evidence": "the manifest's gate log records 18 passed EXIT=0 for tests/data/test_selene_deck.py and the negative-control log reddens 2 tests on pf_passive/loop[0], both of which I reproduced from scratch trees at base and head.",
+    "fit": "the new names follow the module's existing MP1/FL1 convention at imas_ambix/data/selene_deck.py:594,603 and introduce no plan or ticket identifier.",
+    "goal_fidelity": "imas_ambix/data/selene_deck.py:547, :575 and :731 write the name leaves, and reading the live store back at DD 4.1.1 returns VV1/VV2, TF1, CS1..FPPC_DOWN, MP1..MP17 and FL1..FPPC as named.",
+    "reuse": "the naming extends the converter's own pattern and the sweep test reuses imas.ids_metadata.IDSDataType rather than a hand-maintained array list; a search of imas_ambix found no other owner of struct-array naming.",
+    "scope_discipline": "the three changed paths are exactly the declared write paths in the manifest, and the re-conversion writes only under machine_description/OP1 and /OP2."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The node names every struct-array entry the SELENE deck converter writes and re-converts the store; imas_ambix/data/selene_deck.py:547, :575 and :731 assign the circuit, loop and tf-coil name leaves, and the live store read-back at DD 4.1.1 returns loops VV1/VV2, tf coil TF1 and pf_active coils/circuits CS1..FPPC_DOWN.\nVERDICT done_when: The done-when names tests/data/test_selene_deck.py and the receipted re-conversion; the manifest records the gate at 18 passed EXIT=0, and I reproduced it independently at base 95f80f71 (12 passed) and head df77f9a0 (18 passed), reading back the OP1/OP2 names and element counts.\nVERDICT write_paths: Read the manifest's four declared paths; the diff touches imas_ambix/data/selene_deck.py, tests/data/test_selene_deck.py and docs/evidence/fragments/jt60sa-machine-map/jtmm-passive-loop-names.html, every one inside them.\nVERDICT manifest: Read; it records the gate command and its 18-passed result, the negative-control log, the read-back artifacts and the sha256-verified source provenance.\nVERDICT diff: Read commit by commit against base 95f80f71; 5c255d8d adds three name assignments plus six tests, df77f9a0 adds the evidence fragment, both inside scope.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/data/selene_deck.py:547, :575 and :731 write the name leaves, and reading the live store back at DD 4.1.1 returns VV1/VV2, TF1, CS1..FPPC_DOWN, MP1..MP17 and FL1..FPPC as named.\nSCORE evidence: 19\nJUSTIFICATION evidence: the manifest's gate log records 18 passed EXIT=0 for tests/data/test_selene_deck.py and the negative-control log reddens 2 tests on pf_passive/loop[0], both of which I reproduced from scratch trees at base and head.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the three changed paths are exactly the declared write paths in the manifest, and the re-conversion writes only under machine_description/OP1 and /OP2.\nSCORE durability: 19\nJUSTIFICATION durability: removing the loop name assignment reddens tests/data/test_selene_deck.py on pf_passive/loop[0] and on the deck-order test, and the expected-name assertions compare against literal VV1/CS1/TF1 rather than the code's own output.\nSCORE fit: 19\nJUSTIFICATION fit: the new names follow the module's existing MP1/FL1 convention at imas_ambix/data/selene_deck.py:594,603 and introduce no plan or ticket identifier.\nSCORE reuse: 19\nJUSTIFICATION reuse: the naming extends the converter's own pattern and the sweep test reuses imas.ids_metadata.IDSDataType rather than a hand-maintained array list; a search of imas_ambix found no other owner of struct-array naming.\n",
+  "review_run_id": "r-20261006T035152473546-review-of-jtmm-passive-loop-names",
+  "reviewed_base_sha": "95f80f7124602128682f631bcc1c824dd4ff7fd3",
+  "reviewed_head_sha": "df77f9a0f496dd990874b192059c674ce490685b",
+  "reviewed_run_id": "r-20261006T033800242374-jtmm-passive-loop-names",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T04:02:57.635830+00:00",
+  "total": 115
+}

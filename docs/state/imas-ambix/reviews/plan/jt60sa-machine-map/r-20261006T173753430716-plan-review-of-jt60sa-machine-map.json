@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T17:45:48.744Z",
+  "dispatched_at": "2026-10-06T17:38:01Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/cocos_convention.py:455",
+      "id": "duplicate_owner-1",
+      "reason": "the plan must retire the pol_angle_like (and tor_angle_like) entry, or state in the table that it is a historical MAST migration figure no reader may consult, because leaving a -1.0 factor for a class the engine deliberately treats as factorless is a duplicate owner a future reader or test will reconcile wrongly.",
+      "text": "MAST_TO_COCOS_17_FACTORS keeps pol_angle_like: -1.0 beside the new engine branch that applies no COCOS-digit factor for pol_angle_like (transform_engine.py:456, taking sense only from sign_convention), so ambix now states the pol_angle_like factor in two places that disagree; the entry's runtime owner does not exist \u2014 nova's TRANSFORMATIONS (nova/io/cocos.py:87) holds only the six classes psi_like/ip_like/b0_like/q_like/dodpsi_like/one_like, so canonical_factor would refuse pol_angle_like, and the table's agreement test already excludes it from the cross-check loop (tests/data/test_cocos_convention.py:202-210) while still asserting the -1.0 as committed data (tests/data/test_cocos_convention.py:197); tor_angle_like: 1.0 at cocos_convention.py:454 has the same no-owner shape",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "8b3240869772435bf8621844b04e558c6133e0cbb97f7c08a81a749c5a279fa9",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 192,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T17:46:43.763944+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T17:46:43.763944+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v192.json",
+  "review_run_id": "r-20261006T173753430716-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "3a9c5215805d9c3f7a67b94fc27d19f6e87ff67d",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new behaviour lands behind interfaces smaller than",
+    "duplicate_owner": "a finding \u2014 the plan changes the transform engine to apply",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0,",
+    "reuse_search": "pass \u2014 the plan searched the two codebases it names and its",
+    "thin_wrapper": "pass \u2014 every proposed layer is a documented extension of an"
+  },
+  "section_digests": {
+    "_document": "62723cd7583dc5b18a64491724a048c3d8c8b0e2245109da9998ff5051244217",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "de278504657b005627832badef938ddbaf5bf38190178f62204adae1863a9b26",
+    "s7": "98cb613c0803ddc3cc31bcc07322fe88b7c08be5c7b6784f39a60e84c93f8ca4",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T17:46:30.403387+00:00"
+}

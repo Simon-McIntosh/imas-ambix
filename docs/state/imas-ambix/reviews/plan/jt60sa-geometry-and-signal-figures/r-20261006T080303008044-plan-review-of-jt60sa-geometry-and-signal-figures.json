@@ -1,0 +1,76 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T08:06:29.922Z",
+  "dispatched_at": "2026-10-06T08:03:10Z",
+  "findings": [
+    {
+      "anchor": "imas_ink/extract.py:446",
+      "id": "reuse_search-1",
+      "reason": "citing extract_vessel_shells would redirect \u00a74 from a parallel extractor to an extension of the existing one, and resolving where the \u00a72 reader lives (artifact_geometry versus scripts/, as the plan's own record disagrees with itself) changes both \u00a71b's scope and \u00a72's imports.",
+      "text": "\u00a74 builds vessel extraction into extract_geometry from wall.description_2d.vessel.unit[*] annular outline_inner/outline_outer/centreline, but imas-ink already exports extract_vessel_shells (imas_ink/three_d/walls.py:151, re-exported at imas_ink/__init__.py:128 and :259) which iterates wall.description_2d[0].vessel.unit[*] and reads exactly those annular fields plus an outline fallback; the second instance of type is \u00a72, which reads wall/pf_active/magnetics afresh through imas.DBEntry while the plan never cites the existing machine-geometry readers read_artifact_limiter (imas_ambix/gs/artifact_geometry.py:671), read_artifact_magnetics (:577), read_artifact_pf_active (:302) and sensor_position_arrays (:647), nor the MachineArtifactGeometryReader (:726) that the plan's own \u00a71 landing comment (c-20261006T0607) names as where \"the reader moves onto artifact_geometry in \u00a71b\" \u2014 a relocation \u00a71b's written text does not carry, since \u00a71b deletes the reader and \u00a72 rewrites it in scripts/ instead",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ink/three_d/walls.py:151",
+      "id": "duplicate_owner-1",
+      "reason": "naming extract_vessel_shells as the owner to extend gives the author one place to add the annular inner/outer reading instead of a second extractor that will drift from it.",
+      "text": "\u00a74 adds a vessel field to MachineGeometry (imas_ink/_types.py:113) and draws it in geometry_figure_mpl (imas_ink/figures.py:138), forking the vessel-extraction owner that already exists as extract_vessel_shells (imas_ink/three_d/walls.py:151) with its VesselShell type (imas_ink/three_d/walls.py:43) and its description_2d.vessel.unit iteration; the plan should extend extract_vessel_shells (adding the outline_inner/outline_outer reading the annular vessel needs, which that owner currently omits) and reuse VesselShell in the geometry pipeline, rather than a second extractor and a second field shape beside it",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ink/_types.py:113",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the public field it adds in its own text \u2014 naming the existing VesselShell it can reuse, or stating why the geometry pipeline cannot carry vessel contours through the type that already has them \u2014 before it is admitted.",
+      "text": "\u00a74 states \"It adds one field on MachineGeometry for the vessel contours\" (and possibly a style constant) without naming what it retires or merges, and states no reason why nothing can be retired; the reuse that would retire the addition exists (VesselShell, imas_ink/three_d/walls.py:43), so the added field is avoidable public surface on MachineGeometry, against a week whose interface budget is public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "3766d1af41286b89f72fb645ead13fa497986ff6ce25aca7f4d1c1ba43a870ca",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 27,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v28 \u00a74 adds outline_inner/outline_outer reading to extract_vessel_shells (it reads only centreline+thickness or outline today) and carries VesselShell objects into the 2D geometry",
+      "when": "2026-10-06T10:33:29.616659+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v28 \u00a74 types the one MachineGeometry field with the existing VesselShell and states it retires nothing because the 2D geometry has no vessel representation today",
+      "when": "2026-10-06T10:33:29.619136+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v28 \u00a74 extends imas-ink's extract_vessel_shells and VesselShell instead of a new extractor; the \u00a72 half is declined: \u00a72 hands the IDSs to imas-ink's own extract_geometry, the extraction owner for its figure, and the stale landing comment about artifact_geometry described the retired reader",
+      "when": "2026-10-06T10:33:29.615236+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T080303008044-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "683c7b880641a93c9ae04642dc0d4530995d83af",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the substantial behaviour is hidden behind imas-ink's geometry_figure_mpl and time_trace_figure_mpl; the ambix side is two thin scripts plus one reader (eddb.read_channel), which is a small surface over machinery rather than a spread of wrappers over it.",
+    "duplicate_owner": "a finding \u2014 \u00a74 adds a second vessel-contour extractor beside imas-ink's existing owner of that extraction.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a74 adds a field on MachineGeometry (a public definition in the imas-ink API) without naming what it retires or merges, and the reuse that would let it retire the addition exists (VesselShell / extract_vessel_shells).",
+    "reuse_search": "a finding \u2014 the plan cites imas-ink's extract_geometry, geometry_figure_mpl, time_trace_figure_mpl and ambix's write_channel, but \u00a74 proposes new vessel extraction without citing imas-ink's already-exported extract_vessel_shells (imas_ink/three_d/walls.py:151), and \u00a72 rewrites a geometry reader whose own \u00a71 landing comment names imas_ambix/gs/artifact_geometry.py as its home, a relocation that appears nowhere in \u00a71b's design text.",
+    "thin_wrapper": "pass \u2014 \u00a72 and \u00a73 each add one thin script over imas-ink, and the figure-owner decision (imas-ink called from a thin ambix script, versus the rejected imas-ink CLI and nova media) states why the script is kept rather than the renderer extended; \u00a73's read_channel carries its own justification for not reusing ZarrTransformEngine.read."
+  },
+  "section_digests": {
+    "_document": "426dc12e2ee91ed27bfca062f09b144cf23e15d024790e8aa6a0b6de4a927f7d",
+    "s1": "bb8d550544a521bde0263696163651a2d7a045188e07eb5e9a5e525932df317a",
+    "s1b": "9ec381e606c1e32ff38ae066d53ee93b49c010495ada772c8d37fedc05cbf0ab",
+    "s2": "e314cd91042bed6efdb97e68863d17951099dad61327e2e31c6a3fcd32b49703",
+    "s3": "04fb4ecdd37d49b2f4d275aa5eb22cdb151bdc10b2df585b90acb7100816da56",
+    "s4": "e004c0c79ae9bcb598a9d350cf26e629e92d852f6f5b11c925be12239a27c115"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T10:33:29.611181+00:00"
+}

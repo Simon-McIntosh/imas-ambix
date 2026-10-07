@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T23:05:16.766Z",
+  "dispatched_at": "2026-10-06T23:00:31Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/eddb.py:106",
+      "id": "duplicate_owner-1",
+      "reason": "the grid writer must route its path through `channel_path` (or the plan must say explicitly why it does not, given the grid record has no `{dname}_time` sibling), or the `{shot}.zarr/{category}/{name}` layout gains a second owner beside the one the plan already extracts helpers out of. Census for this type: the only `cocos_label_transformation` resolvers in the tree are the duplicates the plan already names \u2014 `imas_ambix/data/transform_engine.py:411` and `imas_ambix/data/tokamap_export.py:147` \u2014 and no third resolver exists (`grep -rn cocos_label_transformation imas_ambix/`), so the plan's duplicate_owner catch is complete for that mechanism.",
+      "text": "\u00a76 puts the equilibrium-database grid record \"under the same `{shot}.zarr/{category}/{name}` layout and the same refuse-to-overwrite rule\" as channels and shares only the token and overwrite contract, but the layout itself is owned by `channel_path`/`channel_time_path` (`imas_ambix/data/eddb.py:106,120`); the plan does not name that owner for the grid writer, and a second path construction beside `channel_path` would fork the store layout the shared-store claim depends on being single",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "c660facf0704df60f0fa379636c6d618ead6552212eb77332ef94da1c1ccd338",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 255,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T23:06:15.468053+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T23:06:15.468053+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v255.json",
+  "review_run_id": "r-20261006T230023201483-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "0fd16f76abd9899ed864e32a768fa5402a584a73",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the additions extend an owner behind a small interface rather than scattering wrappers: the EQDB request/record/refusal types plus the `RemoteEddbExtractor` request dispatch (`imas_ambix/data/eddb_remote.py:283`), the machine-keyed pin table in `resolve_machine_description` (`imas_ambix/gs/artifact_resolution.py:344`), the machine-keyed shotset table behind `resolve_shotset_version` (`imas_ambix/spine_bench/shots.py:60`), and the grid writer behind token/overwrite helpers to be extracted from `write_channel` (`imas_ambix/data/eddb.py:210`); the behaviour hidden exceeds each interface, and the three machine-keyed tables hold disjoint facts (digest pins, registry objects, frozen shot sets) rather than one identity spread thin.",
+    "duplicate_owner": "a finding \u2014 the resolver duplicate the plan names is genuinely the only `cocos_label_transformation` pair in the tree (census below), but the equilibrium-database grid writer it adds resolves a store path the plan does not assign to the existing path owner.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface states in its own text what it retires or why nothing can be: \u00a72 adds one public definition (the resolver) and retires the exporter's private copy; \u00a76's observation move is one retired and one added; \u00a76's convention entry \"retires nothing public, because every existing name keeps its caller\"; \u00a76's EQDB transport adds three public types and \"retire[s] nothing, because no equilibrium-database request type exists\", and keeps a transport failure inside `EddbRemoteError` so no refusal family is added (`imas_ambix/data/eddb_remote.py:58`); \u00a77's pin change retires three constants and their re-export for one table; the JT-60SA shot set \"retires and merges nothing\".",
+    "reuse_search": "pass \u2014 the plan searched both imas-ambix and imas-codex and cites the mechanisms it extends, each verified present in the tree: `score_convention`/`score_conventions`/`format_sign_report` (`imas_ambix/data/cocos_convention.py:346,399,899`), the `read_efit_geometry(..., loader=...)` evaluator seam (`imas_ambix/eval/efit_referee.py:120`), `judge_geometry`/`GeometryVerdict` (`imas_ambix/eval/efit_referee.py:272,174`), `build_geometry_from_arrays` (`imas_ambix/worldmodel/equilibrium_labels.py:465`), `measure_convention` (`imas_ambix/challenge/convention.py:283`), `project_poloidal_field` (`imas_ambix/cocos.py:100`), and the `eddb_remote.py`/`eddb.py` owner pair; no proposed subsystem is built without citing what it reuses.",
+    "thin_wrapper": "pass \u2014 the \u00a72 change is a promotion of the existing private resolver `_target_cocos_transformation` (`imas_ambix/data/transform_engine.py:411`) to public so the importer stops forking it: the verified pair `imas_ambix/data/tokamap_export.py:147` / `imas_ambix/data/transform_engine.py:411` are near-identical, so the honest change is extension of the engine owner, not a parallel layer, and the plan states the owner, the retiring symbol and the round-trip assertion that ties the two halves of `scale`."
+  },
+  "section_digests": {
+    "_document": "6c9fce456e952b00ce33548944718af59d6fb116c0739501f2daf9af22a5e5e8",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "5253ff07c75d9c1a3bb2cd1ff91a6278d3535fee40f693bc99f54d076b185860",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "78fc60fe4afe8b8ddd86566c38787936a9c70b5d8d7aa88c7a5798141649837c",
+    "s7": "84d399622dc63a3260a9ce1676a1d77d73cd85f5fc71db563861871043fbce86",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T23:05:58.731157+00:00"
+}

@@ -1,0 +1,64 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest names no baseline_suite/after_suite arms; its gate evidence is the tests/test_logs fields with per-run logs under logs/. This review derived the added-failure count from the reviewed run's own two arms: the baseline arm is the six measurement logs at base rev adb67e5f (skeleton, ctl_actuator, ctl_gate, st_model, st_v2, timescale; each EXIT=0, zero FAILED or ERROR ids) and the after arm is the five confirm logs at head rev bfa42c01 (confirm_skeleton/controllable/st_model/st_v2/timescale; each EXIT=0, zero FAILED or ERROR ids). Zero added failures.",
+  "artifacts_note": "independent re-run of the marked test at the default bound, head d56f74b8: tests/worldmodel/test_worldmodel_skeleton.py::test_real_shot_overfit_smoke -> 1 passed, 556.66 s call, 620.68 s wall, EXIT=0, load1 41.0 (reviewed measured 539.79 s alone, 643.88 s under load); without the mark the same test aborts at 300 s in the reviewed run's negative control.",
+  "base_log_revision": "adb67e5f37a4b939971300f645c37ddabe77ba12",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-05T14:00:52.532Z",
+  "dispatched_at": "2026-10-05T13:42:55Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T125215313502-ped-timeout-worldmodel/manifest.md",
+      "line": "baseline_suite",
+      "severity": "follow-on",
+      "text": "follow-on: the reviewed manifest names no baseline_suite/after_suite gate arms -- its evidence is the tests and test_logs fields with per-run logs under logs/ -- so a read-time annotation of this review yields an added-failure count that had to be read by hand from the two arms' logs rather than derived. Both arms are green (baseline six logs at adb67e5f, after five logs at bfa42c01, all EXIT=0), so the count is zero, but carrying the two arms would let a reader derive it."
+    },
+    {
+      "file": "tests/worldmodel/test_worldmodel_skeleton.py",
+      "line": "395",
+      "severity": "follow-on",
+      "text": "follow-on: test_overfit_loss_drops_substantially measured 186.71 s alone but 290.75 s in the at-default confirm run under higher load, within 10 s of the 300 s default and left unmarked. The plan's rule is to mark only a test whose alone measurement exceeds the bound, so leaving it is correct today, but a load rise aborts it; it is the natural next candidate for a mark if suite contention grows."
+    }
+  ],
+  "head_log_revision": "d56f74b8f0e49b8cd682194bf59a67be32756b02",
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "read the two commits bfa42c01 and d56f74b8; together 29 insertions across the test mark (+1 line) and the new 28-line fragment, nothing else.",
+    "done_when": "the node's deliverable is a table row per listed test with its measured duration and its outcome; the fragment carries seven rows, one per abort-table worldmodel id, each with phase, measured seconds, load and outcome.",
+    "goal": "\u00a75's goal for this node is to resolve each tests/worldmodel/ test the 300 s bound reached by its measured duration. Seven rows are in the abort table; six finish under the default bound (23.59-186.71 s alone) and are unchanged, and the one genuine training test (539.79 s alone) carries @pytest.mark.timeout(1080) with a comment stating the measurement.",
+    "manifest": "read; it records the seven files, the two rounds, the slowest test at 539.79 s alone, the 1080 mark, the negative control and the ruff gate, with log paths under logs/.",
+    "write_paths": "the manifest declares docs/evidence/fragments/project-environment-declared/ped-timeout-worldmodel.html and tests/worldmodel, and git diff adb67e5f..d56f74b8 touches exactly those two paths (29 insertions, no other file)."
+  },
+  "justifications": {
+    "durability": "the mark is durable in source with a measurement comment and the fragment is a durable per-test record, but the under-bound claim for test_overfit_loss_drops_substantially rests on a measurement within 10 s of the default under load and no test asserts the per-test bound.",
+    "evidence": "every fragment duration reconciles with the reviewed run's own measurement logs and every recorded load matches the log header; the negative control fires (EXIT=1, pytest-timeout abort at 300 s) and this review independently reproduced the passing head arm (556.66 s call, EXIT=0). The one gap is that the manifest names no baseline_suite/after_suite arms, so the added-failure count is read from the per-run logs rather than derived.",
+    "fit": "the fragment follows the evidence-fragment conventions with a node-id element id (ped-timeout-worldmodel) and plan-free naming, the mark comment states the mechanism and measurement rather than a plan label, and the commit carries a conventional subject and a body.",
+    "goal_fidelity": "\u00a75 asks each worldmodel row the 300 s bound reached to be resolved by its measured duration; the fragment gives all seven a row with phase, measured seconds and outcome, six are under the default bound, and the one that exceeds it (539.79 s alone) is marked 1080 = 2x rounded up to 60 with the measurement in the comment, exactly the plan's rule.",
+    "reuse": "the node reuses the existing fragment/evidence pattern and the plan's measure-alone rule rather than duplicating per-variant measurement, one table row per listed test, against the shared project environment.",
+    "scope_discipline": "git diff adb67e5f..d56f74b8 is exactly the two declared paths, 29 insertions, with no product source touched and the reviewed worktree clean at head."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20261005T125215313502-ped-timeout-worldmodel at head d56f74b8 against base adb67e5f (plan imas-ambix:project-environment-declared \u00a75, \"Triage the tests the 300 s bound reaches\"). Read the reviewed run's two commits bfa42c01 (test mark) and d56f74b8 (fragment), its manifest and its gate logs under logs/. The reviewed worktree was clean at the head; this review changed nothing in it. The change is a test-file mark plus one evidence fragment, 29 insertions across exactly the two declared paths.\n\nIndependently verified in this reviewer's own reading: the fragment's seven test ids are exactly the seven tests/worldmodel rows in the abort table of docs/evidence/fragments/project-environment-declared/ped-declare-relock.html (that table's 37 rows include seven worldmodel rows and no more; tests/worldmodel/test_rssm.py::test_overfit_smoke_camera_ce_drops is at 298.61 s in the slowest-tests list, was not aborted, and is correctly out of this node's scope). Every measured duration in the fragment reconciles with the reviewed run's own measurement logs (skeleton.log 539.79 s and 186.71 s, ctl_actuator 39.86 s, ctl_gate 23.59 s, st_model 38.91 s, st_v2 42.44 s, timescale 28.07 s), and each row's recorded load matches that log's header.\n\nThe mark arithmetic is correct: 2 x 539.79 = 1079.58, rounded up to a multiple of 60 = 1080, and the mark's comment states the measurement. The negative control removes the mark and runs at the default bound: negctl_real_shot_default300.log ends FAILED tests/worldmodel/test_worldmodel_skeleton.py::test_real_shot_overfit_smoke with \"Failed: Timeout (>300.0s) from pytest-timeout.\", EXIT=1 -- the guard fires. This review independently reproduced the passing head arm: at head d56f74b8 the marked test ran at the default bound and passed, 556.66 s call (620.68 s wall), EXIT=0, load1 41.0 (indep_rerun.log), so the mark is what carries the default invocation past 300 s. The reviewed run's own five confirm logs at the default bound each pass (skeleton 9 passed, controllable 53, st_model 14, st_v2 12, timescale 23), all EXIT=0.\nSCORE goal_fidelity: 19\nSCORE evidence: 19\nSCORE scope_discipline: 20\nSCORE durability: 17\nSCORE fit: 19\nSCORE reuse: 19\n",
+  "review_run_id": "r-20261005T134247731119-review-of-ped-timeout-worldmodel",
+  "reviewed_base_sha": "adb67e5f37a4b939971300f645c37ddabe77ba12",
+  "reviewed_head_sha": "d56f74b8f0e49b8cd682194bf59a67be32756b02",
+  "reviewed_run_id": "r-20261005T125215313502-ped-timeout-worldmodel",
+  "reviewer": "review-of-ped-timeout-worldmodel",
+  "scores": {
+    "durability": 17,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T04:36:22.299435+00:00",
+  "total": 113
+}

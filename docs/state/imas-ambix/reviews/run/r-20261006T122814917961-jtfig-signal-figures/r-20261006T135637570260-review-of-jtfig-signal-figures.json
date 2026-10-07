@@ -1,0 +1,73 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 2,
+  "call_sites": [
+    "scripts/figures_jt60sa_signals.py:_bound_panel",
+    "scripts/figures_jt60sa_signals.py:_flux_panel"
+  ],
+  "completed_at": "2026-10-06T14:04:54.507Z",
+  "dispatched_at": "2026-10-06T13:56:45Z",
+  "findings": [
+    {
+      "file": "docs/figures/jt60sa-signals/jt60sa-E101154-flux-loops.svg",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "the flux-loops SVG is 601998 bytes, the largest committed artifact (the other two are 409655 and 415512); the gained commits cut each to 12-24% of its former size through render_to_bytes decimation and the plan mandates the SVGs under docs/figures/, so this is a follow-on for further decimation rather than a scope breach."
+    },
+    {
+      "file": "scripts/figures_jt60sa_signals.py",
+      "line": "45",
+      "severity": "follow-on",
+      "text": "_UNITS_ATTR = 'units' remains a local redeclaration of imas_ambix/data/eddb.py:53 UNIT_ATTR, which eddb exports in __all__; the script could import the one owner instead of naming the attribute twice."
+    },
+    {
+      "file": "scripts/figures_jt60sa_signals.py",
+      "line": "112",
+      "severity": "follow-on",
+      "text": "_flux_loop_indices still walks the raw Zarr group (store[category].array_keys(), the _time suffix) to enumerate cached flux loops instead of the eddb.py layout owners, so the cache layout stays known in two places; unchanged by the gained commits."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "the only production callers of read_channel remain scripts/figures_jt60sa_signals.py:_bound_panel and _flux_panel; the test file is not a production call site.",
+    "diff": "read commits a6643502, 34bdc65d and 8da01d86 against base 2aecdec7; imas_ambix/data/eddb.py:310 adds a guard that refuses a time base whose length differs from the data width, tests/data/test_eddb_cache.py adds the refusal test, scripts/figures_jt60sa_signals.py swaps label for ylabel and figure.savefig for imas_ink.io.render_to_bytes, and the three SVGs shrink to 409655, 601998 and 415512 bytes.",
+    "done_when": "the done-when names pytest tests/data/test_eddb_cache.py and the ruff command; the reviewed manifest records 32 passed (0 added failures) and ruff exit 0, and logs/figures_render.log prints the per-figure channel names/units and time-base differences.",
+    "goal": "the gained commits refine the \u00a73 cached-pulse signal figures toward the plan's legibility and resolution requirements \u2014 labels move from the served semantic_id to the EDDB channel drawn, and figures render through imas_ink.io.render_to_bytes \u2014 rather than adding new capability.",
+    "manifest": "read; head 8da01d86, baseline_suite 7e975e9c 30 passed exit 0, after_suite 8da01d86 32 passed exit 0, zero failures both, negative_control_log reddens test_read_channel_round_trips_data_time_base_and_unit.",
+    "write_paths": "all seven paths in the incremental diff 2aecdec7..8da01d86 sit inside the reviewed manifest's declared write paths."
+  },
+  "justifications": {
+    "durability": "the new half-written guard is exercised by tests/data/test_eddb_cache.py:test_read_channel_refuses_a_time_base_mismatched_with_the_data, which fails with DID NOT RAISE when the guard is removed, so the guard is guarded; the figures script still has no test covering its rendered output.",
+    "evidence": "the reviewed manifest records pytest tests/data/test_eddb_cache.py 32 passed at 8da01d86 against 30 passed at base 7e975e9c, ruff exit 0 at both, and logs/figures_render.log; I independently reproduced 32 passed, ruff exit 0, zero 'legend' and one 'Time [s]' per SVG, byte sizes 409655/601998/415512, and falsified the new guard by removing it (1 failed, DID NOT RAISE).",
+    "fit": "the gained change reuses imas-ink's TimeSeries.ylabel and io.render_to_bytes as the library intends, but scripts/figures_jt60sa_signals.py:45 still redeclares _UNITS_ATTR = 'units' rather than importing the module's exported UNIT_ATTR.",
+    "goal_fidelity": "scripts/figures_jt60sa_signals.py:_bound_panel labels each panel's y-axis from the EDDB channel (rule.source_array) with its unit instead of the longer semantic_id, dropping the legend, and _render writes through imas_ink.io.render_to_bytes so the paths are decimated to display resolution, exactly the legibility and resolution the plan section requires.",
+    "reuse": "no gained definition duplicates an existing capability; scripts/figures_jt60sa_signals.py:_flux_loop_indices still re-derives the Zarr channel layout its channel_path/time_array_name own, unchanged by these commits.",
+    "scope_discipline": "every one of the seven paths in the 2aecdec7..8da01d86 diff sits inside the reviewed manifest's declared write paths and the section's remit; the flux-loops SVG is 601998 bytes, the largest committed artifact, but the plan mandates the SVGs under docs/figures/ and the gained commits cut them to 12-24% of their former size."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the gained commits refine the section-3 cached-pulse signal figures toward the plan's legibility and resolution requirements - scripts/figures_jt60sa_signals.py:_bound_panel labels each y-axis from the EDDB channel (rule.source_array) with its unit and drops the legend, and _render writes through imas_ink.io.render_to_bytes so the paths decimate to display resolution.\nVERDICT done_when: the done-when names pytest tests/data/test_eddb_cache.py and the ruff command; the reviewed manifest records 32 passed and ruff exit 0, and logs/figures_render.log prints the per-figure channel names/units and time-base differences.\nVERDICT write_paths: all seven paths in the incremental diff 2aecdec7..8da01d86 sit inside the reviewed manifest's declared write paths.\nVERDICT manifest: read; head 8da01d86, baseline_suite 7e975e9c 30 passed exit 0, after_suite 8da01d86 32 passed exit 0, zero failures both, negative_control_log reddens test_read_channel_round_trips_data_time_base_and_unit.\nVERDICT diff: read commits a6643502, 34bdc65d and 8da01d86 against base 2aecdec7; eddb.py adds a half-written length guard, the test adds the refusal test, the script swaps label->ylabel and savefig->render_to_bytes, and the three SVGs shrink to 409655, 601998 and 415512 bytes.\nVERDICT call_sites: the only production callers of read_channel remain scripts/figures_jt60sa_signals.py:_bound_panel and _flux_panel; the test file is not a production call site.\nCALL_SITES: scripts/figures_jt60sa_signals.py:_bound_panel, scripts/figures_jt60sa_signals.py:_flux_panel\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: scripts/figures_jt60sa_signals.py:_bound_panel labels each panel's y-axis from the EDDB channel (rule.source_array) with its unit instead of the longer semantic_id, dropping the legend, and _render writes through imas_ink.io.render_to_bytes so the paths are decimated to display resolution, exactly the legibility and resolution the plan section requires.\nSCORE evidence: 19\nJUSTIFICATION evidence: the reviewed manifest records pytest tests/data/test_eddb_cache.py 32 passed at 8da01d86 against 30 passed at base 7e975e9c, ruff exit 0 at both, and logs/figures_render.log; I independently reproduced 32 passed, ruff exit 0, zero 'legend' and one 'Time [s]' per SVG, byte sizes 409655/601998/415512, and falsified the new guard by removing it (1 failed, DID NOT RAISE).\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: every one of the seven paths in the 2aecdec7..8da01d86 diff sits inside the reviewed manifest's declared write paths and the section's remit; the flux-loops SVG is 601998 bytes, the largest committed artifact, but the plan mandates the SVGs under docs/figures/ and the gained commits cut them to 12-24% of their former size.\nSCORE durability: 18\nJUSTIFICATION durability: the new half-written guard is exercised by tests/data/test_eddb_cache.py:test_read_channel_refuses_a_time_base_mismatched_with_the_data, which fails with DID NOT RAISE when the guard is removed, so the guard is guarded; the figures script still has no test covering its rendered output.\nSCORE fit: 18\nJUSTIFICATION fit: the gained change reuses imas-ink's TimeSeries.ylabel and io.render_to_bytes as the library intends, but scripts/figures_jt60sa_signals.py:45 still redeclares _UNITS_ATTR = 'units' rather than importing the module's exported UNIT_ATTR.\nSCORE reuse: 17\nJUSTIFICATION reuse: no gained definition duplicates an existing capability; scripts/figures_jt60sa_signals.py:_flux_loop_indices still re-derives the Zarr channel layout its channel_path/time_array_name own, unchanged by these commits.\nFINDING docs/figures/jt60sa-signals/jt60sa-E101154-flux-loops.svg:1 follow-on: the flux-loops SVG is 601998 bytes, the largest committed artifact (the other two are 409655 and 415512); the gained commits cut each to 12-24% of its former size through render_to_bytes decimation and the plan mandates the SVGs under docs/figures/, so this is a follow-on for further decimation rather than a scope breach.\nFINDING scripts/figures_jt60sa_signals.py:45 follow-on: _UNITS_ATTR = 'units' remains a local redeclaration of imas_ambix/data/eddb.py:53 UNIT_ATTR, which eddb exports in __all__; the script could import the one owner instead of naming the attribute twice.\nFINDING scripts/figures_jt60sa_signals.py:112 follow-on: _flux_loop_indices still walks the raw Zarr group (store[category].array_keys(), the _time suffix) to enumerate cached flux loops instead of the eddb.py layout owners, so the cache layout stays known in two places; unchanged by the gained commits.",
+  "review_run_id": "r-20261006T135637570260-review-of-jtfig-signal-figures",
+  "reviewed_base_sha": "2aecdec7737d421d94b72e2fb8a4e7ed9ac73b30",
+  "reviewed_head_sha": "8da01d8609d861fdf99f93779186302431d3b668",
+  "reviewed_run_id": "r-20261006T122814917961-jtfig-signal-figures",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "reviewer_run_id": "r-20261006T135637570260-review-of-jtfig-signal-figures",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 18,
+    "goal_fidelity": 20,
+    "reuse": 17,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T14:03:01.151645+00:00",
+  "total": 110
+}

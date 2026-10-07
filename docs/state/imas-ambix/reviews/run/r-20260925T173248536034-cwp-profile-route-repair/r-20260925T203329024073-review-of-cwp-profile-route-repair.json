@@ -1,0 +1,53 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "local",
+  "call_site_count": 2,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2093 (imas_ambix.agent.cli.clive_command deploys and prints the generated launcher)",
+    "imas_ambix/agent/clive.py:917 (generated launcher exec line that consumes PROFILE_ARGS)"
+  ],
+  "completed_at": "2026-09-25T21:36:36.607Z",
+  "dispatched_at": "2026-09-25T20:33:35Z",
+  "findings": [
+    {
+      "file": "tests/test_agent_clive_worker_profile.py",
+      "line": "303",
+      "text": "the settings-route receipt read asserts route, hooks and the evidence basename but never record[\"added_arguments\"], the field carrying clive.py:813's copy of the flag value, so reinstating \"user\" at clive.py:813 passes the whole gate while the record the plan exists to make truthful misreports the argument vector."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 2 production call site(s)",
+    "diff": "Read all 334 diff lines against base cfb461fa: the source change is the flag value in its two copies plus the evidence constant at clive.py:32-38, the tests replace the hook-modelling stub with argv-and-payload assertions and add the global-guidance guard at tests/test_agent_clive_worker_profile.py:313, and the docs record the repair \u2014 no hunk touches the no-profile exec lines at clive.py:917 or clive.py:983.",
+    "done_when": "The plan's gate command is recorded with its exit status \u2014 tests/test_agent_clive_worker_profile.py and tests/test_agent_clive_picker.py at 23 passed with EXIT=0 (gate-pytest.log) and ruff at exit 0 (gate-ruff.log) \u2014 the red log at runs/r-20260925T173248536034-cwp-profile-route-repair/negative-control.log repeats the declared --add-dir mutation verbatim, and the route decision rests on the live launch whose rows 1-3 I read and found faithful to the receipt's 102174/106534 numbers.",
+    "goal": "The goal is to move the clive worker-profile expansion onto the measured empty --setting-sources route, and imas_ambix/agent/clive.py:813 (template expansion) and clive.py:854 (shell bootstrap) both carry the empty value on the hook-carrying route while clive.py:811-812 keeps --bare only on the hook-free route and clive.py:822 names the measurement in the receipt.",
+    "manifest": "The manifest reads status complete with the gate result, the red log path and the integration sha in commits, and its blockers name the read-only common git directory plus the delivered uncommitted diff path; the .asdelivered copy beside it carries the same blocked block under status blocked with an empty commits list.",
+    "write_paths": "The manifest declares five paths \u2014 imas_ambix/agent/clive.py, tests/test_agent_clive_worker_profile.py, docs/plans/clive-worker-profiles.html, docs/evidence/archive/clive-worker-profiles-landed.html and docs/figures/clive-worker-profiles \u2014 and git diff --stat over the revision pair lists exactly those five files with no sixth."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_clive_worker_profile.py:300 reddened when I reinstated --setting-sources user at clive.py:854, but the receipt's copy of that value at clive.py:813 is asserted nowhere (the record read at :303 checks route, hooks and evidence only) and the evidence assertion at :308 compares only the basename, so part of the repair can regress green (see the finding).",
+    "evidence": "The gate's 23 passed and exit 0 are recorded in gate-pytest.log beside the red log, and I re-ran the settings-route test and the global-guidance guard green in a scratch tree extracted at the head revision before scoring.",
+    "fit": "The new HOOK_ROUTE_EVIDENCE constant at imas_ambix/agent/clive.py:37 mirrors the workstation reports-path constant already at imas_ambix/camdyn/da_burst_verdict.py:44-47, and the added comments at clive.py:32-36 and clive.py:800-806 name the mechanism with no plan, phase or ticket identifier.",
+    "goal_fidelity": "imas_ambix/agent/clive.py:813 and clive.py:854 carry the empty value on the hook route only, and clive.py:822 names the measurement, so the delivered code does what the goal states.",
+    "scope_discipline": "Git diff --stat over cfb461fa..d7dca1cf lists exactly the five declared write paths, and the reviewed worktree is clean at the head, so nothing outside the fence moved."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260925T173248536034-cwp-profile-route-repair (plan imas-ambix:clive-worker-profiles \u00a72), stored by r-20260925T203329024073-review-of-cwp-profile-route-repair.\n\nRevision pair read: cfb461fa79607b1bbc9716ce97416b35bb44b499 (base) to d7dca1cfd23a92dc0199e1442d01f5f63e2f84dc (head). The head is the coordinator's integration commit of this run's delivered uncommitted diff, and git patch-id --stable is equal for the delivered diff and the integration commit (f9b14d7c16d65a3aa11fc6df0be3708a236b28f6), so this review reads exactly what the worker delivered. Sources read: the node prompt and its done-when, the plan's \u00a72 landing comment, the node manifest beside its .asdelivered copy, the full diff, the live-launch report the receipt names, the generated launcher's production call site, and the tests the diff adds.\n\nVERDICT goal: The goal is to move the clive worker-profile expansion onto the measured empty --setting-sources route, and imas_ambix/agent/clive.py:813 (template expansion) and clive.py:854 (shell bootstrap) both carry the empty value on the hook-carrying route while clive.py:811-812 keeps --bare only on the hook-free route and clive.py:822 names the measurement in the receipt.\n\nVERDICT done_when: The plan's gate command is recorded with its exit status \u2014 tests/test_agent_clive_worker_profile.py and tests/test_agent_clive_picker.py at 23 passed with EXIT=0 (gate-pytest.log) and ruff at exit 0 (gate-ruff.log) \u2014 the red log at runs/r-20260925T173248536034-cwp-profile-route-repair/negative-control.log repeats the declared --add-dir mutation verbatim, and the route decision rests on the live launch whose rows 1-3 I read and found faithful to the receipt's 102174/106534 numbers.\n\nVERDICT write_paths: The manifest declares five paths \u2014 imas_ambix/agent/clive.py, tests/test_agent_clive_worker_profile.py, docs/plans/clive-worker-profiles.html, docs/evidence/archive/clive-worker-profiles-landed.html and docs/figures/clive-worker-profiles \u2014 and git diff --stat over the revision pair lists exactly those five files with no sixth.\n\nVERDICT manifest: The manifest reads status complete with the gate result, the red log path and the integration sha in commits, and its blockers name the read-only common git directory plus the delivered uncommitted diff path; the .asdelivered copy beside it carries the same blocked block under status blocked with an empty commits list.\n\nVERDICT diff: Read all 334 diff lines against base cfb461fa: the source change is the flag value in its two copies plus the evidence constant at clive.py:32-38, the tests replace the hook-modelling stub with argv-and-payload assertions and add the global-guidance guard at tests/test_agent_clive_worker_profile.py:313, and the docs record the repair \u2014 no hunk touches the no-profile exec lines at clive.py:917 or clive.py:983.\n\nCALL_SITES: imas_ambix/agent/cli.py:2093 (imas_ambix.agent.cli.clive_command deploys and prints the generated launcher), imas_ambix/agent/clive.py:917 (generated launcher exec line that consumes PROFILE_ARGS)\n\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: imas_ambix/agent/clive.py:813 and clive.py:854 carry the empty value on the hook route only, and clive.py:822 names the measurement, so the delivered code does what the goal states.\n\nSCORE evidence: 20\nJUSTIFICATION evidence: The gate's 23 passed and exit 0 are recorded in gate-pytest.log beside the red log, and I re-ran the settings-route test and the global-guidance guard green in a scratch tree extracted at the head revision before scoring.\n\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: Git diff --stat over cfb461fa..d7dca1cf lists exactly the five declared write paths, and the reviewed worktree is clean at the head, so nothing outside the fence moved.\n\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_agent_clive_worker_profile.py:300 reddened when I reinstated --setting-sources user at clive.py:854, but the receipt's copy of that value at clive.py:813 is asserted nowhere (the record read at :303 checks route, hooks and evidence only) and the evidence assertion at :308 compares only the basename, so part of the repair can regress green (see the finding).\n\nSCORE fit: 20\nJUSTIFICATION fit: The new HOOK_ROUTE_EVIDENCE constant at imas_ambix/agent/clive.py:37 mirrors the workstation reports-path constant already at imas_ambix/camdyn/da_burst_verdict.py:44-47, and the added comments at clive.py:32-36 and clive.py:800-806 name the mechanism with no plan, phase or ticket identifier.\n\nFINDING tests/test_agent_clive_worker_profile.py:303 the settings-route receipt read asserts route, hooks and the evidence basename but never record[\"added_arguments\"], the field carrying clive.py:813's copy of the flag value, so reinstating \"user\" at clive.py:813 passes the whole gate while the record the plan exists to make truthful misreports the argument vector.",
+  "review_run_id": "r-20260925T203329024073-review-of-cwp-profile-route-repair",
+  "reviewed_base_sha": "cfb461fa79607b1bbc9716ce97416b35bb44b499",
+  "reviewed_head_sha": "d7dca1cfd23a92dc0199e1442d01f5f63e2f84dc",
+  "reviewed_run_id": "r-20260925T173248536034-cwp-profile-route-repair",
+  "scores": {
+    "durability": 18,
+    "evidence": 20,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-25T21:28:38.999381+00:00",
+  "total": 98
+}

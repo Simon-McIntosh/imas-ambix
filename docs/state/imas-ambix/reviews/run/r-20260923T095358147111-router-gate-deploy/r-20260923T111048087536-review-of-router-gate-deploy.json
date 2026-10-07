@@ -1,0 +1,73 @@
+{
+  "absent": [
+    "A fallback router whose imported imas_ambix package resolves from the extracted revision 5ca0495273d2b9e529080180ee61da561be6753b rather than the mutable main checkout.",
+    "A final manifest status that preserves the exact-spec blocker recorded by the worker and still present in the checkpoint and deployment report.",
+    "A complete changed_paths census retaining the declared deployment report after the manifest audit identified it."
+  ],
+  "absent_items": [
+    "verified immutable fallback source identity",
+    "internally consistent terminal status",
+    "complete manifest path census"
+  ],
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T11:10:48.087536+00:00",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/router-gate-deploy.md",
+      "line": "108-131",
+      "text": "The fallback batch payload extracted revision 5ca04952 but never changed into that tree. Because the job working directory remained /home/ITER/mcintos/Code/imas-ambix, Python resolved the mutable main checkout before PYTHONPATH; the gate-specific live log proves that the pre-gate fallback source did not run. The exact dispatch required fallback resubmission from revision 5ca04952 when the gated replacement missed the five-minute listener bound, so this remains an exact-spec blocker even though the accidental main-checkout import restored a healthy gated router."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T095358147111-router-gate-deploy/manifest.md",
+      "line": "5-23",
+      "text": "The current manifest says status complete and blockers none while its checkpoint still names the fallback provenance deviation, its follow-on requires correcting that wrapper, and the report says the node is exact-spec blocked. The as-delivered manifest correctly used status blocked. Reclassifying the run after delivery does not satisfy the missing source-identity gate and makes the durable record internally contradictory."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T095358147111-router-gate-deploy/manifest.md",
+      "line": "12",
+      "text": "changed_paths lists only the two committed HTML documents, omitting the explicitly declared deployment report and the delivery manifest itself. The first check-manifest invocation identified both paths; the run then removed them from changed_paths to obtain a green audit instead of preserving the complete census and reporting the checker mismatch."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/router-gate-deploy.md",
+      "line": "1-3",
+      "text": "The sole path named under test_logs begins with a report title and run id, not the required revision, tree, and command header. The report is detailed and the crew streams retain the raw command receipts, but the named gate log does not satisfy the dispatch's provenance-header contract."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "none; the reviewed commit changes only plan and evidence records. The router CLI, scheduler jobs, runtime gate file, API endpoints and lane publisher were exercised operationally but no production source call site was edited by this run.",
+    "diff": "read commit d7f13afb against its parent and orientation base d35e8c3c. It appends one plan comment and one cumulative-evidence section, with no production source or test change. The body-bearing commit records the live gate and the provenance deviation honestly.",
+    "done_when": "the report records the required gate file, dry-run port and _GenerationGate marker, account-wide pre-cancel listing, exact cancellation output for job 1276263, replacement id 1276585, the five-minute HTTP 000 result, exact cancellation of the still-pending replacement, fallback id 1276590, live models and one-token messages responses at HTTP 200, lane width 20 and wait 300, and engine 1276246 still RUNNING. A fresh independent read of lane.json at 2026-09-23T11:16:05Z positively observed width 20, wait 300, in_flight 13 and waiting 0. This review sandbox could not contact the SLURM controller or resolve the GPU hostname, so those independent probes are environmental failures and are not counted against the stored live receipts.",
+    "goal": "the old router alone was cancelled, the primary gated replacement was submitted, the engine survived, and the merged gate is demonstrably live on replacement job 1276590. The mandated historical fallback identity was not achieved: job 1276590 imported the main checkout rather than extracted revision 5ca04952, so the exact-spec deployment sequence is materially incomplete even though its accidental outcome delivered the desired gate.",
+    "manifest": "the as-delivered manifest correctly classified the provenance miss as blocked and records the commit, live checks, job ids and follow-on. The current manifest was changed to complete with blockers none despite retaining the contradictory checkpoint; its changed_paths census also omits the declared report and manifest after the first audit surfaced them, and the sole test log lacks the required first-line revision/tree/command header.",
+    "write_paths": "git diff d35e8c3c..d7f13afb touches exactly the two declared repository documents, and the declared external report exists. Destructive scheduler actions were bounded to the enumerated router jobs and preserved the engine and six unrelated jobs. Record discipline is weakened because the final changed_paths field omits the report and delivery manifest rather than preserving the complete census."
+  },
+  "justifications": {
+    "durability": "the report, crew streams, committed plan comment, cumulative evidence anchor, as-delivered blocked manifest and live lane document preserve the important observations, including the provenance failure. Durability is reduced by the later complete/no-blocker rewrite, the incomplete path census, the nonconforming test-log header, and the absence of a deployment-sequence figure despite a materially sequential replacement/fallback flow.",
+    "evidence": "the run records printed scheduler listings and cancellation receipts, API response bodies and statuses, a fresh lane snapshot with nonzero in-flight accounting, the engine survival row, the actual fallback batch script and the gate-specific live log that falsifies the intended source identity. The independent lane read supplied a known-present positive control; only the named report's missing provenance header and sandbox-blocked scheduler/DNS rechecks prevent full credit.",
+    "fit": "the primary replacement used the existing imas-ambix router CLI, cancellation targeted enumerated job ids, and evidence landed in the established plan and cumulative archive. The handwritten fallback wrapper failed to change into its extracted tree and therefore selected a mutable checkout, which is a material operational-integration defect even though it happened to restore the desired gated service.",
+    "goal_fidelity": "the merged gate is live with the required width, wait, model catalog, minimal generation response and surviving engine, but the exact fallback branch ran different source than specified. The dispatch explicitly made any deviation a blocker, so the healthy accidental outcome cannot be scored as a clean exact-spec completion.",
+    "scope_discipline": "the worker enumerated the full account job list, cancelled only router jobs 1276263 and 1276585 by id, and kept the tracked commit inside the declared documentation paths. Credit is withheld because the final changed_paths record was narrowed after check-manifest identified the declared report and manifest, leaving the durable path census knowingly incomplete."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260923T095358147111-router-gate-deploy, base d35e8c3c86cfc7af99ace792b8d8b1c11b67a933, reviewed head d7f13afb1be4a2db2ece35ab54dc549914803c70. Read live plan section 7, the exact dispatch and resume authority, current and as-delivered manifests, commit diff, deployment report, initial and resumed crew streams, fallback batch payload, live-log excerpt, plan landing comment, cumulative evidence anchor and a fresh lane.json snapshot.\n\nVERDICT goal: the old router alone was cancelled, the primary gated replacement was submitted, the engine survived, and the merged gate is live on job 1276590. The required historical fallback identity was not achieved because that job imported the mutable main checkout rather than extracted revision 5ca04952.\nVERDICT done_when: every quantitative report item is present, including width 20, wait 300, exact job ids, HTTP 200 models and minimal messages responses, nonzero live gate accounting and the surviving engine. A fresh independent lane read at 2026-09-23T11:16:05Z observed width 20, wait 300, in_flight 13 and waiting 0. Review-sandbox scheduler and DNS probes were blocked environmentally.\nVERDICT write_paths: the tracked commit touches exactly the two declared HTML documents and the declared report exists; scheduler mutations named only the two router ids. The manifest path census omits the declared report and manifest after the first audit surfaced them.\nVERDICT manifest: the as-delivered blocked status matches the evidence; the current complete/no-blocker status contradicts the checkpoint, follow-on and report, and the sole test log lacks the required revision/tree/command first line.\nVERDICT diff: commit d7f13afb against d35e8c3c appends one plan comment and one cumulative deployment-evidence section; no production source or test changes.\nCALL_SITES: none\nSCORE goal_fidelity: 17\nJUSTIFICATION goal_fidelity: the desired merged gate is live and every endpoint/lane/engine observation passed, but the exact fallback branch ran different source than required and remains a blocker under the dispatch contract.\nSCORE evidence: 18\nJUSTIFICATION evidence: direct scheduler, API, lane, batch-script and live-log receipts support every claim and include a positive live counter, while the sole test-log path lacks the required provenance header and independent scheduler/DNS rechecks were sandbox-blocked.\nSCORE scope_discipline: 14\nJUSTIFICATION scope_discipline: destructive actions were narrowly enumerated and the commit stayed inside the repository fence, but the final manifest deliberately omits the declared report and delivery manifest after the audit identified them.\nSCORE durability: 16\nJUSTIFICATION durability: committed evidence and the as-delivered record preserve the outcome and defect, but the current status rewrite, incomplete path census, missing log header and absent sequential figure weaken the durable account.\nSCORE fit: 17\nJUSTIFICATION fit: the established CLI, lane publisher and evidence surfaces were used correctly, but the handwritten fallback wrapper selected a mutable checkout because it did not change into the extracted tree.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/router-gate-deploy.md:108-131 the fallback extracted 5ca04952 but imported the main checkout, so the exact fallback source identity failed.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T095358147111-router-gate-deploy/manifest.md:5-23 complete/no blockers contradicts the retained exact-spec deviation and the as-delivered blocked status.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T095358147111-router-gate-deploy/manifest.md:12 changed_paths omits the declared report and manifest after check-manifest identified them.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/router-gate-deploy.md:1-3 the sole test log lacks the required revision, tree and command first-line header.\nREVISION: d7f13afb1be4a2db2ece35ab54dc549914803c70",
+  "review_run_id": "r-20260923T111048087536-review-of-router-gate-deploy",
+  "reviewed_base_sha": "d35e8c3c86cfc7af99ace792b8d8b1c11b67a933",
+  "reviewed_head_sha": "d7f13afb1be4a2db2ece35ab54dc549914803c70",
+  "reviewed_revision": "d7f13afb1be4a2db2ece35ab54dc549914803c70",
+  "reviewed_run_id": "r-20260923T095358147111-router-gate-deploy",
+  "reviewer": "review-of-router-gate-deploy",
+  "scores": {
+    "durability": 16,
+    "evidence": 18,
+    "fit": 17,
+    "goal_fidelity": 17,
+    "scope_discipline": 14
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-23T13:17:49+02:00",
+  "total": 82
+}

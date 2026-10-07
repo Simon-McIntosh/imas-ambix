@@ -1,0 +1,74 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T04:34:41.941Z",
+  "dispatched_at": "2026-10-06T04:28:46Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-geometry-and-signal-figures.html:66",
+      "id": "reuse_search-1",
+      "reason": "the author must at minimum cite the `gs` projection and draw path and state why it cannot address the JT-60SA description store, and may be able to reuse it instead of re-deriving the projection.",
+      "text": "the reuse search covers only `imas_ambix/data/` and `scripts/` and never opens `imas_ambix/gs/`, so it misses `MachineGeometryService.operator()` (`imas_ambix/gs/machine_geometry.py:319`) returning `OperatorGeometry` with `conductors`, `passives`, `limiter_r/z`, probes and loops, `build_geometry_fields_from_table` (`imas_ambix/gs/geometry_export.py:302`) which `geometry_export.py:1` describes as deliberately machine-agnostic (MAST \u2192 JET \u2192 ITER), and `scripts/validate_mast_geometry.py` draws that same poloidal cross-section with PF coils, limiter, probes and flux loops",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/gs/machine_geometry.py:264",
+      "id": "duplicate_owner-1",
+      "reason": "a second, independent projection path for the same apparatus components drifts from the owner, and the plan should either extend the owner to accept the description store or name in-text why it cannot.",
+      "text": "\u00a72 re-implements the geometry projection (every PF element as a rectangle, vessel filaments, wall/limiter outline, flux loops, probes) inline in the new script, while `MachineGeometryService` already resolves a shot to narrow projections of exactly those components (`OperatorGeometry.conductors`/`passives`/`limiter_r,z`/`probes`/`loops`) and is the owner a caller reads them from",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-geometry-and-signal-figures.html:84",
+      "id": "reuse_search-2",
+      "reason": "the module is still justified as the first shared style surface; this would only add a citation and a note on whether the two inline palettes consolidate later, not alter the design.",
+      "text": "\u00a71 asserts \"the repository has no style module yet\" and \"`imas_ambix/` holds no plotting style code\" but `scripts/figures/wm_demonstration_figs.py:38` and `scripts/figures/playable_plasma_figs.py:91` each hand-roll a self-described \"Tufte palette\", so the claim is accurate only for the package and the two inline style sources go unmentioned",
+      "type": "reuse_search",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "91433ff1fb495bfb5374c492cbc44ece6211ab3bb0477071f46ac296290f2bb0",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 2,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "the gs projection resolves through description_reader, which has no JT-60SA catalogue; plan v3 \u00a71 names this and the adapted-table figure as the companion once the map packages JT-60SA",
+      "when": "2026-10-06T04:35:50.710465+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v3 \u00a71 reuse paragraph cites MachineGeometryService.operator, geometry_export and validate_mast_geometry.py and states they sit downstream of read_geometry_table via machine_selection, so they cannot address JT-60SA before the map packages it",
+      "when": "2026-10-06T04:35:50.708887+00:00"
+    },
+    "reuse_search-2": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v3 \u00a71 cites the two inline palettes in scripts/figures/ and states they stay as they are",
+      "when": "2026-10-06T04:35:50.711731+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T042839761519-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "f3e4c41e497c28e28ce9b09520fac0f4cc50e44a",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a71's `plot_style.py` hides the sheet application and the role map behind one apply function, and \u00a72/\u00a73 are two domain scripts (geometry vs cache), not a spread of wrappers over one mechanism.",
+    "duplicate_owner": "a finding \u2014 \u00a72 re-derives the conductor/passive/limiter/sensor projection inline in `scripts/figures_jt60sa_geometry.py` rather than extending the projection owner `imas_ambix/gs/machine_geometry.py` (`MachineGeometryService.operator()` \u2192 `OperatorGeometry`).",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the only new public surface is `imas_ambix/plot_style.py`, and \u00a71 names in its own text that it \"is the first and retires nothing\" with the reason, satisfying the retirement-or-justification rule.",
+    "reuse_search": "a finding \u2014 the plan's reuse search is scoped to `imas_ambix/data/` and `scripts/`, so it misses the machine-geometry projection facade in `imas_ambix/gs/machine_geometry.py` and `imas_ambix/gs/geometry_export.py`, which already project exactly the PF conductors, passive/vessel filaments, limiter contour, flux loops and B-probes \u00a72 draws, and the existing cross-section draw in `scripts/validate_mast_geometry.py`.",
+    "thin_wrapper": "pass \u2014 the plan states in \u00a71 that the repository has no plotting style module in `imas_ambix/` and that the inline `rcParams` scripts stay as they are, which is the required justification for adding `plot_style.py` rather than extending existing machinery."
+  },
+  "section_digests": {
+    "_document": "83930f1b7b0267bad4eee3074ee3f5577a04323602d949d1724a1b4f6aa3671c",
+    "s1": "7677cd4ad2b5cd7112e22bc3a29b09d0406628d5368f65da478a2d4660f1c9dd",
+    "s2": "87ae6ffa44e8fe7542f26495d17e914d4508cd9fce2f7b82d2043b4e7d7e79b7",
+    "s3": "412d685335710bd6f5f357e93d8240bc3eecde6d6630573d29e2bdcd32c98cbf"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T04:35:33.445303+00:00"
+}

@@ -1,0 +1,142 @@
+{
+  "absent": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed run's manifest carries neither a baseline_suite nor an after_suite arm (both fields empty), so no delta could be read from that record. This review measured the two arms itself, each in a scratch extraction under $TMPDIR with the reviewed revision's own test files and the shared environment resolved by PYTHONPATH (module.__file__ confirmed inside the scratch tree): baseline arm at ebe33a68 -> 58 passed, EXIT=0; after arm at 06a0b115 -> 58 passed, EXIT=0. added_failure_count = after failures minus baseline failures over the same five test files; both arms ran to their summary line, so the count is 0.",
+  "after_suite": {
+    "command": "PYTHONPATH=/tmp/reckon-crew-scratch/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/head-review /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -n 8 /tmp/reckon-crew-scratch/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/head-review/tests/data/test_selene_deck.py /tmp/reckon-crew-scratch/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/head-review/tests/data/test_jt60sa_machine_map.py /tmp/reckon-crew-scratch/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/head-review/tests/data/test_description_reader.py /tmp/reckon-crew-scratch/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/head-review/tests/data/test_description_identity.py /tmp/reckon-crew-scratch/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/head-review/tests/data/test_transform_engine.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/review_gate_head.log",
+    "revision": "06a0b1159211d96ee40fa5a5618291f1cb9f1900"
+  },
+  "baseline_suite": {
+    "command": "PYTHONPATH=/tmp/reckon-crew-scratch/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/base-review /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -n 8 /tmp/reckon-crew-scratch/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/base-review/tests/data/test_selene_deck.py /tmp/reckon-crew-scratch/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/base-review/tests/data/test_jt60sa_machine_map.py /tmp/reckon-crew-scratch/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/base-review/tests/data/test_description_reader.py /tmp/reckon-crew-scratch/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/base-review/tests/data/test_description_identity.py /tmp/reckon-crew-scratch/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/base-review/tests/data/test_transform_engine.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/review_gate_base.log",
+    "revision": "ebe33a68c98a873260f00a27e6489c6b72c4cbaf"
+  },
+  "blockers": [],
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T09:57:43.090Z",
+  "dispatched_at": "2026-10-06T09:15:41Z",
+  "evidence_inputs": [
+    "Independent store readback at DD 4.1.1 (/work/projects/imas_gpu/jt60sa/machine_description): OP1 wall type.index 2, limiter 51 points closed, one vessel unit annular inner 51 / outer 51 closed; OP2 wall type.index 2, limiter 51 closed, inner/outer 51 closed. pf_passive OP1 VV 63 @7.76e-7 + CRYOSTAT 57 @7.20e-7; OP2 VV 98 @7.20e-7 + CRYOSTAT 57 @7.20e-7.",
+    "Store sha256 all match the fragment: OP1/wall.nc 8e766da9b2d44af1f18099dfe66c55c3fcfeb92c8bc7e2f785fb7c84b51600f1; OP2/wall.nc 5defa715ed25ec85da8bce655caa9ec9f1e5b57cd04151ad540a768c01f2c991; OP1/pf_passive.nc fbdce429127e172b605817747c2ec860f565b0b233152ef08fc60ad4f48c7d33; OP2/pf_passive.nc d138d088da6edb84933fba96618529e94a00f6f1ba54ddb719e8a820fe9852fe; pf_active aa623601, magnetics bc8ed1ac, tf c5549058 in both phases; the OP1 and OP2 nuclear wall limiters differ (OP1 Rmax 4.483 m, OP2 4.2064 m) while both vessel annular outlines are identical across phases.",
+    "source/coil_vv_OP1.dat sha256 55d97f6989368348108aef384b1ff1b737803fa9be6ac0b84aa718bedfda01cb; provenance.json holds four entries (EQSLE.DATA d2e9f0ac, geo.in de826dc8, coil_vv_OP2.dat 0077a024, coil_vv_OP1.dat 55d97f69).",
+    "Raw deck contour block (both coil_vv decks): declared header 128 rows, Inner VV run 50 rows (OP1 lines 447-496), Outer VV run 50 rows, D-probe 28 rows; the OP1 receipt's coil_vv 'vessel skins' block spans lines 447-546 (100 inner+outer rows), D-probe rows 547-574 excluded. OP1 NV block 273-335 (63 rows), wall 394-444 (50 segments); OP2 NV 273-370 (98 rows), wall 372-422, vessel skins 425-524.",
+    "Geometry preservation: exact point-to-arc distance of every coil_vv skin vertex to the EQSLE analytic skins is at most 5.36e-4 m (inner) and 4.76e-4 m (outer), median ~2e-4 m - the contour representation reproduces EQSLE's geometry.",
+    "Gate reproduced in a scratch extraction of 06a0b115 under $TMPDIR: 58 passed, EXIT=0. Baseline arm at ebe33a68: 58 passed, EXIT=0, so zero added failures. Negative control reproduced: OP1's limiter forced back to eqsle.first_wall makes test_both_phases_take_their_wall_from_their_own_coil_vv_deck fail with `assert 150 == 51`, EXIT=1.",
+    "The empty staging directory .convert-1165829 flagged by the prior review is no longer present in the store directory (only OP1/, OP2/, source/ remain)."
+  ],
+  "failure_attribution": {},
+  "findings": [
+    {
+      "file": "imas_ambix/data/selene_deck.py",
+      "line": "614",
+      "severity": "follow-on",
+      "text": "_parse_contour_block (with _find_contour_header) locates the contour block by a bare-integer anchor line and attributes each row's run from a label carried only on the run's first row; a deck whose first row of a run lost its label, or that carried a stray bare-integer line before the block, would silently drop or misattribute rows. Only the total row count is checked; neither returned skin is required to be non-empty. Bounded heuristic on a source that labels every real run; no defect on the OP1/OP2 decks."
+    },
+    {
+      "file": "tests/data/test_selene_deck.py",
+      "line": "598",
+      "severity": "follow-on",
+      "text": "The plan states the coil_vv chord endpoints lie on EQSLE's analytic arcs, so the new wall is a representational change and not a geometric one. No test pins that invariant; the new real-deck test asserts point counts, closure, D-probe exclusion and that the limiters differ, but nothing checks the skins still coincide with EQSLE's geometry. This review measured the coincidence (<=5.4e-4 m) but the guard is absent."
+    }
+  ],
+  "follow_ons": [
+    "tests/data/test_selene_deck.py: no test pins the geometry-preservation invariant (the coil_vv skins lying on the EQSLE analytic arcs); an assertion that each skin vertex is within ~1 mm of the EQSLE polygons would guard it.",
+    "imas_ambix/data/selene_deck.py _parse_contour_block/_find_contour_header: the block is anchored by a bare-integer line and skins classified by a label present only on a run's first row; a missing label or a stray bare-integer line would silently drop or misattribute rows. A non-empty check on each returned skin would make the failure loud.",
+    "docs/figures/jt60sa-machine-map: the reviewed run's write grant included a wall-vs-equilibrium figure path but no figure was produced (the run self-declared this); a before/after wall and vessel cross-section per phase would make the change legible on the plan page."
+  ],
+  "gate_logs": {
+    "geometry_preservation_probe": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/review_geometry2.py",
+      "note": "exact point-to-arc distance of every coil_vv skin vertex to the EQSLE analytic skins: OP1 inner max 5.36e-4 m, outer max 4.76e-4 m; OP2 identical."
+    },
+    "negative_control": {
+      "completed": true,
+      "exit_status": 1,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/review_negative_control.log",
+      "note": "declared mutation (OP1's limiter forced back to eqsle.first_wall in write_phase_description) re-applied to a copy of the reviewed head; test_both_phases_take_their_wall_from_their_own_coil_vv_deck fails with `assert o['lim_r'].size == 51` -> `assert 150 == 51`, EXIT=1.",
+      "revision": "06a0b1159211d96ee40fa5a5618291f1cb9f1900"
+    },
+    "pytest_base_arm_rereun": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/review_gate_base.log",
+      "revision": "ebe33a68c98a873260f00a27e6489c6b72c4cbaf",
+      "tree": "/tmp/reckon-crew-scratch/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/base-review"
+    },
+    "pytest_head_arm_rereun": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/review_gate_head.log",
+      "revision": "06a0b1159211d96ee40fa5a5618291f1cb9f1900",
+      "tree": "/tmp/reckon-crew-scratch/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/head-review"
+    },
+    "store_readback_dd411": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/review_readback.json",
+      "note": "independent imas.DBEntry read of OP1/OP2 wall.nc and pf_passive.nc plus sha256 of every store file."
+    }
+  },
+  "item_verdicts": {
+    "call_sites": "No production call site outside the converter. build_pf_passive, parse_coil_vv_deck, CoilVesselDeck, split_passive_groups and limiter_and_first_wall are referenced only within selene_deck.py and the test modules; write_phase_description is the single public entry point.",
+    "diff": "Read the full range. selene_deck.py: CoilVesselDeck gains vessel_skin_inner/outer; _parse_limiter_polygon also returns the index after the block; new _find_contour_header and _parse_contour_block parse the 128-row contour block into the two skins by section label, excluding the D-probe runs; parse_coil_vv_deck splits the deck's passive block and takes its first run as the vessel; _require_outside_envelope (R/Z box) is replaced by _require_outside_skin/_point_in_polygon against the vessel outer-skin polyline; build_pf_passive takes a keyword-only vessel_outer_skin; write_phase_description draws both phases from coil_vv and passes the outer skin to the passive writer; the receipt records a 'vessel skins' block. jt-60sa.json adds the OP2 wall vessel inner/outer bindings. Tests: the wall half of the phase-boundary test now requires the shared limiter bindings to change and the wall vessel bindings to be byte-equal; a new real-deck test asserts, per phase, a 51-point closed limiter, 51-point inner/outer outlines, no D-probe point in either, and differing limiters; the containment test moves to a synthetic square outer skin with an in-skin/out-of-box corner case.",
+    "done_when": "Verified against the re-converted store read independently through imas.DBEntry at DD 4.1.1: OP1 and OP2 wall both type.index 2, a 51-point closed limiter, and one vessel unit whose annular outline_inner and outline_outer are each 51 points and closed; OP1 limiter R in [1.705, 4.483] m and OP2 in [1.7048, 4.2064] m, so the two differ; both phases carry the wall vessel bindings.",
+    "goal": "Plan jt60sa-machine-map section 4 and the lead's decision wall-from-coil-vv-tables fix the contract: both phases take the wall and vessel from their own coil_vv_OP{1,2}.dat; the limiter unit is the deck's nlim=51 first-wall polygon; the annular vessel unit's outline_inner and outline_outer are the two 50-segment skins of the 128-row contour block (Inner VV=50, Outer VV=50) with the 28 D-probe rows excluded; the chord endpoints lie on EQSLE's analytic arcs, so the change is representational, not geometric; and the node closes the cryostat review's follow-ons.",
+    "manifest": "Read at 06a0b115, manifest.md records status complete, the three commits [54f9e00b, fbb7642d, 06a0b115], the five changed paths, the five-file gate (58 passed, EXIT=0; ruff whole-tree clean), the declared negative control and the store re-conversion; changed_paths and tests reconcile with the tree.",
+    "write_paths": "The range touches exactly five paths: imas_ambix/data/selene_deck.py, tests/data/test_selene_deck.py, tests/data/test_jt60sa_machine_map.py, imas_ambix/data/machine_maps/jt-60sa.json and docs/evidence/fragments/jt60sa-machine-map/jtmm-wall-from-coil-vv.html. git diff --stat ebe33a68..06a0b115 shows those five alone; the store under /work is a data artifact outside the repo, not a source path."
+  },
+  "justifications": {
+    "durability": "Committed, with new tests that pin the hard parts (51-point closed limiter, 51-point closed skins, D-probe exclusion via raw-file vertices, differing limiters, the in-skin/out-of-box corner refusal). Docked two: the contour block is located and classified heuristically with no refusal for an empty skin, and the geometry-preservation invariant is asserted in the plan but not by any test.",
+    "evidence": "Strong and independently reproduced. All seven store sha256 values in the fragment reproduce (OP1 wall 8e766da9, OP2 wall 5defa715, both pf_passive unchanged fbdce429/d138d088, pf_active aa623601, magnetics bc8ed1ac, both tf c5549058); source/coil_vv_OP1.dat is 55d97f69 and matches provenance.json. The store reads back at DD 4.1.1 with the counts and loop names the fragment claims. The raw decks carry a 128-row contour block (Inner VV 50, Outer VV 50, D-probe 28) and the receipt's coil_vv 'vessel skins' block spans exactly those 100 inner+outer rows. The 'representation not geometry' claim was checked directly: every coil_vv skin vertex lies within 5.4e-4 m of the EQSLE analytic skin (median ~2e-4 m). Docked one because the fragment's 'replaced sha256' column is a before-state this review cannot independently reproduce from the current store, and because the geometry-preservation property is asserted in prose but guarded by no test.",
+    "fit": "Follows the module's shape (a build_* per IDS, Provenance on every element, receipt block line ranges extended with 'vessel skins') and the DD 4.1.1 wall vessel/annular paths previously confirmed in the dictionary.",
+    "goal_fidelity": "Every element the section and the decision name is implemented and store-proven: the limiter is the nlim=51 polygon, the vessel is one annular unit drawn from the two contour skins with the D-probe rows excluded, both phases are built the same way, and the cryostat review's three follow-ons (limiter-must-change assertion, point-in-polygon containment, staging-directory removal) are closed.",
+    "reuse": "Reuses _wall_outline, split_passive_groups, the Segment/Provenance machinery and the existing catalogue binding schema; the only new mechanisms are the contour-block reader and the point-in-polygon containment refusal the section calls for.",
+    "scope_discipline": "The diff is confined to the five declared paths and changes no rule, unit or transform outside the wall/passive writers, their catalogue bindings, their tests and the evidence fragment; no external caller of the changed APIs exists."
+  },
+  "node": "review-of-jtmm-wall-from-coil-vv",
+  "prior_review": null,
+  "project": "imas-ambix",
+  "review_run_id": "r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv",
+  "review_scope": "Whole of node jtmm-wall-from-coil-vv (three commits, base ebe33a68 to head 06a0b115): both JT-60SA phases now take the limiter from their own coil_vv_OP{1,2}.dat nlim=51 first-wall polygon and the annular vessel unit's outline_inner/outline_outer from the deck's 128-row contour block (Inner VV=50 / Outer VV=50 runs, 28 D-probe rows excluded); the deck's first passive resistivity run is the vessel and the wall vessel catalogue bindings are added for OP2; the cryostat containment guard moves from an R/Z bounding box to a point-in-polygon test against the vessel outer-skin polyline. Read at 06a0b115: the full diff of the five changed paths, both test modules, the catalogue JSON, and the evidence fragment. Verified from a scratch extraction of the reviewed head under $TMPDIR (never the reviewed tree): the five-file gate re-run, the declared negative control reproduced, the store read back independently through imas.DBEntry at DD 4.1.1, the raw contour block counted from the deck text, and the coil_vv skin vertices checked against the EQSLE analytic arcs.",
+  "reviewed_base_sha": "ebe33a68c98a873260f00a27e6489c6b72c4cbaf",
+  "reviewed_commits": [
+    "54f9e00b1f44a2e8e2d64b3866c942ee5da45af5",
+    "fbb7642dbafdc8573653dcf2f4c5558c05e0089c",
+    "06a0b1159211d96ee40fa5a5618291f1cb9f1900"
+  ],
+  "reviewed_head_sha": "06a0b1159211d96ee40fa5a5618291f1cb9f1900",
+  "reviewed_run_id": "r-20261006T085514901946-jtmm-wall-from-coil-vv",
+  "reviewer": "review-of-jtmm-wall-from-coil-vv",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T09:58:00+00:00",
+  "total": 115,
+  "verification_logs": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/review_gate_base.log",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/review_gate_head.log",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/review_negative_control.log",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/review_readback.json",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T091531440644-review-of-jtmm-wall-from-coil-vv/review_geometry2.py"
+  ]
+}

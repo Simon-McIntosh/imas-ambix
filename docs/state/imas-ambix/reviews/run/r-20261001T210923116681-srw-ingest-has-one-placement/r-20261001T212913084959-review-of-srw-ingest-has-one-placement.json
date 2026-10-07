@@ -1,0 +1,71 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite (classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null), so its own arms cannot supply the delta. This review therefore measured the reviewed node's declared three-file gate in two scratch trees built from the reviewed commit's own object store (both extracted with git archive into $TMPDIR/arms, no git worktree created, the reviewed object store is not writable by this node and neither is its worktree): base arm gate-base.log (revision 2c4ab78fcb667653493a5da2901056eac8e7cf07: 29 passed, EXIT=0) and head arm gate-head.log (revision 14e4ef3cce53bcccbec5be72e33a4ef4a8feab6b: 29 passed, EXIT=0). The head test set is a subset swap, not a superset: three dry-run/submit tests were removed and three help tests added, so both arms collect 29 tests. Both arms are green, so head failing ids ([]) minus base failing ids ([]) is 0.",
+  "after_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_ingest_cli.py tests/test_telemetry_ingest.py tests/test_agent_watch_help.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T212913084959-review-of-srw-ingest-has-one-placement/gate-head.log",
+    "revision": "14e4ef3cce53bcccbec5be72e33a4ef4a8feab6b"
+  },
+  "baseline_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_ingest_cli.py tests/test_telemetry_ingest.py tests/test_agent_watch_help.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T212913084959-review-of-srw-ingest-has-one-placement/gate-base.log",
+    "revision": "2c4ab78fcb667653493a5da2901056eac8e7cf07"
+  },
+  "completed_at": "2026-10-01T21:50:44.374Z",
+  "dispatched_at": "2026-10-01T21:29:20Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_ingest.py",
+      "line": "59,248,260",
+      "severity": "minor",
+      "text": "The change locked the CLI's ingest cadence at sixty seconds but left the module's own second entry point disagreeing with it. imas_ambix/agent/telemetry_ingest.py still defines DEFAULT_CADENCE_SECONDS = 5.0 (line 59), still defaults run() to it (line 179), and still exposes main() (line 259) whose argparse --cadence reads that same 5.0 (line 248), with its docstring calling itself 'the scheduled ingest' and 'the entry point the scheduled job runs' (lines 260-262). Reproduced: at the reviewed head, `python -m imas_ambix.agent.telemetry_ingest --help` prints '--cadence CADENCE  seconds between ticks (default: 5.0)' while `imas-ambix agent ingest --help` prints '[default: 60.0]'. This is the same class of hazard 5 names as the reason for removing --submit and --dry-run ('a second, unused placement invites the wrong deploy'): a second runnable ingest path carries the pre-decision five-second cadence, so a caller -- or the supervisor, if it ever reaches the module entry point rather than the CLI at a future change -- ticks at 5 s against the 60 s the lead locked. Nothing invokes main() in-repo, and the reviewed run's own manifest acknowledged the residual ('telemetry_ingest.DEFAULT_CADENCE_SECONDS remains 5.0 (library default, not in this node's scope)'), so this is recorded as a residual of the node's goal rather than a defect the commit introduced."
+    }
+  ],
+  "follow_ons": [
+    {
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-ingest-command-and-service.html",
+      "line": "9,12",
+      "severity": "follow-on",
+      "text": "The landed evidence fragment srw-ingest-command-and-service.html still documents generate_ingest_script and `agent ingest --dry-run` as the ingest's SLURM service. That fragment is an immutable landed record of the node that added the generator, so it is not this commit's to edit and no finding is raised against it; it is recorded so the plan's fragment set is not read as describing an option that now raises 'no such option'. A reader wanting the current placement should read 5's own text and the CLI help."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 0 production call site(s) of the removed slurm.generate_ingest_script remain",
+    "diff": "read commit 14e4ef3c against base 2c4ab78f; three files changed, +56/-219, all inside the declared write paths, no other file touched (git diff --stat 2c4ab78f 14e4ef3c = cli.py 60, slurm.py 68, tests/test_agent_ingest_cli.py 147 lines).",
+    "done_when": "Read the node's measure (the review record stores a parsed record scoring all five dimensions 0..20, reviewed_base_sha and reviewed_head_sha, and added_failure_count/ids from the reviewed run's own arms where present, though it declares neither).",
+    "goal": "5 asks the repository to leave the ingest with one placement: remove the SLURM service generator and its --submit/--dry-run removal, raise the CLI cadence default to the locked sixty seconds, and have the help describe the standing loop the fleet allocation's supervisor keeps. The commit does all three: slurm.generate_ingest_script is deleted (grep -rn generate_ingest_script imas_ambix tests returns no matches at head), the two options and their dispatch branch are gone from the ingest command, --cadence now defaults to 60.0 with show_default=True, and the docstring names the supervisor-started standing loop. One residual: the module's own main() entry point and DEFAULT_CADENCE_SECONDS still carry the pre-decision five seconds.",
+    "manifest": "read; it states the three-command gate green (29 passed / 1 passed / ruff clean, each EXIT=0), a negative control 1 failed EXIT=1, and names changed_paths imas_ambix/agent/cli.py, imas_ambix/agent/slurm.py, tests/test_agent_ingest_cli.py.",
+    "write_paths": "read the manifest's declared paths; the diff touches imas_ambix/agent/cli.py, imas_ambix/agent/slurm.py and tests/test_agent_ingest_cli.py, all inside them. The manifest also declares the evidence fragment and figures dir as write paths, neither of which the commit writes -- the fragment is a pre-existing landed record, so this is an under-delivery of the declared write set, not a scope breach."
+  },
+  "justifications": "independent review of run r-20261001T212913084959-review-of-srw-ingest-has-one-placement, reviewed_run_id r-20261001T210923116681-srw-ingest-has-one-placement, base 2c4ab78f, head 14e4ef3c, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 18, evidence 17, scope_discipline 19, durability 15, fit 16 -- total 85, added_failure_count 0 with added_failure_ids [] derived from this review's own two arms of the reviewed run's declared three-file gate (the reviewed run was dispatched unarmed, so its own baseline_suite and after_suite are null): base arm gate-base.log (scratch tree $TMPDIR/arms/base, revision 2c4ab78f: 29 passed, EXIT=0) and head arm gate-head.log (scratch tree $TMPDIR/arms/head, revision 14e4ef3c: 29 passed, EXIT=0). The reviewed run's declared gate reproduces independently at head: the ingest CLI now offers neither --submit nor --dry-run, its --cadence default renders [default: 60.0], and it runs the standing loop through the CLI; the removed generator is gone with no surviving reference. The run's negative control was reproduced independently rather than accepted: restoring a --submit option to a scratch copy of the head cli.py reddens tests/test_agent_ingest_cli.py::test_help_offers_neither_submit_nor_dry_run (1 failed, EXIT=1, negative-control-reviewer.log), and this review's own mutation (setting the CLI --cadence default back to 5.0) reddens tests/test_agent_ingest_cli.py::test_help_shows_the_sixty_second_default_cadence (1 failed, 2 passed, EXIT=1, independent-mutation.log). One finding is recorded: the module imas_ambix... telemetry_ingest.py keeps a second runnable entry point (main()) with a five-second cadence default and 'scheduled' framing, disagreeing with the locked sixty seconds and reproducing the 'second placement' hazard 5 removed -- a residual of the node's goal, acknowledged in the reviewed manifest, not a defect introduced. One follow-on records the landed evidence fragment that still documents the removed generator.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261001T212913084959-review-of-srw-ingest-has-one-placement",
+  "reviewed_base_sha": "2c4ab78fcb667653493a5da2901056eac8e7cf07",
+  "reviewed_head_sha": "14e4ef3cce53bcccbec5be72e33a4ef4a8feab6b",
+  "reviewed_run_id": "r-20261001T210923116681-srw-ingest-has-one-placement",
+  "reviewer": "review-of-srw-ingest-has-one-placement",
+  "scores": {
+    "durability": 15,
+    "evidence": 17,
+    "fit": 16,
+    "goal_fidelity": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-01T21:44:03+00:00",
+  "total": 85
+}

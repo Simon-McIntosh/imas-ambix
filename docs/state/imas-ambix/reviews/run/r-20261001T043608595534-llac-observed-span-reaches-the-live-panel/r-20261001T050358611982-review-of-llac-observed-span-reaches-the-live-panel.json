@@ -1,0 +1,72 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's two arms of the reviewed node's declared three-file gate: base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T050358611982-review-of-llac-observed-span-reaches-the-live-panel/review-base-gate.log (tree /tmp/rev-llac-obs-span/base, revision 374d509c8abf92dcad86cc1a9e891558f7bea4a7, 38 passed, exit 0) and head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T050358611982-review-of-llac-observed-span-reaches-the-live-panel/review-head-gate.log (tree /tmp/rev-llac-obs-span/head, revision 6769cc91c9009170bcdbe2dcb357f2e715ee2eae, 39 passed, exit 0). The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite, and its own gate.log carries the head-side receipt only (39 passed, exit 0). Both arms were run in scratch trees extracted with git archive (base /tmp/rev-llac-obs-span/base, head /tmp/rev-llac-obs-span/head, each importing its own imas_ambix/agent/live_panel.py), so neither added a git worktree. Zero added failures: the head arm is green and its test set is a superset of the base arm's (the head arm adds test_observed_span_is_capped_at_the_window_from_above).",
+  "after_suite": {
+    "command": "env -C /tmp/rev-llac-obs-span/head PYTHONPATH=/tmp/rev-llac-obs-span/head /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_live_panel.py tests/test_agent_router_worker_slots.py tests/test_agent_watch_live.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T050358611982-review-of-llac-observed-span-reaches-the-live-panel/review-head-gate.log",
+    "revision": "6769cc91c9009170bcdbe2dcb357f2e715ee2eae"
+  },
+  "baseline_suite": {
+    "command": "env -C /tmp/rev-llac-obs-span/base PYTHONPATH=/tmp/rev-llac-obs-span/base /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_live_panel.py tests/test_agent_router_worker_slots.py tests/test_agent_watch_live.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T050358611982-review-of-llac-observed-span-reaches-the-live-panel/review-base-gate.log",
+    "revision": "374d509c8abf92dcad86cc1a9e891558f7bea4a7"
+  },
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/router.py:552 admission_document() publishes observed_seconds into the lane document's admission object",
+    "imas_ambix/agent/live_panel.py:450 the WORKER_SLOT_FIELDS copy that now includes observed_seconds",
+    "imas_ambix/agent/watch.py:971 live_panel() -> read_lane_block() -> lane_block(), the panel builder the watch command renders"
+  ],
+  "completed_at": "2026-10-01T05:35:06.826Z",
+  "dispatched_at": "2026-10-01T05:04:06Z",
+  "findings": [
+    {
+      "file": "tests/test_live_panel.py",
+      "line": "350",
+      "severity": "follow-on",
+      "text": "the copy is asserted only for a lane that publishes observed_seconds, so the distinction live_panel.py:69-70 claims - 'A lane that has not published them leaves them absent, which is a different fact from a lane that has published zeros' - is unpinned: no fixture drives lane_block with an admission block that omits observed_seconds and asserts the key stays absent. A lane publishing requests_per_run without its denominator is exactly the pre-fix reader's state, and the copy's `if key in admission` guard that produces it carries no test."
+    }
+  ],
+  "follow_ons": [
+    "pin the absent-vs-published distinction in tests/test_live_panel.py: a lane whose admission block omits observed_seconds must leave block['worker_slots'] without that key, so the docstring's claim at imas_ambix/agent/live_panel.py:69-70 is a guard rather than prose."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "read commit by commit against base 374d509c; three files changed, +45/-5, all inside the declared scope, no product source beyond live_panel.py.",
+    "done_when": "done-when is the s21 addendum ('readers pass the published figures through unchanged'); the head gate tests/test_live_panel.py:350 and tests/test_agent_router_worker_slots.py pin the copy and the span cap, both green.",
+    "goal": "the node's goal is to carry the router's observed_seconds into the live watch document's worker-slot object; live_panel.py:450 copies it and the router publishes it at router.py:352/552.",
+    "manifest": "read; it states the three-file gate 39 passed EXIT=0, the parse check 1 passed, ruff All checks passed! EXIT=0, and a negative control 1 failed EXIT=1.",
+    "write_paths": "read the manifest's declared paths; the diff touches imas_ambix/agent/live_panel.py, tests/test_live_panel.py and tests/test_agent_router_worker_slots.py, all inside them."
+  },
+  "justifications": "independent review of run r-20261001T043608595534-llac-observed-span-reaches-the-live-panel (base 374d509c, head 6769cc91) stored as a parsed record scoring all five dimensions in 0..20 - goal_fidelity 20, evidence 18, scope_discipline 20, durability 19, fit 20 - total 97 - with added_failure_count 0 and added_failure_ids [] derived from this review's own two arms of the node's declared three-file gate (base 38 passed exit 0; head 39 passed exit 0), the reviewed run having been dispatched unarmed (its manifest names no baseline_suite and no after_suite). The router already publishes observed_seconds in the lane document's admission object (imas_ambix/agent/router.py:552 admission_document -> _AdmissionLedger.snapshot), and the landed change adds it to WORKER_SLOT_FIELDS so imas_ambix/agent/live_panel.py:450 copies it into block['worker_slots'], the join the s21 addendum ('Readers pass the published figures through unchanged') requires. Both new guards were falsified in scratch copies: dropping observed_seconds from WORKER_SLOT_FIELDS makes tests/test_live_panel.py:350 raise KeyError, and removing the window cap on the observed span makes tests/test_agent_router_worker_slots.py red. One follow-on finding: the absent-vs-published distinction the docstring claims is not pinned by any test.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261001T050358611982-review-of-llac-observed-span-reaches-the-live-panel",
+  "reviewed_base_sha": "374d509c8abf92dcad86cc1a9e891558f7bea4a7",
+  "reviewed_head_sha": "6769cc91c9009170bcdbe2dcb357f2e715ee2eae",
+  "reviewed_run_id": "r-20261001T043608595534-llac-observed-span-reaches-the-live-panel",
+  "reviewer": "review-of-llac-observed-span-reaches-the-live-panel",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-01T05:26:15+00:00",
+  "total": 97
+}

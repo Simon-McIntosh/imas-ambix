@@ -1,0 +1,62 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T10:49:13.832Z",
+  "dispatched_at": "2026-10-06T10:41:49Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/maps/jt-60sa/magnetics.json:1",
+      "id": "reuse_search-1",
+      "reason": "the plan builds new read surface on a premise the repository contradicts, so the author must reconcile \u00a73 against the existing signal maps.",
+      "text": "\u00a73 states the engine path is unusable because it needs \"a ChannelBinding from a packaged signal map, none of which exists for JT-60SA yet\", but the tree carries three packaged JT-60SA signal maps built from the same EDDB cache: magnetics.json binds PSRC/Ip -> magnetics/ip/data in A (exactly \u00a73's plasma current from PSRC); pf_active.json binds the MMSYS curCS*/curEF* chains -> pf_active/coil/current/data in A (exactly \u00a73's PF coil currents from MMSYS); tf.json binds cur1TFLKAT; and that engine path is already exercised over this cache at tests/data/test_eddb_cache.py:472 \u2014 \u00a72 likewise reads pf_active/wall/magnetics with a raw imas.DBEntry without citing the two in-repo readers that already turn those IDSs into machine geometry: read_geometry_table (imas_ambix/data/description_reader.py:113, documented as \"the sole machine-description acquisition route\") and MachineArtifactGeometryReader (imas_ambix/gs/artifact_geometry.py:726, with read_artifact_pf_active/read_artifact_limiter/read_artifact_magnetics) \u2014 this is a census of the reuse misses in one pass",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/eddb.py:208",
+      "id": "thin_wrapper-1",
+      "reason": "the honest change is to extend the existing read route or state the true gap, either of which rewrites \u00a73's justification and may retire read_channel.",
+      "text": "\u00a73 adds read_channel beside write_channel (eddb.py:208) as a new read layer over the EDDB cache, justified by the claim that ZarrTransformEngine.read takes a ChannelBinding \"from a packaged signal map, none of which exists for JT-60SA yet\"; since those maps do exist (above) and the engine path load_packaged_signal_map (imas_ambix/data/signal_map.py:631) + ZarrTransformEngine (imas_ambix/data/transform_engine.py:156) + VirtualZarrView (imas_ambix/data/virtual_zarr.py:89) is already demonstrated over this cache, the section must state the real gap (the signal maps bind data only, with no time base or unit for the flux-loop and commissioning channels) or extend the existing route, rather than asserting the machinery is absent",
+      "type": "thin_wrapper",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "2d31c2a2f29fc70169eb9aa9991179923b9c3c6d0ff1ae22e309ede1051663cc",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 31,
+  "project": "imas-ambix",
+  "responses": {
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v32 \u00a73 draws the PF coil currents and plasma current as served by the packaged jt-60sa pf_active and magnetics signal maps (chain choice and channel_factor); the \u00a72 half is declined: description_reader and the gs readers return the adapter's table, and \u00a72 hands the raw IDSs to imas-ink's own extract_geometry",
+      "when": "2026-10-06T10:50:26.522527+00:00"
+    },
+    "thin_wrapper-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v32 \u00a73 states the real gap: the engine path the signal maps feed returns values with no time base or unit, and the maps bind no flux loop, so read_channel supplies time base, unit and the unbound channels; the false 'no JT-60SA map' claim is removed",
+      "when": "2026-10-06T10:50:26.523798+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T104140525361-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "d8d9ab6bc912f5dff18ca38890aa377485b49928",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the two figure scripts are thin orchestrators delegating to imas-ink, and eddb.read_channel hides the zarr data-and-time layout behind one function; no module spreads its complexity across many shallow wrappers over one mechanism.",
+    "duplicate_owner": "pass \u2014 store addressing goes through the catalogue that owns it (load_packaged_machine_map, description_store_root_path) and cache addressing through channel_path/channel_time_path; no shared placement or path-resolution mechanism is forked.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a71b retires the --palette-candidates CLI option and the plot_style module, \u00a72/\u00a73 add no CLI option, and \u00a73 names eddb.read_channel as its one added public name with its reason.",
+    "reuse_search": "a finding \u2014 the plan searched imas-ink and the EDDB path owners but missed the three packaged JT-60SA signal maps under imas_ambix/data/maps/jt-60sa/ that already bind two of the three channel groups \u00a73 draws, and the two in-repo store-to-geometry readers that read the same IDSs \u00a72 reads.",
+    "thin_wrapper": "a finding \u2014 \u00a73 adds read_channel beside write_channel as a new read layer over the EDDB cache and justifies it by a claim about missing machinery that the tree contradicts."
+  },
+  "section_digests": {
+    "_document": "c4d50308e63f65de45060a4c4c4f25b6b24fa640af64022bcbd95e0abdfa4f11",
+    "s1": "bb8d550544a521bde0263696163651a2d7a045188e07eb5e9a5e525932df317a",
+    "s1b": "9ec381e606c1e32ff38ae066d53ee93b49c010495ada772c8d37fedc05cbf0ab",
+    "s2": "3e8ee9b50285d1d9c568e97fca231e59562ca63d10e0fcf6a37569eef8c8119f",
+    "s3": "04fb4ecdd37d49b2f4d275aa5eb22cdb151bdc10b2df585b90acb7100816da56",
+    "s4": "ed6d5b8d0a5d98145a24fe9d1ab0e074e3d9c40bfd067beba80e2b1992dbbf26"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T10:50:26.519627+00:00"
+}

@@ -1,0 +1,58 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T16:13:25.213Z",
+  "dispatched_at": "2026-10-06T15:57:53Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/eddb_remote.py:322",
+      "id": "thin_wrapper-1",
+      "reason": "\u00a73's central reuse claim (\"no reader is extracted or duplicated\") rests on a transport swap that does not work as stated; the plan must name where the ssh prefix lives and either split `_remote_shell_command()` from `_argv()` or record that `ssh_command=()` plus a shell-executing transport is the seam, so the node that lands \u00a73 knows what to change in the owner rather than discovering it mid-implementation.",
+      "text": "\u00a73 asserts that \"a second implementation of the existing `Transport` protocol, passed through `RemoteEddbExtractor(..., transport=...)`, runs that script under the server's own Python with no ssh hop\", but the seam does not admit that swap: `fetch_batch` calls `self.transport.run(self._argv(), payload)` and `_argv()` (line 322) returns `[*DEFAULT_SSH_COMMAND, self._remote_shell_command()]`, i.e. the argv handed to the transport is a full `ssh -F ~/.ssh/config jt-60sa <one shell string>` command line whose transport wrapper is baked into the argument the transport receives, so a local transport must first strip the ssh prefix and then run the trailing module-load/nice/python `-c` string through a shell \u2014 it cannot run `argv` directly. The plan's wrapper over the ssh route is therefore not a drop-in, and its justification omits the reshape the seam needs.",
+      "type": "thin_wrapper",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "7b17fbbc464983106e21e454f90711bfda005e08d20567856980615d8f22e131",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 6,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "thin_wrapper-1",
+      "reason": "v7 s3: the ssh hop lives in _argv (eddb_remote.py:322), not in the Transport; with an empty ssh_command _argv composes nice -n 19 <python> -c REMOTE_SCRIPT as a list, the existing subprocess runner (SshTransport, renamed to say so) runs it; no new Transport class.",
+      "when": "2026-10-06T16:14:09.924488+00:00"
+    }
+  ],
+  "responses": {
+    "thin_wrapper-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v7 s3: the ssh hop lives in _argv (eddb_remote.py:322), not in the Transport; with an empty ssh_command _argv composes nice -n 19 <python> -c REMOTE_SCRIPT as a list, the existing subprocess runner (SshTransport, renamed to say so) runs it; no new Transport class.",
+      "when": "2026-10-06T16:14:09.924488+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T155746767478-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "4f922e7c7d345ac051c2f3940d7d5bf804e940bc",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 `imas-alambic` hides the map loader, transform engine, virtual-zarr view, EDDB reader and COCOS layer behind one import package and one console script, and `RemoteEddbExtractor` already hides script + envelope + decode behind `fetch_batch`; \u00a72 moves that behaviour into the engine rather than adding shallow wrappers around it.",
+    "duplicate_owner": "pass \u2014 \u00a73 generalises the three existing resolvers *in place* rather than adding a resolver beside them, keeps `paths.py` the owner of ambix's on-disk layout, and reuses `decode_batch`; no second owner of map resolution or of the read path is introduced.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a72's interface account names the surface it adds (the `imas-alambic` distribution and its one console script) and what it retires (`imas-ambix data mint`), and \u00a73's discovery routes name what they retire (the module-level packaged roots and the `getattr` lookup against `paths`) and state that no new refusal family is added.",
+    "reuse_search": "pass \u2014 the plan searched the data layer and cites the mechanisms it extends: the three by-name resolvers (`load_packaged_machine_map` `machine_map.py:1623`, `load_packaged_signal_map` `signal_map.py:631`, `resolve_description_store_root` `machine_map.py:118`), the existing `Transport` seam (`eddb_remote.py:153`), `REMOTE_SCRIPT`/`decode_batch` (`eddb_remote.py:373`), `nova.io.cocos` \u2192 `nova_cocos`, and `paths.py`; every cited line number resolves.",
+    "thin_wrapper": "a finding \u2014 \u00a73 adds a second `Transport` implementation over the existing EDDB reader but its account of the seam it wraps is incomplete."
+  },
+  "section_digests": {
+    "_document": "029a71e9b135a259298b30cc3cc61988bea4431274d51fcb9b1e9f65d55a1311",
+    "s1": "a626816f6bcb1ce47a10ea362f17ab612f5a91b89ab9c0de8c52868321270e3a",
+    "s2": "fb62deb30e4b62001186b4fe13a320cca5b448b519f53ac1840dfc3d8f201b9e",
+    "s3": "c04541190ace8116933c36291ea3a112a2a4783801165c8759c83736218452b1",
+    "s4": "04b4fccc32647285448598adbba58a88bebb04c597bb09e40b9983aacb71e561",
+    "s5": "96112877cdd9d171381da10a535215b1763f59e5e35583b438f66aeb7a72870d",
+    "s6": "2c8928d511198b78f084b34222fda9e961661a633394aa1ee27445a6295ac81e"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T16:14:09.920875+00:00"
+}

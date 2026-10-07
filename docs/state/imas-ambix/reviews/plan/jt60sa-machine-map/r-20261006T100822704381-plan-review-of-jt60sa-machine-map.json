@@ -1,0 +1,65 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T10:22:47.955Z",
+  "dispatched_at": "2026-10-06T10:08:32Z",
+  "findings": [
+    {
+      "anchor": "nova/io/cocos.py:30",
+      "id": "thin_wrapper-1",
+      "reason": "dropping the nova class reduces \u00a76's \"three changes\" to two, removes the only proposed change to nova, and keeps the angle's sense where nova says it belongs (an authored declaration), so \u00a76 and \u00a77 agree that nova is untouched.",
+      "text": "\u00a76 proposes adding a `pol_angle_like` transformation class to nova's `TRANSFORMATIONS` (nova/io/cocos.py:87), justified as \"a generic COCOS transformation that any machine's probe angle needs\", but the module's own docstring states the opposite: \"Poloidal-angle transformation is not offered. The digit algebra has an answer for it, but a sensitive-axis orientation is a statement about installed hardware ... authored from the measurement rather than transformed from somebody else's convention. A caller who needs an angle carried between conventions has to say so explicitly somewhere a reader will see it, which is the point.\" That explicit statement is exactly the binding `sign_convention` `negate`/`identity` the plan already sets from \u00a76's measurement, so the nova class is a thin parallel path for a job the owner refuses to own and the binding already carries",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/gs/artifact_resolution.py:69",
+      "id": "interface_budget-1",
+      "reason": "the interface accounting overstates how contained the retirement is and the \u00a77 node's declared scope must name the test and re-export sites that migrate, or the \"retired as names\" claim cannot be met.",
+      "text": "\u00a77 says the three `PINNED_*` constants \"are retired as names\" and names one importer, `imas_ambix/spine_bench/machine_artifact_arm.py`; the census of every instance is: `imas_ambix/spine_bench/machine_artifact_arm.py:67-68` (import), `:88-89` (re-exported in its own `__all__`, making them a second public surface), `:123-124` (dataclass field defaults); `tests/gs/test_artifact_resolution.py:44-45,60,67-68,81,122,202`; `tests/gs/test_artifact_geometry.py:467-469`; `tests/spine_bench/test_machine_artifact_arm.py:123-124,140-141,184-185,205-206,228`. Retiring the names is a multi-module migration (three test modules plus a transit re-export) that the section does not list, and its summary sentence \"the two new public types are the section's interface addition\" omits the pin-table retirement it describes earlier in the same section",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "141817cdfaac030ffefd14e9ff88edef82d19992c8c7ec7d0fef193879fef75a",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 140,
+  "project": "imas-ambix",
+  "responses": {
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Acted in plan v143-144: section 7 names all four files the PINNED_* retirement migrates (machine_artifact_arm.py import, field defaults and __all__ re-export; test_artifact_resolution.py 8 sites, test_artifact_geometry.py 3, test_machine_artifact_arm.py 9) as the retiring node's scope, counts the re-export as a retired surface, and the interface summary names the pin-table retirement beside the two new types.",
+      "when": "2026-10-06T10:28:13.816301+00:00"
+    },
+    "thin_wrapper-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Acted in plan v141-142: section 6 leaves nova untouched and gives the transform engine a pol_angle_like branch that applies no COCOS-digit factor and takes the probe angle's sense only from the binding's authored, measured sign_convention. Dropping the nova class alone would not bind the angle, because transform_engine._apply_cocos_convention resolves DD 4.1.1's pol_angle_like label through canonical_factor and refuses an unsupported class.",
+      "when": "2026-10-06T10:28:13.812631+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T100822704381-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "a6d8fcba1f0172069be81d1e588a83a1dacd0f60",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new modules each hide substantial behaviour behind one entry point (`data/eddb_remote.py`: ssh batch transport, framing and per-channel refusals; `data/eddb.py`: store invariants and the on-demand cache; `data/selene_deck.py`: the deck grammar; `data/tokamap_export.py`: the unit\u00d7sign\u00d7COCOS collapse). The plan edits existing modules rather than adding a spread of new wrappers, so its changes add parameters to deep modules (a `machine` argument threaded through artifact resolution, identity, selection) rather than adding surface without depth.",
+    "duplicate_owner": "pass \u2014 each shared concern is routed to its existing owner rather than forked: placement to `gs/artifact_resolution.py`, path resolution to `data/paths.py`, the store-sign reader to `data/cocos_convention.py` (`read_level2_observation`), the convention scorer to `challenge/convention.py`, the equilibrium comparator to `eval/efit_referee.py`. No parallel owner is introduced.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a77 states its retirements but under-enumerates their blast radius, so the \"retires three public definitions\" account is wrong and the migration is larger than the section's own text.",
+    "reuse_search": "pass \u2014 the plan names, and I opened, the mechanisms it extends rather than rebuilds: `imas_ambix/data/signal_map.py` `load_packaged_signal_map` for the pulse maps, `StoreEngine.open` (`data/transform_engine.py`) for the static store, `data/description_reader.py` `read_geometry_table`, `gs/artifact_resolution.py` + `gs/machine_selection.py` for placement, `challenge/convention.py` `measure_diiid_convention`/`_integrated_current` for the sign kernel, `eval/efit_referee.py` `judge_geometry`/`read_efit_geometry` for the equilibrium comparator, and `spine_bench/runner.py` `_magnetics_residual` for the whitened residual. Each new engine cites the owner it extends; a census of `machine == \"mast\"` sites (`gs/artifact_geometry.py:758`, `gs/geometry.py:483`, `spine_bench/shots.py`, `data/description_reader.py:116,152`) matches the set the plan names as retired or off-route.",
+    "thin_wrapper": "a finding \u2014 \u00a76 adds a `pol_angle_like` class to nova's COCOS factor table, a thin layer over machinery whose owner explicitly declines that transformation."
+  },
+  "section_digests": {
+    "_document": "1d59b9f8026cc012a071159c5fda0ba5961ccfe0f9aae9c5b77f748298fe01db",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "7b349008c536a325162e183002f0bfdd11aaa01ee37c9a04e0b17a7d59656b90",
+    "s5": "6982251ed4c8a9182fe0265da5219217b9926e5b6c7490ef0149bf2754a8efc3",
+    "s6": "bd77b7631354a45d18091c3d0454d6334fb898847c7e3c8ffc51277349fc9ec9",
+    "s7": "5374fdb25bfc20ef2b45cc8ad37a329c2bc0d1effaaf1dcecace02cdfc15c08f",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T10:24:56.013293+00:00"
+}

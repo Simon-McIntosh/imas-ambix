@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T17:59:33.526Z",
+  "dispatched_at": "2026-10-06T17:49:24Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/selene_deck.py:765",
+      "id": "duplicate_owner-1",
+      "reason": "the reader needs a named owner and a source for the turn count, or it will hard-code a second copy of the B_phi relation that the converter already owns.",
+      "text": "\u00a76 has read_signal_map_observation \"derive the toroidal field from the TF map's coil current through the tf description's field per ampere\", but that value has no owner in the store the plan names: the converted tf description deliberately leaves `tf/coil[:]/turns` and `tf/coils_n` unset (recorded validation gaps in `/work/projects/imas_gpu/jt60sa/machine_description/OP1/receipt.json`), the receipt carries no `tf_b_field_phi_vacuum_r` (selene_deck.write_phase_description only computes it when both tf_current and tf_turns are supplied, selene_deck.py:1298), and the relation B_phi(R0)=mu0*turns*current/(2*pi*R0) has its sole implementation in derive_b_field_phi_vacuum_r (imas_ambix/data/selene_deck.py:765), which the plan does not cite; the same relation is also bound nowhere in imas_ambix/data/maps/jt-60sa/tf.json, whose only rule targets `tf/coil/current/data`.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/virtual_zarr.py:75",
+      "id": "duplicate_owner-2",
+      "reason": "the section must name the raw read path (the map's source_group/source_array read directly, bypassing apply) or admit it reads the applied transform, since the two give different signs precisely where the adjudication is decided.",
+      "text": "\u00a76's read_signal_map_observation \"reads every value raw with no sign or unit factor applied\" while reading through \"load_packaged_signal_map and VirtualZarrView over the EDDB cache\", but VirtualArray.__getitem__ returns `self.signal.apply(self._source[selection])` (imas_ambix/data/virtual_zarr.py:75-76), i.e. the compiled affine transform (unit x sign x COCOS) is applied on every read and the view exposes no raw accessor, so the named machinery cannot produce the raw series the section requires \u2014 and because the \u00a75 rules are source-only with an assumed channel_factor +1, reading through the transform silently applies a sign \u00a76 has not yet measured, defeating the sign report it feeds.",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "4c87c73baa81ab73b03b1ecbcd40961d23747756ddcb954e11b8277d0b58b557",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 200,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T18:01:02.188046+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-2",
+      "reason": "",
+      "when": "2026-10-06T18:01:17.899877+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T18:01:02.188046+00:00"
+    },
+    "duplicate_owner-2": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T18:01:17.899877+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v200.json",
+  "review_run_id": "r-20261006T174916830269-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "b7808a44b7f541bd2c6870d0c4be7e03d5e65d52",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 substantial behaviour stays behind existing deep interfaces: the canonical EfitLabels record is the one equilibrium shape, StoreEngine is the store seam, and the sign logic hides behind the private _observation_from_series kernel, so the readers are shallow by design over a deep core rather than a spread of shallow wrappers.",
+    "duplicate_owner": "a finding \u2014 read_signal_map_observation depends on a TF field-per-ampere the description store does not carry and whose only owner (selene_deck.derive_b_field_phi_vacuum_r) the plan never cites, and it claims raw reads through a transform-applying view that applies the very sign \u00a76 exists to measure.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface (the tokamap exporter, the eddb_remote/eddb modules and their two refusal families, read_signal_map_observation replacing read_catalogue_observation, measure_convention, the EQDB request/record types, the machine-keyed pin table and its re-export) names in its own text what it retires or merges, or states why nothing can be.",
+    "reuse_search": "pass \u2014 the design names and extends existing machinery at every proposable point (cocos_convention.score_convention/score_conventions/surviving_conventions, gs/operator.build_operator and cocos.project_poloidal_field, gs/artifact_resolution.resolve_machine_description, gs/machine_identity.default_registry, challenges/convention.py._integrated_current, eval/efit_referee.judge_geometry, spine_bench/shots.py, description_reader._supply_emitted_probe_angles), and each named mechanism was confirmed present and reachable in the tree.",
+    "thin_wrapper": "pass \u2014 the plan does not layer readers on readers: challenge/convention.measure_convention is a genuine generalisation (measure_diiid_convention becomes a call to it, verified at challenge/convention.py:341), the EQDB request/record types extend the existing eddb_remote extractor and the grid writer shares write_channel's extracted invariants, and read_signal_map_observation retires read_catalogue_observation rather than sitting beside it."
+  },
+  "section_digests": {
+    "_document": "62723cd7583dc5b18a64491724a048c3d8c8b0e2245109da9998ff5051244217",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "5c1ff2ac51703ed8d68bc80f203bab77e2372ab568bc5511b203a2c08395334e",
+    "s7": "98cb613c0803ddc3cc31bcc07322fe88b7c08be5c7b6784f39a60e84c93f8ca4",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T18:00:48.215490+00:00"
+}

@@ -1,0 +1,84 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's own two arms of the reviewed node's declared gate surface (tests/test_live_panel.py tests/test_agent_watch_live.py tests/test_agent_watch_help.py tests/test_agent_watch_cost.py): base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T043907720911-review-of-srw-gpu-watch-reads-nested-worker-slots/rev-slots-base-arm.log (revision d3f338e1, 53 passed, EXIT=0) and head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T043907720911-review-of-srw-gpu-watch-reads-nested-worker-slots/rev-slots-head-arm.log (revision fb8b53bf, 53 passed, EXIT=0). Both arms ran in scratch trees extracted with git archive from this review's own worktree (shared object store; the peer worktree is read-only to this node), each importing its own imas_ambix/agent/live_panel.py, so neither added a git worktree. The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite, and its own gate is the one-shot gpu-watch render, not a pytest suite. The two revisions differ only by the reviewed node's single committed path (an HTML evidence fragment that no test imports), so the head ids minus the base ids is 0.",
+  "after_suite": {
+    "command": "cd /tmp/rev-slots/head && PYTHONPATH=/tmp/rev-slots/head PYTHONDONTWRITEBYTECODE=1 UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_live_panel.py tests/test_agent_watch_live.py tests/test_agent_watch_help.py tests/test_agent_watch_cost.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T043907720911-review-of-srw-gpu-watch-reads-nested-worker-slots/rev-slots-head-arm.log",
+    "revision": "fb8b53bf289151936386bc5974997566e50c5a17"
+  },
+  "baseline_suite": {
+    "command": "cd /tmp/rev-slots/base && PYTHONPATH=/tmp/rev-slots/base PYTHONDONTWRITEBYTECODE=1 UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_live_panel.py tests/test_agent_watch_live.py tests/test_agent_watch_help.py tests/test_agent_watch_cost.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T043907720911-review-of-srw-gpu-watch-reads-nested-worker-slots/rev-slots-base-arm.log",
+    "revision": "d3f338e15aec49b3ee208082b6ee60b219be97a9"
+  },
+  "call_site_count": 2,
+  "call_sites": [
+    "/home/ITER/mcintos/Code/dotfiles/bin/gpu-watch:1223 the operator entry point the copy is meant to replace -- unchanged (dotfiles HEAD fffaaaa), still reads lane.get(\"worker_slots\"), so the operator's command prints a dash for the nested object",
+    "the delivered copy's _slots_worker_count at :1030, called from the slots band at :1242"
+  ],
+  "completed_at": "2026-10-01T05:09:52.169Z",
+  "dispatched_at": "2026-10-01T04:39:16Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/Code/dotfiles/bin/gpu-watch",
+      "line": "1223",
+      "severity": "follow-on",
+      "text": "follow-on: the diff is not landed in the dotfiles repository. ~/Code/dotfiles/bin/gpu-watch is unchanged (HEAD fffaaaa; lane.get(\"worker_slots\") at :1223), so the operator's gpu-watch still reads the lane's nested worker_slots object as a bare number and prints a dash where the lane published a count. The delivered gpu-watch.diff applies to that original (patch exit 0) and reproduces the report-directory copy byte for byte, so one patch lands it."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-gpu-watch-reads-nested-worker-slots/gpu-watch",
+      "line": "1030",
+      "severity": "follow-on",
+      "text": "follow-on: no test pins the nested read. The node changed no test file and its copy is imported by nothing in the suite, so a regression in _slots_worker_count reddens nothing; the fixture captures are a reproduction rather than a guard."
+    }
+  ],
+  "follow_ons": [
+    "Land the diff in ~/Code/dotfiles/bin/gpu-watch: the delivered gpu-watch.diff applies to the dotfiles original (patch exit 0) and reproduces the report-directory copy byte for byte, but the dotfiles file is unchanged, so the operator's command still draws a dash on the slots row.",
+    "Add a guard pinning the nested read; the deployable one is the landed dotfiles script driven against a lane fixture whose worker_slots is the nested object.",
+    "Section 11's node table calls the gpu-watch node 'written in the dotfiles repository' while the node contract delivered a report-directory copy no consumer reads; whichever node lands the diff carries the durable form."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "read; one helper _slots_worker_count is added and the slots-band predicate changes from isinstance(lane.get(\"worker_slots\"), (int, float)) to a non-None check on the nested count; applied to the dotfiles original it reproduces the delivered copy byte for byte.",
+    "goal": "the goal is to make gpu-watch's slots row read the lane's nested worker-slot count; the delivered copy's _slots_worker_count (:1030) reads lane.worker_slots.worker_slots and the slots band (:1242) prints a dash only when the object or its count is absent or null; reproduced live at 06:46:52Z the slots cell read 0 against lane.worker_slots.worker_slots 0, and the base dotfiles original and the bare-number control each read a dash on the same lane.",
+    "manifest": "read whole; commit fb8b53bf, one changed path, the four declared test_logs and the bare negative_control_log path are present on disk, and the reported figure 13 equals the run's own live.json nested count 13.",
+    "write_paths": "the declared paths are the run report directory, the fragment docs/evidence/fragments/serving-record-warehouse/srw-gpu-watch-reads-nested-worker-slots.html and a figures directory; git diff --name-status d3f338e1..fb8b53bf lists exactly that fragment (A, +4), the copy and captures live in the report directory, the figures directory named for this node does not exist, and ~/Code/dotfiles/bin/gpu-watch is unchanged."
+  },
+  "justifications": {
+    "durability": "weakest dimension: no test fails if the copy's _slots_worker_count regresses (the only committed path is the HTML fragment; the copy is imported by nothing), and the fix is unlanded, so nothing the operator runs carries it and nothing reddens on regression.",
+    "evidence": "verified independently rather than accepted: the delivered gpu-watch.diff applies to the dotfiles original 7cd9705 (patch exit 0) and reproduces the report-directory copy byte for byte; the base dotfiles original, the pre-repair baseline_repro and the declared control (bare-number read) each print a dash on a lane whose worker_slots is the nested object, while the repaired copy prints the count; and the reviewed run's own capture figure 13 equals its live.json nested 13. Weaker because the control and capture runs sit at drifted lane snapshots (headroom varied across runs) and the pre-existing bare-number read is the only control.",
+    "fit": "the helper follows the file's band and isinstance and dash idiom, its docstring names its own mechanism rather than a task, and the fragment carries no plan label or version token.",
+    "goal_fidelity": "the delivered copy's _slots_worker_count (:1030) returns the nested lane.worker_slots.worker_slots and the slots band (:1242) prints it, and a missing object or count renders a dash rather than a zero; independently reproduced at 06:46:52Z with the delivered copy printing 0 against lane.worker_slots.worker_slots 0 in a same-minute live.json.",
+    "scope_discipline": "git diff --name-status d3f338e1..fb8b53bf lists exactly the one declared fragment (A, +4); the edited gpu-watch copy and every capture live inside the declared report directory; ~/Code/dotfiles/bin/gpu-watch is verifiably untouched (still lane.get(\"worker_slots\") at :1223)."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261001T042351097957-srw-gpu-watch-reads-nested-worker-slots at head fb8b53bf289151936386bc5974997566e50c5a17 over base d3f338e15aec49b3ee208082b6ee60b219be97a9, the section-11 node that makes gpu-watch's serve-panel slots row read the lane's nested worker_slots.worker_slots instead of treating lane.worker_slots as a bare number. Verified rather than accepted: the delivered gpu-watch.diff applies to the dotfiles original (patch exit 0) and reproduces the report-directory copy byte for byte; the dotfiles original, the pre-repair baseline reproduction and the declared control each print a dash on the nested-object lane while the repaired copy prints the count; a same-minute reproduction at 06:46:52Z showed the slots cell 0 equal to lane.worker_slots.worker_slots 0; and the two-arm repository base control is 53 passed at each revision with no added failure.",
+  "review_run_id": "r-20261001T043907720911-review-of-srw-gpu-watch-reads-nested-worker-slots",
+  "reviewed_base_sha": "d3f338e15aec49b3ee208082b6ee60b219be97a9",
+  "reviewed_head_sha": "fb8b53bf289151936386bc5974997566e50c5a17",
+  "reviewed_run_id": "r-20261001T042351097957-srw-gpu-watch-reads-nested-worker-slots",
+  "reviewer": "review-of-srw-gpu-watch-reads-nested-worker-slots",
+  "scores": {
+    "durability": 11,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-01T05:04:12.589547+00:00",
+  "total": 87
+}

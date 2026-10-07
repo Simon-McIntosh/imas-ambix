@@ -1,0 +1,61 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/router.py:458 RouterApp.__call__ routes generation and decode-free requests",
+    "imas_ambix/agent/router.py:1349 create_router_app passes the operator gate path",
+    "imas_ambix/agent/router.py:1369 serve_router constructs the production ASGI app",
+    "imas_ambix/agent/cli.py:1689 router_command supplies lane.json, from which router-gate.json is derived",
+    "imas_ambix/agent/router.py:738 _publish_gate_snapshot adds router counters beside engine counters"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T07:35:26.872561+00:00",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": "521",
+      "text": "The code performs an independent upstream catalog fetch and owner selection before joining the FIFO at line 565, so the FIFO orders requests by completion of catalog resolution rather than by arrival at the router. A later request whose catalog fetch completes first can enter the gate ahead of an earlier request, while the plan and evidence state first-come, first-served without this qualifier; the current test spaces calls against a uniform local catalog and does not exercise out-of-order resolution."
+    },
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": "474",
+      "text": "The plan, evidence figure, and imas_ambix/agent/AGENTS.md state that health requests bypass the generation gate, but RouterApp accepts only GET /v1/models and the three POST routed paths; GET /health reaches the unsupported-path 404 at line 477. No added test names health, so the durable record promises a decode-free health path that the reviewed router does not serve or relay."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 5 production integration sites",
+    "diff": "read commit by commit from base 5ca049527 through decc190bc; the change adds the gate, eight behavioral tests, runtime guidance, plan evidence and one SVG, then corrects the retry hint, missing-file wait, and gate-wide refresh cadence in response to coordinator review.",
+    "done_when": "the candidate receipt records 45 router tests passing in 5.81 seconds, whole-tree ruff exit 0, two serving-interpreter guards passing, both HTML audits passing, and the declared acquire-removal mutation failing with 5 upstream requests against width 2. In this review sandbox the three no-socket gate checks independently passed in 2.18 seconds; the socket-backed rerun was attempted but could not bind 127.0.0.1 under the review sandbox and is not counted as contrary evidence.",
+    "goal": "the reviewed code implements one process-global FIFO generation gate with runtime width and wait settings, 529 overloaded_error plus fixed Retry-After, disconnect-safe release, width-zero disablement, decode-free catalog and count-token bypass, and lane-document counters. Strict FIFO begins after catalog resolution rather than at router arrival, and the documented health bypass is not implemented.",
+    "manifest": "read and checked against the named logs; it records all five commits and seven changed paths, preserves the separately authorised deployment boundary, names the widened coordinator-approved paths, and accurately states the final constants and gate results. The baseline and mutation receipts both show the unbounded 5-versus-2 behavior rather than inferring it from a green suite.",
+    "write_paths": "git diff 5ca049527..decc190bc touches seven files: the five original fence paths plus imas_ambix/agent/AGENTS.md and tests/test_agent_router_service.py, both explicitly added by the coordinator's resume advice; no live router restart or other external mutation occurred."
+  },
+  "justifications": {
+    "durability": "the eight behavioral tests cover the binding width, FIFO under uniform resolution, timeout shape and header, waiter and streamer departure, runtime edits, decode-free catalog/count-token bypass, and nonzero publication, while the declared mutation proves the width test depends on the acquire. They do not pin router-arrival FIFO across reordered catalog lookups or the documented health path.",
+    "evidence": "the run stores revision- and command-headed receipts for the 45-test gate, ruff, interpreter compatibility, document audits, three pre-repair refusals, baseline reproduction, and a discriminating negative control. I independently reran the three no-socket checks at decc190bc (3 passed in 2.18 seconds); the review sandbox forbids loopback binding, so its socket-backed failure is environmental and preserved separately rather than presented as a source failure.",
+    "fit": "the gate is instantiated once per RouterApp, derives its operator file beside lane.json in the production CLI path, keeps the 2048 transport ceiling separate, and publishes counters without replacing engine counters. The admission point follows per-request catalog discovery, which weakens the unqualified FIFO contract, and invalid configuration reverts to defaults rather than retaining the last known-good setting.",
+    "goal_fidelity": "all four explicitly tested section-7 behaviors plus catalog/count-token bypass and counters are implemented at the reviewed revision, with no deployment. The two qualifications are that FIFO is post-resolution rather than arrival-order and health is documented as bypassed but remains unsupported.",
+    "scope_discipline": "all seven changed paths are inside the initial fence or the coordinator's explicit scope widening, commits are separated into tests, implementation, correction and evidence, and the worker did not perform the separately authorised router restart."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260923T062821975138-router-global-gate, base 5ca0495273d2b9e529080180ee61da561be6753b, reviewed head decc190bc301c74e02f2491bc6a557a163f9c744. Read the live plan section 7, dispatch and resume authority, manifest, five commit diffs, final source and tests, gate receipts, pre-repair failures, baseline reproduction, declared negative control, evidence HTML, figure and operational guidance.\n\nVERDICT goal: the reviewed code implements one process-global FIFO generation gate with runtime width and wait settings, 529 overloaded_error plus fixed Retry-After, disconnect-safe release, width-zero disablement, decode-free catalog and count-token bypass, and lane-document counters. Strict FIFO begins after catalog resolution rather than at router arrival, and the documented health bypass is not implemented.\nVERDICT done_when: the candidate receipt records 45 router tests passing in 5.81 seconds, whole-tree ruff exit 0, two serving-interpreter guards passing, both HTML audits passing, and the declared acquire-removal mutation failing with 5 upstream requests against width 2. In this review sandbox the three no-socket gate checks independently passed in 2.18 seconds; the socket-backed rerun was attempted but could not bind 127.0.0.1 under the review sandbox and is not counted as contrary evidence.\nVERDICT write_paths: git diff 5ca049527..decc190bc touches seven files: the five original fence paths plus imas_ambix/agent/AGENTS.md and tests/test_agent_router_service.py, both explicitly added by the coordinator's resume advice; no live router restart or other external mutation occurred.\nVERDICT manifest: read and checked against the named logs; it records all five commits and seven changed paths, preserves the separately authorised deployment boundary, names the widened coordinator-approved paths, and accurately states the final constants and gate results.\nVERDICT diff: read commit by commit from base 5ca049527 through decc190bc; the change adds the gate, eight behavioral tests, runtime guidance, plan evidence and one SVG, then corrects the retry hint, missing-file wait, and gate-wide refresh cadence in response to coordinator review.\nCALL_SITES: imas_ambix/agent/router.py:458 RouterApp.__call__; imas_ambix/agent/router.py:1349 create_router_app; imas_ambix/agent/router.py:1369 serve_router; imas_ambix/agent/cli.py:1689 router_command; imas_ambix/agent/router.py:738 _publish_gate_snapshot.\nSCORE goal_fidelity: 17\nJUSTIFICATION goal_fidelity: all four explicitly tested section-7 behaviors plus catalog/count-token bypass and counters are implemented at the reviewed revision, with no deployment. The two qualifications are that FIFO is post-resolution rather than arrival-order and health is documented as bypassed but remains unsupported.\nSCORE evidence: 18\nJUSTIFICATION evidence: the run stores revision- and command-headed receipts for every named gate, baseline and negative control, and this review independently reran the three checks that do not require the sandbox-forbidden listener.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: all seven changed paths are inside the initial fence or explicit coordinator widening, and no deployment occurred.\nSCORE durability: 17\nJUSTIFICATION durability: the mutation-sensitive suite covers the intended gate behaviors but not reordered catalog completion or the documented health path.\nSCORE fit: 18\nJUSTIFICATION fit: the gate is one RouterApp-owned mechanism wired through the production CLI and lane publisher, with the main qualification that admission occurs after catalog discovery.\nFINDING imas_ambix/agent/router.py:521 catalog resolution precedes queue insertion at line 565, so FIFO is ordered by resolution completion rather than router arrival and the current uniform-catalog test cannot detect reordering.\nFINDING imas_ambix/agent/router.py:474 the durable record says health bypasses admission, but GET /health falls through to the unsupported-path 404 and no health check was added.\nREVISION: decc190bc301c74e02f2491bc6a557a163f9c744",
+  "review_run_id": "r-20260923T073526872561-review-of-router-global-gate",
+  "reviewed_base_sha": "5ca0495273d2b9e529080180ee61da561be6753b",
+  "reviewed_head_sha": "decc190bc301c74e02f2491bc6a557a163f9c744",
+  "reviewed_revision": "decc190bc301c74e02f2491bc6a557a163f9c744",
+  "reviewed_run_id": "r-20260923T062821975138-router-global-gate",
+  "reviewer": "review-of-router-global-gate",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 17,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-23T09:47:10+02:00",
+  "total": 90
+}

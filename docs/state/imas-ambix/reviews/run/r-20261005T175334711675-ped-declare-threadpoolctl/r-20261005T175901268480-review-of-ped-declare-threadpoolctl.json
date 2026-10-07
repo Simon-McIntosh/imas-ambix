@@ -1,0 +1,58 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest declares no baseline_suite/after_suite arms (negative_control is 'none: a declaration change with no check of its own'); its scope is pyproject.toml, uv.lock and one evidence fragment, so no test file is armed and both suite fields are unarmed. The node's gate is the relock version diff and uv lock --check, which this review reproduced independently, and no test file changed, so there is nothing to derive an added failing id from. Zero added failures.",
+  "artifacts_note": "read the reviewed run's two commits (9c73035e, b496f586) and its three gate logs under /home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T175334711675-ped-declare-threadpoolctl/ (relock.log, version-diff.log, lock-check.log) and the reviewed worktree at b496f586. Reproduction ran in /tmp/reckon-crew-scratch/r-20261005T175901268480-review-of-ped-declare-threadpoolctl/review-declare-threadpoolctl-2795339/wt with ../nova and ../imas-ink symlinked to the sibling checkouts (/home/ITER/mcintos/Code/nova, /home/ITER/mcintos/Code/imas-ink). This review changed nothing in the reviewed worktree.",
+  "base_log_revision": "23ee56ab4cbcf0442b06eb1df1000fa3d5832c55",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-05T18:03:49.457Z",
+  "dispatched_at": "2026-10-05T17:59:08Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/project-environment-declared/ped-declare-threadpoolctl.html",
+      "line": "23",
+      "severity": "follow-on",
+      "text": "follow-on: the fragment ends without a trailing newline, unlike the sibling fragments; cosmetic only."
+    }
+  ],
+  "head_log_revision": "b496f586754038b9a94203666da725e074c1fe93",
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "read the two commits 9c73035e (pyproject.toml dev declaration plus mechanism comment, uv.lock two edges) and b496f586 (the fragment); each carries a conventional subject and a body and neither carries an AI trailer.",
+    "done_when": "the node's done-when is a declaration plus a relock that changes nothing else. Reproduced: UV_OFFLINE=0 uv lock --check exits 0 against the head lock; a name-to-version map of the base and head locks is identical across all 236 packages (0 added, 0 removed, 0 changed); a raw line diff of the two locks is exactly the two threadpoolctl edges. The limb holds.",
+    "goal": "\u00a75's goal for this node is to declare threadpoolctl in the dev group and relock, because the per-worker thread-pool cap reaches an already-loaded BLAS/OpenMP pool through it. pyproject.toml's dev group now lists 'threadpoolctl' with no version bound, and uv.lock admits it without moving any package version, so the goal is met exactly.",
+    "manifest": "read; it records status complete, the three changed files, the version-diff and lock-check logs, negative_control 'none', and the scaffolding attribution for its two retries (a gitless scratch tree and a missing README, both in its own scratch setup). Its commits field lists the pre-head commit 9c73035e and the head b496f586.",
+    "write_paths": "the manifest declares pyproject.toml, uv.lock, the fragment and a docs/figures dir; git diff 23ee56ab..b496f586 is exactly three paths, 28 insertions, no product source. The declared figures dir was not created and no figure was produced."
+  },
+  "justifications": {
+    "durability": "the declaration lives in pyproject.toml, the durable source of truth, and the lock is committed alongside it, so the change survives a future sync or relock \u2014 reproduced here by re-locking from the base and getting the identical edges. uv lock --check is the standing guard that the lock stays current, but nothing asserts the declaration's presence, so it is declarative rather than enforced.",
+    "evidence": "the gate is reproduced independently, not read from the worker's log: uv lock --check exits 0 against the head lock, a 236-package name-to-version map is identical between base and head, and the raw lock diff is precisely the two threadpoolctl edges. The negative control is correctly declared none (a declaration with no check of its own); threadpoolctl is present in the lock at 3.6.0 as a scikit-learn dependency, so the unpinned declaration admits the present version.",
+    "fit": "the pyproject comment states the mechanism (the cap reaching an already-loaded pool) rather than a plan label; the fragment follows the evidence conventions with a node-id element id and plan-free naming; each commit carries a conventional subject and a body. The only nit is the missing trailing newline.",
+    "goal_fidelity": "\u00a75 asks explicitly for threadpoolctl in the dev group and a relock. The dev group now lists it unpinned and uv.lock admits the already-resolved version, so the change is exactly on-spec and minimal; the base pyproject.toml does not declare it, confirming it is a real addition.",
+    "reuse": "the node reuses the existing uv lock workflow and the established evidence-fragment pattern, declares a package already present transitively rather than introducing a new one, and adds no mechanism, helper or public surface.",
+    "scope_discipline": "git diff 23ee56ab..b496f586 is exactly the three declared paths (pyproject.toml, uv.lock, one new fragment), 28 insertions and no deletions, no product source touched, and the worktree is clean at b496f586."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20261005T175334711675-ped-declare-threadpoolctl at head b496f586 against base 23ee56ab (plan imas-ambix:project-environment-declared \u00a75). The node declares threadpoolctl in the dev dependency group of pyproject.toml with no version bound, so the test session's per-worker thread-pool cap can reach a BLAS/OpenMP pool a library has already loaded, and relocks uv.lock. Read the reviewed worktree's two commits (9c73035e, b496f586), its manifest, its three gate logs (relock.log, version-diff.log, lock-check.log) and the new evidence fragment. The worktree was clean at b496f586; this review changed nothing in it. The change is pyproject.toml (one declaration plus a mechanism comment), uv.lock (two threadpoolctl edges) and one new evidence fragment; no product source touched.\n\nVerified independently by reproduction, not by reading the worker's log. Copied the head tree to a node-local scratch dir with ../nova and ../imas-ink symlinked to the real checkouts, as the gate specifies. (1) SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0 UV_OFFLINE=0 uv lock --check exits 0 against the head lock. (2) A name-to-version map of the base lock and the head lock is identical across all 236 packages: 0 added, 0 removed, 0 changed. (3) A raw line diff of the two locks is exactly the two { name = 'threadpoolctl' } edges the commit adds -- one in the dev dependency list, one in the dev metadata list. (4) threadpoolctl is present in the lock at 3.6.0 as a dependency of scikit-learn, and the base pyproject.toml does not declare it, so the unpinned declaration admits the already-resolved version.\n\nGaps, all low severity, none blocking. (1) The evidence fragment ends without a trailing newline, unlike sibling fragments; cosmetic only. (2) The manifest declares docs/figures/project-environment-declared among its write paths but no figure was produced; a two-line dependency declaration does not call for one, so this is informational only.\n\nNo added test failures: the reviewed manifest declares no baseline_suite/after_suite arms (negative_control is 'none: a declaration change with no check of its own'), its scope is pyproject.toml/uv.lock and one fragment, and no test file is changed, so both suite fields are unarmed and there is nothing to derive an added failing id from.\n\nreviewed_base_sha: 23ee56ab4cbcf0442b06eb1df1000fa3d5832c55\nreviewed_head_sha: b496f586754038b9a94203666da725e074c1fe93\n\nVERDICT goal: \u00a75 asks explicitly for threadpoolctl in the dev group and a relock; the dev group now lists it unpinned and uv.lock admits the already-resolved version, exactly on-spec and minimal, and the base pyproject.toml did not declare it.\nVERDICT done_when: reproduced -- uv lock --check exits 0 against the head lock, the base and head locks are identical across all 236 packages, and the raw lock diff is exactly the two threadpoolctl edges.\nVERDICT write_paths: git diff 23ee56ab..b496f586 is exactly the three declared paths, 28 insertions, no product source, worktree clean at head.\nVERDICT manifest: read; it records status complete, the three files, the version-diff and lock-check logs, negative_control none, and the scaffolding attribution for its two retries.\nVERDICT diff: read the two commits 9c73035e (pyproject + lock) and b496f586 (the fragment); each carries a conventional subject and a body and neither carries an AI trailer.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: the change is exactly what \u00a75 asks for, minimal and on-spec; the only reservation is that the node's own fragment does not itself restate the plan's aim beyond the mechanism.\nSCORE evidence: 20\nJUSTIFICATION evidence: the gate is reproduced independently here -- lock --check exits 0, the 236-package version map is unchanged, and the raw lock diff is exactly the two edges -- and the negative control is correctly declared none.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff is exactly the three declared paths, 28 insertions, no product source, and the worktree is clean at b496f586.\nSCORE durability: 18\nJUSTIFICATION durability: the declaration is pyproject-backed and the lock is committed with it, reproduced as durable by re-locking from base; uv lock --check is the standing guard, but nothing asserts the declaration's presence.\nSCORE fit: 19\nJUSTIFICATION fit: mechanism comment, node-id fragment id, plan-free naming, conventional commit bodies; the only nit is the fragment's missing trailing newline.\nSCORE reuse: 20\nJUSTIFICATION reuse: reuses the existing lock workflow and fragment pattern, declares an existing transitive dependency, adds no mechanism or public surface.\nFINDING docs/evidence/fragments/project-environment-declared/ped-declare-threadpoolctl.html:23 follow-on: the fragment ends without a trailing newline, unlike the sibling fragments; cosmetic only.\n",
+  "review_run_id": "r-20261005T175901268480-review-of-ped-declare-threadpoolctl",
+  "reviewed_base_sha": "23ee56ab4cbcf0442b06eb1df1000fa3d5832c55",
+  "reviewed_head_sha": "b496f586754038b9a94203666da725e074c1fe93",
+  "reviewed_run_id": "r-20261005T175334711675-ped-declare-threadpoolctl",
+  "reviewer": "review-of-ped-declare-threadpoolctl",
+  "scores": {
+    "durability": 18,
+    "evidence": 20,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T04:36:22.364646+00:00",
+  "total": 116
+}

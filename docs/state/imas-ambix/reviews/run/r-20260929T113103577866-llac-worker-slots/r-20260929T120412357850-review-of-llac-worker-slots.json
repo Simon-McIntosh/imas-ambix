@@ -1,0 +1,114 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's two arms of the reviewed node's declared four-file gate: base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T120412357850-review-of-llac-worker-slots/review-base-gate.red.log at 0f7fbbbb421a24259fd361374fe588ed10d8faa9 (a scratch copy of the reviewed tree carrying the base revision's router.py with the reviewed test files kept at head: the new module errors at import, 1 id) and head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T120412357850-review-of-llac-worker-slots/review-head-gate.log at fb5e789d187ee14bfcb60de9298c82541951383c inside the reviewed worktree (0 failing ids); the three pre-existing files of the same gate pass 27 at that base (/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T120412357850-review-of-llac-worker-slots/review-base-existing-tests.log). The reviewed run was dispatched unarmed, so its manifest names no baseline_suite and no after_suite, and a reader annotating from the reviewed manifest alone reports this count as unmeasured.",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider tests/test_agent_router_worker_slots.py tests/test_agent_router_gate.py tests/test_agent_router_admission.py tests/test_agent_router_lane_publish.py   (at the reviewed head, inside the reviewed worktree)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T120412357850-review-of-llac-worker-slots/review-head-gate.log",
+    "revision": "fb5e789d187ee14bfcb60de9298c82541951383c"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider tests/test_agent_router_worker_slots.py tests/test_agent_router_gate.py tests/test_agent_router_admission.py tests/test_agent_router_lane_publish.py   (base revision's router.py in a scratch copy of the reviewed tree at /tmp/llac-worker-slots-base-arm, the reviewed test files kept at head)",
+    "completed": true,
+    "exit_status": 2,
+    "failure_count": 1,
+    "failure_ids": [
+      "tests/test_agent_router_worker_slots.py"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T120412357850-review-of-llac-worker-slots/review-base-gate.red.log",
+    "revision": "0f7fbbbb421a24259fd361374fe588ed10d8faa9"
+  },
+  "call_site_count": 7,
+  "call_sites": [
+    "imas_ambix/agent/router.py:1718 the acquire call passes the header-read run id",
+    "imas_ambix/agent/router.py:1777 the relay's finally releases with the occupancy handle",
+    "imas_ambix/agent/router.py:1960 _publish_gate_snapshot publishes the admission document into the lane document",
+    "imas_ambix/agent/router.py:1293 the gate snapshot publishes the same settings().width the slot formula is defined over",
+    "imas_ambix/agent/request_receipts.py identity_from_headers is the receipt rule the run identity is read through",
+    "imas_ambix/agent/live_panel.py:424 reads live_runs",
+    "requests_per_run and worker_slots from the admission block"
+  ],
+  "completed_at": "2026-09-29T12:47:59.506Z",
+  "dispatched_at": "2026-09-29T12:04:19Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": "360",
+      "text": "the slot count is computed from the unrounded ratio, so the deploy done-when identity can fail: on a fixture of three runs at 720.009 s the document publishes requests_per_run 0.8 with worker_slots 16 while the formula applied to those published figures gives 17 (review-slot-formula.log)."
+    },
+    {
+      "file": "tests/test_agent_router_worker_slots.py",
+      "line": "85",
+      "text": "the window test asserts samples 1 and unkeyed_share 1.0, both of which hold for any positive busy time, so the clip start = max(interval.started, window_start) is guarded by nothing: removing it in a scratch copy of the head leaves all 9 tests passing (review-clamp-probe.log)."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113103577866-llac-worker-slots/negative-control-live-runs.log",
+      "line": "18",
+      "text": "the red log's last line reads EXIT=0 while the same log reports 1 failed, so the status recorded is the capturing pipeline's rather than pytest's and a reader scanning the last line takes a red arm for a green one."
+    },
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": "1849",
+      "text": "the except (TypeError, ValueError) branch that turns an unreadable header sequence into an unkeyed request is not reached by any test, so the guarded behaviour rests on the receipt module's own tests alone."
+    },
+    {
+      "file": "docs/evidence/fragments/local-lane-admission-control/llac-worker-slots.html",
+      "line": "4",
+      "text": "the committed fragment ends at </section> with no trailing newline."
+    },
+    {
+      "file": "tests/test_agent_router_worker_slots.py",
+      "line": "5",
+      "text": "the module docstring repeats a phrase -- how many requests one of the requests one of them holds -- which reads as an editing slip in the file's first paragraph."
+    }
+  ],
+  "follow_ons": [
+    "imas_ambix/agent/live_panel.py:424 the panel's WORKER_SLOT_FIELDS keeps live_runs, requests_per_run and worker_slots and drops unkeyed_share together with window_seconds and samples, so the published share and the window behind the ratio reach no panel reader; that file is outside the reviewed node's write scope."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 7 production call site(s)",
+    "diff": "two commits read in full against base: router.py adds the ledger, the identity read and the publishing accessor (221 changed lines), the new test file (165 lines) drives the ledger and the real request path, and the four-line fragment records the landing; nothing in the diff is outside the goal.",
+    "done_when": "the declared four-file gate was re-run by this review at fb5e789d -- 36 passed, exit 0 -- with the parse check at 1 passed and ruff clean, and the base arm errors at import on the base router.py, so the declared measure holds as written.",
+    "goal": "the node's goal is to publish live_runs, requests_per_run, worker_slots and unkeyed_share in the lane admission object; imas_ambix/agent/router.py:525 admission_document publishes all six fields and every rule in s21-definitions is implemented, with one derivation edge recorded as a finding.",
+    "manifest": "read whole and consistent: status complete, both commits, three changed paths, the three gate exit statuses, the negative-control log name as a bare path, and baseline_suite/after_suite correctly absent for an unarmed dispatch.",
+    "write_paths": "git diff --name-status 0f7fbbbb..fb5e789d carries exactly the three declared paths -- imas_ambix/agent/router.py, tests/test_agent_router_worker_slots.py and the fragment -- and nothing else in the tree moved."
+  },
+  "justifications": {
+    "durability": "the header-keyed live_runs test is demonstrated falsifiable by the node's own negative control, but the window clip at router.py:328 is unguarded -- removing it leaves the whole new test module green (review-clamp-probe.log) -- and the malformed-header branch at router.py:1848 is never driven through the router.",
+    "evidence": "the gate re-runs to 36 passed at head with the reviewed tree's own router.py (review-head-gate.log), the base arm reds on the module it adds (review-base-gate.red.log), and the sole blemish is the negative-control log's own exit line.",
+    "fit": "the ledger, the private accessor and the constants follow the file's own idiom (slots dataclass, Mapping parameters, module constants with a stated mechanism) and carry no plan label, losing only to the duplicated docstring phrase and the fragment's missing trailing newline.",
+    "goal_fidelity": "router.py:525 publishes every field s21-definitions fixes and each rule matches, with the slot count derived from the unrounded ratio while a reader applies the formula to the published 3-decimal figure (router.py:359).",
+    "scope_discipline": "git diff --name-status 0f7fbbbb..fb5e789d lists only router.py, tests/test_agent_router_worker_slots.py and the fragment, all inside the declared write paths, with request_receipts.py declared and correctly untouched."
+  },
+  "justifications_detail": {
+    "independent_receipts": "review-head-gate.log (36 passed, exit 0, router.py resolving inside the reviewed worktree), review-base-gate.red.log (collection error at base, exit 2), review-base-existing-tests.log (27 passed at base on the pre-existing files), review-clamp-probe.log (the window clip removed in a /tmp copy: 9 passed) and review-slot-formula.log (published 0.8 and 16 against 17 from the formula on the document's own figures)",
+    "limits": "no router was restarted and no lane document was written: the reviewed tree, the live admission block (still the four queue fields) and the panel were read, not exercised; the probes ran in /tmp copies of the reviewed tree under the shared project interpreter, and the reviewed worktree was left byte-identical",
+    "review_basis": "read section 21 of the plan with its s21-definitions subsection, the reviewed dispatch and manifest, base 0f7fbbbb and head fb5e789d, both commits with their full diff, the reviewed gate and negative-control logs, the four-line fragment, the ledger and its acquire/release call sites, the gate snapshot's published effective_width, the request-header reader and the live panel's field list"
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260929T113103577866-llac-worker-slots at head fb5e789d against base 0f7fbbbb, the section-21 node that publishes the lane's per-run occupancy in the admission object. imas_ambix/agent/router.py gains _AdmissionLedger (router.py:299) over intervals bracketed by the gate's own acquire and release (router.py:1195, 1226, 1264), a run identity read once at admission through the same header reader the receipt uses (router.py:1838 calling request_receipts.identity_from_headers), and admission_document (router.py:525) merging window_seconds, samples, live_runs, unkeyed_share, requests_per_run and worker_slots into the object RouterApp._publish_gate_snapshot writes at router.py:1960. tests/test_agent_router_worker_slots.py (nine tests) drives the ledger with stub admissions, and one test drives fourteen header-keyed requests through the real router. The committed fragment records the landing and the declared measure. The landed change is correct against s21-definitions on every rule I could exercise, and I reproduced its gate figure for figure; five defects are recorded, four of them hygiene, one of which can make the section's own deploy acceptance identity fail.\n\nGoal fidelity. s21-definitions fixes each rule: scope by intersection with the trailing 900 s window, busy time clipped so no request contributes more than 900 s, an in-flight request counted to the moment of publication, live_runs as the distinct run ids among in-scope requests, requests_per_run as keyed busy seconds over the window over live_runs, worker_slots as max(0, floor(effective_width / requests_per_run) over live_runs) clamped to 0 under congested/full/paused, nulls below three live runs or 300 s of process history, unkeyed_share as a share of busy time over the same in-scope set, and a width that is the one the router_generation_gate document publishes. Each is implemented, and the width is the same object the gate snapshot publishes (router.py:539 and router.py:1293 both read settings().width), so the two figures describe one gate. What the clipping costs when it is wrong is not hypothetical: the lane serves 300k-context generations, so an interval longer than the window is ordinary, and the test that claims to guard the clip cannot fail (finding below).\n\nIndependent verification. Both arms were re-run by this review under the shared project interpreter, each log header naming the revision, the tree, the module under test as imported and the working directory it resolved from. Head arm at fb5e789d inside the reviewed worktree: the node's declared four-file gate, 36 passed, exit 0 (review-head-gate.log); the serving-interpreter parse check passed, and ruff check --no-cache imas_ambix tests printed all checks passed. Base arm: a scratch copy of the reviewed tree at /tmp/llac-worker-slots-base-arm carrying the base revision's router.py with the reviewed test files kept at head, where the new module cannot import (_AdmissionLedger is absent), so the four-file gate ends in a collection error, exit 2 (review-base-gate.red.log); the three pre-existing files of the same gate pass 27 at that base (review-base-existing-tests.log), so the added-failure count is zero by id as well as by number. The reviewed manifest was read whole: status complete, commits 1c0510f4 and fb5e789d, three changed paths, the three gate results, a negative-control log whose first line repeats its declared mutation string verbatim and whose body reads assert 1 == 14, negative_control_log written as the bare path, and baseline_suite and after_suite absent because the run was dispatched unarmed.\n\nTwo probes were run outside the node and recorded. The window clip was undone in a scratch copy at /tmp/llac-worker-slots-clamp-probe and the reviewed test module still passed 9 of 9 (review-clamp-probe.log), which is how the unguarded rule below is shown rather than argued. The slot formula was applied to the published figures on a fixture whose ratio lands just under an integer boundary and disagreed with the published worker_slots (review-slot-formula.log). The reviewed worktree was not modified; the tree was byte-identical before and after (clean git status on the reviewed worktree after every command printed by the arms).\n\nVERDICT goal: the node's goal is to publish live_runs, requests_per_run, worker_slots and unkeyed_share in the lane admission object; imas_ambix/agent/router.py:525 admission_document publishes all six fields and every rule in s21-definitions is implemented, with one derivation edge recorded as a finding.\nVERDICT done_when: the declared four-file gate was re-run by this review at fb5e789d -- 36 passed, exit 0 -- with the parse check at 1 passed and ruff clean, and the base arm errors at import on the base router.py, so the declared measure holds as written.\nVERDICT write_paths: git diff --name-status 0f7fbbbb..fb5e789d carries exactly the three declared paths -- imas_ambix/agent/router.py, tests/test_agent_router_worker_slots.py and the fragment -- and nothing else in the tree moved.\nVERDICT manifest: read whole and consistent: status complete, both commits, three changed paths, the three gate exit statuses, the negative-control log name as a bare path, and baseline_suite/after_suite correctly absent for an unarmed dispatch.\nVERDICT diff: two commits read in full against base: router.py adds the ledger, the identity read and the publishing accessor (221 changed lines), the new test file (165 lines) drives the ledger and the real request path, and the four-line fragment records the landing; nothing in the diff is outside the goal.\nCALL_SITES: imas_ambix/agent/router.py:1718 the acquire call passes the header-read run id, imas_ambix/agent/router.py:1777 the relay's finally releases with the occupancy handle, imas_ambix/agent/router.py:1960 _publish_gate_snapshot publishes the admission document into the lane document, imas_ambix/agent/router.py:1293 the gate snapshot publishes the same settings().width the slot formula is defined over, imas_ambix/agent/request_receipts.py identity_from_headers is the receipt rule the run identity is read through, imas_ambix/agent/live_panel.py:424 reads live_runs, requests_per_run and worker_slots from the admission block\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: router.py:525 publishes every field s21-definitions fixes and each rule matches, with the slot count derived from the unrounded ratio while a reader applies the formula to the published 3-decimal figure (router.py:359).\nSCORE evidence: 18\nJUSTIFICATION evidence: the gate re-runs to 36 passed at head with the reviewed tree's own router.py (review-head-gate.log), the base arm reds on the module it adds (review-base-gate.red.log), and the sole blemish is the negative-control log's own exit line.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-status 0f7fbbbb..fb5e789d lists only router.py, tests/test_agent_router_worker_slots.py and the fragment, all inside the declared write paths, with request_receipts.py declared and correctly untouched.\nSCORE durability: 14\nJUSTIFICATION durability: the header-keyed live_runs test is demonstrated falsifiable by the node's own negative control, but the window clip at router.py:328 is unguarded -- removing it leaves the whole new test module green (review-clamp-probe.log) -- and the malformed-header branch at router.py:1848 is never driven through the router.\nSCORE fit: 17\nJUSTIFICATION fit: the ledger, the private accessor and the constants follow the file's own idiom (slots dataclass, Mapping parameters, module constants with a stated mechanism) and carry no plan label, losing only to the duplicated docstring phrase and the fragment's missing trailing newline.\nFINDING imas_ambix/agent/router.py:360 the slot count is computed from the unrounded ratio, so the deploy done-when identity can fail: on a fixture of three runs at 720.009 s the document publishes requests_per_run 0.8 with worker_slots 16 while the formula applied to those published figures gives 17 (review-slot-formula.log).\nFINDING tests/test_agent_router_worker_slots.py:85 the window test asserts samples 1 and unkeyed_share 1.0, both of which hold for any positive busy time, so the clip start = max(interval.started, window_start) is guarded by nothing: removing it in a scratch copy of the head leaves all 9 tests passing (review-clamp-probe.log).\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113103577866-llac-worker-slots/negative-control-live-runs.log:18 the red log's last line reads EXIT=0 while the same log reports 1 failed, so the status recorded is the capturing pipeline's rather than pytest's and a reader scanning the last line takes a red arm for a green one.\nFINDING imas_ambix/agent/router.py:1849 the except (TypeError, ValueError) branch that turns an unreadable header sequence into an unkeyed request is not reached by any test, so the guarded behaviour rests on the receipt module's own tests alone.\nFINDING docs/evidence/fragments/local-lane-admission-control/llac-worker-slots.html:4 the committed fragment ends at </section> with no trailing newline.\nFINDING tests/test_agent_router_worker_slots.py:5 the module docstring repeats a phrase -- how many requests one of the requests one of them holds -- which reads as an editing slip in the file's first paragraph.\n",
+  "review_run_id": "r-20260929T120412357850-review-of-llac-worker-slots",
+  "reviewed_base_sha": "0f7fbbbb421a24259fd361374fe588ed10d8faa9",
+  "reviewed_head_sha": "fb5e789d187ee14bfcb60de9298c82541951383c",
+  "reviewed_run_id": "r-20260929T113103577866-llac-worker-slots",
+  "reviewer": "review-of-llac-worker-slots",
+  "scores": {
+    "durability": 14,
+    "evidence": 18,
+    "fit": 17,
+    "goal_fidelity": 18,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T12:37:56.416496+00:00",
+  "total": 87
+}

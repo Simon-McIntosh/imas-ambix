@@ -1,0 +1,92 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "This review covers only the two commits gained since the prior review: r-20261005T070004515547 reviewed base 5949dfcf -> head 41074219, so reviewed_base_sha here is 41074219 (that reviewed head) and reviewed_head_sha is 3d2192c8, covering 1ae758ad (code and tests) and 3d2192c8 (landing fragment). The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite, so its own arms cannot supply the delta. Two same-selection scratch arms were therefore built from the reviewed commits' own object store (git archive 41074219 and 3d2192c8 into $TMPDIR/arms/, no git worktree created; the reviewed worktree is not writable by this node) and the reviewed gate file tests/data/test_eddb_cache.py was run in each. The file is modified by the delta but present at both revisions, so the selection is identical across arms: base arm 15 passed EXIT=0 (gate-base.log, rev 41074219) and head arm 19 passed EXIT=0 (gate-head.log, rev 3d2192c8). Head failing ids ([]) minus base failing ids ([]) is 0, and the four additive tests in the delta contribute 0 failures, so added_failure_count is 0 and added_failure_ids is []. The reviewed run's own gate.log for this head records head=3d2192c8, 19 passed, EXIT=0, matching the head arm - unlike the previous head's log, whose header revision could not produce its count.",
+  "after_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider -q tests/data/test_eddb_cache.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T072019470686-review-of-jtmm-eddb-extractor/gate-head.log",
+    "revision": "3d2192c8c8078370d31aa270e227c2db4991d8bf"
+  },
+  "baseline_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider -q tests/data/test_eddb_cache.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T072019470686-review-of-jtmm-eddb-extractor/gate-base.log",
+    "revision": "41074219f3661e2b2708e654812bc00aecd51d16"
+  },
+  "completed_at": "2026-10-05T07:28:33.693Z",
+  "dispatched_at": "2026-10-05T07:20:25Z",
+  "findings": [
+    {
+      "category": "missing-deliverable",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-eddb-extractor.html",
+      "line": "section jtmm-eddb-extractor-landing",
+      "severity": "follow-on",
+      "text": "follow-on (persisted from the prior two reviews): plan \u00a73's done-when has three clauses and the evidence fragment still carries none of the measured ones. \u00a73 requires 'a cold fetch of one OP2 shot's first-pass signals completes through the extractor in a single ssh session; a warm read of the same signals through the view touches no network; and the extractor's wall time per signal and bytes per signal are recorded in the evidence so the cache for a shot set is sized rather than guessed.' The single-session and no-network-on-warm-read properties are asserted against a fake transport (legitimate for a unit gate), but the wall-time-per-signal and bytes-per-signal measurement is still absent and no real cold fetch was run (the ssh link to IFERC is down, \u00a75). The delta did not attempt this clause; it remains the section's outstanding measured deliverable."
+    },
+    {
+      "category": "integration-seam",
+      "file": "imas_ambix/data/eddb.py",
+      "line": "96",
+      "severity": "follow-on",
+      "text": "follow-on (integration seam, read/write asymmetry): the recorded EDDB token is consulted only on the write path. normalised_shot/channel_path alias every series token with the same digits to the same integer directory, so once a channel exists under one token, a read through a different series token silently resolves to it: is_cached(root, 'C101173', 'MMSYS', 'CS1') returns True against a store written under 'E101173'. The node's own test_a_second_token_sharing_the_digits_is_refused asserts exactly this (is_cached(tmp_path, 'C101173', 'MMSYS', 'CS1') is True) after writing 'E101173'. \u00a73 requires only that a *write* with a differing token be refused, so the write contract is met, but the read path offers no equivalent guard and read_eddb_token is not consulted by is_cached. A consumer that reads by token rather than by integer can receive another series' data without a refusal. Noted rather than required; the fix would be to compare the requested token against read_eddb_token in the read predicate."
+    },
+    {
+      "category": "edge-case",
+      "file": "imas_ambix/data/eddb.py",
+      "line": "220",
+      "severity": "follow-on",
+      "text": "follow-on (edge case, reproduced this review): write_channel opens the pulse group with zarr.open_group(..., mode='a') at line 220, before it validates that the record's own time vector matches its data width at line 238. A record whose time length disagrees with its data width is therefore refused AFTER the group directory has been created, leaving an empty '<int>.zarr' on disk with no eddb_token attribute and no arrays. Reproduced against the head arm (rev 3d2192c8): write_channel(root, Rec('E101173','MMSYS','CS1', zeros((2,5)), arange(3))) raises 'time base length 3 does not match data width 5', and 101173.zarr then exists with read_eddb_token(...) is None. Benign litter - is_cached then returns False and a later correct fetch fills it - but a rejected malformed record should leave no directory behind. The shape check belongs before open_group, or the group should be opened lazily."
+    },
+    {
+      "category": "design-note",
+      "file": "imas_ambix/data/eddb.py",
+      "line": "288",
+      "severity": "follow-on",
+      "text": "follow-on (batch-abort design note): fetch_channels builds its missing list with an up-front is_cached scan, and _channel_present now raises EddbCacheError for a node that exists but does not open as an array. So one corrupt on-disk channel aborts the whole batch before any transport call - the node's own test_an_unreadable_channel_node_is_refused_not_reported_not_cached asserts transport.calls == [] after the raise. Refusing rather than refetching a corrupt node is the intended 'never rewrite measured data' behaviour, but the same scan that produces the refusal also denies every other channel in the batch. A per-request skip of a corrupt node that still refuses it would preserve the good channels. The plan does not settle this; noted, not required."
+    },
+    {
+      "category": "edge-case",
+      "file": "imas_ambix/data/eddb.py",
+      "line": "57",
+      "severity": "follow-on",
+      "text": "follow-on (edge case, minor): _TOKEN_RE = r'^(?P<series>[A-Za-z])?(?P<digits>\\d+)$' accepts a single optional letter followed by any number of digits, so it does not enforce \u00a73's six-digit form. A token such as 'E10' or '101173123' is accepted and normalised ('10'), and eddb_token('E10') returns 'E10', which would then be recorded as a pulse token. The plan states the EDDB form is a series letter and six digits; validating the digit count at _split_token would refuse a malformed token at the boundary rather than caching it under a truncated integer. Low severity, not reproduced as a failure."
+    }
+  ],
+  "model": "deepseek-v4.1-flash",
+  "negative_control": {
+    "exit_status": 1,
+    "failing_ids": [
+      "tests/data/test_eddb_cache.py::test_writing_over_an_existing_channel_is_refused",
+      "tests/data/test_eddb_cache.py::test_an_unreadable_channel_node_is_refused_not_reported_not_cached"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T072019470686-review-of-jtmm-eddb-extractor/negative-control.log",
+    "mutation": "write_channel: the explicit membership guard `if _channel_present(root, record.shot, record.category, record.dname): raise EddbCacheError(...)` neutralised to `if False:` on a scratch copy of the head arm",
+    "note": "Independently reproduced this review: neutralising the membership guard on a scratch copy of the head arm (rev 3d2192c8) turns the gate red (EXIT=1) on exactly these two refusal tests, neither of which the head arm fails (head arm 19 passed). The first fails with 'DID NOT RAISE EddbCacheError' at the overwrite refusal; the second fails because the removed call also carried the corrupt-node refusal, so the corrupt node is then rejected with a different message. The reviewed run's own negative_control.log names the same two ids, so the guard is real and falsifiable."
+  },
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T072019470686-review-of-jtmm-eddb-extractor",
+  "reviewed_base_sha": "41074219f3661e2b2708e654812bc00aecd51d16",
+  "reviewed_head_sha": "3d2192c8c8078370d31aa270e227c2db4991d8bf",
+  "reviewed_run_id": "r-20261005T063225542614-jtmm-eddb-extractor",
+  "reviewer": "review-of-jtmm-eddb-extractor",
+  "scores": {
+    "durability": 17,
+    "evidence": 17,
+    "fit": 17,
+    "goal_fidelity": 17,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T07:26:00+00:00",
+  "total": 87
+}

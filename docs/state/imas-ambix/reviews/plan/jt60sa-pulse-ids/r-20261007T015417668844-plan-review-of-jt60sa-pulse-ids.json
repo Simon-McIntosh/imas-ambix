@@ -1,0 +1,49 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T02:00:58.740Z",
+  "dispatched_at": "2026-10-07T01:54:30Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/jt60sa-pulse-ids/r-20261007T015417668844-plan-review-of-jt60sa-pulse-ids/plan.html:64",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a72's write target and \u00a74's central reuse justification both rest on a layout the plan itself records as superseded, so the next node would write and load through the wrong path.",
+      "text": "\u00a72 writes \"the equilibrium joins the other five IDSs in /work/projects/imas_gpu/jt60sa/ids/101154/\" and \u00a74 justifies the reuse of `scripts/figures_jt60sa_geometry.py` because it \"opens a directory of {ids}.nc files\" and \"a minted directory has that same layout\" (plan.html:112\u2013119, mirroring the loader `_read_ids` at scripts/figures_jt60sa_geometry.py:45\u201350 and the writer `out_dir / f\"{ids_name}.nc\"` at packages/imas-alambic/src/imas_alambic/pulse_mint.py:335); the plan's own comment `c-20261007T0400-jtfm-run-file` (plan.html:227) records a lead-decided move to one netCDF per run, `ids/<pulse>/<run>.nc`, states that \"Two places in this plan assume today's layout\" and that \u00a74's reuse argument \"needs restating\" \u2014 the owning mechanism is the run-file writer whose layout the catalogue already carries as `description_store_layout` (packages/imas-alambic/src/imas_alambic/machine_map.py:1121) and which the plan should name rather than restate as a literal path",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/jt60sa-pulse-ids/r-20261007T015417668844-plan-review-of-jt60sa-pulse-ids/plan.html:136",
+      "id": "reuse_search-1",
+      "reason": "the exact command \u00a75 makes its gate would fail as a missing-path error at dispatch, so \u00a75 must name the file that exists or declare the rename a prerequisite.",
+      "text": "\u00a75's done-when runs `pytest ... tests/data/test_pulse_writer.py` and names `test_write_covers_every_description_ids`, but that file does not exist in the tree (the file is `tests/data/test_pulse_mint.py` and the test is `test_mint_writes_every_description_ids`, tests/data/test_pulse_mint.py:94); \u00a75 says the file is renamed by `jt60sa-facility-mint` \u00a77, a rename that has not landed and that \u00a75 neither waits on nor lists as a dependency",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "da59a8072ab8871d17e88a96215b16a9bdb20d4cf000add2c761e3023a1ae3c3",
+  "plan_slug": "jt60sa-pulse-ids",
+  "plan_version": 20,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261007T015417668844-plan-review-of-jt60sa-pulse-ids",
+  "reviewed_blob_sha": "a5ffff31def6a8946c9971fe8a7504302bb22250",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a71 is a single owner (`mint_pulse` in packages/imas-alambic/src/imas_alambic/pulse_mint.py) and \u00a72/\u00a74 add no new module family, delegating topology to existing finders.",
+    "duplicate_owner": "a finding \u2014 \u00a72 and \u00a74 hardcode the written-IDS directory layout in prose instead of resolving it through the mechanism that owns it.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a74 adds one CLI option and its own text states it retires nothing because the script takes no options today and a pulse is a new input.",
+    "reuse_search": "a finding \u2014 the plan's finder census is verified against the tree, but \u00a75 names a test file that does not exist in the codebase it extends.",
+    "thin_wrapper": "pass \u2014 \u00a74 extends `scripts/figures_jt60sa_geometry.py` and states in its own text why a second output of that driver beats a parallel script, retiring nothing."
+  },
+  "section_digests": {
+    "_document": "13a6abc4001b3481124bc97386d835938fc4efca0cc6b7e35ce655d1efe3db1a",
+    "s1": "03eeaedd2c5502c88ec72ea09f8ea2eec7ce704b95be59fa080894ef4214bc98",
+    "s2": "a4777f322652085b6d61eccea7dd2f4462c81ae78cccb432fb91f46643014969",
+    "s3": "e0c752d72775115b7987ba7db0722d7fe24721ae7a504604a237ca7050f3775d",
+    "s4": "1913e2126e60b6f19606f6ad1fa257eebe7163db95120dc98f674e89d4bbbed7",
+    "s5": "25344923aedda66bb4dca0ffce37636fe34ca09c5364f5dd774e41c7d43b5cb3"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T03:16:35.440124+00:00"
+}

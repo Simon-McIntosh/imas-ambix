@@ -1,0 +1,53 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "call_site_count": 1,
+  "call_sites": [
+    "scripts/figures_jt60sa_geometry.py:main"
+  ],
+  "completed_at": "2026-10-06T13:11:11.948Z",
+  "dispatched_at": "2026-10-06T13:06:25Z",
+  "findings": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "the reviewed change adds only a test; the single production caller of _report is scripts/figures_jt60sa_geometry.py:161 inside main, and the test file is the only importer of the module.",
+    "diff": "read the single commit c8baf269 against base 70333d85: it adds tests/scripts/test_figures_jt60sa_geometry.py (60 lines, new) and docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-geometry-guard-test.html (11 lines, new); scripts/figures_jt60sa_geometry.py is untouched.",
+    "done_when": "the section's done-when names the pytest command on tests/scripts/test_figures_jt60sa_geometry.py, that it fails when _report stops comparing the probe count, and whole-tree ruff exit 0; the gate reproduces 2 passed EXIT=0, a reviewed-side mutation dropping 'probes' from the compared keys reddens test_report_refuses_probe_count_mismatch, and ruff exits 0.",
+    "goal": "the node goal is to add tests/scripts/test_figures_jt60sa_geometry.py importing _report and asserting it passes equal store/drawn counts and raises SystemExit naming the field when one drawn count differs; the test does exactly that for the probe count.",
+    "manifest": "read; it records status complete, commit c8baf269, pytest 2 passed EXIT=0, ruff EXIT=0, and negative_control.log red at the declared mutation.",
+    "write_paths": "the manifest declares tests/scripts/test_figures_jt60sa_geometry.py, the evidence fragment and a docs/figures artifact directory; both files in the diff sit inside those declared paths, and no docs/figures artifact was added."
+  },
+  "justifications": {
+    "durability": "the test guards the previously unexercised refusal path of _report; a reviewed-side mutation dropping 'probes' from the compared keys makes test_report_refuses_probe_count_mismatch fail (DID NOT RAISE SystemExit, EXIT=1), so the assertion is load-bearing, but only the probe key's refusal is driven.",
+    "evidence": "the done-when's three measures were reproduced against commit c8baf269 in the reviewed worktree: pytest 2 passed EXIT=0, whole-tree ruff exit 0, and an independent scratch mutation reddens the refusal test; the reviewed manifest's negative control records the same failure id.",
+    "fit": "the test imports scripts/figures_jt60sa_geometry.py by file path through importlib.util.spec_from_file_location, which is the workable form for a non-package scripts/ tree, and reuses _report's own contract without reimplementing the guard.",
+    "goal_fidelity": "tests/scripts/test_figures_jt60sa_geometry.py asserts _report returns None for matching store/drawn counts and raises SystemExit carrying 'probes' when the drawn probe count (11) differs from the store's (12), matching the section's stated test and changing no script behaviour.",
+    "reuse": "no added definition duplicates an existing capability; the static count helpers are local test fixtures and the script's _report, keys tuple and message are reused rather than copied.",
+    "scope_discipline": "the single commit adds 71 lines across exactly the test file and the landing fragment, both inside the manifest's declared write paths; tests/scripts/ is a new directory collected by the default suite (pyproject testpaths=[\"tests\"]), so the test is not orphaned."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is to add tests/scripts/test_figures_jt60sa_geometry.py importing _report and asserting it passes equal store/drawn counts and raises SystemExit naming the field when one drawn count differs; the test does exactly that for the probe count.\nVERDICT done_when: the section's done-when names the pytest command on tests/scripts/test_figures_jt60sa_geometry.py, that it fails when _report stops comparing the probe count, and whole-tree ruff exit 0; the gate reproduces 2 passed EXIT=0, a reviewed-side mutation dropping 'probes' from the compared keys reddens test_report_refuses_probe_count_mismatch, and ruff exits 0.\nVERDICT write_paths: the manifest declares tests/scripts/test_figures_jt60sa_geometry.py, the evidence fragment and a docs/figures artifact directory; both files in the diff sit inside those declared paths, and no docs/figures artifact was added.\nVERDICT manifest: read; it records status complete, commit c8baf269, pytest 2 passed EXIT=0, ruff EXIT=0, and negative_control.log red at the declared mutation.\nVERDICT diff: read the single commit c8baf269 against base 70333d85: it adds tests/scripts/test_figures_jt60sa_geometry.py (60 lines, new) and docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-geometry-guard-test.html (11 lines, new); scripts/figures_jt60sa_geometry.py is untouched.\nVERDICT call_sites: the reviewed change adds only a test; the single production caller of _report is scripts/figures_jt60sa_geometry.py:161 inside main, and the test file is the only importer of the module.\nCALL_SITES: scripts/figures_jt60sa_geometry.py:main\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: tests/scripts/test_figures_jt60sa_geometry.py asserts _report returns None for matching store/drawn counts and raises SystemExit carrying 'probes' when the drawn probe count (11) differs from the store's (12), matching the section's stated test and changing no script behaviour.\nSCORE evidence: 19\nJUSTIFICATION evidence: the done-when's three measures were reproduced against commit c8baf269 in the reviewed worktree: pytest 2 passed EXIT=0, whole-tree ruff exit 0, and an independent scratch mutation reddens the refusal test; the reviewed manifest's negative control records the same failure id.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: the single commit adds 71 lines across exactly the test file and the landing fragment, both inside the manifest's declared write paths; tests/scripts/ is a new directory collected by the default suite (pyproject testpaths=[\"tests\"]), so the test is not orphaned.\nSCORE durability: 18\nJUSTIFICATION durability: the test guards the previously unexercised refusal path of _report; a reviewed-side mutation dropping 'probes' from the compared keys makes test_report_refuses_probe_count_mismatch fail (DID NOT RAISE SystemExit, EXIT=1), so the assertion is load-bearing, but only the probe key's refusal is driven.\nSCORE fit: 18\nJUSTIFICATION fit: the test imports scripts/figures_jt60sa_geometry.py by file path through importlib.util.spec_from_file_location, which is the workable form for a non-package scripts/ tree, and reuses _report's own contract without reimplementing the guard.\nSCORE reuse: 18\nJUSTIFICATION reuse: no added definition duplicates an existing capability; the static count helpers are local test fixtures and the script's _report, keys tuple and message are reused rather than copied.",
+  "review_run_id": "r-20261006T130617843727-review-of-jtfig-geometry-guard-test",
+  "reviewed_base_sha": "70333d859c91c7696dd0d53a0be26a07d4327dd2",
+  "reviewed_head_sha": "c8baf269f87935138d516e5de543a122b8cae099",
+  "reviewed_run_id": "r-20261006T130231484043-jtfig-geometry-guard-test",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "reviewer_run_id": "r-20261006T130617843727-review-of-jtfig-geometry-guard-test",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 18,
+    "goal_fidelity": 20,
+    "reuse": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T13:09:26.222578+00:00",
+  "total": 112
+}

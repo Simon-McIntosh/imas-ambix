@@ -1,0 +1,50 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "local",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-09-25T13:43:37Z",
+  "dispatched_at": "2026-09-25T13:26:51Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/cli.py:343-346; tests/test_agent_sweep_options.py:287-300",
+      "line": "343-346",
+      "text": "_concurrency_levels silently skips an empty component, so the malformed input \"4,,8\" returns [4, 8]. The parser docstring says malformed entries are refused because silently losing a level creates an unmeasured hole, but the parametrized test covers only all-empty input (\",,\") and misses an interior empty component. Reject blank components or explicitly define this input before relying on the parser as fail-closed. Reproduction: empty-level-reproduction.log."
+    }
+  ],
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "call_sites": "No unreviewed production call sites were found outside the target's declared implementation paths.",
+    "diff": "Read c2901ec5dbb8a3bc03314b72b3596ef7b68a5566..e68717a2513130162571b7c01d71195ecf8c6700: exactly six changed paths, covering bench.py, cli.py, the new sweep-option tests, the live plan, the cumulative evidence record, and the declared figure.",
+    "done_when": "The target receipt records 36/36 focused tests, whole-tree Ruff success, and four dry-run commands exiting 0 with normalized default-script differences empty. My independent sweep-option run records 19 passed. The declared negative control records four failures and 32 passes after removing both launch-path override applications, then the implementation was restored.",
+    "goal": "The \u00a717 tooling contract is implemented: a supplied ladder reaches the concurrency runner, the DSpark override reaches serve and restart dry-run scripts, the default generated script retains the profile's declared depth, non-DSpark and conflicting flags refuse, and each concurrency result records effective speculative-depth gauges or nulls. No live cycle or relaunch was performed.",
+    "manifest": "The target manifest is complete, names four commits and six changed paths, records the focused gate, lint, negative control, normalized base comparison, live plan/evidence writeback, no service activity, and coordinator-owned merged-head verification as a follow-on.",
+    "write_paths": "The target worktree is clean and its c2901ec5..e68717a2 diff contains exactly the six paths declared by the target manifest. No live service, scheduler job, or operator control file was changed."
+  },
+  "justifications": {
+    "durability": "The new 19-test module covers custom and default ladders, per-level depth metadata, absent gauges as null, malformed values, both launch commands, default script preservation, DSpark-only refusal, mutually exclusive no-speculation, SGLang speculation clearing, and dry-run non-destructiveness. The target's red negative control demonstrates that removing the launch-path override is caught. I docked for the real fail-open edge at cli.py:343-346: an interior empty component is discarded, and the malformed-input parametrization misses it. The runner test also asserts a sorted set rather than the requested order, although the implementation loops the supplied list in order.",
+    "evidence": "The target's 36/36 receipt, Ruff receipt, normalized base-to-head comparisons for the DSpark and vLLM no-speculative paths, and four-failure negative control are quantitative and reopenable. My independent 19-test run passed, and the direct edge reproduction is persisted with revision, worktree, command, exit 0, and [4, 8]. An exact independent uv invocation was refused before pytest because the shared UV cache is read-only in this review environment; the cache-directed aggregate invocation collected all 36 tests but did not produce a terminal receipt within the shell boundary, so I rely on the target's complete gate receipt for the full suite and retain that caveat.",
+    "fit": "The changes directly support \u00a717's pre-cycle sweep: concurrency levels are caller-controlled, depth is a launch-time setting, effective engine gauges are recorded rather than inferred from profile configuration, and the off arm clears both engine families. The figure and cumulative HTML evidence are in the declared project-absolute locations, the default script comparison is explicit, and no operational action was claimed. I docked for the interior-empty parser behavior and lack of an order assertion.",
+    "goal_fidelity": "The nominal \u00a717 contract is covered and operational actions remain out of scope. The target receipt shows the levels option reaching the runner and the DSpark override in restart dry-run output while defaults remain unchanged; refusal and no-speculation cases are covered. The malformed interior-empty edge is a robustness defect in an auxiliary parser, not a failure of the nominal sweep path.",
+    "scope_discipline": "The target worktree is clean, the source/test/docs/figure paths are exactly those declared, and the commits have conventional subjects with bodies. The dry-run harness records no destructive scheduler verbs, the base comparison normalizes only named worktree-dependent paths and headers, and no serve activity or operator-file mutation is claimed."
+  },
+  "model": "gpt-5",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20260925T115334948530-s17-sweep-tooling at head e68717a2513130162571b7c01d71195ecf8c6700 against implementation parent c2901ec5dbb8a3bc03314b72b3596ef7b68a5566.\n\nVERDICT goal: the \u00a717 sweep tooling is implemented and tested. The custom concurrency ladder reaches the bench runner; each row carries effective speculative-depth gauges or nulls; the DSpark block-size override reaches serve and restart dry-run generation; default output remains unchanged; non-DSpark and conflicting flags refuse; and no live cycle or relaunch was performed.\nVERDICT done_when: the target receipt reports 36/36 focused tests, whole-tree Ruff success, four dry-run commands exiting 0 with normalized default-script differences empty, and a declared negative control with 4 failed/32 passed after removing the override. My independent sweep-option run is 19 passed.\nVERDICT evidence: the exact uv gate could not initialize the shared read-only UV cache in this review environment; the target's complete gate receipt is retained, and the direct empty-level reproduction is stored separately.\nVERDICT write_paths: c2901ec5..e68717a2 contains exactly the six paths declared by the target manifest, and the target worktree is clean.\nVERDICT finding: _concurrency_levels(\"4,,8\") returns [4, 8] because blank components are skipped, despite the parser's fail-closed contract; add an interior-empty test and reject or explicitly define that input.\nSCORE goal_fidelity: 19\nSCORE evidence: 18\nSCORE scope_discipline: 20\nSCORE durability: 15\nSCORE fit: 18\n",
+  "review_run_id": "r-20260925T132642114617-review-of-s17-sweep-tooling",
+  "reviewed_base_sha": "c2901ec5dbb8a3bc03314b72b3596ef7b68a5566",
+  "reviewed_head_sha": "e68717a2513130162571b7c01d71195ecf8c6700",
+  "reviewed_run_id": "r-20260925T115334948530-s17-sweep-tooling",
+  "scores": {
+    "durability": 15,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-25T15:36:00+02:00",
+  "total": 90
+}

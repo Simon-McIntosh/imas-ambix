@@ -1,0 +1,84 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "8b7f8c79f3e5663c67d69af69340498900053790",
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/data/machine_map.py:load_packaged_machine_map",
+    "imas_ambix/data/description_reader.py:read_geometry_table",
+    "imas_ambix/gs/geometry.py",
+    "imas_ambix/tokenizer/signal_hf_encode.py:read_geometry_table",
+    "imas_ambix/spine_bench/transform_geometry_source.py:read_geometry_table"
+  ],
+  "completed_at": "2026-10-06T05:37:57.642Z",
+  "dispatched_at": "2026-10-06T05:30:20Z",
+  "findings": [],
+  "gate_logs": {
+    "base": {
+      "completed": true,
+      "exit_status": 1,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T052213831944-jtmm-catalogue-tf-rank/gate-base.log",
+      "revision": "8b7f8c79f3e5663c67d69af69340498900053790"
+    },
+    "head": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T052213831944-jtmm-catalogue-tf-rank/gate-head.log",
+      "revision": "4e3afe47c058d36a1dd23d8567249b8df3e25098"
+    },
+    "ruff": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T052213831944-jtmm-catalogue-tf-rank/ruff.log"
+    }
+  },
+  "head_log_revision": "4e3afe47c058d36a1dd23d8567249b8df3e25098",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 5 production call site(s)",
+    "diff": "read commit 4e3afe47 against its base 8b7f8c79: two files \u2014 imas_ambix/data/machine_maps/jt-60sa.json flipping source_rank 1 to 0 on exactly the two tf/coil/name bindings (2 added, 2 deleted) and a new 23-line evidence fragment \u2014 with no code under imas_ambix touched.",
+    "done_when": "the done-when requires source_rank 0 on both tf/coil/name bindings with the file changed only there, the in-place four-file gate exiting 0 with every test passing against a base log recording the six failures, no code under imas_ambix changed, and ruff exit 0; git diff --numstat 8b7f8c79..4e3afe47 reports 2 added/2 deleted on imas_ambix/data/machine_maps/jt-60sa.json and no .py file, gate-head.log records 36 passed EXIT=0 at 4e3afe47, gate-base.log records 6 failed/30 passed EXIT=1 at 8b7f8c79 with the two named bindings, and ruff.log records All checks passed EXIT=0.",
+    "goal": "the node's goal is to declare the JT-60SA TF coil name bindings at the source rank the first-struct-array selector leaves; imas_ambix/data/machine_maps/jt-60sa.json:1123 and :2169 read source_rank 0 on jt60sa-op1-tf-coil-coordinate-element and jt60sa-op2-tf-coil-coordinate-element, and the transform engine (imas_ambix/data/transform_engine.py:322-330) computes structural_rank 0 from leaf rank 0 and the single consumed level, so rank 0 is the value the selector leaves.",
+    "manifest": "read at status complete, base 8b7f8c79, head 4e3afe47, one commit, whose tests, baseline_suite and after_suite fields reproduce the two gate logs it names (36 passed exit 0 at head; 6 failed/30 passed exit 1 at base) and whose evidence_inputs correctly report the pf_active and pf_passive bindings left at source_rank 1.",
+    "write_paths": "the reviewed manifest declares imas_ambix/data/machine_maps/jt-60sa.json, docs/evidence/fragments/jt60sa-machine-map/jtmm-catalogue-tf-rank.html and docs/figures/jt60sa-machine-map/jtmm-catalogue-tf-rank; the diff touches only the first two, and the figures directory the done-when names no artifact for is not written."
+  },
+  "justifications": {
+    "durability": "the six tests in tests/data/test_jt60sa_machine_map.py redden at base 8b7f8c79 with the BindingTransformError and pass at head, so a regression of source_rank to 1 is caught, and the worker's negative-control-mutation.log shows the same test failing when rank 1 was reinstated.",
+    "evidence": "the gate is the literal four-file command the done-when names, gate-head.log records 36 passed EXIT=0 at revision 4e3afe47, and gate-base.log records 6 failed/30 passed EXIT=1 at 8b7f8c79 with the two BindingTransformError bindings, matching the manifest's after_suite and baseline_suite.",
+    "fit": "the change sets a value on an existing binding field with no new symbol or forbidden name, and docs/evidence/fragments/jt60sa-machine-map/jtmm-catalogue-tf-rank.html follows the fragment pattern with its node-prefixed element id.",
+    "goal_fidelity": "imas_ambix/data/machine_maps/jt-60sa.json:1123 and :2169 carry source_rank 0 on the two tf/coil/name bindings, and imas_ambix/data/transform_engine.py:322-330 admits rank 0 exactly when the struct_array_entry consumes the only structural level.",
+    "reuse": "the diff adds no definition, editing one data value and adding a fragment, so no capability is forked; a search over imas_ambix/data found the binding schema already owns source_rank and the review bound is satisfied.",
+    "scope_discipline": "git diff --numstat 8b7f8c79..4e3afe47 lists only imas_ambix/data/machine_maps/jt-60sa.json (2/2) and docs/evidence/fragments/jt60sa-machine-map/jtmm-catalogue-tf-rank.html (23/0), both inside the manifest's declared write paths, and no plan meta line changes."
+  },
+  "node": "review-of-jtmm-catalogue-tf-rank",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is to declare the JT-60SA TF coil name bindings at the source rank the first-struct-array selector leaves; imas_ambix/data/machine_maps/jt-60sa.json:1123 and :2169 read source_rank 0 on jt60sa-op1-tf-coil-coordinate-element and jt60sa-op2-tf-coil-coordinate-element, and the transform engine (imas_ambix/data/transform_engine.py:322-330) computes structural_rank 0 from leaf rank 0 and the single consumed level, so rank 0 is the value the selector leaves.\nVERDICT done_when: the done-when requires source_rank 0 on both tf/coil/name bindings with the file changed only there, the in-place four-file gate exiting 0 with every test passing against a base log recording the six failures, no code under imas_ambix changed, and ruff exit 0; git diff --numstat 8b7f8c79..4e3afe47 reports 2 added/2 deleted on imas_ambix/data/machine_maps/jt-60sa.json and no .py file, gate-head.log records 36 passed EXIT=0 at 4e3afe47, gate-base.log records 6 failed/30 passed EXIT=1 at 8b7f8c79 with the two named bindings, and ruff.log records All checks passed EXIT=0.\nVERDICT write_paths: the reviewed manifest declares imas_ambix/data/machine_maps/jt-60sa.json, docs/evidence/fragments/jt60sa-machine-map/jtmm-catalogue-tf-rank.html and docs/figures/jt60sa-machine-map/jtmm-catalogue-tf-rank; the diff touches only the first two, and the figures directory the done-when names no artifact for is not written.\nVERDICT manifest: read at status complete, base 8b7f8c79, head 4e3afe47, one commit, whose tests, baseline_suite and after_suite fields reproduce the two gate logs it names (36 passed exit 0 at head; 6 failed/30 passed exit 1 at base) and whose evidence_inputs correctly report the pf_active and pf_passive bindings left at source_rank 1.\nVERDICT diff: read commit 4e3afe47 against its base 8b7f8c79: two files \u2014 imas_ambix/data/machine_maps/jt-60sa.json flipping source_rank 1 to 0 on exactly the two tf/coil/name bindings (2 added, 2 deleted) and a new 23-line evidence fragment \u2014 with no code under imas_ambix touched.\nCALL_SITES: imas_ambix/data/machine_map.py:load_packaged_machine_map, imas_ambix/data/description_reader.py:read_geometry_table, imas_ambix/gs/geometry.py, imas_ambix/tokenizer/signal_hf_encode.py:read_geometry_table, imas_ambix/spine_bench/transform_geometry_source.py:read_geometry_table\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: imas_ambix/data/machine_maps/jt-60sa.json:1123 and :2169 carry source_rank 0 on the two tf/coil/name bindings, and imas_ambix/data/transform_engine.py:322-330 admits rank 0 exactly when the struct_array_entry consumes the only structural level.\nSCORE evidence: 19\nJUSTIFICATION evidence: the gate is the literal four-file command the done-when names, gate-head.log records 36 passed EXIT=0 at revision 4e3afe47, and gate-base.log records 6 failed/30 passed EXIT=1 at 8b7f8c79 with the two BindingTransformError bindings, matching the manifest's after_suite and baseline_suite.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --numstat 8b7f8c79..4e3afe47 lists only imas_ambix/data/machine_maps/jt-60sa.json (2/2) and docs/evidence/fragments/jt60sa-machine-map/jtmm-catalogue-tf-rank.html (23/0), both inside the manifest's declared write paths, and no plan meta line changes.\nSCORE durability: 19\nJUSTIFICATION durability: the six tests in tests/data/test_jt60sa_machine_map.py redden at base 8b7f8c79 with the BindingTransformError and pass at head, so a regression of source_rank to 1 is caught, and the worker's negative-control-mutation.log shows the same test failing when rank 1 was reinstated.\nSCORE fit: 19\nJUSTIFICATION fit: the change sets a value on an existing binding field with no new symbol or forbidden name, and docs/evidence/fragments/jt60sa-machine-map/jtmm-catalogue-tf-rank.html follows the fragment pattern with its node-prefixed element id.\nSCORE reuse: 20\nJUSTIFICATION reuse: the diff adds no definition, editing one data value and adding a fragment, so no capability is forked; a search over imas_ambix/data found the binding schema already owns source_rank and the review bound is satisfied.\nreviewed_base_sha: 8b7f8c79f3e5663c67d69af69340498900053790\nreviewed_head_sha: 4e3afe47c058d36a1dd23d8567249b8df3e25098\n",
+  "review_run_id": "r-20261006T053012904049-review-of-jtmm-catalogue-tf-rank",
+  "review_scope": "Committed data delta (source_rank 1 -> 0 on the two tf/coil/name bindings in jt-60sa.json, plus the node's evidence fragment) against the node goal and done-when; read-only, no re-run of the gate.",
+  "reviewed_base_sha": "8b7f8c79f3e5663c67d69af69340498900053790",
+  "reviewed_commits": [
+    "4e3afe47c058d36a1dd23d8567249b8df3e25098"
+  ],
+  "reviewed_head_sha": "4e3afe47c058d36a1dd23d8567249b8df3e25098",
+  "reviewed_run_id": "r-20261006T052213831944-jtmm-catalogue-tf-rank",
+  "reviewer": "review-of-jtmm-catalogue-tf-rank",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T05:36:41.869791+00:00",
+  "total": 117,
+  "verification_logs": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T052213831944-jtmm-catalogue-tf-rank/gate-head.log",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T052213831944-jtmm-catalogue-tf-rank/gate-base.log",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T052213831944-jtmm-catalogue-tf-rank/ruff.log"
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "clive",
+  "completed_at": "",
+  "dispatched_at": "2026-09-21T15:36:53.347081+00:00",
+  "findings": [
+    {
+      "file": "tests/test_engine_metrics.py",
+      "label": "FOLLOW-ON",
+      "line": 374,
+      "text": "FOLLOW-ON: the guard is still stricter than the reading on inputs the six-case agreement table does not carry, because the reading can resolve a field through a series the table does not name: on the input `sglang:token_usage 0.5` the reading resolves kv_pool_occupancy=0.5 while the guard, asked about that field's named source `full_token_usage`, answers False; on `vllm:gpu_cache_usage_perc 0.5` the reading resolves 0.5 while the guard, asked about `kv_cache_usage_perc`, answers False; and on a histogram carrying no count line (`sglang:time_to_first_token_seconds_sum 3.0`, and the shipped fixture with its single `sglang:time_to_first_token_seconds_count` line removed, 1 line) the reading still resolves histograms.time_to_first_token with count defaulted to 0.0 while the guard answers False, so the field-set test reports the field unsourced on a fixture the reading resolves."
+    },
+    {
+      "file": "tests/test_engine_metrics.py",
+      "label": "FOLLOW-ON",
+      "line": 138,
+      "text": "FOLLOW-ON: the guard's name comparison is family-blind where the reading is family-scoped: on input `vllm:num_queue_reqs 3.0` the guard answers True for `num_queue_reqs` (an SGLang spelling) while the reading answers None for requests_queued, and the reader's own `family_of('vllm:num_queue_reqs')` returns 'vllm' while `family_of('sglang:num_queue_reqs')` returns 'sglang' -- the reader already carries the predicate the guard does not apply; the same shape appears on `sglang:num_running_reqs_created 1.0`, where the guard answers True for the companion's exact name and the reading answers None for requests_running."
+    }
+  ],
+  "item_verdicts": {
+    "control_replay": "ALL ELEVEN controls replayed at the reviewed head with the reader serving from this worktree: guard mutations 1/2/1/2 of 17; declared control red on both lists; reader mutations 7/5/4/2 of 17; expectation mutations 4 of 17 and 1 of 17; the pre-fix derived-expectation receipt green (0 failed, exit 0) on the pre-repair tree, reproducing the defect it records; four-file gate 36 passed, exit 0; whole-tree ruff 'All checks passed!', exit 0. Every count matches r6-mutation-matrix.log, and each guard mutation copy derives byte-identically from the shipped test file (sha256 995156f4..., fixture 8756c081...).",
+    "expectations_from_module": "One remains: `test_both_families_report_every_quantity_they_publish` derives the expected family set from `engine_metrics.FAMILIES` (fail-closed on a new family) and `_SECTION_KEYS` uses the `FAMILY_*` constants as dict keys; every field list, value, series name and label fragment is literal. The sourcing half of the field-set test can no longer detect a reader-side series-mapping change -- that is the delegation working as designed, and the resolution half plus the literal table are what cover that ground now. Coverage asymmetry: the guard's table carries SGLang rows only, so no vLLM sample line is asserted to source its field.",
+    "guard_not_blind": "CONFIRMED by deletion rather than by inspection: removing the `sglang:num_running_reqs{...}` sample line (the declared control, replayed here: 1 failed, 16 deselected, assertion naming both `unresolved ['requests running (requests_running)']` and `unsourced [... ' <- num_running_reqs']`), the three `sglang:prompt_tokens_total` lines, or the single `sglang:time_to_first_token_seconds_count` line each leaves the guard answering False, and the reading unresolved for the gauge and the counter.",
+    "naming_hygiene": "CLEAN: no plan, stage, sprint or version label, no ticket reference and no author attribution in either changed file. The only two flagged hits are a model identifier in a test's expected value (`deepseek-v4.1-flash`, the fixture's own model_name label) and character classes inside the module's two regexes.",
+    "previously_failing_inputs": "AGREE on both, driven through the shipped functions with the reader served from this worktree: `sglang:x:num_running_reqs 1.0` leaves reading requests_running=1.0 and guard True; `sglang:num_running_reqs{tp_rank=\"1\"} 1.0` leaves both negative with the rank-zero control positive on both sides. A THIRD INPUT WHERE THEY STILL DIVERGE WAS FOUND, in both directions: see the two FOLLOW-ON findings.",
+    "production_call_sites": "TWO, both under imas_ambix/agent/: serving_receipts.py `_serving_snapshot` stores `engine_metrics.read_metrics(text)`'s row_section() as the row's `engine` section, and lane.py `_lane_reader`/`_lane_pool_tokens`/the lane snapshot resolve their roles through the same name tables (eligible_samples, series_first, lane_series, series_labels, parse_metrics, detect_family, model_id_of, VLLM_KV_POOL_LABEL). Verified by reading both call sites: every canonical path the guard names is a field a production row carries, and the lane reads its roles through the same tables the guard pins. Neither call site was executed, since both need a live engine response."
+  },
+  "justifications": {
+    "durability": "the literal canonical table, the per-input agreement table and the fail-closed family coverage are what a future reader needs; superseded receipts carry dated banners and the docs were corrected to match the files rather than the files rewritten to match the docs. The two FOLLOW-ON findings are precisely the sub-claims that will not survive an unfamiliar input.",
+    "evidence": "eleven controls replay to their recorded counts at the reviewed head, the guard-mutation copies derive byte-identically from the shipped test file, the fixture and test-file hashes match the matrix receipt, and the round-6 corrections make the manifest's description of the declared control match the file it cites. The run's own matrix driver is truncated and cannot reproduce its log, but the log is the receipt and I regenerated the counts independently.",
+    "fit": "the name knowledge lives in one place and the guard takes its samples, family, eligibility and name comparison from the reader it guards, which removes the second opinion the earlier rounds kept finding. The residual gap is that the name step is not scoped to the family's own tables, so the equivalence is partial rather than total.",
+    "goal_fidelity": "the review exists as a parsed record at the reviewed head scoring all five dimensions and naming the revision it read; the repair does what the plan and the manifest say, and both previously-reported divergences are measurably closed. Held below full by the prose claim of total equivalence, which the probe refutes in both directions.",
+    "scope_discipline": "the reviewed round touched only the test file, the reader, and the two docs of its own record; this review wrote only the fenced record and its own run directory, and no shipped file was written by any probe, mutation or replay."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Confirming review of run r-20260921T053443850077-scrape-fixture, read in place in a worktree cut from its seventh-round head acd82a8a9e4815892fe6d5cdc25cdb4f78728523 (docs-only over 8a510da6, the guard repair), which is both the base and the reviewed revision this record names. Five dimensions scored 0..20, total 87 (goal fidelity 18, evidence 17, fit 17, durability 17, scope discipline 18); no BLOCKING finding, two FOLLOW-ON. The repair closed both findings of the previous round as stated: the two inputs that made the guard stricter (a multi-colon name) and looser (a non-default tensor-parallel rank) than the reading now agree, the guard still reports a genuinely absent canonical field when one is deleted, and every one of the run's eleven controls reproduces at this head with every recorded count unchanged. The two surviving findings are that the equivalence claimed for the guard is not general: it holds on the six inputs the agreement table carries and on the peeling and eligibility steps, but the reading can reach a field through a series the table does not name (guard stricter) and the guard's bare-name comparison is family-blind where the reading is family-scoped (guard looser). Neither can let a defect through the shipped assertions, which is why both are FOLLOW-ON rather than BLOCKING. Evidence debt from earlier rounds is closed in the run's own record: the manifest's description of the declared-control receipt was corrected to what the file actually carries, and the superseded value-token receipt carries a dated banner naming its replacement. The run's scratch matrix driver is truncated on disk and does not match the log it produced, but the log, not the script, is the cited receipt, and I re-derived every count from the shipped tree.",
+  "review_run_id": "r-20260921T153653347081-review-of-the-readers-own-sample-set",
+  "reviewed_base": "acd82a8a9e4815892fe6d5cdc25cdb4f78728523",
+  "reviewed_commit": "acd82a8a9e4815892fe6d5cdc25cdb4f78728523",
+  "reviewed_run_id": "r-20260921T053443850077-scrape-fixture",
+  "scores": {
+    "durability": 17,
+    "evidence": 17,
+    "fit": 17,
+    "goal_fidelity": 18,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-10-07T04:36:20.991282+00:00",
+  "total": 87
+}

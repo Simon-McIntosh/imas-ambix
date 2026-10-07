@@ -1,0 +1,121 @@
+{
+  "absent": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed manifest records baseline_suite and after_suite both at revision 4759831 with the same log (gate.log, 0 failures), so its two arms are the same measurement and no genuine pre-change delta can be read from its own fields; derived as after failures minus baseline failures over those fields this is 0. This review measured both arms itself in scratch extractions under $TMPDIR with each revision's own test files and the shared environment resolved by PYTHONPATH (module.__file__ confirmed inside the scratch head tree): base arm at a07d84ef -> 32 passed, EXIT=0; head arm at 072854b -> 41 passed, EXIT=0. Both arms ran to their summary line; added_failure_count = 0 over the same two test files, and the +9 items are the node's own new tests present only at head.",
+  "after_suite": {
+    "command": "PYTHONPATH=/tmp/reckon-crew-scratch/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/head-review /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -n 4 /tmp/reckon-crew-scratch/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/head-review/tests/data/test_selene_deck.py /tmp/reckon-crew-scratch/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/head-review/tests/data/test_jt60sa_machine_map.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/review_gate_head.log",
+    "revision": "072854b2d1856f3c9230e6bad88923c23240839b"
+  },
+  "baseline_suite": {
+    "command": "PYTHONPATH=/tmp/reckon-crew-scratch/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/base-review /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -n 4 /tmp/reckon-crew-scratch/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/base-review/tests/data/test_selene_deck.py /tmp/reckon-crew-scratch/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/base-review/tests/data/test_jt60sa_machine_map.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/review_gate_base.log",
+    "revision": "a07d84ef981b1f09cec0593686eff83d03b3b333"
+  },
+  "blockers": [],
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T10:55:44.293Z",
+  "dispatched_at": "2026-10-06T10:45:13Z",
+  "evidence_inputs": [
+    "Reviewed commits: 4759831fc949328216bdd0f6f4b4e5fe54d6e341 (the parser + tests) and 072854b2d1856f3c9230e6bad88923c23240839b (the evidence fragment); base a07d84ef981b1f09cec0593686eff83d03b3b333. Neither commit is an ancestor of the review worktree's main HEAD (91b6f26e) - they are the run's local commits, so the review read them from a scratch extraction of the object store, not the worktree.",
+    "Gate reproduced in scratch: head 072854b -> 41 passed, EXIT=0; base a07d84ef -> 32 passed, EXIT=0; the +9 are the node's new tests. ruff whole-tree EXIT=0 (manifest ruff.log).",
+    "Negative control reproduced: count guard removed -> test_contour_run_shorter_than_its_label_is_refused 'DID NOT RAISE ValueError', EXIT=1.",
+    "Geometry re-measured independently (arcs as arcs): OP1 and OP2 identical, inner 100 vertices max 5.3581e-04 m median 2.1261e-04 m, outer 100 vertices max 4.7568e-04 m median 1.8837e-04 m - matches the fragment and clears the 1e-3 m floor.",
+    "Facility decks present on this node (/work/projects/imas_gpu/jt60sa/machine_description/source: EQSLE.DATA, coil_vv_OP1.dat, coil_vv_OP2.dat), so the geometry test runs rather than skipping.",
+    "The reviewed manifest's baseline_suite and after_suite are both revision 4759831 with log gate.log - a self-referential pair, not a base/head delta."
+  ],
+  "failure_attribution": {},
+  "findings": [],
+  "follow_ons": [
+    "imas_ambix/data/selene_deck.py _run_declared_count: a run label carrying no '=N' returns None, which silently skips the declared-row-count check for that run; a run whose count marker is lost would not be refused. A guard that every Inner/Outer VV label carries a positive =N would close it.",
+    "imas_ambix/data/selene_deck.py _parse_contour_block: the 'counted row precedes the first run label' refusal is exercised only by a direct call to the private function; through parse_coil_vv_deck the header search already requires the first numeric row to be labelled, so this branch is unreachable from the public path. Harmless as defence in depth, but it is not what the public refusal rests on.",
+    "tests/data/test_selene_deck.py: the real-deck geometry test skips when the facility source tree is absent, so on a host without /work/projects/imas_gpu/jt60sa/machine_description/source the geometry invariant is unguarded and the skip is silent."
+  ],
+  "gate_logs": {
+    "geometry_probe": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/review_geometry_probe.log",
+      "note": "independent point-to-segment distance (EQSLE arcs as arcs) of every coil_vv skin vertex to the matching EQSLE skin, module.__file__ confirmed inside the scratch head tree: OP1/OP2 identical, inner 100 vertices max 5.3581e-04 m median 2.1261e-04 m, outer 100 vertices max 4.7568e-04 m median 1.8837e-04 m - reproduces the fragment's table exactly.",
+      "revision": "072854b2d1856f3c9230e6bad88923c23240839b"
+    },
+    "negative_control": {
+      "completed": true,
+      "exit_status": 1,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/review_negative_control.log",
+      "note": "declared mutation (remove the 'len(segs) != declared' refusal from _parse_contour_block) re-applied to a copy of the reviewed head; test_contour_run_shorter_than_its_label_is_refused fails with 'Failed: DID NOT RAISE ValueError' at EXIT=1, and that test passes in the head arm (41 passed, EXIT=0), so the guard is what the test measures.",
+      "revision": "072854b2d1856f3c9230e6bad88923c23240839b"
+    },
+    "pytest_base_arm_rereun": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/review_gate_base.log",
+      "revision": "a07d84ef981b1f09cec0593686eff83d03b3b333",
+      "tree": "/tmp/reckon-crew-scratch/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/base-review"
+    },
+    "pytest_head_arm_rereun": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/review_gate_head.log",
+      "revision": "072854b2d1856f3c9230e6bad88923c23240839b",
+      "tree": "/tmp/reckon-crew-scratch/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/head-review"
+    }
+  },
+  "item_verdicts": {
+    "call_sites": "No production call site outside the converter. _find_contour_header, _parse_contour_block, _contour_run_label, _run_declared_count and _check_skin_closure are referenced only within selene_deck.py and the test module; parse_coil_vv_deck is the public entry point and its single caller is unchanged.",
+    "diff": "Read the full range. selene_deck.py: adds CONTOUR_RUN_LABELS and SKIN_JOIN_TOL_M module constants, _contour_run_label (substring match of 'INNER VV'/'OUTER VV'/'D-PROBE'), _run_declared_count (leading digits after '='), and _check_skin_closure (adjacent-chord endpoint join and last-to-first closure within 1e-4 m); _find_contour_header now requires the row after a candidate count to both hold >=5 numbers and carry a recognised run label, else it keeps searching and finally raises 'no coil_vv contour block header found'; _parse_contour_block now accumulates labelled runs, raises on an unrecognised label or a counted row before the first label, checks each Inner/Outer VV run against its =N count, requires both skins, and closure-checks both. tests/data/test_selene_deck.py: the synthetic COIL_VV_TEXT fixture's Inner/Outer labels change from '=50' to '=4' to match its 4-row runs (the new count check would otherwise refuse the fixture); adds seven refusal tests, two header-search tests, and test_coil_vv_skin_vertices_lie_on_the_eqsle_skins, which parses both real decks with EQSLE.DATA and asserts every skin vertex is within 1e-3 m with a point-to-segment distance that treats arcs as arcs.",
+    "done_when": "Verified against a scratch extraction of the reviewed head: the two-file gate runs 41 passed, EXIT=0 (the same files pass the base arm at 32 passed, EXIT=0); the declared negative control reproduced red at EXIT=1 with 'DID NOT RAISE ValueError'; and the geometry floor is met with headroom (max 5.36e-4 m inner / 4.76e-4 m outer against the 1e-3 m assertion). Each of the five refusal conditions the section names raises ValueError, and the two header-search cases behave as documented.",
+    "goal": "Plan jt60sa-machine-map section 4 closes its last remaining node: 'The contour parse finds its block by shape ... a deck with an unlabelled first row, an unknown label or a short run would be sliced wrongly without an error. The remaining node makes the parser refuse each of those, checks every Inner VV and Outer VV run against the count its label declares, and requires each skin's chords to join end to start and close. Its test measures every coil_vv skin vertex against EQSLE.DATA's skins, with arcs measured as arcs, and holds them within 1 mm.'",
+    "manifest": "Read at 072854b, manifest.md records status complete, the two commits [4759831f, 072854b2], the three changed paths, the two-file gate (41 passed, EXIT=0; ruff whole-tree EXIT=0), the declared negative control, and the skin distances. changed_paths and tests reconcile with the tree; the manifest's baseline_suite and after_suite both cite the same gate.log at revision 4759831, so its recorded delta is self-referential and this review supplied the missing base arm.",
+    "write_paths": "The range touches exactly three paths: imas_ambix/data/selene_deck.py, tests/data/test_selene_deck.py, and docs/evidence/fragments/jt60sa-machine-map/jtmm-contour-parse-hardening.html. git diff --stat a07d84ef..072854b shows those three alone (133 insertions in the parser, 212 in the test module, 87 in the fragment). The declared figure path under docs/figures/jt60sa-machine-map was left empty, which the plan now assigns to jt60sa-geometry-and-signal-figures under the lead's figure-owner decision, so it is not a defect of this node."
+  },
+  "justifications": {
+    "durability": "Committed in two conventional commits, and the tests pin every behaviour the node claims: each refusal case is a separate synthetic deck asserted to raise, both header-search outcomes are covered, and the geometry invariant the prior review asked for is now guarded by a real-deck assertion rather than prose. Docked two: _run_declared_count returns None when a run label carries no '=N', so a label that lost its count silently skips the run-count check, and the 'counted row precedes the first run label' branch, though tested directly, is unreachable through parse_coil_vv_deck because the header search already requires the first numeric row to be labelled.",
+    "evidence": "Independently reproduced. The two-file gate re-ran 41 passed, EXIT=0 at the head in a scratch extraction under $TMPDIR (module.__file__ confirmed inside the scratch tree); the base arm at a07d84ef ran 32 passed, EXIT=0, so zero added failures over the two files. The declared negative control reproduced exactly: removing the count guard reddens test_contour_run_shorter_than_its_label_is_refused with 'DID NOT RAISE ValueError' at EXIT=1 while the head arm passes it. The skin distances re-measured independently match the fragment's table to four significant figures (inner max 5.3581e-04 / median 2.1261e-04 m; outer max 4.7568e-04 / median 1.8837e-04 m; 100 vertices per skin, both phases). Docked two because the reviewed manifest's own two arms are the same revision and log, so its recorded delta says nothing and the pre-change arm had to be supplied by this review.",
+    "fit": "Follows the module's shape: module-level constants for the recognised labels and the join tolerance, small private helpers with mechanism docstrings, ValueError refusals worded like the module's existing ones ('no coil_vv contour block header found', 'contour block declares N rows, found M'), and Provenance carried on every Segment with the deck line it read.",
+    "goal_fidelity": "Every element the section names is implemented and shown to fire: the parser refuses an unlabelled first row (via the header search) and a counted row before the first label, an unknown run label, an Inner/Outer VV run shorter than its =N, a missing skin, and a skin whose chords do not join or close; it checks both VV runs against their declared counts; and the geometry claim the previous review left unguarded ('representation, not geometry') is now measured by a test, with every skin vertex within 5.36e-4 m of the EQSLE skin against a 1 mm floor.",
+    "reuse": "Reuses _numeric_prefix, the Segment/Provenance machinery and the existing refusal idiom; the only new mechanisms are the run-label/declared-count readers and the closure check the section calls for. The test module reuses the COIL_VV_TEXT fixture as a preamble rather than duplicating a full deck.",
+    "scope_discipline": "The range is confined to the two declared source paths plus the evidence fragment; it changes no rule, unit or transform outside the contour parse, its tests and the fragment, and no external caller of the changed helpers exists. The unused figure path is the plan's, not a stray write."
+  },
+  "node": "review-of-jtmm-contour-parse-hardening",
+  "prior_review": null,
+  "project": "imas-ambix",
+  "review_run_id": "r-20261006T104503627481-review-of-jtmm-contour-parse-hardening",
+  "review_scope": "Whole of node jtmm-contour-parse-hardening (two commits, base a07d84ef to head 072854b): the coil_vv contour parser now refuses decks it would mis-slice. _find_contour_header accepts a bare count only when its next numeric row both holds >=5 numbers and names a recognised run (Inner VV / Outer VV / D-probe), else keeps searching and finally refuses; _parse_contour_block tracks each run, refuses an unrecognised label or a counted row before the first label, checks each Inner/Outer VV run against its =N declared row count, requires both skins, and _check_skin_closure refuses any skin whose chords do not join end-to-start and close on the first chord's start within 1e-4 m. Tests add seven refusal cases, two header-search cases, and a real-deck geometry test asserting every coil_vv skin vertex lies within 1e-3 m of the matching EQSLE.DATA skin with arcs measured as arcs. Read at 072854b: the full diff of both changed source paths, the evidence fragment, and the reviewed manifest. Verified from a scratch extraction of the reviewed head and base under $TMPDIR (never the reviewed tree): the two-file gate re-run in both arms, the declared negative control reproduced, and the skin-vertex/EQSLE distance re-measured independently.",
+  "reviewed_base_sha": "a07d84ef981b1f09cec0593686eff83d03b3b333",
+  "reviewed_commits": [
+    "4759831fc949328216bdd0f6f4b4e5fe54d6e341",
+    "072854b2d1856f3c9230e6bad88923c23240839b"
+  ],
+  "reviewed_head_sha": "072854b2d1856f3c9230e6bad88923c23240839b",
+  "reviewed_run_id": "r-20261006T102626763221-jtmm-contour-parse-hardening",
+  "reviewer": "review-of-jtmm-contour-parse-hardening",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T10:52:28+00:00",
+  "total": 115,
+  "verification_logs": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/review_gate_base.log",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/review_gate_head.log",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/review_negative_control.log",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T104503627481-review-of-jtmm-contour-parse-hardening/review_geometry_probe.log"
+  ]
+}

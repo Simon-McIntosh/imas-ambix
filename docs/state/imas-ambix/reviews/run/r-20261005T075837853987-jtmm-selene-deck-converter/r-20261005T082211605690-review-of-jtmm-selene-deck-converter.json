@@ -1,0 +1,107 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite (both null in the classification record), so its own arms cannot supply the delta. This review measured the reviewed node's declared gate (tests/data/test_selene_deck.py) in two scratch trees built from the reviewed commit's own object store (git archive of 395b6a68 into $TMPDIR/arms/base and 51f0b617 into $TMPDIR/arms/head, no git worktree created and the reviewed worktree not written). The node is a pure addition: the declared gate target does not exist at the base revision, so the base arm collected nothing (gate-base.log: 'ERROR: file or directory not found', EXIT=4, zero failing ids) and the head arm is green (gate-head.log: 8 passed, EXIT=0, zero failing ids). Head failing ids ([]) minus base failing ids ([]) is 0. The green gate does not exercise the defects this review found: test_eqsle_parses_pf_coils asserts the wrong extent convention (width == 2*dr), and no test checks element extents against the facility description or the tf element start/end points.",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/data/test_selene_deck.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T082211605690-review-of-jtmm-selene-deck-converter/gate-head.log",
+    "revision": "51f0b617840bb68227b276aab4046fe6c7ce53b4"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/data/test_selene_deck.py",
+    "completed": false,
+    "exit_status": 4,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T082211605690-review-of-jtmm-selene-deck-converter/gate-base.log",
+    "revision": "395b6a683ef3d1d85234a4cd67b9300ee1441ab8"
+  },
+  "completed_at": "2026-10-05T08:35:58.584Z",
+  "dispatched_at": "2026-10-05T08:22:17Z",
+  "findings": [
+    {
+      "category": "correctness",
+      "file": "imas_ambix/data/selene_deck.py",
+      "line": "PfElement.width / height (lines 96-104) and the rectangle writers in build_pf_active and build_pf_passive",
+      "severity": "blocking",
+      "text": "PF and vessel conductor rectangles are emitted at twice their true extent. The committed properties are width = 2.0*dr and height = 2.0*dz, and both writers set rectangle.width/height the same way. The EQSLE.DATA dR/dZ and Va/Vb columns are full extents (pitches): in the OP1 PF1 (CS1) block the 40 elements sit on 4 radial centres spaced 0.08175 and 10 vertical centres spaced 0.15740, and the facility's own laptop description reports CS1 as w=0.327 (= 4*0.08175), h=1.574 (= 10*0.15740); its vv_0 filament is reported w=0.0414, h=0.2497, equal to the deck columns, not their doubles. So each element should be width=dr, height=dz. As committed every element is drawn at double size and overlaps its neighbours by 50%, so the pf_active and pf_passive geometry is wrong by a factor of two. The committed test encodes the wrong convention: test_eqsle_parses_pf_coils asserts first.width == approx(0.2) for dr=0.1 (2*dr), where the deck extent is 0.1. Evidence: reviews/.../*.json, probe-real, and the facility extract in the geometry-source report (ids_laptop_OP1)."
+    },
+    {
+      "category": "correctness",
+      "file": "imas_ambix/data/selene_deck.py",
+      "line": "build_tf (the start_points/end_points assignment loop)",
+      "severity": "blocking",
+      "text": "The tf conductor elements are degenerate. build_tf assigns the same r_pts/z_pts array to both start_points and end_points, so every element's start equals its end. Read back at DD 4.1.1 from the real deck, conductor0 and conductor1 each report start_r == end_r and start_z == end_z element-for-element (arrays equal, confirmed by np.array_equal), with types all 1. Per the DD, tf/coil/conductor/elements/start_points and end_points are the two endpoints of each segment, so the emitted TF conductor path is a list of zero-length segments carrying no geometry. Arc segments contribute only their start point (_tf_section_points appends seg.params[0], seg.params[1] for an arc). The test only asserts start_r.size >= 1, so the degeneracy is not caught."
+    },
+    {
+      "category": "correctness",
+      "file": "imas_ambix/data/selene_deck.py",
+      "line": "_wall_outline / build_wall",
+      "severity": "blocking",
+      "text": "The wall limiter outline drops every arc. _wall_outline appends only segments whose kind == 'line'; the real limiter/first-wall table has 43 segments, 33 line and 10 arc, and the 10 arcs are silently skipped when building wall/description_2d/limiter/unit/outline. The outline is therefore a set of disconnected polylines with the arc spans missing (39 points emitted from 33 line segments), so the emitted first-wall contour is incomplete. The test asserts only outline_r.size >= 2, so the missing arcs are not caught."
+    },
+    {
+      "category": "missing-deliverable",
+      "file": "imas_ambix/data/selene_deck.py",
+      "line": "build_tf defaults (turns=0, coils_n=18) and write_phase_description",
+      "severity": "blocking",
+      "text": "tf/coil[:]/turns is written as a guessed 0 and tf/coils_n as a guessed 18. Plan section 4 says the tf IDS is populated from the deck's TF description with tf/coil/turns and tf/b_field_phi_vacuum_r derived from a declared relation. The committed code hard-codes tf_turns = 0 (with a comment that the turn count is not inferred) and writes 18 coils, and it never writes tf/b_field_phi_vacuum_r into the IDS at all: derive_b_field_phi_vacuum_r is placed in the receipt dict under a non-DD key 'tf_b_field_phi_vacuum_r' only when tf_current is passed. The one COCOS-dependent tf field the plan names is thus absent from the IDS."
+    },
+    {
+      "category": "delivery-hygiene",
+      "file": "imas_ambix/data/selene_deck.py",
+      "line": "reviewed worktree working tree (uncommitted)",
+      "severity": "blocking",
+      "text": "The reviewed worktree carries 84 uncommitted insertions in imas_ambix/data/selene_deck.py (11 hunks, +84/-23) that supersede the reviewed commit and are not landed anywhere: git log --all shows no commit after 51f0b617 touching the file and branch -a --contains 51f0b617 is empty. The uncommitted diff corrects the width/height factor of two described above (width = dr, not 2*dr), replaces the mean resistivity with one loop per contiguous resistivity block, leaves tf turns/coils_n unset with a validation_gaps receipt entry instead of guessed zeros, and documents the full-extent convention. Because these edits are uncommitted they are invisible to the ledger and would be lost if the worktree were reclaimed. The delivered artifact is therefore not the worktree's final state, and the commit's own tests (which assert width == 2*dr) are already red against the on-disk module."
+    },
+    {
+      "category": "evidence-integrity",
+      "file": "imas_ambix/data/selene_deck.py",
+      "line": "build_pf_passive (mean resistivity) and the plan's vessel-resistivity statement",
+      "severity": "follow-on",
+      "text": "pf_passive/loop/resistivity is emitted as the mean of the filaments. The DD carries resistivity only at loop level (pf_passive/loop/resistivity, FLT_0D) with no element leaf, so a per-filament value cannot be carried directly. But the OP1 EQSLE.DATA vessel block is not uniform: of its 120 rows, 63 carry 7.76e-07 and 57 carry 7.20E-007, so the emitted 7.494e-07 is no filament's value and is asserted rather than derived. Plan section 4 states the OP1 vessel as '120 filaments at 7.76e-7 ohm.m', which this review measures to be inaccurate. The plan statement should be corrected and the collapse recorded (the uncommitted revision splits into blocks and records it)."
+    },
+    {
+      "category": "design-note",
+      "file": "imas_ambix/data/selene_deck.py",
+      "line": "build_magnetics (probe poloidal_angle)",
+      "severity": "follow-on",
+      "text": "The probe angle is written to magnetics/b_field_pol_probe/poloidal_angle as radians (deg2rad of the geo.in column). This review confirms the geo.in column is in degrees (the 17 rows sweep 0.28 to 350.24), so the conversion itself is correct; the evidence fragment states it plainly. Plan section 4 asks the probe angle to be marked unknown-unvalidated until section 6 settles its sense against vacuum data, and the emitted value carries no such qualification. Minor, but the plan's qualification is not represented in the output."
+    }
+  ],
+  "follow_ons": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "New module; imas_ambix/data/selene_deck.py is its own public surface (parse_eqsle_deck, parse_geo_in, parse_coil_vv_deck, write_phase_description). Nothing in ambix imports it yet, consistent with section 4's note that it retires nothing inside ambix. Reviewed by grep: no other module references selene_deck.",
+    "diff": "Read 51f0b617 against base 395b6a68: three files, +1024/-0, both inside the declared write set (imas_ambix/data/selene_deck.py +718, tests/data/test_selene_deck.py +263, docs/evidence/fragments/jt60sa-machine-map/jtmm-selene-deck-converter.html +43). No other file touched. The reviewed worktree working tree is additionally dirty with 84 uncommitted insertions in the module that are not part of the commit.",
+    "done_when": "Read the node's measure: a parsed record scoring all five dimensions 0..20, reviewed_base_sha and reviewed_head_sha, and added_failure_count/added_failure_ids derived from the reviewed run's own arms where present. The reviewed run is unarmed (its manifest names baseline_suite null and after_suite null), so this review built its own two arms of the reviewed node's declared gate from the shared object store under $TMPDIR and supplies the delta.",
+    "goal": "The node delivers the converter the plan's 'Converter node' paragraph names: imas_ambix/data/selene_deck.py parses the EQSLE.DATA PF/NV/TFC/limiter grammars, the geo.in Magnetic Probe and Flux Loop blocks and the coil_vv vessel block into provenance-carrying elements, and writes pf_active, pf_passive, magnetics, wall and tf IDS netCDF at DD 4.1.1 plus a receipt.json naming each source path, sha256 and line ranges. This review independently reproduced the real-deck parse exactly (12 PF coils CS1-4/EF1-6/FPPC_UP/DOWN; 120 OP1 and 98 OP2 vessel filaments; 7+7 TFC segments; 43 wall segments; 17 probes; 27 flux loops) and ran write_phase_description against the real copies, reading every IDS back through imas.DBEntry. The parse is sound, but the emitted machine description is not: PF and vessel element extents are doubled, the tf conductor geometry is degenerate, and the tf turn count is a guessed zero.",
+    "manifest": "Read; it states the gate green (tests/data/test_selene_deck.py 8 passed EXIT=0; whole-tree ruff clean EXIT=0), a negative control failing the provenance test (EXIT=1), the real-deck parse counts, and names changed_paths imas_ambix/data/selene_deck.py, tests/data/test_selene_deck.py and the evidence fragment. Its baseline_suite and after_suite are null (dispatched unarmed).",
+    "write_paths": "The commit touches only the three declared paths. The module and test are under the declared set; the evidence fragment under docs/evidence/fragments/jt60sa-machine-map/ is the declared doc path. No path outside the write set was committed."
+  },
+  "justifications": "Independent review of run r-20261005T075837853987-jtmm-selene-deck-converter, reviewed_run_id r-20261005T075837853987-jtmm-selene-deck-converter, base 395b6a68, head 51f0b617, plan imas-ambix:jt60sa-machine-map section 4, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 14, evidence 15, scope_discipline 16, durability 14, fit 16 -- total 75, added_failure_count 0 with added_failure_ids [] derived from this review's own two arms of the reviewed node's declared gate (the reviewed run was dispatched unarmed, so its own baseline_suite and after_suite are null): base arm gate-base.log (scratch tree $TMPDIR/arms/base, revision 395b6a68: gate target absent at base, EXIT=4) and head arm gate-head.log (scratch tree $TMPDIR/arms/head, revision 51f0b617: 8 passed, EXIT=0). The node is a pure addition, so the base arm is empty and the delta is 0. The parse is correct and reproduced exactly against the real facility copies, but the delivered machine description is not: (1) BLOCKING -- pf_active and pf_passive element width/height are set to 2*dr and 2*dz, doubling every conductor rectangle; the EQSLE.DATA dR/dZ and Va/Vb columns are full extents (PF1/CS1 tiles 4 radial centres spaced 0.08175 and 10 vertical centres spaced 0.15740, and the facility's own laptop description reports CS1 w=0.327, h=1.574 and vv_0 w=0.0414, h=0.2497, equal to the deck columns), so width must be dr and height dz; the committed test asserts the doubled value, so the suite encodes the defect. (2) BLOCKING -- the reviewed worktree is dirty with 84 uncommitted insertions in the module that supersede the commit (width = dr, per-resistivity-block loops, unset tf fields with validation_gaps) and are landed nowhere; the commit's tests are already red against the on-disk module. (3) MODERATE -- tf conductor elements are degenerate: start_points == end_points element-for-element (verified by read-back), so the TF path carries no geometry; (4) MODERATE -- the wall limiter outline silently drops all 10 arc segments of 43, leaving the contour incomplete; (5) MODERATE -- tf turn count is a guessed 0 and tf/b_field_phi_vacuum_r is never written to the IDS. The reviewed node's declared negative control was reproduced independently rather than accepted: zeroing one PF element's provenance line range in a scratch copy of the head module reddens the declared test_provenance_carries_path_sha256_and_line_range plus test_receipt_names_sources_and_converter_commit (2 failed, 6 passed, EXIT=1, negative-control-repro.log), so the guard is real and in fact broader than declared. Real-deck parse reproduced: 12 PF coils, 120 OP1 / 98 OP2 vessel filaments, 7+7 TFC segments, 43 wall segments, 17 probes, 27 flux loops.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T082211605690-review-of-jtmm-selene-deck-converter",
+  "reviewed_base_sha": "395b6a683ef3d1d85234a4cd67b9300ee1441ab8",
+  "reviewed_head_sha": "51f0b617840bb68227b276aab4046fe6c7ce53b4",
+  "reviewed_run_id": "r-20261005T075837853987-jtmm-selene-deck-converter",
+  "reviewer": "review-of-jtmm-selene-deck-converter",
+  "scores": {
+    "durability": 14,
+    "evidence": 15,
+    "fit": 16,
+    "goal_fidelity": 14,
+    "scope_discipline": 16
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T08:40:00+00:00",
+  "total": 75
+}

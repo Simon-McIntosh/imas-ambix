@@ -1,0 +1,103 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T02:22:54.056Z",
+  "dispatched_at": "2026-10-07T02:16:27Z",
+  "findings": [
+    {
+      "anchor": "plan.html:190",
+      "id": "reuse_search-1",
+      "reason": "\u00a79's effort estimate and its done-when (\"a synthetic flat bundle resolves its catalogue, every signal map and its description store\") rest on \u00a72 having generalised resolvers that the code shows are still hardcoded, so the author must name `machine_map.py:136-142` and `load_bundle_descriptor` as \u00a79's edit sites.",
+      "text": "\u00a79 states \"The resolvers \u00a72 generalised read either addressing, chosen by the key present: `MapBundle.machine_map_path` and `signal_map_path`, and store-root resolution.\" `map_for_shot`/store-root resolution was generalised, but the two path resolvers were not: `packages/imas-alambic/src/imas_alambic/machine_map.py:136` returns `self.root / \"machine_maps\" / f\"{machine}.json\"` and `machine_map.py:140` returns `self.root / \"maps\" / machine / f\"{system}.json\"`, both hardcoded to the multi-machine layout. A flat bundle (\u00a79: `machine_map.json`, `maps/<ids>.json`) therefore does not resolve at all until those two methods are rewritten to branch on the key present; `load_bundle_descriptor` (`machine_map.py:162`) likewise reads only `machines` and never `machine`. The plan presents work that \u00a79 must actually do as work \u00a72 already did.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html:186",
+      "id": "duplicate_owner-1",
+      "reason": "the run file is read by the companion plan's \u00a72/\u00a74 and by \u00a76's cross-check, so two spellings produce a reader that opens the wrong path; \u00a78 must name the single owner of the layout and correct `jt60sa-pulse-ids.html:227`, and must say whether the cache root is resolved through `resolve_description_store_root` (extended to be optional) or by a new path.",
+      "text": "the written-IDS layout is owned in two places with two different spellings. This plan (decision `output-layout`, snapshot plan.html:289-297; \u00a76 plan.html:178 `IMASDB/ids/101154_0.nc`; \u00a75 tree plan.html:173-174; \u00a78 plan.html:186 `<ids root>/<pulse>_<run>.nc`) settles on a flat file `ids/<pulse>_<run>.nc`. The companion plan it defers to records the other spelling: `docs/plans/jt60sa-pulse-ids.html:227` says written IDSs \"move from one netCDF per IDS \u2026 to one netCDF per run, `ids/<pulse>/<run>.nc`\" \u2014 a directory per pulse, which is the rejected `ids-pulse-dir-run` option. \u00a78's own text points a reader at \"the 2026-10-07 comment on that plan\" as the record of this change, but that comment carries the conflicting path. Separately, \u00a78's cache precedence item 4 (\"the bundle's store root declared under the role name `eddb_cache`, then a per-user `~/.cache/imas-alambic`\") resolves a named bundle store root but names no owner; the existing owner of that mechanism is `resolve_description_store_root` at `machine_map.py:244`, which already walks `discover_bundles()` and refuses on ambiguity but has no optional/absent form the fall-through needs, so \u00a78 would grow a second resolution path beside it.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html:186",
+      "id": "interface_budget-1",
+      "reason": "with every interface family at zero this week, each section that adds surface must account for it in its own text; \u00a78 must name the refusal families it adds (or state they reuse `PulseWriteError`/`MachineMapError` unchanged), and \u00a79 must name the `machine` key as new `bundle.json` vocabulary and what it supersedes.",
+      "text": "the supplied counts are public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0. \u00a78's interface account (\"this adds three environment variables and one command, each against what it retires\") accounts for `IMAS_ALAMBIC_HOME`, `IMAS_ALAMBIC_IDS_ROOT`, `IMAS_ALAMBIC_CACHE` and `config`, but does not account for the two refusal behaviours the same section introduces: \"A missing setting is refused, naming the variable that sets it\" (plan.html:186) and \"An existing file is refused unless `--overwrite` is given\" (plan.html:186, reinforced by the done-when \"A second write without `--overwrite` is refused\"). And \u00a79 (plan.html:190) adds the singular `machine` key to `bundle.json` \u2014 new accepted schema surface \u2014 while asserting \"no new vocabulary is added\". Neither addition is named against what it retires or merges, or why nothing can be.",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "4a813c10e2ba250156b1b244cbced9412e4280dd11d77ecf53f7498bd3383b15",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 40,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "reuse_search-1",
+      "reason": "v41 s9: names its real edit sites: MapBundle.machine_map_path and signal_map_path (machine_map.py:136-142) still hard-code the multi-machine layout and load_bundle_descriptor (:162) reads only machines; s2 generalised by-name lookup across bundles, not paths inside one.",
+      "when": "2026-10-07T02:24:12.727063+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "duplicate_owner-1",
+      "reason": "v41: the pulse-ids comment is corrected by an appended comment (flat ids/<pulse>_<run>.nc; the owner is facility-mint decision output-layout and s8); s8 looks the eddb_cache role up through resolve_description_store_root (machine_map.py:244), which gains an optional form, so it stays the one owner of store-root lookup.",
+      "when": "2026-10-07T02:24:12.730376+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "interface_budget-1",
+      "reason": "v41: s8 states its two refusals reuse MachineMapError (missing setting) and PulseWriteError (existing run file without --overwrite), adding no family; s9 names the singular machine key as the one addition to bundle.json vocabulary, retiring nothing because single-machine addressing did not exist.",
+      "when": "2026-10-07T02:24:12.733460+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v41: the pulse-ids comment is corrected by an appended comment (flat ids/<pulse>_<run>.nc; the owner is facility-mint decision output-layout and s8); s8 looks the eddb_cache role up through resolve_description_store_root (machine_map.py:244), which gains an optional form, so it stays the one owner of store-root lookup.",
+      "when": "2026-10-07T02:24:12.730376+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v41: s8 states its two refusals reuse MachineMapError (missing setting) and PulseWriteError (existing run file without --overwrite), adding no family; s9 names the singular machine key as the one addition to bundle.json vocabulary, retiring nothing because single-machine addressing did not exist.",
+      "when": "2026-10-07T02:24:12.733460+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v41 s9: names its real edit sites: MapBundle.machine_map_path and signal_map_path (machine_map.py:136-142) still hard-code the multi-machine layout and load_bundle_descriptor (:162) reads only machines; s2 generalised by-name lookup across bundles, not paths inside one.",
+      "when": "2026-10-07T02:24:12.727063+00:00"
+    }
+  },
+  "review_run_id": "r-20261007T021611826776-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "faefc271c446d767a276a117ab74301840d97e29",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the write command hides settings resolution, machine inference, the EDDB join and the run-file write behind one command in the already-present `pulse_writer` module; the plan does not split that behaviour across redundant wrappers.",
+    "duplicate_owner": "a finding \u2014 the written-IDS path is defined in two plans under two spellings, and \u00a78 adds a cache-root resolution path beside the existing named-store-root owner `resolve_description_store_root`.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a78 adds two refusal behaviours it does not account for, and \u00a79 adds a `bundle.json` key while asserting none is added.",
+    "reuse_search": "a finding \u2014 \u00a79 asserts the bundle path resolvers were already \"generalised by \u00a72\", but `MapBundle.machine_map_path`/`signal_map_path` still hardcode the multi-machine layout, so the plan's prior-art map is wrong and \u00a79 is under-scoped.",
+    "thin_wrapper": "pass \u2014 the two layers the plan adds (the \u00a75 launcher and the \u00a78 `config` command) each state in their own text why extending existing machinery cannot serve: the launcher because it must clear `PYTHONPATH` and set `IMAS_ALAMBIC_HOME` before the console script runs, and `config` because it is the only view of the resolved settings and their sources."
+  },
+  "section_digests": {
+    "_document": "2d17566147222e851c26e944a58262704c9bbcabc81bc90bc619eed262ed76eb",
+    "s1": "6651e63275c4e04babee6561156d979872ff4e6afe804378bb9c9466b64ed5c7",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "56812a38380cfae64d6f806e8c53db03be6427472f3ea0a000d60ef09c723453",
+    "s6": "1ccc061c74e3a3eab0fbd07825bc5bf11d8207248d01b1a9aecba35a37e20560",
+    "s7": "8c5f7724383f68ff8363e74b3048d56c7c65de031315418c74383b05513f3556",
+    "s8": "62a3f641019a04617105586e8e2eb897ea9cff31dbe4aa265c0d3d1b37cc936e",
+    "s9": "4d8a18e03c64f07cc38d8cfb71f30bf5061228f311c4a35b70c26fb80402715a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T02:24:12.717655+00:00"
+}

@@ -1,0 +1,50 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T08:07:58.254537+00:00",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T075201250934-gate-integrated-failure/manifest.md",
+      "line": "12",
+      "text": "the final changed_paths list records only the two repository documents although the run also created the report and five full test logs; the exact scope named the report file but not the sibling log files, and the first check-manifest invocation correctly rejected those logs as outside scope before changed_paths was narrowed, so the passing final audit no longer verifies the complete delivery against the declared fence. The done-when required the logs, making this primarily a malformed dispatch scope, but the worker should have requested a scope extension rather than omit the writes from the field that records changed paths."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "none; the reviewed commit adds only plan and cumulative-evidence records and changes no production runtime path",
+    "diff": "read commit 68d07062 against orientation base 116f662b; it appends 31 lines to the cumulative evidence page and 14 lines to the live plan, with no production source or test change.",
+    "done_when": "the five revision-headed logs record exits [1,0,0,0,0], name the sole failing test, preserve its assertion and full traceback, and match every SHA-256 printed in the report; the base receipt also matches its recorded digest and shows 45 passed.",
+    "goal": "the report identifies the integrated-head failure as an intermittent upstream-close observation timeout, separates it from the empty observed base failure set, excludes content changes in the integration range, and names a1ebcaf1 as the historical candidate that introduced the timing-sensitive assertion.",
+    "manifest": "read against the report, five logs, base receipt, commit and stream; its suite and attribution fields are accurate, but changed_paths omits the report and five logs after the initial manifest audit rejected those paths against the exact write fence.",
+    "write_paths": "the git diff is confined to the two declared HTML paths and the report occupies its declared absolute path, but the five required sibling logs are not among the exact write paths and no scope extension is recorded."
+  },
+  "justifications": {
+    "durability": "the report at gate-integrated-failure.md:13-54 names each receipt by digest and the committed evidence and plan anchors preserve the result, but no automated check binds those summaries to the five logs after delivery.",
+    "evidence": "gate-integrated-failure.md:13-52 is supported by five complete revision-headed receipts, matching hashes, the recorded green base receipt, an exit-zero content-diff check over router.py and all nine collected router test files, and blame assigning the timing-sensitive lines to a1ebcaf1.",
+    "fit": "commit 68d07062 follows the repository's cumulative evidence and non-terminal plan-record idiom, uses a conventional body-bearing commit, and introduces no runtime or naming surface.",
+    "goal_fidelity": "gate-integrated-failure.md:21-54 quantitatively identifies the one-of-five TimeoutError, distinguishes observed base and integrated results, excludes integration-range content attribution, and names the requested candidate commit.",
+    "scope_discipline": "manifest.md:12 omits the report and five test logs that were written, while prompt.txt:47-51 names only the report file and repository documents as exact write paths; the stream shows the initial audit refusing the omitted logs before the list was narrowed."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260923T075201250934-gate-integrated-failure, base 116f662b577f9a70ce2ef3976e21108b9bc22939, reviewed head 68d07062f006b2024cc3684e13a6b310a5f444bc. Read the live plan section 7, dispatch contract, manifest, committed diff, report, all five integrated-head logs, the recorded base receipt, the source-content comparison, blame attribution, document-audit evidence and the worker stream around its manifest audit.\n\nVERDICT goal: the report identifies the integrated-head failure as an intermittent upstream-close observation timeout, separates it from the empty observed base failure set, excludes content changes in the integration range, and names a1ebcaf1 as the historical candidate that introduced the timing-sensitive assertion.\nVERDICT done_when: the five revision-headed logs record exits [1,0,0,0,0], name the sole failing test, preserve its assertion and full traceback, and match every SHA-256 printed in the report; the base receipt also matches its recorded digest and shows 45 passed.\nVERDICT write_paths: the git diff is confined to the two declared HTML paths and the report occupies its declared absolute path, but the five required sibling logs are not among the exact write paths and no scope extension is recorded.\nVERDICT manifest: read against the report, five logs, base receipt, commit and stream; its suite and attribution fields are accurate, but changed_paths omits the report and five logs after the initial manifest audit rejected those paths against the exact write fence.\nVERDICT diff: read commit 68d07062 against orientation base 116f662b; it appends 31 lines to the cumulative evidence page and 14 lines to the live plan, with no production source or test change.\nCALL_SITES: none\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: gate-integrated-failure.md:21-54 quantitatively identifies the one-of-five TimeoutError, distinguishes observed base and integrated results, excludes integration-range content attribution, and names the requested candidate commit.\nSCORE evidence: 20\nJUSTIFICATION evidence: gate-integrated-failure.md:13-52 is supported by five complete revision-headed receipts, matching hashes, the recorded green base receipt, an exit-zero content-diff check over router.py and all nine collected router test files, and blame assigning the timing-sensitive lines to a1ebcaf1.\nSCORE scope_discipline: 15\nJUSTIFICATION scope_discipline: manifest.md:12 omits the report and five test logs that were written, while prompt.txt:47-51 names only the report file and repository documents as exact write paths; the stream shows the initial audit refusing the omitted logs before the list was narrowed.\nSCORE durability: 18\nJUSTIFICATION durability: the report at gate-integrated-failure.md:13-54 names each receipt by digest and the committed evidence and plan anchors preserve the result, but no automated check binds those summaries to the five logs after delivery.\nSCORE fit: 20\nJUSTIFICATION fit: commit 68d07062 follows the repository's cumulative evidence and non-terminal plan-record idiom, uses a conventional body-bearing commit, and introduces no runtime or naming surface.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T075201250934-gate-integrated-failure/manifest.md:12 the final changed_paths list records only the two repository documents although the run also created the report and five full test logs; the exact scope named the report file but not the sibling log files, and the first check-manifest invocation correctly rejected those logs as outside scope before changed_paths was narrowed, so the passing final audit no longer verifies the complete delivery against the declared fence. The done-when required the logs, making this primarily a malformed dispatch scope, but the worker should have requested a scope extension rather than omit the writes from the field that records changed paths.\nREVISION: 68d07062f006b2024cc3684e13a6b310a5f444bc",
+  "review_run_id": "r-20260923T080758254537-review-of-gate-integrated-failure",
+  "reviewed_base_sha": "116f662b577f9a70ce2ef3976e21108b9bc22939",
+  "reviewed_head_sha": "68d07062f006b2024cc3684e13a6b310a5f444bc",
+  "reviewed_revision": "68d07062f006b2024cc3684e13a6b310a5f444bc",
+  "reviewed_run_id": "r-20260923T075201250934-gate-integrated-failure",
+  "reviewer": "review-of-gate-integrated-failure",
+  "scores": {
+    "durability": 18,
+    "evidence": 20,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 15
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-23T11:51:10+02:00",
+  "total": 93
+}

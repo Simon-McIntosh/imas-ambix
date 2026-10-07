@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T20:26:56.243Z",
+  "dispatched_at": "2026-10-06T20:23:18Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/virtual_zarr.py:146",
+      "id": "reuse_search-1",
+      "reason": "the node must be marked landed and the plan's \"gains one untransformed accessor\" clause dropped, or the next dispatch would re-add `raw_series` and re-migrate the reader.",
+      "text": "the plan's open node `jtmm-observation-time-alignment` is described as \"`VirtualZarrView` gains one untransformed accessor, which returns a rule's source values and that channel's own time base with no compiled transform applied\" (plan \u00a76, \"only `jtmm-observation-time-alignment` remains open here\"), but that accessor already exists as `VirtualZarrView.raw_series` at `imas_ambix/data/virtual_zarr.py:146`, whose docstring is the plan's own sentence verbatim, and `read_signal_map_observation` at `imas_ambix/data/cocos_convention.py:851` already reads through it (commit df71829c, \"read the sign observation through the view's raw accessor\", landed 2026-10-06T19:48Z, 35 min before this review) \u2014 a design review run against the codebase would tell the author to rebuild a live mechanism.",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "a5fe71b4da10966f3cfdd76ab39a71a982d2e78b32c6b7d934311fc8f3cb2123",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 233,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-1",
+      "reason": "",
+      "when": "2026-10-06T20:28:25.066504+00:00"
+    }
+  ],
+  "responses": {
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T20:28:25.066504+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v233.json",
+  "review_run_id": "r-20261006T202309817985-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "fbfa361afab4d8534f05695c2e8453b0adc50000",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the design extends existing deep modules (`eddb_remote.RemoteEddbExtractor` dispatches on request type, `eddb.write_channel` gains a sibling grid writer, `VirtualZarrView`, `cocos_convention`, `gs/artifact_resolution`) rather than spreading behaviour across many shallow wrappers; the EQDB transport adds one record type behind the existing extractor seam.",
+    "duplicate_owner": "pass \u2014 the plan names its one live duplicate and retires it: `imas_ambix/data/tokamap_export.py:147` `_cocos_transformation` duplicates `imas_ambix/data/transform_engine.py:411` `_target_cocos_transformation`, and node `jtmm-tokamap-jt60sa` makes the exporter take each factor from the engine, retiring the private copy; the pin constants, `mast_angle_to_canonical` and the angle entries of `MAST_TO_COCOS_17_FACTORS` are all named for retirement against their owners.",
+    "interface_budget": "public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; pass \u2014 every adding section accounts for its surface in its own text (\u00a72 exporter \"None of the seven retires anything, because ambix has no exporter\"; \u00a76 EQDB \"three new public types \u2026 retire nothing, because no equilibrium-database request type exists\"; \u00a76 `measure_convention` and `read_signal_map_observation` each retire/merge a predecessor; \u00a77 pin table \"retires three public definitions and their re-export, and adds one\"; \u00a77 frozen shot set \"retires and merges nothing, because it is a new shot-set identity\").",
+    "reuse_search": "a finding \u2014 the plan searched the two named codebases exhaustively and cites the owner each node extends, but one open node (`jtmm-observation-time-alignment`) proposes adding an untransformed accessor that already exists at HEAD.",
+    "thin_wrapper": "pass \u2014 every wrapper the plan adds states why the existing machinery cannot be extended instead (the EQDB request type is not channel-shaped so `ChannelRequest`/`ChannelRecord` are not widened; the tokamap exporter is kept out of the loaders so they do not learn tokamap's format; the sign-report readers hand a cohort to the existing scorer rather than adding a second scorer)."
+  },
+  "section_digests": {
+    "_document": "62723cd7583dc5b18a64491724a048c3d8c8b0e2245109da9998ff5051244217",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "a88f0b049bbae9833bd7732de13f54949ebd17c49cc47fac3f30e2b84546297a",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "64f9814de42d0273cd4ebce6a5eb603ee493eb1e94d4ad902e9251ffee8f85ef",
+    "s7": "109c81721e032ecd3e79868e5dd9e43e95ab3104daea488fb8f3e581b91f60be",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T20:28:07.032806+00:00"
+}

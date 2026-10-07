@@ -1,0 +1,65 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest declares no baseline_suite/after_suite arms (negative_control is 'none: the change is a lock refresh with no check of its own'); its scope is uv.lock and one evidence fragment, so no test file is armed and both suite fields are unarmed. The node's gate is the version diff of the base and refreshed uv.lock, which this review reproduced independently: from the base lock (3.10.9) 'uv lock --upgrade-package matplotlib' prints 'Updated matplotlib v3.10.9 -> v3.11.2' and its output lock is byte-identical to the reviewed head lock, and a version map of both is identical across all packages. Zero added failures; nothing to derive an added failing id from.",
+  "artifacts_note": "read the reviewed run's two commits and its gate logs under /home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T143708493246-ped-lock-matplotlib/ (logs/lock-upgrade.log, logs/lock-check.log) and the worktree at fa4630b3. Reproduction ran in /tmp/reckon-crew-scratch/r-20261005T144425280726-review-of-ped-lock-matplotlib/review-scratch with ../nova and ../imas-ink symlinked. This review changed nothing in the reviewed worktree.",
+  "base_log_revision": "9d21ef7bbd062b311cf245b089a1762fab8e0f90",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-05T14:52:16.140Z",
+  "dispatched_at": "2026-10-05T14:44:33Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/project-environment-declared/ped-lock-matplotlib.html",
+      "line": "11",
+      "severity": "follow-on",
+      "text": "follow-on: the fragment ends without a trailing newline, unlike the sibling fragments; cosmetic only."
+    },
+    {
+      "file": "docs/plans/project-environment-declared.html",
+      "line": "86",
+      "severity": "follow-on",
+      "text": "follow-on: the node is dispatched under plan \u00a74, whose text and done-when describe the fresh-environment proof and do not name a matplotlib lock refresh; the refresh serves that aim but a later reader finds no \u00a74 text for it."
+    }
+  ],
+  "head_log_revision": "fa4630b343ebe569c243495cce0dee107f53748c",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read the two commits fd0f52a4 (uv.lock alone) and fa4630b3 (the fragment); each carries a conventional subject and a body, and neither carries an AI trailer.",
+    "done_when": "the gate asks for the upgrade to move matplotlib 3.10.9 to 3.11.2 and change nothing else into a log, the lock copied back, uv lock --check exit 0 into a log, and pyproject.toml unchanged and unpinned; all were reproduced here and hold.",
+    "goal": "the node's goal is to refresh matplotlib in uv.lock to the newest version the bare declaration allows; the head lock (uv.lock) carries matplotlib 3.11.2 and a re-run of the upgrade against the head lock changes nothing, so 3.11.2 is the newest the declaration admits.",
+    "manifest": "read; it records status complete, uv.lock and the fragment, the version-diff and lock-check logs, negative_control none, and the scaffolding attribution for its one retry (hatch-vcs failing in a gitless scratch tree).",
+    "write_paths": "the manifest declares uv.lock and docs/evidence/fragments/project-environment-declared/ped-lock-matplotlib.html; git diff 9d21ef7b..fa4630b3 is exactly those two paths, 42 insertions and 17 deletions, no product source, worktree clean at head."
+  },
+  "justifications": {
+    "durability": "re-running the named command from the base revision reproduces the head lock exactly, so the refresh survives a future re-lock and the fragment records the version moved and the check; nothing asserts the lock stays current, so the fragment is descriptive rather than a guard.",
+    "evidence": "the gate is reproduced independently here and is strong; from the base lock the upgrade yields a lock byte-identical to the reviewed head lock and a version map differing only in matplotlib, uv lock --check exits 0, and pyproject.toml:71 is unchanged; the negative control is correctly declared none.",
+    "fit": "the fragment docs/evidence/fragments/project-environment-declared/ped-lock-matplotlib.html follows the evidence conventions with a node-id element id and plan-free naming; the only nit is the missing trailing newline.",
+    "goal_fidelity": "the lock moved to matplotlib 3.11.2 and a re-run of uv lock --upgrade-package matplotlib against the head lock is a no-op, the direct demonstration that 3.11.2 is the newest allowed; the only reservation is that docs/plans/project-environment-declared.html \u00a74 does not itself name this node.",
+    "reuse": "the node reuses the existing uv lock --upgrade-package path and the established evidence-fragment pattern rather than adding a mechanism, helper or harness, and introduces no new public surface.",
+    "scope_discipline": "git diff 9d21ef7b..fa4630b3 is exactly the two declared paths, all of it the matplotlib package block in uv.lock plus one new evidence fragment; no product source is touched and the worktree is clean at fa4630b3."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20261005T143708493246-ped-lock-matplotlib at head fa4630b3 against base 9d21ef7b (plan imas-ambix:project-environment-declared \u00a74). The node refreshes matplotlib in uv.lock from 3.10.9 to 3.11.2, the newest release the bare (unpinned) declaration admits, and changes no other package version. Read the reviewed worktree's two commits (fd0f52a4, fa4630b3), its manifest, its two gate logs and the new evidence fragment. The worktree was clean at fa4630b3; this review changed nothing in it. The change is uv.lock (the single matplotlib package block) plus one new evidence fragment, no product source touched.\n\nVerified independently by reproduction, not by reading the worker's log. Extracted the reviewed head tree to a node-local scratch dir with ../nova and ../imas-ink symlinked to the real checkouts, as the gate specifies. (1) SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0 UV_OFFLINE=0 uv lock --check exits 0. (2) uv lock --upgrade-package matplotlib against the head lock changes no version, so 3.11.2 is the newest the declaration admits. (3) From the base lock (3.10.9) the same command prints 'Updated matplotlib v3.10.9 -> v3.11.2' and its output lock is byte-identical to the reviewed head lock; a name-to-version map of the base and head locks differs only in matplotlib across the same resolution. (4) pyproject.toml is unchanged between base and head and declares matplotlib bare at pyproject.toml:71.\n\nGaps, all low severity, none blocking. (1) The evidence fragment file ends without a trailing newline. (2) The node is dispatched under plan \u00a74, whose text and done-when describe the fresh-environment proof and do not name a matplotlib lock refresh; the refresh serves that aim but the placement is the coordinator's call. No added test failures: the reviewed manifest declares no baseline_suite/after_suite arms and carries no test file in scope.\n\nreviewed_base_sha: 9d21ef7bbd062b311cf245b089a1762fab8e0f90\nreviewed_head_sha: fa4630b343ebe569c243495cce0dee107f53748c\n\nVERDICT goal: the node's goal is to refresh matplotlib in uv.lock to the newest version the bare declaration allows; the head lock (uv.lock) carries matplotlib 3.11.2 and a re-run of the upgrade against the head lock changes nothing, so 3.11.2 is the newest the declaration admits.\nVERDICT done_when: the gate asks for the upgrade to move matplotlib 3.10.9 to 3.11.2 and change nothing else into a log, the lock copied back, uv lock --check exit 0 into a log, and pyproject.toml unchanged and unpinned; all were reproduced here and hold.\nVERDICT write_paths: the manifest declares uv.lock and docs/evidence/fragments/project-environment-declared/ped-lock-matplotlib.html; git diff 9d21ef7b..fa4630b3 is exactly those two paths, 42 insertions and 17 deletions, no product source, worktree clean at head.\nVERDICT manifest: read; it records status complete, uv.lock and the fragment, the version-diff and lock-check logs, negative_control none, and the scaffolding attribution for its one retry (hatch-vcs failing in a gitless scratch tree).\nVERDICT diff: read the two commits fd0f52a4 (uv.lock alone) and fa4630b3 (the fragment); each carries a conventional subject and a body, and neither carries an AI trailer.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: the lock moved to matplotlib 3.11.2 and a re-run of uv lock --upgrade-package matplotlib against the head lock is a no-op, the direct demonstration that 3.11.2 is the newest allowed; the only reservation is that docs/plans/project-environment-declared.html \u00a74 does not itself name this node.\nSCORE evidence: 19\nJUSTIFICATION evidence: the gate is reproduced independently here and is strong; from the base lock the upgrade yields a lock byte-identical to the reviewed head lock and a version map differing only in matplotlib, uv lock --check exits 0, and pyproject.toml:71 is unchanged; the negative control is correctly declared none.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff 9d21ef7b..fa4630b3 is exactly the two declared paths, all of it the matplotlib package block in uv.lock plus one new evidence fragment; no product source is touched and the worktree is clean at fa4630b3.\nSCORE durability: 17\nJUSTIFICATION durability: re-running the named command from the base revision reproduces the head lock exactly, so the refresh survives a future re-lock and the fragment records the version moved and the check; nothing asserts the lock stays current, so the fragment is descriptive rather than a guard.\nSCORE fit: 19\nJUSTIFICATION fit: the fragment docs/evidence/fragments/project-environment-declared/ped-lock-matplotlib.html follows the evidence conventions with a node-id element id and plan-free naming; the only nit is the missing trailing newline.\nSCORE reuse: 20\nJUSTIFICATION reuse: the node reuses the existing uv lock --upgrade-package path and the established evidence-fragment pattern rather than adding a mechanism, helper or harness, and introduces no new public surface.\nFINDING docs/evidence/fragments/project-environment-declared/ped-lock-matplotlib.html:11 follow-on: the fragment ends without a trailing newline, unlike the sibling fragments; cosmetic only.\nFINDING docs/plans/project-environment-declared.html:86 follow-on: the node is dispatched under plan \u00a74, whose text and done-when describe the fresh-environment proof and do not name a matplotlib lock refresh; the refresh serves that aim but a later reader finds no \u00a74 text for it.\n",
+  "review_run_id": "r-20261005T144425280726-review-of-ped-lock-matplotlib",
+  "reviewed_base_sha": "9d21ef7bbd062b311cf245b089a1762fab8e0f90",
+  "reviewed_head_sha": "fa4630b343ebe569c243495cce0dee107f53748c",
+  "reviewed_run_id": "r-20261005T143708493246-ped-lock-matplotlib",
+  "reviewer": "review-of-ped-lock-matplotlib",
+  "scores": {
+    "durability": 17,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T04:36:22.339455+00:00",
+  "total": 114
+}

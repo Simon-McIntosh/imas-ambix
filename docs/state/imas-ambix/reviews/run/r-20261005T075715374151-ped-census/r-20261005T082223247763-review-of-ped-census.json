@@ -1,0 +1,68 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run is a code change that adds only a test and an evidence fragment. Its manifest records commits ['d3124645'] and changed_paths of two files, and classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null, so the reviewed run ran no suite-wide before/after arm to difference. added_failure_count 0 and added_failure_ids [] record that absence, not a green suite: the focused gate the node did run (pytest-gate.log) is 1 passed, 1 xfailed, and its 21-line assertion failure list (census-render.log) is the intended, expected-failure census that section 3 declares against.",
+  "after_suite": null,
+  "baseline_suite": null,
+  "completed_at": "2026-10-05T08:32:15.074Z",
+  "dispatched_at": "2026-10-05T08:22:29Z",
+  "findings": [
+    {
+      "file": "tests/test_declared_dependencies.py",
+      "line": "30-37",
+      "severity": "follow-on",
+      "text": "Module docstring cites the plan by name and by section number ('Section 2 of the ``project-environment-declared`` plan', 'the plan's census, and section 3 declares and relocks from them'), and the test's xfail(reason=...) string carries 'section 3 declares the census'. The user-global naming rule bans plan-document names and plan section labels in source comments and docstrings; state the mechanism instead (a committed census whose assertion and fragment render from one classifier). Repairable in place, and the rewrite is the stronger sentence."
+    },
+    {
+      "file": "commit d3124645",
+      "line": "body",
+      "severity": "follow-on",
+      "text": "The commit body cites 'the project-environment-declared section 2 rule', a plan reference in a commit message, which the no-plan-references-in-commits rule bans. The subject line is clean and conventional."
+    },
+    {
+      "file": "tests/test_declared_dependencies.py",
+      "line": "234-241",
+      "severity": "follow-on",
+      "text": "makes_default classes a distribution reached only from scripts/ as optional. The plan's optional subsystems are the documentation build, GPU model serving, the FAIR-MAST stack and the training stack, and scripts/ is not among them; the node documents this reading in the docstring and its follow_ons, but section 3 should confirm it before relocking because it decides whether imas-ink stays in the viz extra."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T075715374151-ped-census/manifest.md",
+      "line": "manifest baseline_suite/after_suite",
+      "severity": "follow-on",
+      "text": "The reviewed manifest carries baseline_suite null and after_suite null, so no armed suite pair exists to difference for this node; the focused census test is its declared done-when gate and it is logged. Recorded so the coordinator reads the added-failure figure as absence-of-arm rather than a clean suite."
+    },
+    {
+      "file": "tests/test_declared_dependencies.py",
+      "line": "192-206",
+      "severity": "follow-on",
+      "text": "local_top_level_names adds every module stem under imas_ambix/, tests/ and scripts/ as a local name, so a third-party top-level module sharing a stem with any local file would be masked rather than classified. No collision is evident in the current census, and the cost of one is a silently missed declaration; a targeted test would make the assumption explicit."
+    }
+  ],
+  "model": "deepseek-v4.1-flash",
+  "negative_control": {
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T075715374151-ped-census/negative-control/negative_control.log",
+    "mutation": "numpy removed from a temp copy of pyproject.toml",
+    "reproduced": true,
+    "reproduction": "Independent re-run of build_census against a temp pyproject with the 'numpy>=2.2' line removed: head failures 21 -> mutant 22, numpy named in exactly one line reading 'default numpy (imported by imas_ambix/bench/cosmos_worker.py) is declared as none', matching the reviewed run's log first line."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20261005T075715374151-ped-census at head d3124645 against base 04af8472.\n\nGoal (\u00a72 census, committed as a test): SATISFIED. tests/test_declared_dependencies.py exists with build_census feeding both the assertion test_every_directly_imported_distribution_is_declared and the renderer test_fragment_matches_census. build_census classifies 39 directly imported distributions and emits 21 undeclared lines; the fragment docs/evidence/fragments/project-environment-declared/ped-census.html holds 39 rows with class/deciding file/declaration, the transitive list (with requirer), the 18-entry declared-but-unimported list and the unmapped list. All three plan done-when clauses are met.\n\nEvidence: HEAD gate re-run in the reviewed tree reproduced 1 passed, 1 xfailed (XFAIL on the census marked xfail strict) exactly as the node logged. The negative control was independently reproduced: removing numpy>=2.2 from a temp pyproject makes the census failure count go 21 -> 22 with the numpy line the node's log recorded, so the assertion genuinely fires. commit d3124645 carries a body, no AI attribution, and the worktree is clean.\n\nScope: git diff --stat 04af8472..d3124645 touches exactly the two declared write paths, 802 insertions, no deletions.\n\nFit: reduced by plan references in source and commit (naming rule): the docstring names the plan and its sections, the xfail reason carries 'section 3', and the commit body cites the plan slug. These are repairable rewrites, not structural defects.\n",
+  "review_run_id": "r-20261005T082223247763-review-of-ped-census",
+  "reviewed_base_sha": "04af84727bdd401c3cc216d2546cbe4eb199e4f5",
+  "reviewed_head_sha": "d3124645a793a34743bc9239e6eaec0bd5acb481",
+  "reviewed_run_id": "r-20261005T075715374151-ped-census",
+  "reviewer": "review-of-ped-census",
+  "scores": {
+    "durability": 18,
+    "evidence": 16,
+    "fit": 13,
+    "goal_fidelity": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T08:31:00+00:00",
+  "total": 85
+}

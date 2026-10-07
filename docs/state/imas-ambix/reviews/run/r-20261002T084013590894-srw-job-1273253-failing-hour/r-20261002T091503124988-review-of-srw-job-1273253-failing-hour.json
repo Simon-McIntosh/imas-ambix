@@ -1,0 +1,59 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null, so it names no gate log of its own and there is nothing to difference. Independently, the reviewed node landed no code at all \u2014 its commits field reads 'none \u2014 the write scope is not a git repository' and its worktree revision equals its base 0114715248ad22187aae4e201529292d54dd5843, an investigate node whose deliverable is report.md on disk. With base and head identical by construction, the set difference of any test's result is provably empty, so added_failure_count is 0 and added_failure_ids is [] as a measured fact, not an assumption. The review instead reproduced the reviewed node's own central measurement with a parser it wrote itself (no telemetry_retention code imported): 129 windows, 387 counter-window comparisons, 345 absent in every tier (115 windows x 3 counters), 42 covered all equal, 0 unequal where any tier holds a value \u2014 matching report.md exactly.",
+  "after_suite": null,
+  "baseline_suite": null,
+  "completed_at": "2026-10-02T09:37:01.687Z",
+  "dispatched_at": "2026-10-02T09:15:11Z",
+  "findings": [],
+  "follow_ons": [
+    {
+      "file": "imas_ambix/agent/telemetry_retention.py",
+      "line": "524,529",
+      "severity": "follow-on",
+      "text": "compare_tiers counts a window absent in every tier (all of raw/minute/hour None) as a disagreement, which is what makes the retention listing report job 1273253 as 'compaction totals differ from the raw record' when its compactions are correct. The reviewed report recommends skipping all-absent windows while still treating a tier holding a value where another holds none as a disagreement, matching compare_tiers' own docstring at lines 504-505. This is the change implicated by the reviewed evidence, not this review's write scope."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "The reviewed node landed no commits \u2014 its write scope is not a git repository (commits: none) and its worktree revision equals its base 0114715248ad22187aae4e201529292d54dd5843; the deliverable is the report on disk, so there is no code diff to read.",
+    "done_when": "The done_when asks for every unequal hour with each counter's three readings, the worst hour's raw rows by byte offset and timestamp, a cause classification, and one recommended change; report.md:66-196 lists all 129 windows, report.md:225-259 quotes the boundary and largest covered hour by byte offset and timestamp, and report.md:277-291 names the file and the single change.",
+    "goal": "The node's goal is to find why job 1273253's raw receipts and its compactions disagree and to say whether the hour-boundary check or the compaction is wrong; report.md:1-8 states no hour has a value difference, the compaction is correct, and the check must accept the files.",
+    "manifest": "Read; it declares status complete, the two-command gate green (per_hour_detail.py and verdict_and_control.py, EXIT=0 each), changed_paths all inside the report directory, and the declared negative control on job 1276246.",
+    "write_paths": "Read the manifest's declared write path, the report directory under .config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-job-1273253-failing-hour; every delivered file (report.md, hour_table.md, and the gate scripts and logs) sits inside it."
+  },
+  "justifications": {
+    "durability": "The reviewed node is an investigation and landed no code, so no test can regress with it; the finding is durable as a reproducible measurement (report.md's figures reproduce from the three on-disk tier files, as this review re-ran), but the recommended compare_tiers repair at imas_ambix/agent/telemetry_retention.py:524-529 is left unimplemented and unguarded, which is the reason this dimension is not scored full.",
+    "evidence": "Re-derived independently: a reviewer-written parser reading the three tier files gave 129 windows, 345 all-absent comparisons (115 x 3), 42 covered all equal, 0 unequal, matching report.md:58-64; the byte boundary 54,326,416, row count 91,173 and bytes 87,512,773 were confirmed, and commit aa51702b (2026-09-21 23:22:57 UTC) matches the schema change the report attributes.",
+    "fit": "The report and its scripts follow the plan's \u00a78 concern with mechanism-named files (per_hour_detail.py, compare_hours.py, openings_and_offsets.py, verdict_and_control.py), no plan label in any filename or symbol, and no attribution.",
+    "goal_fidelity": "Read report.md against the goal: it answers that no UTC hour differs (report.md:3-8), tabulates all 129 windows with each counter's raw/minute/hour reading (report.md:66-196), and classifies the cause as a fifth one the four candidates exclude \u2014 absent readings counted as a disagreement (report.md:232-241).",
+    "scope_discipline": "Every deliverable named in the manifest's changed_paths is inside the single declared write directory, and the reviewed node mutated no plan, index or sprint state; it landed no commits because its write scope is not a git repository, which is correct for an investigate node."
+  },
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-job-1273253-failing-hour",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is to find why job 1273253's raw receipts and its compactions disagree and to say whether the hour-boundary check or the compaction is wrong; report.md:1-8 answers that no hour differs and the check must accept the files.\nVERDICT done_when: the done_when asks for every unequal hour with each counter's three readings, the worst hour's raw rows by byte offset and timestamp, a cause classification and one recommended change; report.md:66-196 lists all 129 windows and report.md:225-259 quotes the boundary rows by byte offset.\nVERDICT write_paths: read the manifest's declared write path, the report directory under .config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-job-1273253-failing-hour; every delivered file sits inside it.\nVERDICT manifest: read; it declares status complete, the gate green (per_hour_detail.py and verdict_and_control.py EXIT=0), changed_paths all inside the report directory, and the declared control job 1276246.\nVERDICT diff: the reviewed node landed no commits \u2014 its write scope is not a git repository and its worktree revision equals its base 0114715248ad22187aae4e201529292d54dd5843; there is no code diff to read.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: report.md:3-8 answers the goal and report.md:66-196 tabulates all 129 windows with each counter's three readings.\nSCORE evidence: 19\nJUSTIFICATION evidence: an independent parser reproduced report.md:58-64 (129 windows, 345 all-absent comparisons, 42 covered all equal, 0 unequal) and the 54,326,416 byte boundary was confirmed directly.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: every path in the manifest's changed_paths sits inside the single declared write directory under .config/reckon/crew/reports/.\nSCORE durability: 17\nJUSTIFICATION durability: the investigation lands no code, so no test can regress; the recommended repair at imas_ambix/agent/telemetry_retention.py:524-529 is left unimplemented and unguarded.\nSCORE fit: 19\nJUSTIFICATION fit: the script names are mechanism-based (per_hour_detail.py, compare_hours.py, openings_and_offsets.py) and the report carries no plan, ticket or version identifier in a symbol or filename.\n",
+  "review_kind": "review",
+  "review_run_id": "r-20261002T091503124988-review-of-srw-job-1273253-failing-hour",
+  "reviewed_base_sha": "0114715248ad22187aae4e201529292d54dd5843",
+  "reviewed_head_sha": "0114715248ad22187aae4e201529292d54dd5843",
+  "reviewed_run_id": "r-20261002T084013590894-srw-job-1273253-failing-hour",
+  "reviewer": "review-of-srw-job-1273253-failing-hour",
+  "scores": {
+    "durability": 17,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "section": "s8",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T09:32:17+00:00",
+  "total": 94
+}

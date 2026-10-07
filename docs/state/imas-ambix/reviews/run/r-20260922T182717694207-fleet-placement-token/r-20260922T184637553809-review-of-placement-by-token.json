@@ -1,0 +1,56 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "local",
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:323 fleet_place",
+    "imas_ambix/agent/fleet.py:98 placement_argv",
+    "imas_ambix/agent/cli.py:373 fleet_status",
+    "docs/state/imas-ambix/flight.yaml:24 backends.clive.placement read by reckon/flight.py:341 placement_for"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-09-22T18:46:37.553809+00:00",
+  "findings": [
+    {
+      "file": "tests/agent/test_fleet.py",
+      "line": "431",
+      "text": "asserts --jobid=1275000 against a row whose jobid is the same literal 1275000, with no second row varying the identifier, so a placement_argv returning a hardcoded 1275000 would still pass all four added tests and the property the commit body calls deliberately not configuration would be unguarded."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 4 production call site(s)",
+    "diff": "read commit by commit against base 7d6702d9; 0fa4a8f5 adds 37 lines to imas_ambix/agent/cli.py:323, 15 to imas_ambix/agent/fleet.py:98, 76 to tests/agent/test_fleet.py:398 and the 29-line docs/state/imas-ambix/flight.yaml:24, and e661a52a adds only the plan comment, the evidence section and the figure.",
+    "done_when": "the done_when states six clauses; I reproduced two of them at e661a52a in the reviewed worktree (24 passed in 0.75s; ruff 0.16.4 exit 0) and the other four are recorded in the node's logs, including the mutation log whose first line repeats the declared mutation verbatim.",
+    "goal": "the goal is a launch that puts a clive worker on the held allocation's node with the identifier resolved from the scheduler rather than configuration; imas_ambix/agent/cli.py:323 and imas_ambix/agent/fleet.py:98 do exactly that and docs/state/imas-ambix/flight.yaml:24 declares the wrapper, but the coordinator's composition of that wrapper in front of a resolved clive launch is declared and read rather than exercised end to end.",
+    "manifest": "read; it states the gate commands with their results and names the log each came from, and it declares the dispatch composition unexercised instead of claiming it.",
+    "write_paths": "git diff 7d6702d9..e661a52a touches exactly the seven declared paths, the figure landing inside the declared directory, and no path outside the fence."
+  },
+  "justifications": {
+    "durability": "the refusal guard is verified by the declared mutation and tests/agent/test_fleet.py:462 propagates a failure, but tests/agent/test_fleet.py:431 pins the step identifier against a fixture carrying the same literal, so it cannot redden on the remembered-identifier regression it exists to catch.",
+    "evidence": "I re-ran the gate at e661a52a in the reviewed worktree, 24 passed and ruff 0.16.4 exit 0 (review-gate-at-reviewed-tree.log), and a live squeue read shows job 1274732 ambix-fleet on 98dci4-clu-2002, the node the placement log printed against the login node's own 98dci4-srv-1006.",
+    "fit": "imas_ambix/agent/fleet.py:108 mirrors reckon's own step placement at reckon/crew/placement.py:139, imas_ambix/agent/cli.py:342 uses the ClickException idiom the file already carries at :224, and the declared keys match the flight schema's PlacementConfig.",
+    "goal_fidelity": "imas_ambix/agent/fleet.py:108 builds the step from the row the allocation was found by and docs/state/imas-ambix/flight.yaml:24 declares it, so the mechanism is landed and measured, while the dispatch that would compose it is the node's own declared remainder.",
+    "scope_discipline": "git diff 7d6702d9..e661a52a lists exactly the seven declared paths including the figure directory, with nothing outside the fence."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "REVISION: e661a52a189c084a136aff1d0d0344cf89251d52\nVERDICT goal: the goal is a launch that puts a clive worker on the held allocation's node with the identifier resolved from the scheduler rather than configuration; imas_ambix/agent/cli.py:323 and imas_ambix/agent/fleet.py:98 do exactly that and docs/state/imas-ambix/flight.yaml:24 declares the wrapper, but the coordinator's composition of that wrapper in front of a resolved clive launch is declared and read rather than exercised end to end.\nVERDICT done_when: the done_when states six clauses; I reproduced two of them at e661a52a in the reviewed worktree (24 passed in 0.75s; ruff 0.16.4 exit 0) and the other four are recorded in the node's logs, including the mutation log whose first line repeats the declared mutation verbatim.\nVERDICT write_paths: git diff 7d6702d9..e661a52a touches exactly the seven declared paths, the figure landing inside the declared directory, and no path outside the fence.\nVERDICT manifest: read; it states the gate commands with their results and names the log each came from, and it declares the dispatch composition unexercised instead of claiming it.\nVERDICT diff: read commit by commit against base 7d6702d9; 0fa4a8f5 adds 37 lines to imas_ambix/agent/cli.py:323, 15 to imas_ambix/agent/fleet.py:98, 76 to tests/agent/test_fleet.py:398 and the 29-line docs/state/imas-ambix/flight.yaml:24, and e661a52a adds only the plan comment, the evidence section and the figure.\nCALL_SITES: imas_ambix/agent/cli.py:323 fleet_place, imas_ambix/agent/fleet.py:98 placement_argv, imas_ambix/agent/cli.py:373 fleet_status, docs/state/imas-ambix/flight.yaml:24 backends.clive.placement read by reckon/flight.py:341 placement_for\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/agent/fleet.py:108 builds the step from the row the allocation was found by and docs/state/imas-ambix/flight.yaml:24 declares it, so the mechanism is landed and measured, while the dispatch that would compose it is the node's own declared remainder.\nSCORE evidence: 19\nJUSTIFICATION evidence: I re-ran the gate at e661a52a in the reviewed worktree, 24 passed and ruff 0.16.4 exit 0 (review-gate-at-reviewed-tree.log), and a live squeue read shows job 1274732 ambix-fleet on 98dci4-clu-2002, the node the placement log printed against the login node's own 98dci4-srv-1006.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff 7d6702d9..e661a52a lists exactly the seven declared paths including the figure directory, with nothing outside the fence.\nSCORE durability: 15\nJUSTIFICATION durability: the refusal guard is verified by the declared mutation and tests/agent/test_fleet.py:462 propagates a failure, but tests/agent/test_fleet.py:431 pins the step identifier against a fixture carrying the same literal, so it cannot redden on the remembered-identifier regression it exists to catch.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/fleet.py:108 mirrors reckon's own step placement at reckon/crew/placement.py:139, imas_ambix/agent/cli.py:342 uses the ClickException idiom the file already carries at :224, and the declared keys match the flight schema's PlacementConfig.\nFINDING tests/agent/test_fleet.py:431 asserts --jobid=1275000 against a row whose jobid is the same literal 1275000, with no second row varying the identifier, so a placement_argv returning a hardcoded 1275000 would still pass all four added tests and the property the commit body calls deliberately not configuration would be unguarded.",
+  "review_run_id": "r-20260922T184637553809-review-of-placement-by-token",
+  "reviewed_base": "7d6702d96f6d72a83537036c844f4272159f1846",
+  "reviewed_commit": "e661a52a189c084a136aff1d0d0344cf89251d52",
+  "reviewed_revision": "e661a52a189c084a136aff1d0d0344cf89251d52",
+  "reviewed_run_id": "r-20260922T182717694207-fleet-placement-token",
+  "scores": {
+    "durability": 15,
+    "evidence": 19,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-22T19:01:29.695668+00:00",
+  "total": 90
+}

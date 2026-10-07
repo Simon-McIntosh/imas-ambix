@@ -1,0 +1,59 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "artifact": null,
+  "backend": "clive",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-05T22:37:32.776Z",
+  "dispatched_at": "2026-10-05T22:33:22Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/project-environment-declared/ped-timeout-suite-final.html",
+      "line": "25",
+      "severity": "follow-on",
+      "text": "follow-on: the row classifies tests/fluxstate/test_consumer_contract.py::test_eager_jitted_and_batched_members_agree as accounted for by ped-timeout-corpus.html, but that table records the test in the setup phase at 2693.92 s and disposes it \"marked 5400\", while the whole-suite run at af9fdf56d0ddb9522aa75b6a1a653c1d6d918624 aborts it in the call phase at >5400 s, so the raised bound the triage set is insufficient under suite load and the abort is accounted for only by test-id membership; the fragment discloses the phase difference but the corpus mark warrants re-measurement."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read against base f1ec52fb21e3aa904c4a249be510a648833e2d4b; commit af9fdf56d0ddb9522aa75b6a1a653c1d6d918624 (parent f1ec52fb21e3aa904c4a249be510a648833e2d4b) adds 72 lines to the one fragment file, all inside the declared scope.",
+    "done_when": "the done-when names one SLURM batch job at -n 8 on sun running the whole suite into one log with a header and a final EXIT line; the manifest's tests field and the log's own header (REVISION f1ec52fb21e3aa904c4a249be510a648833e2d4b, HOSTNAME 98dci4-clu-3096, NPROC 24) record exactly that, and sacct confirms job 1281106 FAILED exit 1:0 at 01:35:55.",
+    "goal": "the node's goal is to show the whole suite hits no per-test timeout the triage did not account for; the landed fragment docs/evidence/fragments/project-environment-declared/ped-timeout-suite-final.html records exactly one abort, tests/fluxstate/test_consumer_contract.py::test_eager_jitted_and_batched_members_agree, and classifies it against ped-timeout-corpus.html, so no abort is unaccounted for.",
+    "manifest": "read; it reports 24 failed / 3986 passed / 4 skipped / 0 errors in 5751.47s with one abort accounted for and 23 pre-existing non-timeout failures, and names suite.log; each count was re-derived from that log and matches.",
+    "write_paths": "the declared paths are the fragment docs/evidence/fragments/project-environment-declared/ped-timeout-suite-final.html and the figure directory docs/figures/project-environment-declared/ped-timeout-suite-final; git diff f1ec52fb21e3aa904c4a249be510a648833e2d4b af9fdf56d0ddb9522aa75b6a1a653c1d6d918624 --name-only names only the fragment, and no figure is written because the done-when names none."
+  },
+  "justifications": {
+    "durability": "the change is a docs-only measurement fragment with no code and no added assertion, so nothing guards its recorded counts against a later edit that would silently alter them.",
+    "evidence": "suite.log's summary line \"24 failed, 3986 passed, 4 skipped ... in 5751.47s\" reconciles with the fragment's counts and with the 24 FAILED ids, \"ERROR collecting\" counts 0, and the two slow-marked latent modules appear in the --durations table so their collection is shown; docked for the phase mismatch between the corpus row and the observed abort.",
+    "fit": "the fragment follows the sibling evidence idiom (data-reckon=\"evidence\", every element id prefixed ped-timeout-suite-final-) and introduces no name the repository naming rules forbid.",
+    "goal_fidelity": "the fragment's abort table at docs/evidence/fragments/project-environment-declared/ped-timeout-suite-final.html:25 lists the single abort and classifies it against ped-timeout-corpus.html, meeting the goal; docked because \"accounted for\" rests on the test id appearing in the triage table while the raised bound that table set is itself exceeded.",
+    "reuse": "the change adds documentation only and forks no code capability, extending the existing docs/evidence/fragments/project-environment-declared collection beside ped-timeout-suite-final's sibling ped-timeout-suite-capped.html.",
+    "scope_discipline": "git diff f1ec52fb21e3aa904c4a249be510a648833e2d4b af9fdf56d0ddb9522aa75b6a1a653c1d6d918624 --name-only names only docs/evidence/fragments/project-environment-declared/ped-timeout-suite-final.html, inside the declared write paths, and no plan meta line changes."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is to show the whole suite hits no per-test timeout the triage did not account for; the landed fragment docs/evidence/fragments/project-environment-declared/ped-timeout-suite-final.html records exactly one abort, tests/fluxstate/test_consumer_contract.py::test_eager_jitted_and_batched_members_agree, and classifies it against ped-timeout-corpus.html, so no abort is unaccounted for.\nVERDICT done_when: the done-when names one SLURM batch job at -n 8 on sun running the whole suite into one log with a header and a final EXIT line; the manifest's tests field and the log's own header (REVISION f1ec52fb21e3aa904c4a249be510a648833e2d4b, HOSTNAME 98dci4-clu-3096, NPROC 24) record exactly that, and sacct confirms job 1281106 FAILED exit 1:0 at 01:35:55.\nVERDICT write_paths: the declared paths are the fragment docs/evidence/fragments/project-environment-declared/ped-timeout-suite-final.html and the figure directory docs/figures/project-environment-declared/ped-timeout-suite-final; git diff f1ec52fb21e3aa904c4a249be510a648833e2d4b af9fdf56d0ddb9522aa75b6a1a653c1d6d918624 --name-only names only the fragment, and no figure is written because the done-when names none.\nVERDICT manifest: read; it reports 24 failed / 3986 passed / 4 skipped / 0 errors in 5751.47s with one abort accounted for and 23 pre-existing non-timeout failures, and names suite.log; each count was re-derived from that log and matches.\nVERDICT diff: read against base f1ec52fb21e3aa904c4a249be510a648833e2d4b; commit af9fdf56d0ddb9522aa75b6a1a653c1d6d918624 (parent f1ec52fb21e3aa904c4a249be510a648833e2d4b) adds 72 lines to the one fragment file, all inside the declared scope.\nCALL_SITES: none\nreviewed_base_sha: f1ec52fb21e3aa904c4a249be510a648833e2d4b\nreviewed_head_sha: af9fdf56d0ddb9522aa75b6a1a653c1d6d918624\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: the fragment's abort table at docs/evidence/fragments/project-environment-declared/ped-timeout-suite-final.html:25 lists the single abort and classifies it against ped-timeout-corpus.html, meeting the goal; docked because \"accounted for\" rests on the test id appearing in the triage table while the raised bound that table set is itself exceeded.\nSCORE evidence: 18\nJUSTIFICATION evidence: suite.log's summary line \"24 failed, 3986 passed, 4 skipped ... in 5751.47s\" reconciles with the fragment's counts and with the 24 FAILED ids, \"ERROR collecting\" counts 0, and the two slow-marked latent modules appear in the --durations table so their collection is shown; docked for the phase mismatch between the corpus row and the observed abort.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff f1ec52fb21e3aa904c4a249be510a648833e2d4b af9fdf56d0ddb9522aa75b6a1a653c1d6d918624 --name-only names only docs/evidence/fragments/project-environment-declared/ped-timeout-suite-final.html, inside the declared write paths, and no plan meta line changes.\nSCORE durability: 16\nJUSTIFICATION durability: the change is a docs-only measurement fragment with no code and no added assertion, so nothing guards its recorded counts against a later edit that would silently alter them.\nSCORE fit: 19\nJUSTIFICATION fit: the fragment follows the sibling evidence idiom (data-reckon=\"evidence\", every element id prefixed ped-timeout-suite-final-) and introduces no name the repository naming rules forbid.\nSCORE reuse: 20\nJUSTIFICATION reuse: the change adds documentation only and forks no code capability, extending the existing docs/evidence/fragments/project-environment-declared collection beside ped-timeout-suite-final's sibling ped-timeout-suite-capped.html.\nFINDING docs/evidence/fragments/project-environment-declared/ped-timeout-suite-final.html:25 follow-on: the row classifies tests/fluxstate/test_consumer_contract.py::test_eager_jitted_and_batched_members_agree as accounted for by ped-timeout-corpus.html, but that table records the test in the setup phase at 2693.92 s and disposes it \"marked 5400\", while the whole-suite run at af9fdf56d0ddb9522aa75b6a1a653c1d6d918624 aborts it in the call phase at >5400 s, so the raised bound the triage set is insufficient under suite load and the abort is accounted for only by test-id membership; the fragment discloses the phase difference but the corpus mark warrants re-measurement.\n",
+  "review_run_id": "r-20261005T223314729558-review-of-ped-timeout-suite-final",
+  "reviewed_base_sha": "f1ec52fb21e3aa904c4a249be510a648833e2d4b",
+  "reviewed_head_sha": "af9fdf56d0ddb9522aa75b6a1a653c1d6d918624",
+  "reviewed_run_id": "r-20261005T205200205154-ped-timeout-suite-final",
+  "scores": {
+    "durability": 16,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T22:37:02.974332+00:00",
+  "total": 112
+}

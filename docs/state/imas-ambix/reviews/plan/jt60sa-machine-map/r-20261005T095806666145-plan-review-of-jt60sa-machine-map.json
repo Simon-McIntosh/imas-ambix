@@ -1,0 +1,34 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T10:03:47.632Z",
+  "dispatched_at": "2026-10-05T09:58:13Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/challenge/loader.py:82",
+      "id": "duplicate_owner-1",
+      "reason": "naming `challenge/loader.py` lets the author route SELENE/FAME and DIII-D through the typed records already owned there instead of forking a parallel record contract, which is exactly the extension-instead-of-everwrap the rubric asks for.",
+      "text": "the plan generalises `measure_diiid_convention` by defining a new \"record contract with canonical keys for the grid, psi, axis and boundary\" and a loader the DIII-D corpus maps onto, but `imas_ambix/challenge/loader.py` already loads a challenge shot \"in the canonical convention\" into typed records (`ChallengeShot`, `EfitLabels` with `psirz`), and `convention.py` reads the parquet directly rather than through it, so the plan would add a second canonical record boundary beside the existing owner rather than extending it",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "df0658cb8690377c2f2e5fdb881b557b8de46d9f88ed5aab2bdadee486789af2",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 54,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T095806666145-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "e028c9b0b2fb79a123dd47acd2192bb2d6027043",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each new module declares one small entry surface over substantial hidden behaviour (the exporter is one function over the catalogue, the converter one entry point over three deck grammars, the extractor one batch-fetch over transport/encode/decode/records), so the complexity is hidden behind an interface smaller than what it hides.",
+    "duplicate_owner": "a finding \u2014 the \u00a76/\u00a77 generalisation proposes a canonical-key equilibrium record contract and its own \"DIII-D loader\", but `imas_ambix/challenge/loader.py` already owns typed canonical access to that corpus (`load_shot`, `ChallengeShot`, `EfitLabels`), which the plan does not name.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface names what it retires or states why nothing can be (\u00a72 \"retires nothing, because ambix has no exporter\"; \u00a73 \"retires nothing, because ambix has no remote reader today\"; \u00a74 retires the `machine == \"mast\"` branch and the two store-addressing keys with reasons; \u00a77 \"adds two record fields and retires nothing\").",
+    "reuse_search": "pass \u2014 the plan cites the transform engine (`NetCDFTransformEngine.open`/`StoreEngine`), the machine-map catalogue, `description_reader.read_geometry_table`, the COCOS scorer and the efit referee by role, and I confirmed each exists there; the single existing mechanism its search misses is carried under duplicate_owner.",
+    "thin_wrapper": "pass \u2014 every layer the plan adds over existing machinery carries the required justification: the tokamap export is validated-format output the ambix schema cannot be read as, the extractor owns its own transport because importing the codex layer would make imas-codex a dependency of every ambix read, and the receipted netCDF reuses the netCDF engine rather than adding a deck engine."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.851398+00:00"
+}

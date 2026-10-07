@@ -1,0 +1,63 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-05T12:00:23.847Z",
+  "dispatched_at": "2026-10-05T11:51:51Z",
+  "findings": [
+    {
+      "file": "docs/plans/project-environment-declared.html",
+      "line": "121",
+      "severity": "follow-on",
+      "text": "follow-on: the done-when requires the before/after collect-only arms to report the same test count, but the run removed test_fragment_matches_census when it moved fragment rendering into a driver, so the arms report 3953 and 3952 and the literal measure is unmet; the census and lock gates are the substantive ones and both pass, so this does not hold the node but the count divergence should be recorded at promotion."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T090944644784-ped-declare-relock/manifest.md",
+      "line": "baseline_suite",
+      "severity": "follow-on",
+      "text": "follow-on: the baseline_suite, after_suite and suite_run command fields carry the placeholder <shared .venv> instead of the literal interpreter path, so a reader cannot re-run an arm from the manifest alone even though the named log paths are readable."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read commit by commit against the base; 928 insertions across pyproject.toml, uv.lock, tests/test_declared_dependencies.py, tests/physics/test_dependency_contract.py, the new tests/distribution_sources.py and the regenerated evidence fragment.",
+    "done_when": "the done-when names uv lock --check, tests/test_declared_dependencies.py, the removal of the dev extra, and before/after collect-only counts; the first three hold and are logged, but the counts are 3953 before (logs/collect-before.log) and 3952 after (logs/collect-after2.log), not the same count the done-when requires.",
+    "goal": "the node's goal is section 3's declaration-and-relock; pyproject.toml:64-88 carries the census's default distributions, a [dependency-groups] dev group, and the video extra, and uv.lock is relocked against it.",
+    "manifest": "read; it records census, lock, two-file gate, both collect arms and the whole suite with log paths, and its baseline_suite/after_suite are now armed JSON, though their command values carry the placeholder <shared .venv> rather than a literal command.",
+    "write_paths": "the manifest declares pyproject.toml, uv.lock, three test files and the evidence fragment; git diff --stat ae6a2b4e..ca2adc4e touches exactly those six paths and no other file."
+  },
+  "justifications": {
+    "durability": "tests/test_declared_dependencies.py::test_every_directly_imported_distribution_is_declared reddens when scipy is removed from the declaration (reproduced, EXIT=1), so it is an independent guard, but the removed fragment-comparison test leaves the new write_fragment driver with no assertion.",
+    "evidence": "the census gate, uv lock --check and the uv.lock version diff all reproduce independently, but the done-when's \"same test count\" is contradicted by logs/collect-after2.log (3952 vs 3953) and the manifest's command fields carry a placeholder, not a runnable command.",
+    "fit": "the census test and the new tests/distribution_sources.py follow the surrounding style and the source-token grep over both test files finds no node id, plan path or ticket reference.",
+    "goal_fidelity": "pyproject.toml:64-88 and uv.lock carry section 3's declaration and relock, the dev extra is gone and the video extra names the five lazily imported libraries, though one test was removed and moved the collect count off the done-when's value.",
+    "reuse": "tests/distribution_sources.py:1-35 is a new owner for one capability both test modules previously duplicated (editable-checkout resolution from direct_url.json), and tests/physics/test_dependency_contract.py:68 now calls it.",
+    "scope_discipline": "git diff --stat ae6a2b4e..ca2adc4e lists only the six declared paths, but the change also deletes the pre-existing test_fragment_matches_census drift guard, which section 3 does not ask for."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20261005T090944644784-ped-declare-relock at head\nca2adc4e against base ae6a2b4e (plan imas-ambix:project-environment-declared\nsection 3, \"Declare and relock\"). Read the four commits 3c506b86, 7e576c53,\n8f6d1058 and ca2adc4e, the reviewed manifest and its gate logs; nothing here\ntouched the reviewed worktree or ran a GPU job. Every measurement below was\nre-run in this reviewer's own scratch tree copied from the reviewed head under\n$TMPDIR, with results written to this run's directory.\n\nGates independently reproduced: the census assertion\n(tests/test_declared_dependencies.py) passes (1 passed, 21.41s);\n`uv lock --check` at the head resolves 236 packages and exits 0; the base-vs-head\nuv.lock version diff is 0 changed / 0 removed / 9 added; and the scipy\nnegative control (scipy's line removed from a temp pyproject read via\nAMBX_PYPROJECT) makes the census fail naming scipy, EXIT=1.\n\nVERDICT goal: the node's goal is section 3's declaration-and-relock; pyproject.toml:64-88 carries the census's default distributions, a [dependency-groups] dev group, and the video extra, and uv.lock is relocked against it.\nVERDICT done_when: the done-when names uv lock --check, tests/test_declared_dependencies.py, the removal of the dev extra, and before/after collect-only counts; the first three hold and are logged, but the counts are 3953 before (logs/collect-before.log) and 3952 after (logs/collect-after2.log), not the same count the done-when requires.\nVERDICT write_paths: the manifest declares pyproject.toml, uv.lock, three test files and the evidence fragment; git diff --stat ae6a2b4e..ca2adc4e touches exactly those six paths and no other file.\nVERDICT manifest: read; it records census, lock, two-file gate, both collect arms and the whole suite with log paths, and its baseline_suite/after_suite are now armed JSON, though their command values carry the placeholder <shared .venv> rather than a literal command.\nVERDICT diff: read commit by commit against the base; 928 insertions across pyproject.toml, uv.lock, tests/test_declared_dependencies.py, tests/physics/test_dependency_contract.py, the new tests/distribution_sources.py and the regenerated evidence fragment.\nCALL_SITES: none\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: pyproject.toml:64-88 and uv.lock carry section 3's declaration and relock, the dev extra is gone and the video extra names the five lazily imported libraries, though one test was removed and moved the collect count off the done-when's value.\nSCORE evidence: 16\nJUSTIFICATION evidence: the census gate, uv lock --check and the uv.lock version diff all reproduce independently, but the done-when's \"same test count\" is contradicted by logs/collect-after2.log (3952 vs 3953) and the manifest's command fields carry a placeholder, not a runnable command.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: git diff --stat ae6a2b4e..ca2adc4e lists only the six declared paths, but the change also deletes the pre-existing test_fragment_matches_census drift guard, which section 3 does not ask for.\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_declared_dependencies.py::test_every_directly_imported_distribution_is_declared reddens when scipy is removed from the declaration (reproduced, EXIT=1), so it is an independent guard, but the removed fragment-comparison test leaves the new write_fragment driver with no assertion.\nSCORE fit: 19\nJUSTIFICATION fit: the census test and the new tests/distribution_sources.py follow the surrounding style and the source-token grep over both test files finds no node id, plan path or ticket reference.\nSCORE reuse: 19\nJUSTIFICATION reuse: tests/distribution_sources.py:1-35 is a new owner for one capability both test modules previously duplicated (editable-checkout resolution from direct_url.json), and tests/physics/test_dependency_contract.py:68 now calls it.\nFINDING docs/plans/project-environment-declared.html:121 follow-on: the done-when requires the before/after collect-only arms to report the same test count, but the run removed test_fragment_matches_census when it moved fragment rendering into a driver, so the arms report 3953 and 3952 and the literal measure is unmet; the census and lock gates are the substantive ones and both pass, so this does not hold the node but the count divergence should be recorded at promotion.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T090944644784-ped-declare-relock/manifest.md:baseline_suite follow-on: the baseline_suite, after_suite and suite_run command fields carry the placeholder <shared .venv> instead of the literal interpreter path, so a reader cannot re-run an arm from the manifest alone even though the named log paths are readable.\n",
+  "review_run_id": "r-20261005T115121565780-review-of-ped-declare-relock",
+  "reviewed_base_sha": "ae6a2b4e92a8aa0a7be489d53fce9206698141d9",
+  "reviewed_head_sha": "ca2adc4e7fbd6a499ee98c3a7f605b7cd5d6726e",
+  "reviewed_run_id": "r-20261005T090944644784-ped-declare-relock",
+  "reviewer": "review-of-ped-declare-relock",
+  "scores": {
+    "durability": 18,
+    "evidence": 16,
+    "fit": 19,
+    "goal_fidelity": 18,
+    "reuse": 19,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T11:58:32.182088+00:00",
+  "total": 108
+}

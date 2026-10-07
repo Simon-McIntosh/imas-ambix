@@ -1,0 +1,61 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by comparing this review's own two arms of the reviewed node's declared gate (tests/test_live_panel.py tests/test_agent_watch_live.py), run in scratch trees extracted with git archive from the shared object store: base arm /tmp/rev-llac-absent/base (revision e038d08f289a2560af58b0c61548641f98490344, 24 passed, exit 0) and head arm /tmp/rev-llac-absent/head (revision 324386f92026724b7c8d60159075f1213c4318bc, 25 passed, exit 0), logs /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T054240366857-review-of-llac-live-panel-leaves-unpublished-slot-fields-absent/review-base-gate.log and /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T054240366857-review-of-llac-live-panel-leaves-unpublished-slot-fields-absent/review-head-gate.log. The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite, so no reviewed-run arms existed to read; its own gate.log carries the head-side receipt only (25 passed in tests/test_live_panel.py + tests/test_agent_watch_live.py, exit 0). The head arm's test set is a strict superset of the base arm's - the landed change adds exactly one test, test_lane_block_omits_observed_seconds_when_the_lane_does_not_publish_it - so zero added failures.",
+  "after_suite": {
+    "command": "env -C /tmp/rev-llac-absent/head PYTHONPATH=/tmp/rev-llac-absent/head /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_live_panel.py tests/test_agent_watch_live.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T054240366857-review-of-llac-live-panel-leaves-unpublished-slot-fields-absent/review-head-gate.log",
+    "revision": "324386f92026724b7c8d60159075f1213c4318bc"
+  },
+  "baseline_suite": {
+    "command": "env -C /tmp/rev-llac-absent/base PYTHONPATH=/tmp/rev-llac-absent/base /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_live_panel.py tests/test_agent_watch_live.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T054240366857-review-of-llac-live-panel-leaves-unpublished-slot-fields-absent/review-base-gate.log",
+    "revision": "e038d08f289a2560af58b0c61548641f98490344"
+  },
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/agent/live_panel.py:450 lane_block's WORKER_SLOT_FIELDS copy, whose presence guard (`if key in admission`) the new test pins"
+  ],
+  "completed_at": "2026-10-01T05:56:15.284Z",
+  "dispatched_at": "2026-10-01T05:42:48Z",
+  "findings": [],
+  "follow_ons": [],
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "read commit 324386f9 against base e038d08f; one file changed, tests/test_live_panel.py +35/-0, entirely inside the node's declared write path. No product source touched: at base, imas_ambix/agent/live_panel.py:80 already listed observed_seconds in WORKER_SLOT_FIELDS and :450 already copied only the keys present in admission, so the node is test-only.",
+    "done_when": "the s21 addendum bullet 4 requires the reader to copy only the members the router published, so a field the router omitted stays absent rather than null; the new test drives that absence at tests/test_live_panel.py:393.",
+    "goal": "the node closes the prior review's follow-on: pin that an admission object which omits observed_seconds leaves it absent from block['worker_slots'] rather than null. The new test drives such a fixture through lane_block and asserts the omission beside the four copied values.",
+    "guard_falsified": "in a scratch copy of head (/tmp/rev-llac-absent/mut, log /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T054240366857-review-of-llac-live-panel-leaves-unpublished-slot-fields-absent/review-negative-control.log) replacing the presence guard with an unconditional copy of WORKER_SLOT_FIELDS makes the new test red - observed_seconds: None appears, 1 failed, EXIT=1 - so the guard is a real pin, not prose.",
+    "manifest": "read; it states the declared gate 25 passed, the parse check 1 passed, ruff All checks passed! and a negative control 1 failed, each EXIT=0/1 matching the gates.log and negative-control.log.",
+    "write_paths": "read the manifest's declared paths; the diff touches tests/test_live_panel.py only, inside them."
+  },
+  "justifications": "independent review of run r-20261001T052907980693-llac-live-panel-leaves-unpublished-slot-fields-absent (base e038d08f289a2560af58b0c61548641f98490344, head 324386f92026724b7c8d60159075f1213c4318bc) stored as a parsed record scoring all five dimensions in 0..20 - goal_fidelity 20, evidence 18, scope_discipline 20, durability 20, fit 20 - total 98 - with added_failure_count 0 and added_failure_ids [] derived from this review's own two arms of the node's declared gate (base 24 passed exit 0; head 25 passed exit 0), the reviewed run having been dispatched unarmed. The node is test-only: at base, imas_ambix/agent/live_panel.py:80 already listed observed_seconds in WORKER_SLOT_FIELDS and the copy at :450 already used `if key in admission`, so a lane omitting observed_seconds already left it absent. tests/test_live_panel.py:393 now pins that behaviour, symmetric with the sibling test at :365 that pins the same absence for unkeyed_share and with the published-case test at :316. Removing the presence guard in a scratch copy turns the new test red (observed_seconds: None present), so the docstring's absent-vs-published claim is now a guard rather than prose. No defects found; the change closes the one follow-on the previous review of r-20261001T043608595534 raised.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261001T054240366857-review-of-llac-live-panel-leaves-unpublished-slot-fields-absent",
+  "reviewed_base_sha": "e038d08f289a2560af58b0c61548641f98490344",
+  "reviewed_head_sha": "324386f92026724b7c8d60159075f1213c4318bc",
+  "reviewed_run_id": "r-20261001T052907980693-llac-live-panel-leaves-unpublished-slot-fields-absent",
+  "reviewer": "review-of-llac-live-panel-leaves-unpublished-slot-fields-absent",
+  "scores": {
+    "durability": 20,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-01T05:55:00+00:00",
+  "total": 98
+}

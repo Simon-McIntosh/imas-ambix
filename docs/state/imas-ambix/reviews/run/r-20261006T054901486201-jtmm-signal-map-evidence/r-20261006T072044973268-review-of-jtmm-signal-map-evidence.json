@@ -1,0 +1,93 @@
+{
+  "absent": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed run's manifest carries no baseline_suite and no after_suite arm (both fields empty), so there are no base/head gate logs to difference. Its own gate.log is a single head arm (23 passed, EXIT=0), which this review re-ran independently in a scratch tree and reproduced (23 passed, 12.91s, EXIT=0); a count that was never taken is not stored as zero.",
+  "blockers": [],
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T07:30:31.036Z",
+  "dispatched_at": "2026-10-06T07:21:25Z",
+  "evidence_inputs": [
+    "One brief deviation, independently confirmed: the brief's flat wording that on E101173 and E060033 the coil currents sit at the noise floor and the chains do not corroborate is true for 9 of 10 coils and for all coils on E060033, but false for EF2 on E101173 (LKAT peak 1496.1 A, HiTe 1449.1 A, r=0.9996). The node states the exception in EF2's rows instead of repeating the misstatement.",
+    "Independent cache re-derivation (read-only, /work/projects/imas_gpu/jt60sa): TF 60033 cur2TFLKAT all-zero (9900 samples), cur1 peak 25700.0 A; TF 101154 cur1/cur2 peak 23303.2/23221.8 A, r=0.64624 over 310077 samples; E101173 nine coils |r|<=0.019, EF2 r=0.99959; E060033 ten coils |r|<=0.044; E101154 EF2 served peak 2659.7 A (=2.66 kA).",
+    "The reviewed run's manifest carries no baseline_suite/after_suite arms; its gate.log is a single head arm at d8a74363 (23 passed, EXIT=0), reproduced by this review in a scratch copy of the worktree.",
+    "reviewed_head_sha d8a74363 is not yet an ancestor of the main-tip worktree HEAD (de4cdc4e); the commit lives only in the reviewed worktree jtmm-signal-map-evidence."
+  ],
+  "findings": [
+    {
+      "file": "imas_ambix/data/maps/jt-60sa/pf_active.json",
+      "line": "4",
+      "severity": "follow-on",
+      "text": "Every pf_active blocked row keeps the leading claim 'duplicate of pf_active_coil_XX_current' immediately beside the newly appended clause '... the chains do not corroborate it'. This is the same agreement claim the node removed from tf.json (line 4) because it was false there, and the node's own measurement shows it is equally unqualified for the coil chains: on E101173 nine coils' two chains correlate at r within 0.02 of zero, and on E060033 all ten do, so a flat 'duplicate' overstates how well the chains agree across the cached shots. The leading phrase is defensible read structurally (the blocked HiTe chain is an alternative source for the same semantic_id), but it now sits directly beside text that contradicts the measurement sense of the word, and unlike the TF row it is the only place that sense survives. The fragment says the node stopped 'calling the blocked chains duplicates' for tf only; consider stating the structural sense explicitly (e.g. 'alternative source for the same semantic') or dropping the word as was done for TF, so the two files use it consistently."
+    },
+    {
+      "file": "imas_ambix/data/maps/jt-60sa/pf_active.json",
+      "line": "34",
+      "severity": "follow-on",
+      "text": "EF2's served evidence and blocked reason (line 34 and the EF2 served entry) say the E101173 excursion is 'far below the E101154 ... 2.66 kA'. Measured, the E101173 excursion is ~1.5 kA (LKAT peak 1496.1 A, HiTe 1449.1 A) against the E101154 served peak of 2659.7 A = 2.66 kA, so the excursion is about 56% of the E101154 figure -- below, but 'far below' overstates the gap. Minor wording; the underlying numbers are correct and re-derived."
+    }
+  ],
+  "follow_ons": [
+    "imas_ambix/data/maps/jt-60sa/pf_active.json:4 -- the retained leading 'duplicate of pf_active_coil_XX_current' phrase now sits beside the appended '... the chains do not corroborate it', the same agreement claim removed from tf.json because the cache contradicts it; state the structural sense or drop the word as was done for TF.",
+    "imas_ambix/data/maps/jt-60sa/pf_active.json:34 -- 'far below the E101154 ... 2.66 kA' overstates the gap for the ~1.5 kA E101173 excursion (56% of the figure); reword to 'below'."
+  ],
+  "gate_logs": {
+    "negative_control": {
+      "completed": true,
+      "exit_status": 1,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T072044973268-review-of-jtmm-signal-map-evidence/review_negative_control.log",
+      "revision": "d8a74363d4c184e7c408b0d3a2375bbcbbad0515"
+    },
+    "pytest_head_arm_rereun": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T072044973268-review-of-jtmm-signal-map-evidence/review_gate_head.log",
+      "revision": "d8a74363d4c184e7c408b0d3a2375bbcbbad0515"
+    }
+  },
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites (data-text and test change)",
+    "diff": "Read commit d8a74363 against base 1e44c348: tf.json's blocked[0].reason replaced (duplicate claim -> the two measured readings); pf_active.json's ten blocked reasons and ten served evidence strings each gain the E101154 clause (EF2 variant states the excursion); tests gain test_tf_blocked_row_states_the_two_measured_readings and test_pf_chain_choice_names_the_shot_it_rests_on; the fragment is new. No signal/rule/unit_factor changed.",
+    "done_when": "\u00a75's done-when requires each first-pass leaf to carry an executable binding or a source qualification. This node does not add or remove a binding; it makes the existing qualification honest -- the TF blocked row no longer asserts a duplicate that the cache contradicts, and the pf_active rows name E101154 as the sole supporting shot. The added test test_tf_blocked_row_states_the_two_measured_readings re-derives both quoted TF readings from the zarr cache and requires the reason to carry them.",
+    "goal": "Plan jt60sa-machine-map \u00a75 requires the first-wave pulse maps to bind one chain per coil and declare the other as a blocked signal, 'the choice resting on how the two agree on the cached shots'. The node's goal was to state what the cached shots actually show behind each blocked chain; d8a74363 rewrites the tf.json cur2TFLKAT blocked reason and all ten pf_active served/blocked strings to name the measured disagreement and the shot the choice rests on, and adds a read-only test pinning the TF text to the data.",
+    "manifest": "Read at d8a74363, manifest.md records status complete, commits [d8a74363], the four changed paths, the gate (23 passed, EXIT=0), ruff (all checks passed), a negative control log and note, and an evidence_inputs line that reports the brief's flat 'noise floor on 101173/60033' wording as false for EF2 on 101173. baseline_suite and after_suite are empty.",
+    "write_paths": "The commit touches imas_ambix/data/maps/jt-60sa/tf.json, imas_ambix/data/maps/jt-60sa/pf_active.json, tests/data/test_jt60sa_signal_maps.py and docs/evidence/fragments/jt60sa-machine-map/jtmm-signal-map-evidence.html, every one inside the reviewed manifest's declared changed_paths; the declared docs/figures/jt60sa-machine-map/jtmm-signal-map-evidence path was not written, consistent with a node whose done-when names no figure."
+  },
+  "justifications": {
+    "durability": "The corrected map data and the new tests are committed, and the read-only test now derives both TF readings from the cache and requires the reason to carry them, so the text cannot drift from the data. Docked because the equivalent guard for the ten pf_active rows is a substring check that would not catch a wrong shot or a stale number, and the two new tests carry no negative control of their own (the declared control covers only the TF test).",
+    "evidence": "I re-derived every quoted number read-only from the EDDB cache: 60033 cur2TFLKAT is exactly 0.0 for all 9900 samples while cur1TFLKAT peaks at 25700.0 A; 101154 cur1/cur2 peak 23303.2/23221.8 A with Pearson r=0.6462 over 310077 samples (row says 0.646, 23.3 kA, 310,077); on E101173 nine coils' chains correlate within |r|<=0.019 and EF2 alone at 0.9996; on 60033 all ten correlate within |r|<=0.044; the ten E101154 ratios max|HiTe-LKAT|/max|LKAT| reproduce the served evidence strings to three decimals (0.072,0.050,0.073,0.065,0.123,0.081,0.065,0.058,0.055,0.295) and every correlation is >=0.9948. I re-ran the head gate in a scratch copy (23 passed, EXIT=0) and reproduced the negative control (restore 'duplicate' -> EXIT=1, the same guard failing), so the new test is shown to fire rather than merely to pass. Held below 20 because the pf_active guard (test_pf_chain_choice_names_the_shot_it_rests_on) is text-only -- it asserts 'E101154' appears, not that the numbers are re-derived -- and the reviewed run recorded no baseline/after arms.",
+    "fit": "The change follows the map's existing schema (blocked[].reason, signals[].evidence) and the test file's existing helpers (_channel, load_packaged_signal_map, needs_cache/needs_store markers), and the fragment matches the sibling fragments' shape. The run reports its one deviation from the brief's wording openly as an evidence input rather than silently.",
+    "goal_fidelity": "The goal was to say what the cached shots show behind each blocked chain, and the diff does exactly that for the two TF chains and the ten coil chains. It also handles the goal's hard case correctly: the brief's flat statement that the coil chains sit at the noise floor on E101173/E060033 is false for EF2 on E101173, and the node measured it (HiTe 1449.1 A, LKAT 1496.1 A, r=0.9996) before editing, so EF2's rows state the exception rather than repeat a misstatement.",
+    "reuse": "Reuses load_packaged_signal_map, the zarr cache helpers and the existing pytest markers; adds no new mechanism, path constant or refusal family. The new fragment is plain prose with no figure, correct for a node whose done-when names no artifact.",
+    "scope_discipline": "The diff is confined to the four declared write paths, changes only human-readable reason/evidence strings plus tests and the fragment, and alters no rule, unit_factor, channel_factor or source_array. A light-touch data-text node kept exactly to its brief."
+  },
+  "node": "review-of-jtmm-signal-map-evidence",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261006T072044973268-review-of-jtmm-signal-map-evidence",
+  "review_scope": "The whole of node jtmm-signal-map-evidence (one commit d8a74363 against base 1e44c348): the blocked cur2TFLKAT reason in imas_ambix/data/maps/jt-60sa/tf.json, the served-evidence and blocked-reason text in imas_ambix/data/maps/jt-60sa/pf_active.json, two tests added to tests/data/test_jt60sa_signal_maps.py, and the new evidence fragment. Text-only change to packaged map data: no rule, factor, source_array or channel_factor changed. Read-only review of the EDDB cache under /work/projects/imas_gpu/jt60sa; the reviewed worktree was copied to a scratch tree under TMPDIR to run the gate, never touched in place.",
+  "reviewed_base_sha": "1e44c3488e12f4e8c04fab0dd5d04f75ac736dc3",
+  "reviewed_commits": [
+    "d8a74363d4c184e7c408b0d3a2375bbcbbad0515"
+  ],
+  "reviewed_head_sha": "d8a74363d4c184e7c408b0d3a2375bbcbbad0515",
+  "reviewed_run_id": "r-20261006T054901486201-jtmm-signal-map-evidence",
+  "reviewer": "review-of-jtmm-signal-map-evidence",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T07:32:00.000000+00:00",
+  "total": 111,
+  "verification_logs": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T072044973268-review-of-jtmm-signal-map-evidence/review_gate_head.log",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T072044973268-review-of-jtmm-signal-map-evidence/review_negative_control.log"
+  ]
+}

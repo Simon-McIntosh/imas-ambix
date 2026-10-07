@@ -1,0 +1,98 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's own two arms of the reviewed node's declared gate, because the reviewed manifest arms no baseline_suite/after_suite keys: base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T125206044905-review-of-srw-ingest-command-and-service/review-base-arm.log (f9a34171d35a8d3e3b2fc8d2aa541a18e0f20511 = the reviewed head's own test file driven against the base package in a scratch tree, EXIT=1, the four node ids below red) against head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T125206044905-review-of-srw-ingest-command-and-service/review-head-arm.log (cfd9acbfe62629a6c60c3393666f674c5f0ebdd8 in a git-archive scratch tree; the whole-tree ruff arm passes at the head once scripts/ is present, the first attempt having omitted it and mis-sorted first-party imports = the reviewed head itself, 19 passed plus the serving-interpreter guard and ruff, EXIT=0). added_failure_count is therefore 0: the head arm reports no failure the base arm does not also report in kind.",
+  "after_suite": {
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_agent_ingest_cli.py tests/test_telemetry_ingest.py; python -m pytest -p no:cacheprovider -q tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python; ruff check --no-cache imas_ambix tests (all at the reviewed head in a git-archive scratch tree)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T125206044905-review-of-srw-ingest-command-and-service/review-head-arm.log",
+    "revision": "cfd9acbfe62629a6c60c3393666f674c5f0ebdd8"
+  },
+  "baseline_suite": {
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_agent_ingest_cli.py (the reviewed head's test file over the base package, git-archive scratch tree)",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 4,
+    "failure_ids": [
+      "tests/test_agent_ingest_cli.py::test_once_invokes_a_single_tick_through_a_stub",
+      "tests/test_agent_ingest_cli.py::test_cadence_overrides_the_default",
+      "tests/test_agent_ingest_cli.py::test_dry_run_prints_the_service_script_without_submitting",
+      "tests/test_agent_ingest_cli.py::test_submit_hands_the_script_to_sbatch_through_a_stub"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T125206044905-review-of-srw-ingest-command-and-service/review-base-arm.log",
+    "revision": "f9a34171d35a8d3e3b2fc8d2aa541a18e0f20511"
+  },
+  "call_site_count": 7,
+  "call_sites": [
+    "imas_ambix/cli.py:48 (the lazy group that resolves imas_ambix.agent.cli:agent)",
+    "imas_ambix/agent/cli.py:2818-2830 (the --dry-run/--submit branch",
+    "generate_ingest_script's only caller)",
+    "imas_ambix/agent/slurm.py:1141 (submit_script",
+    "the sbatch seam)",
+    "imas_ambix/agent/telemetry_ingest.py:175 (run",
+    "the loop the command drives); no production caller outside that branch."
+  ],
+  "completed_at": "2026-09-29T13:20:05.948Z",
+  "dispatched_at": "2026-09-29T12:52:13Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/slurm.py",
+      "line": "1102",
+      "text": "the generated service is an endless loop (the emitted command passes no --once, so imas_ambix/agent/cli.py:2849 hands run() iterations=None) under a one-hour walltime with no --requeue, no array and no resubmission path anywhere in the tree: SLURM kills the job at the limit and nothing starts the next pass, so the store stops being maintained an hour after each manual --submit -- measured by running the reviewed code's own --dry-run, whose header carries --time=01:00:00 and whose exec line reads agent ingest --record receipts --index idx.sqlite3."
+    },
+    {
+      "file": "tests/test_agent_ingest_cli.py",
+      "line": "73",
+      "text": "the dry-run test asserts the script's placement but never its embedded --record/--index, and the dry-run plus --once tests both stub the seam that would carry them: with --record and --index removed from generate_ingest_script in a scratch copy of the reviewed head, all four tests still pass (4 passed, EXIT=0), so a regression that makes the submitted service ingest and write a different store than the submitter chose passes the suite silently, which is the property slurm.py:1084 claims for the script."
+    },
+    {
+      "file": "imas_ambix/agent/slurm.py",
+      "line": "1084",
+      "text": "the docstring says record_dir and index_path are embedded as absolute paths, but the CLI resolves them with Path(...).expanduser() and no .resolve() (imas_ambix/agent/cli.py:2811-2816), so a relative --record is emitted verbatim and the submitted job resolves it against whatever working directory SLURM gives it -- measured: --dry-run --record receipts --index idx.sqlite3 prints an exec line carrying --record receipts --index idx.sqlite3, and only the non-exec echo line names the same relative target."
+    }
+  ],
+  "follow_ons": [
+    "imas_ambix/agent/slurm.py:1102 -- the generated service pairs an endless loop with a one-hour walltime and no restart path; whether the ingest should instead be run with --once under a scheduler's repeat, or the service requeued, is a scheduling decision the plan defers to the coordinator.",
+    "the reviewed manifest names no baseline_suite or after_suite, so reckon.crew.review.annotate_review_of_run reports this store's added-failure count as unmeasured against that manifest; the measured values are the two arms stored on this record."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 7 production call site(s)",
+    "diff": "read in full, one commit of 347 insertions over four files; the comments state mechanisms with no plan, ticket or version labels.",
+    "done_when": "the three commands the done-when names are recorded in the manifest with EXIT=0 result lines and reproduced here at cfd9acbf in a git-archive scratch tree (19 passed; serving-interpreter guard 1 passed; whole-tree ruff clean), and the reviewed head's own test file over base f9a34171 reddens all four tests, so the gate is coupled to the change rather than passing around it.",
+    "goal": "the goal is \"Wire the scheduled ingest into an agent ingest command and a submittable SLURM service script\"; imas_ambix/agent/cli.py:2738 lands the command and imas_ambix/agent/slurm.py:1067 the generator, which is what the goal names.",
+    "manifest": "read and complete; its three gate results reproduce exactly, its nothing-submitted claim holds (the reviewed run's stream carries no sbatch invocation, only _sbatch_headers references, and the one --submit test replaces submit_script with a stub), and it names the walltime reading in evidence_inputs rather than leaving it to be discovered.",
+    "write_paths": "the diff touches imas_ambix/agent/cli.py, imas_ambix/agent/slurm.py, tests/test_agent_ingest_cli.py and the declared evidence fragment, every one inside the declared scope; the declared figures directory is unwritten, matching a done-when that names no artifact."
+  },
+  "justifications": {
+    "durability": "the four tests are genuinely coupled to the change (base arm 4 failed) but none asserts the embedded --record/--index, and removing both from the generated command in a scratch copy of the reviewed head leaves all four green (4 passed, EXIT=0).",
+    "evidence": "the gate is recorded with EXIT=0 result lines naming revision and tree, and reproduced here (19 passed, serving guard 1 passed, ruff clean), with the base arm reddening all four tests; the only gap is that the recorded dry-run assertions cover placement rather than the target store.",
+    "fit": "the generator mirrors generate_router_script line for line through _sbatch_headers and the same interpreter and PYTHONPATH preamble, names by mechanism, and passes the whole-tree ruff gate; the docstring's absolute-paths claim at slurm.py:1084 does not hold for a relative argument.",
+    "goal_fidelity": "every clause of the goal is delivered and green at cfd9acbf; one point off because the command the generator submits carries no --once (imas_ambix/agent/slurm.py:1129 with imas_ambix/agent/cli.py:2849 resolving to the endless loop), so the service this node wires cannot maintain the store past the one-hour limit it sets at slurm.py:1102.",
+    "scope_discipline": "git show --stat cfd9acbf carries exactly the three declared source and test paths plus the declared fragment, with no out-of-scope file, no stray artifact and no change to the standing services' unlimited time limit."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the goal is \"Wire the scheduled ingest into an agent ingest command and a submittable SLURM service script\"; imas_ambix/agent/cli.py:2738 lands the command and imas_ambix/agent/slurm.py:1067 the generator, which is what the goal names.\nVERDICT done_when: the three commands the done-when names are recorded in the manifest with EXIT=0 result lines and reproduced here at cfd9acbf in a git-archive scratch tree (19 passed; serving-interpreter guard 1 passed; whole-tree ruff clean), and the reviewed head's own test file over base f9a34171 reddens all four tests, so the gate is coupled to the change rather than passing around it.\nVERDICT write_paths: the diff touches imas_ambix/agent/cli.py, imas_ambix/agent/slurm.py, tests/test_agent_ingest_cli.py and the declared evidence fragment, every one inside the declared scope; the declared figures directory is unwritten, matching a done-when that names no artifact.\nVERDICT manifest: read and complete; its three gate results reproduce exactly, its nothing-submitted claim holds (the reviewed run's stream carries no sbatch invocation, only _sbatch_headers references, and the one --submit test replaces submit_script with a stub), and it names the walltime reading in evidence_inputs rather than leaving it to be discovered.\nVERDICT diff: read in full, one commit of 347 insertions over four files; the comments state mechanisms with no plan, ticket or version labels.\nCALL_SITES: imas_ambix/cli.py:48 (the lazy group that resolves imas_ambix.agent.cli:agent), imas_ambix/agent/cli.py:2818-2830 (the --dry-run/--submit branch, generate_ingest_script's only caller), imas_ambix/agent/slurm.py:1141 (submit_script, the sbatch seam), imas_ambix/agent/telemetry_ingest.py:175 (run, the loop the command drives); no production caller outside that branch.\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: every clause of the goal is delivered and green at cfd9acbf; one point off because the command the generator submits carries no --once (imas_ambix/agent/slurm.py:1129 with imas_ambix/agent/cli.py:2849 resolving to the endless loop), so the service this node wires cannot maintain the store past the one-hour limit it sets at slurm.py:1102.\nSCORE evidence: 19\nJUSTIFICATION evidence: the gate is recorded with EXIT=0 result lines naming revision and tree, and reproduced here (19 passed, serving guard 1 passed, ruff clean), with the base arm reddening all four tests; the only gap is that the recorded dry-run assertions cover placement rather than the target store.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git show --stat cfd9acbf carries exactly the three declared source and test paths plus the declared fragment, with no out-of-scope file, no stray artifact and no change to the standing services' unlimited time limit.\nSCORE durability: 15\nJUSTIFICATION durability: the four tests are genuinely coupled to the change (base arm 4 failed) but none asserts the embedded --record/--index, and removing both from the generated command in a scratch copy of the reviewed head leaves all four green (4 passed, EXIT=0).\nSCORE fit: 17\nJUSTIFICATION fit: the generator mirrors generate_router_script line for line through _sbatch_headers and the same interpreter and PYTHONPATH preamble, names by mechanism, and passes the whole-tree ruff gate; the docstring's absolute-paths claim at slurm.py:1084 does not hold for a relative argument.\nFINDING imas_ambix/agent/slurm.py:1102 the generated service is an endless loop (the emitted command passes no --once, so imas_ambix/agent/cli.py:2849 hands run() iterations=None) under a one-hour walltime with no --requeue, no array and no resubmission path anywhere in the tree: SLURM kills the job at the limit and nothing starts the next pass, so the store stops being maintained an hour after each manual --submit -- measured by running the reviewed code's own --dry-run, whose header carries --time=01:00:00 and whose exec line reads agent ingest --record receipts --index idx.sqlite3.\nFINDING tests/test_agent_ingest_cli.py:73 the dry-run test asserts the script's placement but never its embedded --record/--index, and the dry-run plus --once tests both stub the seam that would carry them: with --record and --index removed from generate_ingest_script in a scratch copy of the reviewed head, all four tests still pass (4 passed, EXIT=0), so a regression that makes the submitted service ingest and write a different store than the submitter chose passes the suite silently, which is the property slurm.py:1084 claims for the script.\nFINDING imas_ambix/agent/slurm.py:1084 the docstring says record_dir and index_path are embedded as absolute paths, but the CLI resolves them with Path(...).expanduser() and no .resolve() (imas_ambix/agent/cli.py:2811-2816), so a relative --record is emitted verbatim and the submitted job resolves it against whatever working directory SLURM gives it -- measured: --dry-run --record receipts --index idx.sqlite3 prints an exec line carrying --record receipts --index idx.sqlite3, and only the non-exec echo line names the same relative target.\n",
+  "review_run_id": "r-20260929T125206044905-review-of-srw-ingest-command-and-service",
+  "reviewed_base_sha": "f9a34171d35a8d3e3b2fc8d2aa541a18e0f20511",
+  "reviewed_head_sha": "cfd9acbfe62629a6c60c3393666f674c5f0ebdd8",
+  "reviewed_run_id": "r-20260929T122018121416-srw-ingest-command-and-service",
+  "reviewer": "review-of-srw-ingest-command-and-service",
+  "scores": {
+    "durability": 15,
+    "evidence": 19,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T13:14:58.458642+00:00",
+  "total": 90
+}

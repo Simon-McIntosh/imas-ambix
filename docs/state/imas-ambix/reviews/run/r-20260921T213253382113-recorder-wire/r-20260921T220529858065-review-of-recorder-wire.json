@@ -1,0 +1,58 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "clive",
+  "call_site_count": 2,
+  "call_sites": [
+    "imas_ambix/agent/slurm.py:507",
+    "imas_ambix/agent/cli.py:2599"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-09-21T22:05:29.858065+00:00",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/cli.py",
+      "line": "2599",
+      "text": "the operator-facing agent receipts verb passes neither probe nor compaction_paths, so the node sections and the tier compaction are reachable only from the module's own CLI -- a receipts run started from the documented verb writes no card, host or job section and never compacts, with no flag to opt in, and the wiring is therefore single-entry in production."
+    },
+    {
+      "file": "imas_ambix/agent/serving_receipts.py",
+      "line": "586",
+      "text": "main() constructs NodeProbe by default, so every serve sidecar pays three subprocess reads per five-second tick while the only bound on that cost -- the plan's under-one-percent-of-one-core, measured on the node -- is unmeasured, because no serve has yet written a row from a GPU node; the first real serve is the instrument and --no-node-probe is the lever already present."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 2 production call site(s)",
+    "diff": "read all three commits against base 61995960 commit by commit -- aa51702b carries the wiring and the new tests, 41bf16d3 the landing record, evidence anchor and figure, 1b115a13 a docs-only baseline correction; the evidence anchor has zero deleted lines and the plan edit appends one comment div, touching neither the plan-version nor the plan-modified meta lines.",
+    "done_when": "the node's four-part measure is fully satisfied and recorded -- pytest tests/test_agent_serving_receipts.py reports 27 passed and my own re-run at 1b115a13 in the reviewed worktree returned 27 passed exit 0; ruff check imas_ambix tests exits 0; the manifest quotes the mutated line verbatim and the control log shows three named tests reddening; and both production call sites are named below.",
+    "goal": "read the dispatch goal -- wire node_probe and telemetry_store into the recorder so a serve writes rows carrying the card, host and job readings, and so every row names the host that produced it -- against imas_ambix/agent/serving_receipts.py:452-490, which offers each tick's monotonic stamp to probe.sample, attaches the returned sections to that row, names every row with the probe's own hostname, and rolls the record into telemetry_store's tiers between samples.",
+    "manifest": "read /home/ITER/mcintos/.config/reckon/crew/reports/wire-recorder.md -- status complete with three commits, per-gate results with log paths, one negative control with its mutation quoted, an artifact list, and three follow_ons naming what it did not measure, including that no serve has yet written a row from a GPU node.",
+    "write_paths": "read the five declared paths and ran git diff --stat 61995960 1b115a13 -- the diff touches exactly those five (serving_receipts.py, tests/test_agent_serving_receipts.py, the plan, the evidence anchor and one SVG) and nothing else."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_serving_receipts.py:871-1166 pins the staggered omission, the compaction cadence, the failure tolerance and both CLI opt-outs, each of which reddens if the landed behaviour regresses.",
+    "evidence": "tests/test_agent_serving_receipts.py:792 reddens under the mutation quoted on line 1 of recorder-wire-negative-control.log, and the named gate re-ran green at 1b115a13 under my own execution rather than on the manifest's word.",
+    "fit": "the row follows the engine section's established sparse rule at imas_ambix/agent/serving_receipts.py:177-184, and the banned-label checks over the changed source and test paths return nothing while the one plan-reference comment at tests/test_agent_serving_receipts.py:470 predates the node and was deliberately left alone.",
+    "goal_fidelity": "imas_ambix/agent/serving_receipts.py:452-490 attaches the probe's sections and hostname to each row and compacts into telemetry_store's tiers, and imas_ambix/agent/slurm.py:507 is the production path that reaches it with the probe on by default.",
+    "scope_discipline": "git diff 61995960 1b115a13 touches only the five declared paths, and the plan edit appends a comment div for this node without touching the plan-version or plan-modified meta lines."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: read the dispatch goal -- wire node_probe and telemetry_store into the recorder so a serve writes rows carrying the card, host and job readings, and so every row names the host that produced it -- against imas_ambix/agent/serving_receipts.py:452-490, which offers each tick's monotonic stamp to probe.sample, attaches the returned sections to that row, names every row with the probe's own hostname, and rolls the record into telemetry_store's tiers between samples.\nVERDICT done_when: the node's four-part measure is fully satisfied and recorded -- pytest tests/test_agent_serving_receipts.py reports 27 passed and my own re-run at 1b115a13 in the reviewed worktree returned 27 passed exit 0; ruff check imas_ambix tests exits 0; the manifest quotes the mutated line verbatim and the control log shows three named tests reddening; and both production call sites are named below.\nVERDICT write_paths: read the five declared paths and ran git diff --stat 61995960 1b115a13 -- the diff touches exactly those five (serving_receipts.py, tests/test_agent_serving_receipts.py, the plan, the evidence anchor and one SVG) and nothing else.\nVERDICT manifest: read /home/ITER/mcintos/.config/reckon/crew/reports/wire-recorder.md -- status complete with three commits, per-gate results with log paths, one negative control with its mutation quoted, an artifact list, and three follow_ons naming what it did not measure, including that no serve has yet written a row from a GPU node.\nVERDICT diff: read all three commits against base 61995960 commit by commit -- aa51702b carries the wiring and the new tests, 41bf16d3 the landing record, evidence anchor and figure, 1b115a13 a docs-only baseline correction; the evidence anchor has zero deleted lines and the plan edit appends one comment div, touching neither the plan-version nor the plan-modified meta lines.\nCALL_SITES: imas_ambix/agent/slurm.py:507, imas_ambix/agent/cli.py:2599\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/agent/serving_receipts.py:452-490 attaches the probe's sections and hostname to each row and compacts into telemetry_store's tiers, and imas_ambix/agent/slurm.py:507 is the production path that reaches it with the probe on by default.\nSCORE evidence: 18\nJUSTIFICATION evidence: tests/test_agent_serving_receipts.py:792 reddens under the mutation quoted on line 1 of recorder-wire-negative-control.log, and the named gate re-ran green at 1b115a13 under my own execution rather than on the manifest's word.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: git diff 61995960 1b115a13 touches only the five declared paths, and the plan edit appends a comment div for this node without touching the plan-version or plan-modified meta lines.\nSCORE durability: 19\nJUSTIFICATION durability: tests/test_agent_serving_receipts.py:871-1166 pins the staggered omission, the compaction cadence, the failure tolerance and both CLI opt-outs, each of which reddens if the landed behaviour regresses.\nSCORE fit: 18\nJUSTIFICATION fit: the row follows the engine section's established sparse rule at imas_ambix/agent/serving_receipts.py:177-184, and the banned-label checks over the changed source and test paths return nothing while the one plan-reference comment at tests/test_agent_serving_receipts.py:470 predates the node and was deliberately left alone.\nFINDING imas_ambix/agent/cli.py:2599 the operator-facing agent receipts verb passes neither probe nor compaction_paths, so the node sections and the tier compaction are reachable only from the module's own CLI -- a receipts run started from the documented verb writes no card, host or job section and never compacts, with no flag to opt in, and the wiring is therefore single-entry in production.\nFINDING imas_ambix/agent/serving_receipts.py:586 main() constructs NodeProbe by default, so every serve sidecar pays three subprocess reads per five-second tick while the only bound on that cost -- the plan's under-one-percent-of-one-core, measured on the node -- is unmeasured, because no serve has yet written a row from a GPU node; the first real serve is the instrument and --no-node-probe is the lever already present.",
+  "review_run_id": "r-20260921T220529858065-review-of-recorder-wire",
+  "reviewed_base": "61995960c28e3d75e9c8b19eb9713f3034a3d32e",
+  "reviewed_commit": "1b115a13b852f6311e551ebdf8007da28c883bcc",
+  "reviewed_run_id": "r-20260921T213253382113-recorder-wire",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-21T22:15:37.987183+00:00",
+  "total": 92
+}

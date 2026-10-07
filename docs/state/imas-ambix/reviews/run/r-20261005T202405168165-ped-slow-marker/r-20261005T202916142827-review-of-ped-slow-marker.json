@@ -1,0 +1,58 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "backend": "local",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-05T20:35:20.321Z",
+  "dispatched_at": "2026-10-05T20:29:24Z",
+  "findings": [
+    {
+      "file": "pyproject.toml",
+      "line": "250",
+      "severity": "follow-on",
+      "text": "follow-on: no test asserts the slow marker is registered, so removing the markers entry is caught only by a collection error on tests/latent/*.py rather than by a named assertion; a small test reading the ini markers option would localise the same regression."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read commit by commit; f1ba86fd adds a three-line markers entry to pyproject.toml and a new 30-line evidence fragment, +33/-0, and changes nothing else.",
+    "done_when": "the done-when names the collect-only run over the two latent files and the fragment that records the before/after counts; the manifest records that run (33 collected, EXIT=0) and the reviewer reproduced it (33 collected, EXIT=0, review-head-collect.log), with the base arm red (EXIT=2, 2 errors, review-base-collect.log).",
+    "goal": "the node's goal is to register the slow pytest marker in the pytest configuration; pyproject.toml:250 now holds markers = [\"slow: a test that runs long by design\"] in [tool.pytest.ini_options], which is exactly that registration.",
+    "manifest": "read; it states the four gates (collect-only 33/EXIT=0, test_declared_dependencies 2 passed, uv lock --check EXIT=0, ruff EXIT=0) and names the five logs, whose contents agree with the stated results.",
+    "write_paths": "read the manifest's declared paths -- pyproject.toml, the ped-slow-marker fragment and its figures directory -- and every path the diff touches (pyproject.toml, docs/evidence/fragments/project-environment-declared/ped-slow-marker.html) is inside them."
+  },
+  "justifications": {
+    "durability": "no test asserts the slow marker is registered, so the regression is caught only by the suite's own collection of tests/latent/*.py going red under --strict-markers (reviewer's base arm exits 2 where the head exits 0), a guard that fires but does not localise the fault; docked for the absence of a targeted assertion.",
+    "evidence": "every gate the done-when names is recorded in a log whose EXIT line the reviewer matched, and both arms were independently reproduced (head 33 collected EXIT=0, base EXIT=2), docked one because the fragment table's after-row does not name the head revision it measured -- its meta line names only the base 40d0280a -- so a reader must cross-reference the log header to tie the 33 to f1ba86fd.",
+    "fit": "the fragment's section/header/h3/meta/h4/table shape matches the sibling docs/evidence/fragments/project-environment-declared/ped-worker-threads.html, its element ids are all prefixed ped-slow-marker, and no plan label, ticket reference or version suffix appears in the changed lines.",
+    "goal_fidelity": "pyproject.toml:250 registers the slow marker, so both latent files collect where the base arm (40d0280a) errors with \"'slow' not found in `markers` configuration option\" at both files.",
+    "reuse": "the change extends the one pytest configuration owner -- a grep of the tree finds no other pytest.ini/setup.cfg/tox.ini and no conftest pytest_configure registering markers, so no fork of a marker registry exists (git grep for markers in config returns only pyproject.toml).",
+    "scope_discipline": "the diff is confined to pyproject.toml and docs/evidence/fragments/project-environment-declared/ped-slow-marker.html, both declared write paths, and adds nothing the goal does not imply (+33/-0, two files)."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261005T202405168165-ped-slow-marker (plan imas-ambix:project-environment-declared section 5), read at head f1ba86fdf1a52579c3e0ea51b2a16a1351ca920c against base 40d0280acb08383b53b66b018c38d509cb48707a. The node registers the `slow` pytest marker in the pytest configuration so tests/latent/test_synthetic_truth.py and tests/latent/test_temporal_operator.py, which carry @pytest.mark.slow under addopts = \"-ra --strict-markers\", collect instead of failing collection. This review re-ran the named gate on both arms in the reviewer's own trees; nothing was run on a GPU node and no full suite was re-run.\n\nVERDICT goal: the node's goal is to register the slow pytest marker in the pytest configuration; pyproject.toml:250 now holds markers = [\"slow: a test that runs long by design\"] in [tool.pytest.ini_options], which is exactly that registration.\nVERDICT done_when: the done-when names the collect-only run over the two latent files and the fragment that records the before/after counts; the manifest records that run (33 collected, EXIT=0) and the reviewer reproduced it (33 collected, EXIT=0, review-head-collect.log), with the base arm red (EXIT=2, 2 errors, review-base-collect.log).\nVERDICT write_paths: read the manifest's declared paths -- pyproject.toml, the ped-slow-marker fragment and its figures directory -- and every path the diff touches (pyproject.toml, docs/evidence/fragments/project-environment-declared/ped-slow-marker.html) is inside them.\nVERDICT manifest: read; it states the four gates (collect-only 33/EXIT=0, test_declared_dependencies 2 passed, uv lock --check EXIT=0, ruff EXIT=0) and names the five logs, whose contents agree with the stated results.\nVERDICT diff: read commit by commit; f1ba86fd adds a three-line markers entry to pyproject.toml and a new 30-line evidence fragment, +33/-0, and changes nothing else.\nCALL_SITES: none\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: pyproject.toml:250 registers the slow marker, so both latent files collect where the base arm (40d0280a) errors with \"'slow' not found in `markers` configuration option\" at both files.\nSCORE evidence: 19\nJUSTIFICATION evidence: every gate the done-when names is recorded in a log whose EXIT line the reviewer matched, and both arms were independently reproduced (head 33 collected EXIT=0, base EXIT=2), docked one because the fragment table's after-row does not name the head revision it measured -- its meta line names only the base 40d0280a -- so a reader must cross-reference the log header to tie the 33 to f1ba86fd.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff is confined to pyproject.toml and docs/evidence/fragments/project-environment-declared/ped-slow-marker.html, both declared write paths, and adds nothing the goal does not imply (+33/-0, two files).\nSCORE durability: 17\nJUSTIFICATION durability: no test asserts the slow marker is registered, so the regression is caught only by the suite's own collection of tests/latent/*.py going red under --strict-markers (reviewer's base arm exits 2 where the head exits 0), a guard that fires but does not localise the fault; docked for the absence of a targeted assertion.\nSCORE fit: 19\nJUSTIFICATION fit: the fragment's section/header/h3/meta/h4/table shape matches the sibling docs/evidence/fragments/project-environment-declared/ped-worker-threads.html, its element ids are all prefixed ped-slow-marker, and no plan label, ticket reference or version suffix appears in the changed lines.\nSCORE reuse: 20\nJUSTIFICATION reuse: the change extends the one pytest configuration owner -- a grep of the tree finds no other pytest.ini/setup.cfg/tox.ini and no conftest pytest_configure registering markers, so no fork of a marker registry exists (git grep for markers in config returns only pyproject.toml).\nFINDING pyproject.toml:250 follow-on: no test asserts the slow marker is registered, so removing the markers entry is caught only by a collection error on tests/latent/*.py rather than by a named assertion; a small test reading the ini markers option would localise the same regression.\n\nreviewed_base_sha: 40d0280acb08383b53b66b018c38d509cb48707a\nreviewed_head_sha: f1ba86fdf1a52579c3e0ea51b2a16a1351ca920c",
+  "review_run_id": "r-20261005T202916142827-review-of-ped-slow-marker",
+  "reviewed_base_sha": "40d0280acb08383b53b66b018c38d509cb48707a",
+  "reviewed_head_sha": "f1ba86fdf1a52579c3e0ea51b2a16a1351ca920c",
+  "reviewed_run_id": "r-20261005T202405168165-ped-slow-marker",
+  "scores": {
+    "durability": 17,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T20:34:48.381370+00:00",
+  "total": 115
+}

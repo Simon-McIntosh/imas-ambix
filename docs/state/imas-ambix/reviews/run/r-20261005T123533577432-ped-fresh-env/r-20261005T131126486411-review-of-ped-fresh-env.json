@@ -1,0 +1,77 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-05T13:22:54.899Z",
+  "dimension_dispositions": {
+    "durability": {
+      "kind": "exempted",
+      "reason": "The finding is that nothing guards nova-stella[bokeh] in the dev group. Once the coordinator's plain uv sync makes the shared environment match the declaration (the last step of this section), removing the extra makes tests/worldmodel/test_nova_frame_decoder_contract.py and test_flux_conditioned_decoder.py fail collection on the next sync, a visible failure; a test asserting the dev-group string would only restate the configuration. The stale 'gate revision' header is a labelling defect in a run artifact: the 3987-with-0-errors collection it records is only possible with the fix installed (the pre-fix run collected 3980 with 2 errors).",
+      "recorded_at": "2026-10-05T13:22:02.384691+00:00"
+    }
+  },
+  "dispatched_at": "2026-10-05T13:11:36Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T123533577432-ped-fresh-env/ped-fresh-gate-2.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the log's `gate revision: abcdc37e` predates the declaration change committed as 37f44b1b, and abcdc37e's pyproject.toml carries no nova-stella[bokeh] and its uv.lock no bokeh extra, so the revision the log names fails the collection clause it reports passing (the prior gate at cb8260a2 collected 3980 with 2 errors); a reader cannot tie the four passing clauses to the reviewed head from the log, and an independent re-run of `uv lock --check` at 52768177 is what corroborates the change here."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T123533577432-ped-fresh-env",
+      "line": "manifest.md",
+      "severity": "follow-on",
+      "text": "follow-on: the done-when requires the fresh environment to be removed \"with its removal printed\", but no run-directory log prints the removal or a df/du reading; only the manifest and fragment state it in prose, and the environment is in fact absent from node-local /tmp now."
+    },
+    {
+      "file": "tests/test_declared_dependencies.py",
+      "line": "124",
+      "severity": "follow-on",
+      "text": "follow-on: the census's requirement_name strips a requirement's extras, so `nova-stella[bokeh]` and `nova-stella` are indistinguishable to it and no test fails if the bokeh extra is removed; the declaration this node added has no regression guard."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read commit by commit against cb8260a2; abcdc37e adds the first fragment, 37f44b1b adds 11 lines (the nova-stella[bokeh] dev-group entry in pyproject.toml and nova's optional-dependencies block plus the dev-group and editable references in uv.lock), and 52768177 rewrites the fragment; net +86 lines across exactly three declared paths, no existing lock version changed.",
+    "done_when": "the done-when names a flagless sync in a sibling-linked scratch copy, an optional-aware import walk, the console script, fresh-vs-shared collection, ruff in one log, and the environment removed with its removal printed; the gate log holds all four clauses each with an EXIT line, but the environment's removal is not printed in any run-directory log and the log's own revision field predates the declaration change it measures.",
+    "goal": "the goal is to prove a plain uv sync of the declaration yields a working environment on node-local disk; the fragment docs/evidence/fragments/project-environment-declared/ped-fresh-env.html and ped-fresh-gate-2.log record the environment built by a flagless sync at $TMPDIR that then imports, answers the console script, collects and lints.",
+    "manifest": "read; status complete, it records the two commits, the gate and sync logs, the four clause results and the caveat that uv lock --check only resolves in a tree carrying the ../nova and ../imas-ink siblings; its baseline_suite and after_suite fields are absent because this node arms no pytest arm pair.",
+    "write_paths": "the dispatch fenced the fragment and a figures directory; the coordinator's resume advice for this run expanded the scope to include pyproject.toml and uv.lock, and the diff touches exactly those two plus the fragment, so the change is inside the extended fence though the persisted manifest still lists only the pre-extension scope."
+  },
+  "justifications": {
+    "durability": "no assertion guards the nova-stella[bokeh] declaration, since tests/test_declared_dependencies.py requirement_name strips the extra so removing `[bokeh]` leaves the census test green, and the fresh-environment proof is a one-shot measurement rather than a test that reddens on the regression.",
+    "evidence": "ped-fresh-gate-2.log records all four clauses with EXIT lines, but its first line reads `gate revision: abcdc37e`, and `git show abcdc37e:pyproject.toml` carries no nova-stella[bokeh] while its uv.lock has no bokeh extra, so the named revision cannot produce the 3987/0 result the log reports and the passing gate is not tied to the reviewed head.",
+    "fit": "pyproject.toml:143-147 adds nova-stella[bokeh] to the existing dev dependency-group with a mechanism comment and no plan label, and docs/evidence/fragments/project-environment-declared/ped-fresh-env.html follows the sibling fragment idiom.",
+    "goal_fidelity": "ped-fresh-gate-2.log shows the flagless sync built at $TMPDIR collecting 3987 tests with 0 errors and importing 311 of 313 modules, so the declaration yielded a working environment, though the proof's tie to the reviewed head rests on a log whose revision field predates the change.",
+    "reuse": "the change declares nova's bokeh extra through nova itself (nova-stella[bokeh] in the dev group) rather than adding bokeh directly or touching the viz extra, extending the owner of that capability and adding no new definition.",
+    "scope_discipline": "git diff cb8260a2..52768177 touches only pyproject.toml, uv.lock and the fragment, all inside the scope the coordinator's resume advice granted, and the node wrote no figure as its done-when names none, though its manifest orientation_write_paths still lists the narrower pre-extension fence."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20261005T123533577432-ped-fresh-env at head 52768177c10c84319be32919272c88545523a0ae against base cb8260a29f5de9cc3cc8b4482a239d628bf6453c (plan imas-ambix:project-environment-declared section 4). Read the three commits abcdc37e, 37f44b1b and 52768177, the reviewed manifest, its gate/sync logs and the resume advice that extended its write scope; independently re-ran `uv lock --check` in the run's scratch tree (EXIT 0, Resolved 236). Nothing here touched the reviewed worktree.\n\nVERDICT goal: the goal is to prove a plain uv sync of the declaration yields a working environment on node-local disk; the fragment docs/evidence/fragments/project-environment-declared/ped-fresh-env.html and ped-fresh-gate-2.log record the environment built by a flagless sync at $TMPDIR that then imports, answers the console script, collects and lints.\nVERDICT done_when: the done-when names a flagless sync in a sibling-linked scratch copy, an optional-aware import walk, the console script, fresh-vs-shared collection, ruff in one log, and the environment removed with its removal printed; the gate log holds all four clauses each with an EXIT line, but the environment's removal is not printed in any run-directory log and the log's own revision field predates the declaration change it measures.\nVERDICT write_paths: the dispatch fenced the fragment and a figures directory; the coordinator's resume advice for this run expanded the scope to include pyproject.toml and uv.lock, and the diff touches exactly those two plus the fragment, so the change is inside the extended fence though the persisted manifest still lists only the pre-extension scope.\nVERDICT manifest: read; status complete, it records the two commits, the gate and sync logs, the four clause results and the caveat that uv lock --check only resolves in a tree carrying the ../nova and ../imas-ink siblings; its baseline_suite and after_suite fields are absent because this node arms no pytest arm pair.\nVERDICT diff: read commit by commit against cb8260a2; abcdc37e adds the first fragment, 37f44b1b adds 11 lines (the nova-stella[bokeh] dev-group entry in pyproject.toml and nova's optional-dependencies block plus the dev-group and editable references in uv.lock), and 52768177 rewrites the fragment; net +86 lines across exactly three declared paths, no existing lock version changed.\nCALL_SITES: none\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: ped-fresh-gate-2.log shows the flagless sync built at $TMPDIR collecting 3987 tests with 0 errors and importing 311 of 313 modules, so the declaration yielded a working environment, though the proof's tie to the reviewed head rests on a log whose revision field predates the change.\nSCORE evidence: 13\nJUSTIFICATION evidence: ped-fresh-gate-2.log records all four clauses with EXIT lines, but its first line reads `gate revision: abcdc37e`, and `git show abcdc37e:pyproject.toml` carries no nova-stella[bokeh] while its uv.lock has no bokeh extra, so the named revision cannot produce the 3987/0 result the log reports and the passing gate is not tied to the reviewed head.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: git diff cb8260a2..52768177 touches only pyproject.toml, uv.lock and the fragment, all inside the scope the coordinator's resume advice granted, and the node wrote no figure as its done-when names none, though its manifest orientation_write_paths still lists the narrower pre-extension fence.\nSCORE durability: 9\nJUSTIFICATION durability: no assertion guards the nova-stella[bokeh] declaration, since tests/test_declared_dependencies.py requirement_name strips the extra so removing `[bokeh]` leaves the census test green, and the fresh-environment proof is a one-shot measurement rather than a test that reddens on the regression.\nSCORE fit: 19\nJUSTIFICATION fit: pyproject.toml:143-147 adds nova-stella[bokeh] to the existing dev dependency-group with a mechanism comment and no plan label, and docs/evidence/fragments/project-environment-declared/ped-fresh-env.html follows the sibling fragment idiom.\nSCORE reuse: 20\nJUSTIFICATION reuse: the change declares nova's bokeh extra through nova itself (nova-stella[bokeh] in the dev group) rather than adding bokeh directly or touching the viz extra, extending the owner of that capability and adding no new definition.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T123533577432-ped-fresh-env/ped-fresh-gate-2.log:1 follow-on: the log's `gate revision: abcdc37e` predates the declaration change committed as 37f44b1b, and abcdc37e's pyproject.toml carries no nova-stella[bokeh] and its uv.lock no bokeh extra, so the revision the log names fails the collection clause it reports passing (the prior gate at cb8260a2 collected 3980 with 2 errors); a reader cannot tie the four passing clauses to the reviewed head from the log, and an independent re-run of `uv lock --check` at 52768177 is what corroborates the change here.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T123533577432-ped-fresh-env:manifest.md follow-on: the done-when requires the fresh environment to be removed \"with its removal printed\", but no run-directory log prints the removal or a df/du reading; only the manifest and fragment state it in prose, and the environment is in fact absent from node-local /tmp now.\nFINDING tests/test_declared_dependencies.py:124 follow-on: the census's requirement_name strips a requirement's extras, so `nova-stella[bokeh]` and `nova-stella` are indistinguishable to it and no test fails if the bokeh extra is removed; the declaration this node added has no regression guard.",
+  "review_run_id": "r-20261005T131126486411-review-of-ped-fresh-env",
+  "reviewed_base_sha": "cb8260a29f5de9cc3cc8b4482a239d628bf6453c",
+  "reviewed_head_sha": "52768177c10c84319be32919272c88545523a0ae",
+  "reviewed_run_id": "r-20261005T123533577432-ped-fresh-env",
+  "reviewer": "review-of-ped-fresh-env",
+  "scores": {
+    "durability": 9,
+    "evidence": 13,
+    "fit": 19,
+    "goal_fidelity": 18,
+    "reuse": 20,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T13:20:46.242814+00:00",
+  "total": 97
+}

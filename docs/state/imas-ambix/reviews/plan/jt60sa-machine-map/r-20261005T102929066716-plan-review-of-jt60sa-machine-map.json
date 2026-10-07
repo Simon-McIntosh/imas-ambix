@@ -1,0 +1,34 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T10:33:54.491Z",
+  "dispatched_at": "2026-10-05T10:29:41Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:635",
+      "id": "duplicate_owner-1",
+      "reason": "the plan must extend the existing shot-set owner and fold the machine into its version label, or a JT-60SA stamp can be labelled as the frozen MAST metric.",
+      "text": "\u00a77 says \"the frozen shot set declares (machine, shot) pairs\" and that a JT-60SA integer shot id \"cannot be told from another machine's shot number by value\", but a frozen shot set already has an owner whose records carry no machine and whose version label is computed from `(shot_id, role)` only \u2014 `imas_ambix/spine_bench/shots.py` `BenchShot` (shot_id, role), `FROZEN_SHOTSET` (MAST-only, `SHOTSET_VERSION = \"v0-mast-heldout-6\"`) and `resolve_shotset_version`, all consumed by `runner.py:33` and `parity.py:537`. Declaring a second machine-keyed shot set beside that owner risks a duplicate; worse, since `resolve_shotset_version` compares `(int(shot_id), role)` tuples with no machine, a JT-60SA shot whose digits coincide with a MAST id would resolve to the frozen MAST label, so a JT-60SA stamp could be filed under the MAST metric's name \u2014 the exact silent mislabelling that function exists to prevent. The plan should name `spine_bench/shots.py` as the owner to extend (add the machine to `BenchShot`, include it in the version label) rather than introducing a parallel declaration",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "ae598bea4b2804e71d3a3d8d293c56a2223f7c549eed0a9f7e84bff6f5f488fe",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 61,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T102929066716-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "561d1c9ecc33c339a769015517fb72a83765d339",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each new mechanism hides its behaviour behind one entry point: the \u00a72 exporter is \"one public function that writes the directory from a catalogue and its signal maps\", the \u00a73 extractor is \"one batch-fetch function and one cache writer\", the \u00a74 converter's \"public surface is the one converter entry point\", and \u00a77's EQDB reader adds one remote script beside \u00a73's. No section spreads one capability across a family of shallow wrappers over shared machinery.",
+    "duplicate_owner": "a finding \u2014 \u00a77 declares that \"the frozen shot set declares (machine, shot) pairs\" and that a JT-60SA pulse integer \"cannot be told from another machine's shot number by value\", but does not name the existing owner of the frozen shot set, `imas_ambix/spine_bench/shots.py`, whose `BenchShot` carries only `shot_id` and `role` and whose `resolve_shotset_version` labels a stamp from `(shot_id, role)` alone.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0. Every section that adds surface names what it retires or merges, or states why nothing can be: \u00a72 exporter and \u00a73 extractor and \u00a74 converter each say \"retires nothing\" with the reason (no existing exporter / remote reader / deck reader); \u00a74's catalogue keys name the retired `machine == \"mast\"` branch; \u00a73 says it \"adds no `ambix data` command\"; \u00a77's two record fields say \"retires nothing, because no scalar reference comparison exists yet\".",
+    "reuse_search": "pass \u2014 the plan searched both named codebases and every mechanism it cites exists and matches: `imas_ambix/data/paths.py` (MIRROR_ROOT/JT60SA_ROOT), `imas_ambix/data/transform_engine.py` (StoreEngine, `transform_machine_description` holds the selected map), `imas_ambix/data/description_reader.py` (`read_geometry_table` machine branch), `imas_ambix/data/cocos_convention.py` (`score_convention`, `format_sign_report`), `imas_ambix/challenge/convention.py` (`measure_diiid_convention`, `_integrated_current`), `imas_ambix/eval/efit_referee.py` (`judge_geometry`, `GeometryVerdict`), `imas_ambix/gs/artifact_resolution.py` (PINNED_* constants, `resolve_machine_description`, `author_pinned_description`), `imas_ambix/gs/machine_selection.py` and `imas_ambix/spine_bench/machine_artifact_arm.py`; it also cites codex's `remote/scripts/enumerate_edas.py` transport as prior art and justifies owning rather than importing it. No proposed subsystem lacks a cited search.",
+    "thin_wrapper": "pass \u2014 every proposed layer states why the existing owner cannot simply be extended or argues the extension it does make. \u00a74 widens the `StoreEngine.open` protocol method with the map rather than adding an engine, and the account is accurate: `transform_machine_description` at `transform_engine.py:359` already computes `map_for_shot(catalog, shot_id)` and calls `engine.open(store_root, shot_id, catalog.dd_version)` at line 381, while `NetCDFTransformEngine.open` (`transform_engine.py:236`) never sees the map \u2014 so the widening is minimal and justified. \u00a76 generalises `challenge/convention.py::measure_diiid_convention` through a loader contract \"rather than writing a second scorer\". \u00a77 states the alternative it rejects (a second geometry resolver) and why."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.844626+00:00"
+}

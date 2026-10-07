@@ -1,0 +1,73 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run is a read-only report node, so it has one gate whose two declared arms cite the reviewed run's own suite_head.log. That log is a complete arm: at revision 539a09cb it ends '108 passed in 178.98s (0:02:58)' with a bare 'EXIT=0' last line, and its failure set is empty. The manifest's baseline_suite and after_suite both name suite_head.log, revision 539a09cb, exit_status 0, completed true, failure_count 0, failure_ids []; the single run legitimately covers both arms because git diff --name-only eb801719 539a09cb names only docs/plans/serving-record-warehouse.html and the srw-watch-reads-stored-tests run-state JSON, and git diff --stat eb801719 539a09cb -- imas_ambix tests is empty, so the module and test trees are byte-identical between the named base and the reviewed head. This review confirmed the log itself (108 passed, EXIT=0, no FAILED lines). After-arm failure ids ([]) minus baseline-arm failure ids ([]) is 0, so added_failure_count is 0 with no added ids.",
+  "after_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-suite-slow-tests uv run --no-sync pytest -p no:cacheprovider --durations=25 tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py tests/test_agent_watch_cost.py tests/test_telemetry_index.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-suite-slow-tests/suite_head.log",
+    "revision": "539a09cb0d49365423fc6f46baaeb030b20c05d7"
+  },
+  "baseline_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-suite-slow-tests uv run --no-sync pytest -p no:cacheprovider --durations=25 tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py tests/test_agent_watch_cost.py tests/test_telemetry_index.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-suite-slow-tests/suite_head.log",
+    "revision": "539a09cb0d49365423fc6f46baaeb030b20c05d7"
+  },
+  "completed_at": "2026-10-02T12:08:44.404Z",
+  "dispatched_at": "2026-10-02T11:56:41Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-suite-slow-tests/report.md",
+      "line": "59",
+      "severity": "follow-on",
+      "text": "The declared control's headline sum is arithmetically off: the report states 'Sum of the ten: 90.57 s = 50.6 % of the 178.98 s wall', but the ten per-test durations listed in the table above it (21.92, 14.45, 13.08, 7.70, 6.47, 5.89, 5.79, 5.41, 5.03, 5.03, transcribed verbatim from suite_head.log's --durations=25 block) sum to 90.77 s, i.e. 50.72 %, not 90.57 s / 50.6 %. The same 90.57 s figure is carried into the manifest's landing line and artifacts line ('the ten slowest are 90.57 s (50.6 %)'). The error does not change any conclusion: the ten still account for about half the wall time, the remainder is still the same per-row-commit mechanism, and the control ('reach 80 % or say where the remainder went') is met either way, so the report's account of where the remainder is spent stands. It is a transcription slip in the one number the control is named for, and a later reader who re-adds the table gets a different figure than the text."
+    }
+  ],
+  "follow_ons": [],
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "No repository diff: this is a read-only investigation node. git status in the reviewed worktree is clean, changed_paths is empty, and all its artefacts live under its report directory (report.md, suite_head.log, repro_timing.log, repro_profile.log, repro_sqlite_control.log, experiment_batched.log, batchpatch.py). git diff --name-only eb801719 539a09cb is docs/plans/serving-record-warehouse.html plus the srw-watch-reads-stored-timestamps run-state JSON, both peer/support artefacts, not this node's write.",
+    "done_when": "The node's measure is the report, and every testable clause in it was re-derived here from the commits' own object store. The suite arm reproduces (suite_head.log at 539a09cb: '108 passed in 178.98s (0:02:58)', EXIT=0, no failures). The responsible line is real and unchanged at this revision: telemetry_index.py:1284 wraps the INSERT OR IGNORE INTO sample in 'with self._conn:', and the enclosing ingest's only other commits are the per-source block at :1026 and the final commit at :1050 'with self._conn: self._conn.commit()'. The falsification plugin batchpatch.py is a verbatim copy of _insert with the 'with self._conn:' removed (ti.TelemetryIndex._insert = _insert), and its run reproduces (experiment_batched.log: '22 passed in 9.29s', EXIT=0). The sqlite micro-control reproduces the granularity effect on the same 40 rows (repro_sqlite_control.log: 2.387 s per-row vs 0.053 s batched, 0.005 s at synchronous=OFF). The declared control is met: the ten slowest sum to 90.77 s = 50.7 % (the report says 90.57 s = 50.6 %, finding 1), under 80 %, so the remainder must be explained and it is (98 tail tests, same mechanism). Not verified independently: the 5-22 s per-test variance attribution to fleet fsync latency, which is argued from the mechanism rather than measured against fsync timing.",
+    "goal": "The goal is the attribution of the four watch/telemetry test files' wall time. The report names one mechanism -- one fsync'ed transaction per sample row in TelemetryIndex._insert (telemetry_index.py:1284) under journal_mode=delete / synchronous=FULL -- and accounts for the wall with it: the ten slowest tests are 90.77 s (50.7 %) and each is index-build bound, the cProfile of ingest puts 3.725 s of 3.796 s inside sqlite3.Connection.__exit__ (repro_profile.log), every read call in the tested path is <=4 ms (repro_timing.log), and batching the per-row commit drops the heaviest file from >=80.5 s in-suite to 9.29 s (experiment_batched.log). The deliverable is present and complete at report.md, with the recommended one-file change and its expected effect (suite ~30 s from 179 s).",
+    "manifest": "Read; the reviewed run's manifest status is a recognised value ('complete') and its shape is the correct one for a read-only node -- empty commits/changed_paths, the deliverable named in landing, and a checkpoint note that explains the single check-manifest finding ('no commit is recorded') as the read-only shape rather than a defect. Its baseline_suite and after_suite both point at suite_head.log at 539a09cb with exit_status 0, completed true and empty failure_ids, which is sound here because the base and head trees are code-identical. Its artefacts line and landing line both repeat the 90.57 s slip (finding 1) but reclassify no measurement.",
+    "write_paths": "The node's only write path is its report directory /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-suite-slow-tests (manifest orientation_write_paths). git status of the reviewed worktree is clean, git diff eb801719 539a09cb over imas_ambix and tests is empty, and no plan HTML, shared index or peer path is touched. The 90.57 s slip is in the node's own report, not a source change."
+  },
+  "justifications": {
+    "durability": "The attribution is essentially the stated mechanism, and it does not travel outside the report/recommendation it lives in. The central claim is falsification-tested -- removing the per-row commit in a scratch plugin makes the heaviest file fall from >=80.5 s in-suite to 9.29 s -- which is the right shape for a causal claim rather than merely consistent with one. Docked for: the batched experiment covers only one of the four test files (test_agent_telemetry_watch.py), so the 'suite ~30 s' expectation is an extrapolation that was never run against the whole suite; the batched run is not load-matched (load 5.68 vs 17.04 for the suite), a confound the report states plainly but which leaves the 9.29 s vs 80.5 s pair measuring load as well as the two arms and the claim resting on the load-independent micro-control; and the '5.03-21.92 s per-test variance tracks fleet fsync latency' claim is argued from the mechanism rather than measured against fsync timing.",
+    "evidence": "Every clause was re-derived in this reviewer's own reads from the commits' object store and the node's logs: suite_head.log is a complete arm (108 passed, EXIT=0, no FAILED); the responsible line telemetry_index.py:1284 is present and wraps the row INSERT in 'with self._conn:'; the ingest's other commit points are :1026 (per-source) and :1050 (final) as the report's recommendation cites; the call-site attributions hold (test_agent_telemetry_watch.py:109 _index -> index.ingest(discover(directory)); :192-195 the 40-row _index; test witness); repro_timing.log shows every read <=4 ms; repro_profile.log shows 3.725 s of 3.796 s in Connection.__exit__; repro_sqlite_control.log shows 2.387 s vs 0.053 s vs 0.005 s; experiment_batched.log shows 22 passed in 9.29 s at load 5.68. The base/head code-identity claim is exactly right (git diff eb801719 539a09cb -- imas_ambix tests is empty). Docked for finding 1: the control's headline sum is stated as 90.57 s whereas the ten durations in the table sum to 90.77 s (50.7 %), a transcription slip that does not change any conclusion.",
+    "fit": "The report sits in the plan's \u00a710 support lane -- a cost attribution the \u00a710 gpu-watch work and the written recommendation feed -- and reads as an investigation rather than a changelog: the mechanism is stated at the line that causes it (:1284), the falsification is named as such, and the recommendation is a single-file change with its blast radius bounded (insert SQL, keys and duplicate handling unchanged; only durability granularity moves, optionally bounded). Artefacts are the raw logs, not prose about logs; the report avoids plan/sprint identifiers in its text; ruff is not in play (no source changed). The only blemish is finding 1, a one-number arithmetic slip, which is why fit is docked a point rather than being maximal.",
+    "goal_fidelity": "The delivered report answers the dispatched question -- why the four watch/telemetry test files take minutes -- with a single, correctly-located mechanism and a measured falsification, and it also supplies the actionable recommendation (imas_ambix/agent/telemetry_index.py:1284). The evidence is a real A/B on the driver rather than a hypothesis. What keeps it from the top score is that the headline recommendation ('suite ~30 s from 179 s') is an estimate extrapolated from one file and a lower-load batched run, honestly labelled as an estimate, rather than a measured suite result. Nothing in the goal is left unanswered.",
+    "scope_discipline": "The node is read-only by dispatch and stayed so: git status of the reviewed worktree is clean, changed_paths is empty, every artefact is inside its own report directory, and the plan HTML, shared index and peer paths are untouched; the only diff naming 539a09cb over its base is the plan and a peer run-state file, neither written here. The 90.57 s slip is within the node's own report, not a leaked source edit, so it does not touch scope."
+  },
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-watch-suite-slow-tests",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "review_kind": "review",
+  "review_run_id": "r-20261002T115629703718-review-of-srw-watch-suite-slow-tests",
+  "reviewed_base_sha": "539a09cb0d49365423fc6f46baaeb030b20c05d7",
+  "reviewed_head_sha": "539a09cb0d49365423fc6f46baaeb030b20c05d7",
+  "reviewed_run_id": "r-20261002T112610955737-srw-watch-suite-slow-tests",
+  "reviewer": "review-of-srw-watch-suite-slow-tests",
+  "scores": {
+    "durability": 16,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "section": "s10",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T12:02:00+00:00",
+  "total": 91
+}

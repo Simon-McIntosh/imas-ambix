@@ -1,0 +1,65 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T08:54:46.016Z",
+  "dispatched_at": "2026-10-06T08:50:54Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/description_reader.py:116,152",
+      "id": "reuse_search-1",
+      "reason": "\u00a77 already resolves the behaviour by having `ArtifactMachineSelector` pass the machine from the declared catalogue, so the remedy is a one-line addition to the \u00a74 census, not a design change.",
+      "text": "\u00a74 claims the JT-60SA route has zero machine-name branches and enumerates the three it retires or leaves off-route, but two functions on that route still default `machine: str = \"mast\"` (`read_geometry_table` at :116, `read_acquisition_channels` at :152) and are not named in the \u00a74 census; a machine-name default is the same class of site the census exists to enumerate.",
+      "type": "reuse_search",
+      "would_change": false
+    },
+    {
+      "anchor": "imas_ambix/challenge/convention.py:266",
+      "id": "duplicate_owner-1",
+      "reason": "the two consume different typed records and the plan names each as the owner for its own input, so merging them would widen scope the plan correctly leaves alone.",
+      "text": "two convention-scoring owners exist (`data/cocos_convention.py` scores raw-acquisition `ShotSignObservation` cohorts; `challenge/convention.py` scores equilibrium `ConventionReceipt`) and \u00a76 generalises both (`read_level2_observation` and a new `measure_convention`) without stating whether the equilibrium sign tests belong in the existing `cocos_convention` scorer instead of a second pipeline.",
+      "type": "duplicate_owner",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "03972a8fe389189407c7c6b8fc70919b74ad1b0f6eb306a3aa8a42725ee3008c",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 133,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "coordinator",
+      "reason": "The two scorers consume different typed records (ShotSignObservation cohorts from raw acquisition; EfitLabels equilibria for ConventionReceipt), and the plan names each as the owner for its own input; merging them would widen scope, as the review itself judges.",
+      "when": "2026-10-06T08:55:13.518450+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "coordinator",
+      "reason": "Acted in plan v134: the section 4 census names read_geometry_table and read_acquisition_channels with their machine=\"mast\" default, measured to raise LookupError for JT-60SA shots, and the explicit machine on the JT-60SA route.",
+      "when": "2026-10-06T08:55:57.650709+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T085047519234-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "401e8d43cbb7e77c71af898b6d56867f04119040",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new modules hide substantial behaviour behind one entry point each: `data/selene_deck.py` behind `write_phase_description` (deck grammar, per-phase conversion, receipts), `data/eddb_remote.py` behind the extractor (one ssh process, request dispatch, refusal contract), and `data/eddb.py` behind `fetch_channels` (cache layout, token/overwrite invariants). None spreads its complexity as a family of small wrappers.",
+    "duplicate_owner": "pass \u2014 every mechanism the plan touches names its owner and extends it rather than forking: roots through `data/paths.py`, pins through `gs/artifact_resolution.py`, the store through `data/eddb.py`, sign scoring through `data/cocos_convention.py`, transport through `data/eddb_remote.py`, and the shot set through `spine_bench/shots.py`. \u00a75 explicitly leaves unit conversion with its existing owners (`signal_map.unit_factor`, `tokamap_export._unit_factor`) and adds only an author-time spelling file.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface states in its own text what it retires or why nothing can. \u00a74 retires the `machine == \"mast\"` branch in `read_geometry_table`; \u00a76 retires `mast_angle_to_canonical` and adds no ambix definition for the angle (the one class goes to nova); \u00a75 adds one packaged data file and no public definition or refusal family; \u00a77's two EQDB types retire nothing because no equilibrium-database request existed.",
+    "reuse_search": "pass (one census gap recorded as a finding) \u2014 the plan searched imas-codex and imas-ambix and cites the mechanisms it extends, each verified present in the tree: `data/description_reader.py` `read_geometry_table`/`read_acquisition_channels`, `data/transform_engine.py` `NetCDFTransformEngine.open`, the `StoreEngine` protocol, `data/cocos_convention.py` `score_convention`/`read_level2_observation`, `eval/efit_referee.py` `read_efit_geometry`/`judge_geometry`, `gs/machine_identity.py` `default_registry`, `gs/artifact_resolution.py`, and `spine_bench/shots.py` `BenchShot`/`resolve_shotset_version`.",
+    "thin_wrapper": "pass \u2014 no proposed layer merely forwards to existing machinery without a stated reason. The EQDB request/record types (\u00a77) and the `struct_array_entry` binding slot (\u00a74) each carry a shape the existing contract cannot express (a 2-D psi record is not a channel; rank and position cannot select a struct-array entry), and the plan says so at each site."
+  },
+  "section_digests": {
+    "_document": "11103a67744ccbfabb4b590c94e197c0ac226a28096d44d7985e48b9dc0eb35c",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "c7d27f6bd73cff2bccb603728d2f4dd9f3f6e0fab32c48baeccc99239d584fe1",
+    "s5": "6982251ed4c8a9182fe0265da5219217b9926e5b6c7490ef0149bf2754a8efc3",
+    "s6": "10440bdbac8b2013ab5929cf988707dcfc402e2b5b9d046d482930a9126bcc06",
+    "s7": "2fdd08fcace1ef13efb5b3672debe534f973a41ecf2688c5d713ff3fe312a92d",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T08:55:12.604305+00:00"
+}

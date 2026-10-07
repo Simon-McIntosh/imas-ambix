@@ -1,0 +1,52 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T05:30:08.354Z",
+  "dispatched_at": "2026-10-06T05:24:25Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/cocos.py:63",
+      "id": "thin_wrapper-1",
+      "reason": "the plan must name where the pol_angle_like class lives (ambix owns the factor table, or nova gains it), otherwise the angle-binding node has no implementable target.",
+      "text": "`canonical_factor` is a two-line delegate to `nova.io.cocos.transform_factor`; \u00a76 says to give \"the COCOS transform factors\" a `pol_angle_like` class at that resolver, but the resolver owns no table, so the change is unimplementable where the plan says it. Editing nova's table is closed off by \u00a77's \"nothing JT-60SA-specific is added to nova\", and the plan never states that ambix must stop delegating and own the table itself \u2014 a distinction the first implementing node cannot resolve on its own",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/geometry_adapter.py:188",
+      "id": "duplicate_owner-1",
+      "reason": "the plan should extend the mechanism it declared as the angle selector (`_supply_declared_probe_angles` / the `description` branch of `read_geometry_table`) rather than add a parallel read in the adapter, or state why that slot cannot carry it.",
+      "text": "`_b_probes` hard-sets `angle_deg=float(\"nan\")`, and `read_geometry_table` (description_reader.py:144) already routes angle supply through the catalogue's `probe_angle_source`, filling MAST's under `_supply_declared_probe_angles` and applying nothing for `\"description\"`. \u00a74 introduced that slot and `jt-60sa.json` declares `description`, yet \u00a76's fix (c) reads the emitted angle in the adapter instead of completing the owner's `description` branch, so the slot \u00a74 built governs nothing on the JT-60SA route and two angle-supply mechanisms end up keyed off the same one selector",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "f6fb75fd46c1b160fabb070f5b15f704361f64369a3701224dfef77bb326c973",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 114,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T052419726423-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "522bc4f81d1644b70dc94fee0f1aed455a356d50",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new entry points each hide substantial behaviour behind a small interface (measure_convention hides the Grad\u2013Shafranov integral and sign tests; the SELENE/EQDB loaders return one typed record the existing kernels already read), rather than spreading complexity across parallel wrappers.",
+    "duplicate_owner": "a finding \u2014 the plan puts the probe-angle read in `geometry_adapter._b_probes` while `description_reader._supply_declared_probe_angles` is already the angle-supply owner selected by the catalogue's `probe_angle_source` slot.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface states in its own text what it retires or why nothing can be (measure_convention \"retires nothing, because no generic convention entry exists\"; the EQDB request/record types \"retire nothing, because no equilibrium-database request type exists\"; --machine \"replaces the implicit MAST default ... retires nothing else\"), and \u00a75 adds no public definition or refusal family.",
+    "reuse_search": "pass \u2014 the plan names the existing owner for every mechanism it adds (description_reader.read_geometry_table, data/cocos_convention.score_convention, challenge/convention._integrated_current, eval/efit_referee.judge_geometry, data/eddb.py writers, gs/artifact_resolution pins, spine_bench/shots.resolve_shotset_version) and cites the search behind each; the one omission is carried as the thin_wrapper finding below.",
+    "thin_wrapper": "a finding \u2014 \u00a76 asks `imas_ambix/cocos.py` `canonical_factor` to gain a `pol_angle_like` class where the COCOS factors are resolved, but `canonical_factor` holds no factor table: it forwards to `nova.io.cocos.transform_factor`."
+  },
+  "section_digests": {
+    "_document": "060371ce32b20f0360ee1915d508732a36f1e2589b54c97b2df633bc451a49ed",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "ba3f7886e9f461e019f04f248796ed99e912591d87c5aadffd9029a4882f6ccc",
+    "s5": "6982251ed4c8a9182fe0265da5219217b9926e5b6c7490ef0149bf2754a8efc3",
+    "s6": "3dfb635b55254df61af0f2f70bec94a27d71354c560c4e23a861800344d05d73",
+    "s7": "339783f4d4bfdbfd5e58b74ff17b0e6b856b054fa9b9307c82ef612a0831c668",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T05:48:58.456714+00:00"
+}

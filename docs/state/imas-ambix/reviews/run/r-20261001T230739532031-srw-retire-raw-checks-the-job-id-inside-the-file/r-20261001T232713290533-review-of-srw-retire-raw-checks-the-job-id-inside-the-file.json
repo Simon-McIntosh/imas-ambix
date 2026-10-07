@@ -1,0 +1,69 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite (classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null), so its own arms cannot supply a delta. This review therefore built two scratch trees from the reviewed commit's own object store -- git archive of 509f1236 and of the reviewed head 59a51cb1 into $TMPDIR/arms/base and $TMPDIR/arms/head under this node's node-local scratch; no git worktree created and neither the reviewed object store nor its worktree written -- and ran the reviewed node's declared retention gate in each. Base arm (509f1236, its own tests): review-base-arm.log, 7 passed, EXIT=0. Head arm (59a51cb1): review-head-arm.log, 10 passed, EXIT=0. The head set is a superset of the base set (three tests added, none removed); head failing ids ([]) minus base failing ids ([]) is 0, so added_failure_count is 0 with added_failure_ids []. The two new refusals were also measured against the base tree as a reproduction rather than accepted from the manifest: injecting the head's test file into the base tree reddens both (review-repro.log, 2 failed, 8 passed, EXIT=1).",
+  "after_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_retention.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T232713290533-review-of-srw-retire-raw-checks-the-job-id-inside-the-file/review-head-arm.log",
+    "revision": "59a51cb1f4b7ea75c1be6493e26d45e3190ffcdc"
+  },
+  "baseline_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_retention.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T232713290533-review-of-srw-retire-raw-checks-the-job-id-inside-the-file/review-base-arm.log",
+    "revision": "509f12367effe3c4633d2ecdcf753fbc9dbf0db"
+  },
+  "completed_at": "2026-10-01T23:52:35.461Z",
+  "dispatched_at": "2026-10-01T23:27:27Z",
+  "findings": [
+    {
+      "effect": "The plan evidence page has no anchor for this node; the declared write path is unused.",
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-retire-raw-checks-the-job-id-inside-the-file.html",
+      "line": "-",
+      "severity": "follow-on",
+      "text": "The reviewed run did not produce the evidence fragment its own FENCE-SCOPE names and the CONTRACT-LANDING YOUR RECORD requires ('The fragment goes into your final commit'). Its single commit 59a51cb1 touches only imas_ambix/agent/telemetry_retention.py and tests/test_telemetry_retention.py; the fragment path does not exist on disk and no commit adds it. The run's stream shows the worker deliberated and chose no fragment on the reading that its done-when names no artifact (prompt line 56, 'this node writes no evidence fragment'), but that clause exempts prose and figures *inside* the fragment, not the fragment itself, and every sibling section-8 node reviewed so far commits one (the immediately preceding reviewed run's commit e7fa17da added a 97-line fragment). This is a delivery-anchor gap rather than a code defect: promotion lands the manifest's landing line on the plan section, so the node is promotable, but the plan's evidence page gains no durable anchor for this node. The worker's own stream names it 'the one thing this run did not produce'."
+    }
+  ],
+  "follow_ons": [],
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "Read the reviewed commit 59a51cb1 against base 509f1236: two files, 100 insertions and 8 deletions -- imas_ambix/agent/telemetry_retention.py (+42/-8: the new _first_row helper, the is_raw_receipt body, and the module + function docstrings) and tests/test_telemetry_retention.py (+58/-2: the _row job_id parameter, the job_id threaded through _build_job, and three new tests). The subject is conventional (fix(agent): ...) and the body states what changed and why; no AI trailer and no plan, sprint or ticket identifier appears in the message or the changed source (verified by grep over the 100 added lines). No production call site changes: is_raw_receipt keeps its signature and its two existing callers (raw_receipt_files:292 and _recheck:573) need no edit.",
+    "done_when": "The node's done-when is the EVIDENCE fence: name match AND first parseable row job_id equality, with a file failing either never listed and never deleted, the docstring corrected, and the two named tests present; gate green (retention pytest, the serving-python guard, ruff). Every limb is met and independently re-measured here at the reviewed head: review-head-arm.log 10 passed EXIT=0 (the count the reviewed run's gate.log also records); review-guard-head.log 1 passed, 8 deselected, EXIT=0; review-ruff.log 'All checks passed!' EXIT=0. The two named tests exist verbatim in the diff -- test_a_request_rotation_named_like_a_raw_file_is_not_a_candidate asserts is_raw_receipt False AND absence from the listing, and test_a_raw_name_whose_opening_row_job_id_differs_is_not_a_candidate does the same for a deepseek-v4-1-flash-1278105.jsonl whose row carries 1278999 -- and a positive control (test_a_raw_file_whose_opening_row_carries_its_job_id_is_a_candidate) was added so the refusals carry weight. Both refusals were shown to redden at the pre-fix revision (review-repro.log: 2 failed, 8 passed, EXIT=1).",
+    "goal": "The node's goal -- treat a file as a raw serving receipt only when its first parseable row carries the job id its name claims -- is met exactly. is_raw_receipt (telemetry_retention.py:263) now requires receipts_job_id(path) not None, then reads the first parseable JSON object via the new private _first_row (line 237) and returns str(row.get('job_id')) == job. The false-candidacy mechanism the goal targets is real and was confirmed at the name level: _JOB_ID_IN_NAME is `-(\\d+)\\.jsonl(?:\\.\\d+)?(?:\\.gz)?\\Z` (telemetry_index.py:176), so `requests-2026-10-01.jsonl` matches on its `-01.jsonl` tail with group '01' -- a name-only test admits it. The module docstring's opening list now states the row check as the FIRST qualifying condition and the old false claim ('a request receipt carries no job id at all') is gone from the is_raw_receipt docstring and replaced by an accurate sentence naming exactly why the rotation is refused.",
+    "manifest": "Read; the reviewed manifest records orientation_base_sha 509f1236, status complete, a single commit 59a51cb1, changed_paths the two source/test files, a three-command gate green (10 passed retention / serving-python guard 1 passed / ruff exit 0, each EXIT=0 in gate.log), and a negative-control log (negative-control.log: 2 failed, 8 passed, EXIT=1). The two claims this review rests on -- the green retention arm and the refusals' sensitivity -- were re-derived here rather than read: the head arm was rebuilt from git archive and re-run (10 passed), and the reviewed run's own negative control (replace the row check with `return True`, i.e. filename-only candidacy) was reproduced independently: mutating head's line 284 to `return True` reddens exactly the requests-rotation and job-id-mismatch tests (review-negative-control.log: 2 failed, 8 passed, EXIT=1), matching the reviewed run's log test-for-test, and the module was restored byte-exact. The reviewed manifest's `landing:` line is populated and the manifest declares no phantom paths beyond the unused fragment (see the finding).",
+    "write_paths": "The commit's two paths are exactly the two source/test files the reviewed manifest declares as its working files, and both are inside the node's granted source/test scope; no plan, index or sprint state is touched (the diff has no docs/, no docs/state/, no index.json). The reviewed run's orientation_write_paths also granted a docs/evidence fragment path, which the commit does not use -- see the finding; that is an unused declared path, not a write outside scope, so it does not breach the reviewed node's own fence. The gate and this review's arms ran on the fleet compute node (job 1277272); no srun/sbatch."
+  },
+  "justifications": "Independent review of run r-20261001T230739532031-srw-retire-raw-checks-the-job-id-inside-the-file, base 509f12367effe3c4633d2ecdcf753fbc9dbf0db, head 59a51cb1f4b7ea75c1be6493e26d45e3190ffcdc, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 20, evidence 18, scope_discipline 20, durability 19, fit 20 -- total 97, added_failure_count 0 with added_failure_ids [] derived from this review's own two arms of the reviewed node's declared retention gate (the reviewed run was dispatched unarmed, so its own baseline_suite and after_suite are null): base arm review-base-arm.log (scratch tree $TMPDIR/arms/base, revision 509f1236: 7 passed, EXIT=0) and head arm review-head-arm.log (scratch tree $TMPDIR/arms/head, revision 59a51cb1: 10 passed, EXIT=0); the head set is a superset of the base set (three tests added, none removed). The recorded defect was reproduced rather than accepted: the name-only candidacy it repairs is real -- the reference _JOB_ID_IN_NAME matches requests-2026-10-01.jsonl on its '-01.jsonl' tail -- and injecting the head's tests into the base tree reddens both refusals (review-repro.log: 2 failed, 8 passed, EXIT=1). The run's own negative control was reproduced independently: replacing head's row equality with `return True` reddens exactly the requests-rotation and job-id-mismatch tests (review-negative-control.log: 2 failed, 8 passed, EXIT=1), matching the reviewed run's log, module restored byte-exact. The serving-python guard passes at the head (review-guard-head.log: 1 passed, 8 deselected) and ruff is clean (review-ruff.log: All checks passed!). One gap is recorded: the evidence fragment the node's own FENCE-SCOPE names and the LANDING contract requires was never produced (commit 59a51cb1 adds no fragment; the path does not exist), which is a delivery-anchor gap -- promotion lands the manifest landing line, so the manifest reads promotable, but the plan evidence page gains no anchor for the node; the worker chose this deliberately on the reading that a done-when naming no artifact waives prose, which the sibling section-8 nodes did not read the same way. evidence is docked to 18 for that missing durable anchor; goal_fidelity is full because the code does exactly what the fence states and the false docstring claim was corrected in place; durability is 19 because both refusals are guarded by tests that were each shown to redden -- at the pre-fix revision and under the node's own mutation -- with no untested boundary; fit is full because the change is a local private helper beside its only caller, why-first docstrings in the file's idiom, the docstring corrected in place, and no plan, ticket, version or author identifier in the 100 added lines. scope_discipline is full: the diff is entirely inside the declared source/test scope and mutates no plan, index or sprint state.",
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-retire-raw-checks-the-job-id-inside-the-file",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "review_kind": "review",
+  "review_run_id": "r-20261001T232713290533-review-of-srw-retire-raw-checks-the-job-id-inside-the-file",
+  "reviewed_base_sha": "509f12367effe3c4633d2ecdcf753fbc9dbf0db",
+  "reviewed_commit": "59a51cb1f4b7ea75c1be6493e26d45e3190ffcdc",
+  "reviewed_head_sha": "59a51cb1f4b7ea75c1be6493e26d45e3190ffcdc",
+  "reviewed_run_id": "r-20261001T230739532031-srw-retire-raw-checks-the-job-id-inside-the-file",
+  "reviewer": "review-of-srw-retire-raw-checks-the-job-id-inside-the-file",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "section": "s8",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-01T23:46:34+00:00",
+  "total": 97
+}

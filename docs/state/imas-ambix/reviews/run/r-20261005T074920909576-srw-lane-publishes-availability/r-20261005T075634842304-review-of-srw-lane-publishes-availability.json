@@ -1,0 +1,39 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run declares no arm pair in its own fields: its manifest carries no baseline_suite or after_suite key and classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null. The only suite artifact is the post-change head arm gate.log (reproduced green by this review: 40 passed, PYTEST_EXIT=0, ruff EXIT=0). With no recorded base arm the read-path set difference is empty by construction, so added_failure_count is 0 and added_failure_ids is []. This is a from-single-arm delta, not a measured base/after pair; a base arm is not runnable against the reviewed gate because the new test file tests/test_lane_availability.py does not exist at the base revision, and no scratch arms were built.",
+  "after_suite": null,
+  "baseline_suite": null,
+  "completed_at": "2026-10-05T08:01:30.747Z",
+  "dispatched_at": "2026-10-05T07:56:41Z",
+  "findings": [
+    {
+      "category": "correctness",
+      "file": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/9a153eb3-0957-4cfe-bea0-82a3f0afe0a5/srw-lane-publishes-availability/imas_ambix/agent/lane.py",
+      "line": "_is_finite_number",
+      "severity": "follow-on",
+      "text": "the helper named _is_finite_number does not test finiteness. It returns True for float('inf') and float('nan'), and the docstring reasons only about bool exclusion, so a non-finite headroom or width flows into the arithmetic instead of being rejected. Reproduced at the reviewed head: availability_percent(float('nan'), 16) returns nan (not None) and availability_percent(float('inf'), 16) returns 100.0, so live_panel.lane_block would copy a published availability_percent of nan through or derive nan, and json.dumps writes NaN into the lane document, whereas the function's stated contract is that absent or non-numeric input omits the key. The name and the guard disagree; either test math.isfinite(input) and return None (matching the docstring's withheld-figure rule) or rename to state what is actually checked. Low reachability from a real lane document, but the mismatch is between a stated guarantee and its implementation."
+    }
+  ],
+  "model": "deepseek-v4.1-flash",
+  "negative_control": null,
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T075634842304-review-of-srw-lane-publishes-availability",
+  "reviewed_base_sha": "b6eb4de20631e6e2761cdf0db5de6ef75a461bd4",
+  "reviewed_head_sha": "3dc25f3f034c84604fc96871da0abe4e4875c660",
+  "reviewed_run_id": "r-20261005T074920909576-srw-lane-publishes-availability",
+  "reviewer": "review-of-srw-lane-publishes-availability",
+  "scores": {
+    "durability": 17,
+    "evidence": 17,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T07:59:20+00:00",
+  "total": 91
+}

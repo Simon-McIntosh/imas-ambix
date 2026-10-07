@@ -1,0 +1,47 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/watch.py:_span",
+    "imas_ambix/agent/watch.py:_cached_span",
+    "imas_ambix/agent/watch.py:period_row"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T11:42:49.768935+00:00",
+  "findings": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "read commit by commit against 1ed11332 -- 2d4a115a adds the partition, 464f6506 is docs-only, and d9606298 adds _union_length at imas_ambix/agent/telemetry_index.py:615, routes coverage through it at imas_ambix/agent/telemetry_index.py:1131 and skips a run whose opening and closing are one reading at imas_ambix/agent/telemetry_index.py:1126 -- and introduces no third defect, because a total of None is already carried end to end (ledger_cost declines it at imas_ambix/agent/watch.py:357), _cached_span filters None at imas_ambix/agent/watch.py:392, period_row's covered is a float, and the watcher fixture's restarted serve genuinely holds one reading at tests/test_agent_telemetry_watch.py:322.",
+    "done_when": "the done_when names a two-serve total, a coverage assertion, the serving-interpreter guard and whole-tree lint; tests/test_telemetry_index.py:519 asserts the two-serve sum beside a negative outer difference, tests/test_telemetry_index.py:594 asserts coverage 10.0 over a 100 s window, and my own re-run of the exact gate command at d9606298 is 57 passed, exit 0.",
+    "goal": "the goal is a window partitioned into contiguous counter runs, differenced within each and summed, with the union of the contributing runs' spans reported beside the total; TelemetryIndex.partitioned_total (imas_ambix/agent/telemetry_index.py:1082) returns total, union coverage and contributing run count, watch.period_row reads it at imas_ambix/agent/watch.py:485, and d9606298 closes both earlier findings -- coverage summing instead of unioning, and a lone in-window reading differenced against itself -- without introducing a third.",
+    "manifest": "read, and its load-bearing claim that the repaired revision is 57 passed I re-derived rather than believed -- in a scratch tree extracted from d9606298 the imported module was that tree's own copy with _union_length present, and the gate command reported 57 passed, exit 0.",
+    "write_paths": "the node's seven declared paths; git diff --numstat d9606298^..d9606298 lists five files and git diff --numstat 1ed11332..d9606298 lists the same seven paths plus the figure, so the repair stayed inside the fence."
+  },
+  "justifications": {
+    "durability": "reinstating each defect in a scratch copy reddens exactly its own guard -- summing the spans at imas_ambix/agent/telemetry_index.py:1131 reddens tests/test_telemetry_index.py:652, and dropping the guard at imas_ambix/agent/telemetry_index.py:1126 reddens tests/test_telemetry_index.py:676 and tests/test_agent_telemetry_watch.py:331 -- docked because the touching-span assertion added at tests/test_telemetry_index.py:617 returns 40.0 under a merging, a non-merging and a summing implementation alike and so cannot fail on the regression it appears to guard.",
+    "evidence": "the gate the done_when names passes at the repaired revision (my re-run at d9606298, 57 passed, exit 0), but the recorded log carries 57 passed under a header naming 464f6506, a tree whose suite holds 55 -- so the receipt names a revision the fix is not in and only a re-run identifies what was measured.",
+    "fit": "_union_length at imas_ambix/agent/telemetry_index.py:615 carries a why-first docstring in the module's idiom beside the run helpers, and the naming checks over the added lines return nothing.",
+    "goal_fidelity": "imas_ambix/agent/telemetry_index.py:1131 returns _union_length(spans) where the earlier review found the sum, and imas_ambix/agent/telemetry_index.py:1126 keeps the total None where no run holds two endpoints, which is what the plan's section 3 states.",
+    "scope_discipline": "every path in git diff --numstat 1ed11332..d9606298 is inside the manifest's declared write paths -- the plan hunk sits inside a comment body and touches no meta line, and the evidence archive is the repo's own landing-record idiom -- and the naming checks over the added lines return nothing."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "reviewed_base_sha: 1ed1133250c0eac38787dd968c141aaead54f7e8\nreviewed_head_sha: d96062989062946c05d27ce32c292305d0a10a0e\n\nVERDICT goal: the goal is a window partitioned into contiguous counter runs, differenced within each and summed, with the union of the contributing runs' spans reported beside the total; TelemetryIndex.partitioned_total (imas_ambix/agent/telemetry_index.py:1082) returns total, union coverage and contributing run count, watch.period_row reads it at imas_ambix/agent/watch.py:485, and d9606298 closes both earlier findings -- coverage summing instead of unioning, and a lone in-window reading differenced against itself -- without introducing a third.\nVERDICT done_when: the done_when names a two-serve total, a coverage assertion, the serving-interpreter guard and whole-tree lint; tests/test_telemetry_index.py:519 asserts the two-serve sum beside a negative outer difference, tests/test_telemetry_index.py:594 asserts coverage 10.0 over a 100 s window, and my own re-run of the exact gate command at d9606298 is 57 passed, exit 0.\nVERDICT write_paths: the node's seven declared paths; git diff --numstat d9606298^..d9606298 lists five files and git diff --numstat 1ed11332..d9606298 lists the same seven paths plus the figure, so the repair stayed inside the fence.\nVERDICT manifest: read, and its load-bearing claim that the repaired revision is 57 passed I re-derived rather than believed -- in a scratch tree extracted from d9606298 the imported module was that tree's own copy with _union_length present, and the gate command reported 57 passed, exit 0.\nVERDICT diff: read commit by commit against 1ed11332 -- 2d4a115a adds the partition, 464f6506 is docs-only, and d9606298 adds _union_length at imas_ambix/agent/telemetry_index.py:615, routes coverage through it at imas_ambix/agent/telemetry_index.py:1131 and skips a run whose opening and closing are one reading at imas_ambix/agent/telemetry_index.py:1126 -- and introduces no third defect, because a total of None is already carried end to end (ledger_cost declines it at imas_ambix/agent/watch.py:357), _cached_span filters None at imas_ambix/agent/watch.py:392, period_row's covered is a float, and the watcher fixture's restarted serve genuinely holds one reading at tests/test_agent_telemetry_watch.py:322.\nCALL_SITES: imas_ambix/agent/watch.py:_span, imas_ambix/agent/watch.py:_cached_span, imas_ambix/agent/watch.py:period_row\n\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: imas_ambix/agent/telemetry_index.py:1131 returns _union_length(spans) where the earlier review found the sum, and imas_ambix/agent/telemetry_index.py:1126 keeps the total None where no run holds two endpoints, which is what the plan's section 3 states.\nSCORE evidence: 18\nJUSTIFICATION evidence: the gate the done_when names passes at the repaired revision (my re-run at d9606298, 57 passed, exit 0), but the recorded log carries 57 passed under a header naming 464f6506, a tree whose suite holds 55 -- so the receipt names a revision the fix is not in and only a re-run identifies what was measured.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: every path in git diff --numstat 1ed11332..d9606298 is inside the manifest's declared write paths -- the plan hunk sits inside a comment body and touches no meta line, and the evidence archive is the repo's own landing-record idiom -- and the naming checks over the added lines return nothing.\nSCORE durability: 18\nJUSTIFICATION durability: reinstating each defect in a scratch copy reddens exactly its own guard -- summing the spans at imas_ambix/agent/telemetry_index.py:1131 reddens tests/test_telemetry_index.py:652, and dropping the guard at imas_ambix/agent/telemetry_index.py:1126 reddens tests/test_telemetry_index.py:676 and tests/test_agent_telemetry_watch.py:331 -- docked because the touching-span assertion added at tests/test_telemetry_index.py:617 returns 40.0 under a merging, a non-merging and a summing implementation alike and so cannot fail on the regression it appears to guard.\nSCORE fit: 20\nJUSTIFICATION fit: _union_length at imas_ambix/agent/telemetry_index.py:615 carries a why-first docstring in the module's idiom beside the run helpers, and the naming checks over the added lines return nothing.",
+  "review_run_id": "r-20260923T114249768935-review-of-the-partition-repair",
+  "reviewed_base_sha": "1ed1133250c0eac38787dd968c141aaead54f7e8",
+  "reviewed_head_sha": "d96062989062946c05d27ce32c292305d0a10a0e",
+  "reviewed_run_id": "r-20260923T093113870760-partitioned-totals-and-honest-coverage",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-23T12:22:24.463276+00:00",
+  "total": 96
+}

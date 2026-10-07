@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T02:07:24.552Z",
+  "dispatched_at": "2026-10-07T02:01:53Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/description_reader.py:237",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a71 must enumerate every map/store owner so the move resolves them in one pass instead of leaving an undiagnosed failure for whichever section trips it.",
+      "text": "the census in \u00a71 names only test files, but production and script owners of the JT-60SA map/store survive the \u00a71 done-when (`git ls-files imas_ambix | grep -i jt60sa` catches only map FILES, not readers that resolve the map by name at runtime): `imas_ambix/data/description_reader.py:237` (`load_packaged_machine_map(machine)`), `imas_ambix/data/selene_deck.py:3` (reads the `/work` deck/store), `scripts/figures_jt60sa_geometry.py:40,145` (`CATALOGUE_MACHINE = \"jt-60sa\"`, `load_packaged_machine_map`), `scripts/vacuum_loop_adjudication.py:35,36,1074` (`load_packaged_machine_map` + `JT60SA_ROOT`), `scripts/figures_jt60sa_signals.py` (reads the cached pulses), `tests/scripts/test_vacuum_loop_adjudication.py:58` (`read_geometry_table(100595, machine=\"jt-60sa\")`), and `tests/gs/test_operator.py:29,736` (imports `JT60SA_ROOT`, gates on `JT60SA_ROOT/<shot>.zarr`); the plan's \u00a71 cites only `test_eddb_local_transport.py:37`, `test_transform_engine.py:39`, `test_selene_deck.py:872,908`, `test_eddb_cache.py:721`, `test_pulse_writer.py`, `test_jt60sa_machine_map.py`, `test_jt60sa_signal_maps.py`, `test_jt60sa_unit_audit.py`, so the next section owner discovers the rest one run at a time \u2014 and `test_selene_deck.py:872` in that list is misattributed (the literal is at :908 only)",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "packages/imas-alambic/src/imas_alambic/cli.py:16",
+      "id": "interface_budget-1",
+      "reason": "the section set itself an explicit interface account and must complete it for the options it adds, or state why each cannot be retired.",
+      "text": "\u00a78's \"Interface account\" accounts for `IMAS_ALAMBIC_HOME`/`IMAS_ALAMBIC_IDS_ROOT`/`IMAS_ALAMBIC_CACHE` and the `config` command against what each retires, but the `write` command it defines adds `--run`, `--maps` and `--overwrite` (cli.py:16-30 is the whole current surface: one command plus `--version`) without naming what each retires or merges, and \u00a77's rename retires `mint` without that being counted as the net cli_options change it is",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "b2ebc1e1b291ef97ecda5faf0c48957fd31fcb5cffb69ea1d93e4a9a62b67489",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 37,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "duplicate_owner-1",
+      "reason": "v38-39 s1: the census is now a re-runnable git grep with its 20 hits listed (engine, ambix, scripts, tests); description_reader.py:237 and selene_deck.py are named as runtime readers that resolve through the bundle unchanged; every hit must end in one of three states (paths.py or its self-check, bundle-resolved with a stated skip, or the engine's EDDB reader); test_selene_deck.py:872 dropped, :908 kept.",
+      "when": "2026-10-07T02:09:04.309519+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "interface_budget-1",
+      "reason": "v38 s8: the account now covers write's options: positional pulses replace --shot, --maps/--out/--cache are flag forms of the three path settings, --run is a new coordinate the per-run file needs (retires nothing, default 0), --overwrite retires the silent in-place rewrite; s7's mint to write is a rename, not an addition.",
+      "when": "2026-10-07T02:09:04.312192+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v38-39 s1: the census is now a re-runnable git grep with its 20 hits listed (engine, ambix, scripts, tests); description_reader.py:237 and selene_deck.py are named as runtime readers that resolve through the bundle unchanged; every hit must end in one of three states (paths.py or its self-check, bundle-resolved with a stated skip, or the engine's EDDB reader); test_selene_deck.py:872 dropped, :908 kept.",
+      "when": "2026-10-07T02:09:04.309519+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v38 s8: the account now covers write's options: positional pulses replace --shot, --maps/--out/--cache are flag forms of the three path settings, --run is a new coordinate the per-run file needs (retires nothing, default 0), --overwrite retires the silent in-place rewrite; s7's mint to write is a rename, not an addition.",
+      "when": "2026-10-07T02:09:04.312192+00:00"
+    }
+  },
+  "review_run_id": "r-20261007T020141003380-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "0ecfd1acf298895f6a672ec20fecc41e848b3b32",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a79 hides the layout choice (flat vs multi-machine) inside the existing `MapBundle` accessors and `load_bundle_descriptor` (which already resolves `store_roots` relative to the bundle at `machine_map.py:168-172`), and \u00a78 hides the four-level precedence plus source tracking behind one settings resolver and the `config` view.",
+    "duplicate_owner": "a finding \u2014 \u00a71 claims \"The census of such tests\" but omits owners of the JT-60SA map and `/work` store that its own `IMAS_ALAMBIC_MAP_PATH`-bundle mechanism must cover.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a78's \"Interface account\" names the env vars and commands it retires but not the three new `write` options.",
+    "reuse_search": "pass \u2014 \u00a79 names and extends the existing resolver owner `MapBundle.machine_map_path` / `signal_map_path` and store-root resolution in `packages/imas-alambic/src/imas_alambic/machine_map.py:136,140,244`, and \u00a78 retires the writer's `resolve_description_store_root(\"JT60SA_ROOT\")` at `pulse_mint.py:300` rather than adding a second cache path.",
+    "thin_wrapper": "pass \u2014 the plan adds no forwarding layer: \u00a77 is a pure rename with retirements, \u00a79 changes the resolver bodies in place, and `install/imasdb.sh` (\u00a75) has no existing installer in the repository to extend."
+  },
+  "section_digests": {
+    "_document": "2d17566147222e851c26e944a58262704c9bbcabc81bc90bc619eed262ed76eb",
+    "s1": "8be97967d807db85e3963bfd68458779674b384b51731caaa2e773670c3256b2",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "56812a38380cfae64d6f806e8c53db03be6427472f3ea0a000d60ef09c723453",
+    "s6": "1ccc061c74e3a3eab0fbd07825bc5bf11d8207248d01b1a9aecba35a37e20560",
+    "s7": "8c5f7724383f68ff8363e74b3048d56c7c65de031315418c74383b05513f3556",
+    "s8": "d91aea14b9e673fb8210e3565b34fd2b29ebb9a7107cc0df6dd7f1a814dfa202",
+    "s9": "3c93e7c7c121e0a3f2281f6d4fa6a20261389739c88517861329db65ded9366c"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T02:09:04.305841+00:00"
+}

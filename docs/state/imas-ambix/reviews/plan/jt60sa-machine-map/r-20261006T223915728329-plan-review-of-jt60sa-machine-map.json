@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T22:43:46.518Z",
+  "dispatched_at": "2026-10-06T22:39:24Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/gs/artifact_resolution.py:313",
+      "id": "duplicate_owner-1",
+      "reason": "the section must state where the JT-60SA artifact is authored (and extend that owner) before its gate is scheduled, since the gate is otherwise unrunnable.",
+      "text": "\u00a77 routes each machine's authoring through the new pin table, but `author_pinned_description` hard-imports `nova.imas.mast_geometry.publish_refined_artifact`, a MAST-only author, and no JT-60SA route exists to dispatch to; the plan forbids \"JT-60SA-specific\" additions to nova, so the authoring owner is either new ambix machinery (which would duplicate nova's authoring owner, `nova.imas.machine_artifact`) or a generic nova entry that the plan does not commit to \u2014 the same open question `jt60sa-artifact-authoring` names. \u00a77's done-when (a stamped JT-60SA spine benchmark) cannot close until this owner is named.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/pulse_mint.py:206",
+      "id": "duplicate_owner-2",
+      "reason": "the plan already names the foreign owner and the migration path for the mint, and already requires the two store writers to share one implementation; naming `read_eddb_token` would only tighten wording.",
+      "text": "the plan's own census (correctly) records that `_served_entries` resolves each rule's `source_group`/`source_array` through `read_channel` and computes a shared time base (`_shared_time_base`) beside `VirtualZarrView.raw_series` (`imas_ambix/data/virtual_zarr.py:146`), the accessor \u00a76 moves the observation reader onto; it defers the mint's migration to the foreign-owner plan `jt60sa-pulse-ids` rather than removing the second resolver here. Same shape at `imas_ambix/data/eddb.py:226`, where `write_channel` reads the EDDB token inline via `store.attrs.get(EDDB_TOKEN_ATTR)` beside the existing `read_eddb_token` (`imas_ambix/data/eddb.py:130`) it does not name as the single reader.",
+      "type": "duplicate_owner",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "a8ebd38c68ecacc6451b9bac7bfb2b7cf69428c9cb9981c38018ad85feb780e8",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 253,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "already recorded: section 7 names this owner as the open question jt60sa-artifact-authoring, which must be settled before the stamp node is dispatched; section 7 is gated on section 6's sign report and not being built now",
+      "when": "2026-10-06T22:44:22.153781+00:00"
+    },
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-2",
+      "reason": "both are already assigned: the pulse mint's resolver is the foreign-owner followup f-jtmm-005 for the plan jt60sa-pulse-ids, and write_channel's inline token read is exactly what section 6's EQDB transport node extracts into a shared private helper before adding the grid writer",
+      "when": "2026-10-06T22:44:24.296297+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "already recorded: section 7 names this owner as the open question jt60sa-artifact-authoring, which must be settled before the stamp node is dispatched; section 7 is gated on section 6's sign report and not being built now",
+      "when": "2026-10-06T22:44:22.153781+00:00"
+    },
+    "duplicate_owner-2": {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "both are already assigned: the pulse mint's resolver is the foreign-owner followup f-jtmm-005 for the plan jt60sa-pulse-ids, and write_channel's inline token read is exactly what section 6's EQDB transport node extracts into a shared private helper before adding the grid writer",
+      "when": "2026-10-06T22:44:24.296297+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v253.json",
+  "review_run_id": "r-20261006T223915728329-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "283c8d9db48ebcb1cff5ce514ab3e541bdc7d59b",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the changes extend deep owners behind interfaces smaller than what they hide. The EQDB transport (\u00a76) dispatches one request type through `RemoteEddbExtractor` and hides framing, the ssh process and the per-request refusal contract behind it; `read_signal_map_observation` hides the store read, interpolation and time-base refusal behind one function; the \u00a77 pin table hides four-machine keying behind one lookup. No new family of small wrappers is introduced.",
+    "duplicate_owner": "a finding \u2014 the plan repairs two duplicates correctly (\u00a72's exporter COCOS resolver; the \u00a76 probe-angle census, which names `read_geometry_table`'s `probe_angle_source` branch as the one supplier on the description route), but leaves a census of duplicate owners live and one section that depends on an owner it never names.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface names in its own text what it retires/merges or why nothing can. \u00a72 adds one public resolver and retires the exporter's private copy; \u00a76's EQDB transport adds three public types and states \"retire nothing, because no equilibrium-database request type exists\" (and no exception family is added \u2014 its refusal is a record, not an `EddbRemoteError`); \u00a77 retires the three `PINNED_*` constants and the arm's re-export, and adds the machine table.",
+    "reuse_search": "pass \u2014 every mechanism the plan proposes names an existing owner, and each was opened in the tree and found: the COCOS resolver `imas_ambix/data/transform_engine.py:411` `_target_cocos_transformation`; the sign scorer `imas_ambix/data/cocos_convention.py:346` `score_convention` and the signal-map reader `imas_ambix/data/cocos_convention.py:804` `read_signal_map_observation`; the Grad\u2013Shafranov kernel `imas_ambix/challenge/convention.py:283` `measure_convention` (already landed); the transport `imas_ambix/data/eddb_remote.py:283` `RemoteEddbExtractor` and store `imas_ambix/data/eddb.py:210` `write_channel`; the probe-angle selector branch `imas_ambix/data/description_reader.py:253`; the pin table owner `imas_ambix/gs/artifact_resolution.py:69`; the identity registry `imas_ambix/gs/machine_identity.py:145` `default_registry`; the referee `imas_ambix/eval/efit_referee.py:272` `judge_geometry` and builder `imas_ambix/worldmodel/equilibrium_labels.py:465` `build_geometry_from_arrays`; and the drive-turns fix in `imas_ambix/gs/operator.py` (`ampere_turns_per_ampere`, `COIL_MODEL_VERSION = \"source-stated-drives\"`).",
+    "thin_wrapper": "pass \u2014 the one thin addition is \u00a72 promoting `transform_engine._target_cocos_transformation` to public so `tokamap_export` calls it instead of its own `_cocos_transformation` (`imas_ambix/data/tokamap_export.py:147`). That is an anti-wrapper move: it deletes a fork rather than adding a layer, and the plan justifies it (an importer must not reach into a private symbol and must not fork it either)."
+  },
+  "section_digests": {
+    "_document": "6c9fce456e952b00ce33548944718af59d6fb116c0739501f2daf9af22a5e5e8",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "5253ff07c75d9c1a3bb2cd1ff91a6278d3535fee40f693bc99f54d076b185860",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "c7b02079a83890232e6833c10e32aaf1e788bcbe9495a150c101b07aff4a9cd8",
+    "s7": "84d399622dc63a3260a9ce1676a1d77d73cd85f5fc71db563861871043fbce86",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T22:44:20.236072+00:00"
+}

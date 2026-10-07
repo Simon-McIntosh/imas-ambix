@@ -1,0 +1,60 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run is a read-only investigation, not a code change: its manifest carries commits [] and changed_paths [], and classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null. base == head == 8d2e72bb7ee29c7f65b24643b7b59433c4ef5247 (the release commit it was dispatched from); this review confirmed the reviewed worktree /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/a663ef24-6dba-4bb9-9ea5-3f1597c64253/jtmm-analysis-sensor-search is clean at that sha, so no code changed between the reviewed base and head and there is no gate-arm pair to compare. The reviewed run's only produced log is /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/jtmm-analysis-sensor-search/gate.log, a report-shape check (grep -c of the five required section headers = 5, EXIT=0), not a pytest suite, so it cannot supply a failure delta. added_failure_count is therefore 0 and added_failure_ids [] by construction: an identical base and head tree cannot add a failure. This is a from-identity delta, not a measured suite pair; no scratch arms were built because git archive at two identical revisions would yield byte-identical trees.",
+  "after_suite": null,
+  "baseline_suite": null,
+  "completed_at": "2026-10-05T07:30:48.378Z",
+  "dispatched_at": "2026-10-05T07:25:02Z",
+  "findings": [
+    {
+      "category": "missing-measurement",
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/jtmm-analysis-sensor-search/report.md",
+      "line": "section Sensor geometry",
+      "severity": "follow-on",
+      "text": "goal clause answered by inference, not by a recorded number. The brief's item 2 asks whether any found sensor table matches the fort.96 positions 'to 1e-6 m'. The report states the agreement is exact because geo.in's tables are 'the same source rows' the preprocessor wrote into fort.96, but records no computed maximum difference. This review independently parsed geo.in lines 485-528 and fort.96 RPOST/ZPOST (17) and RPOSLP/ZPOSLP (27) and computed max probe delta 0.000e+00 and max loop delta 0.000e+00, so the claim is substantively correct and stronger than the 1e-6 threshold. The follow-on is to record the numeric delta in the evidence rather than infer it from provenance identity, so a later reader need not re-derive it."
+    },
+    {
+      "category": "evidence-integrity",
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/jtmm-analysis-sensor-search/inventory.json",
+      "line": "generated_utc",
+      "severity": "follow-on",
+      "text": "nominal timestamp. inventory.json records generated_utc 2026-10-05T07:30:00Z, but the file's own mtime is 2026-10-05T07:19Z (local 09:19, host UTC+2). The stamp is eleven minutes later than the file it describes and does not correspond to an observed write. Cosmetic, but it is an evidence timestamp that a reader would take at face value; the durable fix is to emit the file's own generation instant."
+    },
+    {
+      "category": "incomplete-inventory",
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/jtmm-analysis-sensor-search/inventory.json",
+      "line": "files[ last ] /analysis/src/getseldata_v4.2/inpgeo.c",
+      "severity": "follow-on",
+      "text": "one candidate is listed with size, mtime and sha256 all null ('reader confirmed by source inspection; not hashed'). The brief's done-when requires inventory.json to list every candidate file with path, size, mtime and sha256, so inpgeo.c is the one entry that does not meet the shape. Its role (the reader that connects geo.in to fort.96) is stated, so the gap is a missing hash rather than a wrong claim."
+    },
+    {
+      "category": "scope-note",
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/jtmm-analysis-sensor-search/inventory.json",
+      "line": "search_bounds.maxdepth",
+      "severity": "follow-on",
+      "text": "the declared bound is -maxdepth 5 and every search in the stream is bounded to /analysis/src or /analysis/lib under timeout and nice, but one filename search (the '*dat*/*.in/EQSLE*' pass) used -maxdepth 6. Still inside the permitted roots and still bounded, so no scope breach; noted only because the declared bound and the executed bounds should agree in the record."
+    }
+  ],
+  "model": "deepseek-v4.1-flash",
+  "negative_control": null,
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T072455153088-review-of-jtmm-analysis-sensor-search",
+  "reviewed_base_sha": "8d2e72bb7ee29c7f65b24643b7b59433c4ef5247",
+  "reviewed_head_sha": "8d2e72bb7ee29c7f65b24643b7b59433c4ef5247",
+  "reviewed_run_id": "r-20261005T070115655557-jtmm-analysis-sensor-search",
+  "reviewer": "review-of-jtmm-analysis-sensor-search",
+  "scores": {
+    "durability": 18,
+    "evidence": 16,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T07:29:29+00:00",
+  "total": 89
+}

@@ -1,0 +1,70 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "Independent base and head arms of the node's declared nine-file gate were run by this reviewer from scratch trees extracted at the reviewed base and head (git archive into $TMPDIR, PYTHONPATH pinning the tree; module.__file__ on each log's header names the scratch tree, not the shared checkout). Base arm f5808031: 97 passed, EXIT=0. Head arm efb8c135: 104 passed, EXIT=0. The two arms carry the same failure set (empty), so the added failures are 0 with ids []. The head arm reproduces the reviewed run's own gate-repair.log (104 passed) exactly. A first pass of both arms showed one failure, tests/data/test_tokamap_export.py::test_export_passes_validator_for_every_bound_ids_group, with ModuleNotFoundError: No module named 'tokamap' -- a scaffolding failure of the reviewer's own invocation (the test shells out to a bare `python3` via _validator_command, and the reviewer ran the venv interpreter directly without its bin on PATH), identical at base and head and therefore not an added failure; putting the venv bin on PATH cleared it in both arms.",
+  "after_suite": {
+    "command": "PATH=/home/ITER/mcintos/Code/imas-ambix/.venv/bin:$PATH cd /tmp/reckon-crew-scratch/r-20261005T113310929032-review-of-jtmm-description-store-addressing/arms/head && PYTHONPATH=$PWD PYTHONDONTWRITEBYTECODE=1 /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -n 8 --basetemp=$PWD/.pt tests/data/test_transform_engine.py tests/data/test_description_reader.py tests/data/test_machine_map.py tests/data/test_description_identity.py tests/data/test_geometry_transitions.py tests/data/test_tokamap_export.py tests/spine_bench/test_transform_geometry_source.py tests/gs/test_artifact_geometry.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T113310929032-review-of-jtmm-description-store-addressing/review-evidence/head-arm.log",
+    "revision": "efb8c1353cd915ca771718da681145ad54c424b0"
+  },
+  "baseline_suite": {
+    "command": "PATH=/home/ITER/mcintos/Code/imas-ambix/.venv/bin:$PATH cd /tmp/reckon-crew-scratch/r-20261005T113310929032-review-of-jtmm-description-store-addressing/arms/base && PYTHONPATH=$PWD PYTHONDONTWRITEBYTECODE=1 /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -n 8 --basetemp=$PWD/.pt tests/data/test_transform_engine.py tests/data/test_description_reader.py tests/data/test_machine_map.py tests/data/test_description_identity.py tests/data/test_geometry_transitions.py tests/data/test_tokamap_export.py tests/spine_bench/test_transform_geometry_source.py tests/gs/test_artifact_geometry.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T113310929032-review-of-jtmm-description-store-addressing/review-evidence/base-arm.log",
+    "revision": "f5808031d72d334d63da44ce3ede134aa068563b"
+  },
+  "completed_at": "2026-10-05T12:01:38.713Z",
+  "dispatched_at": "2026-10-05T11:33:17Z",
+  "findings": [
+    {
+      "category": "wording",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-description-store-addressing.html",
+      "line": "the sentence introducing the probe-angle declaration",
+      "severity": "follow-on",
+      "text": "The fragment reads 'and the <em>root</em> source of a directed probe angle (acquisition-address or description)'. The word 'root' appears to be a leftover from the store-root clause and reads as a copy artifact; the intended phrase is 'the source of a directed probe angle'. The catalogue slot (probe_angle_source) and its values are correct and the behaviour is unaffected; this is cosmetic in an evidence fragment."
+    }
+  ],
+  "follow_ons": [
+    "The JT-60SA catalogue jt-60sa.json is the next node: its static description store lives at JT60SA_ROOT/machine_description/{phase}, so it needs a paths.py name (e.g. MACHINE_DESCRIPTION_DIR) resolving to JT60SA_ROOT/machine_description -- outside this node's write scope (declared by the run).",
+    "The netcdf static store's read path assumes one file per IDS keyed by the binding's IDS name; a description whose IDSs share a filename with unrelated content would need a per-map naming rule (declared by the run; not needed for JT-60SA's five IDSs).",
+    "A read against the netcdf static layout re-opens the same {ids}.nc once per binding of that IDS (no per-file cache); a performance note only, not a correctness defect, and the plan's measure does not call for one.",
+    "The fragment's 'root source of a directed probe angle' wording (finding 1)."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "artifacts": "gate.log (101 passed at 1489638d, EXIT=0); gate-repair.log (104 passed at f1e753dc, EXIT=0); negative-control.log (1 failed, EXIT=1); this review's review-evidence/{base-arm.log,head-arm.log,negative-control-repro.log}.",
+    "diff": "Read efb8c135 against base f5808031: 10 files, +577/-25, every path inside the declared write set -- imas_ambix/data/{machine_map.py,transform_engine.py,description_reader.py}, imas_ambix/data/machine_maps/{schema.yaml,mast.json,diii-d.json}, tests/data/test_{machine_map,transform_engine,description_reader}.py, and docs/evidence/fragments/jt60sa-machine-map/jtmm-description-store-addressing.html. mast.json is 4 added / 0 deleted (pure line insertion, as claimed); diii-d.json sets the three store slots null. The reviewed worktree is clean at efb8c135 (git status --porcelain empty).",
+    "done_when": "The node's measure is the store-addressing change with its gate green. Read through: gate 104 passed EXIT=0 at f1e753dc (gate-repair.log) and 101 passed EXIT=0 at 1489638d (gate.log); this review independently re-ran the declared nine-file gate at base f5808031 (97 passed, EXIT=0) and head efb8c135 (104 passed, EXIT=0) and reproduced the run's declared negative control.",
+    "goal": "The node delivers plan section 4's store-addressing seam. Each packaged catalogue now declares description_store_format (netcdf|zarr), description_store_root (a symbolic name resolved through imas_ambix.data.paths), description_store_layout (per-shot|static-over-map) and probe_angle_source (acquisition-address|description), and load_machine_map refuses any omitted, misspelt or partially-declared store. StoreEngine.open (and both engines) accept the selected machine_map and declared layout so a static store resolves {root}/{map name}/{ids}.nc for every shot in the map's range while a per-shot store keeps {root}/{int(shot)}/{binding}.nc. read_geometry_table resolves format, root and the angle rule from the loaded catalogue with the machine-name branch retired. Independently confirmed by direct probes on the head tree: a partial store (format+root present, layout null) is refused ('declared wholly or not at all'); an unknown format is refused; an unresolvable root name is refused; a read against the source-only DIII-D catalogue raises DescriptionReadError naming the machine ('diii-d'); MAST declares zarr/LEVEL2_DIR/per-shot/acquisition-address and description_store_root_path() resolves LEVEL2_DIR to a PosixPath.",
+    "manifest": "Read; it declares status complete, base f5808031, commits 1489638d 9baaec7a f1e753dc efb8c135, the changed paths above, tests 104 passed EXIT=0 plus whole-tree ruff exit 0, both gate logs, and the declared negative control with its note. All commits carry conventional subjects and two-part bodies and are free of AI attribution; the added code introduces no plan/sprint/ticket identifiers.",
+    "write_paths": "Every committed path in the 1489638d..efb8c135 range is inside the node's declared write paths; docs/figures/jt60sa-machine-map/jtmm-description-store-addressing (also declared) is correctly empty because the measure names no figure. Nothing outside the write set was touched."
+  },
+  "justifications": "Independent review of run r-20261005T104555347277-jtmm-description-store-addressing, base f5808031, head efb8c135, plan imas-ambix:jt60sa-machine-map section 4, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 18, evidence 18, scope_discipline 19, durability 18, fit 19 -- total 92, added_failure_count 0 with added_failure_ids []. Verification was by independent routes, not a re-read of the run's summary. (1) Gate delta: extracted the reviewed base and head trees with git archive into $TMPDIR scratch trees and ran the node's declared nine-file gate in each; base 97 passed EXIT=0, head 104 passed EXIT=0, head reproducing the run's own gate-repair.log -- so no added failures. (2) Guard: reproduced the declared negative control by mutating NetCDFTransformEngine.open to ignore the declared layout (replacing the static-over-map test with an always-false condition); tests/data/test_transform_engine.py::test_netcdf_static_store_reads_one_directory_for_every_shot_in_the_map turns red (source-unavailable != emitted, 1 failed EXIT=1), the same refusal the run declared. (3) Behaviour: direct probes on the head tree confirm the all-or-none store declaration refusal, the unknown-format refusal, the unresolvable-root refusal, the source-only DIII-D read refusal naming the machine, and MAST's unchanged zarr/LEVEL2_DIR/per-shot/acquisition-address declaration. (4) Hygiene: efb8c135 carries zero machine-name branches in the three changed modules (the plan's 'zero machine-name branches' for read_geometry_table holds); mast.json is a pure 4/0 insertion; the added lines carry no banned plan/sprint/ticket labels; the four commits have bodies and no AI attribution; the reviewed worktree is clean. The single recorded follow-on is a cosmetic wording artifact in the evidence fragment ('the root source of a directed probe angle'); no artifact value is affected.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T113310929032-review-of-jtmm-description-store-addressing",
+  "reviewed_base_sha": "f5808031d72d334d63da44ce3ede134aa068563b",
+  "reviewed_head_sha": "efb8c1353cd915ca771718da681145ad54c424b0",
+  "reviewed_run_id": "r-20261005T104555347277-jtmm-description-store-addressing",
+  "reviewer": "review-of-jtmm-description-store-addressing",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T12:00:00+00:00",
+  "total": 92
+}

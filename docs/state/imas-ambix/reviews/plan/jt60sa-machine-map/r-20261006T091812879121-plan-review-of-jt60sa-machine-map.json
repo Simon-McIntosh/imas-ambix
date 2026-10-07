@@ -1,0 +1,52 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T09:38:05.741Z",
+  "dispatched_at": "2026-10-06T09:18:22Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/description_reader.py:53",
+      "id": "duplicate_owner-1",
+      "reason": "",
+      "text": "\u2014 probe-angle supply is spread across four owners: _supply_declared_probe_angles here (acquisition-address branch, MAST), imas_ambix/data/geometry_adapter.py:165 _b_probes writes angle_deg=NaN unconditionally, imas_ambix/gs/geometry.py:842 load_tables reads angles via load_packaged_signal_map(\"mast\",\"magnetics\"), imas_ambix/spine_bench/transform_*_source.py:266 _supply_probe_orientations joins them again, and imas_ambix/gs/artifact_geometry.py:582-601 drops any probe whose poloidal_angle is absent \u2014 \u00a76 then adds a fifth (the \"description\" branch in read_geometry_table that reads the emitted poloidal_angle). The catalogue already carries probe_angle_source (\"acquisition-address\" for MAST, \"description\" for DIII-D and JT-60SA, imas_ambix/data/machine_maps/*.json:10) as the one selector, but only the description_reader branch consults it, so the mechanism has no single owner of \"where a probe's directed angle comes from\". Would change the plan: yes \u2014 a plan-changing response is to route every site through the declared probe_angle_source (or say in the plan why the off-route sites must stay separate), since \u00a76 otherwise grows the surface without retiring one. WOULD_CHANGE_THE_PLAN: yes \u2014 REASON: consolidating behind the selector already introduced by \u00a74 removes a fifth implementation instead of adding one.",
+      "type": "duplicate_owner",
+      "would_change": null
+    },
+    {
+      "anchor": "imas_ambix/data/cocos_convention.py:430",
+      "id": "duplicate_owner-2",
+      "reason": "",
+      "text": "\u2014 MAST_TO_COCOS_17_FACTORS hand-maintains a transformation-class factor table (already carrying \"pol_angle_like\": -1.0 at :438) that duplicates the table nova owns (nova/nova/io/cocos.py:87 TRANSFORMATIONS, reached through imas_ambix/cocos.py:63 canonical_factor), while \u00a76 proposes to add pol_angle_like to nova and says ambix \"adds none\" without naming this second table. WOULD_CHANGE_THE_PLAN: no \u2014 REASON: the ambix table is consumed only by tests as an agreement check on nova's factors (tests/data/test_cocos_convention.py:179-200), so it is a guard rather than a runtime second owner, and naming it would not force a design change.",
+      "type": "duplicate_owner",
+      "would_change": null
+    }
+  ],
+  "plan_fingerprint": "8be36a2b80ed8a45b01fa1a77cae366c88da848cbaff42295f9f2ada7c8e8235",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 135,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T091812879121-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "305aec39ce15ee108d20065ed8896dd45b62e28c",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a73/\u00a77 funnel EQDB through RemoteEddbExtractor and the eddb.py store so transport, niced/module-load, and the pulse-group token and overwrite invariants have one implementation, and \u00a77's SELENE chain is one fetch, one reader, two adapters rather than a second reader.",
+    "duplicate_owner": "a finding \u2014 probe-angle supply is reimplemented at four pre-existing sites with no single owner, and \u00a76 adds a fifth inline branch rather than routing supply through the probe_angle_source selector the catalogue already carries; census in the FINDING line.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every adding section names the name it retires or states why nothing can be (\u00a73 \"retire nothing, because ambix had no remote reader\"; \u00a74 \"the two store-addressing keys retire nothing\"; \u00a76 retires mast_angle_to_canonical, adds measure_convention; \u00a77 retires the three PINNED_* definitions for one table).",
+    "reuse_search": "pass \u2014 the plan names and extends the owners it would otherwise fork (imas_ambix/data/signal_map.py load_packaged_signal_map, imas_ambix/data/cocos_convention.py score_convention, imas_ambix/eval/efit_referee.py judge_geometry, imas_ambix/gs/artifact_resolution.py, imas_ambix/gs/machine_identity.py, imas_ambix/data/eddb_remote.py + eddb.py, imas_ambix/data/paths.py, imas_ambix/data/description_identity.py), and for each new mechanism states why the existing owner cannot carry it.",
+    "thin_wrapper": "pass \u2014 the tokamap exporter (\u00a72), the EQDB request/record types and grid writer (\u00a77) each state why the existing mechanism cannot be extended, against what they retire or why nothing can be."
+  },
+  "section_digests": {
+    "_document": "11103a67744ccbfabb4b590c94e197c0ac226a28096d44d7985e48b9dc0eb35c",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "24d858bcde5036a0d08d7d2de20dd1d41f295241d8331041179f7d8e10cd6a4e",
+    "s5": "6982251ed4c8a9182fe0265da5219217b9926e5b6c7490ef0149bf2754a8efc3",
+    "s6": "10440bdbac8b2013ab5929cf988707dcfc402e2b5b9d046d482930a9126bcc06",
+    "s7": "5374fdb25bfc20ef2b45cc8ad37a329c2bc0d1effaaf1dcecace02cdfc15c08f",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T10:04:39.757474+00:00"
+}

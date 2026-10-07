@@ -1,0 +1,85 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "Read directly from the reviewed run's own baseline_suite and after_suite logs (/logs/collect-before.log at ae6a2b4e, /logs/collect-after.log at 7e576c53): both are 'pytest --collect-only -q' arms, both reach their summary line at 3953 tests collected with an empty FAILED/ERROR set, so the head set adds nothing to the base set and added_failure_count is 0 with no ids. Two caveats, both recorded as findings: the reviewed manifest writes baseline_suite/after_suite as prose ('3953 tests collected, 0 errors (...)') rather than the armed JSON its own dispatch requires (log_path, completed, failure_count...), so reckon.crew.review.annotate_review_of_run cannot resolve a log path from the manifest and reads the count as UNMEASURED (None), not 0; and the after arm's log carries no EXIT sentinel. The reviewed run's real gate is the focused two-file test, independently re-run at the reviewed head (5 passed, exit 0), plus whole-tree ruff (All checks passed).",
+  "after_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest --collect-only -q -p no:cacheprovider",
+    "completed": true,
+    "exit_status": null,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T090944644784-ped-declare-relock/logs/collect-after.log",
+    "revision": "7e576c53685c0464167e531af6b118ff347a546b"
+  },
+  "baseline_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest --collect-only -q -p no:cacheprovider",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T090944644784-ped-declare-relock/logs/collect-before.log",
+    "revision": "ae6a2b4e92a8aa0a7be489d53fce9206698141d9"
+  },
+  "completed_at": "2026-10-05T10:06:42.279Z",
+  "dispatched_at": "2026-10-05T09:48:35Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T090944644784-ped-declare-relock/manifest.md",
+      "line": "baseline_suite / after_suite",
+      "severity": "follow-on",
+      "text": "The reviewed manifest writes both suite fields as prose ('3953 tests collected, 0 errors (logs/collect-before.log, EXIT=0)') but its own dispatch requires armed-only JSON carrying revision, command, exit_status and log_path. reckon.crew.review._gate_log_path reads the field value as a bare path and so receives the whole sentence; _read_gate_log then fails and annotate_review_of_run records added_failure_count as None (unmeasured) with the note 'the reviewed manifest names no base gate log'. The gate logs exist and are readable, but the manifest cannot lead a reader to them. Write log_path as JSON (or as a bare path on the field line) so the added-failure derivation runs: read directly, both arms agree at 3953 collected and the derivation is 0."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T090944644784-ped-declare-relock/logs/collect-after.log",
+      "line": "last line",
+      "severity": "follow-on",
+      "text": "The after arm's log has no EXIT sentinel and opens directly on test ids, lacking the revision/tree/command header collect-before.log carries, yet the manifest's after_suite prose reads '(logs/collect-after.log, EXIT=0)'. The claim is plausible (the log reaches its pytest summary, '3953 tests collected in 107.25s') but the named receipt does not carry the exit code: wc -l is 3967, grep -n 'EXIT=' returns nothing, while collect-before.log line 3972 holds EXIT=0. Re-run the after collect with the same header and trailing 'EXIT=$?' as the before arm."
+    },
+    {
+      "file": "pyproject.toml",
+      "line": "242 ([tool.pytest.ini_options] timeout = 300)",
+      "severity": "follow-on",
+      "text": "A global 300 s default per-test timeout is added, but no test's duration was measured and the full suite was never run (only collect-only before and after). Section 3 says the timeout is 'raised only for a test whose measured duration needs more', which presumes durations were observed; a test exceeding 300 s will now fail where it previously ran, and that risk is unmeasured. The focused gate took about 50 s for five tests. Record the durations of the slowest tests, or state that the arm that would show one is deferred to the merged-head test node."
+    },
+    {
+      "file": "tests/test_declared_dependencies.py",
+      "line": "100-101",
+      "severity": "follow-on",
+      "text": "The committed guard hardcodes NODE_ID = 'ped-declare-relock' and its fragment filename, retargeted from the section-2 renderer's 'ped-census'. The guard's rendered artifact is therefore bound to one node's identity rather than to the plan, and test_fragment_matches_census now regenerates only ped-declare-relock.html; the section-2 fragment is no longer reproduced by any committed test (the node documents this in follow_ons). A plan-scoped fragment name, or a name passed in, would let one guard stand for both."
+    },
+    {
+      "file": "pyproject.toml",
+      "line": "video extra (torchvision==0.26.*)",
+      "severity": "follow-on",
+      "text": "One version bound is added, torchvision==0.26.*, which the dispatched evidence text forbids ('no version bound is added'). It is nonetheless permitted by section 3 ('a version bound is added only for an incompatibility that has been observed and is named in the commit'), and commit 7e576c53 names the observed incompatibility (an unpinned torchvision resolved 0.29, pulling torch 2.14.1 and rewriting the default CUDA stack). Recorded as a justified, plan-compliant deviation from the dispatch's literal wording rather than a defect."
+    }
+  ],
+  "model": "deepseek-v4.1-flash",
+  "negative_control": {
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T090944644784-ped-declare-relock/negative-control/scipy-undeclared.log",
+    "mutation": "scipy removed from [project.dependencies] in a temp copy of pyproject.toml read by the census via AMBX_PYPROJECT",
+    "reproduced": true,
+    "reproduction": "Independent re-run of the census assertion at the reviewed head in a scratch tree under $TMPDIR: with scipy's line removed from a temp pyproject, test_every_directly_imported_distribution_is_declared fails, naming exactly 'default scipy (imported by imas_ambix/challenge/convention.py) is declared as none, not in [project.dependencies] or the dev dependency group', EXIT=1, matching the reviewed run's log. Against the unmutated declaration the same test passes."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20261005T090944644784-ped-declare-relock at head 7e576c53 against base ae6a2b4e (plan imas-ambix:project-environment-declared section 3). Read the two commits 3c506b86 and 7e576c53 and the manifest; nothing here ran a GPU job or touched another run's worktree, and every measurement below is a run in this reviewer's own scratch tree extracted under $TMPDIR from the reviewed head, with the results written to this run's review-logs/.\n\nGOAL: SATISFIED. All of section 3 is present and verified. Default distributions the census classes default now sit in [project.dependencies] (chronos-forecasting, contourpy, h5netcdf, matplotlib, mpmath, pillow, pyarrow, pyyaml, scikit-learn, scipy, sympy added; wandb and hydra-core moved out); the dev extra is removed and replaced by a [dependency-groups] dev holding the session tooling plus the tests-only aiohttp; the optional stacks keep their members with uvicorn moved into agent and hydra-core/wandb/accelerate into train; a new video extra names the five lazily imported members (opencv-python-headless for cv2, torchvision, imageio, imageio-ffmpeg, lpips); the census's optional roots gain imas_ambix/data (FAIR-MAST acquisition); both tests resolve an editable checkout through one shared helper tests/distribution_sources.py that applies unquote; [tool.pytest.ini_options] gains timeout = 300; no new [tool.uv.sources] entry is added. The relock claim is independently recomputed: extracting name/version pairs from the base and head uv.lock gives base 224 packages, head 233, changed 0, removed 0, added 9 (execnet, imageio, imageio-ffmpeg, lpips, opencv-python-headless, pytest-timeout, pytest-xdist, torchvision, uvicorn) - identical to the node's version-diff.log.\n\nDONE-WHEN: met and reproduced. uv lock --check at the reviewed head, run by this reviewer in a scratch project with sibling symlinks to ../nova and ../imas-ink, resolves 236 packages and exits 0 (matches uv-lock-check2.log). The focused gate 'pytest tests/test_declared_dependencies.py tests/physics/test_dependency_contract.py' in the scratch tree is 5 passed in 49.18s, EXIT=0, matching the node's 5 passed. The census assertion passes against the unmutated declaration (its xfail is gone), and both collect-only arms reach 3953 tests collected with no errors. The dev extra no longer exists.\n\nEVIDENCE: the negative control is independently reproduced: removing scipy from a temp pyproject read via AMBX_PYPROJECT makes test_every_directly_imported_distribution_is_declared fail, naming scipy as undeclared default, EXIT=1, exactly as the node's log records. Two evidence defects are docked. First, the manifest's baseline_suite/after_suite are prose, not the armed JSON the reviewed dispatch requires, so the live annotator (reckon.crew.review.annotate_review_of_run) cannot find the gate logs and records added_failure_count None (unmeasured); read directly the two arms agree and the derivation is 0. Second, the after arm's collect log has no EXIT sentinel or revision header while the manifest cites it for '(..., EXIT=0)'.\n\nSCOPE: git diff --stat ae6a2b4e..7e576c53 touches exactly the declared paths - pyproject.toml, uv.lock, tests/test_declared_dependencies.py, tests/physics/test_dependency_contract.py, tests/distribution_sources.py and the new evidence fragment - 700 insertions across six files, no path outside the node's grants and no figure (the done-when names no artifact). No plan edit; commits are local only; worktree clean at head.\n\nFIT: clean. The naming scans over the changed source files return no plan/section reference, no ticket id, no version suffix, changelog prose or author attribution - the plan references a prior review flagged in this same file are gone. Both commits carry conventional subjects and a body, no AI trailer and no plan reference. ruff check over the three changed Python files is 'All checks passed!'. Remaining fit concern is the node-id coupling of the guard's fragment name.\n\nREUSE: positive. The change removes a duplication the prior census left standing: the census and tests/physics/test_dependency_contract.py both resolved an editable install's checkout from direct_url.json, and the census's copy omitted the unquote the other applied; the node moved both onto one shared helper tests/distribution_sources.py. No new mechanism duplicates an existing one.",
+  "review_run_id": "r-20261005T094828237862-review-of-ped-declare-relock",
+  "reviewed_base_sha": "ae6a2b4e92a8aa0a7be489d53fce9206698141d9",
+  "reviewed_head_sha": "7e576c53685c0464167e531af6b118ff347a546b",
+  "reviewed_run_id": "r-20261005T090944644784-ped-declare-relock",
+  "reviewer": "review-of-ped-declare-relock",
+  "scores": {
+    "durability": 18,
+    "evidence": 16,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T09:59:06+00:00",
+  "total": 111
+}

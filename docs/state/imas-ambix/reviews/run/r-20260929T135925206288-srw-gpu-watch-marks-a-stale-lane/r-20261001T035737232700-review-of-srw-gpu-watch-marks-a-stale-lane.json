@@ -1,0 +1,92 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's own two arms, because the reviewed manifest arms no baseline_suite/after_suite and its change commits no Python: base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T035737232700-review-of-srw-gpu-watch-marks-a-stale-lane/rev-marks-base-arm.log (revision 44938906 in a scratch tree extracted with git archive, 36 passed, EXIT=0) and head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T035737232700-review-of-srw-gpu-watch-marks-a-stale-lane/rev-marks-head-arm.log (revision 19941962 in a scratch tree extracted with git archive, 36 passed, EXIT=0), both running tests/test_live_panel.py tests/test_agent_watch_live.py tests/test_agent_watch_help.py tests/test_agent_watch_cost.py, so the head ids minus the base ids is 0. The count is a checked base control rather than a test of the change: the reviewed diff's only repository path is an HTML fragment, so the two revisions' suites differ only by that fragment. The node's own declared gate is the fixture render of the report-dir copy rather than a pytest suite; this review re-ran it separately and is logged under test_logs.",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_live_panel.py tests/test_agent_watch_live.py tests/test_agent_watch_help.py tests/test_agent_watch_cost.py at the reviewed head in a scratch tree extracted with git archive (no worktree, no branch)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T035737232700-review-of-srw-gpu-watch-marks-a-stale-lane/rev-marks-head-arm.log",
+    "revision": "199419626ed241b2c5b81db74b58e4f6b68adb00"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_live_panel.py tests/test_agent_watch_live.py tests/test_agent_watch_help.py tests/test_agent_watch_cost.py in a scratch tree extracted from the reviewed base revision with git archive (no worktree, no branch)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T035737232700-review-of-srw-gpu-watch-marks-a-stale-lane/rev-marks-base-arm.log",
+    "revision": "449389066494359a8f5353a4e6d83c25c4a82221"
+  },
+  "call_site_count": 2,
+  "call_sites": [
+    "/home/ITER/mcintos/Code/dotfiles/bin/gpu-watch:1 the operator entry point the copy is meant to replace -- unchanged at 54dc23b with nothing the operator runs carrying the mark",
+    "the copy's serve_table at :1264 which calls _lane_age_stale at :1142 and _stale_mark at :1215 and :1229"
+  ],
+  "completed_at": "2026-10-01T04:24:06.412Z",
+  "dispatched_at": "2026-10-01T03:57:48Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-gpu-watch-marks-a-stale-lane/gpu-watch",
+      "line": "1030",
+      "severity": "follow-on",
+      "text": "follow-on: the stale mark is pinned by no test -- the node changed no test file and its copy is imported by nothing in the suite, so a regression in _lane_age_stale reddens nothing; the fixture captures are the only evidence and they are a reproduction rather than a guard."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-gpu-watch-marks-a-stale-lane/fixture_cli.py",
+      "line": "22",
+      "severity": "follow-on",
+      "text": "follow-on: the stale fixture sets stale true and age_seconds 412 above the 45 s shelf life together, so the gate's two declared triggers are never exercised apart and an implementation reading only stale, or only the age comparison, would pass both captures."
+    },
+    {
+      "file": "/home/ITER/mcintos/Code/dotfiles/bin/gpu-watch",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the diff is not landed in the dotfiles repository, so the operator's gpu-watch still draws a stale lane as current, which the plan's section 11 requires be reported as stale with its age and never as current."
+    }
+  ],
+  "follow_ons": [
+    "The diff is unlanded: ~/Code/dotfiles/bin/gpu-watch is unchanged at 54dc23b, so the operator's command still draws a stale lane as current while the delivered gpu-watch.diff applies to that original (patch exit 0) and reproduces the report-dir copy byte for byte -- one patch lands it. Section 11's node table calls this node 'written in the dotfiles repository' while the node contract delivered a report-dir copy that no consumer reads.",
+    "No test pins the stale mark. The change is a report-dir copy plus one HTML fragment; nothing in the imas-ambix suite imports the copy, so a regression in _lane_age_stale reddens nothing. The deployable guard is the landed dotfiles script driven against a stale lane fixture, which belongs to whichever node lands the diff.",
+    "The fixture never exercises the gate's two triggers apart: the stale document sets stale true and age_seconds 412 against a 45 s shelf life at once, so an implementation reading only one of the two would pass both captures. A second fixture (stale true with age inside the shelf life, and the converse) would pin each trigger independently."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 2 production call site(s)",
+    "diff": "read; one helper _lane_age_stale and one _stale_mark are added, the prefill band drops its med prompt column, and the lane mark is appended to the router and slots bands; applied to the dotfiles original 54dc23b it reproduces the delivered copy, and its single committed path is the four-line fragment.",
+    "done_when": "the declared gate copies gpu-watch into the report directory and edits only the copy and saves fresh.txt, stale.txt and gpu-watch.diff with a fragment ending in a newline; re-read and re-run, the gpu-watch.diff applied to the dotfiles original reproduces the copy byte for byte (patch exit 0), the fragment ends with a newline (od shows </section>\\n), and the diff is 53 added and 16 deleted lines as the manifest states.",
+    "goal": "the goal is to make gpu-watch report a stale lane document as stale, naming its age; the delivered copy reads the lane document's own age through _lane_age_stale at the copy's line 1030 (returning the age when the lane publishes stale true or an age_seconds above suggested_shelf_life_seconds) and appends _stale_mark to the router and slots rows at lines 1215 and 1229, and rendering the stale fixture independently reproduced \"stale 412s\" on both rows against the fresh fixture's none.",
+    "manifest": "read whole; commit 19941962, one changed path, the three capture commands each with EXIT=0, the bare negative_control_log path and the 53/16 diff line count all match the artifacts on disk, and the three captures reproduce byte for byte.",
+    "write_paths": "the declared paths are the run report directory, the fragment docs/evidence/fragments/serving-record-warehouse/srw-gpu-watch-marks-a-stale-lane.html and a figures directory; git diff --name-status over the base and head lists exactly that fragment (A, +4), the copy and captures live in the report directory, the figures directory named for this node does not exist, and ~/Code/dotfiles/bin/gpu-watch is unchanged at 54dc23b."
+  },
+  "justifications": {
+    "durability": "no test fails if the copy's _lane_age_stale (:1030) regresses -- the node's one committed path is the fragment and the behaviour lives only in the copy under the report directory whose diff applies to dotfiles 54dc23b but is unlanded -- so nothing reddens on a regression and nothing the operator runs carries the mark.",
+    "evidence": "the declared captures reproduce byte-for-byte and the declared control reproduced -- mutating the copy to read lane_age_seconds and lane_stale at the copy's :1030 leaves the stale fixture unmarked (0 marks, byte-identical to stale-control.txt) -- but the pre-diff original at 54dc23b rendered through the same harness shows the med prompt column and no stale mark, and the stale fixture sets stale true and age above shelf together so the two triggers are never exercised apart.",
+    "fit": "the helpers at the copy's :1030 and :1051 follow the file's band and isinstance and dash idiom and name their own mechanism, the fragment carries no plan label or version token, and the commit body states the mechanism rather than a task.",
+    "goal_fidelity": "the copy's _lane_age_stale (:1030) yields the age when the lane publishes stale true or an age_seconds above suggested_shelf_life_seconds and :1215 and :1229 mark the router and slots rows, and the stale fixture reproduced \"stale 412s\" on both rows against the fresh one's none.",
+    "scope_discipline": "git diff --name-status 44938906..19941962 lists exactly the one declared fragment (A, +4), the copy and captures sit inside the declared report directory, and ~/Code/dotfiles/bin/gpu-watch is verifiably untouched at 54dc23b."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260929T135925206288-srw-gpu-watch-marks-a-stale-lane at head 199419626ed241b2c5b81db74b58e4f6b68adb00 over base 449389066494359a8f5353a4e6d83c25c4a82221, the section-11 node that makes the gpu-watch serve panel report a stale lane document as stale with its age and drops the dead med prompt column. Verified rather than accepted: the delivered copy, applied to the dotfiles original 54dc23b, reproduces byte for byte; the two-arm repository comparison is 36 passed at each revision with no added failure; and the three captures reproduce exactly.\n\nVERDICT goal: the goal is to make gpu-watch report a stale lane document as stale, naming its age; the delivered copy reads the lane document's own age through _lane_age_stale at the copy's line 1030 (returning the age when the lane publishes stale true or an age_seconds above suggested_shelf_life_seconds) and appends _stale_mark to the router and slots rows at lines 1215 and 1229, and rendering the stale fixture independently reproduced \"stale 412s\" on both rows against the fresh fixture's none.\nVERDICT done_when: the declared gate copies gpu-watch into the report directory and edits only the copy and saves fresh.txt, stale.txt and gpu-watch.diff with a fragment ending in a newline; re-read and re-run, the gpu-watch.diff applied to the dotfiles original reproduces the copy byte for byte (patch exit 0), the fragment ends with a newline (od shows </section>\\n), and the diff is 53 added and 16 deleted lines as the manifest states.\nVERDICT write_paths: the declared paths are the run report directory, the fragment docs/evidence/fragments/serving-record-warehouse/srw-gpu-watch-marks-a-stale-lane.html and a figures directory; git diff --name-status over the base and head lists exactly that fragment (A, +4), the copy and captures live in the report directory, the figures directory named for this node does not exist, and ~/Code/dotfiles/bin/gpu-watch is unchanged at 54dc23b.\nVERDICT manifest: read whole; commit 19941962, one changed path, the three capture commands each with EXIT=0, the bare negative_control_log path and the 53/16 diff line count all match the artifacts on disk, and the three captures reproduce byte for byte.\nVERDICT diff: read; one helper _lane_age_stale and one _stale_mark are added, the prefill band drops its med prompt column, and the lane mark is appended to the router and slots bands; applied to the dotfiles original 54dc23b it reproduces the delivered copy, and its single committed path is the four-line fragment.\nCALL_SITES: /home/ITER/mcintos/Code/dotfiles/bin/gpu-watch:1 the operator entry point the copy is meant to replace -- unchanged at 54dc23b with nothing the operator runs carrying the mark, the copy's serve_table at :1264 which calls _lane_age_stale at :1142 and _stale_mark at :1215 and :1229\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: the copy's _lane_age_stale (:1030) yields the age when the lane publishes stale true or an age_seconds above suggested_shelf_life_seconds and :1215 and :1229 mark the router and slots rows, and the stale fixture reproduced \"stale 412s\" on both rows against the fresh one's none.\nSCORE evidence: 18\nJUSTIFICATION evidence: the declared captures reproduce byte-for-byte and the declared control reproduced -- mutating the copy to read lane_age_seconds and lane_stale at the copy's :1030 leaves the stale fixture unmarked (0 marks, byte-identical to stale-control.txt) -- but the pre-diff original at 54dc23b rendered through the same harness shows the med prompt column and no stale mark, and the stale fixture sets stale true and age above shelf together so the two triggers are never exercised apart.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-status 44938906..19941962 lists exactly the one declared fragment (A, +4), the copy and captures sit inside the declared report directory, and ~/Code/dotfiles/bin/gpu-watch is verifiably untouched at 54dc23b.\nSCORE durability: 10\nJUSTIFICATION durability: no test fails if the copy's _lane_age_stale (:1030) regresses -- the node's one committed path is the fragment and the behaviour lives only in the copy under the report directory whose diff applies to dotfiles 54dc23b but is unlanded -- so nothing reddens on a regression and nothing the operator runs carries the mark.\nSCORE fit: 19\nJUSTIFICATION fit: the helpers at the copy's :1030 and :1051 follow the file's band and isinstance and dash idiom and name their own mechanism, the fragment carries no plan label or version token, and the commit body states the mechanism rather than a task.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-gpu-watch-marks-a-stale-lane/gpu-watch:1030 follow-on: the stale mark is pinned by no test -- the node changed no test file and its copy is imported by nothing in the suite, so a regression in _lane_age_stale reddens nothing; the fixture captures are the only evidence and they are a reproduction rather than a guard.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-gpu-watch-marks-a-stale-lane/fixture_cli.py:22 follow-on: the stale fixture sets stale true and age_seconds 412 above the 45 s shelf life together, so the gate's two declared triggers are never exercised apart and an implementation reading only stale, or only the age comparison, would pass both captures.\nFINDING /home/ITER/mcintos/Code/dotfiles/bin/gpu-watch:1 follow-on: the diff is not landed in the dotfiles repository, so the operator's gpu-watch still draws a stale lane as current, which the plan's section 11 requires be reported as stale with its age and never as current.",
+  "review_run_id": "r-20261001T035737232700-review-of-srw-gpu-watch-marks-a-stale-lane",
+  "reviewed_base_sha": "449389066494359a8f5353a4e6d83c25c4a82221",
+  "reviewed_head_sha": "199419626ed241b2c5b81db74b58e4f6b68adb00",
+  "reviewed_run_id": "r-20260929T135925206288-srw-gpu-watch-marks-a-stale-lane",
+  "reviewer": "review-of-srw-gpu-watch-marks-a-stale-lane",
+  "scores": {
+    "durability": 10,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-01T04:19:47.890784+00:00",
+  "total": 87
+}

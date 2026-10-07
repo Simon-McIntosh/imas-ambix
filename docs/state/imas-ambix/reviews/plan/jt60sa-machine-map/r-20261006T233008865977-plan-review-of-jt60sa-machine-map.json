@@ -1,0 +1,124 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T23:33:20.537Z",
+  "dispatched_at": "2026-10-06T23:30:17Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/gs/machine_identity.py:145",
+      "id": "duplicate_owner-1",
+      "reason": "the \u00a77 claim that \"every existing caller is unchanged\" is only true for the MAST row; the plan must name all four resolver consumers or fold them behind one machine-taking entry so a new machine cannot be half-wired.",
+      "text": "the plan keys the geometry registry by machine but names only `identity_for_shot` as the site that receives the declared machine, while four public resolvers default to `default_registry()` \u2014 `identity_for_representation` (line 187), `identity_for_shot` (216), `identity_for_table` (241) and `same_machine` (259) \u2014 so a JT-60SA caller of any of the other three still resolves MAST's packaged registry, and if the key becomes required all four call sites must be re-threaded rather than one named",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/gs/artifact_resolution.py:69",
+      "id": "duplicate_owner-2",
+      "reason": "one machine-configuration record keyed by machine, owning the pin, the frozen shot set and the registry key together, would make \"add a machine\" one edit and remove the coordination the plan currently relies on a reader to perform.",
+      "text": "machine-keyed configuration is split into three parallel tables in three modules with no single owner: the pin table here (`PINNED_SEMANTIC_IDENTITY`/`PINNED_PHYSICAL_DIGEST`/`PINNED_REGISTRY_DIGEST` becoming a machine-keyed table), the frozen shot-set table in imas_ambix/spine_bench/shots.py:19/42 (`SHOTSET_VERSION`/`FROZEN_SHOTSET` becoming machine-keyed) and the registry key in imas_ambix/gs/machine_identity.py:145 (`default_registry` becoming machine-keyed), each of which a new machine must be added to by hand and which the plan itself relies on staying consistent (the `SetupSignature.key` collision it guards against arises when one is missed)",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/gs/machine_selection.py:176",
+      "id": "deep_module-1",
+      "reason": "a single `resolve_machine(machine)` returning the pin, the frozen set, the registry and the reader would hide the coordination behind one interface instead of exposing four keyed lookups to the caller.",
+      "text": "\u00a77 threads the declared machine as a bare string through four shallow sites (the pin table lookup, the shot-set lookup, `default_registry(machine)` and the newly-required `MachineArtifactGeometryReader.machine` at imas_ambix/gs/artifact_geometry.py:758) rather than behind one deep resolver, so the route's machine-awareness is the sum of four independently-edited pass-throughs and a missed one fails only at the point it is exercised",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "<plan>#s7",
+      "id": "interface_budget-1",
+      "reason": "the counts for this week are all zero and the section does name its one public addition and its three retirements; this is a completeness note on the same defect already reported under duplicate_owner, not an independent interface-budget gap.",
+      "text": "the pin-table change is stated to \"declare all four files as its scope\" and the required-argument change to retire \"one default\", but the section does not name the four resolvers of `default_registry` as consumers of the key it introduces, so the added machine key is accounted against the surface it retires only partially.",
+      "type": "interface_budget",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "507c32703a9405fa8930874b6c3dfb49fe36f2b712a4e6d7e59bd84ada31faa9",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 264,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T23:35:50.928869+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "deep_module-1",
+      "reason": "",
+      "when": "2026-10-06T23:36:10.986659+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "interface_budget-1",
+      "reason": "",
+      "when": "2026-10-06T23:36:29.697536+00:00"
+    },
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-2",
+      "reason": "The three machine-keyed tables stay separate owners because they own different things: the pin table is a frozen expectation recorded at stamping that must not be derived from the registry it guards, and the frozen shot set is the benchmark's declaration in spine_bench, which gs does not and must not import. The half-wiring risk is closed instead by ArtifactMachineSelector being the one machine-taking entry, refusing by name at construction a machine absent from the pin table or the registry (plan s7, commit 53d71d81).",
+      "when": "2026-10-06T23:36:48.816864+00:00"
+    }
+  ],
+  "responses": {
+    "deep_module-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T23:36:10.986659+00:00"
+    },
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T23:35:50.928869+00:00"
+    },
+    "duplicate_owner-2": {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "The three machine-keyed tables stay separate owners because they own different things: the pin table is a frozen expectation recorded at stamping that must not be derived from the registry it guards, and the frozen shot set is the benchmark's declaration in spine_bench, which gs does not and must not import. The half-wiring risk is closed instead by ArtifactMachineSelector being the one machine-taking entry, refusing by name at construction a machine absent from the pin table or the registry (plan s7, commit 53d71d81).",
+      "when": "2026-10-06T23:36:48.816864+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T23:36:29.697536+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v264.json",
+  "review_run_id": "r-20261006T233008865977-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "905fa82f503a06aeb7f809ca5805e1be7d7d30b6",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 \u00a77 makes the machine-aware route a hand-threaded machine key through three separate tables and a newly-required constructor argument, with no single module that owns \"the machines ambix knows and their per-machine configuration\", so a JT-60SA run is machine-aware only where each site was individually edited.",
+    "duplicate_owner": "a finding \u2014 the plan re-homes machine identity in three modules at once (a pin table in `gs/artifact_resolution.py`, a frozen-shot-set table in `spine_bench/shots.py`, and a machine key on `gs/machine_identity.default_registry`) and names only one of the four resolvers that consume the default registry, so the machine is a second owner copied across modules rather than one owner extended.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; each section that adds surface names in its own text what it retires or merges, or states why nothing can be (\u00a72: seven exporter names, \"none of the seven retires anything\"; \u00a76: three EQDB types and two `BatchResult` fields, \"they retire nothing, because no equilibrium-database request type exists\"; \u00a77: the pin table adds one and retires three exported pins and their re-export, and the required `machine` argument retires one default).",
+    "reuse_search": "pass \u2014 the plan searched both named repositories and cites the owner of each mechanism it extends or reuses (\u00a72 collapses scale through the engine's `transform_engine.py` and flags the exporter's duplicate resolver; \u00a76 reuses `cocos_convention.score_convention`, `challenge/convention._integrated_current`, `description_reader.read_geometry_table` and `VirtualZarrView.raw_series`; \u00a77 reuses `eval/efit_referee.judge_geometry`, `worldmodel/equilibrium_labels.build_geometry_from_arrays` and `MachineArtifactGeometrySource`), so no proposed mechanism rebuilds an existing one.",
+    "thin_wrapper": "pass \u2014 every added layer carries an explicit why-not-extend justification in its own text (\u00a72 keeps the exporter out of the loaders because they must not learn tokamap's format; \u00a76 adds EQDB request/record/refusal types rather than widening the channel-shaped ones, because `ChannelRequest` is keyed `(shot, category, dname)` and an EQDB record is psi on a 2-D grid; \u00a77 refuses a JT-60SA key in `transform_geometry_source.resolve_geometry_source` because it would give the stamp a different reader from the spine)."
+  },
+  "section_digests": {
+    "_document": "6c9fce456e952b00ce33548944718af59d6fb116c0739501f2daf9af22a5e5e8",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "5253ff07c75d9c1a3bb2cd1ff91a6278d3535fee40f693bc99f54d076b185860",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "1420571e77dda0691c159d571e6f2a9242d1d15c0ffef26979873447e0da101e",
+    "s7": "24f2fa3b97782a7c6d60339a0bf48a76a6b1306e7b0ec8270e962ff1b97b4261",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T23:33:49.917946+00:00"
+}

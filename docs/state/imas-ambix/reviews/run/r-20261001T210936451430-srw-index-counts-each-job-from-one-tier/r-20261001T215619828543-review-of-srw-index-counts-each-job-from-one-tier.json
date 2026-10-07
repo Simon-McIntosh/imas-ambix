@@ -1,0 +1,81 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite (classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null), so its own arms cannot supply the delta. This review therefore measured the reviewed node's declared four-file gate in two scratch trees built from the reviewed commit's own object store (both extracted with git archive from this reviewer's own worktree, which shares that object store, into $TMPDIR/arms: base at base/, head at head/; no git worktree created, the reviewed object store is not writable by this node and neither is its worktree): base arm gate-base.log (revision 2c4ab78fcb667653493a5da2901056eac8e7cf07: 82 passed, EXIT=0) and head arm gate-head.log (revision a4ee75df8d9192ace28eb3e9e1d544f672c1c97e: 87 passed, EXIT=0). The head set is a superset of the base set (five tests added, none removed), so both arms are green and head failing ids ([]) minus base failing ids ([]) is 0.",
+  "after_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_index.py tests/test_telemetry_ingest.py tests/test_telemetry_compaction_runs.py tests/test_agent_telemetry_watch.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T215619828543-review-of-srw-index-counts-each-job-from-one-tier/gate-head.log",
+    "revision": "a4ee75df8d9192ace28eb3e9e1d544f672c1c97e"
+  },
+  "baseline_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_index.py tests/test_telemetry_ingest.py tests/test_telemetry_compaction_runs.py tests/test_agent_telemetry_watch.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T215619828543-review-of-srw-index-counts-each-job-from-one-tier/gate-base.log",
+    "revision": "2c4ab78fcb667653493a5da2901056eac8e7cf07"
+  },
+  "completed_at": "2026-10-01T22:33:54.822Z",
+  "dispatched_at": "2026-10-01T21:56:34Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "437,889",
+      "severity": "moderate",
+      "text": "A raw receipts file that exists but holds no parseable row does not fall through to the job's minute tier; the job's window is then absent from the index entirely, contradicting the retention block's own settled reading. The plan's reading 10 states: an empty or unreadable raw file counts as absent, a raw file with no parseable row does not stop the fall-through, so the implementation must decide tier by whether the file actually yields rows. one_tier_per_job chooses the finest tier by file presence on disk (a path returned by discover), so a zero-byte raw file is selected as the raw tier and _drop_deselected_tiers removes the minute tier's stored samples in the same pass; the selected raw is then opened and yields nothing, leaving the job with no samples at all while a valid minute tier sits beside it. Reproduced at the reviewed head (log repro-empty-raw.log): with a raw file and its minute/hour compactions built by run_compaction, a first tick reports generation/prompt/uncached totals 2000.0/1000.0/800.0 and holds only the raw source; truncating the raw file to zero bytes and ticking again reports totals None/None/None and holds only the now-empty raw, while the minute tier file (850 bytes, unchanged) was never read. No test covers the empty or unreadable raw case."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "890",
+      "severity": "low",
+      "text": "The deselected tier is dropped before the selected tier is read, so a read failure on the selected source leaves the job with neither tier. TelemetryIndex.ingest calls _drop_deselected_tiers(chosen) (which commits its de-dup) before entering the ingestion loop, and that loop can raise on a selected source -- a compressed roll is refused by name with a ValueError, and _resume/_insert are not wrapped per file. A job whose finer tier is selected while a coarser tier already held samples therefore loses the coarser samples before the finer tier is proven readable. The window is narrow (the review found no in-repo path that reaches it today: discover returns a plain file for a selection to be made), but the repair is local -- drop within the same commit as the selected tier's write, or read first and drop after -- and cheap, so it is recorded rather than left implicit."
+    }
+  ],
+  "follow_ons": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "984,1022",
+      "severity": "follow-on",
+      "text": "_drop_deselected_tiers scans the whole source table (SELECT host, path, inode FROM source) on every ingest pass, including the passes watch.py makes for its own rendering (imas_ambix/agent/watch.py lines 920 and 1020 both call index.ingest(discover(directory))). The scan is O(sources) per pass whether or not any job's tier moved, adding a full-table read to every reader tick and every scheduled tick. Not a defect in the counted-once property, and small against the store's current size, but it grows with the record and is the kind of cost the ingest section's own docstring is otherwise careful to avoid."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified the two production call sites of index.ingest that offer a directory -- imas_ambix/agent/watch.py:920 and imas_ambix/agent/watch.py:1020 -- both pass discover(directory), the whole directory, so the tier selection sees every file a job offers and is consistent with telemetry_ingest.tick; pending_sources retains its old return shape and has no in-repo caller other than its own module export.",
+    "diff": "Read commit a4ee75df against base 2c4ab78f; five files changed, +449/-29: imas_ambix/agent/telemetry_index.py (+137), imas_ambix/agent/telemetry_ingest.py (+68/-29 across the two modules and two test files: telemetry_ingest.py 68 changed lines, tests/test_telemetry_ingest.py 25), tests/test_telemetry_index.py (+161), tests/test_telemetry_ingest.py (+25), and the node's own evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-index-counts-each-job-from-one-tier.html (+87). The implementation commit is 76c6bd03 (fix(telemetry): count each serve job from one receipt tier); a4ee75df records the evidence fragment.",
+    "done_when": "Read the node's measure: the review record stores a parsed record scoring all five dimensions in 0..20, reviewed_base_sha and reviewed_head_sha, and added_failure_count/added_failure_ids. This review record carries all of those. The reviewed run declares neither baseline_suite nor after_suite, so the delta is derived from this review's own two arms of the reviewed node's declared four-file gate (base 82 passed EXIT=0, head 87 passed EXIT=0), recorded under baseline_suite and after_suite.",
+    "goal": "The node's declared goal is rule 1 of the plan's retention block: the index reads each serve job's receipts from exactly one tier -- the raw file when it exists, otherwise the job's minute tier, otherwise its hour tier -- so a window a raw file and its minute and hour compactions all cover is counted once, and deleting the raw file moves the job to its minute tier without moving the totals. The commit does this: receipts_tier derives (job id, tier) from the filename, one_tier_per_job selects the finest tier offered, TelemetryIndex.ingest applies it and drops a job's now-deselected tier in the same pass, and telemetry_ingest.tick now offers the whole discovered directory so the selection can see every tier. The two named behaviours are asserted and pass: a job offered raw+minute+hour returns the raw file's totals (2000/1000/800) and holds only the raw tier, and deleting the raw file moves the job to its minute tier with the totals unchanged. The empty or unreadable raw case the plan's reading 10 settles is not handled -- see the first finding.",
+    "manifest": "Read; it states the three-command gate green (87 passed / 1 passed serving-interpreter guard / ruff All checks passed!, each EXIT=0), a negative control 2 failed EXIT=1, and names changed_paths imas_ambix/agent/telemetry_index.py, imas_ambix/agent/telemetry_ingest.py, tests/test_telemetry_index.py, tests/test_telemetry_ingest.py, and the evidence fragment.",
+    "write_paths": "Read the manifest's declared paths; the diff touches exactly imas_ambix/agent/telemetry_index.py, imas_ambix/agent/telemetry_ingest.py, tests/test_telemetry_index.py, tests/test_telemetry_ingest.py and the node's own evidence fragment, all inside them. All five changed paths are within the declared set; no plan, index or sprint state is mutated by the commits. The reviewed run's own gate ran on the fleet compute node (job 1277272) and this review's arms ran on the same fleet node, no srun/sbatch."
+  },
+  "justifications": "independent review of run r-20261001T210936451430-srw-index-counts-each-job-from-one-tier, reviewed_run_id r-20261001T210936451430-srw-index-counts-each-job-from-one-tier, base 2c4ab78f, head a4ee75df, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 16, evidence 16, scope_discipline 19, durability 15, fit 17 -- total 83, added_failure_count 0 with added_failure_ids [] derived from this review's own two arms of the reviewed run's declared four-file gate (the reviewed run was dispatched unarmed, so its own baseline_suite and after_suite are null): base arm gate-base.log (scratch tree $TMPDIR/arms/base, revision 2c4ab78f: 82 passed, EXIT=0) and head arm gate-head.log (scratch tree $TMPDIR/arms/head, revision a4ee75df: 87 passed, EXIT=0). The reviewed node's negative control was reproduced independently rather than accepted: disabling tier selection in a scratch copy of the head (selected, chosen = offered, {}) reddens tests/test_telemetry_index.py::test_a_job_is_counted_once_even_when_its_raw_and_compacted_files_overlap and ::test_deleting_the_raw_file_moves_the_job_to_its_minute_tier_unchanged (2 failed, 50 deselected, EXIT=1, negative-control.log). The repair is sound for the two behaviours it names and the design is clean and well documented, which is why the scores are not lower; two defects are recorded. goal_fidelity loses points for the empty/unreadable-raw fall-through (plan reading 10) that the tier selection by file presence does not implement, reproduced from a valid minute tier being left unread while the job's totals fall to None. durability loses points for that untested case and for dropping the deselected tier before the selected one is read, which a read failure on the claimed tier would turn into a lost job. evidence is solid but the untested fall-through boundary is the gap the run's own tests do not cover. scope_discipline and fit are near-full: the diff is entirely inside the declared write paths, the helpers are named by what they do with no plan identifiers, and the tier predicate is shared with the existing discover/tick flow.",
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-index-counts-each-job-from-one-tier",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "review_kind": "review",
+  "review_run_id": "r-20261001T215619828543-review-of-srw-index-counts-each-job-from-one-tier",
+  "reviewed_base_sha": "2c4ab78fcb667653493a5da2901056eac8e7cf07",
+  "reviewed_head_sha": "a4ee75df8d9192ace28eb3e9e1d544f672c1c97e",
+  "reviewed_run_id": "r-20261001T210936451430-srw-index-counts-each-job-from-one-tier",
+  "reviewer": "review-of-srw-index-counts-each-job-from-one-tier",
+  "scores": {
+    "durability": 15,
+    "evidence": 16,
+    "fit": 17,
+    "goal_fidelity": 16,
+    "scope_discipline": 19
+  },
+  "section": "s8",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-01T22:25:07+00:00",
+  "total": 83
+}

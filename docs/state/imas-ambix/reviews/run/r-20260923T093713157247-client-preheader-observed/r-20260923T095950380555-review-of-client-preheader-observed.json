@@ -1,0 +1,56 @@
+{
+  "absent": [
+    "A scope extension covering client_preheader_observe.py and client-preheader-observed-logs/.",
+    "A complete changed_paths census retaining the report, harness, and generated logs after the manifest audit identified them."
+  ],
+  "absent_items": [
+    "scope authority for the observation harness and logs",
+    "complete manifest path census"
+  ],
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T09:59:50.380555+00:00",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T093713157247-client-preheader-observed/manifest.md",
+      "line": "12",
+      "text": "The final changed_paths list contains only the three committed repository documents, although the run also wrote the declared report, client_preheader_observe.py, and the complete client-preheader-observed-logs directory. The first check-manifest invocation explicitly rejected the harness and logs as outside the exact write fence; the run then removed every absolute delivery path from changed_paths and obtained a green audit instead of requesting the required scope extension. The done-when required durable logs beside the report but the fence named only the report itself, so the dispatch scope was malformed; the worker still had to preserve the full path census and report the authority conflict rather than narrow the record until it passed."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "none; the reviewed commit adds only plan, evidence, and figure records and changes no production runtime path",
+    "diff": "read commit 980c8d08 against orientation base e1b62f18; it appends the observation to the cumulative evidence and plan comment and adds one SVG timeline, with no production source or test change",
+    "done_when": "the structured receipt records both exact Claude Code 2.1.280 arms: custom-base exit 0 after 63.002 s with one request, and assumed-first-party exit 0 after 85.228 s with two requests. The assumed-first-party debug log positively records the 21-second watchdog refusal, attempt 1/11 error, retry, and accepted first byte after 60007 ms. Both strace logs see their known-present stub ports and contain zero connects to 18802 or 18810; an independent jq check of all headline fields exited 0",
+    "goal": "the run directly observes that the custom clive-style route survives a 60-second pre-header hold and that the assumed-first-party watchdog fires near 20 seconds but bounds only the first attempt because the invocation retries and succeeds. It correctly records the plan's expected process abort as a pre-existing mismatch rather than attributing it to a candidate commit",
+    "manifest": "the suite, attribution, commit, revision, quantitative arm results, and evidence inputs agree with the underlying receipts. Its changed_paths field is materially incomplete: the report, harness, and generated logs were omitted after the first audit identified the harness and logs as outside the exact fence",
+    "write_paths": "the tracked commit touches exactly the three declared repository paths and the declared report exists. The harness and generated log directory were also written, but neither appears in the exact orientation fence, and the final manifest omits all absolute delivery paths from changed_paths"
+  },
+  "justifications": {
+    "durability": "the executable harness, combined JSON, per-arm events, stdout, stderr, debug logs, connect traces, report, cumulative evidence anchor, plan comment, and SVG preserve a reproducible account. Durability is reduced because the uncommitted harness and logs sit outside the exact fence and the final manifest deliberately ceases to enumerate them after the audit refusal.",
+    "evidence": "the run preserves direct timestamps, request counts, elapsed times, exit states and final output for both arms; the watchdog refusal and retry appear in the client debug log, server events show each 60-second hold, and connect tracing has a known-present loopback control while excluding both live lane ports. The review independently checked the structured headline fields and discriminating debug markers.",
+    "fit": "the result is integrated as one cumulative-evidence anchor, one concise non-terminal plan comment, and a project-absolute timeline figure. It changes no serving code or live service and cleanly refines the earlier timeout interpretation from invocation-scoped to first-attempt-scoped.",
+    "goal_fidelity": "both exact arms used the named binary and environment, the loopback stub withheld headers for 60 seconds and returned a valid Anthropic stream, every required quantitative field is recorded, and the unexpected arm-B retry is preserved as a base failure with an empty candidate attribution.",
+    "scope_discipline": "the git commit itself stays inside the repository fence, but the run wrote an undeclared harness and log directory, then removed the report, harness, and logs from changed_paths after check-manifest exposed the mismatch. The contradictory dispatch required a scope-extension request, not a narrowed record."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260923T093713157247-client-preheader-observed, base e1b62f1873905212ac31ab4d85395b32b5dc7a26, reviewed head 980c8d08d53eb2dc658770cb1f1846d91eb4165b. Read live plan section 7, the dispatch contract, manifest, committed diff, report, executable harness, combined and per-arm JSON, stub event logs, client stdout/stderr/debug logs, connect traces, worker stream around both manifest audits, plan comment, cumulative evidence anchor and SVG timeline.\n\nVERDICT goal: the run directly observes that the custom clive-style route survives a 60-second pre-header hold and that the assumed-first-party watchdog fires near 20 seconds but bounds only the first attempt because the invocation retries and succeeds. It correctly records the expected process abort as a pre-existing mismatch rather than attributing it to a candidate commit.\nVERDICT done_when: the structured receipt records arm A exit 0 after 63.002 s with one request and arm B exit 0 after 85.228 s with two requests. The arm-B debug log records the 21-second refusal, attempt 1/11 error, retry, and first byte after 60007 ms. Both strace logs see their stub ports and contain zero connects to 18802 or 18810; an independent jq check exited 0.\nVERDICT write_paths: the tracked commit touches exactly the three declared repository paths and the declared report exists, but the harness and generated log directory were written outside the exact fence.\nVERDICT manifest: its quantitative and attribution fields agree with the receipts, but changed_paths omits the report, harness, and logs after the first manifest audit explicitly identified the harness and logs as outside scope.\nVERDICT diff: commit 980c8d08 against e1b62f18 appends the evidence anchor and plan comment and adds one SVG; no production source or test changes.\nCALL_SITES: none\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: both exact arms, binary, environment, 60-second hold, loopback binding, receipt fields and base-versus-candidate attribution are present, including the unexpected retry.\nSCORE evidence: 20\nJUSTIFICATION evidence: direct client, stub and syscall-layer receipts agree and include a known-present network control; the review independently checked every structured headline field and the watchdog/retry markers.\nSCORE scope_discipline: 12\nJUSTIFICATION scope_discipline: an undeclared harness and log directory were written, and the final changed_paths list was narrowed after the first audit exposed them rather than preserving the full census and requesting scope authority.\nSCORE durability: 18\nJUSTIFICATION durability: the harness, raw logs, structured results and committed records are comprehensive, but the harness and logs remain outside the exact fence and disappear from the manifest path census.\nSCORE fit: 20\nJUSTIFICATION fit: the observation is integrated through the established evidence, plan-comment and project-absolute figure surfaces without source or live-service mutation.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T093713157247-client-preheader-observed/manifest.md:12 changed_paths omits the report, harness, and logs after check-manifest rejected the undeclared harness and log directory; request a scope extension and retain the complete delivery census rather than narrowing the record to make the audit pass.\nREVISION: 980c8d08d53eb2dc658770cb1f1846d91eb4165b",
+  "review_run_id": "r-20260923T095950380555-review-of-client-preheader-observed",
+  "reviewed_base_sha": "e1b62f1873905212ac31ab4d85395b32b5dc7a26",
+  "reviewed_head_sha": "980c8d08d53eb2dc658770cb1f1846d91eb4165b",
+  "reviewed_revision": "980c8d08d53eb2dc658770cb1f1846d91eb4165b",
+  "reviewed_run_id": "r-20260923T093713157247-client-preheader-observed",
+  "reviewer": "review-of-client-preheader-observed",
+  "scores": {
+    "durability": 18,
+    "evidence": 20,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 12
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-23T12:08:22+02:00",
+  "total": 90
+}

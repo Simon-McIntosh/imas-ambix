@@ -1,0 +1,102 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T01:36:41.303Z",
+  "dispatched_at": "2026-10-07T01:30:52Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html#s2",
+      "id": "reuse_search-1",
+      "reason": "the section must be marked landed/archived (or its declaration corrected) before any \u00a72 node is released, or the work is duplicated and the plan's status disagrees with the code.",
+      "text": "\u00a72 is declared `implementable` and its followup `f-jtfm-002` is open, but every mechanism it designs already exists on `main`: `discover_bundles()` (packages/imas-alambic/src/imas_alambic/machine_map.py:182), `bundle_for_machine()` (machine_map.py:225), `resolve_description_store_root()` (machine_map.py:244), the `MapBundle`/`load_bundle_descriptor` descriptor (machine_map.py:121,145), ambix's registration target `imas_ambix/data/bundle.py`, the entry-point group declared at pyproject.toml:165, the `IMAS_ALAMBIC_MAP_PATH` variable (machine_map.py:27), and the `BUNDLE_ROOT`/`PACKAGED_MACHINE_MAP_ROOT`/`PACKAGED_MAP_ROOT` constants that \u00a72 says \"move to ambix's paths.py\" (imas_ambix/data/paths.py:24-26). A coordinator reading the declaration dispatches a builder that re-implements what is present.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "packages/imas-alambic/src/imas_alambic/machine_map.py:182",
+      "id": "duplicate_owner-1",
+      "reason": "the filename in the env var is the resolution contract \u00a75 depends on, and as written \u00a75's done-when (\"the generalised by-name loaders resolve jt-60sa from the relayed bundle\") fails or silently depends on an unstated env value.",
+      "text": "\u00a75 says the bundle is relayed to `~/imas-alambic/bundles/jt-60sa/<version>/` with `IMAS_ALAMBIC_MAP_PATH` set in `~/imas-alambic/env.sh`, but `discover_bundles()` resolves each `IMAS_ALAMBIC_MAP_PATH` entry as a bundle root, calling `load_bundle_descriptor(root)` which requires `bundle.json` at that path; \u00a74 (landed) already sets the variable to `~/imas-alambic/bundles/jt-60sa`, which holds `bundle.json` directly. The new `<version>/` layer is a second path-resolution contract: either the env var must be repointed at the version directory (and \u00a75 must say so, and \u00a74's env.sh updated), or discovery must learn to walk version directories \u2014 a capability the plan does not specify.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/paths.py:45",
+      "id": "duplicate_owner-2",
+      "reason": "\u00a71's own exit criterion is a `git ls-files imas_ambix`-scoped check that cannot see the `tests/` and `packages/` owners, so the section ships with second owners of a path whose owner it is moving.",
+      "text": "census of second owners of the JT-60SA store path, the root `paths.py` owns: `packages/imas-alambic/tests/test_eddb_local_transport.py:37` re-declares `JT60SA_ROOT = Path(\"/work/projects/imas_gpu/jt60sa\")`, `tests/data/test_transform_engine.py:39` hard-codes `\"/work/projects/imas_gpu/jt60sa/machine_description\"`, and `tests/data/test_selene_deck.py:872` hard-codes `_FACILITY_SOURCE = Path(\"/work/projects/imas_gpu/jt60sa/machine_description/source\")`; `tests/data/test_pulse_mint.py` additionally loads the *private* `jt-60sa` map by name and hard-codes shot `E101154` (lines 27-32), so \u00a71's move breaks it by content, not by path. \u00a71 names only the engine test (via plan comment `c-20261007T0100-jt60sa-tests`) and its done-when `git ls-files imas_ambix | grep -i jt-60sa` returns nothing over `tests/` or `packages/`, so the others survive \u00a71.",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "d97af8852147b757f3aed2087a34ea7ba7eb857044a673a11ef7290bf917acca",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 29,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "declined",
+      "by": "",
+      "finding": "reuse_search-1",
+      "reason": "foreign-owner: section 2's status and its open followup f-jtfm-002 belong to this plan's coordinator (session fa77649b), whose s2 nodes landed the bundle discovery the finding cites; recorded for them on the plan. This dispatch is section 7, the lead-ordered rename of the engine's verb, which touches none of section 2's machinery",
+      "when": "2026-10-07T01:37:51.766767+00:00"
+    },
+    {
+      "action": "declined",
+      "by": "",
+      "finding": "duplicate_owner-1",
+      "reason": "foreign-owner: section 5's relayed-bundle layout and the IMAS_ALAMBIC_MAP_PATH value belong to this plan's coordinator; recorded for them on the plan. Section 7 renames the command and the writer module, and changes no bundle path or discovery contract",
+      "when": "2026-10-07T01:37:54.005004+00:00"
+    },
+    {
+      "action": "declined",
+      "by": "",
+      "finding": "duplicate_owner-2",
+      "reason": "foreign-owner: section 1's census of JT-60SA store-path owners and its git ls-files exit criterion belong to this plan's coordinator; recorded for them on the plan. Section 7 moves tests/data/test_pulse_mint.py to test_pulse_writer.py and changes none of its path constants or private-map loading, so it neither adds nor removes an owner",
+      "when": "2026-10-07T01:37:57.047588+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "",
+      "reason": "foreign-owner: section 5's relayed-bundle layout and the IMAS_ALAMBIC_MAP_PATH value belong to this plan's coordinator; recorded for them on the plan. Section 7 renames the command and the writer module, and changes no bundle path or discovery contract",
+      "when": "2026-10-07T01:37:54.005004+00:00"
+    },
+    "duplicate_owner-2": {
+      "action": "declined",
+      "by": "",
+      "reason": "foreign-owner: section 1's census of JT-60SA store-path owners and its git ls-files exit criterion belong to this plan's coordinator; recorded for them on the plan. Section 7 moves tests/data/test_pulse_mint.py to test_pulse_writer.py and changes none of its path constants or private-map loading, so it neither adds nor removes an owner",
+      "when": "2026-10-07T01:37:57.047588+00:00"
+    },
+    "reuse_search-1": {
+      "action": "declined",
+      "by": "",
+      "reason": "foreign-owner: section 2's status and its open followup f-jtfm-002 belong to this plan's coordinator (session fa77649b), whose s2 nodes landed the bundle discovery the finding cites; recorded for them on the plan. This dispatch is section 7, the lead-ordered rename of the engine's verb, which touches none of section 2's machinery",
+      "when": "2026-10-07T01:37:51.766767+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-facility-mint.v29.json",
+  "review_run_id": "r-20261007T013040231626-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "100a7f763873d2ae9d579dafa29e6933ef18715b",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the reachable-bundle set, the two discovery routes, de-duplication and the two refusal modes are hidden behind `bundle_for_machine(machine)` (machine_map.py:225) and `resolve_description_store_root(name)` (machine_map.py:244); a caller names a machine or a root name and never sees a path.",
+    "duplicate_owner": "a finding \u2014 \u00a75's relayed-bundle layout (`.../bundles/jt-60sa/<version>/`) is a second path-resolution contract beside the directory-in-an-env-var contract it controls; and the plan's census of `/work/projects/imas_gpu/jt60sa` owners stops at the one file its own comment names.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a72 adds only the distribution plus one console script and says in its own text that the script retires `imas-ambix data mint` and that no refusal family is added, and \u00a77 states that `write` retires `mint`.",
+    "reuse_search": "a finding \u2014 \u00a72 is declared `implementable`, but the bundle-discovery machinery it designs already ships on `main` (`discover_bundles`, `bundle_for_machine`, `bundle.py`, the `imas_alambic.bundles` entry point, `IMAS_ALAMBIC_MAP_PATH`).",
+    "thin_wrapper": "pass \u2014 \u00a72 generalises the three by-name resolvers in place rather than adding a resolver beside them, and \u00a77 is a rename with a stated retirement (`imas-alambic write` retires `mint`), not a layer over existing machinery."
+  },
+  "section_digests": {
+    "_document": "ed2782eb4ff2cd6a579a91c84d699e264dddcea6bf9e0f79893f4595e0a4c73c",
+    "s1": "599b7f5f26548e11448590457802fb7f6867799dfbc1f4b6230eb83f67f004c2",
+    "s2": "ac8f2bda5e9bacb12bc4397f06a9a10975a3265eb00ea9b673abf50424250726",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "96112877cdd9d171381da10a535215b1763f59e5e35583b438f66aeb7a72870d",
+    "s6": "113799343f6a2efd1d2d8f0f93f1866fa0984c0185c5ecbde387416ebea2d627",
+    "s7": "8c5f7724383f68ff8363e74b3048d56c7c65de031315418c74383b05513f3556"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T01:37:38.975562+00:00"
+}

@@ -1,0 +1,58 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T06:50:56.930Z",
+  "dispatched_at": "2026-10-05T06:46:09Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/cocos_convention.py:329",
+      "id": "reuse_search-1",
+      "reason": "\u00a76 would name `cocos_convention.py` as the raw-side owner and drive it with a JT-60SA sign table, rather than generalising the DIII-D challenge scorer for a job a generalised owner already does.",
+      "text": "\u00a76 identifies the source COCOS from \"the sign products that the Sauter and Medvedev coefficients constrain\" read from plasma shots, and cites only `challenge/convention.py measure_diiid_convention` as reusable, proposing to \"generalise the entry point to take an equilibrium record through a loader\"; but `data/cocos_convention.py` already owns exactly that computation, with `score_convention`/`score_conventions`/`surviving_conventions` parameterised by `observations: Sequence[ShotSignObservation]` (the MAST table is only the default) and `format_sign_report` emitting the sign report \u00a76's done-when names \u2014 so \u00a76 risks writing a second source-COCOS scorer instead of supplying JT-60SA `ShotSignObservation` rows to the existing one",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/challenge/convention.py:245",
+      "id": "duplicate_owner-1",
+      "reason": "the loader boundary \u00a76 proposes must be stated as a record contract (canonical keys) so that `_integrated_current` is genuinely reusable, otherwise it is a rewrite dressed as a loader.",
+      "text": "the plan's \u00a76 says \"the reusable part is its Grad\u2013Shafranov current integral, `_integrated_current`\" of `challenge/convention.py`, but `_integrated_current` (line 245) and `_axis_and_boundary` (line 225) read DIII-D corpus keys (`efit_grid_R`, `efit_psirz`, `efit_z_axis`, \u2026) directly, so a SELENE/FAME loader cannot reach them without either a key-renaming record contract or a rewrite; the plan does not say which",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/eval/efit_referee.py:174",
+      "id": "duplicate_owner-2",
+      "reason": "\u00a77 must name the extension to the verdict's field set (q95, Ip, whitened magnetics residual) or name the second owner for the residual metric, rather than implying judge_geometry already covers the done-when's quantities.",
+      "text": "\u00a77 states `judge_geometry` \"already scores model geometry against an injected reference equilibrium into a `GeometryVerdict` (boundary RMS, axis position, q), so \u00a77 adds a SELENE reference loader and its firewall tier to it instead of a parallel comparator\"; but `GeometryVerdict` (line 174) carries only `axis_error`, `xpoint_error`, `boundary_rms`, `n_boundary_points`, `components`, `passed` and `notes` \u2014 there is no q, no Ip and no whitened magnetics residual, and the module contains no residual or global-quantity scoring; \u00a77's done-when requires all three per shot, so the comparator change is materially larger than the \"loader and firewall tier\" the plan names",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/description_reader.py:81",
+      "id": "reuse_search-2",
+      "reason": "the author must state whether store format/root/probe-angle source become declared catalogue slots (and under which justification) or stay function parameters, because resolution from the catalogue today has no home.",
+      "text": "\u00a74 says the store format, root and probe-angle source are \"resolved from the catalogue rather than from the machine name\", but `MachineMapCatalog` (machine_map.py:947) has no store-format, store-root or probe-angle-source field and `load_machine_map` uses `_exact_keys` over a fixed required set (machine_map.py:1084), so \u00a74 necessarily adds catalogue/schema slots for machine addressing; \u00a72's done-when only justifies new slots that carry \"a JT-60SA structure, such as a SELENE-deck conductor element\", which does not cover machine-addressing fields, so the plan's own slot criterion excludes the slots \u00a74 needs",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "4d25c388c89ba3207d8038c07ba8abbb71ec676efafe6aec2f18fb4495b59847",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 17,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T064604647097-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "97be6613eca1bd7b17a43af7a83125d70fd6d6c5",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each new surface is one function hiding the transport and layout (the \u00a73 extractor is \"one batch-fetch function and one cache writer\"; the \u00a72 exporter is one function; the \u00a77 EQDB reader reuses the extractor's transport and cache), so no shallow-wrapper spread.",
+    "duplicate_owner": "a finding \u2014 \u00a77 names `eval/efit_referee.py` `judge_geometry` as the comparator owner but its `GeometryVerdict` scores only axis, xpoint and boundary_rms; q95, Ip and the whitened magnetics residual the \u00a77 done-when requires have no owner named.",
+    "interface_budget": "pass \u2014 each section that adds surface states what it retires or why nothing can be: \u00a72 exporter \"retires nothing, because ambix has no exporter\"; \u00a73 extractor \"retires nothing, because ambix has no remote reader today\"; \u00a74 retires the `machine == \"mast\"` branch; \u00a77 EQDB reader \"retires nothing, because no equilibrium-database reader exists in ambix\". (public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0 this week.)",
+    "reuse_search": "a finding \u2014 \u00a76 searches `challenge/convention.py` for source-COCOS identification but misses `data/cocos_convention.py`, whose `score_convention`/`surviving_conventions` already generalise over a `ShotSignObservation` cohort, defaulting only to `MAST_LEVEL2_SIGN_TABLE`.",
+    "thin_wrapper": "pass \u2014 the \u00a73 extractor is a parallel implementation rather than a wrapper, and the section names codex's `remote/scripts/enumerate_edas.py` remote layer and states why it is not imported (it would make imas-codex a dependency of every ambix read), with the shared-core decision deferred to a second facility."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.879063+00:00"
+}

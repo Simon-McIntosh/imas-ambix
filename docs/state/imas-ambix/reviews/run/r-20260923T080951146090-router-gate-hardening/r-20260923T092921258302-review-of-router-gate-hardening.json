@@ -1,0 +1,56 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/router.py:572 RouterApp.__call__ acquires the process-global generation gate after catalog resolution",
+    "imas_ambix/agent/router.py:606 RouterApp.__call__ releases an acquired slot after every relay outcome",
+    "imas_ambix/agent/router.py:963 RouterApp._relay explicitly closes the upstream response when the caller disconnects",
+    "imas_ambix/agent/router.py:753 _publish_gate_snapshot exposes the gate settings and live counters in lane.json",
+    "imas_ambix/agent/router.py:1366 create_router_app carries the production gate file into the single RouterApp instance"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T09:29:21.258302+00:00",
+  "findings": [
+    {
+      "file": "docs/plans/local-lane-admission-control.html",
+      "line": "164-170",
+      "text": "The new hardening callout correctly says FIFO begins after catalog resolution and that the router has no health route, but the authoritative section's original behavior paragraph still says requests are admitted first-come-first-served without that qualifier and that health requests bypass the gate. The same section therefore contains mutually incompatible operational contracts; replace the stale sentences rather than relying on a later callout to override them."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 5 production integration sites spanning admission, release, explicit upstream close, lane publication and app construction",
+    "diff": "read both commits from base cba9e38f through head 33ffe136. The implementation commit changes only the gate's change-detection log state, direct disconnect observability, its two focused tests, operator guidance and the flow figure; the second commit records the measured receipts in the plan and cumulative evidence page.",
+    "done_when": "the target receipts report 0/20 failures at historical revision 5ca04952, 0/20 at base cba9e38f, and 20/20 passes of the rewritten test at 33ffe136; the declared close-removal mutation fails at the direct close assertion with exit 1; 45 router tests pass and whole-tree ruff exits 0. In this review sandbox the no-listener configuration-log test independently passed, while the direct-close test could not bind 127.0.0.1 and is preserved as environmental evidence rather than counted as a source failure.",
+    "goal": "all three hardening mechanisms are present: direct observation of ClientResponse.close plus zero in-flight/waiting counters, INFO logging only when effective width or wait changes, and post-catalog/no-health wording in the router docstrings, operator guidance and SVG. The earlier behavior paragraph in the semantic plan remains stale and contradicts the new callout.",
+    "manifest": "read against every named receipt and both commit diffs. It records the two commits and all seven paths, quotes the non-reproduction of the historical flake rather than claiming a repair, names the discriminating negative control, keeps deployment separately authorised, and passed the worker's check-manifest gate.",
+    "write_paths": "git diff cba9e38f..33ffe136 touches exactly the seven declared paths; the implementation and documentation are separated into two body-bearing commits, and no router, engine or scheduler state was changed."
+  },
+  "justifications": {
+    "durability": "the rewritten test directly observes the router's close call and both gate counters, and the declared mutation proves the close assertion is load-bearing; the config test pins one INFO record across three unchanged refreshes and a second after a width change. One point is withheld because the plan's original contract remains contradictory despite the corrective callout.",
+    "evidence": "the run preserves revision-, tree- and command-headed logs for both 20-run baselines, the 20-run final gate, the full 45-test router surface, ruff and the exact declared mutation. The mutation fails on the intended positive marker, and the independent no-listener test passed; the review sandbox's loopback-bind refusal is explicitly separated from product evidence.",
+    "fit": "the implementation adds one cached last-logged setting to the existing gate and observes the existing explicit close rather than introducing a parallel lifecycle mechanism. Production construction, relay release and lane publication remain on their established paths.",
+    "goal_fidelity": "the named code, test, guidance and figure outcomes are all delivered quantitatively, and the historical defect was honestly reported as not reproduced before the test was strengthened. The remaining stale behavior paragraph prevents a fully unambiguous semantic record.",
+    "scope_discipline": "both commits touch only the seven paths listed in the dispatch fence, preserve the separately authorised deployment boundary, and the target worktree was clean at delivery."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260923T080951146090-router-gate-hardening, base cba9e38ff6b2d2d4690be194d3968969497055fe, reviewed head 33ffe13661775450624a20f739cd257ad1e6cf24. Read live plan section 7, the dispatch contract, manifest, both commit diffs, final source and tests, all named receipts, the declared negative control, operator guidance, SVG, plan landing record and cumulative evidence anchor.\n\nVERDICT goal: all three hardening mechanisms are present: direct observation of ClientResponse.close plus zero in-flight/waiting counters, INFO logging only when effective width or wait changes, and post-catalog/no-health wording in the router docstrings, operator guidance and SVG. The earlier behavior paragraph in the semantic plan remains stale and contradicts the new callout.\nVERDICT done_when: the target receipts report 0/20 failures at historical revision 5ca04952, 0/20 at base cba9e38f, and 20/20 passes of the rewritten test at 33ffe136; the declared close-removal mutation fails at the direct close assertion with exit 1; 45 router tests pass and whole-tree ruff exits 0. In this review sandbox the no-listener configuration-log test independently passed, while the direct-close test could not bind 127.0.0.1 and is preserved as environmental evidence rather than counted as a source failure.\nVERDICT write_paths: git diff cba9e38f..33ffe136 touches exactly the seven declared paths; no live router, engine or scheduler state changed.\nVERDICT manifest: read against every named receipt and both commit diffs; it records the two commits and all seven paths, quotes the non-reproduction of the historical flake, names the discriminating negative control, and preserves the deployment boundary.\nVERDICT diff: read commit by commit from cba9e38f through 33ffe136; one implementation commit and one evidence-record commit.\nCALL_SITES: imas_ambix/agent/router.py:572 admission; :606 release; :963 explicit upstream close; :753 lane snapshot; :1366 app construction.\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: every named hardening mechanism and quantitative gate is delivered, but the plan's original behavior paragraph still states the two semantics the later hardening record corrects.\nSCORE evidence: 20\nJUSTIFICATION evidence: revision-headed 20-run receipts, a discriminating declared mutation, the complete router suite and lint receipt support every candidate claim; the independent config test passed and the socket restriction is environmental.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: both commits touch only the seven declared paths and perform no separately authorised deployment.\nSCORE durability: 19\nJUSTIFICATION durability: direct positive observations and a load-bearing negative control replace the former timing inference, while the stale plan paragraph leaves one durable-record inconsistency.\nSCORE fit: 20\nJUSTIFICATION fit: one cached setting and direct observation of the existing close/release path strengthen the established design without a parallel mechanism.\nFINDING docs/plans/local-lane-admission-control.html:164-170 the original section still says unqualified arrival-order FIFO and health bypass even though the added hardening callout correctly says post-catalog FIFO and no health route; replace the stale paragraph so the semantic authority has one contract.\nREVISION: 33ffe13661775450624a20f739cd257ad1e6cf24",
+  "review_run_id": "r-20260923T092921258302-review-of-router-gate-hardening",
+  "reviewed_base_sha": "cba9e38ff6b2d2d4690be194d3968969497055fe",
+  "reviewed_head_sha": "33ffe13661775450624a20f739cd257ad1e6cf24",
+  "reviewed_revision": "33ffe13661775450624a20f739cd257ad1e6cf24",
+  "reviewed_run_id": "r-20260923T080951146090-router-gate-hardening",
+  "reviewer": "review-of-router-gate-hardening",
+  "scores": {
+    "durability": 19,
+    "evidence": 20,
+    "fit": 20,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-23T11:42:22+02:00",
+  "total": 98
+}

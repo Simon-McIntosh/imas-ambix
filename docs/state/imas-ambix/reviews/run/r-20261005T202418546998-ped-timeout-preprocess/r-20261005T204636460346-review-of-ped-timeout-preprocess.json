@@ -1,0 +1,64 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "Derived from the reviewed run's own arms. Its manifest names baseline_suite (revision 40d0280a, command pytest tests/test_preprocess.py -k \"not from_bucket_all\", exit 1, completed true, failure_count 2, failure_ids [test_preprocess_rbb_shot_no_skip_overwrites, test_preprocess_frames_cli_shot_ids], log baseline-preprocess-module-nobucket.log) and after_suite (revision 40d0280a as recorded [working tree after fix], command pytest tests/test_preprocess.py, exit 1, completed true, failure_count 2, failure_ids the same two, log module-preprocess-default-bound.log). Head failing ids minus base failing ids = the same two ids on both arms, so 0 added failures. This review reproduced both arms independently in git-archive scratch trees under $TMPDIR: base arm (40d0280a, tests/test_preprocess.py -k 'not from_bucket_all') 2 failed / 16 passed / 1 deselected, EXIT=1 (review-base-module.log); head arm (c3eb1709, tests/test_preprocess.py) 2 failed / 17 passed, EXIT=1 (review-head-module.log). Both arms carry the identical two failure ids, confirming added_failure_count 0.",
+  "backend": "local",
+  "base_log_revision": "40d0280acb08383b53b66b018c38d509cb48707a",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-05T20:51:04.035Z",
+  "dispatched_at": "2026-10-05T20:46:44Z",
+  "findings": [
+    {
+      "file": "tests/test_preprocess.py",
+      "line": "470",
+      "severity": "follow-on",
+      "text": "follow-on: the sibling test test_preprocess_frames_cli_shot_ids (tests/test_preprocess.py:470) carries the same wrong-patch-target shape this node repaired -- it sets paths_mod.LEVEL1_DIR to a synthetic root but never rebinds the CLI module copy, so it reads the real level-1 corpus as src_root and fails with AssertionError: assert False. It is one of the two pre-existing failures on this node's own module gate and is already listed among the non-timeout failures of ped-timeout-suite-capped.html. Recorded here so the repair this node made to its sibling is on the record for that test's owner; not fixed, as it lies outside this node's declared write scope (the single target test only)."
+    },
+    {
+      "file": "imas_ambix/data/cli.py",
+      "line": "27",
+      "severity": "follow-on",
+      "text": "follow-on: imas_ambix/data/cli.py imports LEVEL1_DIR and LEVEL2_DIR from imas_ambix.data.paths into its own module namespace at import (lines 27-28) and its preprocess paths read the module-level name (lines 630, 720), so any test that monkeypatches only imas_ambix.data.paths.LEVEL1_DIR silently misses and exercises the real corpus. The rebind-through-the-module convention this node applies is the workaround; a lazy reference through the paths module at call time would let a single patch site work. Product-side fragility, out of this node's test-only scope, reported for the module's owner."
+    }
+  ],
+  "head_log_revision": "c3eb1709d094e9eba1dbcaec1dbd77c925b5bbeb",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "the change edits one test and adds one docs fragment; no production call site is added or removed (call_site_count 0).",
+    "diff": "read commit c3eb1709 against base 40d0280a: two files, +35/-0 -- tests/test_preprocess.py gains import imas_ambix.data.cli as cli_mod (+1) and monkeypatch.setattr(cli_mod, \"LEVEL1_DIR\", src_root) (+1) plus a two-line mechanism comment (+2), and docs/evidence/fragments/project-environment-declared/ped-timeout-preprocess.html is added (31 lines). Nothing else is touched.",
+    "done_when": "5's rule is that a test that spends its time waiting is a hang whose wait is removed or bounded; this node measures the one unaccounted pytest-timeout abort (test_preprocess_frames_cli_from_bucket_all) and removes the wait rather than raising the bound. The manifest records the solo run at 1.56 s and the negative control; the reviewer reproduced the head solo gate (1 passed, 1.64 s, EXIT=0) and both module arms.",
+    "goal": "5 directs that the one 300 s abort unaccounted for by the measurement tables be measured and resolved under the section's rule -- a wait is removed/bounded, long work is marked. The abort was neither: the test patched paths.LEVEL1_DIR but imas_ambix/data/cli.py binds LEVEL1_DIR into its own namespace at import, so --from-bucket-all globbed the real corpus (17 111 *.zarr) with --workers 1 and ran unbounded. Rebinding the CLI module copy makes the test enumerate only its three synthetic shots in 1.56 s, under the bound, so no @pytest.mark.timeout is warranted. The fix matches the section's intent exactly.",
+    "manifest": "read; status complete, it states the solo gate (1 passed in 1.66 s), the module gate (2 failed, 17 passed in 2.62 s), ruff (All checks passed!), the negative control (timeout abort at 300 s), and names the five logs plus the two failure ids as pre-existing follow-ons. Every stated result matches the log it names.",
+    "write_paths": "read the manifest's declared paths -- tests/test_preprocess.py, docs/evidence/fragments/project-environment-declared/ped-timeout-preprocess.html and its figures directory -- and both paths the diff touches are inside them; no out-of-scope file is written."
+  },
+  "justifications": {
+    "durability": "the repaired test now asserts the CLI enumerated its own three shots (result.exit_code == 0 and all three <sid>.zarr present), so the rebind it adds is guarded: with the cli_mod setattr removed (independent corpus-safe mutant, review-negative-control.log) the target reddens (1 failed, 0.73 s, EXIT=1). The guard fires but--against the real corpus rather than the empty one the probe substitutes--would fire only via a 300 s pytest-timeout abort, a slow and unlocalised signal; docked for that. The change adds no test that the patch target itself is correct.",
+    "evidence": "the reviewed run records a pre-fix reproduction (open fds under the real corpus, real shot 15085.zarr written to tmp output, still running at 13 min with no EXIT line, solo-preprocess-bucket-all.log), a negative control (mutation aborts with 'Failed: Timeout (>300.0s) from pytest-timeout', 1 failed in 301.24 s, EXIT=1, negative-control.log), and green solo/module/ruff gates, all present with matching EXIT lines, and this reviewer reproduced the head solo arm independently (1 passed, 1.64 s, EXIT=0) and both module arms. Docked one: the manifest's after_suite records revision 40d0280a, the base revision, although the log header states it ran on the working tree after the fix, so a reader comparing the two arms' revisions alone could misread the after arm as unchanged.",
+    "fit": "the fragment uses the sibling evidence-fragment shape of docs/evidence/fragments/project-environment-declared/ped-worker-threads.html (section.evidence-fragment / header / h3 / p.meta / table / thead+tbody), its element ids are all prefixed ped-timeout-preprocess, and neither the changed test lines nor the fragment carry a plan label, ticket reference, version suffix or tracker id; the added comment states the mechanism ('cli copies LEVEL1_DIR into its own namespace at import').",
+    "goal_fidelity": "the node's goal is to measure and resolve the one pytest-timeout abort the capped whole-suite run left unaccounted for, under 5's rule that a wait is removed or bounded. It identifies the abort as an unbounded real-corpus glob caused by a wrong patch target and removes the wait by rebinding the CLI module's own LEVEL1_DIR, so the target test enumerates only its three synthetic shots and runs in 1.56 s -- inside the 300 s default, so correctly no @pytest.mark.timeout is added.",
+    "reuse": "the fix reuses the repository's existing patch-target convention rather than inventing a mechanism: tests/test_bench.py:440-441 already patches both paths_mod and the CLI module's copy, and this change makes the preprocess test match it (import the CLI module, monkeypatch its LEVEL1_DIR). No helper, fixture or duplicated logic is introduced.",
+    "scope_discipline": "the diff is confined to tests/test_preprocess.py (+4) and the new evidence fragment, both declared write paths, and adds nothing the goal does not imply; no second test, no production file, no shared fixture was touched, and the two pre-existing module failures are reported as follow-ons rather than triaged or fixed."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261005T202418546998-ped-timeout-preprocess (plan imas-ambix:project-environment-declared section 5), read at head c3eb1709d094e9eba1dbcaec1dbd77c925b5bbeb against base 40d0280acb08383b53b66b018c38d509cb48707a. The node resolves the one pytest-timeout abort the capped whole-suite run left unaccounted for -- tests/test_preprocess.py::test_preprocess_frames_cli_from_bucket_all -- which hung because it patched only imas_ambix.data.paths.LEVEL1_DIR while imas_ambix/data/cli.py binds LEVEL1_DIR into its own namespace at import and reads that copy, so --from-bucket-all globbed the real corpus and ran unbounded. The commit rebinds the CLI module's copy as well, matching tests/test_bench.py, so the test enumerates only its three synthetic shots and runs in 1.56 s.\n\nVERDICT goal: the node's goal is to measure and resolve the unaccounted abort under 5's rule that a wait is removed or bounded; the wrong-patch-target hang is removed by rebinding cli_mod.LEVEL1_DIR, and the test runs in 1.56 s, inside the 300 s default, so no @pytest.mark.timeout is added.\nVERDICT done_when: the section rule is applied to the named test and the manifest records the solo (1.56 s), module (2 failed, 17 passed), ruff (EXIT=0) and negative-control gates; the reviewer reproduced the head solo arm (1 passed, 1.64 s, EXIT=0) and both module arms.\nVERDICT write_paths: read the manifest's declared paths; the diff touches only tests/test_preprocess.py and docs/evidence/fragments/project-environment-declared/ped-timeout-preprocess.html, both inside them.\nVERDICT manifest: read; every stated gate result matches the log it names.\nVERDICT diff: read commit c3eb1709; +35/-0 across two files, test rebind + comment + new 31-line fragment, nothing else.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: the abort is correctly diagnosed as an unbounded real-corpus glob from a wrong patch target and removed by the rebind, running 1.56 s under the 300 s bound with no mark added, exactly 5's rule; a full 20 would need the mechanism asserted, not only demonstrated.\nSCORE evidence: 18\nJUSTIFICATION evidence: pre-fix reproduction, negative control and green gates are all logged with matching EXIT lines and the head arm reproduces independently; docked one because the manifest's after_suite records the base revision 40d0280a while its log header says 'working tree after fix'.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff is two declared paths, +35/-0, and adds nothing beyond the goal; the two pre-existing failures are left as follow-ons.\nSCORE durability: 18\nJUSTIFICATION durability: the repaired test asserts its three shots are processed, so the rebind is guarded -- removing it reddens the target (independent corpus-safe mutant, 1 failed, EXIT=1) -- but against the real corpus the guard fires only as a slow 300 s timeout abort rather than a localised assertion.\nSCORE fit: 19\nJUSTIFICATION fit: the fragment matches the sibling evidence-fragment shape with ped-timeout-preprocess-prefixed ids and no plan label, ticket or version in the changed lines.\nSCORE reuse: 19\nJUSTIFICATION reuse: reuses the existing dual-patch convention from tests/test_bench.py:440-441 rather than adding a new mechanism.\nFINDING tests/test_preprocess.py:470 follow-on: the sibling test_preprocess_frames_cli_shot_ids keeps the same wrong-patch-target shape and is one of the two pre-existing module failures; not this node's scope.\nFINDING imas_ambix/data/cli.py:27 follow-on: cli.py copying LEVEL1_DIR/LEVEL2_DIR at import makes CLI paths un-monkeypatchable through the paths module; a lazy reference would let one patch site work.\n\nreviewed_base_sha: 40d0280acb08383b53b66b018c38d509cb48707a\nreviewed_head_sha: c3eb1709d094e9eba1dbcaec1dbd77c925b5bbeb",
+  "review_run_id": "r-20261005T204636460346-review-of-ped-timeout-preprocess",
+  "reviewed_base_sha": "40d0280acb08383b53b66b018c38d509cb48707a",
+  "reviewed_head_sha": "c3eb1709d094e9eba1dbcaec1dbd77c925b5bbeb",
+  "reviewed_run_id": "r-20261005T202418546998-ped-timeout-preprocess",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T20:50:00+00:00",
+  "total": 113
+}

@@ -1,0 +1,24 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T17:51:53.102Z",
+  "dispatched_at": "2026-10-05T17:48:29Z",
+  "findings": [],
+  "plan_fingerprint": "b140df1a6484997e5bcfea15735d3ba9b49de58fd2da269193e7112f48e363ae",
+  "plan_slug": "project-environment-declared",
+  "plan_version": 40,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T174823135675-plan-review-of-project-environment-declared",
+  "reviewed_blob_sha": "80358253a33a2221819afbedfb2a9a25382d1184",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 imas_ambix/_thread_pools.py::pin_thread_pools(count) hides the env-var names and the load-before-BLAS ordering constraint behind one call, and build_census() in tests/test_declared_dependencies.py is a single classifier read by both the assertion and the fragment renderer, so depth sits behind one interface rather than spread across wrappers.",
+    "duplicate_owner": "pass \u2014 the environment-variable pin is consolidated to one owner instead of a second copy, and the census extends the existing shared resolver rather than forking it; no placement, path-resolution, scheduler-query or state-reader mechanism is duplicated.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a75 adds only a private module and names in its own text what it retires (oracle_probe's inline loop), \u00a76 merges the fresh-environment walk into the existing census file instead of adding a script, and no section adds to any of the four families.",
+    "reuse_search": "pass \u2014 the plan searched the tree and cites the two mechanisms it reuses: the inline BLAS/OpenMP pin at imas_ambix/statespace/oracle_probe.py:55-56, and the shared editable-checkout resolver tests/distribution_sources.py::editable_checkout (already used by tests/physics/test_dependency_contract), rather than rebuilding either.",
+    "thin_wrapper": "pass \u2014 the plan replaces oracle_probe's inline three-line loop with a shared stdlib-only owner and states why oracle_probe itself cannot own it (conftest must not import the numpy-loading module before the pin runs); I opened imas_ambix/__init__.py and imas_ambix/statespace/__init__.py and both are docstring-only, so the ordering claim the design rests on holds."
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T17:52:38.540061+00:00"
+}

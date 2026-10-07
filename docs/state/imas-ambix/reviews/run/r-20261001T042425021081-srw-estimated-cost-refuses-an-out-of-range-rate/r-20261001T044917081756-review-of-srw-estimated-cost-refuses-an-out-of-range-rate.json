@@ -1,0 +1,70 @@
+{
+  "absent": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_arm_diff over this review's two arms of the reviewed node's declared gate surface (tests/test_agent_watch_cost.py tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py): base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T044917081756-review-of-srw-estimated-cost-refuses-an-out-of-range-rate/review-base-gate.log (revision d3f338e15aec49b3ee208082b6ee60b219be97a9, 39 passed, EXIT=0) and head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T044917081756-review-of-srw-estimated-cost-refuses-an-out-of-range-rate/review-head-gate.log (revision 4748c53a9e9341ba651760f6085e6aaaf1beafc0, 43 passed, EXIT=0). Both arms ran in scratch trees extracted with git archive from this review's own worktree (shared object store; the reviewed worktree is not writable by this node), each importing its own imas_ambix/agent/watch.py, so neither added a git worktree. The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite; its own gate.log carries the head-side receipt only (43 passed, EXIT=0 at revision e2827f32). The head arm is a superset of the base arm's tests and both are green, so the head ids minus the base ids is 0.",
+  "after_suite": {
+    "command": "cd /tmp/rev-srw-cost/head && PYTHONPATH=/tmp/rev-srw-cost/head UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_agent_watch_cost.py tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T044917081756-review-of-srw-estimated-cost-refuses-an-out-of-range-rate/review-head-gate.log",
+    "revision": "4748c53a9e9341ba651760f6085e6aaaf1beafc0"
+  },
+  "baseline_suite": {
+    "command": "cd /tmp/rev-srw-cost/base && PYTHONPATH=/tmp/rev-srw-cost/base UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_agent_watch_cost.py tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T044917081756-review-of-srw-estimated-cost-refuses-an-out-of-range-rate/review-base-gate.log",
+    "revision": "d3f338e15aec49b3ee208082b6ee60b219be97a9"
+  },
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/watch.py:401 estimated_cost, the guarded function",
+    "imas_ambix/agent/watch.py:636 the production caller in the period row (cost = estimated_cost(...))",
+    "tests/test_agent_watch_cost.py:215 and the new :356 the test callers"
+  ],
+  "completed_at": "2026-10-01T05:26:31.444Z",
+  "dispatched_at": "2026-10-01T04:49:24Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "417",
+      "severity": "minor",
+      "text": "The docstring cites 'a recorded period of 278,174 input and 40,000 output tokens'. The input count is grounded -- 278,174 is the summed prompt tokens recorded in ~/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate/third-party-hit-rate.json (prompt_tokens 278174) -- but no record carries a 40,000-token output count. The record holds prompt_tokens and cached_prompt_tokens only; the production-size record likewise carries no completion count. So the output share that drives the '1.07 times' total ratio is asserted, at a period presented as recorded. Ratios verified: input-term 1.9910, total 1.0712 at the cited prices."
+    },
+    {
+      "file": "tests/test_agent_watch_cost.py",
+      "line": "356",
+      "severity": "follow-on",
+      "text": "The parametrised test pins the out-of-interval branch (1.2, 2.0, -0.5) and the boolean branch (True), but no case exercises the non-numeric branch `not isinstance(rate, (int, float))` in watch.estimated_cost (True short-circuits on the preceding `isinstance(rate, bool)`). The docstring and fragment both claim a non-numeric value is refused; that clause is unexercised by the suite. A string such as \"0.5\" would cover it."
+    }
+  ],
+  "follow_ons": [
+    "add a non-numeric rate case (for example \"0.5\") to test_estimated_cost_refuses_a_rate_outside_the_unit_interval so the not-isinstance clause is pinned by a test rather than by the docstring; verified present in code but unexercised.",
+    "the docstring's illustrative output count (40,000 tokens) has no recorded source; either cite a period whose record carries both input and output counts, or state the output share as assumed for the illustration."
+  ],
+  "item_verdicts": {},
+  "justifications": "independent review of run r-20261001T042425021081-srw-estimated-cost-refuses-an-out-of-range-rate (base d3f338e1, head 4748c53a, review r-20261001T044917081756-review-of-srw-estimated-cost-refuses-an-out-of-range-rate) stores a parsed record scoring goal_fidelity 19, evidence 17, scope_discipline 20, durability 18, fit 19 (total 93). The reviewed node's limb is delivered and discriminated: watch.estimated_cost now raises ValueError naming the rate for a boolean, a non-numeric value, or a rate outside 0..1 before any price is read, so no caller reaching it directly can obtain a negative or inflated figure. Reproduced independently against the base revision source (guard absent): the four declared rates were priced rather than refused at base -- 1.2 -> 0.0672, 2.0 -> -0.1680 (a negative cost), -0.5 -> 0.5670, True -> 0.1260 (0 of 4 raised) -- and at head all four raise ValueError naming the rate (4 of 4 raised), with 0.0/0.55/1.0 priced. The reviewed head's gate re-ran green independently (43 passed, EXIT=0), and the base/head arms are both green (39 and 43 passed) so added_failure_count is 0. The docstring rewrite is arithmetically correct: input-term ratio h0.93/h0.975 = 1.9910 and total ratio on 278,174 in / 40,000 out = 1.0712 at the cited 2026-09-29 deepseek/deepseek-v4.1-flash prices ($0.30/M prompt, $0.006 cache read, $1.20 completion); load_estimate's own decline guard is unchanged. Two findings bound the score: the cited period's output-token count (40,000) is not recorded anywhere the record reaches, and the non-numeric branch the docstring claims is untested.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261001T044917081756-review-of-srw-estimated-cost-refuses-an-out-of-range-rate",
+  "reviewed_base_sha": "d3f338e15aec49b3ee208082b6ee60b219be97a9",
+  "reviewed_head_sha": "4748c53a9e9341ba651760f6085e6aaaf1beafc0",
+  "reviewed_run_id": "r-20261001T042425021081-srw-estimated-cost-refuses-an-out-of-range-rate",
+  "reviewer": "review-of-srw-estimated-cost-refuses-an-out-of-range-rate",
+  "scores": {
+    "durability": 18,
+    "evidence": 17,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-01T04:58:00+00:00",
+  "total": 93
+}

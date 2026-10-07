@@ -1,0 +1,72 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "Derived from the reviewed run's own arms, which are present and readable: baseline_suite records the gate at base f5808031 (19 passed, EXIT=0, completed true, failure_count 0, failure_ids []) in base_eddb_cache.log, and after_suite records it at head 4198579a (30 passed, EXIT=0, completed true, failure_count 0, failure_ids []) in head_eddb_cache.log. Head failing ids ([]) minus base failing ids ([]) is 0; the delta is 11 added passing tests and no added failure. Both arms were independently reproduced by this review in scratch trees extracted with git archive into $TMPDIR/arms (no worktree created, the reviewed object store and worktree are not writable by this node): review-base-gate.log (revision f5808031: 19 passed, EXIT=0) and review-head-gate.log (revision 4198579a: 30 passed, EXIT=0).",
+  "after_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/a663ef24-6dba-4bb9-9ea5-3f1597c64253/jtmm-eddb-partial-batch command uv run --no-sync pytest -p no:cacheprovider tests/data/test_eddb_cache.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T104220106834-jtmm-eddb-partial-batch/head_eddb_cache.log",
+    "revision": "4198579a87bed3850dab670a659324eeeed52cf5"
+  },
+  "baseline_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/tmp/reckon-crew-scratch/r-20261005T104220106834-jtmm-eddb-partial-batch/jtmm-eddb-base-1226320 command uv run --no-sync pytest -p no:cacheprovider tests/data/test_eddb_cache.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T104220106834-jtmm-eddb-partial-batch/base_eddb_cache.log",
+    "revision": "f5808031d72d334d63da44ce3ede134aa068563b"
+  },
+  "completed_at": "2026-10-05T11:17:34.806Z",
+  "dispatched_at": "2026-10-05T11:10:21Z",
+  "findings": [
+    {
+      "file": "imas_ambix/data/eddb_remote.py",
+      "line": "394,422",
+      "severity": "follow-on",
+      "text": "follow-on: a single channel whose refusal carries no integer irc aborts the whole batch rather than being the one channel reported. In the remote script _read_one returns a refusal dict whose code is _return_code(rtn); _return_code raises RuntimeError (line 394) when rtn is not a dict with an integer irc, and that exception propagates out of main(), so the remote process exits non-zero and the transport raises -- the served channels that preceded the malformed one are lost with it, which is the batch-abort behaviour the node exists to remove. The choice is deliberate and documented (the fragment states it: 'raising when a failed read carries no integer irc rather than reporting 0', because 0 would read as success), and the plan's own cold-fetch evidence shows every real refusal carried irc 1013 or 1015, so the shape is unobserved on the real server and no regression is introduced against any measured input. It is recorded as a residual: a future refusal shape without irc degrades one channel's refusal into a session-wide failure rather than a reported refusal."
+    }
+  ],
+  "follow_ons": [
+    {
+      "file": "docs/figures/jt60sa-machine-map/jtmm-eddb-partial-batch",
+      "line": "",
+      "severity": "follow-on",
+      "text": "The reviewed node declared docs/figures/jt60sa-machine-map/jtmm-eddb-partial-batch among its write paths but Wrote nothing there -- git diff --stat base..head lists exactly four files (imas_ambix/data/eddb.py, imas_ambix/data/eddb_remote.py, tests/data/test_eddb_cache.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-eddb-partial-batch.html), all inside the declared set, and the evidence fragment carries no figure. This is an under-delivery of the declared write set, not a scope breach: a code-defect repair node has no figure to draw, and the fragment's landing record is complete without one."
+    }
+  ],
+  "item_aggregate": 7,
+  "item_verdicts": {
+    "call_sites": "verified 0 production call site(s) of the changed fetch_batch/fetch_channels return type remain outside the changed files: grep -rn 'fetch_channels|fetch_batch' imas_ambix tests --include=*.py returns only the definitions in imas_ambix/data/eddb.py and the test file, so the API change reaches no unmigrated caller.",
+    "diff": "read commits 70eaa87e, 93f9a8c1, 4198579a against base f5808031; git diff --stat base..head = 4 files, +413/-49, all inside the declared write paths (eddb.py +19/-15, eddb_remote.py +176, test_eddb_cache.py +233, fragment +34); no other file touched.",
+    "done_when": "Read the node's measure: the review record stores a parsed record scoring all five dimensions 0..20, recording the revision it read as reviewed_base_sha and reviewed_head_sha, and carries added_failure_count and added_failure_ids derived from the reviewed run's own baseline_suite and after_suite gate logs.",
+    "goal": "\u00a73's extractor-repair clause asks that one session return its served records together with each refused channel's return code, so the cache writes what was served and reports the rest; that the unit be recorded as the EDDB string; and that it adopt the PSRC call the investigation names. All three hold at head. fetch_batch now returns BatchResult(records, refusals) over one transport.run call (tests assert len(transport.calls) == 1), each ChannelRefusal naming shot, category, dname and code; fetch_channels writes every served record and returns the refusals, so a mixed batch caches the served ones and a fully refused batch writes nothing. normalise_unit/_unit reduce the EDDB one-entry list ['A'] to 'A' and refuse a multi-entry list. The investigation found no new call was needed ('the extractor repair therefore needs no new call'), and the diff changes no EDDB call, which is consistent.",
+    "manifest": "read; it advances three commits through 4198579a with a clean worktree, states the head gate (30 passed EXIT=0), the ruff gate (clean EXIT=0), the base arm (19 passed EXIT=0) and a negative control (4 failed EXIT=1), and names changed_paths eddb.py, eddb_remote.py, test_eddb_cache.py and the fragment.",
+    "tests_reproduced": "both arms independently reproduced in this node's own scratch trees: head 30 passed EXIT=0 (review-head-gate.log), base 19 passed EXIT=0 (review-base-gate.log). The refusal guard was made to fire independently: mutating fetch_batch in a scratch copy of head to return an empty refusals list reddens the same four tests the node names (test_fetch_batch_returns_served_records_with_one_refusal_per_refused_channel, test_fetch_batch_raises_only_when_the_session_itself_fails, test_fetch_channels_caches_the_served_and_reports_the_refused, test_a_batch_that_is_entirely_refused_writes_nothing), 4 failed EXIT=1 (review-negative-control.log).",
+    "write_paths": "the diff touches exactly imas_ambix/data/eddb.py, imas_ambix/data/eddb_remote.py and tests/data/test_eddb_cache.py plus the evidence fragment, all inside the declared set. The declared figures directory docs/figures/jt60sa-machine-map/jtmm-eddb-partial-batch is unwritten (see follow_ons)."
+  },
+  "justifications": "independent review of run r-20261005T110952943571-review-of-jtmm-eddb-partial-batch, reviewed_run_id r-20261005T104220106834-jtmm-eddb-partial-batch, base f5808031, head 4198579a, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 19, evidence 18, scope_discipline 19, durability 17, fit 18 -- total 91, added_failure_count 0 with added_failure_ids [] derived from the reviewed run's own baseline_suite and after_suite gate logs (base_eddb_cache.log 19 passed EXIT=0 at f5808031, head_eddb_cache.log 30 passed EXIT=0 at 4198579a) and independently reproduced by this review in scratch trees under $TMPDIR (review-base-gate.log, review-head-gate.log). The node implements \u00a73's extractor-repair clause faithfully: fetch_batch returns a BatchResult of served records and one refusal per refused channel in a single ssh session, fetch_channels caches the served ones and reports the rest, the unit is normalised to the EDDB string, and the PSRC call is unchanged because the investigation established no new call was needed. Both defects \u00a73 names are repaired and each is guarded by tests that exercise the real remote script end to end; the node's negative control was reproduced independently rather than accepted, reddening exactly the four tests it names. Two residual items are recorded as follow-ons, neither introduced as a regression: a channel-level refusal carrying no integer irc raises in the remote script and aborts the whole batch rather than that one channel (an unobserved shape on the real server, where refusals carried irc 1013/1015), and the declared figures write path was left unwritten, which for a code-repair node is an under-delivery of the declared set rather than a scope breach.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T110952943571-review-of-jtmm-eddb-partial-batch",
+  "reviewed_base_sha": "f5808031d72d334d63da44ce3ede134aa068563b",
+  "reviewed_head_sha": "4198579a87bed3850dab670a659324eeeed52cf5",
+  "reviewed_run_id": "r-20261005T104220106834-jtmm-eddb-partial-batch",
+  "reviewer": "review-of-jtmm-eddb-partial-batch",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T11:15:45+00:00",
+  "total": 91
+}

@@ -1,0 +1,44 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T05:02:47.928Z",
+  "dispatched_at": "2026-10-06T04:55:49Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/eddb.py:208",
+      "id": "duplicate_owner-1",
+      "reason": "the plan should name the extraction of a shared invariant helper from the existing owner (`eddb.py`), so the second writer cannot fork the token/overwrite contract that the section claims it inherits.",
+      "text": "\u00a77 describes the EQDB grid-record writer as sitting \"beside `write_channel`\" and sharing the store's invariants \"through the code that already enforces them\", but the EDDB-token match (`EDDB_TOKEN_ATTR`) and the overwrite refusal are inline statements in `write_channel`'s body, so a second writer duplicates that contract instead of sharing it and the two can drift (a grid record written under a token-mismatched pulse group, or over an existing record).",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "7e22c7800b35dbe4b0eb833119422a27ac72a1d435e674f8a4761d8481395569",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 104,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T045543032313-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "de6d7f536e854db6a5e853e859ed612e39e5956f",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new modules are deep rather than shallow: `eddb_remote.py` hides one ssh process per batch, the module-loaded remote command and the per-request refusal contract behind `RemoteEddbExtractor`/`fetch_channels`; `selene_deck.py` hides three deck grammars and per-phase IDS emission behind one converter entry; \u00a77 keeps the EQDB read inside `RemoteEddbExtractor` rather than in a second extractor. No section spreads one behaviour across several thin wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a77 puts the EQDB grid writer \"beside `write_channel`\" and asserts the two writers \"share the store's invariants through the code that already enforces them\", but the EDDB-token match and the overwrite refusal live inline in `write_channel`'s body (`imas_ambix/data/eddb.py:224-234`), not in a named helper; only `_channel_present` is extractable today, so the shared-invariant claim is not yet true and the second writer must either duplicate the token/overwrite checks or the plan must name their extraction.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds family surface states what it retires or merges or why nothing can be \u2014 \u00a72 \"retires nothing, because ambix has no exporter\", \u00a73 \"retire nothing \u2026 merge into nothing\", \u00a74 \"widens one protocol method and retires nothing\", \u00a75 \"adds one data file and no public definition or refusal family\", \u00a76 \"retires nothing public, because every existing name keeps its caller\", \u00a77 \"`--machine` \u2026 replaces the implicit MAST default \u2026 retires nothing else\". No section adds surface without that accounting.",
+    "reuse_search": "pass \u2014 the plan names the mechanism each section extends and the variants it rejects, verified against the tree: \u00a72 compares tokamap and cites `tokamap_export.export_tokamap_directory`; \u00a73 names the FAIR-MAST mirror (`data/manifest.py`, `data/cli.py`) as the nearest existing store path and states why it does not fit; \u00a74 supersedes `nakamap` and names `description_reader.read_geometry_table` as the acquisition route; \u00a76 cites the `cocos_convention` scorer and the `EfitLabels` record; \u00a77 cites `eddb.RemoteEddbExtractor` (via `eddb_remote.py`), `artifact_resolution`, `machine_identity.default_registry` and `efit_referee.judge_geometry`.",
+    "thin_wrapper": "pass \u2014 every addition that sits over existing machinery says why the machinery cannot be extended instead. \u00a76 generalises `measure_diiid_convention` and `read_level2_observation` in place (keeping the exported names and their callers) rather than adding a second scorer or reader; \u00a77 extends `RemoteEddbExtractor` with the EQDB request kind, sharing batch framing and the refusal contract; \u00a74 extends `StoreEngine.open` (one protocol method widened) rather than adding a store. The wrapper-with-no-justification defect is absent."
+  },
+  "section_digests": {
+    "_document": "060371ce32b20f0360ee1915d508732a36f1e2589b54c97b2df633bc451a49ed",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "c75137ca1257d03788b8f9a19bb91a13e7afc90da8c96f5b8403a6b19235d138",
+    "s5": "d9699df7cbddeb0512a8fea91555e191404c636d3da53692701ca5e7269c334d",
+    "s6": "6e90bbb718ecc711dad77cf286e778a3b5b19a6134a4c1b72c0aa29197e0d32b",
+    "s7": "f68ed706f5e3b6aa1f7bc1889b8e1a320bd9c05a6dbbd20bedae0cf95b7a3ecb",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T05:21:11.957881+00:00"
+}

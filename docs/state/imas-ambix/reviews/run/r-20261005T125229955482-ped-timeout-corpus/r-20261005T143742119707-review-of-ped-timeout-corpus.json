@@ -1,0 +1,76 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest declares no baseline_suite/after_suite arms; its gate evidence is the tests and test_logs fields with one per-file log per arm. Baseline arm at rev adb67e5f: perfile-challenge-test_loader (3 passed, EXIT=0), perfile-machine_map (29 passed, EXIT=0), perfile-test_agent (3 failed, 190 passed, EXIT=1), perfile-filaments3d (13 passed, EXIT=0); perfile-fluxstate is truncated mid-run and carries no result. After arm at rev 0a79ea67/db026f9d: confirm-challenge-loader (3 passed, EXIT=0), confirm-machine_map (29 passed, EXIT=0), confirm-test_agent (3 failed, 190 passed, EXIT=1), confirm-fluxstate-consumer (1 passed, 5 errors, EXIT=1). The three test_agent failures are identical pre-existing ids in both arms (test_agent_serve_gpu_help_matches_core_scaling and test_clive_openrouter_opt_in_starts_proxy_and_presents_presents_picker[mode_arguments{0,1}]) and are not added. The five fluxstate errors are the pre-existing condition the node was fixing -- the >2694 s fixture setup exceeds every bound below 5400 -- not a regression introduced by the change. Zero added failures.",
+  "artifacts_note": "read the reviewed run's five commits and its gate logs under /home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T125229955482-ped-timeout-corpus/ and the worktree at db026f9d. This review changed nothing in the reviewed worktree. The fragment's 12 rows reconcile with perfile-machine_map.log (378.50 s, 13.37 s, 0.12 s), perfile-challenge-test_loader.log (753.26 s, 724.46 s), perfile-test_agent.log (900.28 s), perfile-filaments3d.log (270.59 s), verify-machine_map-default.log (195.68 s) and confirm-fluxstate-consumer.log (2693.92 s setup).",
+  "base_log_revision": "adb67e5f37a4b939971300f645c37ddabe77ba12",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-05T14:43:09.538Z",
+  "dispatched_at": "2026-10-05T14:37:50Z",
+  "findings": [
+    {
+      "file": "tests/fluxstate/test_consumer_contract.py",
+      "line": "5400",
+      "severity": "follow-on",
+      "text": "follow-on: the default-bound confirmation for the nova-references fixture is outstanding. The first 2640 s mark was smaller than the measured 2693.92 s setup, so the confirm run ended '1 passed, 5 errors' EXIT=1; the mark was raised to 5400 s and committed, but no default-bound re-run was made. The node's done-when requires the per-file default-bound runs to exit 0 or fail only on tests the table records as left failing, and these five errors are not so recorded. A default-bound re-run of the file is the outstanding confirmation."
+    },
+    {
+      "file": "docs/evidence/fragments/project-environment-declared/ped-timeout-corpus.html",
+      "line": "machine_map inventory row",
+      "severity": "follow-on",
+      "text": "follow-on: the machine_map inventory row records load '8' for the 195.68 s measurement, but verify-machine_map-default.log -- the only log carrying 195.68 -- records load1 25.38. The duration reconciles; the load value does not."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T125229955482-ped-timeout-corpus/manifest.md",
+      "line": "commits",
+      "severity": "follow-on",
+      "text": "follow-on: the manifest's commits field lists four SHAs (c9c57d1e, a73c18a2, 0a79ea67, cc558db9) and omits the worktree head db026f9d, which was committed at 16:36:01, nine seconds after the manifest was written at 16:35:52. The head commit is docs-only and is included in this review's range."
+    },
+    {
+      "file": "tests/data/test_machine_map.py",
+      "line": "590",
+      "severity": "follow-on",
+      "text": "follow-on: the 780 s mark rests on the loaded measurement (378.50 s, load1 39.38); the same test alone under lighter load measured 195.68 s, under the 300 s default, and the default-bound confirm run measured 309.16 s (load1 3.90). The fragment states the borderline and keeps the mark as cheap insurance, which is defensible, but the plan's 'measure alone' rule would leave the test unmarked."
+    }
+  ],
+  "head_log_revision": "db026f9dcae5be6f4ba244b69c962368a3f7cd21",
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "read the five commits c9c57d1e, a73c18a2, 0a79ea67, cc558db9, db026f9d; together four test-file marks plus one wait bound and two evidence-fragment updates, 86 insertions, nothing else.",
+    "done_when": "the node's done-when asks for one table row per listed test and, after the changes, default-bound per-file runs that exit 0 or fail only on tests the table records as left failing. The table is complete; the default-bound confirmation holds for challenge, machine_map and test_agent but the fluxstate file re-run is outstanding, so the confirmation limb is unmet for that one file.",
+    "goal": "\u00a75's goal for this node is to resolve each corpus/agent test the 300 s bound reached by its measured duration. All 12 listed rows carry a measured duration, a phase, a load and an outcome: 6 marked, 1 wait fixed, 3 under bound, and the 5 fluxstate rows marked 5400 but unconfirmed.",
+    "manifest": "read; it records status complete, the five files, the negative control, the ruff gate, the measured durations, and openly names the fluxstate confirmation as outstanding under evidence_inputs and follow_ons. Its commits field omits the head commit db026f9d.",
+    "write_paths": "the manifest declares the fragment, tests/fluxstate, tests/data/test_machine_map.py, tests/challenge/test_loader.py, tests/test_filaments3d.py and tests/test_agent.py; git diff adb67e5f..db026f9d is exactly five paths, 86 insertions, no product source."
+  },
+  "justifications": {
+    "durability": "the marks live in source with measurement-and-date comments and survive as the guard against the shared-node load the plan targets, reusing existing knobs for the wait fix. But the fluxstate mark is unverified and no test asserts any per-test bound, so a mis-set mark fails silently.",
+    "evidence": "every measured duration reconciles with a named log and every mark's arithmetic is correct; the negative control fires (EXIT=1, pytest-timeout abort at 300 s without the mark) with independent evidence that the same test passes with it. The gaps are a load value in the fragment (8) that no log supports (the log says 25.38) and the absent fluxstate confirmation run.",
+    "fit": "the fragment follows the evidence conventions with a node-id element id (ped-timeout-corpus) and plan-free naming; the mark comments state the mechanism and measurement rather than a plan label; each commit carries a conventional subject and a body.",
+    "goal_fidelity": "\u00a75 asks each reached corpus/agent row to be resolved by its measured duration. All 12 rows have a measured duration, phase, load and outcome, and the marks and the wait fix follow the plan's rule. The one shortfall is that the fluxstate confirmation does not exist: its default-bound re-run after the 5400 s mark was never made, and the file's confirm arm errors on five tests the table does not record as left failing, so the node's own confirmation limb is unmet for that file.",
+    "reuse": "the node reuses the existing fragment/evidence pattern and the existing CLIVE_CATALOG_RETRY_BOUND / CLIVE_CATALOG_RETRY_START knobs rather than adding a mechanism or a duplicated measurement harness.",
+    "scope_discipline": "git diff adb67e5f..db026f9d is exactly the five declared paths, 86 insertions, no product source touched, the worktree clean at head, and ruff check imas_ambix tests exits 0."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20261005T125229955482-ped-timeout-corpus at head db026f9d against base adb67e5f (plan imas-ambix:project-environment-declared \u00a75). The node resolves the 12 rows for tests/fluxstate/, tests/data/test_machine_map.py, tests/challenge/test_loader.py, tests/test_filaments3d.py and tests/test_agent.py in the relock abort table. Read the reviewed worktree's five commits, its manifest, the per-file measurement logs and the four default-bound confirmation logs. The worktree was clean at db026f9d; this review changed nothing in it. The change is 86 insertions across exactly the five declared paths, no product source touched.\n\nVerified independently: every measured duration in the fragment reconciles with the reviewed run's own logs -- machine_map 378.50 s (perfile-machine_map, load1 39.38) and 195.68 s (verify-machine_map-default), 13.37 s and 0.12 s (perfile-machine_map); challenge 753.26 s and 724.46 s (perfile-challenge-test_loader, load1 9.59); test_agent 900.28 s (perfile-test_agent, load1 40.87); filaments 270.59 s (perfile-filaments3d, load1 40.87); fluxstate setup 2693.92 s (confirm-fluxstate-consumer line 605). Mark arithmetic is correct in every case: 2*378.50->780, 2*753.26->1560, 2*724.46->1500, 2*2693.92->5400, each rounded up to a whole minute, and each comment states the measured seconds and the date. The test_agent wait is genuinely fixed through the existing CLIVE_CATALOG_RETRY_BOUND/CLIVE_CATALOG_RETRY_START knobs read in imas_ambix/agent/clive.py:216-220; the isolated run drops to 6.32 s and the file run to 22.70 s from the 900.28 s baseline. The negative control fires: with the 780 mark removed the machine_map inventory test aborts, negative-control-machine_map-no-mark.log ends '1 failed in 307.93s' and 'Failed: Timeout (>300.0s) from pytest-timeout.' with EXIT=1 -- the same test the marked head arm runs to completion.\n\nGaps. (1) The confirmation limb of the node's done-when is unmet for tests/fluxstate/test_consumer_contract.py: the default-bound confirm run ended '1 passed, 5 errors' EXIT=1 because the 2640 s mark was smaller than the 2693.92 s fixture setup, the mark was then raised to 5400 s and committed (cc558db9), but the default-bound re-run was never made -- the fragment's own confirmation table records it 're-run outstanding'. The five erroring tests are not recorded as 'left failing', so this file does not meet the node's own done-when, honestly reported under evidence_inputs/follow_ons. (2) The fragment gives load '8' for the 195.68 s machine_map measurement, but no log on disk carries that figure -- verify-machine_map-default.log, the only log holding 195.68, records load1 25.38. (3) The manifest's commits field lists four SHAs and omits the worktree head db026f9d, committed 9 s after the manifest was written (16:35:52 vs 16:36:01). (4) The machine_map mark is justified on its loaded measurement (378.50 s) while its light-load measurement (195.68 s) is under the 300 s default; the fragment states the borderline and the decision, but the mark is not strictly required by the plan's 'measure alone' rule.\nSCORE goal_fidelity: 17\nSCORE evidence: 17\nSCORE scope_discipline: 20\nSCORE durability: 16\nSCORE fit: 19\nSCORE reuse: 19\n",
+  "review_run_id": "r-20261005T143742119707-review-of-ped-timeout-corpus",
+  "reviewed_base_sha": "adb67e5f37a4b939971300f645c37ddabe77ba12",
+  "reviewed_head_sha": "db026f9dcae5be6f4ba244b69c962368a3f7cd21",
+  "reviewed_run_id": "r-20261005T125229955482-ped-timeout-corpus",
+  "reviewer": "review-of-ped-timeout-corpus",
+  "scores": {
+    "durability": 16,
+    "evidence": 17,
+    "fit": 19,
+    "goal_fidelity": 17,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T04:36:22.308138+00:00",
+  "total": 108
+}

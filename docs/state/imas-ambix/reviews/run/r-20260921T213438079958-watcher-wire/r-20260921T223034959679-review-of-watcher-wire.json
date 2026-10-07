@@ -1,0 +1,54 @@
+{
+  "backend": "clive",
+  "completed_at": "",
+  "dispatched_at": "2026-09-21T22:30:34.959679+00:00",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": 465,
+      "text": "With prices loaded, a period whose counters reset still prices: period_row passes tokens_in/cached/tokens_out \u2014 all None after the reset refusal \u2014 into ledger_cost, which coerces absent totals to 0.0, so the row renders '1 hour 28m \u2014 \u2014 \u2014 \u2014 $0.00' beside token columns that correctly decline. Reproduced in a scratch copy: a 3-sample record with a reset (5000 -> 9000 -> 10) through watch.ledger(..., prices=[a deepseek/deepseek-v4-flash row]) gives tokens_in None and cost 0.0, and watch.ledger_cost({'in': None, 'cached': None, 'out': None}, price) returns 0.0. Unheld by any test in tests/test_agent_telemetry_watch.py. Fix shape: decline the cost when the token totals are unavailable (or return None from ledger_cost on absent totals) and hold it with a priced reset case. Low severity: it needs a restart inside the period and a cached price table."
+    },
+    {
+      "file": "tests/test_agent_telemetry_watch.py",
+      "line": 179,
+      "text": "The declared negative control reddens the differencing test through absence, not through a summed figure: index.sum_measurements is scoped to interval-kind measurements, so the counter comes back None and the failure is 'None is not positive' rather than roughly twice the traffic. The node's note states this accurately. The exact-value assertion at line 178 plus the != sum guard at line 180 are what hold the differencing claim; the control's demonstrated contribution is that the endpoint span is load-bearing for every period figure. Recorded so the control's scope is not overread \u2014 not a defect."
+    },
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": 548,
+      "text": "The moved serve panel is a record-derivable subset of the workstation watcher's: the rail carries identity and gauges (model, family, gpus, kv, running, queued, hit), the per-card readings and the ledger are present, but the live-window figures (aggregate tok/s, median per-worker, TTFT, median prompt, prefill) have no record-derived counterpart. The plan's named must-survive behaviours do not include them, and the old tool remains on PATH until the dotfiles launcher is thinned, so this is flagged for the coordinator's judgement rather than scored as a miss."
+    },
+    {
+      "file": "docs/plans/serve-telemetry-spine.html",
+      "line": 448,
+      "text": "The section's write-path list names tests/test_watch_panel.py; the panel test landed as tests/test_agent_telemetry_watch.py, following the repository's dominant test_agent_*.py convention (31 siblings). The node recorded the deviation in its own follow-ons. Reconcile the plan's write-path list at the next plan edit; the artifact itself is correctly named for the scope it covers."
+    }
+  ],
+  "justifications": {
+    "durability": "Everything the node produced is committed in its worktree on the declared paths: watch.py (773 lines), cli.py's registration (+49), the 352-line test file, the plan landing comment, the evidence anchor and the figure. The control log carries the mutated and reverted arms with the restore statement, and my reproduction of both the gate and the control confirms the record describes the shipped revision (the control ran at 40628ce4, one test-adding commit before the head, stated as such in the log). The head is unmerged to origin/main, which is the declared wire-node state; closing is the coordinator's by the node's own note.",
+    "evidence": "I reproduced every measurable claim in a scratch copy of the reviewed head: 11 passed (imports verified to resolve to the scratch tree), whole-tree ruff exit 0, and the declared mutation reddening exactly the three named tests (3 failed / 8 passed at head; 10 collected at 40628ce4 matching the run's log), with the restored file sha256-equal and the gate green afterwards. The tests assert exact differenced values, absence-not-zero, the utilisation decline at thin coverage, the counter-reset refusal with the raw negative span shown, rebuild equality, per-weekday pricing, cache-tier billing, and drive the registered subcommand end-to-end through CliRunner. The deductions: the control reddens through absence rather than through a numeric sum (stated by the node, recorded as a finding so its scope is not overread), and the cost column's behaviour on a declined period is unheld by any test \u2014 the defect below.",
+    "fit": "The section's contract is met: the workstation watcher's serve panels move in as imas-ambix agent watch next to the producer; the serving figures, the serve's card readings and the ledger come from the record through the index; no sampler step is spawned for the serve's cards and no private ledger is kept; and both behaviours the plan named as bought with measurement survive and are asserted (utilisation declined at thin coverage, per-interval pricing per weekday with a base-rate fallback). Deviations are recorded rather than hidden: the panel test's filename and the panel-set subset note. The moved module is a record-derivable subset of the old panel's figures, consistent with the plan's direction but broader than 'panels unchanged' \u2014 flagged for the coordinator at low severity.",
+    "goal_fidelity": "Every watcher-side item of the section's done-when is demonstrated: panels render from the record (no socket binds; a figure only obtainable by scrape would fail these tests), the index rebuilds to identical figures, the hour/day/week/month ledger rows populate from the record, the subcommand spawns no sampler step for the serve's cards, and the lint gate exits 0. The index-specific done-when items (incremental ingest across a rolled file and a restart without double-counting) belong to telemetry-index and are untouched here. One edge of the section's own absence doctrine is broken by the cost column on a declined period (the finding), a correctness nit inside a delivered contract rather than a missing item.",
+    "scope_discipline": "Six paths changed, all in the declared set, +1390/-0 with zero deletions; the plan edit is exactly the three-line landing comment for this node's own section; nothing else in the plan, sprint or index state was touched. The two \u00a75 defects that live in telemetry_index.py are correctly left alone and named as out of scope with their record verified (telemetry-index's review carries both verbatim). The node's follow-ons are honest and accurate; the only thing I add is the cost-column edge it did not find."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260921T213438079958-watcher-wire (node watcher-wire), plan imas-ambix:serve-telemetry-spine section 5. Basis: commits 8cfee5ea (feat: watch.py + cli.py), 40628ce4 (fix: ledger header), 89a28aaa (docs), f40a03c8 (test: subcommand registration) over base c7d7c3ab \u2014 six paths, +1390/-0, all declared, unmerged to origin/main (expected; the node left closing to the coordinator). Everything the run claims was reproduced independently in a scratch copy of f40a03c8: tests/test_agent_telemetry_watch.py 11 passed with imports resolving to the scratch tree; whole-tree uv run --no-sync ruff check imas_ambix tests exit 0; the declared negative control (watch._span: index.counter_span -> index.sum_measurements) reddens exactly the three named tests (3 failed, 8 passed at head; the run's 3 failed 7 passed at 40628ce4 matches its log's 10 collected tests at that revision), restore sha256-verified equal to 068ad6c3a6956fbfc3c760d0e3486047310e898a4baac9d641daa7ee12a01314, gate green after restore. The control reddens through absence \u2014 the index scopes sums to interval-kind measurements, so a cumulative counter comes back None rather than as a wrong total \u2014 which the node's note states; the exact-value assertion plus the != sum guard in test_counters_are_differenced_not_summed are what hold the differencing claim. Production: cli.py registers @agent.command(name='watch') with --record/--index/--json and calls watch.watch_text/watch_document; watch.py spawns no subprocess or socket at all, reads the serve's cards and counters from the index, declines utilisation below a quarter observed, prices per interval at the rate then in force, and DEFAULT_RECORD_DIR matches cli.py's receipts directory (cli.py:2590, ~/.local/share/ambix/receipts). watch.py is telemetry_index.py's first production importer, closing that module's recorded 'no production module imports this module' follow-on. One defect found, unheld by the suite and reproduced with a concrete input: with prices loaded, a period whose counters reset (tokens declined to None) still prices as $0.00 because ledger_cost coerces absent totals to 0.0 \u2014 the row renders '1 hour 28m \u2014 \u2014 \u2014 \u2014 $0.00', a clamped figure the module's own doctrine forbids, in the same row the token columns correctly decline. Two informational notes: the moved panel set is a record-derivable subset (the workstation watcher's live-window rate figures \u2014 aggregate tok/s, median per-worker, TTFT, prefill \u2014 have no counterpart here; the plan's named must-survive behaviours did not include them, and the old tool remains on PATH until the dotfiles launcher is thinned); and the section's write-path list names tests/test_watch_panel.py while the test landed as tests/test_agent_telemetry_watch.py (repo-idiomatic \u2014 31 sibling test_agent_*.py files \u2014 self-recorded by the node; the plan's list needs reconciling, not the artifact). The docs add exactly the plan's +3-line landing comment and a 116-line evidence anchor with a project-absolute figure src; the figure exists.",
+  "review_run_id": "r-20260921T223034959679-review-of-watcher-wire",
+  "reviewed_base": "c7d7c3ab487d08952774a7b54d596da187a16684",
+  "reviewed_commit": "f40a03c8c90ee7759eb3d03ab885ce38408d356f",
+  "reviewed_head": "f40a03c8c90ee7759eb3d03ab885ce38408d356f",
+  "reviewed_run_id": "r-20260921T213438079958-watcher-wire",
+  "scores": {
+    "durability": 19,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "supersedes": null,
+  "times_source": "run-id",
+  "timestamp": "2026-09-21T22:41:13Z",
+  "total": 91
+}

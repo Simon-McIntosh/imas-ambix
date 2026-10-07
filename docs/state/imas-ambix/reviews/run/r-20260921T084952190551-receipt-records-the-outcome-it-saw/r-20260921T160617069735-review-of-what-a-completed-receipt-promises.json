@@ -1,0 +1,76 @@
+{
+  "backend": "clive",
+  "completed_at": "",
+  "dispatched_at": "2026-09-21T16:06:17.069735+00:00",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/router.py",
+      "label": "FOLLOW-ON",
+      "line": 1034,
+      "severity": "low",
+      "text": "Moving the departure sample from before the hand-over to after it leaves the two focused test files entirely green -- 19 passed in tests/test_request_receipts.py under the mutation and 24 passed for the focused pair -- while the live drive over the same mutation stores aborted for case 1, a caller that stayed and read the whole answer, where the head stores completed), so the sample position that the _response docstring calls load-bearing is held by nothing the suite runs: the only instrument that sees it move is the out-of-tree /tmp/live_router_check.py the run kept its rows from. A test that scripts the channel uvicorn really presents -- a receive that answers http.disconnect once the response is complete -- and asserts completed for a caller that stayed fails under that mutation and passes at the head; the shape is demonstrated in logs/window_probe.py, whose departure-at-the-handover case stores completed at the head and whose departure-before-the-sample case stores aborted."
+    },
+    {
+      "file": "docs/plans/serve-telemetry-spine.html",
+      "label": "FOLLOW-ON",
+      "line": 0,
+      "severity": "low",
+      "text": "The round's landing note and the dispatch card describe a code fix -- that the self-answered departure sampling moved, closing the race in which a caller aborting between http.response.start and http.response.body was still recorded completed -- but a04ac778 changes no executable statement in either module: fe0f7819 -> a04ac778 and 73966b54 -> ce251e82 both parse to identical ASTs with docstrings stripped, and the sampling machinery was introduced by fe0f7819, whose revision the previous review had already scored at 86. The record that goes back to the plan should say the guarantee was narrowed -- which is what the changed lines actually do -- rather than that a window was closed, because a reader who believes a code change closed it will not dispatch the test that is still missing (see the finding above)."
+    }
+  ],
+  "justifications": {
+    "durability": "The narrowing is honest and I verified both premises it rests on against a real uvicorn rather than accepting the docstring's word: a receive channel read after the response is complete answers http.disconnect for a caller that stayed exactly as for a caller that left (logs/window-probe.log), and a body send to a caller that has gone returns without raising (logs/send-signal-probe.log), so the hand-over genuinely carries no signal and the promise cannot be widened back. The label literals are pinned in one place and that pin fails loudly: the pre-fix assertions, which reached the word through the constant under test, stay green 3 of 3 under a moved label while the landed assertions redden 4 of 4 with assert 'cancelled' == 'aborted' (logs/replay-negative-control-outcome-label-moved-off-the-word.log). Docked three because the sample position, which the docstring presents as the load-bearing part of the change, is held by no test in the repository.",
+    "evidence": "All six controls the run declared replay faithfully at this head, each measured by the instrument it named, with the mutation applied verbatim and the tree restored to its head sha256 afterwards: mid-upload row removed reddens the uploading test with FileNotFoundError, no receipts file written at all; the self-answered status taken from the composed code reddens with assert 'completed' == 'aborted'; the sentinel moved to an engine origin fails 4 of 19; the status set early reddens dies_mid_body with assert 'completed' == 'failed'; the departure sampled after the body stores aborted for a caller that stayed; and the label moved off the word leaves the pre-fix module green while the landed module reddens. The focused pair reproduces at 24 passed (logs/review-focus-gate.log). Docked three because two premises the docstring states as fact -- what a completed response's channel answers, and that a send to a gone caller reports nothing -- were not measured by the run at all; I had to build both probes myself, and a reviewer who had not would have had no way to tell the narrowing from a concession the code did not have to make.",
+    "fit": "The change answers exactly the question the section raises: what a row a reader sums may claim. Every stored-row status assertion now names the literal a reader greps for, the sentinel and the three outcome labels each have one place that fails when they move, and the docstring on the self-answered path now states the same guarantee as the module's label documentation -- the vocabulary is consistent across the relayed and self-answered paths, which is what makes a sum over the rows meaningful.",
+    "goal_fidelity": "The goal was to say what a completed receipt promises, and the record now says the strongest thing the code can observe: the answer was sent whole with no departure reported first, with the gap between the sample and the hand-over named as unobservable rather than silently relied on. A reader summing completed rows counts answers sent rather than answers received, and the documentation says so in as many words.",
+    "scope_discipline": "Writes stayed inside the section's declared paths (imas_ambix/agent/router.py, imas_ambix/agent/request_receipts.py, tests/test_request_receipts.py) plus the plan and its archive page. No plan label, ticket reference, version suffix or author attribution appears in any added name, comment or docstring -- the added lines are comment and docstring prose and the pin test's name states what it measures. The one place a reader could take the landing note as describing a code change is recorded above as a follow-on rather than left to be inferred."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "REVISION READ: reviewed_head ce251e82743aa906e591ebe3fec661bc85d613bb, reviewed_commit a04ac778a402ce0ec2f762f9c2620ec320a0c36d, reviewed_base 4180572a906b0f36bde9462ecacfb7a8f728ce5d -- read in place in the review worktree cut from that head, with the loaded modules checked to resolve to it and to carry the repair's markers.\n\nCALL_SITES: imas_ambix/agent/cli.py:1583 -- the router command imports DynamicUpstreamResolver and serve_router and passes a lane document; imas_ambix/agent/router.py:1100 serve_router -> create_router_app at imas_ambix/agent/router.py:1128 forwards request_receipts_path; and imas_ambix/agent/router.py:231-238 resolves the record's path from the explicit argument, else from lane_document.with_name(RECEIPTS_FILENAME), so the CLI path does write rows even though the command names no receipts option. The import resolves at this head, and RouterApp.__init__ accepts request_receipts_path. Non-production callers are the tests (tests/test_request_receipts.py:132, :670, :675).\n\nWHAT THE REPAIR IS. A docstring-and-comment change plus a test-assertion strengthening: a04ac778 alters no executable statement in router.py or request_receipts.py (identical ASTs with docstrings stripped), and the whole second review round -- 73966b54 to ce251e82 -- is executable-statement identical to the revision the previous review scored at 86, so the behaviour graded is unchanged and the grading that moved is the wording and the assertions that read the rows.\n\nVERDICT: confirmed. Eight outcomes driven through the real router and the stored rows read: relay normal completed; upstream 5xx failed; upstream dies mid-body failed; caller leaves mid-relay aborted; caller leaves mid-upload aborted with the self-answered sentinel and an empty model; unknown model failed; catalog GET completed; unrouted path failed; catalog abandoned aborted. No row claims more than the relay observed, once the narrowed meaning of completed is the meaning being read -- the one row that would have over-claimed under the old wording, a departure landing at the hand-over, is now exactly what the docstring says it is, and the two premises behind that narrowning are measured, not asserted. Two follow-ons, neither a defect in the changed lines.\n\nWHAT COMPLETED PROMISES NOW: the answer was sent whole with no departure reported first. A reader summing completed rows is counting answers sent, not answers received, and cannot mistake the two from the record alone -- the distinction is in the module's label documentation, in the docstring on the self-answered path, and in the plan's per-claim table, all in the same words. A departure landing between the sample and the hand-over is recorded completed and is unobservable from the serving side.\n\nCONTROLS REPLAYED: six of six behave as declared; the mutation reached the row in every case, and the tree was restored to its head sha256 after each (router.py 420854150d3c, request_receipts.py a54d1bee1992).\n\nEXPECTATIONS STILL COMPUTED FROM THE MODULE UNDER TEST: none on a stored row. The one remaining constant-against-constant comparison is the intentional pin test asserting the three labels equal their literals, which is the single place a moved word fails; STATUS_* still appears at tests/test_request_receipts.py:298 and :383 as a row input rather than an expectation, which is not the defect the previous round found.\n\nEVIDENCE: logs/drive-head.log (the outcome matrix, rows read from the stored JSONL); logs/window-probe.log and logs/window-*.jsonl (the carried premise, and the gap demonstrated); logs/send-signal-probe.log (the second premise); logs/logic-diff-corrected.log (executable statements across every pair of interest); logs/replay-*.log (all six controls, each opening with its declared mutation); logs/review-focus-gate.log (24 passed at the head); logs/commit-order.log. This record supersedes the previous round's record in the same file and retains its scores and findings under `supersedes`.",
+  "review_run_id": "r-20260921T160617069735-review-of-what-a-completed-receipt-promises",
+  "reviewed_base": "4180572a906b0f36bde9462ecacfb7a8f728ce5d",
+  "reviewed_commit": "a04ac778a402ce0ec2f762f9c2620ec320a0c36d",
+  "reviewed_head": "ce251e82743aa906e591ebe3fec661bc85d613bb",
+  "reviewed_run_id": "r-20260921T084952190551-receipt-records-the-outcome-it-saw",
+  "scores": {
+    "durability": 17,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "supersedes": {
+    "findings": [
+      {
+        "file": "tests/test_request_receipts.py",
+        "label": "FOLLOW-ON",
+        "line": 754,
+        "severity": "low",
+        "text": "The two new outcome assertions compare the stored status against STATUS_ABORTED imported from the module under test (tests/test_request_receipts.py:754 and :787), so moving the constant's value moves both sides of the assertion -- the same shape the repair removed for the self-answered sentinel one line below at :755, which now names the literal \"(router)\". Input that demonstrates it: STATUS_ABORTED in imas_ambix/agent/request_receipts.py:66 changed to \"caller-left\" leaves the status half of every row assertion following the constant, while the upstream half at :755 and :788 still fails on its literal; I did not run that mutation inside this node's 45-minute fence, so this is reasoned from the two assertion forms in the same test rather than demonstrated, and it is reported as a FOLLOW-ON rather than a blocking defect because the value that a reader sums traffic around is the upstream sentinel, which the repair did pin. The stronger fix is the one already applied to the sentinel: assert the string in one place and let the module's constant track it. Severity low: the row's status strings are the record's own vocabulary and the module defines them in the docstring beside their meanings, so a move is visible in review even when the test agrees with it."
+      },
+      {
+        "file": "imas_ambix/agent/router.py",
+        "label": "FOLLOW-ON",
+        "line": 1020,
+        "severity": "low",
+        "text": "The self-answered departure is sampled one event-loop turn after the status line is sent and before the body is sent, so a caller that goes away inside that window is still recorded completed, which is the outcome the router intended rather than the one the caller received. Concrete input: a client that sends GET /v1/models and aborts its transport in the microseconds between the router's http.response.start and its http.response.body leaves a completed row. The window is real but small on the wire and it is the relay's own design too -- the relay reads the disconnect only while its body loop is running -- and the docstring states why the watch must not outlive the send. A mutation cannot demonstrate it without a timing harness that controls the transport between two sends, which is why it is a FOLLOW-ON observation and not a Finding."
+      }
+    ],
+    "review_run_id": "r-20260921T121240571048-review-of-the-caller-departure-record",
+    "reviewed_commit": "fe0f7819b08716057eaf3547bbdc01f44c0182aa",
+    "reviewed_head": "73966b5459e333972038bb2a482ce832453077e4",
+    "scores": {
+      "durability": 16,
+      "evidence": 16,
+      "fit": 17,
+      "goal_fidelity": 18,
+      "scope_discipline": 19
+    },
+    "total": 86
+  },
+  "times_source": "run-id",
+  "timestamp": "2026-09-21T17:11:04Z",
+  "total": 89
+}

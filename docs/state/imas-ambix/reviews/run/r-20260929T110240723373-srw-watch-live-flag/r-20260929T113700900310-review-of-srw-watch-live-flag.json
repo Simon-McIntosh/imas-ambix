@@ -1,0 +1,90 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's own two arms of the reviewed node's declared gate, because the reviewed manifest arms no baseline_suite/after_suite: base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113700900310-review-of-srw-watch-live-flag/review-base-arm.log (revision 4dc0a3de, the reviewed head's test file driven against the base package in a scratch tree; exit 1, the five new tests failing at base is the change's falsifier) against head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113700900310-review-of-srw-watch-live-flag/review-head-arm.log (revision dd24201a, 24 passed plus the serving-interpreter guard and ruff, exit 0); head ids {} minus base ids {the five new tests} = 0. The derivation log is /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113700900310-review-of-srw-watch-live-flag/review-added-failures.log.",
+  "after_suite": {
+    "command": "python -m pytest -p no:cacheprovider tests/test_agent_watch_live.py tests/test_agent_telemetry_watch.py tests/test_agent_watch_help.py; python -m pytest -p no:cacheprovider tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python; ruff check --no-cache imas_ambix tests (at the reviewed head, in a scratch tree)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113700900310-review-of-srw-watch-live-flag/review-head-arm.log",
+    "revision": "dd24201a5b2ac2127d0d1822793e47b8f14e16d2"
+  },
+  "baseline_suite": {
+    "command": "python -m pytest -q -p no:cacheprovider tests/test_agent_watch_live.py (the reviewed head's test file at dd24201a applied to the base revision, in a scratch tree)",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 5,
+    "failure_ids": [
+      "tests/test_agent_watch_live.py::test_full_json_document_carries_both_blocks",
+      "tests/test_agent_watch_live.py::test_live_document_reads_a_supplied_lane_document",
+      "tests/test_agent_watch_live.py::test_live_json_emits_only_the_two_blocks",
+      "tests/test_agent_watch_live.py::test_live_path_opens_no_index_and_fetches_no_prices",
+      "tests/test_agent_watch_live.py::test_live_without_json_is_refused"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113700900310-review-of-srw-watch-live-flag/review-base-arm.log",
+    "revision": "4dc0a3def206d8bf11202eea15f465744ff699bc"
+  },
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2689 the agent watch command whose --live branch is at :2722 and whose full-document branch is at :2730",
+    "imas_ambix/agent/cli.py:2735 watch_text",
+    "imas_ambix/cli.py:48-53 the imas-ambix agent group that exposes the command"
+  ],
+  "completed_at": "2026-09-29T12:20:56.707Z",
+  "dispatched_at": "2026-09-29T11:37:08Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-watch-live-flag.html",
+      "line": "2",
+      "text": "the three timing figures in the delivered anchor (0.69/0.62/0.60 s) are from the first timing pass, whose log was overwritten by the second pass that live-timing.log now holds (1.26/0.67/0.61 s), so the figure a reader checks against the record disagrees with it and with the manifest's own figure."
+    },
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "807",
+      "text": "watch_document's docstring lists live among the index-derived fields, but the index-derived fields are record, ledger, periods and price_age."
+    }
+  ],
+  "follow_ons": [
+    "docs/evidence/fragments/serving-record-warehouse/srw-watch-live-flag.html:2 the delivered anchor's three timing figures (0.69/0.62/0.60 s) belong to a first timing pass whose log was overwritten; the surviving live-timing.log holds the second pass (1.26/0.67/0.61 s), so the anchor and the record should be brought onto one pass.",
+    "imas_ambix/agent/watch.py:807 watch_document's docstring names live among the index-derived fields; the index-derived set is record, ledger, periods and price_age."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "read the single commit dd24201a against base 4dc0a3de; watch.py gains live_document and routes watch_document's two blocks through it, cli.py gains the JSON-only --live branch and the refusal, tests/test_agent_watch_live.py gains five tests, and the fragment adds the landing anchor; the commit carries a conventional subject, a body, and no AI trailer.",
+    "done_when": "the declared gate's three commands re-ran green in a scratch tree at dd24201a (review-head-arm.log: 24 passed; 1 passed, 8 deselected; All checks passed, EXIT=0 on each), the new test file's five tests all fail against the base package (review-base-arm.log: 5 failed), --json --live returned only the lane and live blocks from the real record (report live-run1.json), and the three runs are recorded under the 2 s bound (live-timing.log: 1.26 s, 0.67 s, 0.61 s).",
+    "goal": "the node goal is to wire a --live flag and the lane and live blocks into imas-ambix agent watch --json; imas_ambix/agent/watch.py:768 live_document returns live_panel's two blocks, imas_ambix/agent/cli.py:2722-2724 prints only them for --json --live, and imas_ambix/agent/watch.py:825-830 appends the same pair to the index-derived document.",
+    "manifest": "read whole; its commit dd24201a, its changed_paths, its three gate results and its timing figures (1.26 s, 0.67 s, 0.61 s) match the logs on disk, its negative_control_log's first line repeats the declared string verbatim and the named test is the one that failed, and its landing line records the merge the coordinator owns.",
+    "write_paths": "the fence names imas_ambix/agent/watch.py, imas_ambix/agent/cli.py, tests/test_agent_watch_live.py, the run's report directory, docs/evidence/fragments/serving-record-warehouse/srw-watch-live-flag.html and a figures directory; git diff --name-status 4dc0a3de..dd24201a lists exactly the three repo paths plus the declared fragment, and the declared figures directory holds nothing."
+  },
+  "justifications": {
+    "durability": "all five tests in tests/test_agent_watch_live.py fail against the base package (review-base-arm.log: 5 failed), and the no-index guard is shown to fire by the reviewed run's own negative-control.log, where routing --live through the full document path reddens test_live_path_opens_no_index_and_fetches_no_prices.",
+    "evidence": "gate.log:1 names dd24201a with module and cwd headers and EXIT=0 at each command, reproduced in review-head-arm.log, but the committed fragment's timing figures (srw-watch-live-flag.html:2, 0.69/0.62/0.60 s) come from a first timing pass whose log was overwritten by the second pass now in live-timing.log (1.26/0.67/0.61 s), so the delivered anchor disagrees with every surviving log and with the manifest.",
+    "fit": "the deferred live_panel import and the block wiring follow watch.py's own idiom and the naming greps over the four changed paths are clean, but imas_ambix/agent/watch.py:807 names live among the index-derived fields when document() (imas_ambix/agent/watch.py:760-765) returns record, ledger, periods and price_age.",
+    "goal_fidelity": "imas_ambix/agent/watch.py:768 live_document returns only live_panel's two blocks and imas_ambix/agent/cli.py:2722-2724 emits only those for --json --live, while imas_ambix/agent/watch.py:825-830 appends the same pair to the index-derived document, which is the goal verbatim.",
+    "scope_discipline": "git diff --name-status 4dc0a3de..dd24201a lists exactly the three declared repo paths plus the declared landing fragment, with no figure and nothing the goal does not imply."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "review of run r-20260929T110240723373-srw-watch-live-flag, attached by r-20260929T113700900310-review-of-srw-watch-live-flag\nplan imas-ambix:serving-record-warehouse \u00a711; role implement; spec exact; base 4dc0a3def206d8bf11202eea15f465744ff699bc head dd24201a5b2ac2127d0d1822793e47b8f14e16d2\nread: the whole diff at dd24201a against 4dc0a3de (four files, 255 insertions), imas_ambix/agent/watch.py and imas_ambix/agent/cli.py at head, tests/test_agent_watch_live.py in full, plan section 11 and its build done-when, the reviewed run's manifest with its gate, negative-control and live-timing logs and its three live-run JSON artefacts, the committed evidence fragment, and an independent two-arm re-run of the node's declared gate in scratch trees extracted at dd24201a and 4dc0a3de.\n\nVERDICT goal: the node goal is to wire a --live flag and the lane and live blocks into imas-ambix agent watch --json; imas_ambix/agent/watch.py:768 live_document returns live_panel's two blocks, imas_ambix/agent/cli.py:2722-2724 prints only them for --json --live, and imas_ambix/agent/watch.py:825-830 appends the same pair to the index-derived document.\nVERDICT done_when: the declared gate's three commands re-ran green in a scratch tree at dd24201a (review-head-arm.log: 24 passed; 1 passed, 8 deselected; All checks passed, EXIT=0 on each), the new test file's five tests all fail against the base package (review-base-arm.log: 5 failed), --json --live returned only the lane and live blocks from the real record (report live-run1.json), and the three runs are recorded under the 2 s bound (live-timing.log: 1.26 s, 0.67 s, 0.61 s).\nVERDICT write_paths: the fence names imas_ambix/agent/watch.py, imas_ambix/agent/cli.py, tests/test_agent_watch_live.py, the run's report directory, docs/evidence/fragments/serving-record-warehouse/srw-watch-live-flag.html and a figures directory; git diff --name-status 4dc0a3de..dd24201a lists exactly the three repo paths plus the declared fragment, and the declared figures directory holds nothing.\nVERDICT manifest: read whole; its commit dd24201a, its changed_paths, its three gate results and its timing figures (1.26 s, 0.67 s, 0.61 s) match the logs on disk, its negative_control_log's first line repeats the declared string verbatim and the named test is the one that failed, and its landing line records the merge the coordinator owns.\nVERDICT diff: read the single commit dd24201a against base 4dc0a3de; watch.py gains live_document and routes watch_document's two blocks through it, cli.py gains the JSON-only --live branch and the refusal, tests/test_agent_watch_live.py gains five tests, and the fragment adds the landing anchor; the commit carries a conventional subject, a body, and no AI trailer.\nCALL_SITES: imas_ambix/agent/cli.py:2689 the agent watch command whose --live branch is at :2722 and whose full-document branch is at :2730, imas_ambix/agent/cli.py:2735 watch_text, imas_ambix/cli.py:48-53 the imas-ambix agent group that exposes the command\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: imas_ambix/agent/watch.py:768 live_document returns only live_panel's two blocks and imas_ambix/agent/cli.py:2722-2724 emits only those for --json --live, while imas_ambix/agent/watch.py:825-830 appends the same pair to the index-derived document, which is the goal verbatim.\nSCORE evidence: 17\nJUSTIFICATION evidence: gate.log:1 names dd24201a with module and cwd headers and EXIT=0 at each command, reproduced in review-head-arm.log, but the committed fragment's timing figures (srw-watch-live-flag.html:2, 0.69/0.62/0.60 s) come from a first timing pass whose log was overwritten by the second pass now in live-timing.log (1.26/0.67/0.61 s), so the delivered anchor disagrees with every surviving log and with the manifest.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-status 4dc0a3de..dd24201a lists exactly the three declared repo paths plus the declared landing fragment, with no figure and nothing the goal does not imply.\nSCORE durability: 19\nJUSTIFICATION durability: all five tests in tests/test_agent_watch_live.py fail against the base package (review-base-arm.log: 5 failed), and the no-index guard is shown to fire by the reviewed run's own negative-control.log, where routing --live through the full document path reddens test_live_path_opens_no_index_and_fetches_no_prices.\nSCORE fit: 18\nJUSTIFICATION fit: the deferred live_panel import and the block wiring follow watch.py's own idiom and the naming greps over the four changed paths are clean, but imas_ambix/agent/watch.py:807 names live among the index-derived fields when document() (imas_ambix/agent/watch.py:760-765) returns record, ledger, periods and price_age.\nFINDING docs/evidence/fragments/serving-record-warehouse/srw-watch-live-flag.html:2 the three timing figures in the delivered anchor (0.69/0.62/0.60 s) are from the first timing pass, whose log was overwritten by the second pass that live-timing.log now holds (1.26/0.67/0.61 s), so the figure a reader checks against the record disagrees with it and with the manifest's own figure.\nFINDING imas_ambix/agent/watch.py:807 watch_document's docstring lists live among the index-derived fields, but the index-derived fields are record, ledger, periods and price_age.",
+  "review_run_id": "r-20260929T113700900310-review-of-srw-watch-live-flag",
+  "reviewed_base_sha": "4dc0a3def206d8bf11202eea15f465744ff699bc",
+  "reviewed_head_sha": "dd24201a5b2ac2127d0d1822793e47b8f14e16d2",
+  "reviewed_run_id": "r-20260929T110240723373-srw-watch-live-flag",
+  "reviewer": "review-of-srw-watch-live-flag",
+  "scores": {
+    "durability": 19,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T12:17:01.589101+00:00",
+  "total": 94
+}

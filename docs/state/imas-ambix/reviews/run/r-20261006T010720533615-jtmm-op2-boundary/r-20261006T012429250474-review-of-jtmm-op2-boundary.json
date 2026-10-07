@@ -1,0 +1,62 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: the run manifest (and classification.json manifest.data) carries baseline_suite null and after_suite null, so its own arms cannot supply a base..head test delta. Its recorded gate is the EDDB shot-catalogue read, not a repository test suite; the only log that could carry a test failure is op2-*.out and each ends without a pytest summary line, so no failing test id exists to attribute. The change is documentation only (one evidence fragment, +121 lines), so no repository test covers it either way; no failing id is added.",
+  "after_suite": null,
+  "baseline_suite": null,
+  "completed_at": "2026-10-06T01:31:14.533Z",
+  "dispatched_at": "2026-10-06T01:24:36Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-op2-boundary.html",
+      "line": "15",
+      "severity": "follow-on",
+      "text": "The opening sentence renders the EDDB starttime with a trailing 'Z' -- 'E100356 (start 2023-08-07T17:33:25.221Z)' and 'E100353 (start 2021-03-09T21:22:28.631Z)' (lines 15-16) -- which asserts UTC. The source field carries no timezone: eddbreadShot returns a naive YYYYMMDDhhmmss.sss string (op2-shotlist.out line 2 '20210113173923.000'), and the fragment's own table drops the Z. JT-60SA EDDB times are Naka local time (JST), so a reader taking the Z as UTC would misplace each pulse by nine hours. The date ordering and the 880-day gap are unaffected; only the absolute instants are overstated."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-op2-boundary.html",
+      "line": "103",
+      "severity": "follow-on",
+      "text": "The claim 'The only 2026 records in the catalogue are six C-series shots' (line 103) is asserted for the whole catalogue, but the broad all-series enumeration did not run: eddbreadShot('A000000','Z999999') was refused (op2-newest.out: ok=False count=0 irc=1152), so the catalogue was enumerated only for the E series (E100000-E200000, op2-shotlist.out) and the C series (C000000-C200000, op2-cseries.out). The statement is established for those two series and no series was found post-2023 there, but it is not established across every series letter. It does not affect the E-series boundary the node was asked for."
+    }
+  ],
+  "follow_ons": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-op2-boundary.html",
+      "line": "110",
+      "severity": "follow-on",
+      "text": "The node's own goal text dates the gap 'between the 2023 OP1 campaign and the 2026 OP2 campaign', but its explicit anchors (E101154/E101173 are OP2; E100001 is an old pulse) place OP2 in the 2023 E-series block. EDDB exposes no campaign field, and its only internal E-series campaign gap is E100353->E100356 (2021-03-09 -> 2023-08-07, 880d 20:10:57); every other inter-shot gap is under 26 days. The node honours the explicit anchors -- last OP1 E100353, first OP2 E100356 -- and flags that the date label contradicts them (fragment lines 108-116), recording the alternative boundary E101173->C060028 (2023-12-15 -> 2026-06-24) if the facility's OP-1(2023)/OP-2(2026) naming is meant. This needs coordinator or facility adjudication; EDDB cannot settle it. No repair is possible without a campaign source EDDB does not carry."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call site: the diff is a documentation fragment only and adds no repository code, so nothing at runtime can reach it and there is no API to migrate.",
+    "diff": "Read the reviewed commit against base 4d39e7117cde7b80c5dd70e4b538f18449291472: git log base..head is the single commit 1980384209b2 ('docs(evidence): record the JT-60SA OP1/OP2 boundary from EDDB shot dates', conventional subject with a body and no AI trailer), git diff --stat base..head = 1 file changed, +121, only the evidence fragment. No product source or test changed, correct for a read-only evidence node.",
+    "done_when": "Read the node's own measure: the fragment records every remote call made (8 calls, all listed in fragment lines 47-58 and matched to the 8 distinct ssh command blocks in stream.jsonl), the field the boundary was read from (starttime, returned by eddbreadShot as YYYYMMDDhhmmss.sss; eddbreadCatTable returns 73 subsystem categories with no campaign/run field), the two pulses with their dates, and the integer mapping (E100001-100353 -> 100001-100353, E100356-101173 -> 100356-101173). This review independently re-derived every number from the retained raw log op2-shotlist.out: 1167 shots, 352 in 2021 and 815 in 2023, the 880.84-day E100353->E100356 gap, the next-largest gap 25.06 days below the fragment's stated 26-day bound, and the two boundary starttimes. All match.",
+    "goal": "Read plan \u00a74 (reckon plan jt60sa-machine-map). The node goal is to establish the first JT-60SA OP2 pulse from EDDB's own shot records; the node does exactly that -- it reads the E-series shot catalogue through eddbreadShot (op2-shotlist.out, count=1167 irc=0) and names the last OP1 pulse E100353 (2021-03-09T21:22:28.631) and the first OP2 pulse E100356 (2023-08-07T17:33:25.221), the only 880-day gap in the series separating a 352-shot 2021 block from an 815-shot 2023 block. It honours the given anchors (E100001 is 2021, E101154/E101173 are 2023-12), and, because the goal's '2023 OP1 / 2026 OP2' date label is inconsistent with those anchors and with EDDB's records, it flags the conflict rather than silently choosing (fragment lines 108-116).",
+    "manifest": "Read the reviewed run's manifest: status complete (a recognised value), a single commit 1980384209b20b1b4b3d811b7af16e29c945210c, changed_paths the evidence fragment, the ssh gate command with its result, five retained test_logs, and a landing line naming the boundary. It is honest about the ambiguity under follow_ons and records retry_failures none. The manifest is complete and consistent with the diff.",
+    "write_paths": "Read the node's declared write paths (docs/evidence/fragments/jt60sa-machine-map/jtmm-op2-boundary.html and docs/figures/jt60sa-machine-map/jtmm-op2-boundary). The diff touches exactly one file, the evidence fragment, inside the declared scope. The declared figures directory is unwritten, which the dispatch prompt required ('this node writes no figure'), so it is not an unmet deliverable."
+  },
+  "justifications": "Independent review of run r-20261006T010720533615-jtmm-op2-boundary (plan imas-ambix:jt60sa-machine-map \u00a74), reviewed_base_sha 4d39e7117cde7b80c5dd70e4b538f18449291472, reviewed_head_sha 1980384209b20b1b4b3d811b7af16e29c945210c, stored as a parsed record scoring all six dimensions in 0..20 -- goal_fidelity 19, evidence 17, scope_discipline 20, durability 15, fit 19, reuse 20 -- total 110/120, added_failure_count 0 with added_failure_ids [] (the reviewed run was unarmed; both seeds null; the change is documentation and no test covers it). The node implements the goal faithfully: from EDDB's own shot catalogue it names last OP1 E100353 (2021-03-09T21:22:28.631) and first OP2 E100356 (2023-08-07T17:33:25.221), the two blocks either side the only large gap in the E-series, and every date, count and gap in the fragment this review re-derived from the retained op2-shotlist.out. Scope is clean (one file, +121, inside the declared paths, no product code). Durability is the weakest dimension: a documentation fragment carries no assertion, so nothing fails if a number later regresses -- the only guard is the raw log retained in the run directory, outside the repository. Two follow-on findings (a UTC 'Z' appended to a timezone-free EDDB starttime; a catalogue-wide 2026 claim asserted from only the E and C series enumerated) and one follow-on needing adjudication (the goal's '2023 OP1 / 2026 OP2' label contradicts the node's own OP2 anchors, which EDDB cannot settle) are recorded; none is a regression and none affects the named boundary.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261006T012429250474-review-of-jtmm-op2-boundary",
+  "reviewed_base_sha": "4d39e7117cde7b80c5dd70e4b538f18449291472",
+  "reviewed_head_sha": "1980384209b20b1b4b3d811b7af16e29c945210c",
+  "reviewed_run_id": "r-20261006T010720533615-jtmm-op2-boundary",
+  "reviewer": "review-of-jtmm-op2-boundary",
+  "scores": {
+    "durability": 15,
+    "evidence": 17,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:28:56+00:00",
+  "total": 110
+}

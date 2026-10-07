@@ -1,0 +1,57 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T04:10:48.516Z",
+  "dispatched_at": "2026-10-07T03:49:52Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-facility-mint/jtfm-maps-to-ghcr.html",
+      "line": "18",
+      "severity": "follow-on",
+      "text": "follow-on: the recorded byte size 1118176 is not the bundle's content size - it is du -sb of the scratch pull tree, which includes apparent directory-entry sizes; the sum of the 18 file sizes is 1117742 and du -sb on the /work bundle reads 1138222, so the figure is tree- and filesystem-dependent and a reader cannot reproduce it from the artifact."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read d593ae54 against base 952116f1 commit-by-commit; one file, 30 added lines, an evidence fragment carrying two fact tables and no executable change.",
+    "done_when": "the done-when is the operational equality-and-access gate and I reproduced every clause against the artifact and the checkout at base 952116f1 - machine_map.json equals imas_ambix/data/machine_maps/jt-60sa.json except description_store_root=description; maps/{magnetics,pf_active,tf}.json and eddb_units.json are byte-equal; machine_description/OP1 and OP2 diff -r empty; gh api reports visibility private with version_count 1; token manifest fetch returns the artifact type and revision annotation while a credential-less fetch is refused; oras pull diff -r against the /work bundle is empty; and the clean-venv log ends ALL LOAD CHECKS PASS with EXIT=0.",
+    "goal": "the node's goal is to publish the JT-60SA maps as a flat single-machine bundle in private GHCR; the /work/projects/imas_gpu/jt60sa/maps tree is flat (bundle.json, machine_map.json, maps/, eddb_units.json, machine_description/) and the artifact ghcr.io/simon-mcintosh/imas-alambic-jt60sa:2026.10.07 exists, so the goal is met by the artifact plus its evidence fragment, the repo change being only the fragment.",
+    "manifest": "read; it records the oras push/fetch/pull commands, the clean-venv load gate and their log paths, the digest sha256:6af476ebe1d560e290b90aeef83113f25a4b2982e24548542c556f7ebf7d3f90, the byte size and two follow-ons, and every result matches the log I opened.",
+    "write_paths": "the manifest declares the fragment and a figures directory; the single commit d593ae54 changes only docs/evidence/fragments/jt60sa-facility-mint/jtfm-maps-to-ghcr.html, 30 added lines."
+  },
+  "justifications": {
+    "durability": "the change is docs-only and adds no assertion, so neither the /work bundle nor the GHCR artifact has a committed test that fails if it regresses; the equality and load checks live only in one-shot evidence logs.",
+    "evidence": "every done-when clause reproduces from the logs and from my own gh/oras checks, but the recorded byte size at docs/evidence/fragments/jt60sa-facility-mint/jtfm-maps-to-ghcr.html:18 is a du -sb tree size rather than the bundle's content size (see finding).",
+    "fit": "the fragment follows the sibling idiom of docs/evidence/fragments/jt60sa-facility-mint/jtfm-flat-bundles.html (section class evidence-fragment, data-reckon, node-prefixed element ids) and its table form honours its own done-when's records-only constraint.",
+    "goal_fidelity": "the flat bundle at /work/projects/imas_gpu/jt60sa/maps and the private artifact ghcr.io/simon-mcintosh/imas-alambic-jt60sa:2026.10.07 both match the goal, the landed repo change being the evidence fragment alone.",
+    "reuse": "the diff adds no definition that duplicates a repository capability; the published bundle reuses the flat-bundle layout owned by machine_map.py and the verification reuses oras and gh rather than any new registry client.",
+    "scope_discipline": "git show --stat over 952116f1..d593ae54 lists only docs/evidence/fragments/jt60sa-facility-mint/jtfm-maps-to-ghcr.html, inside the manifest's declared write paths."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is to publish the JT-60SA maps as a flat single-machine bundle in private GHCR; the /work/projects/imas_gpu/jt60sa/maps tree is flat (bundle.json, machine_map.json, maps/, eddb_units.json, machine_description/) and the artifact ghcr.io/simon-mcintosh/imas-alambic-jt60sa:2026.10.07 exists, so the goal is met by the artifact plus its evidence fragment, the repo change being only the fragment.\nVERDICT done_when: the done-when is the operational equality-and-access gate and I reproduced every clause against the artifact and the checkout at base 952116f1 - machine_map.json equals imas_ambix/data/machine_maps/jt-60sa.json except description_store_root=description; maps/{magnetics,pf_active,tf}.json and eddb_units.json are byte-equal; machine_description/OP1 and OP2 diff -r empty; gh api reports visibility private with version_count 1; token manifest fetch returns the artifact type and revision annotation while a credential-less fetch is refused; oras pull diff -r against the /work bundle is empty; and the clean-venv log ends ALL LOAD CHECKS PASS with EXIT=0.\nVERDICT write_paths: the manifest declares the fragment and a figures directory; the single commit d593ae54 changes only docs/evidence/fragments/jt60sa-facility-mint/jtfm-maps-to-ghcr.html, 30 added lines.\nVERDICT manifest: read; it records the oras push/fetch/pull commands, the clean-venv load gate and their log paths, the digest sha256:6af476ebe1d560e290b90aeef83113f25a4b2982e24548542c556f7ebf7d3f90, the byte size and two follow-ons, and every result matches the log I opened.\nVERDICT diff: read d593ae54 against base 952116f1 commit-by-commit; one file, 30 added lines, an evidence fragment carrying two fact tables and no executable change.\nCALL_SITES: none\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: the flat bundle at /work/projects/imas_gpu/jt60sa/maps and the private artifact ghcr.io/simon-mcintosh/imas-alambic-jt60sa:2026.10.07 both match the goal, the landed repo change being the evidence fragment alone.\nSCORE evidence: 17\nJUSTIFICATION evidence: every done-when clause reproduces from the logs and from my own gh/oras checks, but the recorded byte size at docs/evidence/fragments/jt60sa-facility-mint/jtfm-maps-to-ghcr.html:18 is a du -sb tree size rather than the bundle's content size (see finding).\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: git show --stat over 952116f1..d593ae54 lists only docs/evidence/fragments/jt60sa-facility-mint/jtfm-maps-to-ghcr.html, inside the manifest's declared write paths.\nSCORE durability: 13\nJUSTIFICATION durability: the change is docs-only and adds no assertion, so neither the /work bundle nor the GHCR artifact has a committed test that fails if it regresses; the equality and load checks live only in one-shot evidence logs.\nSCORE fit: 17\nJUSTIFICATION fit: the fragment follows the sibling idiom of docs/evidence/fragments/jt60sa-facility-mint/jtfm-flat-bundles.html (section class evidence-fragment, data-reckon, node-prefixed element ids) and its table form honours its own done-when's records-only constraint.\nSCORE reuse: 20\nJUSTIFICATION reuse: the diff adds no definition that duplicates a repository capability; the published bundle reuses the flat-bundle layout owned by machine_map.py and the verification reuses oras and gh rather than any new registry client.\nFINDING docs/evidence/fragments/jt60sa-facility-mint/jtfm-maps-to-ghcr.html:18 follow-on: the recorded byte size 1118176 is not the bundle's content size - it is du -sb of the scratch pull tree, which includes apparent directory-entry sizes; the sum of the 18 file sizes is 1117742 and du -sb on the /work bundle reads 1138222, so the figure is tree- and filesystem-dependent and a reader cannot reproduce it from the artifact.\n",
+  "review_run_id": "r-20261007T041142406124-review-of-jtfm-maps-to-ghcr",
+  "reviewed_base_sha": "952116f1d84e608b0453b90dbc763d7616cfe8cd",
+  "reviewed_head_sha": "d593ae548590c5bb3282cdaeee3eb810819edd12",
+  "reviewed_run_id": "r-20261007T034932763033-jtfm-maps-to-ghcr",
+  "reviewer": "r-20261007T041142406124-review-of-jtfm-maps-to-ghcr",
+  "scores": {
+    "durability": 13,
+    "evidence": 17,
+    "fit": 17,
+    "goal_fidelity": 18,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T04:36:22.723282+00:00",
+  "total": 104
+}

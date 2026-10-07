@@ -1,0 +1,62 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "",
+  "dispatched_at": "2026-09-21T13:56:48.553529+00:00",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "295",
+      "text": "FOLLOW-ON: A compressed roll aborts the whole ingest pass and returns no report, so a directory holding serve.jsonl and serve.jsonl.2.gz ingests nothing from that directory; driving a 258-byte one-record gzip and a 1,008-byte 50-record gzip through TelemetryIndex.ingest(discover(case)) each raised ValueError naming the path and returned no IngestReport."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "208",
+      "text": "FOLLOW-ON: A gzip written to the unnumbered base name is selected by neither discovery nor refusal, so serve.jsonl.gz is silently absent from the index rather than read or refused by name, while the numbered serve.jsonl.2.gz is correctly selected and then refused."
+    },
+    {
+      "file": "tests/test_telemetry_index.py",
+      "line": "389",
+      "text": "FOLLOW-ON: The expectation is computed from the module under test, since assert report == summarise_receipt_rows(rows) compares the index against the aggregator its own return value goes to, so a defect shared by both passes; this is pre-existing and declared in the run's manifest follow-ons."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "250",
+      "text": "FOLLOW-ON: No production module imports this module, since a grep of imas_ambix/, scripts/ and tests/ for telemetry_index or TelemetryIndex finds the module itself and tests/test_telemetry_index.py:14-15 only, so the guards verified here protect a reader nothing in production constructs today while the plan at docs/plans/serve-telemetry-spine.html:572 names watch.py as the remaining write path."
+    }
+  ],
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "The diff replaces the size and tail-line identity with a digest of the whole consumed region (imas_ambix/agent/telemetry_index.py:376-399), anchors default discovery on _ROLL_SUFFIX (line 208), and refuses a compressed roll by name at line 295 instead of counting it as zero.",
+    "done_when": "The run's 25-passed gate reproduces at ecabeaba - controls/r2-final-gate.log holds 23 dots for tests/test_telemetry_index.py plus 2 for tests/test_agent_receipt_bins.py - and the baseline here is 23 passed for the index file alone.",
+    "goal": "I replayed both recorded defeats against the reviewed head: a same-length rewrite whose final line is byte-identical moved the answered sum 60.0 to 120.0, and a rewrite after UPDATE source SET prefix_sha = NULL moved it to 120.0, so the requirement at docs/plans/serve-telemetry-spine.html:293 holds for both inputs.",
+    "manifest": "The run's manifest names ecabeaba as the merged head, lists both guards closed with their control logs, and already declares tests/test_telemetry_index.py:389 as a pre-existing follow-on, so nothing found here is concealed.",
+    "write_paths": "Commit 6071592d changes exactly four paths (imas_ambix/agent/telemetry_index.py, tests/test_telemetry_index.py, docs/plans/serve-telemetry-spine.html, docs/evidence/archive/serve-telemetry-spine-landed.html), and every hunk I read belongs to the digest, the roll pattern, the refusal, or their tests."
+  },
+  "justifications": {
+    "durability": "Each guard reddens exactly one named test under mutation (test_a_source_with_no_recorded_identity_is_read_again for the NULL branch, test_reingest_after_lost_tail_state_is_still_one_copy for the insert clause), and the head is merged to origin/main.",
+    "evidence": "The run's gate log reproduces at this head and all five recorded r2 controls reproduce their red sets under replay, but the two pre-repair controls in controls/ cannot be replayed verbatim and no production caller exists to confirm the effect.",
+    "fit": "The module matches its plan section's rows-handed-unchanged and absent-never-zero rules at imas_ambix/agent/telemetry_index.py:595, and the naming check over the module and tests finds no plan label, ticket reference, version suffix or attribution.",
+    "goal_fidelity": "Both defeated inputs were replayed end to end against imas_ambix/agent/telemetry_index.py:376-399 and each now re-reads, so the requirement holds against the exact cases that broke it.",
+    "scope_discipline": "Every changed line I read in the repair commit belongs to the digest, the roll-name pattern, the refusal, or their tests, and its four paths sit inside the run's declared write paths."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: I replayed both recorded defeats against the reviewed head: a same-length rewrite whose final line is byte-identical moved the answered sum 60.0 to 120.0, and a rewrite after UPDATE source SET prefix_sha = NULL moved it to 120.0, so the requirement at docs/plans/serve-telemetry-spine.html:293 holds for both inputs.\nVERDICT done_when: The run's 25-passed gate reproduces at ecabeaba - controls/r2-final-gate.log holds 23 dots for tests/test_telemetry_index.py plus 2 for tests/test_agent_receipt_bins.py - and the baseline here is 23 passed for the index file alone.\nVERDICT write_paths: Commit 6071592d changes exactly four paths (imas_ambix/agent/telemetry_index.py, tests/test_telemetry_index.py, docs/plans/serve-telemetry-spine.html, docs/evidence/archive/serve-telemetry-spine-landed.html), and every hunk I read belongs to the digest, the roll pattern, the refusal, or their tests.\nVERDICT manifest: The run's manifest names ecabeaba as the merged head, lists both guards closed with their control logs, and already declares tests/test_telemetry_index.py:389 as a pre-existing follow-on, so nothing found here is concealed.\nSCORE goal_fidelity: 18\nSCORE evidence: 15\nSCORE scope_discipline: 18\nSCORE durability: 19\nSCORE fit: 18\nCALL_SITES: none\nJUSTIFICATION goal_fidelity: Both defeated inputs were replayed end to end against imas_ambix/agent/telemetry_index.py:376-399 and each now re-reads, so the requirement holds against the exact cases that broke it.\nJUSTIFICATION evidence: The run's gate log reproduces at this head and all five recorded r2 controls reproduce their red sets under replay, but the two pre-repair controls in controls/ cannot be replayed verbatim and no production caller exists to confirm the effect.\nJUSTIFICATION scope_discipline: Every changed line I read in the repair commit belongs to the digest, the roll-name pattern, the refusal, or their tests, and its four paths sit inside the run's declared write paths.\nJUSTIFICATION durability: Each guard reddens exactly one named test under mutation (test_a_source_with_no_recorded_identity_is_read_again for the NULL branch, test_reingest_after_lost_tail_state_is_still_one_copy for the insert clause), and the head is merged to origin/main.\nJUSTIFICATION fit: The module matches its plan section's rows-handed-unchanged and absent-never-zero rules at imas_ambix/agent/telemetry_index.py:595, and the naming check over the module and tests finds no plan label, ticket reference, version suffix or attribution.\nVERDICT diff: The diff replaces the size and tail-line identity with a digest of the whole consumed region (imas_ambix/agent/telemetry_index.py:376-399), anchors default discovery on _ROLL_SUFFIX (line 208), and refuses a compressed roll by name at line 295 instead of counting it as zero.\nFINDING imas_ambix/agent/telemetry_index.py:295 FOLLOW-ON: A compressed roll aborts the whole ingest pass and returns no report, so a directory holding serve.jsonl and serve.jsonl.2.gz ingests nothing from that directory; driving a 258-byte one-record gzip and a 1,008-byte 50-record gzip through TelemetryIndex.ingest(discover(case)) each raised ValueError naming the path and returned no IngestReport.\nFINDING imas_ambix/agent/telemetry_index.py:208 FOLLOW-ON: A gzip written to the unnumbered base name is selected by neither discovery nor refusal, so serve.jsonl.gz is silently absent from the index rather than read or refused by name, while the numbered serve.jsonl.2.gz is correctly selected and then refused.\nFINDING tests/test_telemetry_index.py:389 FOLLOW-ON: The expectation is computed from the module under test, since assert report == summarise_receipt_rows(rows) compares the index against the aggregator its own return value goes to, so a defect shared by both passes; this is pre-existing and declared in the run's manifest follow-ons.\nFINDING imas_ambix/agent/telemetry_index.py:250 FOLLOW-ON: No production module imports this module, since a grep of imas_ambix/, scripts/ and tests/ for telemetry_index or TelemetryIndex finds the module itself and tests/test_telemetry_index.py:14-15 only, so the guards verified here protect a reader nothing in production constructs today while the plan at docs/plans/serve-telemetry-spine.html:572 names watch.py as the remaining write path.\n",
+  "review_run_id": "r-20260921T135648553529-review-of-the-anchored-roll-and-content-check",
+  "reviewed_commit": "ecabeabae8500c576b42a90366f0e074754e98ed",
+  "reviewed_run_id": "r-20260921T084801304762-index-guards-are-asserted",
+  "scores": {
+    "durability": 19,
+    "evidence": 15,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-21T16:28:56.373449+00:00",
+  "total": 88
+}

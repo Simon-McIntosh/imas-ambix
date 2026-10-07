@@ -1,0 +1,58 @@
+{
+  "absent": [],
+  "backend": "clive",
+  "completed_at": "",
+  "dispatched_at": "2026-09-21T06:14:12.906325+00:00",
+  "findings": [
+    {
+      "file": "tests/test_engine_metrics.py",
+      "line": "55",
+      "text": "the literal expectation holds ten entries but omits the cached-token storage tier: SGLANG_CACHE_TIERS maps three tiers (imas_ambix/agent/engine_metrics.py:132-136) and the fixture publishes mode=\"storage_hit\" (tests/data/sglang_metrics_sample.txt:36), so a dropped or renamed storage mapping is not reported by a list whose docstring claims every canonical quantity the plan names - it is caught only by the unrelated equality assertion at tests/test_engine_metrics.py:218."
+    },
+    {
+      "file": "docs/plans/serve-telemetry-spine.html",
+      "line": "258",
+      "text": "the served-set gap is stated as eleven series while the sentence enumerates thirteen names, and an independent scrape at review time found thirteen series names live and absent from the fixture (eviction_duration_seconds_{bucket,count,sum} is three, load_back_* is five), so the numeral understates the refresh's scope; the same numeral appears at docs/evidence/archive/serve-telemetry-spine-landed.html:207 and in the run manifest's item 7, whose own enumeration also lists thirteen."
+    },
+    {
+      "file": "docs/plans/serve-telemetry-spine.html",
+      "line": "213",
+      "text": "max_concurrent 96 is cited as a deployment constant the scrape matches, but no line of the fixture or of the live body contains \"concurrent\" (zero hits in both, measured), so one of the four constants in the provenance argument is not evidenced by either artifact."
+    },
+    {
+      "file": "tests/test_engine_metrics.py",
+      "line": "106",
+      "text": "_has_sample_line's docstring requires a value token while the code accepts any following character in \"{\" or \" \", so a line carrying the name and labels with no value counts as sourced (measured: accepted, while the reader resolves nothing from it); the resolution half still goes red for that mutation, so the gap is masked rather than open."
+    },
+    {
+      "file": "tests/data/sglang_metrics_sample.txt",
+      "line": "146",
+      "text": "the control receipt quotes the removed line as 'sglang:num_running_reqs{tp_rank=\"0\"} 0.0' (negative_control.log line 1, and the run manifest's item 1), which occurs nowhere in the fixture - the real line carries engine_type, model_name, moe_ep_rank and pp_rank labels - so a reader reproducing the mutation with the quoted string finds no such line, in the one field the contract asks to state verbatim."
+    }
+  ],
+  "justifications": {
+    "durability": "measured independently, emptying GAUGE_SERIES[\"requests_running\"][\"sglang\"] shrinks _published(\"sglang\") and the delivered section together so the pre-existing assertion at tests/test_engine_metrics.py:168 stays green, while the new literal loses requests_running and its assertion fails, so the guard the change adds is real; docked because the storage tier is covered only incidentally by tests/test_engine_metrics.py:218 and the sourcing helper does less than its docstring at :106 claims.",
+    "evidence": "the done-when gate is recorded and re-runnable - scrape-fixture-gate.log reads 34 passed, negative_control.log names the deletion, shows 1 -> 0 sample lines, both failure lists and exit 1, and the restored fixture's sha256 8756c08150971947 matches the committed blob in both worktrees; docked because two claims in the durable record disagree with an independent scrape at review time (eleven series at docs/plans/serve-telemetry-spine.html:258 against thirteen measured; max_concurrent 96 at :213 absent from both bodies) and the control's quoted line is not the file's line.",
+    "fit": "the new code follows the file's idiom (tuple table, module-level helpers, docstrings) and its names are mechanistically clear, but tests/test_engine_metrics.py:55 and :225 name the plan as the authority for the expectation - \"plan\" occurs six times in the file after this change and zero times before - which the workstation naming rule bars in symbols, asking instead that code read without plan context.",
+    "goal_fidelity": "tests/test_engine_metrics.py:225 asserts the plan's canonical set from the fixture's own bytes through engine_metrics.read_metrics, which is the offline re-assertion the goal names, and the expectation is now a literal rather than derived - docked because the storage tier the plan's \"split by the tier that answered it\" covers is missing from the literal set at tests/test_engine_metrics.py:55 while the fixture publishes it at tests/data/sglang_metrics_sample.txt:36, and the fixture itself is unchanged from its early-life capture.",
+    "scope_discipline": "the diff touches exactly three of the four declared write paths (tests/test_engine_metrics.py, docs/plans/serve-telemetry-spine.html, docs/evidence/archive/serve-telemetry-spine-landed.html) with the fixture byte-identical to its committed blob and nothing extraneous - docked one because tests/test_engine_metrics.py:266 pins the fixture's current zero, a value the refresh this record recommends must then rewrite."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Review of run r-20260921T053443850077-scrape-fixture, plan imas-ambix:serve-telemetry-spine section 2. Landed change: 43b45b1b and 87b12221 (tests), f03125d6 and d917d12c (records), base 39e7bba5, head d917d12c. Read before scoring: the test diff, both landed records, the fixture's bytes, the control and gate logs, and one live scrape of 98dci4-gpu-0003:18810 taken at review time.\n\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: tests/test_engine_metrics.py:225 asserts the plan's canonical set from the fixture's own bytes through engine_metrics.read_metrics, which is the offline re-assertion the goal names, and the expectation is now a literal rather than derived - docked because the storage tier the plan's \"split by the tier that answered it\" covers is missing from the literal set at tests/test_engine_metrics.py:55 while the fixture publishes it at tests/data/sglang_metrics_sample.txt:36, and the fixture itself is unchanged from its early-life capture.\nSCORE evidence: 17\nJUSTIFICATION evidence: the done-when gate is recorded and re-runnable - scrape-fixture-gate.log reads 34 passed, negative_control.log names the deletion, shows 1 -> 0 sample lines, both failure lists and exit 1, and the restored fixture's sha256 8756c08150971947 matches the committed blob in both worktrees; docked because two claims in the durable record disagree with an independent scrape at review time (eleven series at docs/plans/serve-telemetry-spine.html:258 against thirteen measured; max_concurrent 96 at :213 absent from both bodies) and the control's quoted line is not the file's line.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: the diff touches exactly three of the four declared write paths (tests/test_engine_metrics.py, docs/plans/serve-telemetry-spine.html, docs/evidence/archive/serve-telemetry-spine-landed.html) with the fixture byte-identical to its committed blob and nothing extraneous - docked one because tests/test_engine_metrics.py:266 pins the fixture's current zero, a value the refresh this record recommends must then rewrite.\nSCORE durability: 18\nJUSTIFICATION durability: measured independently, emptying GAUGE_SERIES[\"requests_running\"][\"sglang\"] shrinks _published(\"sglang\") and the delivered section together so the pre-existing assertion at tests/test_engine_metrics.py:168 stays green, while the new literal loses requests_running and its assertion fails, so the guard the change adds is real; docked because the storage tier is covered only incidentally by tests/test_engine_metrics.py:218 and the sourcing helper does less than its docstring at :106 claims.\nSCORE fit: 17\nJUSTIFICATION fit: the new code follows the file's idiom (tuple table, module-level helpers, docstrings) and its names are mechanistically clear, but tests/test_engine_metrics.py:55 and :225 name the plan as the authority for the expectation - \"plan\" occurs six times in the file after this change and zero times before - which the workstation naming rule bars in symbols, asking instead that code read without plan context.\n\nFINDING tests/test_engine_metrics.py:55 the literal expectation holds ten entries but omits the cached-token storage tier: SGLANG_CACHE_TIERS maps three tiers (imas_ambix/agent/engine_metrics.py:132-136) and the fixture publishes mode=\"storage_hit\" (tests/data/sglang_metrics_sample.txt:36), so a dropped or renamed storage mapping is not reported by a list whose docstring claims every canonical quantity the plan names - it is caught only by the unrelated equality assertion at tests/test_engine_metrics.py:218.\nFINDING docs/plans/serve-telemetry-spine.html:258 the served-set gap is stated as eleven series while the sentence enumerates thirteen names, and an independent scrape at review time found thirteen series names live and absent from the fixture (eviction_duration_seconds_{bucket,count,sum} is three, load_back_* is five), so the numeral understates the refresh's scope; the same numeral appears at docs/evidence/archive/serve-telemetry-spine-landed.html:207 and in the run manifest's item 7, whose own enumeration also lists thirteen.\nFINDING docs/plans/serve-telemetry-spine.html:213 max_concurrent 96 is cited as a deployment constant the scrape matches, but no line of the fixture or of the live body contains \"concurrent\" (zero hits in both, measured), so one of the four constants in the provenance argument is not evidenced by either artifact.\nFINDING tests/test_engine_metrics.py:106 _has_sample_line's docstring requires a value token while the code accepts any following character in \"{\" or \" \", so a line carrying the name and labels with no value counts as sourced (measured: accepted, while the reader resolves nothing from it); the resolution half still goes red for that mutation, so the gap is masked rather than open.\nFINDING tests/data/sglang_metrics_sample.txt:146 the control receipt quotes the removed line as 'sglang:num_running_reqs{tp_rank=\"0\"} 0.0' (negative_control.log line 1, and the run manifest's item 1), which occurs nowhere in the fixture - the real line carries engine_type, model_name, moe_ep_rank and pp_rank labels - so a reader reproducing the mutation with the quoted string finds no such line, in the one field the contract asks to state verbatim.\n\nNote for the next reader: the recorded reader-mutation counts (6 of 15, 5 of 15, 4 of 15) and the two unretained reader logs were not re-run here; the mechanism was verified directly instead - a renamed or emptied mapping suppresses requests_running, and emptying is the case the pre-existing test cannot see. The live magnitudes in the manifest's item 7 are a snapshot of a busy serve: a scrape at review time found num_running_reqs 0.0 and full_token_usage 0.0 with the inter-token-latency counter advanced to 24,569,783, which is motion rather than contradiction.\n",
+  "review_run_id": "r-20260921T061412906325-review-of-scrape-fixture",
+  "reviewed_base": "39e7bba5d7a4d0b398978e7f9e6dd3c84eb13c62",
+  "reviewed_commit": "d917d12c99a4c5830410da3d903b42485484ec1b",
+  "reviewed_run_id": "r-20260921T053443850077-scrape-fixture",
+  "scores": {
+    "durability": 18,
+    "evidence": 17,
+    "fit": 17,
+    "goal_fidelity": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-21T06:27:21.044040+00:00",
+  "total": 89
+}
