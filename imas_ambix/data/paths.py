@@ -1,8 +1,7 @@
 """Canonical paths for the FAIR-MAST mirror and probe artefacts.
 
-These constants are the single source of truth — every other module
-imports from here so we don't accidentally hardcode the mirror layout in
-multiple places. The values match ``plans/data-acquisition.md`` §4.1.
+These constants are the single source of truth for the local mirror layout.
+Other modules import from here so path definitions do not diverge.
 """
 
 from __future__ import annotations
@@ -68,12 +67,10 @@ TARGET_ROOT = Path("/work/projects/imas_gpu/mast-targets")
 # --- Level-1 source → IMAS group mapping ------------------------------
 #
 # Verbatim from
-# ``ukaea/fair-mast-ingestion/mappings/level1/mast/groups.json``. Note:
-# these mappings describe the *intended* level-2 ingestion. As of the
-# 2026-05-19 probe (see plans/data-acquisition.md §10), the camera
-# sources have not been ingested into level-2 — they exist only at
-# level-1. The mapping is preserved here so future code can join the two
-# tiers.
+# ``ukaea/fair-mast-ingestion/mappings/level1/mast/groups.json``. These
+# mappings describe the intended level-2 ingestion. The camera sources exist
+# only at level-1, so the mapping also records how to join the two tiers when
+# their level-2 counterparts become available.
 
 LEVEL1_SOURCES = {
     "rba": "camera_visible.camera_lower",
