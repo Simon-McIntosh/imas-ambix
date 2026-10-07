@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.79">
-<meta name="plan-version" content="296">
+<meta name="plan-version" content="297">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -1305,6 +1305,17 @@
       </p>
     <p class="r-dec-rat">Lead&#x27;s choice 2026-10-07: follow the DD&#x27;s differential loops, and store on each type-1 entry for loops 1-6 and 8-27 only its geometry (name, position, area) with no flux, because their absolute flux was never measured and the DD documents flux as measured. Loop 7&#x27;s type-1 entry carries its measured absolute flux. Each measured difference is a type-6 entry naming loop 7 and loop L. A consumer that needs absolute flux adds loop 7 itself; no derived sum is stored as a measurement.</p>
     </div>
+<div class="r-dec" data-key="jt60sa-psi-q-source" data-choice="request-fame-access" data-by="Simon McIntosh" data-when="2026-10-07T03:45:00+00:00" data-sections="s6,s7">
+    <p class="r-dec-q">Where do JT-60SA equilibria with a psi grid and q profile come from?</p>
+    <p class="r-dec-ctx">Measured 2026-10-07. PSRC&#x27;s 86 SELENE arrays carry no psi grid or q profile (jtmm-psrc-selene-inventory, review 113/120). FAME (the site catalogue: Fast Analyzer for Magnetohydrodynamic Equilibrium) holds both in 105 slices for E101154, but its EQDB server dbsvr17p does not resolve from intr26-2 and /JT60SA_EQ is not mounted (IRET 300). jtmm-equilibrium-route-search found two other routes: an existing G-EQDSK for OP1 shot E101011 in /home/d240034/fbequ/EFIT95.DATA, and SELENE&#x27;s efitout.f, which writes psi and q to a G-EQDSK on every run.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="request-fame-access">ask the JT-60SA side to open dbsvr17p or mount /JT60SA_EQ/FAME3 from intr26-2, and run nothing on their server</button>
+      <button class="r-opt" data-value="e101011-and-selene-trial">use E101011&#x27;s EQDSK now and trial one SELENE run on E101154</button>
+      <button class="r-opt" data-value="e101011-only">use the single existing EQDSK and run nothing</button>
+      <button class="r-opt" data-value="selene-all-16">run SELENE for all 16 OP1 shots</button>
+      </p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-07: ask JT-60SA for read access to FAME&#x27;s EQDB records, and run nothing on the JT-60SA server ourselves. The q-sign test and the psi-grid comparisons wait on that access.</p>
+    </div>
 </section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
@@ -1340,6 +1351,11 @@
     <h4 class="r-fu-title">Move the pulse mint&#x27;s raw rule reads onto VirtualZarrView&#x27;s untransformed accessor (foreign owner: jt60sa-pulse-ids)</h4>
     <div class="r-fu-body"><p>Exemption claimed: foreign-owner. Once jtmm-observation-time-alignment lands VirtualZarrView's untransformed accessor, imas_ambix/data/pulse_mint.py _served_entries should read each rule through it instead of resolving source_group and source_array through read_channel itself. The module belongs to the plan jt60sa-pulse-ids, so that plan owns the change.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-pulse-ids</pre>
+    </article>
+<article class="r-fu" data-id="f-jtmm-006" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-07" data-recommends-skill="/reckon-build jt60sa-machine-map §6" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Exemption claimed: authority-required. Request read access to FAME&#x27;s EQDB records from intr26-2</h4>
+    <div class="r-fu-body"><p>Exemption claimed: authority-required. Only the lead can ask the JT-60SA side. The request needs read access, from intr26-2 or another host reachable over ssh, to the FAME equilibrium records on <code>dbsvr17p</code> (<code>/JT60SA_EQ/FAME3</code>). That means either DNS and a route to <code>dbsvr17p</code> for the EQDB socket client (<code>eqdbsockclient_connect</code> in <code>/analysis/lib/JT60SAEQDB/libEQDBMSPIC.so</code>), or a read-only mount of <code>/JT60SA_EQ</code>. The access is read-only, for the OP1 shots on the identified list, and the fields needed are psi, the boundary, the axis, p′, FF′ and the q profile. Evidence: <code>GetEqData(0,101154,500)</code> returns IRET 300 on intr26-2 (jtmm-selene-output-locate). Once access exists, §6's deferred EQDB transport, the FAME loader and the q-sign test resume.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-machine-map §6</pre>
     </article>
 </section>
 
