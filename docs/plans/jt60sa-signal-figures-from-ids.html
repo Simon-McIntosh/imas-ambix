@@ -25,7 +25,7 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="28">
+<meta name="plan-version" content="30">
 <meta name="plan-modified" content="2026-10-07">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;}">
 </head>
@@ -65,16 +65,33 @@
       all 27 flux loops (FL1–FL27) and all 17 poloidal-field probes in <code>magnetics</code>, each on its own time
       base (homogeneous time 0). Loop 7 is absolute. Loops 1–6 and 8–27 are measured as differences relative to
       loop 7, and the files store those differences as measured. The lead ruled on 2026-10-07 that this is how the
-      signals are measured and that they are plotted as such. So the figures draw the stored values unchanged, and
-      each flux-loop caption states that every loop except FL7 is a difference relative to FL7.
+      signals are measured and that they are plotted as such. So the figures draw the stored values unchanged.
     </p>
     <p>
-      The section adds two more figure calls per pulse through the existing <code>_pulse_figure</code>: one with the
+      The section adds two more figure calls per pulse through the existing <code>_pulse_figure</code>, with the IDS
+      root resolved as the script already resolves it (<code>require_setting("ids_root", …)</code>): one with the
       pair <code>("magnetics", "flux_loop/flux")</code>, one with <code>("magnetics", "b_field_pol_probe/field")</code>.
       They write <code>jt60sa-E101154-flux-loops.svg</code>, <code>jt60sa-E101154-pf-probes.svg</code> and the same
       two for E101031 into <code>docs/figures/jt60sa-signals/</code>, one panel per loop or probe. Names and units
-      come from the IDS through <code>extract_signal_traces</code>; the script passes no label, unit or array of its
-      own, and does not rescale or re-sign a signal. The two coil-current SVGs stay byte-identical.
+      come from the IDS through <code>extract_signal_traces</code>; the script passes no label, unit, caption or
+      array of its own, and does not rescale or re-sign a signal.
+    </p>
+    <p>
+      The caption is not part of the SVG. It is the HTML text beneath each embedded figure in the node's evidence
+      fragment, <code>docs/evidence/fragments/jt60sa-signal-figures-from-ids/&lt;node&gt;.html</code>, which the
+      landing carries into this plan. Each flux-loop caption names the pulse and run file and states that FL7 is
+      absolute while every other loop is the measured difference relative to FL7, drawn with its measured sign.
+      Each probe caption names the pulse, the run file and the field component.
+    </p>
+    <p>
+      <strong>Done when</strong> running the script in place on the fleet allocation writes the four new SVGs. Each
+      flux-loop SVG has 27 panels labelled FL1–FL27 and each probe SVG has 17 panels labelled MP1–MP17, with units
+      as the IDS states them. Both coil-current SVGs are byte-identical to their committed predecessors. A check in
+      the gate log asserts, for FL1, FL7 and MP1 of E101154, that the trace passed to
+      <code>time_trace_figure_mpl</code> equals the IDS array element for element. ruff check and ruff format
+      --check add no finding on the script. The evidence fragment embeds all four new SVGs with the captions above.
+      <strong>Negative control:</strong> negating FL1's trace before the figure call makes the equality check fail
+      on FL1, recorded in its own log.
     </p>
     <p>
       The machine-map decision <code>jt60sa-differential-flux-loops</code> will later move loops 1–6 and 8–27 to
@@ -82,7 +99,9 @@
       ψ<sub>7</sub>. That flips the sign of loops 12–27 relative to today's files and leaves their type-1 entries
       without flux. Its coordinator, imas-ambix-5b, reports on 2026-10-07 that the adapter, the store regeneration
       and the retarget have not started and are several hours away. When the pulses are written under those rules,
-      the flux-loop figures are redrawn from the type-6 entries; 5b will signal.
+      the flux-loop figures are redrawn from the type-6 entries; 5b will signal. The lead ruled on 2026-10-07 that
+      the redraw follows the IDS: loops 12–27 then appear with the data dictionary's sign, and the caption says so.
+      The script never re-signs data.
     </p>
 
     <section class="section-landed">
