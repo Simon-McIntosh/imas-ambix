@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.77">
-<meta name="plan-version" content="286">
+<meta name="plan-version" content="287">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -1822,6 +1822,9 @@
 </div>
 <div class="r-comment" data-section="_top" data-id="c-20261007T0050-impl-recount" data-who="reckon-build" data-when="2026-10-07T00:50:00Z">
     <div class="r-comment-body">Status set to in-progress: the plan has been built continuously since 2026-10-05 and still read draft. impl recounted from the ledger rather than incremented: 50 executable nodes have landed with a passing gate, 7 named nodes remain (vacuum verdicts author, signal-map test guards, the three differential-loop nodes, the SELENE output locate, the JT-60SA tokamap export), and about 11 unnamed ones remain in s6 (EQDB transport, FAME bindings, third plasma shot, SELENE and FAME loaders, sign cohort) and s7 (shot-set table, pin table, machine-keyed selector and registry, reference loader, JT-60SA stamp), so 50/68 = 0.74. The earlier 0.93 counted landings against a denominator that did not grow as nodes were added.</div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-20261007T0230-jtfm-maps-leave-git" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-07T02:30:00Z">
+    <div class="r-comment-body"><p><strong>Heads-up: the JT-60SA maps will leave git (lead-decided 2026-10-07).</strong> <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §1 moves the JT-60SA catalogue, unit table, signal maps and description store out of <code>imas_ambix/data/</code>. They become one flat single-machine bundle, edited under <code>/work/projects/imas_gpu/jt60sa/maps/</code>: <code>bundle.json</code>, <code>machine_map.json</code>, <code>maps/&lt;ids&gt;.json</code> and <code>machine_description/&lt;phase&gt;/&lt;ids&gt;.nc</code>. Each version is pushed to private GHCR, and there is no private git repository. §1 lands only when this plan has no run in flight on the map files. After it, this plan's later sections edit the <code>/work</code> copy, and JT-60SA tests resolve the maps through <code>IMAS_ALAMBIC_MAP_PATH</code>, skipping with a reason when it is absent. This supersedes the earlier comment's "map JSON is not moving", which held for the engine move only. §1 waits on §9, the flat bundle layout, so there is no immediate change.</p></div>
 </div>
 </section>
 </main>

@@ -7,10 +7,10 @@
   <meta name="reckon-type" content="plan">
   <meta name="plan-slug" content="jt60sa-facility-mint">
   <meta name="plan-title" content="JT-60SA Facility Mint: Public Engine, Private Maps">
-  <meta name="plan-summary" content="imas-alambic, a slim public engine, loads a private JT-60SA map bundle from GHCR on the facility&#x27;s analysis server and mints IDSs from EDDB there">
+  <meta name="plan-summary" content="imas-alambic, a slim public engine, reads a private GHCR map bundle from a shared IMASDB folder at JT-60SA and writes each pulse as one IMAS netCDF file">
   <meta name="plan-status" content="pending">
   <meta name="plan-roi" content="mid">
-  <meta name="plan-effort-hours" content="11.0">
+  <meta name="plan-effort-hours" content="15.5">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="orchestrator">
   <meta name="plan-capability-reasoning" content="deep">
@@ -22,11 +22,11 @@
   <meta name="plan-tags" content="jt-60sa,machine-map">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <meta name="plan-after" content="jt60sa-pulse-ids">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;}">
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="33">
+<meta name="plan-version" content="36">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -48,7 +48,7 @@
     </header>
 
     <h2 id="s1">§1 — Move the JT-60SA maps into a private bundle</h2>
-<section data-reckon="section" data-id="s1" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-facility-mint#s2"></section>
+<section data-reckon="section" data-id="s1" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-facility-mint#s9"></section>
     <p>
       The data-load code is in <code>imas_ambix/data/</code>. <code>eddb_remote.py</code> sends a batch
       of EDDB channel requests down one ssh session to the analysis server, whose remote half runs
@@ -67,32 +67,57 @@
       <code>/work/projects/imas_gpu/jt60sa/</code>, never in git.
     </p>
     <p>
-      The lead chose a private bundle (<code>map-privacy</code>, <code>map-source</code>,
-      <code>public-history</code>). Three things move to a new private repository,
-      <code>Simon-McIntosh/imas-alambic-jt60sa</code>, laid out as the bundle that §3 defines: the
-      JT-60SA catalogue, its signal maps, and the description store (827 kB under
-      <code>/work/projects/imas_gpu/jt60sa/machine_description/</code>). That repository is
-      registered as a reckon project, so later map edits dispatch there. Each bundle version is
-      pushed with <code>oras</code> as an OCI artifact to the private package
-      <code>ghcr.io/simon-mcintosh/imas-alambic-jt60sa</code>, tagged with the bundle version and
-      tagged again with the source commit. Afterwards the public tree carries no JT-60SA map. The
-      engine's own tests use synthetic maps. Ambix tests that need the real JT-60SA maps resolve
-      the bundle through §3's search path; when it is absent they skip with a stated reason, which
-      is what public CI sees. The 12 earlier commits on <code>origin</code> that carry the maps
-      stay as they are, because the lead chose not to rewrite history; <code>upstream</code> never
-      had them. The evidence fragments and figures under <code>docs/</code> are outside this move,
-      and the open decision <code>evidence-privacy</code> covers them.
+      The lead chose a private bundle protected by GHCR alone, with no private git repository
+      (<code>map-privacy</code>, <code>map-source</code>, <code>public-history</code>,
+      <code>bundle-layout</code>). The JT-60SA catalogue, its unit table, its signal maps and the
+      description store (827 kB under <code>/work/projects/imas_gpu/jt60sa/machine_description/</code>)
+      become one flat single-machine bundle (§9), edited in place under
+      <code>/work/projects/imas_gpu/jt60sa/maps/</code>. It holds <code>bundle.json</code>,
+      <code>machine_map.json</code>, <code>maps/&lt;ids&gt;.json</code> and
+      <code>machine_description/&lt;phase&gt;/&lt;ids&gt;.nc</code>, and names the machine once, in
+      <code>bundle.json</code>. Each released version is pushed with <code>oras</code> as an OCI
+      artifact to the private package <code>ghcr.io/simon-mcintosh/imas-alambic-jt60sa</code>, tagged
+      with its version. GHCR's immutable, digest-addressed tags are the maps' history. Afterwards
+      the public tree carries no JT-60SA map: ambix's <code>bundle.json</code> drops
+      <code>jt-60sa</code>, and the JT-60SA map files leave <code>imas_ambix/data/</code>. The 12
+      earlier commits on <code>origin</code> that carry the maps stay as they are, because the lead
+      chose not to rewrite history; <code>upstream</code> never had them. The evidence fragments
+      and figures under <code>docs/</code> are outside this move, and the open decision
+      <code>evidence-privacy</code> covers them.
     </p>
     <p>
-      The move needs §2's bundle discovery, so that ambix still finds the maps. It also changes where the
-      <a href="jt60sa-machine-map">jt60sa-machine-map</a> plan edits them. So it lands only when
-      that plan has no run in flight on the map files, and that plan's later sections edit the
-      private repository instead. Done-when: <code>git ls-files imas_ambix | grep -i jt-60sa</code>
-      returns nothing on <code>main</code>.
+      Tests follow the maps. The engine's own tests use synthetic bundles. Every test that reads
+      the real JT-60SA maps or the <code>/work</code> store resolves them through the bundle
+      (<code>IMAS_ALAMBIC_MAP_PATH</code> naming the <code>/work</code> bundle) or through
+      <code>imas_ambix.data.paths</code>. It skips with a stated reason when the bundle is absent,
+      which is what public CI sees. The census of such tests on 2026-10-07, from the v29 review
+      and the move's own audit:
+    </p>
+    <ul>
+      <li><code>packages/imas-alambic/tests/test_eddb_local_transport.py:37</code>,
+        <code>tests/data/test_transform_engine.py:39</code> and
+        <code>tests/data/test_selene_deck.py:872</code> hard-code
+        <code>/work/projects/imas_gpu/jt60sa</code>. The E101154 local-transport test moves to the
+        ambix side, leaving the engine's tests synthetic.</li>
+      <li><code>tests/data/test_pulse_writer.py</code> (named by §7) loads the JT-60SA map by name
+        and names E101154.</li>
+      <li><code>tests/data/test_jt60sa_machine_map.py</code>,
+        <code>test_jt60sa_signal_maps.py</code> and <code>test_jt60sa_unit_audit.py</code> read the
+        maps directly.</li>
+    </ul>
+    <p>
+      The move needs §9's flat bundle layout. It also changes where the
+      <a href="jt60sa-machine-map">jt60sa-machine-map</a> plan edits the maps. So it lands only
+      when that plan has no run in flight on the map files, and that plan's later sections edit
+      the <code>/work</code> copy instead. Done-when: <code>git ls-files imas_ambix | grep -i -E
+      'jt-60sa|jt60sa'</code> lists no catalogue, unit table or signal map on <code>main</code>,
+      and ambix's <code>bundle.json</code> names no <code>jt-60sa</code>. The <code>/work</code>
+      bundle loads by name with <code>IMAS_ALAMBIC_MAP_PATH</code> naming it.
       <code>oras manifest fetch ghcr.io/simon-mcintosh/imas-alambic-jt60sa:&lt;version&gt;</code>
-      succeeds with the gh token and is refused without one. With the pulled bundle on the search
-      path, the ambix tests that cover the JT-60SA maps add no failures against the stated base;
-      without it, they skip with the stated reason.
+      succeeds with the gh token and is refused without one. With the bundle on the search path,
+      the census tests add no failures against the stated base; without it, they skip with the
+      stated reason. No test outside <code>imas_ambix.data.paths</code> names
+      <code>/work/projects/imas_gpu/jt60sa</code>.
     </p>
 
     <section class="section-landed">
@@ -116,17 +141,30 @@
   <p class="landed-summary">Landed on <code>intr26-2</code> (account d240044): a Python 3.12.9 venv at <code>~/imas-alambic/.venv</code> holds editable imas-alambic <code>0.1.dev5620+g33cad025b</code> (clone HEAD <code>33cad025</code>, which contains the engine move) and nova-cocos, both installed from blob-less sparse https clones. The relayed JT-60SA bundle at <code>~/imas-alambic/bundles/jt-60sa</code> loads by name with the same machine, IDS and path counts as this checkout, and the 16 engine tests pass on the server. Activate with <code>source ~/imas-alambic/env.sh</code>. <a href="s4">full record</a></p>
 </section>
 
-    <h2 id="s5">§5 — Wheel install with the GHCR bundle</h2>
-<section data-reckon="section" data-id="s5" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-facility-mint#s1,jt60sa-facility-mint#s3,jt60sa-facility-mint#s4"></section>
-<p>Once §1, §3 and §4 have landed, wheels replace the editable checkout. Build them here with <code>uv build --package imas-alambic</code>, and with <code>uv build --package nova-cocos</code> in nova. Copy both to the server and install them into a fresh <code>~/imas-alambic/.venv</code>, taking the other dependencies from PyPI. The bundle travels from GHCR through this machine: <code>oras pull ghcr.io/simon-mcintosh/imas-alambic-jt60sa:&lt;version&gt;</code> here, then <code>rsync</code> to <code>~/imas-alambic/bundles/jt-60sa/&lt;version&gt;/</code>, with <code>IMAS_ALAMBIC_MAP_PATH</code> set in <code>~/imas-alambic/env.sh</code>. No GitHub credential is placed on the server, and the light-load rule of §4 holds.</p><p>Done-when: <code>importlib.metadata.version("imas-alambic")</code> on the server reports the wheel's version, and <code>pip list --editable</code> in that venv is empty. The generalised by-name loaders resolve <code>jt-60sa</code> from the relayed bundle. One <code>pf_active</code> channel of E101154, read through the local transport, equals this machine's cached copy of that channel bit for bit.</p>
+    <h2 id="s5">§5 — A shared IMASDB install for every facility user</h2>
+<section data-reckon="section" data-id="s5" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-facility-mint#s1,jt60sa-facility-mint#s8"></section>
+<p>The facility install lives in one folder, <code>/home/SharedFolder/d240044/IMASDB</code>. <code>/home/SharedFolder</code> is the facility's shared area. Its README requires each user's files to sit under a directory named after the account, and recommends <code>chmod 1755</code> so others can read but not write. The area is not backed up and is capped at 100 GB. The folder serves one machine, so no directory is named after it:</p><pre>IMASDB/
+├── bin/imas-alambic          launcher
+├── tools/                    uv tool environment and uv-managed Python 3.12
+├── maps/&lt;version&gt;/           one GHCR bundle, relayed and immutable
+├── maps/current -&gt; &lt;version&gt;
+└── ids/&lt;pulse&gt;_&lt;run&gt;.nc      written by imas-alambic write (§8)</pre><p>The tool is installed with <code>uv tool install</code>, with <code>UV_TOOL_DIR</code>, <code>UV_TOOL_BIN_DIR</code> and <code>UV_PYTHON_INSTALL_DIR</code> pointing into <code>IMASDB/tools</code>, on a uv-managed CPython 3.12. At run time it depends on neither the facility's python module nor uv, so other users run <code>IMASDB/bin/imas-alambic</code> with nothing installed themselves. The launcher clears <code>PYTHONPATH</code>, because both the login profile and <code>module load python/3.12</code> put foreign site-packages on it. It then sets <code>IMAS_ALAMBIC_HOME</code> to its own IMASDB folder, from which §8 derives every default.</p><p>This replaces §4's <code>~/imas-alambic/.venv</code> and <code>env.sh</code>. That venv works only while <code>module load python/3.12</code> is active: pip took numpy and packaging from the module's <code>PYTHONPATH</code> and never installed them, which <code>pip check</code> measured on 2026-10-07.</p><p>The install is one command kept in the repository, <code>packages/imas-alambic/install/imasdb.sh &lt;IMASDB&gt;</code>, and the folder it is given is the install-time setting. It installs editable from §4's sparse clones first, for testing, then from wheels built here with <code>uv build</code> and copied over. The bundle is pulled here with <code>oras</code> using the gh token, copied into <code>maps/&lt;version&gt;</code> over <code>ssh jt-60sa</code>, and <code>current</code> then moves to it. No GitHub credential is placed on the server, and every command runs under <code>nice -n 19</code>.</p><p>Done-when, on <code>intr26-2</code>:</p><ul><li><code>/home/SharedFolder/d240044</code> has mode 1755. Every directory under IMASDB grants others r-x, every file grants them r--, and nothing grants others write.</li><li>The tool environment's imas-alambic is a wheel install, not editable. <code>IMASDB/bin/imas-alambic --version</code> runs both with <code>PYTHONPATH</code> set to the python/3.12 module's site-packages and with it unset, and <code>uv pip check</code> against the tool environment reports no missing dependency.</li><li>With no <code>IMAS_ALAMBIC_*</code> variable set, <code>imas-alambic config</code> reports the maps as <code>IMASDB/maps/current</code> and the IDS root as <code>IMASDB/ids</code>, both derived from <code>IMAS_ALAMBIC_HOME</code>. It reports the machine as jt-60sa, inferred from the one reachable bundle.</li><li>The old <code>~/imas-alambic</code> install is removed only after these pass.</li></ul>
 
     <h2 id="s6">§6 — Write E101154 at the facility</h2>
-<section data-reckon="section" data-id="s6" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-pulse-ids#s1,jt60sa-facility-mint#s5"></section>
-<p>The writer from <a href="jt60sa-pulse-ids">jt60sa-pulse-ids</a> §1 is in the engine, renamed by §7. Write E101154 on the server with <code>imas-alambic write</code> through the local transport, from the §5 install, and compare the result with the IDSs written here through the ssh route. Done-when: every IDS the writer emits for E101154 is equal field by field between the server and here, by imas-python's comparison. The run's wall time and peak memory on <code>intr26-2</code> are recorded.</p>
+<section data-reckon="section" data-id="s6" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-facility-mint#s5,jt60sa-facility-mint#s8"></section>
+<p>The writer from <a href="jt60sa-pulse-ids">jt60sa-pulse-ids</a> §1 is in the engine, renamed by §7 and given its run file by §8. Use the §5 install with no <code>IMAS_ALAMBIC_*</code> variable set: <code>IMASDB/bin/imas-alambic write 101154</code> on the server reads EDDB through the local transport (§3) and writes <code>IMASDB/ids/101154_0.nc</code>. Compare it with the same command here, through the ssh route and the same bundle version. Done-when: the server's file holds every IDS of E101154's phase machine description, and each IDS is equal between the server and here by imas-python's comparison. The run's wall time and peak memory on <code>intr26-2</code> are recorded.</p>
 
     <h2 id="s7">§7 — The engine&#x27;s verb is write, not mint</h2>
 <section data-reckon="section" data-id="s7" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
 <p>On 2026-10-07 the lead ruled that the engine's one command is <code>imas-alambic write</code>, not <code>mint</code>. The command writes a shot's IDSs from the maps and the facility's data, and "mint" suggests creating currency or tokens. Two other verbs were considered. <code>map</code> was set aside because map is the package's core noun (<code>MachineMap</code>, <code>SignalMap</code>, map bundles, <code>IMAS_ALAMBIC_MAP_PATH</code>), so a future map-management command would collide with it. <code>convert</code> is imas-python's DD-version conversion. The rename lands before §5 publishes a wheel and before §6 has anyone running the command, so it needs no deprecated alias.</p><p>What changes. In <code>packages/imas-alambic/src/imas_alambic/cli.py</code>, the click command <code>mint</code> becomes <code>write</code>, and its function and help text follow. <code>imas_alambic/pulse_mint.py</code> moves with <code>git mv</code> to <code>imas_alambic/pulse_writer.py</code>, and its symbols are renamed: <code>mint_pulse</code> to <code>write_pulse</code>, <code>MintReceipt</code> to <code>WriteReceipt</code>, <code>MintedLeaf</code> to <code>WrittenLeaf</code>, and <code>PulseMintError</code> to <code>PulseWriteError</code>. Its docstrings describe writing. The package's self-description as the "mint engine" is rewritten in its module docstring, <code>README.md</code>, and the <code>pyproject.toml</code> description and keywords, as is the root <code>pyproject.toml</code> comment that names it. <code>tests/data/test_pulse_mint.py</code> moves to <code>tests/data/test_pulse_writer.py</code>, and the module list in <code>packages/imas-alambic/tests/test_engine_imports.py</code> follows. No behaviour changes. Plan slugs, landed sections, evidence fragments and run records keep the word, because they are records of what ran. The editable install at JT-60SA (§4) takes the new command on its next pull.</p><p>Done-when: <code>imas-alambic --help</code> lists <code>write</code> and no <code>mint</code>, and <code>imas-alambic write --help</code> lists <code>--machine</code>, <code>--shot</code> and <code>--out</code>. <code>grep -rniwE 'mint|minted|minting|pulse_mint|mint_pulse' packages imas_ambix tests scripts pyproject.toml</code> prints nothing. <code>uv run --no-sync pytest -p no:cacheprovider tests/data/test_pulse_writer.py packages/imas-alambic/tests</code> passes with the same counts the base reaches under the old names. <code>ruff check</code> and <code>ruff format --check</code> on the changed files add no finding.</p>
+
+    <h2 id="s8">§8 — Settings, the write command and the run file</h2>
+<section data-reckon="section" data-id="s8" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links="jt60sa-facility-mint#s7"></section>
+<p>At the facility the only argument the command needs is the pulse, and every default follows from the folder the install lives in. Settings, highest precedence first:</p><ol><li>A command-line flag.</li><li><code>IMAS_ALAMBIC_MAP_PATH</code> and <code>IMAS_ALAMBIC_IDS_ROOT</code>.</li><li>The defaults derived from <code>IMAS_ALAMBIC_HOME</code>: <code>$IMAS_ALAMBIC_HOME/maps/current</code> and <code>$IMAS_ALAMBIC_HOME/ids</code>.</li></ol><p>No setting names a machine. The machine is inferred when exactly one machine is reachable through the bundles. <code>--machine</code> is required only when several are reachable, as on the development side, where ambix registers MAST, DIII-D and JT-60SA. A missing setting is refused, naming the variable that sets it.</p><p>The command becomes <code>imas-alambic write PULSE [PULSE ...] [--run N] [--machine M] [--maps DIR] [--out DIR] [--overwrite]</code>, with the run defaulting to 0. <code>imas-alambic config</code> prints each resolved setting with the source it came from. Interface account: this adds the <code>config</code> command and two environment variables, <code>IMAS_ALAMBIC_HOME</code> and <code>IMAS_ALAMBIC_IDS_ROOT</code>. It replaces <code>write</code>'s <code>--shot</code> option with positional pulses and makes <code>--out</code> optional. It adds no site package and no configuration file.</p><p><code>write_pulse</code> (§7) writes one netCDF file per pulse and run, <code>&lt;ids root&gt;/&lt;pulse&gt;_&lt;run&gt;.nc</code>, through one <code>imas.DBEntry</code>. The pulse is the bare number, as the cache names it, and the run is unpadded. The file holds every IDS of the machine description for the shot's operating phase, OP1 or OP2, whether or not a signal map serves it, and the served time-dependent quantities are written into those IDSs. An existing file is refused unless <code>--overwrite</code> is given. The writer's previous one-file-per-IDS layout retires; <a href="jt60sa-pulse-ids">jt60sa-pulse-ids</a> §2 and §4 read the run file instead, as the 2026-10-07 comment on that plan records.</p><p>Done-when:</p><ul><li>In a clean <code>uv venv --python 3.12</code>, set <code>IMAS_ALAMBIC_HOME</code> to a synthetic folder holding one synthetic flat bundle, with no other variable set. <code>imas-alambic config</code> reports the derived maps and IDS paths and the inferred machine, each with its source. <code>imas-alambic write</code> on a synthetic pulse writes <code>ids/&lt;pulse&gt;_0.nc</code>, holding every description IDS of its phase.</li><li>Here, with the JT-60SA bundle reachable, <code>imas-alambic write 101154 --machine jt-60sa --out &lt;dir&gt;</code> writes <code>101154_0.nc</code>. Its IDS set equals the phase description store's IDS set, and each IDS equals the one the per-IDS writer produced at the base, apart from the file layout.</li><li>A second write without <code>--overwrite</code> is refused.</li><li><code>tests/data/test_pulse_writer.py</code> and <code>packages/imas-alambic/tests</code> add no failures against the base.</li></ul>
+
+    <h2 id="s9">§9 — Flat single-machine bundles</h2>
+<section data-reckon="section" data-id="s9" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links="jt60sa-facility-mint#s2"></section>
+<p>A facility holds one machine, so its bundle should name it once. Today every bundle has the multi-machine layout ambix packages: <code>machine_maps/&lt;machine&gt;.json</code>, <code>maps/&lt;machine&gt;/&lt;ids&gt;.json</code> and <code>machine_description/&lt;machine&gt;/</code>.</p><p>A flat single-machine bundle declares <code>"layout": "flat"</code> and exactly one machine in its <code>bundle.json</code>. It holds <code>machine_map.json</code>, <code>maps/&lt;ids&gt;.json</code> and <code>machine_description/&lt;phase&gt;/&lt;ids&gt;.nc</code>, and names its description store root in <code>bundle.json</code>, relative to the bundle. The resolvers §2 generalised read either layout, choosing by the declared <code>layout</code> and defaulting to multi-machine when it is absent: <code>MapBundle.machine_map_path</code> and <code>signal_map_path</code>, and store-root resolution. Ambix's in-repo data keeps the multi-machine layout. No refusal family is added: a flat bundle declaring more than one machine is refused with the existing <code>MachineMapError</code>.</p><p>Done-when:</p><ul><li>A synthetic flat bundle on <code>IMAS_ALAMBIC_MAP_PATH</code> resolves its catalogue, every signal map and its description store by machine name.</li><li>Ambix's multi-machine bundle still resolves MAST, DIII-D and JT-60SA.</li><li>A flat bundle declaring two machines is refused, naming the bundle, and the duplicate-machine refusal holds across a flat and a multi-machine bundle.</li><li><code>packages/imas-alambic/tests</code> pass in a clean <code>uv venv --python 3.12</code>, and <code>tests/data/test_machine_map.py</code> adds no failures against the base.</li></ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -166,13 +204,13 @@
       </p>
     <p class="r-dec-rat">Lead, 2026-10-06: packages/imas-alambic/ in this repository; one plan system, atomic data-layer changes; splittable later with history.</p>
     </div>
-<div class="r-dec" data-key="map-source" data-choice="private-repo-ghcr" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s1,s5">
+<div class="r-dec" data-key="map-source" data-choice="ghcr-only" data-by="Simon McIntosh" data-when="2026-10-07T01:51:43+00:00" data-sections="s1,s5">
     <p class="r-dec-q">Where are the JT-60SA maps authored, with GHCR as their store?</p>
     <p class="r-dec-opts">
-      <button class="r-opt chosen" data-value="private-repo-ghcr">Private GitHub repository, versions pushed to private GHCR</button>
-      <button class="r-opt" data-value="ghcr-only">Source on /work, pushed straight to GHCR</button>
+      <button class="r-opt" data-value="private-repo-ghcr">Private GitHub repository, versions pushed to private GHCR</button>
+      <button class="r-opt chosen" data-value="ghcr-only">Source on /work, pushed straight to GHCR</button>
       </p>
-    <p class="r-dec-rat">Lead, 2026-10-06: map edits keep git diffs and reviews; GHCR holds the versioned artifacts the install consumes.</p>
+    <p class="r-dec-rat">Lead, 2026-10-07, revising the earlier private-repo choice: GHCR alone protects the maps; there is no private git repository. The flat bundle is edited under /work/projects/imas_gpu/jt60sa/maps/ and each released version is pushed to private GHCR; the immutable tags are the history.</p>
     </div>
 <div class="r-dec" data-key="public-history" data-choice="leave" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s1">
     <p class="r-dec-q">What happens to the 12 origin commits that carry the maps?</p>
@@ -208,6 +246,49 @@
       </p>
     <p class="r-dec-rat">The lead&#x27;s ruling of 2026-10-07: the command writes a shot&#x27;s IDSs, so it is write; mint suggested currency, map is the package&#x27;s core noun, and convert is imas-python&#x27;s DD conversion.</p>
     </div>
+<div class="r-dec" data-key="launcher" data-choice="uv-tool-shared" data-by="Simon McIntosh" data-when="2026-10-07" data-sections="s5">
+    <p class="r-dec-q">How do facility users run the engine?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="uv-tool-shared">uv tool install into the shared IMASDB folder, with a launcher</button>
+      <button class="r-opt" data-value="venv-env-sh">venv plus source env.sh</button>
+      <button class="r-opt" data-value="uv-run">uv run against a project</button>
+      </p>
+    <p class="r-dec-rat">Lead, 2026-10-07: replace source env.sh. The tool environment and a uv-managed Python 3.12 live in IMASDB/tools; the launcher IMASDB/bin/imas-alambic clears PYTHONPATH and sets IMAS_ALAMBIC_HOME. Other users need neither uv (there is no uv module on the server) nor the python module.</p>
+    </div>
+<div class="r-dec" data-key="imasdb-root" data-choice="sharedfolder-imasdb" data-by="Simon McIntosh" data-when="2026-10-07" data-sections="s5,s6">
+    <p class="r-dec-q">Where does the facility&#x27;s IMAS folder live?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="sharedfolder-imasdb">/home/SharedFolder/d240044/IMASDB</button>
+      <button class="r-opt" data-value="analysis-db-imasdb">/analysis_DB/IMASDB</button>
+      </p>
+    <p class="r-dec-rat">Lead, 2026-10-07: under /home/SharedFolder, the facility&#x27;s shared area, in the account-named directory its README requires, with mode 1755. Named IMASDB; no machine level, because the folder serves one machine.</p>
+    </div>
+<div class="r-dec" data-key="output-layout" data-choice="ids-pulse-run-flat" data-by="Simon McIntosh" data-when="2026-10-07" data-sections="s6,s8">
+    <p class="r-dec-q">How are written IDSs laid out?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="ids-pulse-run-flat">ids/&lt;pulse&gt;_&lt;run&gt;.nc, one DBEntry per pulse and run</button>
+      <button class="r-opt" data-value="ids-pulse-dir-run">ids/&lt;pulse&gt;/&lt;run&gt;.nc</button>
+      <button class="r-opt" data-value="per-ids-files">one netCDF per IDS</button>
+      </p>
+    <p class="r-dec-rat">Lead, 2026-10-07: the folder is named ids, not data, because the maps are data too. Files are flat &lt;pulse&gt;_&lt;run&gt;.nc, so each file names itself and other names can sit beside it. Each run file carries every machine-description IDS of the shot&#x27;s operating phase, alongside the served signals.</p>
+    </div>
+<div class="r-dec" data-key="facility-defaults" data-choice="home-derived" data-by="Simon McIntosh" data-when="2026-10-07" data-sections="s5,s8">
+    <p class="r-dec-q">Where do the facility&#x27;s defaults come from?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="home-derived">Derived from the install folder; machine inferred from the bundle</button>
+      <button class="r-opt" data-value="site-package-extra">A [jt60sa] extra with a site package</button>
+      <button class="r-opt" data-value="baked-in-engine">JT-60SA paths in the engine</button>
+      </p>
+    <p class="r-dec-rat">Lead, 2026-10-07: a facility folder serves one machine, so no install, path or package names it. Defaults derive from IMAS_ALAMBIC_HOME, which the launcher sets, and the machine is inferred from the one reachable bundle. The install-time option is the folder given to the install command. No site package, so no token is needed to install.</p>
+    </div>
+<div class="r-dec" data-key="bundle-layout" data-choice="flat-single-machine" data-by="Simon McIntosh" data-when="2026-10-07" data-sections="s1,s9">
+    <p class="r-dec-q">How is a facility bundle laid out?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="flat-single-machine">flat-single-machine</button>
+      <button class="r-opt" data-value="multi-machine">multi-machine</button>
+      </p>
+    <p class="r-dec-rat">Lead, 2026-10-07: the machine is named once, in bundle.json. Ambix&#x27;s in-repo data keeps the multi-machine layout.</p>
+    </div>
 </section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
@@ -218,10 +299,16 @@
     <pre class="r-fu-prompt">/reckon-build jt60sa-facility-mint §1</pre>
     <p class="r-fu-outcome"><p>Locked 2026-10-06: map-privacy private-bundle (private repo + private GHCR), facility-install install (editable first, then wheel), engine-name imas-alambic, engine-home workspace member, public-history leave, map-relay relay-from-here.</p></p>
     </article>
-<article class="r-fu" data-id="f-jtfm-002" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-facility-mint §2" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jtfm-002" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-build" data-written-at="2026-10-06" data-recommends-skill="/reckon-build jt60sa-facility-mint §2" data-resolved-at="2026-10-07T01:51:43+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Build imas-alambic as a workspace member once nova-cocos lands</h4>
     <div class="r-fu-body"><p>§2 waits on nova:cocos-standalone-distribution §1; §3 and §4 follow §2.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-facility-mint §2</pre>
+    <p class="r-fu-outcome"><p>§2 landed at d82ed19b and 3d54ae6f, and §3 and §4 landed after it.</p></p>
+    </article>
+<article class="r-fu" data-id="f-jtfm-003" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-build" data-written-at="2026-10-07" data-recommends-skill="/reckon-build jt60sa-facility-mint §9" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Build the flat single-machine bundle, then the settings and run file</h4>
+    <div class="r-fu-body"><p>§9 can start now. §8 waits for §7's rename to merge, §1 waits for §9, §5 waits for §1 and §8, and §6 waits for §5.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-facility-mint §9</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
