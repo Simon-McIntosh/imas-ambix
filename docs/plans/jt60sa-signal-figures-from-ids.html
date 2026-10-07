@@ -25,7 +25,7 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="19">
+<meta name="plan-version" content="20">
 <meta name="plan-modified" content="2026-10-07">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
@@ -107,8 +107,11 @@
       merges and never names a path. The file name comes from <code>pulse_writer.pulse_path</code>, which §8 migrates
       <code>_read_pulse_ids</code> onto. The root is resolved once, in the entry point. Its owner is
       <code>imas_alambic/settings.py</code> <code>resolve_settings</code>: <code>ids_root</code>, from
-      <code>IMAS_ALAMBIC_IDS_ROOT</code>, called with <code>machine="jt-60sa"</code> because ambix's bundle still serves
-      three machines until jt60sa-facility-mint §1 lands. Nothing in this repository sets that variable, and settings
+      <code>IMAS_ALAMBIC_IDS_ROOT</code>, always called with <code>machine="jt-60sa"</code> in this development checkout,
+      because ambix's bundle serves diii-d and mast as well, before and after jt60sa-facility-mint §1. The
+      bundle <code>ids_root</code> default it falls back to is jt60sa-facility-mint §12. The refactor keeps
+      <code>_read_pulse_ids</code>'s <code>(pulse_file, ids_name)</code> shape, because jt60sa-pulse-ids §4 shares
+      it as the written-pulse reader. Nothing in this repository sets that variable, and settings
       have no development default yet. jt60sa-facility-mint's coordinator is adding one in a section that lands after
       that plan's §1: a bundle store role, <code>ids_root</code>, that ambix's bundle declares and that
       <code>resolve_settings</code> falls back to after <code>--out</code>, <code>IMAS_ALAMBIC_IDS_ROOT</code> and
