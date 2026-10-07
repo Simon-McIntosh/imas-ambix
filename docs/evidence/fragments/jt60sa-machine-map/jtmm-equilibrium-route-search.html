@@ -1,0 +1,230 @@
+<section id="jtmm-equilibrium-route-search" data-reckon="fragment">
+<h2 id="jtmm-equilibrium-route-search-h">A reachable source of an OP1 equilibrium's psi grid and q profile</h2>
+
+<p id="jtmm-equilibrium-route-search-scope">
+Read-only probe of <code>nakasvr26</code> (hostname <code>intr26-2</code>, user
+<code>d240044</code>) over <code>ssh -F ~/.ssh/config jt-60sa</code>, one ssh
+connection at a time. The search started in <code>/home/d240034</code> at the
+lead's direction and stayed on that host; nothing was written on
+<code>nakasvr26</code> outside <code>/tmp</code>, no file was copied out, and
+<code>.ssh</code>, shell history and credentials were never read. No repository
+source was changed. It answers the §6 node <code>jtmm-equilibrium-route-search</code>:
+find a source of one OP1 equilibrium's psi grid and q profile that is reachable
+from <code>intr26-2</code>, beyond the unreachable <code>dbsvr17p</code> EQDB route.
+</p>
+
+<h3 id="jtmm-equilibrium-route-search-doc">What the site's own documentation says FAME is</h3>
+
+<p id="jtmm-equilibrium-route-search-doc-p">
+The EDDB catalogue itself carries the expansion. <code>eddbreadCatTable()</code>
+returns a <code>desclist</code> parallel to its <code>catlist</code>; the entry
+for the <code>FAME</code> category reads verbatim:
+</p>
+<blockquote id="jtmm-equilibrium-route-search-doc-quote">
+<code>'Fast Analyzer for Magnetohydrodynamic Equilibrium (FAME)'</code>
+</blockquote>
+<p id="jtmm-equilibrium-route-search-doc-computes">
+So the site documents FAME as <em>Fast Analyzer for Magnetohydrodynamic
+Equilibrium</em>. What it computes is fixed by the EQDB reader's own schema
+(<code>/analysis/src/edas2/v2.2.1/edas_share/eqread_pac/default/Fledd.py</code>
+<code>NameList</code>, and the Fortran reader
+<code>/analysis/lib/JT60SAEQDB/eqdbms/eqdbget.f</code>): a Grad–Shafranov
+equilibrium — poloidal flux <code>PSI</code> on an <code>NSR&times;NSZ</code>
+(129&times;129) RZ grid, separatrix and X-point, axis, current
+<code>TTCU</code>, and the flux-surface profiles <code>PDS</code> (p&prime;),
+<code>FDS</code> (FF&prime;), <code>SIV</code>, <code>VLV</code>,
+<code>QQV</code> (q), <code>PRV</code> and <code>BTV</code>. Its EDDB
+<code>FAME</code> bank, by contrast, carries 100 scalar summaries
+(<code>Q95</code>, <code>QAXIS</code>, <code>QEFF</code>, <code>TTCU</code>,
+<code>RAXIS</code>, <code>RSEP</code>, <code>BETA</code>, &hellip;), not a grid.
+</p>
+
+<h3 id="jtmm-equilibrium-route-search-routes">Candidate routes and the one E101154 read attempted for each</h3>
+
+<p id="jtmm-equilibrium-route-search-routes-p">
+Each route below is a place <code>/home/d240034</code> (or the code and files it
+names) holds, reads or points at an equilibrium. For each, one E101154 slice
+read was attempted from <code>intr26-2</code>; the exact call and its return are
+quoted.
+</p>
+
+<h4 id="jtmm-equilibrium-route-search-r1-h">Route 1 — FAME EQDB record, <code>eqdb=0</code> (present, unreadable)</h4>
+<p id="jtmm-equilibrium-route-search-r1">
+The record keyed by shot that carries <code>PSI</code> and <code>QQV</code>.
+Reader: <code>eqread_pac</code>
+(<code>/analysis/src/edas2/v2.2.1/edas_share</code>) over the prebuilt
+<code>/analysis/lib/libFLEDDPIC.so</code>. Endpoints it names: server
+<code>dbsvr17p</code> (<code>echoFameHost</code>, <code>SERVER_NAME</code> in
+every <code>.eqdbms</code>) and data root <code>/JT60SA_EQ/FAME3</code>
+(<code>echoFameDir</code>). The E101154 attempt:
+</p>
+<pre id="jtmm-equilibrium-route-search-r1-call"><code>tool = FleddTool("/analysis/lib/libFLEDDPIC.so")
+tool.GetTimeList(0, 101154)      ->  105 slices   (500 .. 11500 ms; the local index lists)
+tool.GetEqData(0, 101154, 500)   ->  IRET = 300   (library printed "eqtyp, code, sshot, ttime = 0 1 101154 500")
+tool.GetEqItem("PSI")            ->  shape (0,)    ; RG, ZG, QQV, SIV, TTCU all shape (0,)</code></pre>
+<p id="jtmm-equilibrium-route-search-r1-read">
+The slice <em>data</em> is refused. The index resolves locally, so the slice
+<em>times</em> list, but the record's fields come back empty: <code>IRET
+300</code> is the transport refusing because <code>dbsvr17p</code> cannot be
+reached from <code>intr26-2</code> (see Route 7). This node's declared negative
+control — "a read of the dbsvr17p route that the locate node found unreachable
+still returns IRET 300 from intr26-2" — was reproduced above, exactly.
+</p>
+
+<h4 id="jtmm-equilibrium-route-search-r2-h">Route 2 — FAME EDDB scalar bank (reachable, but no grid or profile)</h4>
+<p id="jtmm-equilibrium-route-search-r2">
+The <code>FAME</code> category of the EDDB, read through the local
+<code>/analysis/lib/libeddb.so</code>. It holds 100 channel names,
+<code>/FAME/APAVE</code> &hellip; <code>/FAME/ZZLI</code>, each a scalar time
+series; there is no <code>PSI</code>-grid or q-profile leaf. The E101154
+attempt:
+</p>
+<pre id="jtmm-equilibrium-route-search-r2-call"><code>db.eddbreadTable(shot='E101154', cat='FAME')            -> True, count 100 (dnamelist /FAME/...)
+db.eddbreadTime('E101154','FAME','Q95','0','99')        -> ok=True, irc 0, data shape (1018,)   [scalar]
+db.eddbreadTime('E101154','FAME','TTCU','0','99')       -> ok=True, irc 0, data shape (1018,)   [scalar]
+db.eddbreadTime('E101154','FAME','/FAME/Q95','0','99')  -> ok=False, irc 1032   (prefixed spelling refused)</code></pre>
+<p id="jtmm-equilibrium-route-search-r2-read">
+Readable for E101154, but it is a bank of scalars. It supplies neither a psi
+grid nor a q profile. (The dname must be bare — <code>Q95</code>, not
+<code>/FAME/Q95</code> — the prefixed spelling returns <code>irc 1032</code>.)
+</p>
+
+<h4 id="jtmm-equilibrium-route-search-r3-h">Route 3 — SELENE's own EQDSK output (writes psi and q per run; no E101154 run)</h4>
+<p id="jtmm-equilibrium-route-search-r3">
+The plan asked whether a SELENE run writes psi and q per shot, naming the run
+directory's <code>EFIT95.DATA</code>. It does. The writer is
+<code>/analysis/src/SAselene_v2.0_forPSRC/efitout.f</code> (the <code>EQDSK/G
+EQDSK</code> emitter), which sets <code>neqdsk = 95</code> and writes a
+G-EQDSK: <code>rmaxis, zmaxis, simag, sibry, bcentr</code>, then
+<code>fpol</code>, <code>pres</code>, <code>ffprim</code>, <code>pprime</code>,
+then <code>((psirz(i,j),i=1,nw),j=1,nh)</code> — the psi grid — and
+<code>(qpsi(i),i=1,nf)</code> — the q profile — followed by the boundary
+<code>rbbbs/zbbbs</code>. The run tree
+<code>/analysis/src/SAselene_v2.0_forPSRC/RUN/</code> holds one stale run only.
+The E101154 attempt:
+</p>
+<pre id="jtmm-equilibrium-route-search-r3-call"><code>head -1 /analysis/src/SAselene_v2.0_forPSRC/RUN/EFIT95.DATA
+  -> "SA      21-01-08   63632 14000ms09/02/17           0 129 129"     (shot 63632, Jan 2021 — not E101154)
+find /analysis -xdev -iname '*101154*'                                -> (empty)
+/analysis/bin/getseldata 101154 5.0
+  -> reads only SELENE's EDDB inputs: "dname: 1626 S005 ... irc: 1012"; no EQDB equilibrium</code></pre>
+<p id="jtmm-equilibrium-route-search-r3-read">
+No E101154 slice read is possible: no <code>EFIT95.DATA</code> (or any per-shot
+equilibrium file) for shot 101154 exists on the host, and the SELENE front-end
+draws only the EDDB inputs. The route proves SELENE <em>can</em> emit a psi grid
+and a q profile per shot, but nothing here was ever run for E101154.
+</p>
+
+<h4 id="jtmm-equilibrium-route-search-r4-h">Route 4 — FBEQU/SELENE run outputs in <code>/home/d240034</code> (readable; shot 101011 only)</h4>
+<p id="jtmm-equilibrium-route-search-r4">
+<code>/home/d240034/fbequ/</code> holds a full set of equilibrium outputs:
+<code>EFIT95.DATA</code> … <code>EQUPSI.DATA</code>, <code>EQOUTA..Q.DATA</code>,
+<code>EQDATAFP.text</code> and <code>EQDATAwoFP.text</code> (a 824&nbsp;kB numeric
+FAME record text dump, first line <code>101011 4.000…</code>, sizes
+<code>129 129 16641 129 65 51</code>). <code>/home/d240034/equiltest/</code> and
+<code>/home/d240034/.SAWORK/</code> repeat them. The parser is
+<code>/home/d240034/prova/eqdsk.py</code> (<code>eqdsk_read</code>). The E101154
+attempt and its positive control:
+</p>
+<pre id="jtmm-equilibrium-route-search-r4-call"><code>find /home/d240034 -xdev -iname '*101154*'      -> (empty)
+os.path.exists('/home/d240034/fbequ/101154')    -> False
+# positive control: the same reader on the file that IS present
+parse('/home/d240034/fbequ/EFIT95.DATA')
+  -> header "SA  25-12-03  101011  4000ms09/02/17  0 129 129"
+     psi.shape (129, 129)   q.shape (129,)   Ip ~ 0.493 MA   q: 1.00 .. 42.6</code></pre>
+<p id="jtmm-equilibrium-route-search-r4-read">
+No E101154 slice exists. The positive control matters: the instrument was shown
+to extract a psi grid and a q profile from the file that <em>is</em> present, so
+the empty E101154 result is an absence, not a broken reader. This route carries
+both quantities but only for shot 101011 (OP1), at 4.0 and 4.5&nbsp;s.
+</p>
+
+<h4 id="jtmm-equilibrium-route-search-r5-h">Route 5 — LOCALDB EQDSK database (readable; shot 101011 only)</h4>
+<p id="jtmm-equilibrium-route-search-r5">
+<code>/home/d240034/LOCALDB/EQDSK/10/1010/101011/{004000,004500}</code> — two
+binary EAGLE EQDSK files (456&nbsp;kB each), header
+<code>EQ31E101011 /  4.000/25-12-01 23:07/d240034 … EQSLG</code>. The E101154
+attempt:
+</p>
+<pre id="jtmm-equilibrium-route-search-r5-call"><code>find /home/d240034/LOCALDB -maxdepth 6   -> only .../10/1010/101011/{004000,004500}
+os.path.exists('/home/d240034/LOCALDB/EQDSK/10/1010/101154')  -> False</code></pre>
+<p id="jtmm-equilibrium-route-search-r5-read">
+No E101154 entry: the local EQDSK database holds a single shot, 101011. It is
+shot-keyed, but only for that shot.
+</p>
+
+<h4 id="jtmm-equilibrium-route-search-r6-h">Route 6 — EDDB PSRC, the SELENE processed bank (reachable; no grid or q profile)</h4>
+<p id="jtmm-equilibrium-route-search-r6">
+<code>PSRC</code> ("Plasma Shape Reconstruction Computer") is the SELENE
+processed bank, read in the home code
+(<code>prova/leggibordo.py</code>, <code>prova/leggunpodicose.py</code>,
+<code>projects/show/jt60_interface.py</code>). For E101154 it lists 303 channel
+names; every one is a scalar or a time series. The E101154 attempt:
+</p>
+<pre id="jtmm-equilibrium-route-search-r6-call"><code>db.eddbreadTable(shot='E101154', cat='PSRC')                -> True, count 303
+db.eddbreadTime('E101154','PSRC','surfABVxp','-5','100')    -> ok=True, irc 0, shape (6958080,)  [boundary trace, mm]
+db.eddbreadTime('E101154','PSRC','calRj','-5','100')        -> ok=True, irc 0, shape (46078,)    [m]
+db.eddbreadTime('E101154','PSRC','calFX','-5','100')        -> ok=True, irc 0, shape (46078,)    [Wb]</code></pre>
+<p id="jtmm-equilibrium-route-search-r6-read">
+Readable, but none of the 303 names is a q profile or a flux grid. This agrees
+with <code>jtmm-psrc-selene-inventory</code> (none of PSRC's 303 PSRC names, 86
+examined there, is a q profile or a flux grid).
+</p>
+
+<h4 id="jtmm-equilibrium-route-search-r7-h">Route 7 — the hosts, mounts and socket endpoints the code names (none reach the EQDB)</h4>
+<p id="jtmm-equilibrium-route-search-r7">
+Every equilibrium-database configuration under
+<code>/analysis/lib/JT60SAEQDB/eqdbms/</code> names the same server and mounts:
+<code>SERVER_NAME:dbsvr17p</code>, <code>EQDB_PATH:/JT60SA_EQ/EQDB</code>
+(FAME: <code>/JT60SA_EQ/FAME3</code>; also EQDB_CCS, EQDB_RV, EQDB_TSC,
+<code>/dbhome/h060028/kuwata/EQDB2</code>), <code>PASS_FILE:.ftplibcap</code>,
+and the socket client <code>eqdbsockclient_connect</code> in
+<code>/analysis/lib/JT60SAEQDB/libEQDBMSPIC.so</code>. The local EDDB route names
+<code>/analysis/src/eddb/eddb_pwrapper.py</code> with
+<code>/analysis/lib/libeddb.so</code>. Reachability from <code>intr26-2</code>:
+</p>
+<pre id="jtmm-equilibrium-route-search-r7-call"><code>getent hosts dbsvr17p   -> rc 2 (no DNS); /etc/hosts has no entry
+getent hosts nakasvr17  -> rc 2
+mount | grep -iE 'JT60SA|FAME|EQ'   -> (empty; /JT60SA_EQ does not exist)
+ls /JT60SA_EQ           -> No such file or directory
+tcp connect dbsvr17p:22 -> "Name or service not known"
+(eqdb_path_put -> /JT60SA_EQ/EQDB; eddball_path_put needs an EQNO argument)</code></pre>
+<p id="jtmm-equilibrium-route-search-r7-read">
+The EDDB lib is local and works; the EQDB server <code>dbsvr17p</code> is
+unresolvable and its mounts are absent, so no EQDB route (Route 1, and the raw FAME
+record it carries) can be read from <code>intr26-2</code>. No home code reads
+the FAME EQDB: <code>prova/jt60eg.py</code> and
+<code>public/tools/jt60eg.py</code> enumerate the EDDB catalogue,
+<code>prova/leggibordo.py</code>, <code>prova/leggunpodicose.py</code>,
+<code>…</code> and <code>projects/show/jt60_interface.py</code> read PSRC, and
+<code>prova/eqdsk.py</code> reads local EQDSK files.
+</p>
+
+<h3 id="jtmm-equilibrium-route-search-answer">Answer: no route reachable from intr26-2 reaches E101154's psi grid and q profile</h3>
+
+<p id="jtmm-equilibrium-route-search-answer-p">
+The only source keyed <em>to E101154</em> that carries both a psi grid
+(<code>PSI</code>, 129&times;129) and a q profile (<code>QQV</code>) is the FAME
+EQDB record at <code>eqdb=0</code> — 105 slices on the local index — and it is
+unreadable from <code>intr26-2</code> because its server <code>dbsvr17p</code> is
+unresolvable and <code>/JT60SA_EQ</code> is unmounted (<code>GetEqData</code>
+returns <code>IRET 300</code>). Every reachable alternative returns something
+other than the pair:
+</p>
+<ul id="jtmm-equilibrium-route-search-answer-l">
+<li id="jtmm-equilibrium-route-search-answer-eddb">the EDDB <code>FAME</code> bank — readable for E101154, scalars only;</li>
+<li id="jtmm-equilibrium-route-search-answer-psrc">the EDDB <code>PSRC</code> (SELENE processed) bank — readable for E101154, no grid or q profile;</li>
+<li id="jtmm-equilibrium-route-search-answer-eqdsk">EQDSK files in <code>/home/d240034</code> (FBEQU outputs, LOCALDB) — carry psi and q but only for shot 101011.</li>
+</ul>
+<p id="jtmm-equilibrium-route-search-answer-best">
+<strong>Best route.</strong> None reachable from <code>intr26-2</code> reaches
+E101154's psi grid and q profile. The nearest paths, in order, are: (1) the FAME
+EQDB <code>eqdb=0</code> record for E101154, which needs
+<code>dbsvr17p</code>&nbsp;/&nbsp;<code>/JT60SA_EQ/FAME3</code> mounted or
+reachable — only the JT-60SA side can grant that; (2) running SELENE/FBEQU for
+E101154 so <code>efitout.f</code> writes a per-shot G-EQDSK, which computes an
+equilibrium rather than reading an existing one; (3) the OP1 EQDSK files already
+on disk for shot 101011, which prove the EQDSK reader
+(<code>prova/eqdsk.py</code>) yields psi and q but are the wrong shot.
+</p>
+</section>
