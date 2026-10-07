@@ -22,11 +22,11 @@
   <meta name="plan-tags" content="jt-60sa,machine-map">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <meta name="plan-after" content="jt60sa-pulse-ids">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="23">
+<meta name="plan-version" content="24">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -214,33 +214,12 @@
       packages</code> exits 0.
     </p>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-07</span>
     <h2 id="s3">§3 — A local EDDB read on the analysis server</h2>
-<section data-reckon="section" data-id="s3" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links="jt60sa-facility-mint#s2"></section>
-    <p>
-      On the analysis server the EDDB read runs locally instead of over ssh, and the reader stays
-      the one <code>REMOTE_SCRIPT</code> (<code>eddb_remote.py:373</code>). The ssh hop is not
-      part of the <code>Transport</code> seam (<code>eddb_remote.py:153</code>).
-      <code>RemoteEddbExtractor._argv()</code> (<code>eddb_remote.py:322</code>) builds it into the
-      argv, putting <code>ssh_command</code> in front of a module-load shell string. Meanwhile
-      <code>SshTransport.run</code> is a plain subprocess runner over whatever argv it receives.
-      The local transport is therefore that same runner fed a local argv. Today
-      <code>_argv()</code> returns the ssh prefix plus one shell string from
-      <code>_remote_shell_command()</code> (<code>eddb_remote.py:305</code>), which cannot run
-      without a remote login shell. So both are changed: with an empty <code>ssh_command</code>,
-      <code>_argv()</code> composes <code>nice -n 19 &lt;python&gt; -c REMOTE_SCRIPT</code> as a
-      list, with no ssh prefix and no module shell, because the venv's own Python already has
-      numpy. The module-load string stays only on the ssh route. No new <code>Transport</code>
-      class is added. <code>SshTransport</code> is renamed to say it runs a subprocess, and every
-      caller moves with it. The envelope and <code>decode_batch</code> are shared, and no reader is
-      extracted or duplicated.
-    </p>
-    <p>
-      Done-when: a stand-in <code>eddb_pwrapper</code> on the script's path returns recorded
-      arrays for E101154's <code>pf_active</code> channels. Through it, the local transport returns
-      <code>ChannelRecord</code>s whose arrays equal the stand-in's bit for bit, decoded by the same
-      <code>decode_batch</code> the ssh route uses. Mint equivalence waits for the writer and is
-      §6's measure.
-    </p>
+<section data-reckon="section" data-id="s3" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="done" data-links="jt60sa-facility-mint#s2"></section></header>
+  <p class="landed-summary">Landed the local EDDB read. With an empty <code>ssh_command</code>, <code>RemoteEddbExtractor._argv()</code> composes <code>nice -n 19 &lt;remote_python&gt; -c REMOTE_SCRIPT</code> as a list, with no ssh prefix and no module-load shell, and the ssh route is unchanged. <code>SshTransport</code> is renamed <code>SubprocessTransport</code>, and no new <code>Transport</code> class is added. Through a stand-in <code>eddb_pwrapper</code>, the cached E101154 <code>pf_active</code> arrays decode bit for bit. 35 tests pass, and a clean Python 3.12 venv passes 3 of 3. Merged at <code>15c3311b</code>. <a href="s3">full record</a></p>
+</section>
 
     <section class="section-landed">
   <header><span class="badge badge-shipped">&#10003; landed 2026-10-07</span>
@@ -383,6 +362,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261007T004354528405-review-of-jtfm-facility-editable" data-who="reckon-build" data-when="2026-10-07T00:50:31.573Z">
     <div class="r-comment-body"><p>reviewed r-20261007T003017390790-jtfm-facility-editable at dd17dc9b (base 3d54ae6f): one 38-line evidence fragment inside the declared write paths; scores goal 20, evidence 18, scope 19, durability 12, fit 18, reuse 20, total 107; one follow-on (fragment carries prose the small-node contract forbids) and no blocking finding.</p></div>
+</div>
+<div class="r-comment" data-section="s1" data-id="c-20261007T0100-jt60sa-tests" data-who="reckon-build" data-when="2026-10-07T01:00:00Z">
+    <div class="r-comment-body"><p>Carry into the §1 node. <code>packages/imas-alambic/tests/test_eddb_local_transport.py::test_local_route_matches_cached_pf_active_arrays_bit_for_bit</code> hard-codes <code>/work/projects/imas_gpu/jt60sa</code> and names JT-60SA <code>pf_active</code> channels in the public engine's tests. The <code>/work</code> path is a second owner beside <code>imas_ambix.data.paths.JT60SA_ROOT</code>, and the channel names are map content that this section makes private. Move that test to the ambix side, under the same bundle-absent skip as the other JT-60SA tests, and leave the engine's tests synthetic.</p></div>
 </div>
 </section>
 </main>
