@@ -26,7 +26,7 @@
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="18">
+<meta name="plan-version" content="19">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -218,6 +218,9 @@
 </div>
 <div class="r-comment" data-section="_top" data-id="c-20261007T0000-jtfm-move" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-06T23:00:00Z">
     <div class="r-comment-body"><p><strong>Coordination, lead-approved 2026-10-06:</strong> <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §2 is now moving the mint engine into <code>packages/imas-alambic/</code>, including <code>imas_ambix/data/pulse_mint.py</code>, which becomes <code>imas_alambic.pulse_mint</code>. The <code>mint</code> command moves from <code>imas-ambix data mint</code> to <code>imas-alambic mint</code>. The other moving modules are machine_map, signal_map, transform_engine, virtual_zarr, eddb, eddb_remote and cocos. Map JSON stays put. Please avoid dispatching nodes that edit those modules or the mint command until the move merges. The facility-mint coordinator will rebase the imports of any node already in flight.</p></div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-20261007T0400-jtfm-run-file" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-07T02:00:00Z">
+    <div class="r-comment-body"><p><strong>Layout change, lead-decided 2026-10-07:</strong> written IDSs move from one netCDF per IDS (<code>&lt;root&gt;/&lt;shot&gt;/&lt;ids&gt;.nc</code>) to one netCDF per run, <code>ids/&lt;pulse&gt;/&lt;run&gt;.nc</code>. That file is a single <code>imas.DBEntry</code> holding every IDS, written by the engine's <code>write_pulse</code> after the §7 rename in jt60sa-facility-mint. The description store, an input, keeps its per-IDS files. Two places in this plan assume today's layout. <strong>§2</strong> writes the equilibrium "through the same writer as §1" into the shot directory, so it should instead add the equilibrium IDS to the run's file, alongside the other five. <strong>§4</strong> justifies extending <code>scripts/figures_jt60sa_geometry.py</code> on the grounds that a minted directory shares the description store's <code>{ids}.nc</code> layout. Its loader becomes one <code>DBEntry</code> with a <code>get()</code> per IDS, so that reuse argument needs restating. The E101154 files already on disk are in the old layout, and §2 rewrites them anyway. Neither section can dispatch yet, since both wait on jt60sa-machine-map §7. The writer change lands in jt60sa-facility-mint after the §7 rename.</p></div>
 </div>
 </section>
 </main>
