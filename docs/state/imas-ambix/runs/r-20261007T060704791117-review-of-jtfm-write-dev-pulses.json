@@ -1,0 +1,540 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "read-only",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "70dc45610123cbe891a2ba5c195a15c1cec9f3dc",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "no events yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": null,
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "clone_matches": {
+    "reason": "the run asserted no revision pair to compare",
+    "status": "unmeasured"
+  },
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-10-07T06:20:06.252Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-07T06:07:14Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": {
+    "reason": "model_span_unavailable_at_promotion",
+    "status": "underivable"
+  },
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "not-run",
+  "gate_check": null,
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.6461538461538462,
+    "plan": "jt60sa-facility-mint",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-07T06:37:05.448167+00:00",
+    "horizon_seconds": 1800,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-07T06:07:05Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 29,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 13,
+    "headroom": 1,
+    "mean_context": 127500,
+    "observed_at": "2026-10-07T06:06:36Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 29,
+      "aggregate_tokens_per_second": 466.988,
+      "detail": "",
+      "mean_tokens_per_second": 31.553,
+      "observed_at": "2026-10-07T06:06:36Z",
+      "runs": 14.8,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-07T06:20:06.252Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T060704791117-review-of-jtfm-write-dev-pulses/manifest.md",
+  "member": "disposable-r-20261007T060704791117-review-of-jtfm-write-dev-pulses",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "a review run stores its record outside the repository",
+  "node": "review-of-jtfm-write-dev-pulses",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 659,
+          "cached_input_tokens": 359210,
+          "input_tokens": 359873,
+          "output_tokens": 81,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 359954,
+          "uncached_input_tokens": 4
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "session_id": "fa77649b-bcc4-4cb6-b999-0d55d8d30042"
+    },
+    "done_when": "the review for r-20261007T054131214773-jtfm-write-dev-pulses stores a parsed record scoring all 6 dimensions in the range 0..20, recording the revision it read as reviewed_base_sha and reviewed_head_sha, and carrying added_failure_count and added_failure_ids derived from the reviewed run's own baseline_suite and after_suite gate logs; the turn ends once that record is stored and the manifest reads complete",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20261007T054131214773-jtfm-write-dev-pulses",
+    "id": "review-of-jtfm-write-dev-pulses",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-07T06:07:05Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 29,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 13,
+      "headroom": 1,
+      "mean_context": 127500,
+      "observed_at": "2026-10-07T06:06:36Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 29,
+        "aggregate_tokens_per_second": 466.988,
+        "detail": "",
+        "mean_tokens_per_second": 31.553,
+        "observed_at": "2026-10-07T06:06:36Z",
+        "runs": 14.8,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T060704791117-review-of-jtfm-write-dev-pulses/manifest.md",
+    "negative_control": "",
+    "plan": "jt60sa-facility-mint",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§8",
+    "spec_level": "exact",
+    "time_budget": "30m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261007T054131214773-jtfm-write-dev-pulses.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261007T054131214773-jtfm-write-dev-pulses.at-772ff1b6bee5cee76187c7890c59cad04e28e8ad.json"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "review-of-jtfm-write-dev-pulses",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-07T06:07:08.641644+00:00",
+    "score": 0.55,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "hold",
+    "answering_model": "typesafe/jev-1.13-20260917",
+    "backend": null,
+    "comment": "",
+    "confidence": 0.8,
+    "decision_source": "jev",
+    "effort": null,
+    "excluded": [
+      {
+        "availability": "not-probed",
+        "backend": "claude",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-sonnet-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "review-excluded-backend"
+        ],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "not-probed",
+        "backend": "claude-haiku",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-haiku-4-5-20251001",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "review-excluded-backend"
+        ],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "not-probed",
+        "backend": "claude-opus",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-opus-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "review-excluded-backend"
+        ],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "not-probed",
+        "backend": "native",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "in-harness",
+        "local": false,
+        "model": null,
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "review-excluded-backend",
+          "in-harness-backend"
+        ],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "fallback_reason": null,
+    "family": null,
+    "jev_latency_ms": 556.161,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 3109.808,
+    "model": null,
+    "offered": [
+      {
+        "availability": "served",
+        "backend": "clive",
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": {
+          "admission_verdict": "full",
+          "running": 15,
+          "slots_state": "measured",
+          "stale": false,
+          "waiting": 0
+        },
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "local",
+        "local": true,
+        "model": "deepseek-v4.1-flash",
+        "outcomes": {
+          "failed": 1,
+          "not-run": 26,
+          "passed": 408,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": 0
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-sol",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-astra",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-astra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-luna",
+        "budget_reason": "recorded account-window reading is stale",
+        "burn_multiple": null,
+        "congestion": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-luna",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "probabilities": {
+      "clive": 0.13,
+      "codex": 0.03,
+      "codex-astra": 0,
+      "codex-luna": 0.01,
+      "hold": 0.83
+    },
+    "rendered_token_estimate": 655,
+    "usage": {
+      "cost": 9.0006e-05,
+      "input_tokens": 2143,
+      "output_tokens": 60
+    }
+  },
+  "plan": "jt60sa-facility-mint",
+  "plan_impl_at_dispatch": 0.6461538461538462,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "70dc45610123cbe891a2ba5c195a15c1cec9f3dc",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "id": "r-20261007T060704791117-review-of-jtfm-write-dev-pulses",
+    "reviewed_base_sha": "cd0a89bac0c7081c98dfec0bf8ddea4d86039211",
+    "reviewed_head_sha": "772ff1b6bee5cee76187c7890c59cad04e28e8ad",
+    "scores": {
+      "durability": 18,
+      "evidence": 19,
+      "fit": 20,
+      "goal_fidelity": 19,
+      "reuse": 19,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 115
+  },
+  "review_tier": "full",
+  "role": "review",
+  "route_mode": "explicit",
+  "run_id": "r-20261007T060704791117-review-of-jtfm-write-dev-pulses",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§8",
+  "session": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+  "session_harness": "claude",
+  "session_id": "5dfa74de-ef20-4901-b420-9809001013f9",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": null,
+  "time_budget": "30m",
+  "tool_steps": 37.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 772,
+  "watch_override": null,
+  "worker_seconds": 744,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
