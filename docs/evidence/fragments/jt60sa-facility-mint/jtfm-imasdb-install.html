@@ -1,0 +1,75 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-imasdb-install-landing">
+  <header>
+    <h3>one command installs the engine into the shared IMASDB folder</h3>
+    <p class="meta">
+      Node <code>jtfm-imasdb-install</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;5 &middot;
+      commit <code>cf788ff5</code>
+    </p>
+  </header>
+  <p>
+    <code>packages/imas-alambic/install/imasdb.sh &lt;IMASDB&gt;</code> installs
+    imas-alambic into the shared folder in one command. It builds the engine and
+    COCOS wheels here with <code>uv build</code>
+    (<code>imas_alambic-0.1.dev5957+gcf788ff5b</code>,
+    <code>nova_cocos-0.11.0.post10072+g91c03e49b</code>), pulls the private
+    bundle from <code>ghcr.io/simon-mcintosh/imas-alambic-jt60sa:2026.10.07</code>
+    (digest <code>sha256:6af476ebe1d560e290b90aeef83113f25a4b2982e24548542c556f7ebf7d3f90</code>)
+    with <code>oras</code> and the gh token, relays the wheels and the bundle to
+    <code>jt-60sa</code> over <code>ssh</code>, and runs every remote command
+    under <code>nice -n 19</code>. No GitHub credential is placed on the server.
+  </p>
+  <p>
+    On <code>intr26-2</code> the remote half installs the engine as a
+    <code>uv tool</code> on a uv-managed CPython 3.12
+    (<code>IMASDB/tools/python/cpython-3.12.12-linux-x86_64-gnu</code>), writes
+    <code>IMASDB/bin/imas-alambic</code> as a launcher that clears
+    <code>PYTHONPATH</code> and points the engine at the folder, places the
+    bundle under the version directory with <code>maps/current</code> pointing at
+    it, opens the tree to other users read-only, checks it, and only then removes
+    the older <code>~/imas-alambic</code>. The layout names are read back from
+    <code>imas-alambic config</code> (<code>layout: maps=maps/current ids=ids
+    current=current</code>), so the shape of the folder is owned by the engine's
+    settings rather than by a second copy in the installer.
+  </p>
+  <p>
+    Measure, all on <code>intr26-2</code> and all captured to the run log:
+    <code>/home/SharedFolder/d240044</code> is mode <code>1755</code>; every
+    directory under IMASDB grants others r-x, every file grants others r--, and
+    no real file or directory grants others write; <code>uv pip show</code>
+    reports imas-alambic installed, not editable, from a wheel under
+    <code>IMASDB/tools/imas-alambic</code>; <code>uv pip check</code> reports all
+    24 packages compatible;
+    <code>IMASDB/bin/imas-alambic --version</code> exits 0 both with
+    <code>PYTHONPATH</code> naming the python/3.12 module site-packages and with
+    it unset; and with no <code>IMAS_ALAMBIC_*</code> variable set,
+    <code>config</code> reports
+    <code>maps: IMASDB/maps/current [IMAS_ALAMBIC_HOME/maps/current]</code>,
+    <code>ids_root: IMASDB/ids [IMAS_ALAMBIC_HOME/ids]</code> and
+    <code>machine: jt-60sa [inferred from the single reachable bundle]</code>.
+    The old install's top level was listed
+    (<code>bundles compare_maps.py env.sh remote_finish.sh remote_setup.sh src .venv</code>),
+    removed, and <code>ls</code> shows it gone.
+  </p>
+  <p>
+    Three things the engine forced, recorded so the next reader is not surprised.
+    <code>imas-alambic config</code> resolves the machine and the writer's cache
+    through the map search path and raises <code>MachineMapError</code> on a
+    search-path entry that carries no <code>bundle.json</code>, so it raised
+    before the layout existed. The installer now seeds the search path by placing
+    the staged bundle at the engine's default map path, reads the names the
+    engine reports, then moves the bundle to its version directory; the seed
+    names one path that the installer would otherwise take from config, and is
+    the one place the layout is spelled. A follow-up on the engine — tolerate a
+    search-path entry without a bundle — would let the installer drop the seed
+    entirely. Second, <code>find IMASDB -perm -o+w</code> prints
+    <code>maps/current</code>: a symlink's own mode is always <code>0777</code>
+    and carries no permissions, so the no-write check is taken over real files
+    and directories. Third, files are set to others <code>r--</code> exactly, so
+    another facility user runs the launcher through the group bits, which uv
+    sets, not through the others bits. An earlier probe had also left a
+    <code>python3.12</code> shim in the account home pointing at a temporary
+    interpreter; it was repointed at the account's own uv-managed Python.
+  </p>
+</section>
