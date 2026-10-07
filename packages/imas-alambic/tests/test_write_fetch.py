@@ -16,10 +16,11 @@ import sys
 from typing import TYPE_CHECKING
 
 import imas
+import pytest
 from eddb_standin import write_canned_wrapper
 
 from imas_alambic import pulse_writer
-from imas_alambic.eddb import is_cached
+from imas_alambic.eddb import EddbCacheError, is_cached
 from imas_alambic.eddb_remote import RemoteEddbExtractor, SubprocessTransport
 from imas_alambic.signal_map import MAP_SCHEMA_VERSION, SignalMap, SignalRule
 
@@ -178,7 +179,7 @@ def _flat_bundle(root: Path, machine: str, signals: tuple[SignalRule, ...]) -> P
     return root
 
 
-def _prepare(tmp_path, monkeypatch, machine, signals):
+def _prepare(tmp_path, monkeypatch, machine, signals, *, map_path_env=True):
     bundle = _flat_bundle(tmp_path / "bundle", machine, signals)
     api = tmp_path / "eddb"
     api.mkdir()
@@ -189,7 +190,10 @@ def _prepare(tmp_path, monkeypatch, machine, signals):
     )
     monkeypatch.setattr(pulse_writer, "_SYSTEM_FOR_IDS", {"magnetics": "magnetics"})
     monkeypatch.setattr("imas_alambic.machine_map.entry_points", lambda group: [])
-    monkeypatch.setenv("IMAS_ALAMBIC_MAP_PATH", str(bundle))
+    if map_path_env:
+        monkeypatch.setenv("IMAS_ALAMBIC_MAP_PATH", str(bundle))
+    else:
+        monkeypatch.delenv("IMAS_ALAMBIC_MAP_PATH", raising=False)
     return bundle, transport
 
 
@@ -209,7 +213,7 @@ def test_write_fetches_an_uncached_pulse_then_a_second_write_makes_no_call(
 
     receipt = pulse_writer.write_pulse(
         machine,
-        900001,
+        "E900001",
         out,
         maps=str(bundle),
         cache=str(cache),
@@ -227,7 +231,7 @@ def test_write_fetches_an_uncached_pulse_then_a_second_write_makes_no_call(
 
     second = pulse_writer.write_pulse(
         machine,
-        900001,
+        "E900001",
         out,
         maps=str(bundle),
         cache=str(cache),
@@ -259,7 +263,7 @@ def test_a_refused_channel_is_reported_without_stopping_the_write(
 
     receipt = pulse_writer.write_pulse(
         machine,
-        900001,
+        "E900001",
         out,
         maps=str(bundle),
         cache=str(cache),
@@ -271,3 +275,58 @@ def test_a_refused_channel_is_reported_without_stopping_the_write(
     assert receipt.refused[0].code == 1015
     assert any(leaf.target_path == "magnetics/ip/data" for leaf in receipt.leaves)
     assert not is_cached(cache, 900001, "amc", "REFUSED")
+
+
+def test_write_refuses_a_bare_number_token_before_any_fetch(tmp_path, monkeypatch):
+    machine = "synth-machine"
+    bundle, transport = _prepare(
+        tmp_path,
+        monkeypatch,
+        machine,
+        (_signal("ip", "plasma_current", "magnetics/ip/data"),),
+    )
+    cache = tmp_path / "cache"
+    out = tmp_path / "ids"
+
+    with pytest.raises(EddbCacheError) as raised:
+        pulse_writer.write_pulse(
+            machine,
+            900001,
+            out,
+            maps=str(bundle),
+            cache=str(cache),
+            eddb_host="local",
+        )
+
+    message = str(raised.value)
+    assert "E900001" in message
+    assert transport.calls == 0
+    assert not (cache / "900001.zarr").is_dir()
+    assert not (out / "900001_0.nc").exists()
+
+
+def test_write_finds_the_description_store_from_the_maps_flag_alone(
+    tmp_path, monkeypatch
+):
+    machine = "synth-machine"
+    bundle, _transport = _prepare(
+        tmp_path,
+        monkeypatch,
+        machine,
+        (_signal("ip", "plasma_current", "magnetics/ip/data"),),
+        map_path_env=False,
+    )
+    cache = tmp_path / "cache"
+    out = tmp_path / "ids"
+
+    receipt = pulse_writer.write_pulse(
+        machine,
+        "E900001",
+        out,
+        maps=str(bundle),
+        cache=str(cache),
+        eddb_host="local",
+    )
+
+    assert (out / "900001_0.nc").is_file()
+    assert receipt.description_root == str(bundle / "machine_description" / "phase")

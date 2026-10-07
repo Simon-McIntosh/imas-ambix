@@ -99,10 +99,23 @@ def normalised_shot(shot: object) -> str:
 
 
 def eddb_token(shot: object) -> str:
-    """Return the canonical full EDDB token: series letter (upper) and digits."""
+    """Return the canonical full EDDB token: series letter (upper) and digits.
+
+    EDDB addresses a pulse by the full token, so a token with no series letter is
+    refused here rather than carried to the remote read, where EDDB answers a
+    code that names neither the cause nor the form it wanted.  The cache
+    directory name still accepts bare digits (:func:`normalised_shot`), because
+    the engine opens a pulse by the integer of the digits; only the address that
+    leaves for EDDB requires the letter.
+    """
 
     series, digits = _split_token(shot)
-    return (series.upper() if series else "") + digits
+    if series is None:
+        raise EddbCacheError(
+            f"{str(shot).strip()} is not an EDDB pulse token; name the pulse with "
+            f"its series letter and digits, for example E{digits}"
+        )
+    return series.upper() + digits
 
 
 def channel_path(

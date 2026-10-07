@@ -159,8 +159,15 @@ class WriteReceipt:
         }
 
 
-def _phase_directory(catalog: MachineMapCatalog, phase_map: MachineMap) -> Path:
-    """Return the phase directory the description store declares, or refuse."""
+def _phase_directory(
+    catalog: MachineMapCatalog, phase_map: MachineMap, search_path: object = None
+) -> Path:
+    """Return the phase directory the description store declares, or refuse.
+
+    ``search_path`` is the resolved map search path the catalogue was loaded
+    through, threaded into the store-root lookup so ``--maps`` alone addresses
+    the description store.
+    """
 
     if catalog.description_store_format != _STORE_FORMAT:
         raise PulseWriteError(
@@ -172,7 +179,7 @@ def _phase_directory(catalog: MachineMapCatalog, phase_map: MachineMap) -> Path:
             f"machine description store layout {catalog.description_store_layout!r} "
             f"is not {_STORE_LAYOUT!r}; the writer addresses one directory per phase"
         )
-    return catalog.description_store_root_path() / phase_map.name
+    return catalog.description_store_root_path(search_path) / phase_map.name
 
 
 def _read_description(path: Path, ids_name: str, dd_version: str):
@@ -409,7 +416,7 @@ def write_pulse(
     shot_int = int(normalised_shot(shot))
     shot_token = eddb_token(shot)
     phase_map = map_for_shot(catalog, shot_int)
-    description_root = _phase_directory(catalog, phase_map)
+    description_root = _phase_directory(catalog, phase_map, settings.maps.value)
 
     cache_root = Path(str(settings.cache.value))
     out_dir = Path(out_root)

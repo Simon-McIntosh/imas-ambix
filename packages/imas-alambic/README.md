@@ -27,3 +27,7 @@ transport the writer fetches a pulse's mapped channels through before writing:
 unset keeps the ssh route to jt-60sa, a host name composes the ssh route to
 that host, and `local` reads in place with the engine's own interpreter.
 `imas-alambic config` prints every resolved setting with its source.
+
+`imas-alambic write` takes each pulse as its full EDDB token — a series letter
+and digits, for example `E101154`. A bare number is refused before any fetch,
+because EDDB is addressed by the full token.

@@ -78,8 +78,14 @@ def write_cmd(
     eddb_host: str | None,
     overwrite: bool,
 ) -> None:
-    """Write each PULSE's description IDSs with the signals the maps serve."""
+    """Write each PULSE's description IDSs with the signals the maps serve.
 
+    PULSE is the full EDDB token: its series letter and digits, for example
+    E101154.  A bare number is refused before any fetch, because EDDB is
+    addressed by the full token.
+    """
+
+    from imas_alambic.eddb import EddbCacheError
     from imas_alambic.machine_map import MachineMapError
     from imas_alambic.pulse_writer import PulseWriteError, write_pulse
     from imas_alambic.settings import (
@@ -119,7 +125,7 @@ def write_cmd(
                 cache=cache,
                 eddb_host=eddb_host,
             )
-        except PulseWriteError as error:
+        except (PulseWriteError, EddbCacheError) as error:
             raise click.ClickException(str(error)) from error
 
         click.echo(f"Wrote {receipt.shot} run {receipt.run} into {receipt.path}")

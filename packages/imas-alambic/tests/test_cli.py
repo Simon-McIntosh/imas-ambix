@@ -22,6 +22,7 @@ def test_help_lists_the_write_command_and_its_options():
     assert command.exit_code == 0, command.output
     for option in ("--run", "--machine", "--maps", "--out", "--cache", "--overwrite"):
         assert option in command.output
+    assert "E101154" in command.output
 
 
 def test_config_prints_each_setting_with_its_source(monkeypatch, tmp_path):
