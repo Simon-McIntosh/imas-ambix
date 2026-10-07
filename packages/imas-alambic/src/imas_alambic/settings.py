@@ -1,9 +1,9 @@
 """Resolve every imas-alambic setting from its flag, variable and home default.
 
 One owner for where the engine reads and writes: the map search path, the IDS
-root, the writer's cache and the machine.  ``resolve_settings`` is the only
-reader of the ``IMAS_ALAMBIC_*`` variables.  A setting resolves at the highest
-precedence that names it:
+root, the writer's cache, the machine and the EDDB transport host.
+``resolve_settings`` is the only reader of the ``IMAS_ALAMBIC_*`` variables.  A
+setting resolves at the highest precedence that names it:
 
 1. a command-line flag,
 2. its ``IMAS_ALAMBIC_*`` variable,
@@ -49,6 +49,12 @@ ENV_HOME = "IMAS_ALAMBIC_HOME"
 ENV_MAP_PATH = "IMAS_ALAMBIC_MAP_PATH"
 ENV_IDS_ROOT = "IMAS_ALAMBIC_IDS_ROOT"
 ENV_CACHE = "IMAS_ALAMBIC_CACHE"
+ENV_EDDB_HOST = "IMAS_ALAMBIC_EDDB_HOST"
+
+#: How ``eddb_host`` reports itself when nothing names it: the ssh route to the
+#: JT-60SA analysis server, spelled by ``eddb_remote``.  The value is ``None``
+#: there, so the setting is unset rather than naming the host.
+_EDDB_HOST_DEFAULT_SOURCE = "default: ssh to jt-60sa"
 
 #: The map search path variable, under the name bundle discovery knows it by.
 _BUNDLE_ENV_VAR = ENV_MAP_PATH
@@ -83,6 +89,7 @@ class SettingsFlags:
     ids_root: str | None = None
     cache: str | None = None
     machine: str | None = None
+    eddb_host: str | None = None
 
 
 @dataclass(frozen=True)
@@ -94,6 +101,7 @@ class ResolvedSettings:
     ids_root: Setting
     cache: Setting
     machine: Setting
+    eddb_host: Setting
 
     def as_pairs(self) -> tuple[tuple[str, Setting], ...]:
         """Return ``(name, setting)`` pairs in the order ``config`` prints."""
@@ -104,6 +112,7 @@ class ResolvedSettings:
             ("ids_root", self.ids_root),
             ("cache", self.cache),
             ("machine", self.machine),
+            ("eddb_host", self.eddb_host),
         )
 
 
@@ -225,6 +234,22 @@ def _machine(flags: SettingsFlags, maps: Setting) -> Setting:
     )
 
 
+def _eddb_host(flags: SettingsFlags, environ: Mapping[str, str]) -> Setting:
+    """Resolve the EDDB transport host: a flag, then its variable, then unset.
+
+    ``None`` is a resolved value, not a missing one: it means the ssh route to
+    jt-60sa, which ``eddb_remote`` spells.  A host name composes the ssh route
+    to that host, and the literal ``local`` runs the reader in place.
+    """
+
+    if flags.eddb_host is not None:
+        return Setting(flags.eddb_host, "--eddb-host")
+    raw = environ.get(ENV_EDDB_HOST)
+    if raw:
+        return Setting(raw, ENV_EDDB_HOST)
+    return Setting(None, _EDDB_HOST_DEFAULT_SOURCE)
+
+
 def resolve_settings(
     flags: SettingsFlags | None = None,
     environ: Mapping[str, str] | None = None,
@@ -247,11 +272,13 @@ def resolve_settings(
         maps=maps,
         cache=_cache(flags, environ, maps),
         machine=_machine(flags, maps),
+        eddb_host=_eddb_host(flags, environ),
     )
 
 
 __all__ = [
     "ENV_CACHE",
+    "ENV_EDDB_HOST",
     "ENV_HOME",
     "ENV_IDS_ROOT",
     "ENV_MAP_PATH",

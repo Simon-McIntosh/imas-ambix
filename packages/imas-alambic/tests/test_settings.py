@@ -9,13 +9,21 @@ inference and the refusal that names the variable to set.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+import os
+import sys
+from pathlib import Path
 
 import pytest
 
+from imas_alambic.eddb_remote import (
+    DEFAULT_SSH_COMMAND,
+    extractor_for_host,
+    ssh_command_for_host,
+)
 from imas_alambic.machine_map import MachineMapError
 from imas_alambic.settings import (
     ENV_CACHE,
+    ENV_EDDB_HOST,
     ENV_HOME,
     ENV_IDS_ROOT,
     ENV_MAP_PATH,
@@ -23,9 +31,6 @@ from imas_alambic.settings import (
     require_setting,
     resolve_settings,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def _no_entry_points(monkeypatch) -> None:
@@ -244,3 +249,80 @@ def test_require_setting_names_the_variable_that_sets_it(monkeypatch):
     message = str(raised.value)
     assert "ids_root" in message
     assert ENV_IDS_ROOT in message and ENV_HOME in message
+
+
+def test_eddb_host_flag_beats_the_variable(monkeypatch):
+    _no_entry_points(monkeypatch)
+
+    flagged = resolve_settings(
+        SettingsFlags(eddb_host="flag-host"), {ENV_EDDB_HOST: "env-host"}
+    )
+    assert flagged.eddb_host.value == "flag-host"
+    assert flagged.eddb_host.source == "--eddb-host"
+
+    varied = resolve_settings(SettingsFlags(), {ENV_EDDB_HOST: "env-host"})
+    assert varied.eddb_host.value == "env-host"
+    assert varied.eddb_host.source == ENV_EDDB_HOST
+
+
+def test_eddb_host_unset_keeps_the_jt60sa_ssh_route(monkeypatch):
+    _no_entry_points(monkeypatch)
+
+    settings = resolve_settings(SettingsFlags(), {})
+
+    assert settings.eddb_host.value is None
+    assert "jt-60sa" in settings.eddb_host.source
+    assert ssh_command_for_host("jt-60sa") == DEFAULT_SSH_COMMAND
+    route = extractor_for_host(settings.eddb_host.value).ssh_command
+    assert route == DEFAULT_SSH_COMMAND
+
+
+def test_eddb_host_local_gives_the_local_transport_with_the_engine_interpreter(
+    monkeypatch,
+):
+    _no_entry_points(monkeypatch)
+
+    settings = resolve_settings(SettingsFlags(eddb_host="local"), {})
+    assert settings.eddb_host.value == "local"
+
+    extractor = extractor_for_host("local")
+    assert extractor.ssh_command == ()
+    assert extractor.remote_python == sys.executable
+
+
+def test_eddb_host_composes_the_ssh_route_keeping_config_and_module_shell(monkeypatch):
+    _no_entry_points(monkeypatch)
+
+    settings = resolve_settings(SettingsFlags(eddb_host="a-host"), {})
+    assert settings.eddb_host.value == "a-host"
+
+    extractor = extractor_for_host("a-host")
+    assert extractor.ssh_command == ("ssh", "-F", "~/.ssh/config", "a-host")
+
+    argv = extractor._argv()
+    assert argv[:4] == ["ssh", "-F", os.path.expanduser("~/.ssh/config"), "a-host"]
+    joined = " ".join(argv)
+    assert "module unload" in joined and "module load" in joined
+
+
+def test_config_reports_eddb_host_with_its_source(monkeypatch):
+    _no_entry_points(monkeypatch)
+    monkeypatch.setenv(ENV_EDDB_HOST, "local")
+
+    from click.testing import CliRunner
+
+    from imas_alambic.cli import main
+
+    result = CliRunner().invoke(main, ["config"])
+
+    assert result.exit_code == 0, result.output
+    assert f"eddb_host: local  [{ENV_EDDB_HOST}]" in result.output
+
+
+def test_the_facility_launcher_selects_the_local_eddb_transport():
+    script = Path(__file__).resolve().parents[1] / "install" / "imasdb.sh"
+    launcher = script.read_text().split("<<'LAUNCHER'", 1)[1].split("\nLAUNCHER", 1)[0]
+
+    assert "IMAS_ALAMBIC_EDDB_HOST=local" in launcher
+    assert "export IMAS_ALAMBIC_EDDB_HOST" in launcher
+    assert "IMAS_ALAMBIC_HOME=$home" in launcher

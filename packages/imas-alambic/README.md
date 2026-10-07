@@ -15,12 +15,15 @@ directory holding `bundle.json` beside `machine_maps/<machine>.json` and
 `imas_alambic.bundles` entry-point group (an installed package exposes its own
 maps) or a directory named in the resolved map search path.
 
-Settings — the map search path, the IDS root, the cache and the machine — are
-resolved by `imas_alambic.settings`, at the highest precedence that names each:
-a command-line flag, its `IMAS_ALAMBIC_*` variable, or a default derived from
-`IMAS_ALAMBIC_HOME` (`maps/current` and `ids`). Below `IMAS_ALAMBIC_HOME` the
-IDS root and the cache fall back to the store roles a reachable bundle declares
-(`ids_root` and `eddb_cache`); the cache falls through to
-`~/.cache/imas-alambic` when no bundle declares its role, and the machine is
-inferred when exactly one is reachable. `imas-alambic config` prints every
-resolved setting with its source.
+Settings — the map search path, the IDS root, the cache, the machine and the
+EDDB transport host — are resolved by `imas_alambic.settings`, at the highest
+precedence that names each: a command-line flag, its `IMAS_ALAMBIC_*` variable,
+or a default derived from `IMAS_ALAMBIC_HOME` (`maps/current` and `ids`). Below
+`IMAS_ALAMBIC_HOME` the IDS root and the cache fall back to the store roles a
+reachable bundle declares (`ids_root` and `eddb_cache`); the cache falls
+through to `~/.cache/imas-alambic` when no bundle declares its role, and the
+machine is inferred when exactly one is reachable. `eddb_host` selects the
+transport the writer fetches a pulse's mapped channels through before writing:
+unset keeps the ssh route to jt-60sa, a host name composes the ssh route to
+that host, and `local` reads in place with the engine's own interpreter.
+`imas-alambic config` prints every resolved setting with its source.
