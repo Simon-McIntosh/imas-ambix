@@ -1,0 +1,67 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "Derived from the reviewed run's own gate logs, which I re-ran independently. baseline_suite (base arm, revision c255d3c3445884b72da66e74249c4eb2ca82cdb6, tree /tmp/jtfm-base.njbuSW = base source plus the new test file, i.e. the plan's negative control): 1 failed, 42 passed, EXIT=1, failure_ids [\"packages/imas-alambic/tests/test_run_file_write.py::test_failure_on_third_ids_leaves_no_run_file_or_temporary\"]. after_suite (head arm, revision 0e61e2b30005b474f32575cbe96431115e118fe8, reviewed worktree): 43 passed, EXIT=0, failure_ids []. added_failure_count is the head arm's failing ids not in the run's base arm = 0; added_failure_ids = []. I reproduced both arms myself in scratch trees at the reviewed revisions: base (c255d3c3 plus the head test file) -> 1 failed, 42 passed, EXIT=1, the failing assertion being list(out.iterdir()) == [] left holding 900001_0.nc; head (0e61e2b3) -> 43 passed, EXIT=0. The single base-arm failure is the intended negative control (the new test failing against the non-atomic writer), not a regression.",
+  "base_log_revision": "c255d3c3445884b72da66e74249c4eb2ca82cdb6",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T07:41:00.787Z",
+  "dispatched_at": "2026-10-07T07:12:17Z",
+  "findings": [
+    {
+      "file": "docs/plans/jt60sa-facility-mint.html",
+      "line": "s13",
+      "severity": "follow-on",
+      "text": "Section 13's write paths name the node's evidence fragment, docs/evidence/fragments/jt60sa-facility-mint/jtfm-atomic-run-file.html, and the scope fence granted it, but no such fragment exists, while sibling section nodes each landed one. The node's dispatch explicitly states that it writes no evidence prose because its done-when names no artifact, so the node complied with its instruction and recorded its landing line in the manifest instead. The coordinator should confirm whether a Section 13 fragment was intended and, if so, have a sibling with that path write it."
+    },
+    {
+      "file": "packages/imas-alambic/src/imas_alambic/eddb.py",
+      "line": "head",
+      "severity": "follow-on",
+      "text": "At the reviewed head, ruff format --check-equivalent run ruff format --check packages/imas-alambic still flags eddb.py and tests/test_eddb_local_transport.py, so the Section 11 format clause stays partly open. This node's style commit correctly closed the two files inside its scope and left these two outside it; the residual belongs to a sibling with those paths in scope. Section 13 itself requires only ruff check, not format-check, and that passes."
+    }
+  ],
+  "head_log_revision": "0e61e2b30005b474f32575cbe96431115e118fe8",
+  "item_aggregate": null,
+  "item_verdicts": {
+    "diff": "551fef257ad30ff8f87a5a1014b59181eea19468 changes 2 files (+172/-2): packages/imas-alambic/src/imas_alambic/pulse_writer.py adds a module-private _run_file_destination context manager and writes write_pulse through it, and packages/imas-alambic/tests/test_run_file_write.py adds the partial-write and complete-write tests. 0e61e2b30005b474f32575cbe96431115e118fe8 changes 2 files (+3/-5): eddb_remote.py (triple-quote delimiter) and transform_engine.py (line collapse). Combined c255d3c3..0e61e2b3 touches exactly 4 files, all four within the node's declared write scope.",
+    "goal": "Section 13 clauses 1-5 met and independently reproduced; the atomic write is correct by construction and the base negative control fails the partial-write test exactly as specified.",
+    "manifest": "read; all fields populated and consistent with the logs; baseline_suite and after_suite carry the two arms and added_failure_count derives 0.",
+    "write_paths": "git diff --stat c255d3c3..0e61e2b3 lists exactly the four declared paths; nothing outside them is touched."
+  },
+  "justifications": {
+    "durability": "The change and its test are committed as real source, so the atomic write survives a clean checkout; there is no environment, dependency or generated-file change and the test is deterministic (synthetic bundle, no network, no real corpus). The guard is a committed test that fails at base and passes at head, which is the durable form. Deduction: the guard covers write_pulse only; other writers are unaffected by design and outside this node's scope; the work is not yet merged, so the durability is of the branch rather than of main.",
+    "evidence": "I rebuilt scratch trees at both reviewed revisions and re-ran each arm myself on this allocation, resolving the module through PYTHONPATH to the scratch tree and verifying the resolution (the head module carries the _run_file_destination marker and the main checkout does not, so the two arms cannot be confused). Base arm: 1 failed, 42 passed, EXIT=1, the failure naming packages/imas-alambic/tests/test_run_file_write.py::test_failure_on_third_ids_leaves_no_run_file_or_temporary with the assertion list(out.iterdir()) == [] left holding 900001_0.nc. Head arm: 43 passed, EXIT=0. The negative control is falsified end to end: the base writer open on the final path leaves the partial file, the head writer writes through a sibling and leaves nothing after the raise. The style commit's claim is verified by construction: REMOTE_SCRIPT parses to a byte-identical value at both revisions (3713 bytes, sha256 4ec74941ff093435b1612f6a83231f5abda6b71bbc6e8ff164ec88afa8b4142c). Whole-tree ruff check imas_ambix tests packages exits 0 at head. Deduction: the base arm is base code plus the new test (the negative-control arm), not a pristine base-revision suite; that is exactly the plan's stated negative control and the node discloses it, but a reader should know the base tree is not the untouched revision.",
+    "fit": "The change matches Section 13 mechanism for mechanism: a dot-prefixed .<stem>.<random>.partial.nc created by tempfile.mkstemp in the target directory, mode 0644 set by fchmod before os.replace, unlinked on any exception, module-private and absent from __all__, with the existing-file refusal unchanged. The two commits carry conventional subjects with mechanism bodies and no attribution trailer (verified line-anchored: trailer clean, body present on both). No plan, sprint or version label appears in a path, symbol or comment. The style commit resolves two of the three pre-existing format drifts the prior engine-packaging review flagged as follow-ons. Deduction: the Section 11 format clause is still not fully closed (eddb.py and tests/test_eddb_local_transport.py remain flagged), but both lie outside this node's write scope and Section 13 requires only ruff check, so this is recorded as a follow-on rather than a defect of this node.",
+    "goal_fidelity": "Section 13's done-when is met point for point and reproduced. (1) A write whose third IDS raises leaves neither the run file nor any temporary: the new test passes at head with an empty output directory. (2) A clean write leaves exactly 900001_0.nc at mode 0644 under a 022 umask, and a second write without overwrite raises PulseWriteError already exists. (3) Negative control: the base arm fails the partial-write test with the exact assertion the clause names. (4) base 1 failed/42 passed against head 43 passed gives added failures 0. (5) uv run --no-sync ruff check imas_ambix tests packages exits 0 at head. The implementation also honours the plan's naming and permission details. Deduction: the plan's write-path list additionally names the node's evidence fragment, which is absent; the node's dispatch explicitly directed it to write no evidence prose, so I read the fragment as waived by the dispatch rather than a missed done-when clause, and record it as a follow-on.",
+    "reuse": "The change reuses the repository's established atomic-write idiom (the _write_atomic pattern in imas_ambix/agent/watch_publish.py) restated in the engine wheel, plus the standard library's tempfile.mkstemp and os.replace. It adds no dependency, no configuration, no new public surface and no duplicated guard, and it does not reach across the wheel boundary into imas_ambix, which the plan notes the engine package cannot import. Deduction: none material.",
+    "scope_discipline": "git diff --stat over c255d3c3..0e61e2b3 lists exactly the four declared paths. The first commit is the fix and its test; the second is a self-contained style(format) commit, correctly separated so the fix stays reviewable. No plan HTML, state index, sprint or plan meta line is touched, and the reviewed worktree is clean at its head. The reviewed work is not merged to main (verified: not an ancestor of my worktree HEAD 6345ce6e3a519e12545da5b993c0227724b2940a), which is expected for a locally committing worker and is not a scope defect."
+  },
+  "node": "review-of-jtfm-atomic-run-file",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: every Section 13 done-when clause met and independently reproduced -- a partial write leaves no file, a successful write leaves exactly one run file at mode 0644 under a 022 umask, a second write without overwrite is refused, the base negative control fails the partial-write test, package tests add no failures, and whole-tree ruff exits 0.\nVERDICT evidence: both arms reproduced by me in scratch trees at the reviewed revisions; base 1 failed/42 passed EXIT=1, head 43 passed EXIT=0; the base failure is exactly the assertion list(out.iterdir()) == [] left holding 900001_0.nc; REMOTE_SCRIPT value byte-identical at both revisions (len 3713, sha256 4ec74941ff093435b1612f6a83231f5abda6b71bbc6e8ff164ec88afa8b4142c); ruff check imas_ambix tests packages exits 0; __all__ unchanged.\nVERDICT scope_discipline: two commits touch exactly the four declared paths; no plan, index or out-of-scope edit; worktree tidy at head; not merged to main (expected for a locally committing worker).\nVERDICT manifest: read; records both arms, the negative control and a landing line; baseline_suite and after_suite are populated from the reviewed run's own gate logs, from which added_failure_count derives 0.\nVERDICT diff: 551fef25 adds the atomic destination context manager and the test file (+172/-2 across two files); 0e61e2b3 reformats eddb_remote.py and transform_engine.py (+3/-5); combined four files.\nSCORE goal_fidelity: 19\nSCORE evidence: 19\nSCORE scope_discipline: 20\nSCORE durability: 19\nSCORE fit: 18\nSCORE reuse: 20\nJUSTIFICATION goal_fidelity: Section 13's done-when is met point for point and reproduced: the partial-write test passes at head with an empty output directory; the complete-write test asserts exactly one run file at mode 0644 under umask 022, readable across every IDS, and that a second write is refused; the base arm fails the partial-write test as the negative control; added failures are 0; and whole-tree ruff exits 0. The implementation honours the plan's naming and permission details. Deduction: the plan names an evidence fragment that is absent, waived by the node's dispatch instruction to write no evidence prose.\nJUSTIFICATION evidence: I rebuilt scratch trees at both reviewed revisions and re-ran each arm myself on this allocation, verifying the module resolved to the scratch tree by a marker the main checkout lacks. Base 1 failed/42 passed EXIT=1 with the exact assertion; head 43 passed EXIT=0; REMOTE_SCRIPT byte-identical at both revisions; the whole-tree ruff check exits 0. Deduction: the base arm is base code plus the new test (the negative control), not a pristine base suite, and the node discloses this.\nJUSTIFICATION scope_discipline: git diff --stat over c255d3c3..0e61e2b3 lists exactly the four declared paths; the second commit is a self-contained style commit; the worktree is tidy at its head; the work is not merged to main, which is expected and not a scope defect.\nFINDING docs/plans/jt60sa-facility-mint.html s13 follow-on: the Section 13 evidence fragment docs/evidence/fragments/jt60sa-facility-mint/jtfm-atomic-run-file.html is absent while sibling sections landed one; the node's dispatch waived evidence prose, so the coordinator should confirm intent.\nFINDING packages/imas-alambic/src/imas_alambic/eddb.py head follow-on: ruff format --check packages/imas-alambic still flags eddb.py and tests/test_eddb_local_transport.py at head, outside this node's scope; the residual belongs to a sibling with those paths in scope.",
+  "review_run_id": "r-20261007T071154398176-review-of-jtfm-atomic-run-file",
+  "reviewed_base_sha": "c255d3c3445884b72da66e74249c4eb2ca82cdb6",
+  "reviewed_head_sha": "0e61e2b30005b474f32575cbe96431115e118fe8",
+  "reviewed_run_id": "r-20261007T065638569478-jtfm-atomic-run-file",
+  "reviewer": {
+    "backend": "clive",
+    "effort": "high",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T07:27:58+00:00",
+  "total": 115
+}
