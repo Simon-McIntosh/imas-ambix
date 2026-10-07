@@ -7,20 +7,22 @@ skipping, which reads a *broken* bundle as an absent one: a descriptor the
 loader cannot parse, or a machine two bundles both carry, made the module skip
 and the census passed quietly.
 
-Presence is therefore decided here, once, from :func:`discover_bundles` alone.  A
-directory named by ``IMAS_ALAMBIC_MAP_PATH`` is expected to carry a
-``bundle.json``; a search-path entry with no descriptor at all contributes no
-bundle, so a bare directory reads as absent and the honest skip applies.  Every
-other outcome raises :class:`MachineMapError` while this module is imported, so
-the importing module fails to collect instead of skipping:
-
-* a descriptor that is present but unreadable or malformed, and
-* a machine carried by more than one reachable bundle.
+Presence is therefore decided here, once, from
+:func:`imas_alambic.machine_map.bundles_carrying`.  A directory named by
+``IMAS_ALAMBIC_MAP_PATH`` is expected to carry a ``bundle.json``; a descriptor
+that is present but unreadable or malformed raises while this module is
+imported, so the importing module fails to collect instead of skipping, and an
+empty directory on the map path is exactly that case.  A machine carried by
+more than one reachable bundle is likewise refused, through the single
+:func:`imas_alambic.machine_map.bundle_for_machine` policy rather than a second
+copy of its message.
 
 ``BUNDLE`` is the one reachable bundle carrying jt-60sa, or ``None`` when none
-does.  ``requires_jt60sa`` is the skip marker built from it; a module that also
-needs the converted description store combines its own store check with
-``SKIP_REASON``.
+carries it.  ``requires_jt60sa`` is the skip marker built from it; a module that
+also needs the converted description store combines its own store check with
+``SKIP_REASON``.  ``requires_mast`` is the marker the public MAST-guarded tests
+use, so those run whenever a bundle carries mast, whether or not the private
+JT-60SA bundle is present.
 """
 
 from __future__ import annotations
@@ -28,56 +30,61 @@ from __future__ import annotations
 import pytest
 
 from imas_alambic.machine_map import (
-    MachineMapError,
     MapBundle,
+    bundle_for_machine,
+    bundles_carrying,
     discover_bundles,
 )
 
 #: The machine whose private bundle the census suites read.
 MACHINE = "jt-60sa"
 
+#: The public machine ambix's own bundle carries; the MAST-guarded tests key on
+#: it so they do not skip merely because the private JT-60SA bundle is absent.
+MAST_MACHINE = "mast"
+
 #: The reason a census module skips when no reachable bundle carries jt-60sa.
 SKIP_REASON = (
     "no reachable map bundle carries 'jt-60sa'; set IMAS_ALAMBIC_MAP_PATH"
 )
 
-#: The reason a module skips when no bundle at all is reachable.
-DISCOVERY_SKIP_REASON = "no reachable map bundle; set IMAS_ALAMBIC_MAP_PATH"
+#: The reason a MAST-guarded module skips when no reachable bundle carries mast.
+MAST_SKIP_REASON = "no reachable map bundle carries 'mast'"
+
+
+def carries_machine(machine: str) -> bool:
+    """Whether any reachable bundle declares ``machine``.
+
+    The one predicate the MAST-guarded tests share, so they key on the machine
+    they actually read rather than on whether any bundle at all is reachable.
+    """
+
+    return bool(bundles_carrying(machine))
 
 
 def reachable_bundles() -> tuple[MapBundle, ...]:
-    """Return every reachable bundle, treating a descriptorless entry as none.
+    """Return every reachable bundle.
 
-    A search-path directory that carries no ``bundle.json`` names no bundle, so
-    it is dropped and discovery continues as if it were not there.  A descriptor
-    that exists but cannot be read raises, and so does any other refusal, so a
-    broken bundle is reported rather than read as absent.
+    A search-path directory that carries no ``bundle.json`` raises from the
+    loader rather than contributing nothing, so an empty directory named by
+    ``IMAS_ALAMBIC_MAP_PATH`` fails collection as a descriptor refusal, and is
+    never read as an absent bundle.
     """
 
-    try:
-        return discover_bundles()
-    except MachineMapError as error:
-        if isinstance(error.__cause__, FileNotFoundError):
-            return ()
-        raise
+    return discover_bundles()
 
 
 def jt60sa_bundle() -> MapBundle | None:
     """Return the one reachable bundle carrying jt-60sa, or ``None`` if none.
 
-    A machine carried by two distinct bundles raises, naming both, rather than
-    one silently shadowing the other.
+    An empty result is absence; any other outcome is delegated to
+    :func:`bundle_for_machine`, whose policy refuses a machine carried by two
+    distinct bundles naming both, rather than one silently shadowing the other.
     """
 
-    carried = tuple(
-        bundle for bundle in reachable_bundles() if MACHINE in bundle.machines
-    )
-    if len(carried) > 1:
-        named = ", ".join(f"{bundle.name!r} ({bundle.root})" for bundle in carried)
-        raise MachineMapError(
-            f"machine {MACHINE!r} is carried by more than one bundle: {named}"
-        )
-    return carried[0] if carried else None
+    if not bundles_carrying(MACHINE):
+        return None
+    return bundle_for_machine(MACHINE)
 
 
 #: The one reachable bundle carrying jt-60sa, or ``None``.  Raises on a broken
@@ -87,7 +94,7 @@ BUNDLE = jt60sa_bundle()
 #: Skip a census module when no reachable bundle carries jt-60sa.
 requires_jt60sa = pytest.mark.skipif(BUNDLE is None, reason=SKIP_REASON)
 
-#: Skip when no bundle at all is reachable, whatever machine a module is about.
-requires_bundle_discovery = pytest.mark.skipif(
-    not reachable_bundles(), reason=DISCOVERY_SKIP_REASON
+#: Skip a public MAST-guarded module when no reachable bundle carries mast.
+requires_mast = pytest.mark.skipif(
+    not carries_machine(MAST_MACHINE), reason=MAST_SKIP_REASON
 )

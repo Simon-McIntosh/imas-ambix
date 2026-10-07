@@ -12,6 +12,7 @@ import pytest
 from imas_alambic.machine_map import (
     MachineMapError,
     bundle_for_machine,
+    bundles_carrying,
     discover_bundles,
     load_bundle_descriptor,
     load_packaged_machine_map,
@@ -68,6 +69,24 @@ def test_a_machine_in_two_bundles_is_refused_naming_both(tmp_path, monkeypatch):
 
     message = str(raised.value)
     assert "alpha" in message and "beta" in message
+
+
+def test_bundles_carrying_returns_every_reachable_bundle_that_declares_it(
+    tmp_path, monkeypatch
+):
+    first = _bundle(tmp_path / "a", name="alpha", machines=["shared"])
+    second = _bundle(tmp_path / "b", name="beta", machines=["shared"])
+    other = _bundle(tmp_path / "c", name="gamma", machines=["elsewhere"])
+    monkeypatch.setenv(
+        ENV_MAP_PATH, f"{first}{os_sep()}{second}{os_sep()}{other}"
+    )
+    monkeypatch.setattr("imas_alambic.machine_map.entry_points", lambda group: [])
+
+    carrying = bundles_carrying("shared")
+    assert {bundle.name for bundle in carrying} == {"alpha", "beta"}
+    (only,) = bundles_carrying("elsewhere")
+    assert only.name == "gamma"
+    assert bundles_carrying("absent") == ()
 
 
 def test_an_unknown_machine_is_refused(tmp_path, monkeypatch):

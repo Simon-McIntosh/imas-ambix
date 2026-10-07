@@ -1,0 +1,66 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-census-guard-repair-landing" data-head-passed="107" data-added-failures="0">
+  <header>
+    <h3>the guard decides presence from the machine it reads, and an empty map path fails collection</h3>
+    <p class="meta">
+      Node <code>jtfm-census-guard-repair</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;14 &middot;
+      node <code>98dci4-clu-2018</code> job <code>1277272</code>
+    </p>
+  </header>
+  <p>
+    The merged census guard still read a search-path directory with no
+    <code>bundle.json</code> as absent: <code>reachable_bundles()</code> caught
+    the loader's <code>MachineMapError</code> whose cause was a
+    <code>FileNotFoundError</code> and returned <code>()</code>, so an empty
+    directory named by <code>IMAS_ALAMBIC_MAP_PATH</code> made every guarded
+    module skip instead of failing.  The guard now decides presence from the
+    machine a module actually reads.
+  </p>
+  <ul>
+    <li>
+      <code>packages/imas-alambic/src/imas_alambic/machine_map.py</code> gains
+      <code>bundles_carrying(machine, search_path=None)</code>, every reachable
+      bundle that declares the machine, and
+      <code>bundle_for_machine</code> now resolves through it, so the
+      zero/one/many policy has one owner.  Pinned by
+      <code>packages/imas-alambic/tests/test_bundle_discovery.py</code>.
+    </li>
+    <li>
+      <code>tests/jt60sa_bundle.py</code> asks
+      <code>bundles_carrying</code>; it skips only on an empty result and
+      delegates the two-bundle refusal to <code>bundle_for_machine</code>
+      rather than spelling it.  <code>reachable_bundles()</code> no longer reads
+      a <code>FileNotFoundError</code> cause as absence, so an empty map
+      directory raises the descriptor refusal at import.
+    </li>
+    <li>
+      <code>requires_mast</code> and <code>carries_machine("mast")</code> are the
+      markers the two public guards use: <code>needs_bundle_discovery</code> in
+      <code>tests/data/test_transform_engine.py</code> and
+      <code>_skip_no_tables</code> in <code>tests/gs/test_operator.py</code>
+      now key on mast, so with the map path unset the MAST tests run while the
+      JT-60SA tests skip with the stated reason.
+    </li>
+    <li>
+      The EDDB stand-in has one owner.  The ambix
+      <code>test_eddb_local_transport.py</code> loads
+      <code>packages/imas-alambic/tests/eddb_standin.py</code> with
+      <code>importlib.util.spec_from_file_location</code> and no
+      <code>sys.path</code> edit; the canned-response third stand-in in
+      <code>tests/data/test_eddb_cache.py</code> is folded into that owner as
+      <code>CANNED_WRAPPER</code> and loaded the same way.
+    </li>
+  </ul>
+  <p class="measure">
+    Census arm (eight modules) with <code>IMAS_ALAMBIC_MAP_PATH</code> naming
+    the <code>/work</code> bundle: base 107 passed, head 107 passed, no added
+    failures.  With the variable unset, the MAST-guarded modules in
+    <code>test_transform_engine.py</code> and <code>test_operator.py</code> run
+    (43 passed, 1 skipped) while the JT-60SA modules skip with the stated
+    reason.  With it naming an empty directory, collection fails with the
+    descriptor refusal (exit 2).  Whole-tree
+    <code>ruff check imas_ambix tests packages</code> exits 0.
+  </p>
+</section>
+</section>

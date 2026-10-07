@@ -28,7 +28,7 @@ from scipy.special import ellipk
 from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.data.paths import JT60SA_ROOT, MANIFEST_DIR
 from imas_ambix.gs import operator as op
-from tests.jt60sa_bundle import BUNDLE, reachable_bundles
+from tests.jt60sa_bundle import BUNDLE, MAST_MACHINE, carries_machine
 
 
 class _Filament(SimpleNamespace):
@@ -525,13 +525,15 @@ def test_plasma_term_adds_when_nonzero():
 # --- integration: real campaign tables (skipped in CI) ----------------
 
 _HAVE_TABLES = (MANIFEST_DIR / "gs_geometry_tables.json").exists()
-_BUNDLE_DISCOVERY_AVAILABLE = bool(reachable_bundles())
+#: These integration tests read the public MAST geometry tables, so they guard
+#: on a bundle carrying mast and run whether or not the private JT-60SA bundle
+#: is reachable.
 _skip_no_tables = pytest.mark.skipif(
-    not _HAVE_TABLES or not _BUNDLE_DISCOVERY_AVAILABLE,
+    not _HAVE_TABLES or not carries_machine(MAST_MACHINE),
     reason=(
         "geometry tables artifact not available (CI)"
         if not _HAVE_TABLES
-        else "IMAS_ALAMBIC_MAP_PATH must name a readable bundle"
+        else "no reachable map bundle carries 'mast'"
     ),
 )
 
