@@ -22,11 +22,11 @@
   <meta name="plan-tags" content="jt-60sa,machine-map,equilibrium,figures">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;jt60sa-machine-map#s7&quot;], &quot;s3&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;], &quot;s4&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;, &quot;imas-ink:geometry-figure-vessel-units#s5&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="19">
+<meta name="plan-version" content="20">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -130,6 +130,10 @@
       records its frame count, its time range and, per frame, the number of X-points and strike
       points drawn. The lead has looked at it.
     </p>
+
+    <h2 id="s5">§5 — The writer&#x27;s test reads homogeneous_time from the receipt</h2>
+<section data-reckon="section" data-id="s5" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links="jt60sa-facility-mint#s7"></section>
+<p>§1's test of the writer asserts <code>ids_properties.homogeneous_time == 1</code> for every IDS that carries a time-dependent leaf. That held when <code>magnetics</code> served only <code>ip</code>. Since then jt60sa-machine-map has bound the raw flux loops and tangential probes too (commits <code>4d4c3b21</code>, <code>755c4b09</code>), so <code>magnetics</code> serves 45 signals on more than one time base, and the writer correctly writes <code>homogeneous_time = 0</code> with each signal carrying its own time vector, as §1 specifies. The assertion has been red on <code>main</code> since, in <code>tests/data/test_pulse_writer.py::test_write_covers_every_description_ids</code> (the file jt60sa-facility-mint §7 renamed from <code>test_pulse_mint.py</code>). The writer is right and the test is wrong.</p><p>The test derives the expected value from the receipt rather than hard-coding it. It expects 1 when every leaf the receipt names for that IDS uses the IDS-level <code>time</code> path, 0 when they carry their own time vectors, and 2 when the IDS has no time-dependent leaf. For a heterogeneous IDS it also checks that each written leaf's sibling <code>time</code> vector has as many samples as its data. No source file changes.</p><p>Done-when: <code>uv run --no-sync pytest -p no:cacheprovider tests/data/test_pulse_writer.py packages/imas-alambic/tests</code> passes with no failure, run in the worktree with <code>packages/imas-alambic/src</code> on <code>PYTHONPATH</code> so the engine under test is the worktree's. The negative control, a writer that writes <code>homogeneous_time = 1</code> for <code>magnetics</code> regardless, fails the repaired test.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
