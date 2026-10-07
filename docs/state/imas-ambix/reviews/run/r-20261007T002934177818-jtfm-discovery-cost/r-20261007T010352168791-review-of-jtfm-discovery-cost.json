@@ -1,0 +1,60 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "backend": "local",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T01:15:45.573Z",
+  "dispatched_at": "2026-10-07T01:04:02Z",
+  "findings": [
+    {
+      "file": "gate-logs/run_arm.sh",
+      "line": "19",
+      "severity": "follow-on",
+      "text": "follow-on: the arm header probe's stderr is discarded (2>/dev/null) and its stdout embedded verbatim, so when the probe fails the identity line is written empty; all four head pytest arms read \"module.__file__:\" with no module named, and the probe's own failure stays invisible, leaving the head arms with no per-arm record of the module under test."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-facility-mint/jtfm-discovery-cost.html",
+      "line": "33",
+      "severity": "follow-on",
+      "text": "follow-on: the prose range \"head samples otherwise sit at 100.4-112.1 s\" takes its low end (100.4) from a pytest-reported duration (head-run3.log \"1 passed in 100.41s\") while its high end (112.1) is a wall time, so a reader matching the prose to the table beneath it finds a value in no wall-time column (the table's minimum wall is 103.531 s)."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "Read commit-by-commit against base 3d54ae6f8df (the review's reviewed_base_sha); 1abacd45 is a single +72-line file at docs/evidence/fragments/jt60sa-facility-mint/jtfm-discovery-cost.html, touching no source or test file.",
+    "done_when": "The done-when names tests/data/test_machine_map.py::test_every_mast_map_range_is_one_geometry_transition run serially, alone, with --timeout=900 at base f1f0a5b0 and head 3d54ae6f, each arm at least twice with every wall time and EXIT logged, plus a cProfile of discover_bundles and importlib.metadata.entry_points; the manifest records three base arms, five head arms and one profile run, each with its log.",
+    "goal": "The node's goal is to measure whether bundle discovery made the MAST map-range test slower; the fragment docs/evidence/fragments/jt60sa-facility-mint/jtfm-discovery-cost.html:2-8 states that question and answers it with the head-minus-base wall time (lines 33-40) and the share of head time in discovery (lines 42-54).",
+    "manifest": "Read; it names the nine gate logs under gate-logs/, the measurement_module and measurement_cwd of the base arm, the tests line, and the artifacts.",
+    "write_paths": "The declared write paths are the fragment and the figures directory; the landed commit 1abacd45 changes only docs/evidence/fragments/jt60sa-facility-mint/jtfm-discovery-cost.html and no path outside them."
+  },
+  "justifications": {
+    "durability": "the node edits no source or test, so nothing fails if its figures drift; the fragment's numbers rest on gate logs under /home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T002934177818-jtfm-discovery-cost/gate-logs, which are outside the repository commit.",
+    "evidence": "the four head pytest arms' logs (gate-logs/head-run1..4.log) print an empty module.__file__, so only the cProfile arm records which imas_ambix.data.machine_map it imported; the profile figures reproduce exactly under an independent parse of gate-logs/head-profile.out (discover_bundles 2 calls/0.2762 s cumulative, importlib.metadata.entry_points 5 calls/0.4735 s, total 135.996 s).",
+    "fit": "the fragment follows the evidence-fragment idiom (section.evidence-fragment data-reckon=\"evidence\", id=\"jtfm-discovery-cost\" prefixed with the node id per the fragment contract) and introduces no name the naming rules forbid.",
+    "goal_fidelity": "the fragment at docs/evidence/fragments/jt60sa-facility-mint/jtfm-discovery-cost.html answers the goal's question with the base/head wall-time difference (+2.6 s) and the discovery share (0.20 %), the two figures the goal asks for.",
+    "reuse": "the diff adds no definition and no code, so it forks no capability the repository already owns.",
+    "scope_discipline": "the diff of 1abacd45 touches only docs/evidence/fragments/jt60sa-facility-mint/jtfm-discovery-cost.html, inside the declared paths, and edits no source or test file."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261007T002934177818-jtfm-discovery-cost.\n\nVERDICT goal: The node's goal is to measure whether bundle discovery made the MAST map-range test slower; the fragment docs/evidence/fragments/jt60sa-facility-mint/jtfm-discovery-cost.html:2-8 states that question and answers it with the head-minus-base wall time (lines 33-40) and the share of head time in discovery (lines 42-54).\nVERDICT done_when: The done-when names tests/data/test_machine_map.py::test_every_mast_map_range_is_one_geometry_transition run serially, alone, with --timeout=900 at base f1f0a5b0 and head 3d54ae6f, each arm at least twice with every wall time and EXIT logged, plus a cProfile of discover_bundles and importlib.metadata.entry_points; the manifest records three base arms, five head arms and one profile run, each with its log.\nVERDICT write_paths: The declared write paths are the fragment and the figures directory; the landed commit 1abacd45 changes only docs/evidence/fragments/jt60sa-facility-mint/jtfm-discovery-cost.html and no path outside them.\nVERDICT manifest: Read; it names the nine gate logs under gate-logs/, the measurement_module and measurement_cwd of the base arm, the tests line, and the artifacts.\nVERDICT diff: Read commit-by-commit against base 3d54ae6f8df (the review's reviewed_base_sha); 1abacd45 is a single +72-line file at docs/evidence/fragments/jt60sa-facility-mint/jtfm-discovery-cost.html, touching no source or test file.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: the fragment at docs/evidence/fragments/jt60sa-facility-mint/jtfm-discovery-cost.html answers the goal's question with the base/head wall-time difference (+2.6 s) and the discovery share (0.20 %), the two figures the goal asks for.\nSCORE evidence: 17\nJUSTIFICATION evidence: the four head pytest arms' logs (gate-logs/head-run1..4.log) print an empty module.__file__, so only the cProfile arm records which imas_ambix.data.machine_map it imported; the profile figures reproduce exactly under an independent parse of gate-logs/head-profile.out (discover_bundles 2 calls/0.2762 s cumulative, importlib.metadata.entry_points 5 calls/0.4735 s, total 135.996 s).\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff of 1abacd45 touches only docs/evidence/fragments/jt60sa-facility-mint/jtfm-discovery-cost.html, inside the declared paths, and edits no source or test file.\nSCORE durability: 13\nJUSTIFICATION durability: the node edits no source or test, so nothing fails if its figures drift; the fragment's numbers rest on gate logs under /home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T002934177818-jtfm-discovery-cost/gate-logs, which are outside the repository commit.\nSCORE fit: 19\nJUSTIFICATION fit: the fragment follows the evidence-fragment idiom (section.evidence-fragment data-reckon=\"evidence\", id=\"jtfm-discovery-cost\" prefixed with the node id per the fragment contract) and introduces no name the naming rules forbid.\nSCORE reuse: 20\nJUSTIFICATION reuse: the diff adds no definition and no code, so it forks no capability the repository already owns.\nFINDING gate-logs/run_arm.sh:19 follow-on: the arm header probe's stderr is discarded (2>/dev/null) and its stdout embedded verbatim, so when the probe fails the identity line is written empty; all four head pytest arms read \"module.__file__:\" with no module named, and the probe's own failure stays invisible, leaving the head arms with no per-arm record of the module under test.\nFINDING docs/evidence/fragments/jt60sa-facility-mint/jtfm-discovery-cost.html:33 follow-on: the prose range \"head samples otherwise sit at 100.4-112.1 s\" takes its low end (100.4) from a pytest-reported duration (head-run3.log \"1 passed in 100.41s\") while its high end (112.1) is a wall time, so a reader matching the prose to the table beneath it finds a value in no wall-time column (the table's minimum wall is 103.531 s).\n",
+  "review_run_id": "r-20261007T010352168791-review-of-jtfm-discovery-cost",
+  "reviewed_base_sha": "3d54ae6f8df642543164cbe02034299e8c9e6dd4",
+  "reviewed_head_sha": "1abacd45d9b637e5a1aef735ca0d3fe63a7e306c",
+  "reviewed_run_id": "r-20261007T002934177818-jtfm-discovery-cost",
+  "scores": {
+    "durability": 13,
+    "evidence": 17,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-07T01:12:14.438729+00:00",
+  "total": 108
+}
