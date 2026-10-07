@@ -183,11 +183,15 @@ cp -a "$STAGE/bundle/." "$DEST/"
 ln -sfn "$VERSION" "$IMASDB/$MAPS_DIR/$CURRENT"
 
 say "opening the folder to other users"
-# Others read, never write.  Directories get r-x so the tree is walkable and
-# files get r-- exactly; other facility users execute the launcher through its
-# group bits, which uv sets, not through the others bits.
+# Others read, never write, and execute only what the owner may execute -- this
+# is `chmod -R o=rX`.  Directories get others r-x so the tree is walkable;
+# executable files, the launcher and the managed interpreter among them, get
+# others r-x so a user outside the account's group can run the tool; every other
+# file gets others r-- exactly.  Spelled with find so a symlink is left alone:
+# its own mode is 0777 and carries no permissions, the target's govern.
 find "$IMASDB" -type d -exec chmod o=rx {} +
-find "$IMASDB" -type f -exec chmod o=r {} +
+find "$IMASDB" -type f -perm -u+x -exec chmod o=rx {} +
+find "$IMASDB" -type f ! -perm -u+x -exec chmod o=r {} +
 
 say "checks"
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -203,6 +207,13 @@ find "$IMASDB" -type d ! -perm -o+rx -print
 echo "-- files under IMASDB lacking others r (want none)"
 find "$IMASDB" -type f ! -perm -o+r -print
 [ -z "$(find "$IMASDB" -type f ! -perm -o+r -print -quit)" ] || fail "a file lacks others r"
+
+echo "-- executable files under IMASDB lacking others r-x (want none)"
+find "$IMASDB" -type f -perm -u+x ! -perm -o+rx -print
+[ -z "$(find "$IMASDB" -type f -perm -u+x ! -perm -o+rx -print -quit)" ] \
+  || fail "an executable lacks others r-x"
+echo "-- the launcher and the managed interpreter (want others r-x)"
+stat -c '%A %a %n' "$BINDIR/imas-alambic" "$PY312_BIN"
 
 echo "-- files and directories under IMASDB granting others write (want none)"
 # A symlink's own mode is always 0777 and carries no permissions; the target's
