@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T15:54:33.337Z",
+  "dispatched_at": "2026-10-06T15:46:39Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/gs/artifact_resolution.py:69-78",
+      "id": "duplicate_owner-1",
+      "reason": "the author should either make the registry map the pin table's single source (rows carry expected digest beside the registry) or state why the freeze must be a separate owner, so a reader is not left with two machine\u2192digest tables.",
+      "text": "the plan replaces the three `PINNED_*` constants with a machine-keyed table, and at the same time makes `default_registry` in imas_ambix/gs/machine_identity.py:145 machine-keyed with \"one cached registry per machine\"; `PINNED_REGISTRY_DIGEST` is a hard-coded expectation of exactly the digest that `default_registry(machine).registry_digest` returns, so a machine's identity now has two owners and the two can drift (a registry bump leaves the pin table stale with no shared enforcement point)",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "3195cb5faf9981c9bfa57289edaad5be6b3dcffcc17afbd8a986ab37d9fedce4",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 162,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T15:55:37.578614+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T15:55:37.578614+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v162.json",
+  "review_run_id": "r-20261006T154632564446-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "273b9278e03bbf673b2face2862a5a51d29265b7",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the two new public readers \u00a76 names (`read_catalogue_observation` in imas_ambix/data/cocos_convention.py and `measure_convention(records, eligibility, *, shots)` in imas_ambix/challenge/convention.py) sit over a single extracted private kernel shared with `read_level2_observation` and `measure_diiid_convention`, so one behaviour is hidden behind one interface; the EQDB read is a tagged extension of the existing `RemoteEddbExtractor.fetch_batch` (imas_ambix/data/eddb_remote.py:283) and the grid writer reuses the extracted `eddb.py` helpers (imas_ambix/data/eddb.py:210), not a parallel stack.",
+    "duplicate_owner": "a finding \u2014 \u00a77 introduces a machine-keyed pin table in imas_ambix/gs/artifact_resolution.py while separately making `default_registry` machine-keyed in imas_ambix/gs/machine_identity.py:145; the pin table's registry-digest column is derivable from the registry object the second table returns, and the plan does not name which owns a machine's identity.",
+    "interface_budget": "pass \u2014 supplied figures public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds public surface names its retirement or states why nothing can be \u2014 \u00a72 exporter \"retires nothing\", \u00a73 \"adds two modules and two refusal families ... retire nothing\", \u00a75 \"adds one schema field and retires nothing\" and \"adds one data file and no public definition or refusal family\", \u00a76 \"retires one public definition and adds none\" plus each new reader \"retires nothing, because no catalogue-driven observation reader exists\", \u00a77 \"retires three public definitions and their re-export, and adds one, the table\" and the shot set \"retires and merges nothing\".",
+    "reuse_search": "pass \u2014 every mechanism the design cites was opened and confirmed to exist: `load_packaged_signal_map` and `VirtualZarrView` (imas_ambix/data/signal_map.py, imas_ambix/data/virtual_zarr.py:89), the sign scorer and its kernel owners `score_convention`/`read_level2_observation`/`MAST_TO_COCOS_17_FACTORS` (imas_ambix/data/cocos_convention.py:329,490,430), `project_poloidal_field` (imas_ambix/cocos.py:113, used by gs/operator.py:214), `judge_geometry`/`read_efit_geometry`/`evaluator_context` (imas_ambix/eval/efit_referee.py:272,120,80), `MachineArtifactGeometrySource`, the spine `_magnetics_residual` (imas_ambix/spine_bench/runner.py:161), and the DD-driven COCOS class lookup `_target_cocos_transformation` (imas_ambix/data/transform_engine.py:411) which resolves the label from `imas.IDSFactory(...).metadata.cocos_label_transformation` rather than a hand list, matching \u00a76's claim; the plan reuses each rather than rebuilding it.",
+    "thin_wrapper": "pass \u2014 the two SELENE/FAME loaders are adapters that plug into existing seams (`read_efit_geometry(shot_id, frame_times, loader=...)` at imas_ambix/eval/efit_referee.py:120 and the packaged signal map) rather than new machineries, and the plan names in each case why the owner cannot simply absorb the case (DIII-D eligibility hard-coded in `measure_diiid_convention`, imas_ambix/challenge/convention.py:266)."
+  },
+  "section_digests": {
+    "_document": "62723cd7583dc5b18a64491724a048c3d8c8b0e2245109da9998ff5051244217",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "0e95ce9e5fe16bf2fc91efb14b507599ae7bd4fa1ba88874646985904558979c",
+    "s6": "0158eaaca719ec64e089a038d03febc817a42cf3c247eb066c09fc78ecc761da",
+    "s7": "f071650f88394d3fdaaae7be410f25eaa490fe4341e244b3eb4a744375b82452",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T15:55:24.539682+00:00"
+}

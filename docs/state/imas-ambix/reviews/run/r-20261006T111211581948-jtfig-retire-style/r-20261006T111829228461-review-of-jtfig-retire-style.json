@@ -1,0 +1,86 @@
+{
+  "absent": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed run declares no test file in its write paths and its manifest records baseline_suite and after_suite both empty - there is no suite gate log for either arm (its sole gate log, gate.log, carries the path/grep/link/ruff checks, not a pytest summary). Derived from the reviewed run's own baseline_suite and after_suite this is 0 failures on each side, so added_failure_count = 0 over an empty failure set. The node is a pure deletion of unreferenced code with no test in scope, so a zero pre/post delta is the expected measurement rather than a gap; this review still re-ran the whole-tree ruff gate at the reviewed head (exit 0, 'All checks passed!') and confirmed no importer remains.",
+  "after_suite": {},
+  "baseline_suite": {},
+  "blockers": [],
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-06T11:23:19.694Z",
+  "dispatched_at": "2026-10-06T11:18:36Z",
+  "evidence_inputs": [
+    "Reviewed commit: bd84e83dee640044a0eb245dc4498da1d26cb023; base c221494ffb87b8c5de7765fa33e21b6fe27fab0f. The commit is not an ancestor of the review worktree's HEAD (1a5db0b6), so it was read from a git-archive extraction of the object store, not from the worktree.",
+    "Done-when reproduced in scratch at bd84e83d: three paths absent (ls-tree empty); 'git grep -n plot_style -- imas_ambix scripts tests' exit 1 with no line; fragment src/href grep empty (exit 1); ruff check imas_ambix tests exit 0 'All checks passed!'.",
+    "Whole-tree grep for plot_style / figures_jt60sa_geometry / jt60sa-palette at bd84e83d hits only documentation records (docs/plans/..., docs/evidence/archive/..., the candidate fragment's <code> mentions, and committed docs/state run JSON) - no importer of the retired module remains.",
+    "The reviewed manifest's baseline_suite and after_suite are both empty; the run declares no test file in its write paths, so no suite arm exists and added_failure_count is 0 over an empty failure set.",
+    "Section 1b status remains 'implementable' at bd84e83d - the node did not close its own section, consistent with the worker/coordinator contract.",
+    "Follow-on the reviewed node itself flagged: docs/plans/jt60sa-geometry-and-signal-figures.html sections 1 and 1b and the archive still carry text references to the retired paths (plain text, not links), outside the node's write scope."
+  ],
+  "failure_attribution": {},
+  "findings": [],
+  "follow_ons": [
+    "The reviewed node wrote no evidence fragment of its own (docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-retire-style.html is absent) and recorded itself as 'small' although its diff is 23,499 changed lines and deletes product source; the dispatch's done-when artifact clause arguably barred evidence prose, so this is a convention question for the coordinator rather than a defect of the delivery - the withdrawal is fully recorded in the edited candidate fragment and the landing line.",
+    "docs/plans/jt60sa-geometry-and-signal-figures.html sections 1 and 1b and docs/evidence/archive/jt60sa-geometry-and-signal-figures-landed.html still describe the retired flow and name the retired paths; the section's own record update owns correcting them."
+  ],
+  "gate_logs": {
+    "link_check_positive_control": {
+      "completed": true,
+      "exit_status": 0,
+      "note": "The empty link-grep was falsified before being trusted: the fragment's own <code> mentions of the retired paths (lines 10, 11, 31) are plain text and the grep pattern requires an attribute form, so the grep is not merely blind to the file - a reintroduced '<img src=\"...\">' matches the pattern. The node recorded the same hand falsification in its manifest negative_control_note.",
+      "revision": "bd84e83dee640044a0eb245dc4498da1d26cb023"
+    },
+    "review_head_rereproduce": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T111829228461-review-of-jtfig-retire-style/review_gate_head.log",
+      "note": "four done-when checks re-run independently against the reviewed head: the three paths absent from git ls-tree (empty, exit 0); 'git grep -n plot_style -- imas_ambix scripts tests' prints nothing (exit 1); 'grep -oE (src|href)=\"[^\"]+\"' on the fragment prints nothing (exit 1); 'ruff check imas_ambix tests' -> 'All checks passed!' (exit 0).",
+      "revision": "bd84e83dee640044a0eb245dc4498da1d26cb023",
+      "tree": "$TMPDIR/review-jtfig-retire.cQDn6l/head (git archive of bd84e83d)"
+    }
+  },
+  "item_verdicts": {
+    "call_sites": "No production call site references the removed module. 'git grep -n plot_style' over the whole reviewed tree returns only documentation records (the plan, the fragment, the archive, and committed run-state JSON) - no importer in imas_ambix, scripts or tests. scripts/figures_jt60sa_geometry.py was a standalone entry point with no importer.",
+    "diff": "Read the full commit. Deletions: imas_ambix/plot_style.py (147 lines), scripts/figures_jt60sa_geometry.py (520 lines), and nine palette artifacts. Edit: the fragment gains one <p> before Candidate A ('The palette candidates were withdrawn when the lead ruled on 2026-10-06 that JT-60SA figures render through imas-ink.') and loses the three <img> children of figures A/B/C; all prose, role-to-colour tables and verdict blocks are kept. No source outside the retired set is modified and no new code is added.",
+    "done_when": "All four named checks reproduce independently at the reviewed head bd84e83d: (1) the three paths are gone (git ls-tree -r --name-only over plot_style.py / figures_jt60sa_geometry.py / jt60sa-palette returns empty, exit 0); (2) 'grep -rn plot_style imas_ambix scripts tests' prints nothing - run as 'git grep -n plot_style -- imas_ambix scripts tests' it returns exit 1 with no line; (3) the fragment links no deleted file ('grep -oE (src|href)=\"[^\"]+\"' returns nothing, exit 1); (4) 'ruff check imas_ambix tests' at the reviewed head exits 0 with 'All checks passed!'. The single commit adds the one withdrawal sentence and removed exactly the three image links.",
+    "goal": "Plan jt60sa-geometry-and-signal-figures 1b: 'The lead ruled on 2026-10-06 that the JT-60SA figures render through imas-ink, called from ambix, in imas-ink's own style with no labels, and that the repository palette is dropped. 1's landing is therefore retired: this section deletes imas_ambix/plot_style.py, the hand-drawn scripts/figures_jt60sa_geometry.py (2 writes its replacement) and docs/figures/jt60sa-palette/, and replaces the image links in ...jtfig-palette-candidates.html with one sentence saying the candidates were withdrawn under that ruling, so the record of what landed stays readable. It adds nothing.'",
+    "manifest": "Read at bd84e83d. manifest.md records status complete, the one commit [bd84e83d], the changed paths, the gate command and its exit-0 result, and a landing line; changed_paths and tests reconcile with the tree. baseline_suite and after_suite are both empty, consistent with a node that declares no test file in its write paths; negative_control_log is empty with a note recording the hand falsification of the link-check instrument.",
+    "write_paths": "The range touches exactly the node's declared write scope. git diff --stat c221494f..bd84e83d lists 12 paths: imas_ambix/plot_style.py, scripts/figures_jt60sa_geometry.py, nine files under docs/figures/jt60sa-palette/ (3 svg + 3 png + 3 validate txt) and docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-palette-candidates.html. Nothing outside the granted paths is touched; the granted-but-unused jtfig-retire-style.html fragment and jtfig-retire-style figure directory were left unwritten (permitted, not obligatory)."
+  },
+  "justifications": {
+    "durability": "Landed as one conventional commit (chore(plots): retire the ambix plot style module and palette figures) with a body stating what changed and why (the lead's 2026-10-06 ruling), no AI attribution and no plan or ticket identifiers; the deletion is permanent and recoverable from history. Docked three: nothing pins the retirement. A pure deletion of unreferenced code arguably needs no guard, but there is also no test asserting plot_style is gone, so a future reintroduction would surface only through a fresh call-site grep rather than a suite failure.",
+    "evidence": "Independently reproduced from a scratch extraction of the reviewed head (git archive of bd84e83d under $TMPDIR; the reviewed tree was never mutated). All four done-when checks re-ran to the same result as the node's gate.log: paths absent, grep empty (exit 1), no fragment src/href (exit 1), ruff 'All checks passed!' (exit 0). The node's hand falsification of the link-check instrument is sound and this review repeats its logic. Docked two because the reviewed run's own record rests on an absence grep and the empty baseline/after suite pair carries no delta, and because it calls itself a small node while its diff is 23,499 changed lines with a product-source deletion - the node's own evidence_inputs justify 'small' via the dispatch's done-when artifact clause rather than the stated size rule, so its self-classification is not readable from its manifest alone.",
+    "fit": "Follows the repository and section conventions: a conventional chore subject with a two-part message, a scope limited to the retire flow 1b describes, and prose that names the ruling and its date in mechanism terms rather than citing a plan label.",
+    "goal_fidelity": "Every element the section 1b paragraph names is delivered and shown: the three paths are removed from the tree, the candidate fragment keeps its text with the image links replaced by the one withdrawal sentence the section specifies, and the grep/ruff checks the done-when names are green. The section adds nothing, and the commit adds no new mechanism - it is the retirement 1b describes.",
+    "reuse": "Pure removal - no new code and no new dependency. The replacement figure path is explicitly deferred to 2 by the section, so this node correctly reuses nothing new and adds nothing to reuse.",
+    "scope_discipline": "The commit is confined to the four distinct granted paths (two source files and one figure directory deleted, one in-scope fragment edited). It touches no rule, test, config or plan file, and no caller of the removed code is left dangling because none exists. The granted jtfig-retire-style fragment and figure directory were left unwritten."
+  },
+  "node": "review-of-jtfig-retire-style",
+  "prior_review": null,
+  "project": "imas-ambix",
+  "review_run_id": "r-20261006T111829228461-review-of-jtfig-retire-style",
+  "review_scope": "Whole of node jtfig-retire-style (one commit, base c221494f to head bd84e83d): 1b retires the withdrawn palette landing. The commit deletes imas_ambix/plot_style.py, scripts/figures_jt60sa_geometry.py and docs/figures/jt60sa-palette/ (11 files, 23,494 deleted lines) and replaces the three <img> links in the jtfig-palette-candidates fragment with one sentence recording the withdrawal; diff stat 5 insertions, 23,494 deletions across 12 paths, all inside the node's declared write scope. Read at bd84e83d: the full diff of the commit, the edited fragment, and the reviewed manifest. Verified independently from a git-archive extraction of the reviewed head under $TMPDIR (never the reviewed tree): the four done-when checks re-run in both directions.",
+  "reviewed_base_sha": "c221494ffb87b8c5de7765fa33e21b6fe27fab0f",
+  "reviewed_commits": [
+    "bd84e83dee640044a0eb245dc4498da1d26cb023"
+  ],
+  "reviewed_head_sha": "bd84e83dee640044a0eb245dc4498da1d26cb023",
+  "reviewed_run_id": "r-20261006T111211581948-jtfig-retire-style",
+  "reviewer": "review-of-jtfig-retire-style",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T11:21:43+00:00",
+  "total": 114,
+  "verification_logs": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T111829228461-review-of-jtfig-retire-style/review_gate_head.log"
+  ]
+}

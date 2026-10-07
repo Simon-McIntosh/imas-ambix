@@ -1,0 +1,55 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "claude",
+  "call_site_count": 4,
+  "call_sites": [
+    "reckon/crew/dispatch.py:4538 placement_job_id reads job_id_probe",
+    "reckon/crew/runs.py:2772 scheduler_job_state builds state_query",
+    "reckon/crew/runs.py:2697 scheduler_job_reason builds reason_query",
+    "reckon/crew/dispatch.py:2438 check_placement_requirements refuses a scheduler-declared placement missing either query"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T05:21:25.857477+00:00",
+  "findings": [
+    {
+      "file": "docs/state/imas-ambix/flight.yaml",
+      "line": "35",
+      "text": "reason_query declares squeue's %r field while the file's own established sibling, RESERVATION_REASON_QUERY in reckon/crew/placement.py:69, uses %R; the two are different squeue formats (%R reports the allocated node list rather than a reason once a job is running) and the new declaration's comment does not explain the divergence, so a future reader cannot tell whether %r was a deliberate correction or an inconsistency, though the live evidence (a reason of None rather than a node name) suggests it is the more correct choice for this consumer."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 4 production call site(s)",
+    "diff": "read commit by commit against base 3949d381; 9559fbd4 adds seven lines to docs/state/imas-ambix/flight.yaml declaring the three keys, and 9fa10b1e adds only the plan comment, the evidence section and the figure, with no code change.",
+    "done_when": "the done-when named six clauses; I independently reproduced the before/after dry-run pair (exit 1 naming both missing queries, then exit 0 with dry_run true and zero findings), reran the job id probe (Fleet allocation 1274732 RUNNING on 98dci4-clu-2002), both live squeue queries (state RUNNING, reason None) and the literal-id grep (exit 1, no match), each matching the node's own log verbatim.",
+    "goal": "the goal is that reckon can ask the scheduler about a job the clive placement wrapper started rather than trusting a launcher pid on the wrong host; docs/state/imas-ambix/flight.yaml:33-35 declares job_id_probe, state_query and reason_query beside the existing scheduler: imas-ambix wrapper, and reckon/crew/dispatch.py:4538 and reckon/crew/runs.py:2697,2772 already consume exactly those three keys, so the declaration reaches real, already-implemented machinery rather than an inert schema field.",
+    "manifest": "read; it states the gate command and its result and names the log the receipt came from, and it explicitly declares the merged-head and end-to-end dispatch verification as coordinator-owned rather than claiming them.",
+    "write_paths": "git diff 3949d381..9fa10b1e touches exactly the four declared paths (flight.yaml, the archive record, the figure directory, the plan comment) and nothing outside the fence."
+  },
+  "justifications": {
+    "durability": "reckon/crew/dispatch.py:2438 check_placement_requirements already refused the pre-change config at exit 1 and will refuse again if state_query or reason_query is ever dropped, but that guard function itself carries no dedicated unit test in reckon's own suite (grep for check_placement_requirements and placement_query_undeclared under reckon/tests found none), so the durability rests on a coordinator-side check that could regress silently in a future reckon change.",
+    "evidence": "the node's log at ~/.config/reckon/crew/runs/r-20260922T195432401622-placement-answers-the-scheduler/placement-scheduler-queries.log reproduces verbatim in the archive table, I reran the exit-1-then-exit-0 dry-run pair, the job-id probe, both live squeue answers and the literal-id grep myself and got the same output, and reckon audit-doc and xmllint both pass on the changed HTML and SVG.",
+    "fit": "state_query mirrors the existing RESERVATION_STATE_QUERY squeue %T convention at reckon/crew/placement.py:68, but reason_query uses %r where the file's own RESERVATION_REASON_QUERY constant at :69 uses %R, a different squeue field (%R prints the allocated node list for a running job, confirmed live: %r answered None for job 1274732 rather than a node name); the choice is defensible and the live answer is sensible, but the divergence from the established sibling constant is undocumented in the new config comment.",
+    "goal_fidelity": "the three declared keys are read by reckon's already-implemented placement_job_id/scheduler_job_state/scheduler_job_reason (reckon/crew/dispatch.py:4538, reckon/crew/runs.py:2697,2772), and the live job id probe's sole digit token (1274732) matches the identifier both live squeue queries answered against, so the mechanism the goal describes is demonstrated against the real held allocation rather than only declared.",
+    "scope_discipline": "git diff 3949d381..9fa10b1e lists exactly the four declared write paths and no others."
+  },
+  "model": "claude-sonnet-5",
+  "project": "imas-ambix",
+  "raw_text": "REVISION: 9fa10b1e7b7a7fafc98c840c9fa649adddb3d3c1\nreviewed_base: 3949d3810bd0087ffad22be1cae1dceafa8733cb\nreviewed_commit: 9fa10b1e7b7a7fafc98c840c9fa649adddb3d3c1\nVERDICT goal: the goal is that reckon can ask the scheduler about a job the clive placement wrapper started rather than trusting a launcher pid on the wrong host; docs/state/imas-ambix/flight.yaml:33-35 declares job_id_probe, state_query and reason_query beside the existing scheduler: imas-ambix wrapper, and reckon/crew/dispatch.py:4538 and reckon/crew/runs.py:2697,2772 already consume exactly those three keys, so the declaration reaches real, already-implemented machinery rather than an inert schema field.\nVERDICT done_when: the done-when named six clauses; I independently reproduced the before/after dry-run pair (exit 1 naming both missing queries, then exit 0 with dry_run true and zero findings), reran the job id probe (Fleet allocation 1274732 RUNNING on 98dci4-clu-2002), both live squeue queries (state RUNNING, reason None) and the literal-id grep (exit 1, no match), each matching the node's own log verbatim.\nVERDICT write_paths: git diff 3949d381..9fa10b1e touches exactly the four declared paths (flight.yaml, the archive record, the figure directory, the plan comment) and nothing outside the fence.\nVERDICT manifest: read; it states the gate command and its result and names the log the receipt came from, and it explicitly declares the merged-head and end-to-end dispatch verification as coordinator-owned rather than claiming them.\nVERDICT diff: read commit by commit against base 3949d381; 9559fbd4 adds seven lines to docs/state/imas-ambix/flight.yaml declaring the three keys, and 9fa10b1e adds only the plan comment, the evidence section and the figure, with no code change.\nCALL_SITES: reckon/crew/dispatch.py:4538 placement_job_id reads job_id_probe, reckon/crew/runs.py:2772 scheduler_job_state builds state_query, reckon/crew/runs.py:2697 scheduler_job_reason builds reason_query, reckon/crew/dispatch.py:2438 check_placement_requirements refuses a scheduler-declared placement missing either query\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: the three declared keys are read by reckon's already-implemented placement_job_id/scheduler_job_state/scheduler_job_reason (reckon/crew/dispatch.py:4538, reckon/crew/runs.py:2697,2772), and the live job id probe's sole digit token (1274732) matches the identifier both live squeue queries answered against, so the mechanism the goal describes is demonstrated against the real held allocation rather than only declared.\nSCORE evidence: 19\nJUSTIFICATION evidence: the node's log at ~/.config/reckon/crew/runs/r-20260922T195432401622-placement-answers-the-scheduler/placement-scheduler-queries.log reproduces verbatim in the archive table, I reran the exit-1-then-exit-0 dry-run pair, the job-id probe, both live squeue answers and the literal-id grep myself and got the same output, and reckon audit-doc and xmllint both pass on the changed HTML and SVG.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff 3949d381..9fa10b1e lists exactly the four declared write paths and no others.\nSCORE durability: 17\nJUSTIFICATION durability: reckon/crew/dispatch.py:2438 check_placement_requirements already refused the pre-change config at exit 1 and will refuse again if state_query or reason_query is ever dropped, but that guard function itself carries no dedicated unit test in reckon's own suite (grep for check_placement_requirements and placement_query_undeclared under reckon/tests found none), so the durability rests on a coordinator-side check that could regress silently in a future reckon change.\nSCORE fit: 18\nJUSTIFICATION fit: state_query mirrors the existing RESERVATION_STATE_QUERY squeue %T convention at reckon/crew/placement.py:68, but reason_query uses %r where the file's own RESERVATION_REASON_QUERY constant at :69 uses %R, a different squeue field (%R prints the allocated node list for a running job, confirmed live: %r answered None for job 1274732 rather than a node name); the choice is defensible and the live answer is sensible, but the divergence from the established sibling constant is undocumented in the new config comment.\nFINDING docs/state/imas-ambix/flight.yaml:35 reason_query declares squeue's %r field while the file's own established sibling, RESERVATION_REASON_QUERY in reckon/crew/placement.py:69, uses %R; the two are different squeue formats (%R reports the allocated node list rather than a reason once a job is running) and the new declaration's comment does not explain the divergence, so a future reader cannot tell whether %r was a deliberate correction or an inconsistency, though the live evidence (a reason of None rather than a node name) suggests it is the more correct choice for this consumer.\n",
+  "review_run_id": "r-20260923T052125857477-review-of-placement-answers-the-scheduler",
+  "reviewed_base_sha": "3949d3810bd0087ffad22be1cae1dceafa8733cb",
+  "reviewed_head_sha": "9fa10b1e7b7a7fafc98c840c9fa649adddb3d3c1",
+  "reviewed_run_id": "r-20260922T195432401622-placement-answers-the-scheduler",
+  "scores": {
+    "durability": 17,
+    "evidence": 19,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-23T05:27:07.681089+00:00",
+  "total": 93
+}

@@ -1,0 +1,85 @@
+{
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed run's manifest records no baseline_suite or after_suite gate log (a figure node with no pytest suite), so the added-failure count was not taken",
+  "blockers": "none",
+  "call_site_count": 1,
+  "call_sites": [
+    "scripts/figures_jt60sa_geometry.py:main"
+  ],
+  "completed_at": "2026-10-06T05:53:57.541Z",
+  "dispatched_at": "2026-10-06T05:42:35Z",
+  "evidence_inputs": "Delta reviewed base eb7b8f63 -> head 01eb5bd3 (commit 01eb5bd3 only). Map advanced DURING review: a further commit 369a705d (\"feat(figures): validate candidate palettes inside the render script\", committed 2026-10-06T05:44:58Z, after dispatch at 05:42:35Z) landed after this node's pinned head. 369a705d closes the prior review's finding that the dE verdict was produced outside the repository: it builds the validator hex list from CANDIDATES and exits non-zero on failure, and commits docs/figures/jt60sa-palette/validate_{A-blue-vessel,B-green-vessel,C-gold-vessel}.txt. It is NOT covered by this review; dispatch a follow-up review for eb7b8f63..369a705d. The plan currently has open_decisions: [] and the run is still in_flight, so the section-1 `palette` open decision is not yet on the plan; ensure it lands at promotion.",
+  "findings": [
+    {
+      "file": "scripts/figures_jt60sa_geometry.py",
+      "line": "104",
+      "severity": "follow-on",
+      "text": "Shape.points() claims every vertex for the axis window but returns only the primary point(s), so _gather_extent under-covers non-rectangle elements (rectangle contributes its centre only, annulus its centre without radius_outer, oblique its start without its endpoint); harmless here because every element is a rectangle, but the guard does not measure what it claims."
+    },
+    {
+      "file": "scripts/figures_jt60sa_geometry.py",
+      "line": "252",
+      "severity": "follow-on",
+      "text": "_draw_shape ignores the declared thickness for thick_line and oblique, drawing both at a fixed linewidth 2.0; unreachable in this store (every element geometry_type=2)."
+    }
+  ],
+  "follow_ons": "Review commit 369a705d (landed after this node's pinned head 01eb5bd3): it adds in-script palette validation and the three validate_*.txt records. Confirm its write_text of validate_<name>.txt is intended to land beside the figures, and that its hard-coded VALIDATOR path /home/ITER/mcintos/.cache/dataviz/validate_palette.js is acceptable for a repo script (a machine-specific absolute path outside the repository).",
+  "gate_logs": {
+    "palette_validator": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T054229483050-review-of-jtfig-palette-candidates/review_verification.log"
+    },
+    "ruff": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T054229483050-review-of-jtfig-palette-candidates/gate_ruff_review.log",
+      "revision": "01eb5bd399ef3ae1573e1dad8847483b82b05f21"
+    }
+  },
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "Read commit 01eb5bd3 against its base eb7b8f63: it repaints every role non-red, replaces Rectangle2D with a per-geometry-type Shape and per-unit wall polylines, fits the axis window to the drawn extent and moves family labels into margin anchors with leaders, replacing six candidate figures and the fragment; all inside the declared scope.",
+    "done_when": "The done-when requires plot_style.py applying data-ink, two-to-four candidate cross-sections under docs/figures/jt60sa-palette/ each captioned with its role-to-colour table and a dE check, an evidence fragment showing them, and a landing recording an open decision palette; all are present, the fragment docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-palette-candidates.html carrying three tables and three verdict blocks and the manifest landing recording the palette decision.",
+    "goal": "The node goal is section 1 of jt60sa-geometry-and-signal-figures: a data-ink style module with named colour roles and two-to-four candidate palettes rendered on the real OP1/OP2 store; imas_ambix/plot_style.py:100 and scripts/figures_jt60sa_geometry.py:305 land both.",
+    "manifest": "Read; it records commits eb7b8f63 and 01eb5bd3, the ruff gate (All checks passed, EXIT=0) and the per-candidate validate_palette.js run (ALL CHECKS PASS, EXIT=0), names gate_ruff.log and gate_palette_validator.log, and states baseline_suite and after_suite are absent because the node has no pytest suite.",
+    "write_paths": "The manifest declares imas_ambix/plot_style.py, scripts/figures_jt60sa_geometry.py, docs/figures/jt60sa-palette, docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-palette-candidates.html and docs/figures/jt60sa-geometry-and-signal-figures/jtfig-palette-candidates; every path in the delta eb7b8f63..01eb5bd3 is inside them."
+  },
+  "justifications": {
+    "durability": "The delta adds no test and no assertion; the two runtime guards it carries are exercised by no landed check, so a regression in either would leave every recorded gate green.",
+    "evidence": "I re-ran validate_palette.js against the landed CANDIDATES (scripts/figures_jt60sa_geometry.py:61) and reproduced all three fragment verdicts exactly, including contrast vs both #fcfcfb and pure #ffffff, so the recorded dE check reads the drawn colours; the only gap is that the check is still run outside the repository at this revision.",
+    "fit": "scripts/figures_jt60sa_geometry.py:335 places each direct label in the padded margin with a thin leader per the data-ink style, and no forbidden plan or ticket name appears in the diff.",
+    "goal_fidelity": "imas_ambix/plot_style.py:100 applies the data-ink sheet and names six non-red component roles plus three reference neutrals, and scripts/figures_jt60sa_geometry.py:305 renders three candidates on the store addressed through load_packaged_machine_map(\"jt-60sa\").",
+    "reuse": "A search across imas_ambix/ and scripts/ found no existing plotting style module and no second cross-section drawer on this store, and the delta extends plot_style.py's palette/direct_label/apply_data_ink rather than forking them.",
+    "scope_discipline": "git diff eb7b8f63..01eb5bd3 touches only imas_ambix/plot_style.py, scripts/figures_jt60sa_geometry.py, the six jt60sa-palette figures and the fragment, all inside the manifest's declared write paths."
+  },
+  "node": "review-of-jtfig-palette-candidates",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: section 1 of jt60sa-geometry-and-signal-figures is a data-ink style module with named colour roles and two-to-four candidate palettes on the real OP1/OP2 store; imas_ambix/plot_style.py:100 and scripts/figures_jt60sa_geometry.py:305 land both.\nVERDICT done_when: the done-when requires plot_style.py applying data-ink, two-to-four candidate cross-sections each captioned with a role-to-colour table and a dE check, an evidence fragment showing them and a landing recording an open decision palette; all present, the fragment carrying three tables and three verdict blocks.\nVERDICT write_paths: the manifest declares imas_ambix/plot_style.py, scripts/figures_jt60sa_geometry.py, docs/figures/jt60sa-palette and the evidence fragment; the delta eb7b8f63..01eb5bd3 touches only those.\nVERDICT manifest: read; it records commits eb7b8f63 and 01eb5bd3, the ruff gate (All checks passed, EXIT=0) and the per-candidate validate_palette.js runs, names gate_ruff.log and gate_palette_validator.log, and records no baseline_suite/after_suite (a figure node with no pytest suite).\nVERDICT diff: read commit 01eb5bd3 against base eb7b8f63: it repaints the palette non-red, replaces Rectangle2D with a per-geometry-type Shape and per-unit wall polylines, opens the axis window from the drawn extent and moves family labels into margin anchors, replacing six figures; all inside the declared paths.\nCALL_SITES: scripts/figures_jt60sa_geometry.py:main\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/plot_style.py:100 applies the data-ink sheet and names six non-red component roles, and scripts/figures_jt60sa_geometry.py:305 draws each candidate on the store addressed through load_packaged_machine_map(\"jt-60sa\").\nSCORE evidence: 16\nJUSTIFICATION evidence: I re-ran validate_palette.js against the landed CANDIDATES in scripts/figures_jt60sa_geometry.py:61 and reproduced all three fragment verdicts exactly (A 12.2/15.9, B 9.4/16.2, C 8.2/15.9; contrast PASS vs #fcfcfb and vs #ffffff), so the recorded dE check reads the drawn colours.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: git diff eb7b8f63..01eb5bd3 touches only imas_ambix/plot_style.py, scripts/figures_jt60sa_geometry.py, the six jt60sa-palette figures and the fragment, all inside the manifest's declared write paths.\nSCORE durability: 6\nJUSTIFICATION durability: the delta adds no test; the two runtime guards it carries (palette()'s unknown-role KeyError at imas_ambix/plot_style.py:114 and _shape_from_geometry's unknown geometry_type ValueError at scripts/figures_jt60sa_geometry.py:140) are exercised by no landed assertion, so either could regress green.\nSCORE fit: 18\nJUSTIFICATION fit: scripts/figures_jt60sa_geometry.py:335 places each direct label in the padded margin with a leader per the data-ink style, and no forbidden plan or ticket identifier appears in the diff.\nSCORE reuse: 18\nJUSTIFICATION reuse: the delta extends imas_ambix/plot_style.py's palette/direct_label/apply_data_ink rather than forking them; a search of imas_ambix/ and scripts/ found no other plotting-style owner and no second cross-section drawer on this store.\nFINDING scripts/figures_jt60sa_geometry.py:104 follow-on: Shape.points() is documented \"Every vertex of this shape, for the axis window\" but returns only the shape's primary point(s) - for a rectangle the centre alone, for an annulus the centre without radius_outer, for an oblique the start without its length/alpha endpoint - so _gather_extent (line 289) under-covers any non-rectangle element and a large annulus or oblique could be clipped; harmless in this store where every element is a rectangle and the padding is 45%, but the guard does not measure what it claims.\nFINDING scripts/figures_jt60sa_geometry.py:252 follow-on: _draw_shape ignores the declared thickness for \"thick_line\" and \"oblique\" (both drawn at a fixed linewidth 2.0), so such an element would render thinner than the store declares; unreachable in this store where every element is geometry_type=2.\nreviewed_base_sha: eb7b8f63f92336cb64329ce8c25b5e0bc89c3f03\nreviewed_head_sha: 01eb5bd399ef3ae1573e1dad8847483b82b05f21",
+  "review_run_id": "r-20261006T054229483050-review-of-jtfig-palette-candidates",
+  "review_scope": "Section-1 palette delta gained since the prior review: commit 01eb5bd3 against base eb7b8f63 (non-red palette repaint, per-geometry-type element drawing, per-unit wall polylines, extent-fitted axis window and margin labels, six regenerated candidate figures and the fragment); read-only, no re-render of the store figures.",
+  "reviewed_base_sha": "eb7b8f63f92336cb64329ce8c25b5e0bc89c3f03",
+  "reviewed_commits": [
+    "01eb5bd399ef3ae1573e1dad8847483b82b05f21"
+  ],
+  "reviewed_head_sha": "01eb5bd399ef3ae1573e1dad8847483b82b05f21",
+  "reviewed_run_id": "r-20261006T050045657647-jtfig-palette-candidates",
+  "reviewer": "review-of-jtfig-palette-candidates",
+  "scores": {
+    "durability": 6,
+    "evidence": 16,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T05:52:31.348159+00:00",
+  "total": 96,
+  "verification_logs": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T054229483050-review-of-jtfig-palette-candidates/review_verification.log"
+  ]
+}

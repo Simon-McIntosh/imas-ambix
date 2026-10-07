@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T19:01:30.077Z",
+  "dispatched_at": "2026-10-06T18:57:59Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/cocos_convention.py:759",
+      "id": "duplicate_owner-1",
+      "reason": "the plan's \u00a76 text rests on \"the reader reads each rule's source_group/source_array straight from the cache\", and naming the extension of the view instead removes a second resolver the plan currently creates.",
+      "text": "`read_signal_map_observation` re-implements the rule\u2192source-channel lookup (`rule.source_group`/`rule.source_array` \u2192 read) that `imas_ambix/data/virtual_zarr.py:130` `VirtualZarrView.__getitem__` already owns, so the mapping from a compiled rule to its raw array now has two owners that can drift; the plan justifies not reading *through* the view (it applies the assumed sign a `source-only` rule carries) but never considers the honest change, which is to give `VirtualZarrView` an untransformed accessor and read through it",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/machine_maps/jt-60sa-eddb-units.json:1",
+      "id": "duplicate_owner-2",
+      "reason": "",
+      "text": "\u2014 the packaged `units: {A, T, Wb}` table is a third place unit spellings live beside the signal-map rules' own per-rule `source_unit`/`target_unit` and the DD unit vocabulary `jtmm-unit-audit` reads from imas-python, and its only reader is `tests/data/test_jt60sa_signal_maps.py:38` \u2014 no runtime path loads it; WOULD_CHANGE_THE_PLAN: no \u2014 REASON: it is a landed, test-only identity table whose removal is a cleanup, not a design change, so it does not alter the plan's architecture.",
+      "type": "duplicate_owner",
+      "would_change": null
+    }
+  ],
+  "plan_fingerprint": "1ea1ac10c609774a492406cbc0fc35a248dd051ab6e3311fb5e79389be678702",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 212,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T19:03:03.027113+00:00"
+    },
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-2",
+      "reason": "the EDDB unit table is test-only by design: section 5 resolves each EDDB spelling when a binding is authored, never at run time, so its test is its intended consumer and the per-rule source_unit stays the runtime owner",
+      "when": "2026-10-06T19:03:19.479962+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T19:03:03.027113+00:00"
+    },
+    "duplicate_owner-2": {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "the EDDB unit table is test-only by design: section 5 resolves each EDDB spelling when a binding is authored, never at run time, so its test is its intended consumer and the per-rule source_unit stays the runtime owner",
+      "when": "2026-10-06T19:03:19.479962+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v212.json",
+  "review_run_id": "r-20261006T185741184496-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "4fc7fce5a52f63f6d959c7c5f91cbdcc62878e78",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new public surfaces are few and deep: `read_signal_map_observation` and `measure_convention` each hide the raw/equilibrium join and the Grad\u2013Shafranov scoring behind one signature, and the EQDB transport/record/writer extend `eddb_remote.py` and `eddb.py` rather than fanning out into per-concern wrappers.",
+    "duplicate_owner": "a finding \u2014 the \u00a76 observation reader resolves a signal-map rule to its raw channel itself, duplicating the resolution `VirtualZarrView.__getitem__` already owns; one further instance (the packaged EDDB unit table) is a duplicate vocabulary with no production consumer.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; each design section that adds public surface states in its own text what it retires or why nothing can (\u00a72 adds one exporter function and retires nothing because no exporter exists; \u00a76 retires `read_catalogue_observation` and adds `read_signal_map_observation`, adds two EQDB types retiring nothing; \u00a77 retires `PINNED_SEMANTIC_IDENTITY`/`PINNED_PHYSICAL_DIGEST`/`PINNED_REGISTRY_DIGEST` and their re-export while adding the machine-keyed pin table and the JT-60SA shot set).",
+    "reuse_search": "pass \u2014 every prospective change names the mechanism it extends and the owner exists in the tree (\u00a76 reuses `gs/operator.py` `build_operator`/`vacuum_prediction`/`assemble_pf_currents`, `eddb.read_channel`, `cocos_convention.score_convention`; \u00a77 reuses `eval/efit_referee.py` `judge_geometry`/`read_efit_geometry` and `gs/machine_identity.py` `default_registry`/`identity_for_shot`), and where the plan adds a format (tokamap) or transport (EQDB) it states why no owner can be extended.",
+    "thin_wrapper": "pass \u2014 where the plan adds a layer it says why the existing machinery cannot serve it (VirtualZarrView applies a compiled transform it must not apply; the tokamap exporter has no existing owner; the EQDB request/record are not channel-shaped). The one place that rejection was argued rather than the extension considered is filed below as a duplicate owner."
+  },
+  "section_digests": {
+    "_document": "62723cd7583dc5b18a64491724a048c3d8c8b0e2245109da9998ff5051244217",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "2ef06735d7b7e2a4c0173842a72c9702dd479b05a2090b411b6d2f7ad776f2e5",
+    "s7": "98cb613c0803ddc3cc31bcc07322fe88b7c08be5c7b6784f39a60e84c93f8ca4",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T19:02:47.531678+00:00"
+}

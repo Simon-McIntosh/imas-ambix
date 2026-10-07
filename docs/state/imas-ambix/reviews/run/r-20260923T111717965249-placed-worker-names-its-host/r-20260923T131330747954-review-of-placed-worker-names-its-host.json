@@ -1,0 +1,50 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T13:13:30.747954+00:00",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/placed-worker-host.md",
+      "line": "22",
+      "text": "two quoted values resolve against a superseded reading rather than the transcript the report names: the report quotes elapsed 6:17:17 and session-152862.scope (:46) from the 11:35 run of capture.sh, while gate.log was overwritten by the 11:40 re-run and now carries 6:22:22 (:10) and session-152874.scope (:29), so a reader checking the receipt finds different numbers than the claim beside them."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "there is no diff - the review worktree is clean at base 5e472aa83b2f277abc47f39ee0fb622a4a6a4120 (I checked rev-parse HEAD and git status --porcelain there), so the landed change is the report and its transcript, both outside version control.",
+    "done_when": "the done-when (prompt.txt:51-54) requires three executed hostname readings and a plain statement of the match; placed-worker-host.md:12-30 gives the three readings, :34-40 states the match to fleet status and the non-match to the login node, and gate.log:3,15,28 carry each value as command output rather than as prose.",
+    "goal": "the goal (prompt.txt:24-25) is that a dispatched worker reports which host it runs on so placement is established from inside the worker; the report at ~/.config/reckon/crew/reports/imas-ambix/placed-worker-host.md does exactly that and concludes the worker is inside held allocation 1276262 on 98dci4-clu-2002 while the login node is a different host.",
+    "manifest": "read and audited; tests, test_logs, negative_control and artifacts are accurate against gate.log, and changed_paths is emptied with the reckon scope-root limitation stated in follow_ons rather than left to fail at promotion.",
+    "write_paths": "the declared exclusive scope (prompt.txt:30-31) is the single report path; the report is there, capture.sh and gate.log sit in the run directory the role owns, and no repository file was touched."
+  },
+  "justifications": {
+    "durability": "nothing reddens if the wrapper stops placing workers - placed-worker-host.md:52-57 records the login-side reading only as a positive control that the instrument is not reading nothing.",
+    "evidence": "gate.log's worker hostname is produced by the worker process itself rather than by a command run on another host - stream.jsonl:1194 records a bare hostname in the worker's own Bash context printing 98dci4-clu-2002.iter.org thirteen minutes before capture.sh ran, the same shell's /proc/self/cgroup (gate.log:4) and SLURM_JOB_ID (gate.log:6) place it in slurmstepd step job_1276262/step_3, and the only value in the log produced on another host is the explicitly labelled login line from the ssh at capture.sh:33-36.",
+    "fit": "capture.sh:1-8 names each value by the mechanism that produced it, and no filename, symbol or comment carries a plan, sprint or ticket label.",
+    "goal_fidelity": "placed-worker-host.md:9-30 answers the goal's question from the worker's own reading rather than from the plan's configuration.",
+    "scope_discipline": "every artefact of the run sits at a path the declared scope or the role's run directory owns, and the review worktree's HEAD is unchanged at 5e472aa8."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the goal (prompt.txt:24-25) is that a dispatched worker reports which host it runs on so placement is established from inside the worker; the report at ~/.config/reckon/crew/reports/imas-ambix/placed-worker-host.md does exactly that and concludes the worker is inside held allocation 1276262 on 98dci4-clu-2002 while the login node is a different host.\nVERDICT done_when: the done-when (prompt.txt:51-54) requires three executed hostname readings and a plain statement of the match; placed-worker-host.md:12-30 gives the three readings, :34-40 states the match to fleet status and the non-match to the login node, and gate.log:3,15,28 carry each value as command output rather than as prose.\nVERDICT write_paths: the declared exclusive scope (prompt.txt:30-31) is the single report path; the report is there, capture.sh and gate.log sit in the run directory the role owns, and no repository file was touched.\nVERDICT manifest: read and audited; tests, test_logs, negative_control and artifacts are accurate against gate.log, and changed_paths is emptied with the reckon scope-root limitation stated in follow_ons rather than left to fail at promotion.\nVERDICT diff: there is no diff - the review worktree is clean at base 5e472aa83b2f277abc47f39ee0fb622a4a6a4120 (I checked rev-parse HEAD and git status --porcelain there), so the landed change is the report and its transcript, both outside version control.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: placed-worker-host.md:9-30 answers the goal's question from the worker's own reading rather than from the plan's configuration.\nSCORE evidence: 18\nJUSTIFICATION evidence: gate.log's worker hostname is produced by the worker process itself rather than by a command run on another host - stream.jsonl:1194 records a bare hostname in the worker's own Bash context printing 98dci4-clu-2002.iter.org thirteen minutes before capture.sh ran, the same shell's /proc/self/cgroup (gate.log:4) and SLURM_JOB_ID (gate.log:6) place it in slurmstepd step job_1276262/step_3, and the only value in the log produced on another host is the explicitly labelled login line from the ssh at capture.sh:33-36.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every artefact of the run sits at a path the declared scope or the role's run directory owns, and the review worktree's HEAD is unchanged at 5e472aa8.\nSCORE durability: 14\nJUSTIFICATION durability: nothing reddens if the wrapper stops placing workers - placed-worker-host.md:52-57 records the login-side reading only as a positive control that the instrument is not reading nothing.\nSCORE fit: 18\nJUSTIFICATION fit: capture.sh:1-8 names each value by the mechanism that produced it, and no filename, symbol or comment carries a plan, sprint or ticket label.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/placed-worker-host.md:22 two quoted values resolve against a superseded reading rather than the transcript the report names: the report quotes elapsed 6:17:17 and session-152862.scope (:46) from the 11:35 run of capture.sh, while gate.log was overwritten by the 11:40 re-run and now carries 6:22:22 (:10) and session-152874.scope (:29), so a reader checking the receipt finds different numbers than the claim beside them.\n",
+  "review_run_id": "r-20260923T131330747954-review-of-placed-worker-names-its-host",
+  "reviewed_base_sha": "5e472aa83b2f277abc47f39ee0fb622a4a6a4120",
+  "reviewed_head_sha": "5e472aa83b2f277abc47f39ee0fb622a4a6a4120",
+  "reviewed_revision": "5e472aa83b2f277abc47f39ee0fb622a4a6a4120",
+  "reviewed_run_id": "r-20260923T111717965249-placed-worker-names-its-host",
+  "reviewer": "review-of-placed-worker-names-its-host",
+  "scores": {
+    "durability": 14,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-23T13:44:20.149411+00:00",
+  "total": 88
+}

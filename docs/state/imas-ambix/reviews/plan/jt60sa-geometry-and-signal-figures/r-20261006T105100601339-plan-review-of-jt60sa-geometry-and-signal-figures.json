@@ -1,0 +1,48 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T10:57:04.276Z",
+  "dispatched_at": "2026-10-06T10:51:08Z",
+  "findings": [
+    {
+      "anchor": "imas_ink/geometry.py:96",
+      "id": "reuse_search-1",
+      "reason": "\u00a72's caption and done-when describe a figure the reused owner does not draw, so either the caption/expectation changes to the 12 per-coil boxes or the plan routes per-filament drawing explicitly, and \u00a73 should reconcile read_channel with the unit the engine already exposes.",
+      "text": "the plan's \u00a72 caption states \"the coil rectangles are the 268 current filaments discretising the 12 PF coils\" and its done-when requires the script to print the coil-filament count, but geometry_figure_mpl <- extract_geometry (imas_ink/extract.py:446) <- coil_bboxes (imas_ink/geometry.py:96,123-147) accumulates every element of a parent coil into ONE CoilRect, so a 12-PF-coil store yields 12 rectangles, not 268 filament rectangles; the reader \u00a71b deletes drew one shape per element (scripts/figures_jt60sa_geometry.py:261-264, `for shape in _shapes_from_elements(coil.element, ...)`), so that per-filament fidelity is silently dropped and the promised caption cannot be produced; second instance of the same defect type: \u00a73 asserts the engine path \"returns values with no time base and no unit\", but VirtualArray.attrs (imas_ambix/data/virtual_zarr.py:62-71) already returns `{\"units\": rule.target_unit}`, so a unit is supplied for every mapped channel and read_channel's remit is narrower than \u00a73 claims",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "210311e24aed2f346b15ba59e7923f12783cbe977ed29b9ef6b47206e1ca0d36",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 33,
+  "project": "imas-ambix",
+  "responses": {
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v34 \u00a72 captions each coil rectangle as the outline of one of the 12 PF coils, the envelope imas-ink's coil_bboxes draws around its filaments, and the script prints coils drawn and filaments enclosed",
+      "when": "2026-10-06T10:57:48.574306+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T105100601339-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "ea6fc0d0df65cec0923d64c42f1f8eacaa1ef15c",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the plan adds no module of its own; the substantial behaviour (extraction, rendering) lives in imas-ink and the two ambix scripts are thin callers by the figure-owner decision, not a spread of shallow wrappers.",
+    "duplicate_owner": "pass \u2014 the plan extends the owners rather than forking them: the EDDB channel read goes into eddb.py beside write_channel, the vessel read reuses imas-ink's extract_vessel_shells/VesselShell (three_d/walls.py:151), and phase addressing goes through the packaged catalogue (machine_map.py load_packaged_machine_map / description_store_root_path).",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the one addition in this repository (\u00a73's read_channel) is named in its own text with what it retires (nothing) and why, and \u00a72 adds a script with no command-line option and no public name at the path \u00a71b deletes.",
+    "reuse_search": "a finding \u2014 \u00a72 reuses imas-ink's extract_geometry/geometry_figure_mpl but its caption and done-when describe a figure of 268 per-filament coil rectangles, while the reused owner collapses each PF coil to one bounding box.",
+    "thin_wrapper": "pass \u2014 \u00a73's read_channel states in its own text why the existing engine path cannot serve it (no time base) and that it is the cache's read counterpart, and the two scripts are justified against the considered imas-ink-cli alternative in the figure-owner decision."
+  },
+  "section_digests": {
+    "_document": "c4d50308e63f65de45060a4c4c4f25b6b24fa640af64022bcbd95e0abdfa4f11",
+    "s1": "bb8d550544a521bde0263696163651a2d7a045188e07eb5e9a5e525932df317a",
+    "s1b": "9ec381e606c1e32ff38ae066d53ee93b49c010495ada772c8d37fedc05cbf0ab",
+    "s2": "3e8ee9b50285d1d9c568e97fca231e59562ca63d10e0fcf6a37569eef8c8119f",
+    "s3": "97a196b8df1890e21b112b58d703141df167b5bf5c527af95cf57d98b4a56dc2",
+    "s4": "ed6d5b8d0a5d98145a24fe9d1ab0e074e3d9c40bfd067beba80e2b1992dbbf26"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T10:57:48.572951+00:00"
+}

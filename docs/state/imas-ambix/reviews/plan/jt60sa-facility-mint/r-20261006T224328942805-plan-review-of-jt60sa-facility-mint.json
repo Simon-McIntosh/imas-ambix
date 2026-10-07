@@ -1,0 +1,121 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T22:47:33.675Z",
+  "dispatched_at": "2026-10-06T22:43:37Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/gs/artifact_resolution.py:344",
+      "id": "duplicate_owner-1",
+      "reason": "the plan must name `gs/artifact_resolution.py` and either route the bundle's description store through it or state in \u00a72 why a second env-var-keyed resolver is warranted.",
+      "text": "\u00a72 makes the engine find a machine's description store by an ordered root search with an environment override (`IMAS_ALAMBIC_MAP_PATH`), but `resolve_machine_description(cache_directory, digest)` at `imas_ambix/gs/artifact_resolution.py:344` already resolves a named machine's description by exactly that pattern: environment override first (`CACHE_ENV = \"AMBIX_MACHINE_ARTIFACT_CACHE\"` line 85, `DIGEST_ENV` line 86, consumed lines 361-380), then the durable cache root, then the node-local staging root \u2014 and it is the resolver `gs/machine_selection.py:130` reads through. The plan generalises `resolve_description_store_root` (`machine_map.py:118`) into a second env-var-keyed description-locator without naming this owner, so the repository is left with two environment variables for \"point me at another machine's description\" and two ordered searches behind them.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/gs/artifact_resolution.py:1",
+      "id": "reuse_search-1",
+      "reason": "the missing citation is the same defect the duplicate_owner finding names; folding the owner into \u00a72's reuse map changes what \u00a72 proposes to build.",
+      "text": "the reuse census in \u00a72 walks the eight `imas_ambix/data/` modules it moves and their resolvers, but never opens the `imas_ambix/gs/` subsystem, where `artifact_resolution.py` is the repository's existing answer to \"find the machine description without being handed a path\" and its module docstring (lines 1-60) is a written study of the same problem (ordered search, override, pin). A plan whose whole \u00a72 is a mechanism to locate a machine's maps and description by name cannot be checked as reuse-complete while that file is unread.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/eddb_remote.py:305",
+      "id": "reuse_search-2",
+      "reason": "\u00a73's stated mechanism (empty `ssh_command`) does not produce the local argv it claims; the plan must add the missing change (split the command, drop the module shell, or a `module_load=False` flag) or its first implementation node will not reproduce the stated done-when.",
+      "text": "\u00a73 asserts that \"with an empty `ssh_command`, `_argv()` composes `nice -n 19 <python> -c REMOTE_SCRIPT` as a list: no ssh prefix and no module shell\". Opening the code, `_remote_shell_command()` (`eddb_remote.py:305-320`) unconditionally returns the string `\"module unload python/3.5.6; module load python/3.12; nice -n 19 python -c '<script>'\"`, and `_argv()` (`eddb_remote.py:322-327`) returns `[*prefix, that_string]` \u2014 a **one-element list holding a shell string**, not `[nice, -n, 19, ...]`. `SshTransport.run` (`eddb_remote.py:166-184`) execs that argv with `subprocess.run(...)` and no `shell=True`, so an empty `ssh_command` yields a single argument that is not an executable path and raises `FileNotFoundError` (surfaced as `EddbRemoteError`). The module shell is the *remote* command ssh runs through the server's login shell; locally there is no shell to run it, so the seam as the plan describes it is not reachable without also changing `_remote_shell_command`.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/spine_bench/transform_geometry_source.py:31",
+      "id": "reuse_search-3",
+      "reason": "the plan's blast radius is under-counted; the direct-constant sites and the staying `nova.io.cocos` importers must be enumerated so the move node budgets for them instead of discovering them at the gate.",
+      "text": "\u00a72 retires the module-level packaged roots (\"Those two retire the module-level packaged roots and the `getattr` lookup\", \u00a72) yet also says the roots stay with ambix, and it asserts \"Every call site of the by-name loaders changes only its import\". At least five call sites never go through the by-name loaders and dereference the constants directly, so they do not move with an import-only change: `imas_ambix/spine_bench/transform_geometry_source.py:31` (imports `PACKAGED_MACHINE_MAP_ROOT`) and `:362` (reads `PACKAGED_MACHINE_MAP_ROOT / \"mast.json\"`); `tests/data/test_jt60sa_signal_maps.py:24` (import) and `:38` (`UNIT_TABLE_PATH = PACKAGED_MACHINE_MAP_ROOT / \"jt-60sa-eddb-units.json\"`); `tests/data/test_machine_map.py:24` (imports `LINKML_SCHEMA_PATH`) with `:202`, `:1704`, `:1724` reading `LINKML_SCHEMA_PATH.parent / \"mast.json\"`. In the same family, the \u00a72 edit set omits the ambix-side `nova.io.cocos` importers that stay in the tree while `nova` drops the re-export: `imas_ambix/data/cocos_convention.py:26` (`CONVENTION_DIGITS`), `imas_ambix/challenge/convention.py:28` (`convention`) and `tests/data/test_cocos_convention.py:11` (`transform_factor`) \u2014 the plan names only `imas_ambix/cocos.py:20`.",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "a878ce3cfd5268b39308e153907edcb001eb4f094567d8a4ba5363f207a33f0a",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 8,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "declined",
+      "by": "reckon-build coordinator",
+      "finding": "duplicate_owner-1",
+      "reason": "gs/artifact_resolution.py resolves a nova-authored solver artifact by manifest digest and semantic pin, re-authors it through nova, and imports nova, which cannot install at the facility; the bundle resolver finds authored map files by machine name. v9 s2 names it and states why the two stay separate.",
+      "when": "2026-10-06T22:49:07.956921+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "reuse_search-1",
+      "reason": "v9 s2 cites gs/artifact_resolution.py resolve_machine_description and its two variables, and states the separation.",
+      "when": "2026-10-06T22:49:07.959974+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "reuse_search-2",
+      "reason": "v9 s3 states that _argv and _remote_shell_command both change: today _argv returns the ssh prefix plus one shell string; with an empty ssh_command it composes nice -n 19 <python> -c REMOTE_SCRIPT as a list, and the module-load string stays on the ssh route only.",
+      "when": "2026-10-06T22:49:07.962750+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "reuse_search-3",
+      "reason": "v9 s2 enumerates the direct-constant sites (transform_geometry_source.py:31,362; test_jt60sa_signal_maps.py:24,38; test_machine_map.py:202,1704,1724 via LINKML_SCHEMA_PATH.parent) and the staying nova.io.cocos importers, and resolves the roots contradiction: constants move to paths.py as ambix's bundle address.",
+      "when": "2026-10-06T22:49:07.965435+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "reckon-build coordinator",
+      "reason": "gs/artifact_resolution.py resolves a nova-authored solver artifact by manifest digest and semantic pin, re-authors it through nova, and imports nova, which cannot install at the facility; the bundle resolver finds authored map files by machine name. v9 s2 names it and states why the two stay separate.",
+      "when": "2026-10-06T22:49:07.956921+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v9 s2 cites gs/artifact_resolution.py resolve_machine_description and its two variables, and states the separation.",
+      "when": "2026-10-06T22:49:07.959974+00:00"
+    },
+    "reuse_search-2": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v9 s3 states that _argv and _remote_shell_command both change: today _argv returns the ssh prefix plus one shell string; with an empty ssh_command it composes nice -n 19 <python> -c REMOTE_SCRIPT as a list, and the module-load string stays on the ssh route only.",
+      "when": "2026-10-06T22:49:07.962750+00:00"
+    },
+    "reuse_search-3": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v9 s2 enumerates the direct-constant sites (transform_geometry_source.py:31,362; test_jt60sa_signal_maps.py:24,38; test_machine_map.py:202,1704,1724 via LINKML_SCHEMA_PATH.parent) and the staying nova.io.cocos importers, and resolves the roots contradiction: constants move to paths.py as ambix's bundle address.",
+      "when": "2026-10-06T22:49:07.965435+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T224328942805-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "f6507740085b22de4c7a1d3cfe1402bdb032e535",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the engine (`imas_alambic`) hides the loader/transport/cocos surface behind a small import face, and \u00a72 generalises three existing resolvers in place rather than spreading them.",
+    "duplicate_owner": "a finding \u2014 the plan adds `IMAS_ALAMBIC_MAP_PATH` plus an ordered bundle search as a second by-name machine resolver with an environment override, while `imas_ambix/gs/artifact_resolution.py` already owns that mechanism (`AMBIX_MACHINE_ARTIFACT_CACHE`/`AMBIX_MACHINE_ARTIFACT_DIGEST`).",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a72's own \"interface account\" names the retirement of the module-level packaged roots and (with \u00a76) of `imas-ambix data mint`, and states why the environment variable and entry-point group are needed, so no section adds surface unaccounted for.",
+    "reuse_search": "a finding \u2014 the plan's reuse map covers only the `imas_ambix/data/` modules it moves and never opens `imas_ambix/gs/artifact_resolution.py`, which already owns by-name, env-override-first machine-description resolution; \u00a73's account of the `eddb_remote.py` seam is also contradicted by the code.",
+    "thin_wrapper": "pass \u2014 \u00a72 states why the by-name loaders are generalised rather than wrapped (\"generalises those three in place \u2026 rather than adding a resolver beside them\") and \u00a73 states why no second `Transport` class is added."
+  },
+  "section_digests": {
+    "_document": "2f6d3998a4c13139f37a567773556b4e92ad52285e25eb8ed42d5124a44aa7b5",
+    "s1": "599b7f5f26548e11448590457802fb7f6867799dfbc1f4b6230eb83f67f004c2",
+    "s2": "b9826b55b1b82c8ac09d8b1ba19fcd70dadf3aff8d64d28c5c0a377e4663b520",
+    "s3": "7b57786cf47c875e083f58f2941f4c6d21d76c3b6640ffab0cf36989343295b4",
+    "s4": "04b4fccc32647285448598adbba58a88bebb04c597bb09e40b9983aacb71e561",
+    "s5": "96112877cdd9d171381da10a535215b1763f59e5e35583b438f66aeb7a72870d",
+    "s6": "2c8928d511198b78f084b34222fda9e961661a633394aa1ee27445a6295ac81e"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T22:49:07.953112+00:00"
+}

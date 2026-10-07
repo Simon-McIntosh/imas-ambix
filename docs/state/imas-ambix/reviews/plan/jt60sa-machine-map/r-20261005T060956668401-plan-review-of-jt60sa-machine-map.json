@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T06:13:45.526Z",
+  "dispatched_at": "2026-10-05T06:10:01Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/machine_maps/schema.yaml:543",
+      "id": "reuse_search-1",
+      "reason": "\u00a74 must state that it populates `description_supplements`/`point_flux_loops`/`polygon_sections` (and name the evidence each carries) rather than leave open that it will add a parallel static-description slot.",
+      "text": "\u00a74 proposes a \"range-scoped machine map\" carrying static per-phase description values (conductor elements, loop and probe positions, vessel filaments) and says \"any schema slot this needs names ... a source that is static over a map's shot range\", but the schema already has `DescriptionSupplement` (\"Static machine-description values selected by the same shot range\"), `PointFluxLoopDeclaration` (a static loop position absent from pulse arrays) and `PolygonSectionDeclaration`/`StructureAssembly` (shaped conductor sections assembled into repeated DD structures), all populated by `mast.json` (21 uses of these keys, blocks at lines 3503 and 32319) \u2014 so the section is describing the intent of a slot that already exists and is exercised, not a slot it must add",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/machine_maps/schema.yaml:517",
+      "id": "reuse_search-2",
+      "reason": "\u00a76 should record each JT-60SA verdict as a `FluxLoopPositionDeclaration` (undecided ones included) so the JT-60SA map reuses the MAST mechanism and the reader stays machine-agnostic, rather than leaving the verdict's storage unstated.",
+      "text": "\u00a76's per-channel vacuum adjudication (\"fixes ... the loop sign, the probe sensitive axis, the unit factor and whether the declared position is consistent\") reproduces, as a method, the `FluxLoopPositionDeclaration` slot the schema already carries \u2014 \"one vacuum-measurement verdict for an acquisition address over an inclusive shot range\", with the `FluxLoopPositionVerdict` enum (`nominal-table`/`reconstruction`/`undecided`) and `Catalog.flux_loop_positions_for(shot)`, and \u00a76 itself invokes \"the adjudication that settled MAST's nineteen disputed loop positions\" \u2014 yet the plan never names this slot as where JT-60SA verdicts are recorded",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "29f60c543f053cb613a7e01b35ee8c58c9893cc8d54789ab750a8a1a3688fa0f",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 14,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T060956668401-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "ad4e726dd12d79fbd16e335700dbf50bcb7905f8",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the three new surfaces are each small over substantial behaviour (one batch-fetch function plus one cache writer over ssh/batching/serialization; one exporter function over unit/sign/COCOS collapse; one remote script for the EQDB record), and the design extends deep owners (`transform_engine.py`, `artifact_resolution.py`, `geometry_adapter.py`) rather than spreading new wrappers.",
+    "duplicate_owner": "pass \u2014 the plan names its owners and extends them: `imas_ambix/data/paths.py` (`JT60SA_ROOT` beside `MIRROR_ROOT`), `imas_ambix/data/manifest.py`/`cli.py` (the bulk path it deliberately does not take), and `imas_ambix/gs/artifact_resolution.py` `resolve_machine_description` (\"gains a machine to resolve\", not a second resolver); its one chosen fork is justified and has no ambix owner to extend.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; each section that introduces public surface states in its own text why nothing is retired (\u00a72 \"retires nothing, because ambix has no exporter\"; \u00a73 \"retires nothing, because ambix has no remote reader today\"; \u00a77 \"retires nothing, because no equilibrium-database reader exists in ambix\"), and \u00a74's static-description need is met by the existing `DescriptionSupplement` slot rather than a new family member.",
+    "reuse_search": "a finding \u2014 the plan searched codex (`enumerate_edas.py`, `executor.py`, `ssh_worker.py`, `serialization.py`) and ambix's engines, but did not search the machine-map schema's own static-description slots, which are live in `imas_ambix/data/machine_maps/schema.yaml` and populated by `mast.json`.",
+    "thin_wrapper": "pass \u2014 the one place the design could be a thin layer over existing machinery, the EDDB extractor over imas-codex's remote layer, states why that layer cannot be reused (it would make codex's graph, LLM and tool-installation dependencies a dependency of every ambix read) and ambix genuinely owns no remote reader today (verified: no ssh-run helper anywhere under `imas_ambix/`; the only `subprocess` uses are `s5cmd` S3 copies and `sbatch`)."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.880737+00:00"
+}

@@ -1,0 +1,63 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/agent/serving_receipts.py:519"
+  ],
+  "completed_at": "2026-09-29T08:59:04.171Z",
+  "dispatched_at": "2026-09-29T07:51:24Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/a-recorded-field-is-one-that-was-measured/arf-receipt-section-contract.html",
+      "line": "73",
+      "text": "The claim that all three commands exit 0 on the committed revision is unsupported by the log it cites: logs/gate.txt names rev 41ef8974aee8 (the base) on its first line and was written six minutes before commit d048dc5a, so a reader checking the named log finds a different revision; re-run the gate at the commit and cite that log, or reword the claim."
+    },
+    {
+      "file": "imas_ambix/agent/serving_receipts.py",
+      "line": "183",
+      "text": "The ReceiptRow docstring still says each section is None when its source did not produce a reading on this tick, which the refused job read violates -- its section is a marker dict, not None -- so the third place the fragment names as carrying the stale contract was left uncorrected and the plan section's stated-contract limb is only partly met."
+    },
+    {
+      "file": "tests/test_receipt_section_contract.py",
+      "line": "75",
+      "text": "The record-boundary assertions exercise the command-failed marker only; an absent squeue command (resolve_command -> COMMAND_ABSENT) is asserted at section level in tests/test_node_probe.py:535 but never through the row record, so that spelling of the distinction the done-when names is the one left unasserted."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "The change to imas_ambix/agent/serving_receipts.py is docstring and comment text only -- no executable statement changed -- so the landed behaviour is the base behaviour, and the new sentences agree with node_probe.read_jobs, which returns the marker dict when a due read refused and the hostname/count/jobs dict otherwise.",
+    "done_when": "The new tests/test_receipt_section_contract.py asserts at the record boundary that a refused read and a tick whose read was not due serialise to different rows (line 59), that the marker arrives with no count and no rows (lines 75-78), and that a real reading carries a count and no marker (line 97); an absent squeue source (resolve_command -> COMMAND_ABSENT) is asserted only at section level in tests/test_node_probe.py:535, not through the row record.",
+    "goal": "The plan section's target -- the recorder's stated contract matching what it does, with the failed-read marker named -- is met for the two carriers the new sentence rewrites: the module docstring and the ROW_SECTIONS comment now name the job table's marker (unread) as the one exception to a present key being a present measurement; but the ReceiptRow class docstring, which the evidence fragment names as a third carrier, was not corrected and still states the superseded rule.",
+    "manifest": "The reviewed run's manifest.md records status complete, commit d048dc5a, the three changed paths, the gate command with its 46-passed result, and the negative control with its log; it names no baseline_suite or after_suite field, so the added-failure count is stored unmeasured rather than as a zero, which is the legitimate state for a node whose gate is a focused pair of test files rather than a suite pair.",
+    "write_paths": "Commit d048dc5a touches exactly the three declared paths (imas_ambix/agent/serving_receipts.py, tests/test_receipt_section_contract.py, docs/evidence/fragments/a-recorded-field-is-one-that-was-measured/arf-receipt-section-contract.html; 3 files, +194/-4) and nothing else; the reviewed worktree is clean at that revision."
+  },
+  "justifications": {
+    "durability": "The tests are behavioural at the record boundary and two of the three go red under the declared mutant, so a regression that drops the marker fails a named test; the command-absent branch of the same distinction is left to the section-level tests at tests/test_node_probe.py:534-535.",
+    "evidence": "I re-ran the gate at d048dc5a in the reviewed tree (46 passed, exit 0) and the negative control at logs/negative_control.txt is genuinely red (2 failed, 1 passed, EXIT=1), but the fragment's claim that all three commands exit 0 on the committed revision cites logs/gate.txt, whose first line names rev 41ef8974 (the base, six minutes older than the commit).",
+    "fit": "The change lands exactly where the plan section places the defect, names the marker through node_probe.UNREAD_KEY rather than a literal, and its one production call site (imas_ambix/agent/serving_receipts.py:519, reached from imas_ambix/agent/cli.py:2641) is inert under a docstring-only edit.",
+    "goal_fidelity": "The contract now names the marker and the record-boundary test pins it (tests/test_receipt_section_contract.py:59-97), but imas_ambix/agent/serving_receipts.py:183 still states the superseded rule for every section, so the stated contract does not yet fully match the recorder.",
+    "scope_discipline": "Exactly the three declared paths were changed, the commit stages them individually, the worktree is clean, and the container directory holds only the real worktree after the run's path-mangling strays were removed before the commit."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The plan section's target -- the recorder's stated contract matching what it does, with the failed-read marker named -- is met for the two carriers the new sentence rewrites: the module docstring and the ROW_SECTIONS comment now name the job table's marker (unread) as the one exception to a present key being a present measurement; but the ReceiptRow class docstring, which the evidence fragment names as a third carrier, was not corrected and still states the superseded rule.\nVERDICT done_when: The new tests/test_receipt_section_contract.py asserts at the record boundary that a refused read and a tick whose read was not due serialise to different rows (line 59), that the marker arrives with no count and no rows (lines 75-78), and that a real reading carries a count and no marker (line 97); an absent squeue source (resolve_command -> COMMAND_ABSENT) is asserted only at section level in tests/test_node_probe.py:535, not through the row record.\nVERDICT write_paths: Commit d048dc5a touches exactly the three declared paths (imas_ambix/agent/serving_receipts.py, tests/test_receipt_section_contract.py, docs/evidence/fragments/a-recorded-field-is-one-that-was-measured/arf-receipt-section-contract.html; 3 files, +194/-4) and nothing else; the reviewed worktree is clean at that revision.\nVERDICT manifest: The reviewed run's manifest.md records status complete, commit d048dc5a, the three changed paths, the gate command with its 46-passed result, and the negative control with its log; it names no baseline_suite or after_suite field, so the added-failure count is stored unmeasured rather than as a zero, which is the legitimate state for a node whose gate is a focused pair of test files rather than a suite pair.\nVERDICT diff: The change to imas_ambix/agent/serving_receipts.py is docstring and comment text only -- no executable statement changed -- so the landed behaviour is the base behaviour, and the new sentences agree with node_probe.read_jobs, which returns the marker dict when a due read refused and the hostname/count/jobs dict otherwise.\nCALL_SITES: imas_ambix/agent/serving_receipts.py:519\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: The contract now names the marker and the record-boundary test pins it (tests/test_receipt_section_contract.py:59-97), but imas_ambix/agent/serving_receipts.py:183 still states the superseded rule for every section, so the stated contract does not yet fully match the recorder.\nSCORE evidence: 16\nJUSTIFICATION evidence: I re-ran the gate at d048dc5a in the reviewed tree (46 passed, exit 0) and the negative control at logs/negative_control.txt is genuinely red (2 failed, 1 passed, EXIT=1), but the fragment's claim that all three commands exit 0 on the committed revision cites logs/gate.txt, whose first line names rev 41ef8974 (the base, six minutes older than the commit).\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: Exactly the three declared paths were changed, the commit stages them individually, the worktree is clean, and the container directory holds only the real worktree after the run's path-mangling strays were removed before the commit.\nSCORE durability: 17\nJUSTIFICATION durability: The tests are behavioural at the record boundary and two of the three go red under the declared mutant, so a regression that drops the marker fails a named test; the command-absent branch of the same distinction is left to the section-level tests at tests/test_node_probe.py:534-535.\nSCORE fit: 19\nJUSTIFICATION fit: The change lands exactly where the plan section places the defect, names the marker through node_probe.UNREAD_KEY rather than a literal, and its one production call site (imas_ambix/agent/serving_receipts.py:519, reached from imas_ambix/agent/cli.py:2641) is inert under a docstring-only edit.\nFINDING docs/evidence/fragments/a-recorded-field-is-one-that-was-measured/arf-receipt-section-contract.html:73 The claim that all three commands exit 0 on the committed revision is unsupported by the log it cites: logs/gate.txt names rev 41ef8974aee8 (the base) on its first line and was written six minutes before commit d048dc5a, so a reader checking the named log finds a different revision; re-run the gate at the commit and cite that log, or reword the claim.\nFINDING imas_ambix/agent/serving_receipts.py:183 The ReceiptRow docstring still says each section is None when its source did not produce a reading on this tick, which the refused job read violates -- its section is a marker dict, not None -- so the third place the fragment names as carrying the stale contract was left uncorrected and the plan section's stated-contract limb is only partly met.\nFINDING tests/test_receipt_section_contract.py:75 The record-boundary assertions exercise the command-failed marker only; an absent squeue command (resolve_command -> COMMAND_ABSENT) is asserted at section level in tests/test_node_probe.py:535 but never through the row record, so that spelling of the distinction the done-when names is the one left unasserted.\nreviewed_base: 41ef8974aee89b85dc8cd941454ec20ca1a8fc6d\nreviewed_commit: d048dc5a1d73674f75aa1379eecc8baec62063ea",
+  "review_run_id": "r-20260929T075116580931-review-of-arf-receipt-section-contract",
+  "reviewed_base_sha": "41ef8974aee89b85dc8cd941454ec20ca1a8fc6d",
+  "reviewed_head_sha": "d048dc5a1d73674f75aa1379eecc8baec62063ea",
+  "reviewed_run_id": "r-20260929T072941745023-arf-receipt-section-contract",
+  "scores": {
+    "durability": 17,
+    "evidence": 16,
+    "fit": 19,
+    "goal_fidelity": 18,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T08:53:14.073917+00:00",
+  "total": 90
+}

@@ -1,0 +1,82 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's own two arms of the reviewed node's declared gate, because the reviewed manifest arms no baseline_suite/after_suite: base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T100451669810-review-of-srw-live-panel-blocks/review-base-arm.log (revision e039b307, the reviewed head's test file driven against the base package; exit 2, one collection error at tests/test_live_panel.py) against head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T100451669810-review-of-srw-live-panel-blocks/review-head-arm.log (revision 1b79e605, 16 passed, exit 0); the reader's own annotation of this record reports the count unmeasured because the reviewed manifest names no arms.",
+  "after_suite": {
+    "command": "python -m pytest -p no:cacheprovider tests/test_live_panel.py at the reviewed head, in a scratch tree",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T100451669810-review-of-srw-live-panel-blocks/review-head-arm.log",
+    "revision": "1b79e605f47cfb2d83ee253288e000ee0e4b61a5"
+  },
+  "baseline_suite": {
+    "command": "python -m pytest -p no:cacheprovider tests/test_live_panel.py (the reviewed head's test file at 1b79e605 driven against the base revision, in a scratch tree)",
+    "completed": true,
+    "exit_status": 2,
+    "failure_count": 1,
+    "failure_ids": [
+      "tests/test_live_panel.py"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T100451669810-review-of-srw-live-panel-blocks/review-base-arm.log",
+    "revision": "e039b307bde53a32781c870b3a72c90de1d8c9b2"
+  },
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-09-29T11:22:18.748Z",
+  "dispatched_at": "2026-09-29T10:05:01Z",
+  "findings": [
+    {
+      "file": "tests/test_live_panel.py",
+      "line": "269",
+      "text": "the lane assertions read back only part of the copied block: admission.waiting and the gate's width, in_flight, waiting and reason are never asserted, and no test publishes admission.live_runs, requests_per_run or worker_slots, so a change that dropped admission.waiting, any of those gate fields, or the entire worker_slot copy would leave all 16 tests green while section 11's done-when asks that every field it names be asserted by literal - the worker-slot row is the one the plan says the slots row renders."
+    },
+    {
+      "file": "imas_ambix/agent/live_panel.py",
+      "line": "162",
+      "text": "newest_raw_receipt decides a candidate's worth from its very last line alone and drops the file when that line does not parse, so a receipt file caught mid-append is passed over and the block silently reports an older run's figures, where the chosen file itself is read tolerantly and the module states a reason for every other thing it could not compute; the writer flushes one row per write (imas_ambix/agent/serving_receipts.py:532), so the trigger is narrow, but the failure is silent and misattributes the reading to a different job."
+    }
+  ],
+  "follow_ons": [
+    "tests/test_live_panel.py:269 pin the rest of the copied block: assert admission.waiting and the gate's width, in_flight, waiting and reason, and add a fixture that publishes admission.live_runs/requests_per_run/worker_slots so the worker-slot copy section 11 names is exercised at all.",
+    "imas_ambix/agent/live_panel.py:134 the tier exclusion is derived from the raw files' own sibling names, so a compacted tier file whose raw sibling had been removed would read as raw; not reachable while compact_file leaves its source in place, but the exclusion is a naming accident rather than a fact about the file's contents."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "807 insertions across the three declared paths with no deletions and no unrelated edits; the module adds no dependency and imports only project helpers, reading the tail of one file rather than a whole file, so the reading cost stays bounded for a command intended to be called every five seconds.",
+    "done_when": "re-running the declared gate in a scratch tree extracted from 1b79e605 gives 16 passed for tests/test_live_panel.py, 1 passed with 8 deselected for the serving-interpreter guard and All checks passed for ruff check imas_ambix tests, matching the reviewed run's own logs, and the stale/age, null-rate and newest-file limbs all hold under test; one declared limb does not, because section 11's build done-when asks that tests assert every field it names by literal and five of those copied fields are never read back while the whole worker-slot copy has no test (see the finding at tests/test_live_panel.py:269).",
+    "goal": "the module builds both blocks section 11 specifies from exactly the two published sources: imas_ambix/agent/live_panel.py:378-420 copies the lane document's observed_at with its age, state, stale, the top-level headroom with headroom_is_upper_bound, engine_headroom, withheld, the admission fields and the router_generation_gate fields, and imas_ambix/agent/live_panel.py:222-376 differences the generation, prompt and uncached-prompt counters and the time-to-first-token histogram over the trailing 45 s of one run's rows in the newest raw receipt file, with per-stream tok/s computed as the window aggregate divided by the window's mean running; no telemetry index is opened.",
+    "manifest": "manifest.md in the landing run directory reads complete with commits, changed_paths, landing, tests, test_logs and a bare negative_control_log path, and every value I re-read agreed with the log it cites; it arms no baseline_suite or after_suite, so the read-time annotation reports the added-failure count unmeasured, and the count stored here was derived by this review from its own two arms of the reviewed node's declared gate.",
+    "write_paths": "the diff touches imas_ambix/agent/live_panel.py, tests/test_live_panel.py and docs/evidence/fragments/serving-record-warehouse/srw-live-panel-blocks.html, which are three of the four declared paths, with docs/figures/serving-record-warehouse/srw-live-panel-blocks left unused because the done-when names no artifact, and nothing outside them."
+  },
+  "justifications": {
+    "durability": "the copied names match their publishers (router.py:1103-1131 for the gate block, the admission snapshot for the queue), and the windowed arithmetic is pinned by tests, but the copy's field list is only partly asserted, the worker-slot copy is untested, and file selection requires a candidate's last line to parse (imas_ambix/agent/live_panel.py:162).",
+    "evidence": "this review re-ran the declared gate itself in a scratch tree at 1b79e605 (review-head-arm.log, whose header names the imported module path and the resolved working directory) and derived the added-failure count with the reader's own function over two arms (added-failures-derivation.log, review-base-arm.log); the reviewed run's negative-control.log repeats the declared mutation verbatim, reddens the per-stream test, and records the restore, so the guard was shown to fire and not merely to exist.",
+    "fit": "section 1 of the reuse map is followed - SiteConfig.endpoint_document, suggested_shelf_life_seconds, headroom_is_upper_bound and classify_reading are reused rather than re-derived, the module sits beside lane.py in the same package, and the index-free property is asserted by an AST scan (tests/test_live_panel.py:334).",
+    "goal_fidelity": "section 11's design is met field for field at imas_ambix/agent/live_panel.py:222-420, including the shelf-life stale rule with the age and the stated null-rate reasons, but the build done-when's assert-every-field-by-literal limb is not met (tests/test_live_panel.py:269).",
+    "scope_discipline": "git diff --stat e039b307 1b79e605 lists exactly the three declared paths and nothing else, the figures path is declared and correctly left unwritten, and no plan, index or shared sprint state is touched."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "review of run r-20260929T090004745703-srw-live-panel-blocks, attached by r-20260929T100451669810-review-of-srw-live-panel-blocks\nplan imas-ambix:serving-record-warehouse \u00a711; role implement; spec guided; base e039b307bde53a32781c870b3a72c90de1d8c9b2 head 1b79e605f47cfb2d83ee253288e000ee0e4b61a5\nread: the diff at 1b79e605 (3 files, 807 insertions), imas_ambix/agent/live_panel.py and tests/test_live_panel.py in full, plan section 11 and its definitions-2026-09-29, section 1 of the reuse map, the reviewed run's four gate logs and its negative-control log, and an independent re-run of the declared gate in a scratch tree extracted from the reviewed head.\n\nVERDICT goal: the module builds both blocks section 11 specifies from exactly the two published sources: imas_ambix/agent/live_panel.py:378-420 copies the lane document's observed_at with its age, state, stale, the top-level headroom with headroom_is_upper_bound, engine_headroom, withheld, the admission fields and the router_generation_gate fields, and imas_ambix/agent/live_panel.py:222-376 differences the generation, prompt and uncached-prompt counters and the time-to-first-token histogram over the trailing 45 s of one run's rows in the newest raw receipt file, with per-stream tok/s computed as the window aggregate divided by the window's mean running; no telemetry index is opened.\nVERDICT done_when: re-running the declared gate in a scratch tree extracted from 1b79e605 gives 16 passed for tests/test_live_panel.py, 1 passed with 8 deselected for the serving-interpreter guard and All checks passed for ruff check imas_ambix tests, matching the reviewed run's own logs, and the stale/age, null-rate and newest-file limbs all hold under test; one declared limb does not, because section 11's build done-when asks that tests assert every field it names by literal and five of those copied fields are never read back while the whole worker-slot copy has no test (see the finding at tests/test_live_panel.py:269).\nVERDICT write_paths: the diff touches imas_ambix/agent/live_panel.py, tests/test_live_panel.py and docs/evidence/fragments/serving-record-warehouse/srw-live-panel-blocks.html, which are three of the four declared paths, with docs/figures/serving-record-warehouse/srw-live-panel-blocks left unused because the done-when names no artifact, and nothing outside them.\nVERDICT manifest: manifest.md in the landing run directory reads complete with commits, changed_paths, landing, tests, test_logs and a bare negative_control_log path, and every value I re-read agreed with the log it cites; it arms no baseline_suite or after_suite, so the read-time annotation reports the added-failure count unmeasured, and the count stored here was derived by this review from its own two arms of the reviewed node's declared gate.\nVERDICT diff: 807 insertions across the three declared paths with no deletions and no unrelated edits; the module adds no dependency and imports only project helpers, reading the tail of one file rather than a whole file, so the reading cost stays bounded for a command intended to be called every five seconds.\nCALL_SITES: none\ncall sites checked by grepping imas_ambix/ and tests/ at the reviewed head for live_panel: the only references are the module itself and tests/test_live_panel.py; wiring --live into agent watch is the neighbouring wire node's scope, so no production call site exists yet and none was expected to.\n\nSCORE goal_fidelity: 18\nSCORE evidence: 19\nSCORE scope_discipline: 20\nSCORE durability: 17\nSCORE fit: 19\n\nJUSTIFICATION goal_fidelity: section 11's design is met field for field at imas_ambix/agent/live_panel.py:222-420, including the shelf-life stale rule with the age and the stated null-rate reasons, but the build done-when's assert-every-field-by-literal limb is not met (tests/test_live_panel.py:269).\nJUSTIFICATION evidence: this review re-ran the declared gate itself in a scratch tree at 1b79e605 (review-head-arm.log, whose header names the imported module path and the resolved working directory) and derived the added-failure count with the reader's own function over two arms (added-failures-derivation.log, review-base-arm.log); the reviewed run's negative-control.log repeats the declared mutation verbatim, reddens the per-stream test, and records the restore, so the guard was shown to fire and not merely to exist.\nJUSTIFICATION scope_discipline: git diff --stat e039b307 1b79e605 lists exactly the three declared paths and nothing else, the figures path is declared and correctly left unwritten, and no plan, index or shared sprint state is touched.\nJUSTIFICATION durability: the copied names match their publishers (router.py:1103-1131 for the gate block, the admission snapshot for the queue), and the windowed arithmetic is pinned by tests, but the copy's field list is only partly asserted, the worker-slot copy is untested, and file selection requires a candidate's last line to parse (imas_ambix/agent/live_panel.py:162).\nJUSTIFICATION fit: section 1 of the reuse map is followed - SiteConfig.endpoint_document, suggested_shelf_life_seconds, headroom_is_upper_bound and classify_reading are reused rather than re-derived, the module sits beside lane.py in the same package, and the index-free property is asserted by an AST scan (tests/test_live_panel.py:334).\n\nFINDING tests/test_live_panel.py:269 the lane assertions read back only part of the copied block: admission.waiting and the gate's width, in_flight, waiting and reason are never asserted, and no test publishes admission.live_runs, requests_per_run or worker_slots, so a change that dropped admission.waiting, any of those gate fields, or the entire worker_slot copy would leave all 16 tests green while section 11's done-when asks that every field it names be asserted by literal - the worker-slot row is the one the plan says the slots row renders.\nFINDING imas_ambix/agent/live_panel.py:162 newest_raw_receipt decides a candidate's worth from its very last line alone and drops the file when that line does not parse, so a receipt file caught mid-append is passed over and the block silently reports an older run's figures, where the chosen file itself is read tolerantly and the module states a reason for every other thing it could not compute; the writer flushes one row per write (imas_ambix/agent/serving_receipts.py:532), so the trigger is narrow, but the failure is silent and misattributes the reading to a different job.",
+  "review_run_id": "r-20260929T100451669810-review-of-srw-live-panel-blocks",
+  "reviewed_base_sha": "e039b307bde53a32781c870b3a72c90de1d8c9b2",
+  "reviewed_head_sha": "1b79e605f47cfb2d83ee253288e000ee0e4b61a5",
+  "reviewed_run_id": "r-20260929T090004745703-srw-live-panel-blocks",
+  "reviewer": "review-of-srw-live-panel-blocks",
+  "scores": {
+    "durability": 17,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 18,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T11:01:11.736048+00:00",
+  "total": 93
+}

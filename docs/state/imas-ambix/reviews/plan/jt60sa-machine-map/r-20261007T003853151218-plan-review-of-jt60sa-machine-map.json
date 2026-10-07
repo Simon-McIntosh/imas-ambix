@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T00:46:37.157Z",
+  "dispatched_at": "2026-10-07T00:39:01Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:214",
+      "id": "reuse_search-1",
+      "reason": "the open node `jtmm-tokamap-jt60sa` would add the public COCOS resolver to `imas_ambix/data/transform_engine.py`, and the open \u00a76 EQDB nodes would add the request/record/refusal types and the grid writer/reader to `imas_ambix/data/eddb_remote.py` and `imas_ambix/data/eddb.py`, none of which exist at those paths, so each node blocks on a missing file or forks a second engine; every reference must be repointed at the imas-alambic owner before the nodes are released.",
+      "text": "the plan names eight engine modules under `imas_ambix/data/` that commit 3ae87c26 carved into the imas-alambic workspace member (`packages/imas-alambic/src/imas_alambic/`, no compat re-export exists): `imas_ambix/data/transform_engine.py` at plan lines 214 and 275 (owner now `imas_alambic/transform_engine.py`, where `_target_cocos_transformation` and `_apply_cocos_convention` live at lines 411/447); `imas_ambix/cocos.py` at 276, 293 and 1732 (owner `imas_alambic/cocos.py`); `imas_ambix/data/eddb_remote.py` at 231 and 720 (owner `imas_alambic/eddb_remote.py`); `imas_ambix/data/eddb.py` at 231 and 736 (owner `imas_alambic/eddb.py`); `imas_ambix/data/virtual_zarr.py` at 409 (owner `imas_alambic/virtual_zarr.py`, `raw_series` at line 146); `imas_ambix/data/pulse_mint.py` at 416 and 1268 (owner `imas_alambic/pulse_mint.py`); `imas_ambix/data/signal_map.py` at 1206 (owner `imas_alambic/signal_map.py`); `imas_ambix/data/machine_map.py` at 1528 (owner `imas_alambic/machine_map.py`).",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "22089bc1d0f5646a86ebede9ffac119f7e83d7627aeb1d58fcf169a352b7a638",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 269,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-1",
+      "reason": "",
+      "when": "2026-10-07T00:51:22.236324+00:00"
+    }
+  ],
+  "responses": {
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T00:51:22.236324+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v269.json",
+  "review_run_id": "r-20261007T003853151218-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "e0408d449f7c1763c7ffaccf40ea7cbb3b72fb48",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a76 and \u00a77 each extend one deep module (the remote extractor; the SELENE loader seam) rather than adding a parallel one, and the machine is threaded through the existing resolvers instead of a new selector.",
+    "duplicate_owner": "pass \u2014 the plan names the one real duplicate (`tokamap_export._cocos_transformation` beside `transform_engine._target_cocos_transformation`, plan \u00a72) and extends owners (`eddb.channel_path`, `eddb_remote`, `machine_identity.default_registry`, `gs/artifact_resolution.py`) rather than forking them.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; each section that adds public surface (\u00a72 one resolver, \u00a76 three EQDB types plus two `BatchResult` fields, \u00a77 one machine-keyed pin/shotset table) names what it retires or states why nothing can be retired, and no CLI option, MCP view or refusal family is added.",
+    "reuse_search": "a finding \u2014 the plan's reuse map is thorough and accurate for the mechanisms it cites (tokamap, `cocos_convention.score_convention`, `eval/efit_referee.judge_geometry`, `worldmodel.equilibrium_labels.build_geometry_from_arrays`), but the eight engine modules it names as the files to extend were carved out of `imas_ambix/data/` into the `imas-alambic` workspace member, so the paths the open nodes would edit no longer exist.",
+    "thin_wrapper": "pass \u2014 each section that adds a layer (the SELENE reference loader, the EQDB request/record/refusal types, the tokamap exporter) states in its own text why the existing machinery cannot carry the new shape."
+  },
+  "section_digests": {
+    "_document": "4b0129f29940ceb7128674d91afa04605d95f2f33b4788a226b4142aed9c1015",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "5253ff07c75d9c1a3bb2cd1ff91a6278d3535fee40f693bc99f54d076b185860",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "f49320d67dfe47d7823b92d7d97f21bcf765dd7c5c75eb89306a9a19a30c0ae7",
+    "s7": "17c0d78497811df1e58c7d98fd9be61b4acccd3408bd36adfbd9b5197ab112b1",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T00:51:03.340640+00:00"
+}

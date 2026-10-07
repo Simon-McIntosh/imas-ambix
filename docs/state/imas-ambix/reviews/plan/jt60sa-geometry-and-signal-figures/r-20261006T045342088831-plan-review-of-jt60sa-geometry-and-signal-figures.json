@@ -1,0 +1,30 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T04:59:51.941Z",
+  "dispatched_at": "2026-10-06T04:53:48Z",
+  "findings": [],
+  "plan_fingerprint": "2729e9a767b4a3107bf5a3452cd5759d62b97ba1699bdf2676e3666ed9a77fa3",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 5,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T045342088831-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "d008a6f9cd34cbeada8add9d86fbe375b8bbe95b",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 imas_ambix/plot_style.py hides the style-sheet application, the named colour roles and the direct-label helper behind the roles plus one apply function, and figures_jt60sa_geometry.py hides \"phase store to drawable families\" behind one reader that \u00a72 reuses rather than re-reading the store.",
+    "duplicate_owner": "pass \u2014 the design routes root resolution through the catalogue owner (load_packaged_machine_map \u2192 description_store_root_path), channel addressing through eddb, and geometry reading through imas.DBEntry, the sanctioned IMAS reader; it names the two inline palettes in scripts/figures/*.py and scopes restyling them out, and the phase-directory join uses the catalogue's own declared map name rather than a second placement resolver, so no shared mechanism (placement, path resolution, scheduler query, state reader) is forked.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a71 adds one new module (imas_ambix/plot_style.py) and states in its own text that it is the first and retires nothing, with the reason (no plotting style code in the repository), and \u00a72/\u00a73 add only figure scripts and PNG/SVG artifacts, none of which touch a counted family.",
+    "reuse_search": "pass \u2014 the plan searched data/, gs/ and scripts/ and every mechanism it cites exists and does what it says: paths.py owns JT60SA_ROOT/JT60SA_DESCRIPTION_DIR, eddb.py owns channel_path/channel_time_path/UNIT_ATTR, machine_map.py owns load_packaged_machine_map/MachineMapCatalog.description_store_root_path, and read_geometry_table in description_reader.py does return the adapted table (geometry_table_from_description), so declining it for evidence figures is correct; catalog.maps carries the phase name (jt60sa-description-op1) that the static-over-map addressing joins.",
+    "thin_wrapper": "pass \u2014 the new module is the repository's first plotting-style surface (no style module, mplstyle loader or colour-role table exists in imas_ambix/ or scripts/), so there is no existing mechanism to extend, and \u00a71 states this (\"first and retires nothing: imas_ambix/ holds no plotting style code\") rather than wrapping an existing one."
+  },
+  "section_digests": {
+    "_document": "83930f1b7b0267bad4eee3074ee3f5577a04323602d949d1724a1b4f6aa3671c",
+    "s1": "22e1da2c5bcd08bbf76ad15498234e0c809c81282f9d669319fbd2d8f56132e4",
+    "s2": "87ae6ffa44e8fe7542f26495d17e914d4508cd9fce2f7b82d2043b4e7d7e79b7",
+    "s3": "412d685335710bd6f5f357e93d8240bc3eecde6d6630573d29e2bdcd32c98cbf"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T05:00:13.468301+00:00"
+}

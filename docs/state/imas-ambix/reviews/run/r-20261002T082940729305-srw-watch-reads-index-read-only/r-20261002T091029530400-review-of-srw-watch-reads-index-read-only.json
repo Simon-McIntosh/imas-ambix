@@ -1,0 +1,73 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run armed both arms itself. Its baseline_suite records revision 0114715248ad22187aae4e201529292d54dd5843 over the five-file focused gate with exit_status 0, completed true, failure_count 0 and failure_ids [], read from /home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T082940729305-srw-watch-reads-index-read-only/baseline.log (106-line scratch extraction srw-base.fzFjtk, 109 passed). Its after_suite records revision d2f45cd2a4ced8bdca1a4a12c7a9e68f27afdfde over the same five files with exit_status 0, completed true, failure_count 0 and failure_ids [], read from /home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T082940729305-srw-watch-reads-index-read-only/gate.log (113 passed). Head failing ids ([]) minus base failing ids ([]) is 0, so added_failure_count is 0. This review reproduced both arms independently from the commit's own object store into $TMPDIR scratch trees (base 01147152 and head d2f45cd2, no branch or worktree created) and ran the same five-file gate in each with the repository venv: base 109 passed EXIT=0 (logs/base.log), head 113 passed EXIT=0 (logs/head.log). The 109-to-113 delta is exactly the four tests this node adds (test_a_watch_read_never_ingests_a_source, test_a_missing_index_is_reported_and_not_created, test_last_ingest_at_is_the_index_files_modification_time, test_the_read_only_handle_refuses_a_write), none removed or renamed, which is the positive control that the arm instrument sees the change. The defect the node repairs was reproduced independently at base before it was credited: a probe calls watch_text and watch_document on a fresh index path with a source written after no ingest has run, and the base tree creates the index (index_before False, index_after_watch_text True, index_after_both True) where the head tree creates neither the file nor its parent (False, False, False) and reports 'none at' with index.exists false (logs/probe.log). Two independent mutations of the head tree (not the reviewed worktree) falsify the new guards: changing the read-only handle's URI from mode=ro to mode=rwc reddens test_the_read_only_handle_refuses_a_write (DID NOT RAISE OperationalError, 1 failed EXIT=1), and bypassing the missing-index short-circuit in watch_text reddens test_a_missing_index_is_reported_and_not_created (sqlite3.OperationalError: unable to open database file, 1 failed EXIT=1).",
+  "after_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py tests/test_agent_watch_cost.py tests/test_agent_watch_help.py tests/test_telemetry_index.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T082940729305-srw-watch-reads-index-read-only/gate.log",
+    "revision": "d2f45cd2a4ced8bdca1a4a12c7a9e68f27afdfde"
+  },
+  "baseline_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py tests/test_agent_watch_cost.py tests/test_agent_watch_help.py tests/test_telemetry_index.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T082940729305-srw-watch-reads-index-read-only/baseline.log",
+    "revision": "0114715248ad22187aae4e201529292d54dd5843"
+  },
+  "completed_at": "2026-10-02T09:36:57.554Z",
+  "dispatched_at": "2026-10-02T09:10:36Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "956,982",
+      "severity": "follow-on",
+      "text": "A reader meeting an index file that exists but is not a usable store now raises an uncaught traceback instead of reporting, where the previous reader healed it. Both watch_text and watch_document gate on index_status(), which tests only the path's presence (watch.py:865-876); a present-but-empty or partial index therefore takes the read-only branch, and TelemetryIndex.readonly (telemetry_index.py:838-867) runs no schema script and no migration by design, so the first query fails with sqlite3.OperationalError: no such table: sample. Measured on a zero-byte index file: at base 01147152 watch_text heals it (file 0 -> 36864 bytes, renders normally, EXIT=0); at head d2f45cd2 watch_text and watch_document both raise OperationalError('no such table: sample') out to the caller. The module's own contract (telemetry_index.py:1-11) states the index 'is deleted and rebuilt on corruption, on a schema change, or on demand', and the repair moved every rebuild to the ingest service, but the reader retains no path back and no friendly message: render_index covers only the absent file, not the unreadable one. The safe direction is self-healing or a 'could not be read' report naming the standing ingest, not a traceback naming an internal table. Recovery responsibility arguably sits with the ingest service, which is why this does not block the change, but the reader's own reachable surface does not say so."
+    }
+  ],
+  "follow_ons": [],
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "Read commit by commit: 5b563948 (fix) touches imas_ambix/agent/watch.py (+129/-42), imas_ambix/agent/telemetry_index.py (+31), tests/test_agent_telemetry_watch.py (+142/-2) and tests/test_agent_watch_cost.py (+16/-1); d2f45cd2 adds the evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-watch-reads-index-read-only.html (+73). The source change removes discover import; d2f45cd2 records the finding, the fix and the control on the fragment. No line of test_agent_watch_live.py or test_telemetry_index.py is touched (declared write paths, unused).",
+    "done_when": "Read the node's measure: the review record stores a parsed record scoring all five dimensions in 0..20, reviewed_base_sha and reviewed_head_sha, and added_failure_count/added_failure_ids derived from the reviewed run's baseline_suite and after_suite gate logs. This record carries all of them: total 92 (goal_fidelity 19, evidence 18, scope_discipline 20, durability 16, fit 19), base 01147152, head d2f45cd2, added_failure_count 0 with no added ids, taken from the reviewed run's own baseline.log (109 passed EXIT=0) and gate.log (113 passed EXIT=0).",
+    "goal": "The plan's s5 fixes that the store is made current by the standing ingest service and that a watcher only reads: 'agent watch opens the index read-only and never ingests on a read', 'With no index, agent watch says so and creates none. A stale index is read as it is, and its last-ingest time is shown.' The node adds TelemetryIndex.readonly (telemetry_index.py:838), index_status and render_index (watch.py:847,870), rewrites watch_text (watch.py:944-966) and watch_document (watch.py:1058-1088) to stat the index first and open it read-only, and reports path/last_ingest_at/age in both outputs. Verified delivered: the probe shows head creates neither the index nor its parent where base created both, and the absent path prints 'none at ...' naming imas-ambix agent ingest while the JSON carries index.exists false.",
+    "manifest": "Read; status complete, the three-command gate green at d2f45cd2 (113 passed / serving-interpreter guard 1 passed / whole-tree ruff clean), negative_control_log negative-control.log, and the arms baseline_suite (01147152, 109 passed) and after_suite (d2f45cd2, 113 passed) both armed and completed. Its negative control restores index.ingest(discover(directory)) in watch_document and reddens test_a_watch_read_never_ingests_a_source on the index-bytes assertion (1 failed EXIT=1); this review confirmed the guard reddens under a different mutation (mode=ro -> mode=rwc) as well. follow_ons none, blockers none.",
+    "write_paths": "The manifest declares imas_ambix/agent/watch.py, imas_ambix/agent/telemetry_index.py, tests/test_agent_telemetry_watch.py, tests/test_agent_watch_live.py, tests/test_agent_watch_cost.py, tests/test_telemetry_index.py and the evidence fragment plus a figures directory; the diff touches exactly watch.py, telemetry_index.py, the fragment, test_agent_telemetry_watch.py and test_agent_watch_cost.py, every one inside the declared set; the declared live/cost/index test files and the figures directory are unused, which the done-when permits. No plan, shared index or sprint state is edited. This reviewer wrote only the two fenced review-record paths, with its scratch trees, logs and probes under $TMPDIR."
+  },
+  "justifications": {
+    "durability": "The two properties the change exists to hold are guarded by real tests that redden when the property is removed: test_a_watch_read_never_ingests_a_source pins bytes-and-sample-count immutability (the run's own negative control and this review's mode=ro->mode=rwc mutation both redden the read-only pair), and test_a_missing_index_is_reported_and_not_created pins that neither file nor parent is created (this review's short-circuit-bypass mutation reddens it). ruff check imas_ambix tests exits 0 at head and the four new tests are additions, so nothing prior regressed. Held at 16 because the repair removes the reader's only path back from a corrupt or partial index and the suite does not exercise that state: measured, a zero-byte index that base healed (0 -> 36864 bytes) now makes watch_text and watch_document raise OperationalError('no such table: sample') to the caller with no matching test.",
+    "evidence": "Both arms reproduce green from the commit's own object store (base 109 EXIT=0, head 113 EXIT=0) and the head set is the base set plus exactly the four new tests, so added_failure_count is 0. The repaired defect was reproduced at base before being credited (watch_text creates the index where head does not, probe.log), and two independent mutations redden the new guards (mode=ro->mode=rwc reddens the write-refusal test; bypassing the missing-index short-circuit reddens the absent-index test). Held at 18 not 20 because the run's coverage leaves the corrupt/partial-index state untested -- the state that the finding shows regresses -- and because the reviewed run's head gate log, though it names revision, tree and command, does not carry the module/cwd provenance line this review's own scratch arms carry.",
+    "fit": "The new symbols are named by mechanism (readonly, index_status, render_index) and their docstrings state why a read must not build the store, telemetry_index.py:1-11 already fix the read-only/read-and-rebuild contract they extend. No plan label, sprint id, ticket reference, version suffix or attribution appears in the changed source or tests; the naming scans over the changed files are clean (the one uppercase-token hit, watch.py:753 'H200', is a hardware name outside the diff). ruff check imas_ambix tests exits 0 at head and the serving-interpreter parse guard passes 1/1, matching the module's idiom and the repository's whole-tree gate.",
+    "goal_fidelity": "Read the landed change against the node goal: watch_text and watch_document now stat the index first and open the index through TelemetryIndex.readonly (SQLite URI mode=ro, 5 s busy timeout), which runs no schema script and no migration and creates neither file nor parent; both outputs carry path, last_ingest_at (file mtime in UTC) and age, and the absent case states the path and the standing ingest service while printing no period or ledger rows. Every clause of the goal is delivered and independently measured (probe.log; head 113 passed EXIT=0). Held at 19 rather than 20 because a present-but-unreadable index is a third state that the goal's 'no index / stale index' pair does not cover and the change does not handle gracefully (see the finding).",
+    "scope_discipline": "git diff --stat 01147152..d2f45cd2 touches exactly imas_ambix/agent/watch.py, imas_ambix/agent/telemetry_index.py, tests/test_agent_telemetry_watch.py, tests/test_agent_watch_cost.py and the node's own evidence fragment, all inside the manifest's declared write paths; the declared test_agent_watch_live.py, test_telemetry_index.py and figures directory are unused (permitted). No plan, shared index or sprint state is mutated; the reviewed worktree is clean at d2f45cd2 and the head is not yet an ancestor of the primary branch, which is expected -- merge belongs to the orchestrator. This reviewer wrote only the two fenced record paths."
+  },
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-watch-reads-index-read-only",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "review_kind": "review",
+  "review_run_id": "r-20261002T091029530400-review-of-srw-watch-reads-index-read-only",
+  "reviewed_base_sha": "0114715248ad22187aae4e201529292d54dd5843",
+  "reviewed_head_sha": "d2f45cd2a4ced8bdca1a4a12c7a9e68f27afdfde",
+  "reviewed_run_id": "r-20261002T082940729305-srw-watch-reads-index-read-only",
+  "reviewer": "review-of-srw-watch-reads-index-read-only",
+  "scores": {
+    "durability": 16,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "section": "s5",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T09:30:36+00:00",
+  "total": 92
+}

@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T06:07:56.438Z",
+  "dispatched_at": "2026-10-05T06:03:58Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/gs/artifact_resolution.py:344",
+      "id": "duplicate_owner-1",
+      "reason": "the plan must either route the converted description through the existing publish/resolve owner (with a JT-60SA pin) or state in \u00a74 why the per-phase netCDF is a distinct artifact class that owner cannot hold, because a forked description store silently splits the spine's machine-provenance into two mechanisms.",
+      "text": "\u00a74 persists the converted JT-60SA description as per-phase IDS netCDF under `JT60SA_ROOT/machine_description/` carrying a \"deck hash receipt\", but the content-addressed machine-description artifact store \u2014 `publish_object`, `resolve_machine_description`, pinned physical/registry/semantic digests, `CACHE_ENV`/`DIGEST_ENV` \u2014 already exists in `imas_ambix/gs/artifact_resolution.py` and is consumed by the spine through `imas_ambix/gs/machine_selection.py:192 select_machine`; the plan never names that owner, so the spine would receive JT-60SA geometry through a second provenance/receipt path beside the one the spine's other machines use",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/description_identity.py:106",
+      "id": "reuse_search-1",
+      "reason": "naming the owner turns \u00a74's done-when into a reuse of existing assertions (extend them for the JT-60SA phases) instead of an invitation to rebuild determinism and boundary-change checks already proven for MAST's two geometry transitions.",
+      "text": "\u00a74's done-when requires \"the three identity assertions (determinism, partition consistency, visible change at the OP1/OP2 boundary)\" but does not cite the module that already implements them (`machine_description_bytes`, `geometry_description_for_transition`, `description_field_changes`), so the node reads as re-deriving checks ambix already owns",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "13bc8e39b0bab06d4852083f4b16e214702e5660bcfbef59dc6d5e644af40f90",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 13,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T060353637643-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "89e200f58b5a2b73397ad3b9e315dbbc3c1dda5e",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each new surface (\u00a72 exporter, \u00a73 extractor, \u00a77 EQDB reader) hides substantial behaviour (ssh transport, unit/sign/COCOS collapse, EQDB record parsing) behind one function or one fetch entry, and \u00a77 shares the \u00a73 transport rather than adding a parallel path.",
+    "duplicate_owner": "a finding \u2014 \u00a74 lands a second machine-description store with its own \"deck hash receipt\" while `imas_ambix/gs/artifact_resolution.py` already owns the content-addressed, pinned, receipted machine-description artifact store.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a72 (\"retires nothing, because ambix has no exporter\"), \u00a73 (\"retires nothing, because ambix has no remote reader today\"; \"adds no ambix data command\") and \u00a77 (\"retires nothing, because no equilibrium-database reader exists in ambix\") each account for their surface in-text, and \u00a75 adds data rather than a definition family.",
+    "reuse_search": "a finding \u2014 the plan searches and cites the machine-map, transform-engine, view, signal-map and spine machinery it extends, but not `imas_ambix/data/description_identity.py`, which already owns the boundary/identity assertions \u00a74 lists as a done-when.",
+    "thin_wrapper": "pass \u2014 the two wrappers over existing/external machinery carry the required justification: \u00a73 states importing imas-codex's remote layer would make its graph/LLM/tool-install dependencies a dependency of every ambix read, \u00a74 extends NetCDFTransformEngine rather than adding an engine because a static description has no per-shot cost to amortise."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.883985+00:00"
+}

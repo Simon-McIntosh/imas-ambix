@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T14:53:27.469Z",
+  "dispatched_at": "2026-10-06T14:44:18Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html#s6",
+      "id": "duplicate_owner-1",
+      "reason": "an implementer working \u00a76 and one working \u00a77 will each expect to author the same two files (eddb_remote.py, eddb.py), so the plan must name a single section's node as the transport owner and move the design text beside it.",
+      "text": "the EQDB transport (one request type and one record type in imas_ambix/data/eddb_remote.py, the grid record writer and its two extracted helpers in imas_ambix/data/eddb.py) is designed in \u00a77 but \u00a76 states \"\u00a76 builds that transport\", while \u00a78's execution order files \"the EQDB reader\" under \u00a77 and \u00a76's node jtmm-eqdb-reader-probe and \u00a77's open question eqdb-reader both carry \"reader\" for two different things",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "c7ed1e9de4c276ae61f2acce223cc33fde8bf4b7edd881a3db837d90c59aa51c",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 150,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T14:56:37.844249+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T14:56:37.844249+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v150.json",
+  "review_run_id": "r-20261006T144412149431-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "991cbb322f447554be0bb3f53648f83b9b132999",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the plan creates no new module; the EQDB work lands inside the existing eddb_remote.py and eddb.py owners, and the shared token/overwrite contract is deliberately extracted into private helpers so two writers have one implementation rather than a parallel path.",
+    "duplicate_owner": "a finding \u2014 one shared mechanism, the EQDB transport, is designed in one section and built by another, so ownership of eddb_remote.py's EQDB types and eddb.py's grid writer is split between \u00a76 and \u00a77.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface names what it retires or why nothing can (\u00a76 adds measure_convention and retires mast_angle_to_canonical; \u00a77 adds the two EQDB public types and retires three PINNED constants plus their re-export; \u00a75's spelling table and \u00a77's two record fields each state why they retire nothing).",
+    "reuse_search": "pass \u2014 every mechanism the plan adds cites the existing owner it extends (read_level2_observation, measure_diiid_convention, default_registry, the artifact_resolution pins, eddb_remote/eddb), and each cited symbol was opened and behaves as the plan states (mast_angle_to_canonical's only caller is its own test; project_poloidal_field is live in gs/operator.py; read_level2_observation hard-codes MAST level-2 keys; MAST_TO_COCOS_17_FACTORS is read only by tests; the PINNED-constant reader census is exact: 8/3/9 sites in the three named test modules).",
+    "thin_wrapper": "pass \u2014 the proposed changes extend existing mechanisms (the transform_engine COCOS step, the description_reader probe_angle_source branch, the machine_identity registry) instead of layering a wrapper over them; no wrapper is added without an extension argument."
+  },
+  "section_digests": {
+    "_document": "8db38812502fbc0283e02acb2b2c0dea1636932f77eb0ca3d99171a1fb9141b6",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "09da8380e3d57c37a40c310d245b1f01165a4b70d28b24196bd516dae6c9af1f",
+    "s6": "f8f4a8ae76a4f4dbeb654ace5f5467a3a58f070cb58ed9b00ed4b327bacd6402",
+    "s7": "7c7bbb61a15319b905adc3b29f3909965f8c51a6965b148c27072ce35967dc1a",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T14:56:26.567048+00:00"
+}

@@ -1,0 +1,68 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T09:36:30.888Z",
+  "dispatched_at": "2026-10-05T09:32:12Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/transform_engine.py:236",
+      "id": "deep_module-1",
+      "reason": "the plan must name the interface change (open resolves a directory/layout, or transform_machine_description pre-resolves the map directory) or the extension it claims is not implementable as drawn.",
+      "text": "\u00a74 claims it \"extends that engine\" so a store \"declared static over its map resolves {root}/{map name} and reads one {ids}.nc per IDS\", but the engine it must extend, NetCDFTransformEngine.open(root, shot, dd_version), unconditionally appends str(int(shot)) and never receives the map; transform_machine_description:384 holds the catalogue and map_for_shot:375 but the interface carries no way to select the static layout, so the plan's new addressing cannot be hidden behind the current open()",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/challenge/convention.py:266",
+      "id": "thin_wrapper-1",
+      "reason": "the plan should name the eligibility and minimum-shot parameters the loader boundary must also expose, or SELENE/FAME cannot reuse it as claimed.",
+      "text": "\u00a76 says it generalises measure_diiid_convention \"to take an equilibrium record through a loader\" leaving only a \"record contract with canonical keys for the grid, psi, axis and boundary\", but the kernel's entrypoint also hard-codes DIII-D eligibility (MINIMUM_PLASMA_CURRENT_KA=500.0, STANDARD_FIELD_BCOIL_MAXIMUM=0.0 at convention.py:38-40) and the MINIMUM_AUDIT_SHOTS=20 guard at :264; a loader seam over those leaves SELENE/FAME unable to pass the entrypoint, and _axis_and_boundary also needs grid_Z and the lcfs arrays, not only grid/psi/axis/boundary",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/gs/machine_identity.py:207",
+      "id": "duplicate_owner-1",
+      "reason": "",
+      "text": "\u2014 \u00a77 asserts \"the selector therefore takes the machine from the catalogue the shot belongs to and passes it to the identity registry\", but the shot\u2192machine owner, identity_for_shot, resolves through default_registry() (machine_identity.py:145), fixed to Nova's MAST geometry registry, and takes a registry object rather than a machine; no file maps a shot to a catalogue (map_for_shot:1534 selects a map within one catalogue), and open question jt60sa-artifact-authoring leaves unresolved whether Nova can materialise a JT-60SA artifact for that registry at all; WOULD_CHANGE_THE_PLAN: yes \u2014 REASON: the plan must name the owner to extend for shot\u2192machine resolution (default_registry / the identity registry) and reconcile it with the unresolved artifact-authoring question, or the \u00a77 selection path has no owner to extend.",
+      "type": "duplicate_owner",
+      "would_change": null
+    }
+  ],
+  "plan_fingerprint": "45be2d1985ff2e382c37e4396df86dc010698d33a0b3e84287f5432c7e8852b4",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 49,
+  "project": "imas-ambix",
+  "responses": {
+    "deep_module-1": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T09:37:34.752622+00:00"
+    },
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T09:37:36.044436+00:00"
+    },
+    "thin_wrapper-1": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T09:37:35.448762+00:00"
+    }
+  },
+  "review_run_id": "r-20261005T093206608781-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "e0012402c44a475dd2cc63e915b2545800393c07",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 the \u00a74 \"static over its map\" store layout cannot be hidden behind the existing engine interface, which carries no map.",
+    "duplicate_owner": "a finding \u2014 \u00a77 presumes a shot\u2192catalogue resolver and a per-machine identity registry that no file owns; the owner to extend is gs/machine_identity.identity_for_shot / default_registry.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface states its retirement in its own text (\u00a72 \"retires nothing, because ambix has no exporter\"; \u00a73 \"retires nothing, because ambix has no remote reader today ... adds no ambix data command\"; \u00a74 \"retires nothing inside ambix, because ambix has no deck reader today ... the probe-angle key retires the machine branch\"; \u00a77 \"adds two record fields and retires nothing, because no scalar reference comparison exists yet\").",
+    "reuse_search": "pass \u2014 the plan names and I verified each owner it extends (cocos_convention.score_convention, challenge/convention._integrated_current, eval/efit_referee.judge_geometry, description_identity, gs/artifact_resolution, imas_codex remote layer) and cites codex's remote scripts rather than presenting them as absent.",
+    "thin_wrapper": "a finding \u2014 the \u00a76 loader seam is thin over a kernel whose surrounding entrypoint stays DIII-D-specific, so the reuse it promises is incomplete."
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T09:37:27.656759+00:00"
+}

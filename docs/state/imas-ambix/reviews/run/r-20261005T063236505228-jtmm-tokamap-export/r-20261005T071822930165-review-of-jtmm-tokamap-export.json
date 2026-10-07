@@ -1,0 +1,61 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run is unarmed: its manifest names no baseline_suite and no after_suite and its parsed record (classification.json) shows manifest.data.baseline_suite and manifest.data.after_suite both null, so the delta cannot come from the run's own arms. This review therefore built two scratch arms from the reviewed commit's object store (git archive 0111d5a1 into $TMPDIR arms/base, git archive 5a07dd95 into arms/head; no git worktree created; the reviewed worktree is not writable by this node) and ran the SAME selection on both: tests/data/test_signal_map.py and tests/test_cocos.py. The selection covers the two existing modules the change integrates with without scanning the FAIR-MAST corpus (two test_machine_map.py corpus-inventory tests were excluded because they walk 11,573 shots and are unrelated to the exporter). Both arms are green and identical: base arm 16 passed EXIT=0 (gate-base.log, revision 0111d5a1, module imported from the base scratch tree) and head arm 16 passed EXIT=0 (gate-head.log, revision 5a07dd95, module imported from the head scratch tree). The reviewed node's own additive gate re-run in the head scratch arm is 6 passed EXIT=0 (gate-head-additive.log), matching its test_gate.log. Head failing ids ([]) minus base failing ids ([]) is 0, and the additive test file contributes 0 failures, so added_failure_count is 0.",
+  "after_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/tmp/review-tokamap-lXtnZz/head uv run --no-sync --directory /tmp/review-tokamap-lXtnZz/head pytest -p no:cacheprovider -q tests/data/test_signal_map.py tests/test_cocos.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T071822930165-review-of-jtmm-tokamap-export/gate-head.log",
+    "revision": "5a07dd95f369ff770b8ce87e059fed07f998cef8"
+  },
+  "baseline_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/tmp/review-tokamap-lXtnZz/base uv run --no-sync --directory /tmp/review-tokamap-lXtnZz/base pytest -p no:cacheprovider -q tests/data/test_signal_map.py tests/test_cocos.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T071822930165-review-of-jtmm-tokamap-export/gate-base.log",
+    "revision": "0111d5a1d575ab015e142c102d25fa3274c68bf4"
+  },
+  "completed_at": "2026-10-05T07:31:03.794Z",
+  "dispatched_at": "2026-10-05T07:18:29Z",
+  "findings": [
+    {
+      "category": "missing-deliverable",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-tokamap-export.html",
+      "line": "section jtmm-tokamap-export",
+      "severity": "follow-on",
+      "text": "follow-on: plan \u00a72 done-when asks for a directory that 'passes tokamap-validator for the five first-pass groups' (the plan's \u00a71 diagram names them pf_active, pf_passive, wall, tf, magnetics), but the delivered evidence validates four IDS groups only \u2014 those the packaged MAST catalogue binds (magnetics, pf_active, pf_passive, wall); the tf group is absent. The exporter filters by the binding's Data Dictionary prefix and is group-agnostic, so it would emit a fifth group from a catalogue that binds one; the shortfall is in the demonstration catalogue, not in the code path. But as delivered the five-group clause is not demonstrated, and a reader of the fragment's 'all four IDS groups the MAST map binds' should not take the plan's five-group clause as satisfied. Closing it needs a catalogue (JT-60SA) with a fifth-group binding and a recorded five-group validator run. This is the same clause the node flags in its own manifest follow_ons."
+    },
+    {
+      "category": "evidence",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-tokamap-export.html",
+      "line": "66",
+      "severity": "follow-on",
+      "text": "minor, evidence integrity: the fragment's negative-control line reads 'omitting the COCOS factor ... (1 failed, 4 passed; exit 1)', but the run's cited negative_control.log at the same head 5a07dd95 reads '1 failed, 5 passed in 2.92s' and the test file defines six tests, so the fragment's tally is stale by one \u2014 it was not updated when the sixth test (test_group_keys_are_relative_and_verbatim) landed at head. The control itself fires correctly (the COCOS-dependent binding fails with 1.0 vs expected -1.0), so only the quoted passed-count is wrong; correcting it to '1 failed, 5 passed' would make the fragment reconcile with the log it cites."
+    }
+  ],
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T071822930165-review-of-jtmm-tokamap-export",
+  "reviewed_base_sha": "0111d5a1d575ab015e142c102d25fa3274c68bf4",
+  "reviewed_head_sha": "5a07dd95f369ff770b8ce87e059fed07f998cef8",
+  "reviewed_run_id": "r-20261005T063236505228-jtmm-tokamap-export",
+  "reviewer": "review-of-jtmm-tokamap-export",
+  "scores": {
+    "durability": 17,
+    "evidence": 15,
+    "fit": 17,
+    "goal_fidelity": 15,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T07:29:49+00:00",
+  "total": 83
+}

@@ -1,0 +1,65 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T02:44:03.421Z",
+  "dispatched_at": "2026-10-06T02:39:34Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/transform_engine.py:193",
+      "id": "deep_module-1",
+      "reason": "the plan should fold a named entry into the existing rank/position contract (or state the composition and mutual exclusion) rather than add a parallel selector whose interaction with `source_rank` is undefined.",
+      "text": "\u00a74 gives a binding an optional slot naming one entry of the first struct array by its `name` leaf so one binding family and one structure assembly per coil can read the ragged pf_active store, but `_read_ids_path`/`_struct_array_positions` already drive struct-array traversal from `binding.source_rank` (`preserved_positions` stacks the trailing structural arrays or collapses to `[0]`), so the plan introduces a second, overlapping traversal mode inside one function and states only \"a binding without it reads exactly as today\" \u2014 it does not say how the selector composes with `source_rank`/`preserved`, nor why entry selection cannot be expressed through the rank/position mechanism that already decides which struct-array entries are read",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/machine_map.py:609",
+      "id": "duplicate_owner-1",
+      "reason": "the plan should justify why the selection cannot ride the existing `StructureAssembly` identity (or extend it) before adding a binding-level duplicate of the same fact.",
+      "text": "the new binding slot repeats a fact the catalogue already declares: `StructureAssembly.member_bindings` names the binding families of a conductor and `StructureAssembly.element_identifiers` names its emitted elements, and `geometry_adapter._assembly_identifiers` (imas_ambix/data/geometry_adapter.py:256) already resolves a family to its assembly and identifiers; adding the source-entry name on the binding makes the binding a second place a struct-array entry's identity is written, so MAST's per-coil pattern is duplicated rather than expressed through the owner",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "993b695a05f35bf443d97666c216a675f77aa96ba9c8c48d56a3be4953ec727d",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 88,
+  "project": "imas-ambix",
+  "responses": {
+    "deep_module-1": {
+      "action": "acted",
+      "by": "coordinator",
+      "reason": "Acted in plan v89: section 4 states the selector consumes the first struct level and source_rank counts the levels below it.",
+      "when": "2026-10-06T03:16:33.112635+00:00"
+    },
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "coordinator",
+      "reason": "The selector is the binding's source address, the job MAST's per-coil source_array does; StructureAssembly keeps naming emitted elements after the transform. Plan v89 states this in section 4.",
+      "when": "2026-10-06T03:16:33.117134+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T023924199947-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "20a6db7d5cfc67a2e8c490f9dfbe246c6307f04c",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 \u00a74's newest repair adds a binding-level struct-array selector that overlaps, rather than folds into, the traversal contract already owned by `_read_ids_path`/`_struct_array_positions`.",
+    "duplicate_owner": "a finding \u2014 \u00a74's new binding slot makes the binding a second owner of struct-array-entry identity, which the catalogue already owns in `StructureAssembly.member_bindings`/`element_identifiers`.",
+    "interface_budget": "pass \u2014 `public_definitions` 0, `cli_options` 0, `mcp_views` 0, `refusal_families` 0; each section that adds interface surface accounts for it in its own text \u2014 \u00a72's \"one public function ... retires nothing, because ambix has no exporter\"; \u00a74's store slots \"retire nothing, because the catalogue had no addressing slot\" and \"the probe-angle key retires the machine branch\"; \u00a74's selector \"widens one binding contract and retires nothing, because no binding could select a struct-array entry before\"; \u00a75 \"adds one data file and no public definition or refusal family\"; \u00a77 \"adds two record fields and retires nothing\" and \"the label is widened in `resolve_shotset_version` rather than a second labeller added\". No section adds to a family without the required statement.",
+    "reuse_search": "pass \u2014 the plan names and reuses the owning mechanism for nearly every addition it proposes: \u00a76 supplies an observation cohort to `imas_ambix/data/cocos_convention.py` `score_convention`/`format_sign_report` and a loader to `imas_ambix/challenge/convention.py` `_integrated_current` rather than writing a second scorer; \u00a76/\u00a77 share `imas_ambix/gs/operator.py` `build_operator`/`vacuum_prediction` as the one forward operator; \u00a77 extends `imas_ambix/eval/efit_referee.py` `judge_geometry` through the existing `read_efit_geometry(..., loader=...)` seam and reads geometry through `gs/artifact_resolution.py`/`spine_bench/machine_artifact_arm.py` rather than a second resolver; \u00a74 extends `NetCDFTransformEngine` rather than adding a deck engine; \u00a77 reuses `SshTransport`. Every one of these is checked against the code and holds.",
+    "thin_wrapper": "pass \u2014 the plan's layers extend existing machinery with justification rather than wrapping it: \u00a74 widens `StoreEngine.open` (already landed as `machine_map`/`store_layout` parameters, verified in `imas_ambix/data/transform_engine.py:155,267`) because \"no engine has a way to see the map today\"; \u00a77 adds the EQDB reader \"beside the \u00a73 extractor's and reuses its ssh transport ... rather than a second path\"; \u00a72 keeps the exporter out of the loaders."
+  },
+  "section_digests": {
+    "_document": "81c30464997a0bb8e491a2ec9da6b8861cd25ff2cfad20808b2f114dc78a477d",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "51ac97c47be7a1ece70913a4cd27b4209c42ed5364d09144900c7fde4af294c1",
+    "s5": "b8fd563c68e5e8518654b5d37d9929467a10f841b4291cd34c629a84f4798199",
+    "s6": "bea1116148586bbd2262f1fe35d5d47d04478ac4fae890249b7e2281ea206d0f",
+    "s7": "ae2174e4845ce08936def8d3d6eafed254620d52bf8fb710080e045bbefb8083",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T03:16:12.977743+00:00"
+}

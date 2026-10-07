@@ -1,0 +1,55 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "local",
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/agent/router.py:1218-1352 RouterApp.__call__ admits each request and dispatches it to _relay",
+    "imas_ambix/agent/router.py:1694-1867 RouterApp._relay arms the cut watcher races it against the upstream open and ends the relay",
+    "imas_ambix/agent/router.py:937-948 _GenerationGate.wait_for_cut polls the gate file for a paused cut",
+    "imas_ambix/agent/router.py:1670-1690 _cut_before_upstream answers a relay cut before handover with 529 overloaded_error and Retry-After"
+  ],
+  "completed_at": "2026-09-25T18:02:38.853Z",
+  "dispatched_at": "2026-09-25T16:31:26Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": "947",
+      "text": "the conjunct that keeps a cut off a gate that is not paused is held by no test: every gate file the added tests write carries cut only together with paused (tests/test_agent_router_cut.py:227-232, :265, :303, :332-339, :429-431) and the resume write at :318 drops cut, so removing the `settings.paused and` conjunct left the declared gate at 28 passed in a scratch copy of the head whose loaded router module was inside that copy (guard-probe.log; the same copy reddens on a hard-disabled cut, 1 failed in 7.37 s), and a bare `cut: true` would then end relays admitted while the lane ran -- the retry storm the repair record (docs/plans/local-lane-admission-control.html:833) says the conjunct prevents -- while the manifest claims this guard as holding."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 4 production call site(s)",
+    "diff": "read commit by commit -- 9a89de3a lands the cut settings, the",
+    "done_when": "the measure is the declared gate plus the cut behaviours it",
+    "goal": "the goal is to make the router cut every in-flight generation",
+    "manifest": "read at",
+    "write_paths": "the declared fence is five paths and the diff"
+  },
+  "justifications": {
+    "durability": "the cut itself is held by recorded mutations in both",
+    "evidence": "the gate measures the done_when and its result is",
+    "fit": "the change follows the module's own idiom -- module-level",
+    "goal_fidelity": "the landed change does what the goal states --",
+    "scope_discipline": "every path in the diff 957eb3c3..adbd4df7 is"
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260925T135405243335-s18-router-cut (plan\nimas-ambix:local-lane-admission-control section 18), read at its base\n957eb3c392627508b7d0879feab007af38de5d7c and head\nadbd4df75d2906ba35892ac2f038fc618fc69464. I read the landed router diff and the\nadded test file, the plan's landing and repair records with the cumulative\nevidence anchor, the target's manifest and its gate, ruff, hash and\nnegative-control logs, and I re-ran the single test the gate names at the\nreviewed head.\n\nVERDICT goal: the goal is to make the router cut every in-flight generation\nrelay when the gate file declares a cut pause; the gate file gains cut and\ncut_form beside paused (imas_ambix/agent/router.py:384-386, validated against\nGATE_CUT_FORMS at :68), every admitted relay arms a watcher that re-reads the\ngate file (:1752-1753) and the cut ends the relay in the form the client\nretries (:1826 writes the error frame, the close form returns without a\nterminal chunk), the upstream request is cancelled and the relay recorded\naborted, and the repair extends the same cut to a relay still waiting on the\nupstream response itself (:1773), answered whole with 529 overloaded_error and\nRetry-After (:1670).\nVERDICT done_when: the measure is the declared gate plus the cut behaviours it\nasserts; the run directory's gate.log records 56 passed in 20.74s with per-file\ncounts 17 gate / 5 admission / 6 cut / 28 receipts, so the three declared gate\nfiles hold 28 of them at 0 failures, and ruff.log reads All checks passed; each\ndone-when behaviour has its case -- the close form with cut_form absent and\nexplicit (tests/test_agent_router_cut.py:208), the overloaded_error frame before\nthe terminal chunk (:250), hold-then-resume order (:288), a cut already in the\nfile honoured by a fresh router (:327), a pause without a cut still draining\n(:367), and the non-streaming cut inside 10 s answered 529 with\noverloaded_error and Retry-After (:393, :436-439); I re-ran the\nnamed test at the reviewed head and it passed 1/1 in 4.23 s (review-gate.log,\nmy run directory).\nVERDICT write_paths: the declared fence is five paths and the diff\n957eb3c3..adbd4df7 touches exactly those -- imas_ambix/agent/router.py,\ntests/test_agent_router_cut.py, docs/plans/local-lane-admission-control.html,\ndocs/evidence/archive/local-lane-admission-control-landed.html and\ndocs/figures/local-lane-admission-control/pause-cut-forms.svg -- with the only\ndeletions in the docs being the plan-version meta line (76 to 77) and the\nplan-verifies meta rewrite that gains the new anchor; the reviewed worktree is\nclean at adbd4df7 and my own re-run of the named test wrote nothing outside the\ntarget tree's gitignored bytecode caches, my run directory and node-local /tmp.\nVERDICT manifest: read at\n/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T135405243335-s18-router-cut/manifest.md;\nit names the four commits, the exact gate command with its 56 passed in 20.74s\nand clean Ruff, the measurement module and cwds, the declared negative-control\nstring as its red log's first line with the byte-identical restore and its two\nhash files and the reason the committed blob differs by one blank line, plus\nartifacts, evidence inputs, follow-ons and blockers; every path it names exists\nand reckon crew check-manifest on this run reports ok true with no findings.\nVERDICT diff: read commit by commit -- 9a89de3a lands the cut settings, the\nwatcher and both forms with the first five tests, 581474e8 records the landing\nin the plan and the cumulative anchor with the figure, d2893cb3 adds the\nupstream-open race so a withheld relay is cut and answered 529 with its test,\nadbd4df7 records the repair -- all four subjects conventional with full bodies\nand no attribution, the repair present at head (the race at\nimas_ambix/agent/router.py:1773, the error-form branch at :1826), and the\nadded code lines carry no plan label, phase name or ticket reference.\nCALL_SITES: imas_ambix/agent/router.py:1218-1352 RouterApp.__call__ admits each request and dispatches it to _relay, imas_ambix/agent/router.py:1694-1867 RouterApp._relay arms the cut watcher races it against the upstream open and ends the relay, imas_ambix/agent/router.py:937-948 _GenerationGate.wait_for_cut polls the gate file for a paused cut, imas_ambix/agent/router.py:1670-1690 _cut_before_upstream answers a relay cut before handover with 529 overloaded_error and Retry-After\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: the landed change does what the goal states --\nevery admitted generation relay ends itself when the gate file declares a\npaused cut, for a streaming relay already in the body loop\n(imas_ambix/agent/router.py:1805-1830) and for one still waiting on the\nupstream response (router.py:1773-1786), with the upstream cancelled and the\nrelay recorded aborted -- and the two exclusions the section states (a gate\nthat is not paused, a relay that consumed no decode width) are implemented at\nrouter.py:947 and :1752.\nSCORE evidence: 19\nJUSTIFICATION evidence: the gate measures the done_when and its result is\nrecorded on disk rather than claimed -- gate.log holds 56 passed in 20.74s with\nthe per-file split (17/5/6/28), ruff.log holds the clean whole-tree lint, and\nnegative-control-red.log begins with the declared control string and the\npredicted TimeoutError failure at 10.94 s -- with one deduction: neither\ngate.log nor the red log names a revision or a command, so the log binds to the\nwork only by its rootdir and the head has to be reconstructed from the manifest\nand commit times.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: every path in the diff 957eb3c3..adbd4df7 is\nalso inside the manifest's declared five-path fence and the only deletions in\nthe docs are the plan-version meta line (76 to 77) and the plan-verifies meta\nrewrite that gains the new anchor (docs/evidence/archive/local-lane-admission-control-landed.html:13),\nwith the reviewed worktree clean at adbd4df7.\nSCORE durability: 18\nJUSTIFICATION durability: the cut itself is held by recorded mutations in both\narms -- negative-control-red.log fails the non-streaming test with TimeoutError\nat 10.94 s when the upstream-open race arm is removed, and the attempt-1 red\nlog fails 3 of 5 when the stream is allowed to end normally -- and every added\nassertion reads an independent side (the stub engines' cancelled/completed\nevents at tests/test_agent_router_cut.py:244-245, :434 and :440, the on-disk\nreceipt rows at :445-447, and literal expectations rather than imported\nconstants), with one deducted hole: the manifest's claimed guard that a cut is\nhonoured only while paused is held by no test -- measured in a scratch copy of\nthe head where removing the conjunct at imas_ambix/agent/router.py:947 left the\ndeclared gate at 28 passed.\nSCORE fit: 20\nJUSTIFICATION fit: the change follows the module's own idiom -- module-level\nand idempotent frame and body helpers beside the existing ones\n(imas_ambix/agent/router.py:77-100), validated constant tuples beside the\nsettings class (:68-69, :214), and tests built on the repository's existing\nstub helpers with the file's asyncio.run(exercise()) shape\n(tests/test_agent_router_cut.py:449) -- and the added lines carry no plan\nlabel, phase name or ticket reference.\nFINDING imas_ambix/agent/router.py:947 the conjunct that keeps a cut off a gate that is not paused is held by no test: every gate file the added tests write carries cut only together with paused (tests/test_agent_router_cut.py:227-232, :265, :303, :332-339, :429-431) and the resume write at :318 drops cut, so removing the `settings.paused and` conjunct left the declared gate at 28 passed in a scratch copy of the head whose loaded router module was inside that copy (guard-probe.log; the same copy reddens on a hard-disabled cut, 1 failed in 7.37 s), and a bare `cut: true` would then end relays admitted while the lane ran -- the retry storm the repair record (docs/plans/local-lane-admission-control.html:833) says the conjunct prevents -- while the manifest claims this guard as holding.",
+  "review_run_id": "r-20260925T163118436092-review-of-s18-router-cut",
+  "reviewed_base_sha": "957eb3c392627508b7d0879feab007af38de5d7c",
+  "reviewed_head_sha": "adbd4df75d2906ba35892ac2f038fc618fc69464",
+  "reviewed_run_id": "r-20260925T135405243335-s18-router-cut",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-25T18:00:42.656002+00:00",
+  "total": 97
+}

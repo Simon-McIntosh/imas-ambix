@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T15:05:36.656Z",
+  "dispatched_at": "2026-10-06T14:57:39Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/signal_map.py:95",
+      "id": "duplicate_owner-1",
+      "reason": "as written \u00a75's \"bind with `unknown-unvalidated`, replace in \u00a76\" has no representation in the signal-map schema, and the landed maps already force identity (`channel_factor: 1.0`) on signed quantities, which is exactly the \"forced rather than measured\" outcome \u00a76's own text forbids; the plan must state where an unvalidated signal-map sign is held (a new schema field, or the binding recorded as blocked until \u00a76 measures it) instead of naming a field that schema does not own.",
+      "text": "the plan's \u00a75 (\"the magnetics bindings written, with sign_convention: unknown-unvalidated on every signed quantity until \u00a76 replaces it\"), \u00a76 (\"an emit path that lets a description binding whose sense \u00a76 has now measured stop being unknown-unvalidated\"; \"sign_convention: unknown-unvalidated on every signed quantity, as \u00a75 does for magnetics\" for the FAME equilibrium signal map), and \u00a78 (\"replace every unknown-unvalidated that the data settles\") all specify `sign_convention` on the pulse/equilibrium signal maps, but the signal-map schema has no such field: `SignalRule` (signal_map.py:95, `validate` at :146) requires `unit_factor` and `channel_factor` finite and nonzero, and its only sign carrier is the numeric `channel_factor` (`static_scale = unit_factor * channel_factor * convention_factor`, :118); `sign_convention` exists only on `ChannelBinding` (machine_map.py:147, legal values `_SIGN_CONVENTIONS` at :27 including `unknown-unvalidated`), which the transform engine applies (transform_engine.py:396 `_apply_sign_convention`). The landed maps confirm the divergence and its consequence: no map under imas_ambix/data/maps/ carries a `sign_convention` key, MAST carries sign numerically (`imas_ambix/data/maps/mast/*.json` `channel_factor: -1.0`), and the JT-60SA pulse maps fold the unvalidated sign to `channel_factor: 1.0` with the caveat only in the `evidence` string (`imas_ambix/data/maps/jt-60sa/magnetics.json`, `pf_active.json`, `tf.json` \u2014 every signed row), i.e. an assumed identity \u2014 the same instance appears again for the \u00a76 FAME equilibrium map.",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "5582052b20d157e37a4e16fd2f7ddb6e0f923ad645cdc9e7dbb7998ee09cdf42",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 152,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T15:27:00.800044+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T15:27:00.800044+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v152.json",
+  "review_run_id": "r-20261006T145732437317-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "4b36150af5fe90b36659c08a885ae02efda657ff",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the plan adds no new module; it extends existing owners, and each new public reader (`read_catalogue_observation`, `measure_convention`) hides a store read plus a typed-record adaptation behind one call rather than spreading behaviour across wrappers.",
+    "duplicate_owner": "a finding \u2014 the sign-convention vocabulary is owned by machine_map.py `ChannelBinding` (where `unknown-unvalidated` is the only legal spelling), but the plan specifies `sign_convention: unknown-unvalidated` on pulse signal-map bindings, whose schema (`signal_map.py SignalRule`) has no such field and requires a finite nonzero `channel_factor`.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface names what it retires or why nothing can be (\u00a72 exporter \"retires nothing, because ambix has no exporter\"; \u00a76 \"retires nothing, because no catalogue-driven observation reader exists\" and \"no equilibrium-database request type exists\"; \u00a77 retires three pinned constants and their re-export for one machine-keyed table; \u00a75 \"adds one data file and no public definition or refusal family\").",
+    "reuse_search": "pass \u2014 the plan cites the owner it extends for every mechanism it adds and every citation checked out (transform_engine.py `_apply_cocos_convention`/`_apply_sign_convention`, cocos.py `canonical_factor`, cocos_convention.py `score_convention`/`read_level2_observation`, challenge/convention.py `measure_diiid_convention`, eval/efit_referee.py `GeometryVerdict`, gs/artifact_resolution.py `PINNED_*`, gs/machine_identity.py `default_registry`, spine_bench/runner.py `_magnetics_residual`), and no un-cited existing mechanism was found that does what a proposed one adds.",
+    "thin_wrapper": "pass \u2014 the one sibling layer is justified and shares its computation: `read_level2_observation` keeps its MAST reads because MAST's catalogue binds no level-2 leaf, while the extracted kernel in cocos_convention.py is the single observation computation both readers call, so no thin re-export is added."
+  },
+  "section_digests": {
+    "_document": "8db38812502fbc0283e02acb2b2c0dea1636932f77eb0ca3d99171a1fb9141b6",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "09da8380e3d57c37a40c310d245b1f01165a4b70d28b24196bd516dae6c9af1f",
+    "s6": "f301e85d7c7aa2bc7a202795d8eaa1c4f82ca1be8658d24cd7ad00bceb337a4b",
+    "s7": "ad044a830a67027eaf3a8a9743d1398a554721118874a8b456b6858215ede9e6",
+    "s8": "b6d39b3c6fc7d7fdbbecd944ae79529121008122d4ed3120a8d61d7efc0d5f99"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T15:06:36.779032+00:00"
+}

@@ -1,0 +1,24 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T12:45:47.961Z",
+  "dispatched_at": "2026-10-05T12:42:18Z",
+  "findings": [],
+  "plan_fingerprint": "bda3cd8e18fe82e888bcc01805e9cd270b2706150c1c89140f70a6f37fd88f58",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 70,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T124211560153-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "f64ceafe301bf20d3d91a1d39e3c199bf5b55800",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each proposed module hides substantial behaviour behind a small surface: `imas_ambix/data/eddb_remote.py` exposes one batch-fetch entry over ssh transport + encode/decode + partial-batch refusals, `imas_ambix/data/selene_deck.py` one converter entry over three deck grammars into five IDS netCDF, `imas_ambix/data/tokamap_export.py` one `export_tokamap_directory` callable over group-scoping and unit/sign/COCOS collapse, and the \u00a77 EQDB reader is declared as one remote script reusing the \u00a73 transport rather than a second path.",
+    "duplicate_owner": "pass \u2014 the only same-mechanism duplication is the \u00a73 ssh extractor against `imas_codex/remote/` (`executor.py`, `ssh_worker.py`, `serialization.py`), and the plan names that owner and the file, states the reason it does not extend it (importing the codex distribution onto ambix's runtime path drags `neo4j`, `fastmcp`, `rapidfuzz`, `lxml`, `pypdf`), discloses that this is a second transport rather than an extension of the FAIR-MAST mirror (`imas_ambix/data/manifest.py`, `imas_ambix/data/cli.py`), and defers a shared core to the second facility that needs remote execution. Every intra-repo duplicate the item targets \u2014 path resolution (`imas_ambix/data/paths.py`), store addressing, the shot registry (`imas_ambix/spine_bench/shots.py`), the COCOS scorer, the equilibrium comparator and the machine-description resolver \u2014 is extended at its named owner, not forked.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface accounts for it in its own text: \u00a72 exporter \"retires nothing, because ambix has no exporter\"; \u00a73 extractor \"retires nothing, because ambix has no remote reader today\" and \"adds no `ambix data` command\"; \u00a74 converter \"retires nothing inside ambix, because ambix has no deck reader today\", the two store-addressing keys \"retire nothing, because the catalogue had no addressing slot\" while the probe-angle key \"retires the machine branch\" in `imas_ambix/data/description_reader.py` `read_geometry_table`; \u00a76 moves the hard-coded DIII-D eligibility constants into each loader's declaration; \u00a77's machine-keyed pin table replaces the single `PINNED_SEMANTIC_IDENTITY`/`PINNED_PHYSICAL_DIGEST`/`PINNED_REGISTRY_DIGEST` constants and its two record fields \"retire nothing, because no scalar reference comparison exists yet\".",
+    "reuse_search": "pass \u2014 the plan names the existing mechanism it extends for every proposal (imas_ambix/data/signal_map.py `load_packaged_signal_map`; imas_ambix/data/cocos_convention.py `score_convention`/`surviving_conventions`/`format_sign_report`; imas_ambix/challenge/convention.py `measure_diiid_convention` with `_integrated_current`; imas_ambix/challenge/loader.py `load_shot`/`ChallengeShot; imas_ambix/eval/efit_referee.py `judge_geometry`; imas_ambix/spine_bench/runner.py `_magnetics_residual`; imas_ambix/spine_bench/shots.py `BenchShot`/`resolve_shotset_version`; imas_ambix/gs/artifact_resolution.py `resolve_machine_description`; imas_ambix/gs/machine_selection.py `ArtifactMachineSelector.select`), and every one of those symbols exists in the tree at base 4bb5347d.",
+    "thin_wrapper": "pass \u2014 the sections that layer over existing machinery each state why the owner cannot be extended: \u00a72 keeps the exporter out of the loaders because the loaders must not learn tokamap; \u00a74 widens `StoreEngine.open` rather than adding an engine because a static description has no per-shot cost; \u00a76 generalises `measure_diiid_convention` through a record contract with the DIII-D corpus as first loader rather than a second scorer; \u00a77 routes to `efit_referee.judge_geometry` and reads `_magnetics_residual` from the stamp rather than adding parallel comparators; \u00a73's own extractor is the one deliberate new layer and it declares its owner and reason (see duplicate_owner)."
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T12:59:18.177504+00:00"
+}

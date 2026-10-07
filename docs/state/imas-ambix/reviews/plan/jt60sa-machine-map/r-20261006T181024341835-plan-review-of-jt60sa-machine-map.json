@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T18:14:17.315Z",
+  "dispatched_at": "2026-10-06T18:10:31Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/physics/equilibrium.py:56",
+      "id": "reuse_search-1",
+      "reason": "the author must either name these sites and state why the angle repair and the binding do not reach them, or extend the \u00a76 nodes to cover them; an unenumerated reader on the same quantity is exactly the partial census the \"every instance of a type\" rule exists to stop, and the plan's containment claim currently rests on a list that is missing entries.",
+      "text": "\u00a76's probe-angle census claims to name every site that touches probe angles (\"The other sites that touch probe angles are not suppliers on that route\") and lists load_tables, transform_geometry_source._supply_probe_orientations and artifact_geometry.read_artifact_magnetics, but it does not name this site, where magnetics_from_records reads angle_deg from the field-probe records to build Nova's Magnetics rows, nor the second unlisted site inside gs/geometry.py:868 and gs/geometry.py:877, where load_tables applies the MAST compiled signal map's poloidal_field_probe_directed_angle conversion to probe angles, so a reader of the very quantity \u00a76 redefines (the stored angle becomes \u03b8=(90\u00b0\u2212\u03c9) mod 360\u00b0) is left outside the census the plan uses to argue the change is contained",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/physics/equilibrium.py:56",
+      "id": "duplicate_owner-1",
+      "reason": "the plan should name this reader and assign it (extend it, or record why it is out of scope and MAST-only), so that a later node changing the stored angle cannot leave one consumer reading the old value under an ownership map that says every consumer is accounted for.",
+      "text": "the plan names one owner route for a probe's angle (\u00a74's description store, filled by read_geometry_table's probe_angle_source branch) and states that the branch is \"the one supplier of a probe's angle on the description route\", but this module reads a probe angle straight from Ambix diagnostic records with no reference to that route and is not assigned to any owner in the plan, so the ownership map the section draws does not cover a live reader of the same leaf",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "e26b61ed903d366a50c7e6cb48115fdeaac20f1048badba1fc27565012c7cefa",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 205,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-1",
+      "reason": "",
+      "when": "2026-10-06T18:15:15.192127+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T18:15:18.044227+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T18:15:18.044227+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T18:15:15.192127+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v205.json",
+  "review_run_id": "r-20261006T181024341835-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "a134397a4366bed5c2d11c5bcf896c8aa94c29bf",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new machinery is deep: eddb.py hides the token/overwrite store invariants and the record layout behind write_channel/read_channel, the transform engine hides the Sauter/COCOS resolution behind one compiled read, and measure_convention hides the loader, eligibility and receipt behind one entry that a single loader parameterises; the plan deliberately moves the raw read and the equilibrium read out of the wrapper into the owners (eddb.read_channel, EfitLabels) rather than thickening a wrapper.",
+    "duplicate_owner": "a finding \u2014 \u00a76 adds a grid record writer beside eddb.write_channel (correctly extracting the token and overwrite helpers to one implementation) and adds a probe_angle_source branch to description_reader.read_geometry_table rather than a fifth supplier, but its claim that that branch is \"the one supplier of a probe's angle on the description route\" is undercut by a reader it does not name, so the ownership map it draws is incomplete.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface accounts for it in its own text: \u00a72 adds one public exporter and retires nothing because ambix has no exporter; \u00a76's read_signal_map_observation retires read_catalogue_observation as it is added, the EQDB request/record types add and retire nothing because no equilibrium-database request type exists, and the grid writer retires nothing; \u00a77 retires the three PINNED_* constants and their machine_artifact_arm re-export into one machine-keyed table. No section adds to a family without naming what it retires, merges, or why nothing can be.",
+    "reuse_search": "a finding \u2014 the plan searches the ambix machinery it extends and its major prior-art claims verify in the tree (cocos_convention score_convention/score_conventions/surviving_conventions/format_sign_report, challenge/convention measure_convention/_integrated_current/_axis_and_boundary, eval/efit_referee judge_geometry/read_efit_geometry/GeometryVerdict, gs/operator, eddb write_channel/_channel_present, machine_artifact_arm's PINNED_* imports and re-export), but its \u00a76 enumeration of \"the other sites that touch probe angles\" omits at least one reader, so the census it rests on is incomplete.",
+    "thin_wrapper": "pass \u2014 each added layer is justified in its own text or replaces an existing one: \u00a72 keeps the tokamap exporter out of the loaders because \"they read the ambix schema and must not learn tokamap's\"; \u00a76's read_signal_map_observation replaces read_catalogue_observation (one definition retired, one added) rather than sitting beside it; the EQDB request/record types extend eddb_remote rather than widening the channel types, because a channel request names (shot, category, dname) and an EQDB request does not."
+  },
+  "section_digests": {
+    "_document": "62723cd7583dc5b18a64491724a048c3d8c8b0e2245109da9998ff5051244217",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "eef55c5a405e4e84879e448a4e75e95b53b2ee0cc3b641997443eccd99f07427",
+    "s7": "98cb613c0803ddc3cc31bcc07322fe88b7c08be5c7b6784f39a60e84c93f8ca4",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T18:15:13.352802+00:00"
+}

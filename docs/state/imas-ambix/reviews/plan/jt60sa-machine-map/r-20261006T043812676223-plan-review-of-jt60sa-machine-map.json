@@ -1,0 +1,52 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T04:45:10.973Z",
+  "dispatched_at": "2026-10-06T04:38:20Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/eval/efit_referee.py:178",
+      "id": "reuse_search-1",
+      "reason": "the same section self-corrects four sentences later (\"GeometryVerdict scores axis, X-point and boundary RMS only ... q95 and Ip ... are reported per shot in the stamped record ... without a pass mark\"), so the governing text is already right and only the earlier gloss is stale.",
+      "text": "plan \u00a77 first states judge_geometry \"already scores model geometry against an injected reference equilibrium into a GeometryVerdict (boundary RMS, axis position, q)\", but GeometryVerdict carries axis_error, xpoint_error, boundary_rms and n_boundary_points only \u2014 there is no q field, so the existing owner does not score q as the sentence claims",
+      "type": "reuse_search",
+      "would_change": false
+    },
+    {
+      "anchor": "imas_ambix/data/cocos_convention.py:242",
+      "id": "reuse_search-2",
+      "reason": "the design it supports (\"JT60SA supplies an observation cohort to the existing scorer rather than a second scorer\") is unaffected, since a static receipt table and a reader are both cohort sources and the plan's real claim \u2014 that the scorer needs no parallel implementation \u2014 holds.",
+      "text": "plan \u00a76 states \"read_level2_observation is the only producer of ShotSignObservation\", but MAST_LEVEL2_SIGN_TABLE (a hand-authored literal tuple of ShotSignObservation, cocos_convention.py:242) and read_level2_sign_table both also produce it, and the scorer's default observations argument is that static table",
+      "type": "reuse_search",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "7ab58afd51e293b9d3a2e6fe14165367617e8f84b956eff05d3b6a08b95a6809",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 100,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T043812676223-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "2c63a9ac322b17e31bbd5d9e23f3f127e6d8b3e8",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new machinery is one deep module per concern: selene_deck parses three deck grammars behind one converter entry point, RemoteEddbExtractor hides one ssh process per batch behind one call while keeping the refusal contract, and eddb.py hides the store's identity/half-write/overwrite invariants behind fetch_channels/write_channel; the store-engine extension is a method widening (StoreEngine.open gains the selected map), not a family of wrappers.",
+    "duplicate_owner": "pass \u2014 the plan names owners rather than forking them: JT60SA_ROOT/JT60SA_DESCRIPTION_DIR land in imas_ambix/data/paths.py (the canonical path owner, already present at paths.py:33), description store addresses resolve through the catalogue that read_geometry_table already owns, and the one surviving twin \u2014 spine_bench/transform_geometry_source.py _supply_probe_orientations, a second probe-angle supplier \u2014 is explicitly named and excluded with a reason (MAST-campaign-only, no JT60SA read reaches it) rather than left unacknowledged.",
+    "interface_budget": "public_definitions 0, cli_options 0, refusal_families 0, mcp_views 0 (read 2026-10-06T04:38:12Z) \u2014 pass \u2014 the sections that add surface each account for it in their own text: \u00a72 \"retires nothing, because ambix has no exporter\" and is kept out of the loaders; \u00a73 \"retire nothing, because ambix had no remote reader\" with no public definitions or refusal family added; \u00a74 declares the store-addressing keys move read_geometry_table's MAST defaults out and the probe-angle key retires the machine branch; \u00a74's struct_array_entry \"widens one binding contract and retires nothing\"; \u00a75 \"adds one data file and no public definition or refusal family\"; \u00a76 keeps every exported name and calls the generalised kernel; \u00a77's --machine \"replaces the implicit MAST default an explicit shot list used to carry ... it retires nothing else.\"",
+    "reuse_search": "pass \u2014 the plan cites and I opened the owners it proposes to extend: signal_map.load_packaged_signal_map (imas_ambix/data/signal_map.py), transform_engine.StoreEngine.open (imas_ambix/data/transform_engine.py:57), cocos_convention.score_convention/read_level2_observation (imas_ambix/data/cocos_convention.py), efit_referee.judge_geometry/read_efit_geometry (imas_ambix/eval/efit_referee.py), spine_bench.shots.BenchShot, gs/artifact_resolution pins and gs/machine_identity.identity_for_shot (all present, as claimed); the nearest existing mechanism for each new piece (FAIR-MAST manifest mirror for the reader, nakamap for the deck converter, libtokamap/tokamap for the exporter) is named and the plan states why it is extended or superseded rather than forked. Two prior-art claims inside the plan are imprecise (findings below), but the reuse search itself was done.",
+    "thin_wrapper": "pass \u2014 every added layer names the existing mechanism it cannot avoid extending: the static description is routed through the existing netCDF engine rather than a parallel deck engine, struct_array_entry widens the ChannelBinding contract that source_array already addresses, and eddb.py gains a grid writer beside write_channel under the same store rather than a second store over JT60SA_ROOT; each states \"retires nothing\" with the reason (no prior slot/reader existed)."
+  },
+  "section_digests": {
+    "_document": "060371ce32b20f0360ee1915d508732a36f1e2589b54c97b2df633bc451a49ed",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "978348f9ca560d52451e65fd8e70efba5d44976616b33aa9e3cef8464d8b75a2",
+    "s5": "d9699df7cbddeb0512a8fea91555e191404c636d3da53692701ca5e7269c334d",
+    "s6": "74c26a09a208a6ba05c3237f425df468a2268a55e4c2660252ada8961082454f",
+    "s7": "0c6f4af874cc38c1b8cc489a1dbb4a45290071b0160cd17895520e77c02485ef",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T04:54:37.442472+00:00"
+}

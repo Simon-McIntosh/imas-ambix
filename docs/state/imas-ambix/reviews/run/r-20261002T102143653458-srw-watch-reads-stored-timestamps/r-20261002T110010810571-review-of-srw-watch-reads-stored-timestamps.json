@@ -1,0 +1,82 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run is armed and its own two arms were read. baseline-gate.log is a complete run: at the base tree it ends '2 failed, 106 passed in 199.88s' with 'EXIT=1' and its two failing ids are exactly the two tests this node adds (tests/test_agent_telemetry_watch.py::test_sample_times_are_read_from_the_stored_epoch_column and ::test_computing_a_period_decodes_no_sample_payload). The reviewed run's after_suite log_path, gate.log, is NOT readable as a completed arm: it is 12 lines ending mid-collection at 60% (tests/test_telemetry_index.py .....) with no summary line and no EXIT=, because the worker was killed (exit.json exit_code 137 at 2026-10-02T10:59:44Z) while the gate it started at 10:55:16Z was still running (finding 1). This review therefore re-ran the head gate independently: the head tree extracted from 8e1f9cb into $TMPDIR gave 108 passed, EXIT=0, failure_ids [] (logs/head.log). Head failing ids ([]) minus the base arm's failing ids (the two added tests) is 0, so added_failure_count is 0 with no added ids. The base's two failures are the new tests failing on the unmodified product, which is the positive control that the arm instrument sees the change.",
+  "after_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py tests/test_agent_watch_cost.py tests/test_telemetry_index.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-reads-stored-timestamps/gate.log",
+    "revision": "8e1f9cb71ab65ff2961c66ef73be75baff9e4bb2"
+  },
+  "baseline_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_telemetry_watch.py tests/test_agent_watch_live.py tests/test_agent_watch_cost.py tests/test_telemetry_index.py",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 2,
+    "failure_ids": [
+      "tests/test_agent_telemetry_watch.py::test_sample_times_are_read_from_the_stored_epoch_column",
+      "tests/test_agent_telemetry_watch.py::test_computing_a_period_decodes_no_sample_payload"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-reads-stored-timestamps/baseline-gate.log",
+    "revision": "3c63437449c4d3e9aa963d7ae66d40e1cd7c233a"
+  },
+  "completed_at": "2026-10-02T11:28:57.606Z",
+  "dispatched_at": "2026-10-02T11:00:18Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-reads-stored-timestamps/gate.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "The reviewed run's after_suite log is truncated: gate.log is 12 lines, ending mid-run at 60% (tests/test_telemetry_index.py .....) with neither a pytest summary line nor the manifest-required bare 'EXIT=' line, so the record's declared head arm (completed true, exit_status 0) is not readable from the receipt it cites. The cause is visible in the run directory: exit.json records exit_code 137 at 2026-10-02T10:59:44Z, and gate.log's header shows the gate started 10:55:16Z, so the process was killed before the gate the log captures finished (the reviewed run's own baseline arm alone took 199.88s, and the head gate took 380s when this review re-ran it). This review re-ran the head gate from the commit's own object store (108 passed, EXIT=0, logs/head.log) and independently reproduced the whole A/B, so the result is correct; but the node's own head-arm receipt does not show it, and a coordinator promoting on the cited log alone would be reading a run that never reached its summary."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-reads-stored-timestamps/baseline-gate.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "The base-arm log's first line names the wrong revision: it reads 'baseline suite at base revision 8e1f9cb71ab65ff2961c66ef73be75baff9e4bb2', which is the HEAD commit, while the actual base is 3c63437449c4d3e9aa963d7ae66d40e1cd7c233a (the manifest's own baseline_suite.revision field states 3c634374 correctly, and the tree the log names is /tmp/.../base). That the tree really is the base revision, not head, is confirmed by the failure traceback, which runs through imas_ambix/agent/watch.py:555 'for row in index.rows(start, end)' inside _timestamps -- the payload-decoding body this node removes. The label is the only error: a later reader reconciling the two arms from the logs' own headers cannot tell which revision the base arm read, and the header is line 1, the line the manifest format exists to make authoritative."
+    }
+  ],
+  "follow_ons": [],
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "One commit, 8e1f9cb7 over base 3c634374, touching exactly the four declared paths: imas_ambix/agent/watch.py (+56/-26: _timestamps delegates to the store, observed_fraction and card_utilisation gain a keyword-only stamps argument, period_row threads it, the now-unused _parse_timestamp is removed), imas_ambix/agent/telemetry_index.py (+21: the timestamps reader), tests/test_agent_telemetry_watch.py (+51: two tests), and the evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-watch-reads-stored-timestamps.html (+46). The commit body states the mechanism and the measured fall, not a changelog.",
+    "done_when": "The dispatched done-when's testable clauses hold, each re-run here. Head gate 108 passed, EXIT=0 (logs/head.log). Serving-python parse test 1 passed, 8 deselected (logs/serving-parse.log). ruff check imas_ambix tests 'All checks passed', RUFF_EXIT=0 with cwd set to the tree (logs/ruff-cwd.log) -- an initial run passing --config from the wrong cwd produced 691 spurious findings because the isort first-party groups re-classified against a foreign working directory, an instrument fault, not a gate failure (logs/ruff.log). The real-snapshot A/B reproduces the recommendation's expected near-50 s and well-under-0.5 GiB against the base 105 s / 2.90 GiB, and an independent equivalence read of two 1-hour windows on the snapshot returns the column reader's list identical to the payload-derived list (717 and 644 stamps, equal=True, logs/equivalence.log). The new tests are red on the base product (baseline-gate.log 2 failed / 106 passed) and the no-payload test's refusal was independently reproduced by restoring the payload-decoding _timestamps in a scratch tree (logs/negative-control.log).",
+    "goal": "The goal is to make agent watch read sample epochs from the stored ts_epoch column instead of decoding every payload. watch._timestamps at watch.py:552 now returns index.timestamps(start, end); TelemetryIndex.timestamps at telemetry_index.py:1528 reads 'SELECT ts_epoch FROM sample WHERE ts_epoch >= ? AND ts_epoch < ? ORDER BY ts_epoch' through the existing sample_time index; and period_row at watch.py:655 computes a period's stamps once and passes them to card_utilisation/observed_fraction, so a period no longer fetches its samples a second time (confirmed: card_utilisation receives stamps and forwards them). The substitution is proved at the call site, not read from the docstring: on the real read-only snapshot this review ran both arms and got base 105.34 s / 2.90 GiB and head 49.87 s / 126 MiB with record, periods and all four ledger rows identical field by field.",
+    "manifest": "Read; armed with both arms. It reports 108 passed on the head, the two base failures as the new tests, the A/B measurement and the negative control, and names its logs. Its after_suite log is truncated mid-run with no summary or EXIT (finding 1) and its baseline-gate.log header names the head revision as the base revision (finding 2); neither changes the result, which this review reproduced independently, but both are receipt defects in an otherwise accurate record.",
+    "write_paths": "The four declared paths are imas_ambix/agent/watch.py, imas_ambix/agent/telemetry_index.py, tests/test_agent_telemetry_watch.py and docs/evidence/fragments/serving-record-warehouse/srw-watch-reads-stored-timestamps.html. 8e1f9cb touches exactly those four and nothing else; the plan HTML is untouched (the landing is a manifest line plus the fragment, not a plan edit) so the plan-version/plan-modified meta lines are unchanged, the shared index is untouched, and the declared figures directory docs/figures/serving-record-warehouse/srw-watch-reads-stored-timestamps gained no file."
+  },
+  "justifications": {
+    "durability": "The guard is genuinely mutation-tested rather than merely present: restoring the payload-decoding _timestamps in a scratch head tree makes test_computing_a_period_decodes_no_sample_payload fail with the payload parser's refusal (1 failed, EXIT=1) -- reproduced independently here, matching the node's own negative-control log. The equivalence test pins the new reader against the payload parse it replaces, and the public period row is asserted unchanged beside it. Docked because the 'ts_epoch IS NULL stays excluded' claim is argued from the ingest invariant (ts_epoch is written as _parse_timestamp(row['timestamp']), telemetry_index.py:1298) rather than exercised: the added fixture carries no NULL row and the real snapshot has 0 NULL of 410,617 rows, so a future ingest change that set ts_epoch without a parseable timestamp would not be caught by a test.",
+    "evidence": "Every clause was re-derived in this reviewer's own runs from the commit's own object store: the head gate 108 passed EXIT=0; the serving-python parse test 1 passed; ruff clean with cwd set to the head tree; the base and head arms measured independently (105.34 s / 3,039,292 KB and 49.87 s / 128,948 KB) with the document identical field by field and the head cost column matching the reviewed run's compare.json to the digit; the guard's refusal reproduced by an independent mutation. Docked for two receipt defects in the reviewed run's own logs -- the truncated after_suite gate.log (finding 1) and the base log's header naming the head revision (finding 2) -- which do not falsify any claim but do not stand as receipts for the arm they are cited for.",
+    "fit": "The reader sits in the store class beside rows(), reads through the index the store already maintains, and the consumer keeps its one job; the keyword-only stamps argument is a narrow, self-explaining hoist rather than a new abstraction. The docstrings state the mechanism (column vs payload, the ordering and window the store maintains) rather than a changelog, the removed _parse_timestamp is deleted cleanly, and the evidence fragment carries the measure without a figure where a table says it. Ruff is clean over imas_ambix and tests.",
+    "goal_fidelity": "Both halves of the recommendation are delivered and proven at the call site: the payload decode is replaced by a ts_epoch column read, and a period's stamps are computed once and shared. The substitution is a substitution, not a second answer: an independent A/B on the real snapshot gives record, periods and all four ledger rows identical field by field (base 105.34 s/2.90 GiB, head 49.87 s/126 MiB), and a direct equivalence read of two windows returns the column list equal to the payload-derived list. Nothing in the goal is left for another node.",
+    "scope_discipline": "One commit over the base, touching exactly the four declared paths, with the plan HTML, the shared index and every peer path untouched. The node's done-when names no artifact, and no figure was written into the declared figures directory, which is the correct reading of the dispatch."
+  },
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-watch-reads-stored-timestamps",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "review_kind": "review",
+  "review_run_id": "r-20261002T110010810571-review-of-srw-watch-reads-stored-timestamps",
+  "reviewed_base_sha": "3c63437449c4d3e9aa963d7ae66d40e1cd7c233a",
+  "reviewed_head_sha": "8e1f9cb71ab65ff2961c66ef73be75baff9e4bb2",
+  "reviewed_run_id": "r-20261002T102143653458-srw-watch-reads-stored-timestamps",
+  "reviewer": "review-of-srw-watch-reads-stored-timestamps",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "section": "s10",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T11:24:00+00:00",
+  "total": 93
+}

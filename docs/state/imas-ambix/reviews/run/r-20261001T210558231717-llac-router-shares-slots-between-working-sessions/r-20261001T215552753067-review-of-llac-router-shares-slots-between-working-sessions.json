@@ -1,0 +1,66 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by comparing this review's own two arms of the reviewed node's declared gate (tests/test_agent_router_worker_slots.py tests/test_agent_router_admission.py tests/test_agent_router_lane_publish.py tests/test_live_panel.py tests/test_agent_watch_live.py), run in scratch trees extracted with git archive from the shared object store into TMPDIR: base arm /tmp/reckon-crew-scratch/r-20261001T215552753067-review-of-llac-router-shares-slots-between-working-sessions/rev-llac-fair/base (revision 2c4ab78fcb667653493a5da2901056eac8e7cf07, 50 passed, exit 0) and head arm /tmp/reckon-crew-scratch/r-20261001T215552753067-review-of-llac-router-shares-slots-between-working-sessions/rev-llac-fair/head (revision 4c50f91a3038f77faa7a0f6a294559875e537f58, 58 passed, exit 0); logs /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T215552753067-review-of-llac-router-shares-slots-between-working-sessions/review-base-gate.log and /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T215552753067-review-of-llac-router-shares-slots-between-working-sessions/review-head-gate.log. The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite, so no reviewed-run arms existed to read; its own gate.log carries the head-side receipt only (58 passed, exit 0, at commit 4c50f91a... but its header names 2dfeffcd, the functional commit). The head arm's test set is a strict superset of the base arm's - the landed change adds eight tests (six in test_agent_router_worker_slots.py, one in test_lane_block_copies_the_per_session_share_fields, and the header-keyed router test) - so zero added failures.",
+  "after_suite": {
+    "command": "env -C /tmp/reckon-crew-scratch/r-20261001T215552753067-review-of-llac-router-shares-slots-between-working-sessions/rev-llac-fair/head PYTHONPATH=/tmp/reckon-crew-scratch/r-20261001T215552753067-review-of-llac-router-shares-slots-between-working-sessions/rev-llac-fair/head /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_agent_router_worker_slots.py tests/test_agent_router_admission.py tests/test_agent_router_lane_publish.py tests/test_live_panel.py tests/test_agent_watch_live.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T215552753067-review-of-llac-router-shares-slots-between-working-sessions/review-head-gate.log",
+    "revision": "4c50f91a3038f77faa7a0f6a294559875e537f58"
+  },
+  "baseline_suite": {
+    "command": "env -C /tmp/reckon-crew-scratch/r-20261001T215552753067-review-of-llac-router-shares-slots-between-working-sessions/rev-llac-fair/base PYTHONPATH=/tmp/reckon-crew-scratch/r-20261001T215552753067-review-of-llac-router-shares-slots-between-working-sessions/rev-llac-fair/base /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_agent_router_worker_slots.py tests/test_agent_router_admission.py tests/test_agent_router_lane_publish.py tests/test_live_panel.py tests/test_agent_watch_live.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T215552753067-review-of-llac-router-shares-slots-between-working-sessions/review-base-gate.log",
+    "revision": "2c4ab78fcb667653493a5da2901056eac8e7cf07"
+  },
+  "call_site_count": 2,
+  "call_sites": [
+    "imas_ambix/agent/router.py:1368/:1403 _AdmissionLedger.admit receives session= from _GenerationGate.acquire, whose session arg is threaded from RouterApp._request_identity (the tuple identity_from_headers returns)",
+    "imas_ambix/agent/live_panel.py:466 lane_block's copy of (*WORKER_SLOT_FIELDS, *SESSION_SLOT_FIELDS) guarded by `if key in admission`"
+  ],
+  "completed_at": "2026-10-01T22:21:09.921Z",
+  "dispatched_at": "2026-10-01T21:56:10Z",
+  "findings": [],
+  "follow_ons": [],
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "read 4c50f91a3038f77faa7a0f6a294559875e537f58 against base 2c4ab78fcb667653493a5da2901056eac8e7cf07; five files changed, all within the node's declared write paths: imas_ambix/agent/router.py, imas_ambix/agent/live_panel.py, tests/test_agent_router_worker_slots.py (+189), tests/test_live_panel.py (+36) and one new evidence fragment.",
+    "done_when": "all five named readings pass as tests, and the live panel copies the five fields with the serving-interpreter guard and whole-tree ruff green.",
+    "goal": "the node implements plan section 22: slots are partitioned only when more than one session is working, a lone session takes the whole global figure, and two or more divide capacity with a borrow reserve of 2.",
+    "guard_falsified": "in a scratch copy of head (/tmp/reckon-crew-scratch/r-20261001T215552753067-review-of-llac-router-shares-slots-between-working-sessions/rev-llac-fair/mut) I reproduced the declared mutation (removing the borrow term so each session gets min(G, max(0, F - u))); test_two_working_sessions_divide_the_capacity_and_borrow_around_it goes red - B offered 0, expected 8, 1 failed, EXIT=1 (log /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T215552753067-review-of-llac-router-shares-slots-between-working-sessions/review-negative-control.log) - matching the run's own negative-control.log, so the borrow term is a real pin rather than prose.",
+    "manifest": "read; the manifest states the declared gate 58 passed, the parse check 1 passed, ruff All checks passed!, and a negative control 1 failed, each EXIT matching gate.log and negative-control.log.",
+    "write_paths": "read the manifest's declared paths; the diff touches only router.py, live_panel.py, the two test files and the evidence fragment, all inside them."
+  },
+  "justifications": "independent review of run r-20261001T210558231717-llac-router-shares-slots-between-working-sessions (base 2c4ab78fcb667653493a5da2901056eac8e7cf07, head 4c50f91a3038f77faa7a0f6a294559875e537f58), stored as a parsed record scoring all five dimensions in 0..20 - goal_fidelity 20, evidence 18, scope_discipline 20, durability 20, fit 20 - total 98 - with added_failure_count 0 and added_failure_ids [] derived from this review's own two arms of the node's declared gate (base 50 passed exit 0; head 58 passed exit 0), the reviewed run having been dispatched unarmed. The router now carries each admitted request's coordinator session (_BusyInterval.session, read once at admission from identity_from_headers) and the admission object publishes active_sessions, fair_share, borrow_reserve 2, new_session_worker_slots and a per-session {live_runs, worker_slots} map. The rule matches the section exactly - C = floor(effective_width / requests_per_run), G = the published remaining worker_slots, one working session takes G with fair_share C, two or more use F = floor(C / N) and slots_s = max(0, min(G, max(max(0,F-u_s), G - reserve))) with reserve summing min(max(0,F-u_o),2) over the other working sessions, the session not yet seen computed over N+1, and every per-session figure null where the ratio is withheld or 0 under a congested/full/paused verdict. The 200 s idle horizon (WORKING_HORIZON_SECONDS = 180.0) and the unattributed grouping are both exercised. The live panel copies the five fields only when the lane published them. No defects found; the change fulfils the section's router-node done-when. The reviewed run's own gate.log header names commit 2dfeffcd (the functional commit); head 4c50f91a is the docs-only evidence commit, and this review's head arm re-ran the full gate at 4c50f91a to confirm 58 passed there too.",
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-llac-router-shares-slots-between-working-sessions",
+  "plan": "local-lane-admission-control",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261001T215552753067-review-of-llac-router-shares-slots-between-working-sessions",
+  "reviewed_base_sha": "2c4ab78fcb667653493a5da2901056eac8e7cf07",
+  "reviewed_head_sha": "4c50f91a3038f77faa7a0f6a294559875e537f58",
+  "reviewed_run_id": "r-20261001T210558231717-llac-router-shares-slots-between-working-sessions",
+  "reviewer": "review-of-llac-router-shares-slots-between-working-sessions",
+  "scores": {
+    "durability": 20,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "section": "s22",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-01T22:15:43.386644+00:00",
+  "total": 98,
+  "verdict": "pass"
+}

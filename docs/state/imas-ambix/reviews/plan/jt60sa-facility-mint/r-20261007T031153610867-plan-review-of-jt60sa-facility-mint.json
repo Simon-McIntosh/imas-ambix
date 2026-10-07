@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T03:19:59.080Z",
+  "dispatched_at": "2026-10-07T03:12:10Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/bundle.py:19-23",
+      "id": "duplicate_owner-1",
+      "reason": "the author must add `imas_ambix/data/bundle.py` (and the catalogue's `description_store_root` role value) to \u00a78/\u00a79's edit sites and pick one role vocabulary (`description`/`eddb_cache` vs `JT60SA_DESCRIPTION_DIR`/`JT60SA_ROOT`), or \u00a78's \"one owner of store-root lookup\" and its no-machine-name invariant describe a change the plan never schedules.",
+      "text": "\u00a78 states the invariant \"No setting, store-root key or path names a machine\" and relies on \"Ambix's bundle declares `eddb_cache` from `paths.JT60SA_ROOT`\", while \u00a79 introduces the flat-bundle role names `description` and `eddb_cache`; but the store-root role registry has a different owner the plan never names as an edit site: `imas_ambix/data/bundle.py` `_STORE_ROOTS` keys the roots `LEVEL2_DIR`/`JT60SA_ROOT`/`JT60SA_DESCRIPTION_DIR` (both JT keys machine-named), and the JT-60SA catalogue declares the machine-named role `description_store_root: \"JT60SA_DESCRIPTION_DIR\"` (`imas_ambix/data/machine_maps/jt-60sa.json`), sourced from the constants `JT60SA_ROOT`/`JT60SA_DESCRIPTION_DIR` (`imas_ambix/data/paths.py:45-46`). \u00a71's census lists `bundle.py` as a hit but its three allowed end-states (paths.py, resolves-through-bundle, engine EDDB reader) do not cover \"gains the `eddb_cache` role\", so \u00a78's declared de-machining of store-root keys lands for the writer's literal but not for the registry that supplies it.",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "474e95bfabb35236fc7357ccc44b7e2fca52b1b7cfcbe3f89f31c90d4377bb3a",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 47,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "duplicate_owner-1",
+      "reason": "v48: s8 names imas_ambix/data/bundle.py _STORE_ROOTS as an edit site (gains the eddb_cache role from paths.JT60SA_ROOT, kept after s1 because role lookup walks all bundles) and scopes the invariant to the engine and flat facility bundles; ambix's multi-machine bundle keeps per-machine store keys (LEVEL2_DIR, JT60SA_DESCRIPTION_DIR) because it serves three machines; s1 changes the moved JT-60SA catalogue's description_store_root to the role name description.",
+      "when": "2026-10-07T03:21:16.325175+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v48: s8 names imas_ambix/data/bundle.py _STORE_ROOTS as an edit site (gains the eddb_cache role from paths.JT60SA_ROOT, kept after s1 because role lookup walks all bundles) and scopes the invariant to the engine and flat facility bundles; ambix's multi-machine bundle keeps per-machine store keys (LEVEL2_DIR, JT60SA_DESCRIPTION_DIR) because it serves three machines; s1 changes the moved JT-60SA catalogue's description_store_root to the role name description.",
+      "when": "2026-10-07T03:21:16.325175+00:00"
+    }
+  },
+  "review_run_id": "r-20261007T031153610867-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "2a039a4c17cdcce3e5fdf524736ce92c80464cc7",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a78's `imas_alambic/settings.py` hides flag\u2192env\u2192`IMAS_ALAMBIC_HOME` precedence, source reporting and machine inference behind one `resolve_settings(flags)`; \u00a79 makes three in-place edits to existing methods rather than spreading new modules, so complexity is behind one interface rather than across shallow wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a78 asserts \"no \u2026 store-root key \u2026 names a machine\" and depends on ambix's bundle declaring the `eddb_cache` role, but the store-root role registry is owned by `imas_ambix/data/bundle.py`, which no section names as an edit site, and its keys plus the catalogue's declared role are machine-named.",
+    "interface_budget": "pass \u2014 supplied counts public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the sections that add surface account for it in their own text (\u00a78's \"Interface account\" retires `env.sh`, `--out`-as-required and the machine-named cache key, and states why `config` and `--run` retire nothing; \u00a79 states the `machine` key \"retires nothing, because single-machine addressing did not exist\"), so no section adds to the four families unaccounted.",
+    "reuse_search": "pass \u2014 \u00a71 runs an explicit, reproducible census command (20 hits, verified) and \u00a78/\u00a79 each name the existing mechanism they extend (`discover_bundles`, `resolve_description_store_root`, `MapBundle`, `load_bundle_descriptor`, `bundle_for_machine`), so the plan searched before proposing; the one gap (the store-root role registry's owner) is captured below as a duplicate_owner finding.",
+    "thin_wrapper": "pass \u2014 every proposed layer carries behaviour its host lacks: `settings.py` owns precedence and source reporting, the \u00a75 launcher clears `PYTHONPATH` and sets `IMAS_ALAMBIC_HOME` (which the `imas-alambic = imas_alambic.cli:main` console script does not), and the `--maps/--out/--cache` flags are the flag forms of settings, not a second mechanism."
+  },
+  "section_digests": {
+    "_document": "c81414855e7a884737b222672ecaaae933c6e0da884604c00df3799521ce6802",
+    "s1": "7716f707b87bf0c63927668973238ce75ae5dac4571b2c4ae3bee37fdac44649",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "56812a38380cfae64d6f806e8c53db03be6427472f3ea0a000d60ef09c723453",
+    "s6": "1ccc061c74e3a3eab0fbd07825bc5bf11d8207248d01b1a9aecba35a37e20560",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "4bbe613aa753ab16bd7590e5dc45d5de4440319216e4900926204990f04fe5a8",
+    "s9": "ed7213361eee852abdc411482117ed397299d3e2a11d1666ceaffb335a2d786b"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T03:21:16.306465+00:00"
+}

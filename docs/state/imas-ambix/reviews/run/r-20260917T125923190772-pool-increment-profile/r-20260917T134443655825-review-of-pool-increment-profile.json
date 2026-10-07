@@ -1,0 +1,49 @@
+{
+  "absent": [],
+  "completed_at": "",
+  "dispatched_at": "2026-09-17T13:44:43.655825+00:00",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/profiles/deepseek-v4-1-flash.toml",
+      "line": "148",
+      "text": "the DSpark rollback instruction still reads \"Keep hicache_ratio = 2.0 and memory = \"480G\"\", a value this same file no longer carries (line 476 reads 600G), and it is the only place in the file where the memory value is an instruction rather than a justification, so nothing nearby corrects a reader who follows it to restore the pre-doubling request."
+    },
+    {
+      "file": "imas_ambix/agent/profiles/deepseek-v4-1-flash.toml",
+      "line": "237",
+      "text": "the raise's binding premise - the job's memory.peak already touched the old 480 GiB ceiling at ratio 2 on the 4M pool - is stated with no citation in the profile, the plan landing record or the evidence anchor, and the run's own anchor_discrepancy asserts the sentence is absent from the repository, whereas it survives at imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:402 in revision 7c706cf and was removed by e808a8e in the same hunk that lowered the request to 480G; the one figure this 120G raise rests on should name the revision that holds it, and the \"nowhere in the repository\" note will otherwise read as an uncorroborated operator claim."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T125923190772-pool-increment-profile/manifest.md",
+      "line": "8",
+      "text": "the recorded test result says \"delta unchanged from before this change\", which is false against the base revision: I re-ran the same two files against a tree extracted from bd3047c (7 passed) and against the node's head (4 failed, 3 passed), so the change adds four failures; the plan landing record and the evidence archive table both state the delta correctly as 4, so the manifest clause understates it in exactly the direction a coordinator reads as \"no added failures\"."
+    }
+  ],
+  "justifications": {
+    "durability": "no test pins the landed values - tests/test_agent_pool_and_hicache.py:17 and :43 and tests/test_agent_evaluation_pool.py:15 and :33 still assert the superseded 4M/480G contract and now fail against the committed profile (4 failed, 3 passed where the base revision reports 7 passed), so the suite is red and nothing would fail if the new values regressed, with the precise repair declared as a follow-on.",
+    "evidence": "the done-when's named check reproduces independently - my own `imas-ambix agent serve deepseek-v4-1-flash --dry-run` against the committed tree exits 0 and emits `#SBATCH --mem=600G` with `--max-total-tokens 8000000 --hicache-ratio 2.0 --speculative-algorithm DSPARK --speculative-dspark-block-size 5` - and the profile comment at lines 215-247 records the host-tier arithmetic and the verdict rather than the number alone, but the raise's binding premise carries no citation (finding) and the manifest's test-delta clause does not agree with the base revision (finding).",
+    "fit": "the added comment blocks at lines 204-247 follow the file's own idiom of measured figures with the arithmetic shown and carry no plan label, stage name or ticket identifier (the naming greps over the three touched paths return nothing), but the file now contradicts itself where a pre-existing rollback instruction at line 148 still names memory = \"480G\" (finding).",
+    "goal_fidelity": "the committed profile carries the increment the goal names: imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:248 reads max_total_tokens = 8000000 and line 476 reads memory = \"600G\", with speculative_algorithm \"DSPARK\", speculative_dspark_block_size 5 and hicache_ratio 2.0 unchanged (lines 153-154, 280), the device increment is sized from restart A's measured loaded free memory (25.4-27.6 GiB per card at sustained width 23-24, recorded in the plan with its drain-sidecar source), and the host-tier consequence for the job memory request is resolved with the arithmetic shown in the commit the handoff directed rather than in the pool commit.",
+    "scope_discipline": "`git diff --name-status bd3047c..HEAD` returns exactly the three declared write paths and nothing else, all three commits carry a conventional subject and a body with no attribution trailer, and the four failing contract tests live in files the fence excludes and are reported as follow-ons rather than edited."
+  },
+  "project": "imas-ambix",
+  "raw_text": "SCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: the committed profile carries the increment the goal names: imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:248 reads max_total_tokens = 8000000 and line 476 reads memory = \"600G\", with speculative_algorithm \"DSPARK\", speculative_dspark_block_size 5 and hicache_ratio 2.0 unchanged (lines 153-154, 280), the device increment is sized from restart A's measured loaded free memory (25.4-27.6 GiB per card at sustained width 23-24, recorded in the plan with its drain-sidecar source), and the host-tier consequence for the job memory request is resolved with the arithmetic shown in the commit the handoff directed rather than in the pool commit.\nSCORE evidence: 15\nJUSTIFICATION evidence: the done-when's named check reproduces independently - my own `imas-ambix agent serve deepseek-v4-1-flash --dry-run` against the committed tree exits 0 and emits `#SBATCH --mem=600G` with `--max-total-tokens 8000000 --hicache-ratio 2.0 --speculative-algorithm DSPARK --speculative-dspark-block-size 5` - and the profile comment at lines 215-247 records the host-tier arithmetic and the verdict rather than the number alone, but the raise's binding premise carries no citation (finding) and the manifest's test-delta clause does not agree with the base revision (finding).\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: `git diff --name-status bd3047c..HEAD` returns exactly the three declared write paths and nothing else, all three commits carry a conventional subject and a body with no attribution trailer, and the four failing contract tests live in files the fence excludes and are reported as follow-ons rather than edited.\nSCORE durability: 6\nJUSTIFICATION durability: no test pins the landed values - tests/test_agent_pool_and_hicache.py:17 and :43 and tests/test_agent_evaluation_pool.py:15 and :33 still assert the superseded 4M/480G contract and now fail against the committed profile (4 failed, 3 passed where the base revision reports 7 passed), so the suite is red and nothing would fail if the new values regressed, with the precise repair declared as a follow-on.\nSCORE fit: 16\nJUSTIFICATION fit: the added comment blocks at lines 204-247 follow the file's own idiom of measured figures with the arithmetic shown and carry no plan label, stage name or ticket identifier (the naming greps over the three touched paths return nothing), but the file now contradicts itself where a pre-existing rollback instruction at line 148 still names memory = \"480G\" (finding).\nFINDING imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:148 the DSpark rollback instruction still reads \"Keep hicache_ratio = 2.0 and memory = \"480G\"\", a value this same file no longer carries (line 476 reads 600G), and it is the only place in the file where the memory value is an instruction rather than a justification, so nothing nearby corrects a reader who follows it to restore the pre-doubling request.\nFINDING imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:237 the raise's binding premise - the job's memory.peak already touched the old 480 GiB ceiling at ratio 2 on the 4M pool - is stated with no citation in the profile, the plan landing record or the evidence anchor, and the run's own anchor_discrepancy asserts the sentence is absent from the repository, whereas it survives at imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:402 in revision 7c706cf and was removed by e808a8e in the same hunk that lowered the request to 480G; the one figure this 120G raise rests on should name the revision that holds it, and the \"nowhere in the repository\" note will otherwise read as an uncorroborated operator claim.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260917T125923190772-pool-increment-profile/manifest.md:8 the recorded test result says \"delta unchanged from before this change\", which is false against the base revision: I re-ran the same two files against a tree extracted from bd3047c (7 passed) and against the node's head (4 failed, 3 passed), so the change adds four failures; the plan landing record and the evidence archive table both state the delta correctly as 4, so the manifest clause understates it in exactly the direction a coordinator reads as \"no added failures\".",
+  "review_run_id": "r-20260917T134443655825-review-of-pool-increment-profile",
+  "reviewed_run_id": "r-20260917T125923190772-pool-increment-profile",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "reviewer_run_id": "r-20260917T134443655825-review-of-pool-increment-profile",
+  "scores": {
+    "durability": 6,
+    "evidence": 15,
+    "fit": 16,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-17T13:55:49.696083+00:00",
+  "total": 76
+}

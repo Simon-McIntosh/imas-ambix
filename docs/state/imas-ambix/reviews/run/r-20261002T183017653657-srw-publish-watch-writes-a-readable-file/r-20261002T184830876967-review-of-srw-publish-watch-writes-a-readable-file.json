@@ -1,0 +1,80 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "Derived from the reviewed run's own baseline_suite and after_suite gate logs by the read-path rule (reckon/crew/review.py added_failures_from_gate_logs: pytest FAILED/ERROR ids in the head log minus the base log). baseline_suite names /home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T183017653657-srw-publish-watch-writes-a-readable-file/logs/baseline_publish_watch.log (rev 26c56e20, 5 passed, no FAILED ids) and after_suite names /home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T183017653657-srw-publish-watch-writes-a-readable-file/logs/head_gate.log (rev 798af3ec, 7 passed, no FAILED ids); both carry completed=true and failure_count=0, so the set difference is empty: added_failure_count 0, no ids. Reproduced independently: the base arm exported at 26c56e20 gives 5 passed and the head worktree at 798af3ec gives 7 passed, both EXIT=0 with zero failures.",
+  "after_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_publish_watch.py -q",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T183017653657-srw-publish-watch-writes-a-readable-file/logs/head_gate.log",
+    "revision": "798af3ecb78e17f66038a9abdf63bd1025ebe878"
+  },
+  "baseline_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/tmp/reckon-crew-scratch/r-20261002T183017653657-srw-publish-watch-writes-a-readable-file/srw-publish-base.xZmthe uv run --no-sync pytest -p no:cacheprovider tests/test_agent_publish_watch.py -q",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T183017653657-srw-publish-watch-writes-a-readable-file/logs/baseline_publish_watch.log",
+    "revision": "26c56e20b07b13ae63cdf13dd92df03c64997865"
+  },
+  "call_site_count": 2,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2819",
+    "imas_ambix/agent/watch_publish.py:120"
+  ],
+  "completed_at": "2026-10-02T19:22:48.274Z",
+  "dispatched_at": "2026-10-02T18:48:37Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/watch_publish.py",
+      "line": "92",
+      "severity": "follow-on",
+      "text": "os.fchmod(descriptor, 0o644) runs before the payload is written, so between the chmod and the completing write the temporary -- named watch.json.<random>.tmp by the predictable prefix at imas_ambix/agent/watch_publish.py:89 -- is world-readable while it holds a partial document. The module docstring's 'a reader never sees a half-written file' holds for the target (only os.replace touches it), but the temporary is now observable where mkstemp's 0600 kept it private. Moving the fchmod to just before os.replace costs nothing and closes it. Not blocking: the exposure is a randomly-named file in the same directory, not the published path."
+    }
+  ],
+  "follow_ons": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "The changed function _write_atomic (imas_ambix/agent/watch_publish.py:74) is reached from publish_once at imas_ambix/agent/watch_publish.py:120, itself called by one_iteration and run, which the publish-watch command invokes at imas_ambix/agent/cli.py:2819.",
+    "diff": "Read commit 798af3ec against base 26c56e20: 56 insertions, 0 deletions across imas_ambix/agent/watch_publish.py (os.fchmod(descriptor, 0o644) before the write plus a docstring paragraph) and tests/test_agent_publish_watch.py (two new tests; adds the 'stat' import). No plan, fragment, figure or shared index is touched.",
+    "done_when": "Read the dispatch done-when and re-ran its gate at the reviewed head: tests/test_agent_publish_watch.py passes 7 tests, the serving-parse guard selects and passes exactly 1, ruff exits 0, and the declared chmod mutation reddens the mode test; the manifest's baseline_suite (base log) and after_suite (head log) name two different logs, each naming its own revision.",
+    "goal": "The node's goal is to make the published watch document world-readable and test a failing iteration inside the publish loop; imas_ambix/agent/watch_publish.py:92 sets the mkstemp temporary to 0644 with os.fchmod before the write, and tests/test_agent_publish_watch.py:64 and :162 add the mode assertion and the mid-loop failure test.",
+    "manifest": "Read; status complete, commit 798af3ec named, the gate command and its results recorded, negative_control_log names a real red arm (chmod removed -> 1 failed at :72), and baseline_suite/after_suite name two distinct logs whose headers name their own revisions.",
+    "write_paths": "The manifest declares imas_ambix/agent/watch_publish.py, tests/test_agent_publish_watch.py, an evidence fragment and a figures directory; git diff --name-only 26c56e20 798af3ec names exactly the two source paths, and the reviewed worktree is clean at 798af3ec."
+  },
+  "justifications": {
+    "durability": "Both added assertions fail on the regression they guard: removing os.fchmod reddens tests/test_agent_publish_watch.py:72, and making one_iteration re-raise rather than return a failure line reddens tests/test_agent_publish_watch.py:162 (both reproduced in a scratch export), so neither is independent of the code under test.",
+    "evidence": "The gate is reproduced independently at head (tests/test_agent_publish_watch.py 7 passed; serving-parse guard 1 passed, 8 deselected; ruff All checks passed; every EXIT=0), the base arm exports 5 passed, and removing os.fchmod at imas_ambix/agent/watch_publish.py:92 reddens tests/test_agent_publish_watch.py:72 with 384 vs 420.",
+    "fit": "The change follows the module idiom: os is already imported, the docstring states the mechanism, and no plan, sprint or ticket identifier and no forbidden name is introduced; withheld one point for the write ordering named in the finding, which leaves the temporary readable while it is still being written.",
+    "goal_fidelity": "Both halves of the goal are delivered: imas_ambix/agent/watch_publish.py:92 makes the temporary 0644 before os.replace, so the published file is world-readable, and tests/test_agent_publish_watch.py:162 drives run() through a failed middle iteration.",
+    "scope_discipline": "git diff --name-only 26c56e20 798af3ec names exactly imas_ambix/agent/watch_publish.py and tests/test_agent_publish_watch.py, both inside the declared write paths; the declared evidence fragment and figures directory are correctly left unwritten because the done-when names no artifact."
+  },
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-publish-watch-writes-a-readable-file",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "raw_text": "Review of run r-20261002T183017653657-srw-publish-watch-writes-a-readable-file, plan imas-ambix:serving-record-warehouse\nReviewed base 26c56e20b07b13ae63cdf13dd92df03c64997865, head 798af3ecb78e17f66038a9abdf63bd1025ebe878.\nRead the plan section s10, the dispatch done-when, commit 798af3ec, the source and test diff, the reviewed manifest, and the three gate logs; re-ran the declared gate at the head in the reviewed worktree, rebuilt the base arm in a scratch export, and re-applied the declared mutation to confirm the guard fires.\n\nVERDICT goal: The node's goal is to make the published watch document world-readable and test a failing iteration inside the publish loop; imas_ambix/agent/watch_publish.py:92 sets the mkstemp temporary to 0644 with os.fchmod before the write, and tests/test_agent_publish_watch.py:64 and :162 add the mode assertion and the mid-loop failure test.\nVERDICT done_when: Read the dispatch done-when and re-ran its gate at the reviewed head: tests/test_agent_publish_watch.py passes 7 tests, the serving-parse guard selects and passes exactly 1, ruff exits 0, and the declared chmod mutation reddens the mode test; the manifest's baseline_suite (base log) and after_suite (head log) name two different logs, each naming its own revision.\nVERDICT write_paths: The manifest declares imas_ambix/agent/watch_publish.py, tests/test_agent_publish_watch.py, an evidence fragment and a figures directory; git diff --name-only 26c56e20 798af3ec names exactly the two source paths, and the reviewed worktree is clean at 798af3ec.\nVERDICT manifest: Read; status complete, commit 798af3ec named, the gate command and its results recorded, negative_control_log names a real red arm (chmod removed -> 1 failed at :72), and baseline_suite/after_suite name two distinct logs whose headers name their own revisions.\nVERDICT diff: Read commit 798af3ec against base 26c56e20: 56 insertions, 0 deletions across imas_ambix/agent/watch_publish.py (os.fchmod(descriptor, 0o644) before the write plus a docstring paragraph) and tests/test_agent_publish_watch.py (two new tests; adds the 'stat' import). No plan, fragment, figure or shared index is touched.\nCALL_SITES: imas_ambix/agent/cli.py:2819, imas_ambix/agent/watch_publish.py:120\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: Both halves of the goal are delivered: imas_ambix/agent/watch_publish.py:92 makes the temporary 0644 before os.replace, so the published file is world-readable, and tests/test_agent_publish_watch.py:162 drives run() through a failed middle iteration.\nSCORE evidence: 20\nJUSTIFICATION evidence: The gate is reproduced independently at head (tests/test_agent_publish_watch.py 7 passed; serving-parse guard 1 passed, 8 deselected; ruff All checks passed; every EXIT=0), the base arm exports 5 passed, and removing os.fchmod at imas_ambix/agent/watch_publish.py:92 reddens tests/test_agent_publish_watch.py:72 with 384 vs 420.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-only 26c56e20 798af3ec names exactly imas_ambix/agent/watch_publish.py and tests/test_agent_publish_watch.py, both inside the declared write paths; the declared evidence fragment and figures directory are correctly left unwritten because the done-when names no artifact.\nSCORE durability: 20\nJUSTIFICATION durability: Both added assertions fail on the regression they guard: removing os.fchmod reddens tests/test_agent_publish_watch.py:72, and making one_iteration re-raise rather than return a failure line reddens tests/test_agent_publish_watch.py:162 (both reproduced in a scratch export), so neither is independent of the code under test.\nSCORE fit: 19\nJUSTIFICATION fit: The change follows the module idiom: os is already imported, the docstring states the mechanism, and no plan, sprint or ticket identifier and no forbidden name is introduced; withheld one point for the write ordering named in the finding, which leaves the temporary readable while it is still being written.\nFINDING imas_ambix/agent/watch_publish.py:92 follow-on: os.fchmod runs before the payload is written, so the randomly-named temporary is world-readable while it holds a partial document; moving the chmod to just before os.replace closes it without cost.\n",
+  "review_kind": "review",
+  "review_run_id": "r-20261002T184830876967-review-of-srw-publish-watch-writes-a-readable-file",
+  "reviewed_base_sha": "26c56e20b07b13ae63cdf13dd92df03c64997865",
+  "reviewed_head_sha": "798af3ecb78e17f66038a9abdf63bd1025ebe878",
+  "reviewed_run_id": "r-20261002T183017653657-srw-publish-watch-writes-a-readable-file",
+  "reviewer": "review-of-srw-publish-watch-writes-a-readable-file",
+  "scores": {
+    "durability": 20,
+    "evidence": 20,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "section": "s10",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T18:59:00+00:00",
+  "total": 99
+}

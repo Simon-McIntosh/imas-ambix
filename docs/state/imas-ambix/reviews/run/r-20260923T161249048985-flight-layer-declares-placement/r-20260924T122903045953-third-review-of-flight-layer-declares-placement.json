@@ -1,0 +1,328 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "",
+  "dispatched_at": "2026-09-24T12:29:03.045953+00:00",
+  "durability_recheck": {
+    "baseline": "6 passed in 0.02s",
+    "baseline_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T122903045953-third-review-of-flight-layer-declares-placement/rev3/baseline.log",
+    "further_edits": [
+      {
+        "edit": "state_query argv gains a trailing --jobid=1276262 flag value",
+        "failing_tests": [
+          "test_placement_queries_carry_the_job_substitution_point",
+          "test_no_job_identifier_appears_anywhere_in_the_declaration_text",
+          "test_no_job_identifier_is_written_into_the_declaration"
+        ],
+        "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T122903045953-third-review-of-flight-layer-declares-placement/rev3/M3-query-argv-literal.log",
+        "outcome": "3 failed, 3 passed",
+        "raw_text_silent": false
+      },
+      {
+        "edit": "write the identifier as a YAML 1.1 underscored integer value (job_hint: 1_2762_62)",
+        "failing_tests": [
+          "test_no_job_identifier_is_written_into_the_declaration"
+        ],
+        "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T122903045953-third-review-of-flight-layer-declares-placement/rev3/M4-underscored-integer-value.log",
+        "note": "the raw-text check sees no five-digit run in 1_2762_62; the parsed value is int 1276262 and the failing assertion names /job_hint = 1276262.",
+        "outcome": "1 failed, 5 passed",
+        "raw_text_silent": true
+      },
+      {
+        "edit": "write the identifier as an underscored integer mapping KEY (1_2762_62: {note: reservation})",
+        "failing_tests": [
+          "test_no_job_identifier_is_written_into_the_declaration"
+        ],
+        "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T122903045953-third-review-of-flight-layer-declares-placement/rev3/M5-underscored-integer-key.log",
+        "note": "assertion names /<key> = 1276262, showing the walk covers mapping keys and not only values.",
+        "outcome": "1 failed, 5 passed",
+        "raw_text_silent": true
+      },
+      {
+        "edit": "append job: 6262, a literal below the five-digit floor",
+        "failing_tests": [],
+        "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T122903045953-third-review-of-flight-layer-declares-placement/rev3/M6-four-digit-literal.log",
+        "note": "the one edit of the eight that stays green: named residual, documented by the node with its reason.",
+        "outcome": "6 passed",
+        "raw_text_silent": true
+      },
+      {
+        "edit": "anchor the underscored integer and reference it by alias (job_hint: &a 1_2762_62 / job_note: *a)",
+        "failing_tests": [
+          "test_no_job_identifier_is_written_into_the_declaration"
+        ],
+        "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T122903045953-third-review-of-flight-layer-declares-placement/rev3/M7-anchored-alias.log",
+        "note": "assertion reports both scalars: /job_hint = 1276262; /job_note = 1276262.",
+        "outcome": "1 failed, 5 passed",
+        "raw_text_silent": true
+      },
+      {
+        "edit": "write the identifier as a YAML 1.1 sexagesimal integer (job_hint: 354:31:2)",
+        "failing_tests": [
+          "test_no_job_identifier_is_written_into_the_declaration"
+        ],
+        "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T122903045953-third-review-of-flight-layer-declares-placement/rev3/M8-sexagesimal-integer.log",
+        "note": "354:31:2 carries no five-digit run in raw text yet decodes to int 1276262; caught by the parsed check.",
+        "outcome": "1 failed, 5 passed",
+        "raw_text_silent": true
+      }
+    ],
+    "green_edits": [
+      "M6-four-digit-literal"
+    ],
+    "prior_residuals_retried": [
+      {
+        "edit": "add job_id_probe beside the three declared keys, its argv naming another job",
+        "expected": "red",
+        "failing_tests": [
+          "test_placement_declares_nothing_but_the_scheduler_and_its_two_queries",
+          "test_no_job_identifier_appears_anywhere_in_the_declaration_text",
+          "test_no_job_identifier_is_written_into_the_declaration"
+        ],
+        "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T122903045953-third-review-of-flight-layer-declares-placement/rev3/M1-retry-job-id-probe.log",
+        "note": "the second review's log preserves this edit as prose and a mutated sha256 (c5c4aade) but not the file; 15 candidate spellings did not reproduce that digest, so this is a reconstruction of the same edit class, not a byte-identical repeat. Mine reddens three tests rather than one because my probe argv also carries a literal identifier, which the parsed and raw-text checks catch as well.",
+        "outcome": "3 failed, 3 passed"
+      },
+      {
+        "edit": "append a comment line carrying 1276262",
+        "expected": "red",
+        "failing_tests": [
+          "test_no_job_identifier_appears_anywhere_in_the_declaration_text"
+        ],
+        "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260924T122903045953-third-review-of-flight-layer-declares-placement/rev3/M2-retry-comment-1276262.log",
+        "note": "same provenance caveat (second review's mutated sha256 9ef6dacf not reproduced from 11 candidate spellings); the failing test and the count match the run's own comment control (1 failed, 5 passed on the raw-text test).",
+        "outcome": "1 failed, 5 passed"
+      }
+    ],
+    "pristine_flight_yaml_sha256": "26ca0c56c81d0b9b1ad42bed23c00822bd56658a1a646fe989b065e9c96f7f45",
+    "restore_verified_byte_identical_after_every_mutation": true,
+    "test_module_sha256": "b4298e6d98751f63f5b2adf459b96be4a099ca5246af8d54b63f9e59586838b5",
+    "verdict": "eight edits attempted (two retries of the prior residuals, six further); seven redden the guard and exactly one stays green -- a four-digit literal below the five-digit floor, which the node's own record names with its reason and which no scheduler on this machine produces (job ids measured in this run's own receipts: 1276262, 1276961, 1276963, all seven digits). No edit found in this round defeats placement while all six tests stay green, over and above that documented floor."
+  },
+  "findings": [],
+  "item_aggregate": 3,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "the repair adds two tests to the module (the placement key set asserted exactly; the declaration read as raw text so an identifier in a comment is caught) and records the round in the archive and the plan.",
+    "done_when": "the run's own done-when reproduces at its head: 6 passed from head content in my own scratch tree, and ruff check imas_ambix tests exits 0 in the run's own worktree at af9c9bb4.",
+    "goal": "a guard holding the declaration's placement properties, met at the repaired head: the two residual vectors the prior record scored live are closed by a key-set assertion and a raw-text pass, and the residual that remains (the five-digit identifier floor) is bounded and reasoned in the node's own record.",
+    "write_paths": "28f0ab31..af9c9bb4 changes exactly three declared paths -- the test module, the archive evidence record and the plan's landing comment -- 76 insertions and 4 deletions, no module under imas_ambix/ touched."
+  },
+  "justifications": {
+    "durability": "eight edits attempted, seven red and one green (the documented sub-five-digit literal); both prior residuals retried and now red; my retries are reconstructions of the prior edits' class because their exact content was not preserved.",
+    "evidence": "gate and ruff independently reproduced from head content; the two new control logs read and each fails for the reason aimed at; two points off because the stale rev= header named by the prior record recurred in three further receipts instead of being closed.",
+    "fit": "module placement, config resolution and lint all correct at the verified head; two points off for a comment-anchored line number ('line 42') that will rot.",
+    "goal_fidelity": "met on four axes with one bounded residual (the five-digit identifier floor), which the node now documents with its reason; the guard's own limit -- it cannot show a worker was placed -- is stated in the module docstring.",
+    "scope_discipline": "the repair is confined to the run's declared paths and to the node's own record section of the cumulative archive; nothing under imas_ambix/ changed."
+  },
+  "model": "deepseek-v4.1-flash",
+  "prior_review": {
+    "absent": [],
+    "absent_items": [],
+    "call_site_count": 0,
+    "call_sites": [],
+    "durability_recheck": {
+      "baseline": "4 passed in 0.05s",
+      "baseline_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T173526865177-second-review-of-flight-layer-declares-placement/rev2/baseline.log",
+      "first_review_edits_retried": [
+        {
+          "edit": "state_query output field %T -> %j",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T173526865177-second-review-of-flight-layer-declares-placement/rev2/M1-first-review-state-T-to-j.log",
+          "outcome": "1 failed, 3 passed",
+          "test": "test_placement_queries_carry_the_job_substitution_point"
+        },
+        {
+          "edit": "state_query output field %T -> %t",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T173526865177-second-review-of-flight-layer-declares-placement/rev2/M2-first-review-state-T-to-t.log",
+          "outcome": "1 failed, 3 passed",
+          "test": "test_placement_queries_carry_the_job_substitution_point"
+        },
+        {
+          "edit": "state_query output field %T -> %R",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T173526865177-second-review-of-flight-layer-declares-placement/rev2/M3-first-review-state-T-to-R.log",
+          "outcome": "1 failed, 3 passed",
+          "test": "test_placement_queries_carry_the_job_substitution_point"
+        },
+        {
+          "edit": "reason_query output field %r -> %N",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T173526865177-second-review-of-flight-layer-declares-placement/rev2/M4-first-review-reason-r-to-N.log",
+          "outcome": "1 failed, 3 passed",
+          "test": "test_placement_queries_carry_the_job_substitution_point"
+        },
+        {
+          "edit": "append job: 1276262.0 as an unquoted YAML float",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T173526865177-second-review-of-flight-layer-declares-placement/rev2/M5-first-review-float-identifier.log",
+          "outcome": "1 failed, 3 passed",
+          "test": "test_no_job_identifier_is_written_into_the_declaration"
+        }
+      ],
+      "further_attempts": [
+        {
+          "edit": "append job: 6262 (a four-digit literal, below the five-digit run)",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T173526865177-second-review-of-flight-layer-declares-placement/rev2/M6-short-literal-identifier.log",
+          "outcome": "4 passed \u2014 guard does not fire"
+        },
+        {
+          "edit": "add job_id_probe: [squeue, -h, -t, RUNNING, -u, mcintos, -o, %i]",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T173526865177-second-review-of-flight-layer-declares-placement/rev2/M7-probe-answers-another-job.log",
+          "outcome": "4 passed \u2014 guard does not fire; this is the named defeat"
+        },
+        {
+          "edit": "append a comment carrying the allocation identifier (# held allocation: 1276262 98dci4-clu-2002)",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T173526865177-second-review-of-flight-layer-declares-placement/rev2/M8-comment-carries-the-id.log",
+          "outcome": "4 passed \u2014 guard reads parsed scalars only"
+        },
+        {
+          "edit": "declare reason_query as a YAML alias to state_query",
+          "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T173526865177-second-review-of-flight-layer-declares-placement/rev2/M9-anchored-state-query-alias.log",
+          "outcome": "1 failed, 3 passed \u2014 the guard resolves aliases"
+        }
+      ],
+      "head": "28f0ab3160d4d32538f2bead014b85c8fa436f40",
+      "named_defeat": "job_id_probe: [squeue, -h, -t, RUNNING, -u, mcintos, -o,  \"%i\"] added under backends.clive.placement leaves all four tests green while the declaration's own job-identity probe answers an unrelated running job. Receipt through reckon's own functions: placement_job_id(...) records 9988776 with status recorded from that probe, and placement_job_alive then asks the declared state_query about 9988776 (argv ['squeue','-h','-j','9988776','-o','%T']), answering True for a run whose own step is gone \u2014 the run reads as placed and live on the identity of another job. No test reads job_id_probe.",
+      "tree": "/tmp/rev2-flight-scratch (head content, byte-identical: test module sha256 6df097b5b18a..., flight.yaml sha256 26ca0c56c81d...)"
+    },
+    "findings": [
+      {
+        "file": "tests/agent/test_flight_placement.py",
+        "line": "106",
+        "text": "the query test asserts state_query and reason_query exactly but reads no other slot of the placement, so adding job_id_probe under backends.clive.placement leaves all four tests green while the declaration's job-identity probe answers an unrelated running job: placement_job_id records that other job's identifier and placement_job_alive then asks state_query about it, answering True for a worker whose own step is gone."
+      },
+      {
+        "file": "tests/agent/test_flight_placement.py",
+        "line": "54",
+        "text": [
+          "the identifier threshold is a run of five or more digits, so a literal job identifier of four digits or fewer (job: 6262) sits in the declaration with all four tests green while the guard's own assertion text claims a scheduler job identifier must never be written into the project flight layer."
+        ]
+      },
+      {
+        "file": "tests/agent/test_flight_placement.py",
+        "line": "129",
+        "text": [
+          "the identifier test walks parsed scalars only, so a comment carrying the allocation identifier leaves all four tests green although the flight layer's documented property is that no identifier is written into it and the plan's own instrument is a grep over the file."
+        ]
+      }
+    ],
+    "item_aggregate": 3,
+    "item_verdicts": {
+      "call_sites": "no production call sites found",
+      "diff": "The repair diff rewrites two functions of the existing module and adds records to the archive and the plan; it touches no source module and makes no claim about whether a worker was in fact placed. The identifier check now covers bool, int, integral float and str (embedded runs included); the query check asserts the exact argv of both queries.",
+      "done_when": "The run's own done-when reproduces at its head: pytest tests/agent/test_flight_placement.py reports 4 passed from head content, and ruff check imas_ambix tests exits 0 (all checks passed). Five negative controls fired, one log each, flight.yaml restored byte-identical after every one.",
+      "goal": "The goal -- a guard holding the declaration -- is met at the repaired head for the three properties the module names, and the two repairs close both vectors the first review scored live: the queries are asserted as exact argv (so a changed output field is a deliberate change to what the fleet observes) and an integral float is now an identifier. The declaration is byte-identical in every tree that carries it (flight.yaml sha256 26ca0c56c81d0b9b1ad42bed23c00822bd56658a1a646fe989b065e9c96f7f45 at 28f0ab31 and in the worktree HEAD).",
+      "manifest": "Every key carries substance: the gate command with its result, six test logs of which five are controls, six hashes of flight.yaml restored byte-identical, the cgroup naming slurmstepd job 1276262 as evidence the gate ran on a compute node, and a note explaining why only the delete control is named in negative_control_log. Two receipt-hygiene defects, neither touching substance: the control logs' rev= header predates the commit of the module they exercised, and the main gate log carries an unlabelled uv help dump before its successful session.",
+      "write_paths": "6565f989..28f0ab31 changes exactly three paths -- tests/agent/test_flight_placement.py, docs/evidence/archive/slurm-hosted-agent-fleet-landed.html, docs/plans/slurm-hosted-agent-fleet.html -- 101 insertions, 15 deletions, every path inside the run's declared write paths, and no module under imas_ambix/ is touched."
+    },
+    "justifications": {
+      "durability": "All five edits the first review named now redden the guard, re-tried by me at head content: %T -> %j, %T -> %t, %T -> %R and %r -> %N each give 1 failed, 3 passed on the query test, and the float identifier gives 1 failed, 3 passed on the identifier test. A YAML alias spelling is seen through the same way (red), so the query assertion is not defeated by aliasing. Four points off, and the residual is named rather than counted: three further edits stay green -- a four-digit literal below the five-digit run, a job_id_probe answering another job, and a comment carrying the identifier -- and the second of these is a real defeat of the placement's identity resolution, since the probe's answer becomes the run's recorded job_id and the liveness read then asks state_query about that id, answering True for a worker whose own step is gone.",
+      "evidence": "Independently reproduced at head content: 4 passed from a scratch tree whose test module and flight.yaml are byte-identical to 28f0ab31 (sha256 6df097b5..., 26ca0c56...); ruff check imas_ambix tests exits 0 at the worktree, run by me; the worktree holds no uncommitted residue, so the controls left nothing behind. The five control logs each carry their mutation verbatim as the first line and their summaries match my independent re-runs one for one (five at 1 failed, 3 passed; the declared delete control 2 failed, 2 passed), and their failure text carries the repaired assertion, which proves the content exercised was the repaired module. Deductions: the five control logs' rev= header names 6565f989 while the module they exercised was committed later as fb15bf36, so the revision on the receipt is stale and only inferable from the failure text; and the main gate log carries an unlabelled uv help dump between its command header and the successful session, with no exit sentinel.",
+      "fit": "The module sits beside seven sibling agent tests and their fixture, resolves the document by parents[2] so it runs from any working directory, and the whole-tree ruff gate exits 0. No plan label, sprint identifier, ticket reference, version suffix or attribution appears in the changed source; the naming check over the module returns no hits. The docstring states the mechanism and its own limit -- that it cannot show a worker was placed -- and the added comments explain why a whole-argv assert is the correct granularity rather than restating the code.",
+      "goal_fidelity": "The node's goal -- a committed guard holding the project flight layer's placement declaration -- is met for the properties the module names. The declaration's shape is held where the guard's own docstring says it is: scheduler srun, both queries exact to their output field, and no baked-in identifier across str, int, integral-float and mapping-key spellings. The first review's deduction here (a docstring claiming to catch \"the queries\" while checking only that they exist and carry {job}) is closed: the argv is now asserted whole. Two points off because the declaration's other declared slots -- job_id_probe, options, requirements -- are outside the guard, and one of them (the probe) is part of what makes a placed run resolvable to its own job rather than merely a worker in the queue.",
+      "scope_discipline": "6565f989..28f0ab31 changes exactly the three declared write paths -- the test module (28 insertions, 10 deletions, confined to _is_job_identifier and the query test), the archive evidence record (70/5) and the plan's records (3/0). Every deletion is a rewritten line inside the node's own record section of the cumulative archive, not a peer's landed entry, so the archive was spliced rather than overwritten; no module under imas_ambix/ is touched."
+    },
+    "model": "deepseek-v4.1-flash",
+    "prior_review": {
+      "absent": [],
+      "absent_items": [],
+      "call_site_count": 0,
+      "call_sites": [],
+      "findings": [
+        {
+          "file": "docs/state/imas-ambix/flight.yaml",
+          "line": "50",
+          "text": "the state_query's output field is unguarded: changing \"%T\" to \"%j\", \"%t\" or \"%R\" leaves all four tests green while placement_job_alive then answers False for a running job, because the string read back is never a member of the live-state set and a readable non-live answer does not fall through to the pid probe."
+        },
+        {
+          "file": "docs/state/imas-ambix/flight.yaml",
+          "line": "51",
+          "text": "reason_query's output field is unguarded the same way: changing \"%r\" to \"%N\" returns the node list in place of the scheduler's reason, which scheduler_kill_class cannot match against any kill class and a launch-failure record would quote as the scheduler's own words."
+        },
+        {
+          "file": "tests/agent/test_flight_placement.py",
+          "line": "55",
+          "text": "_is_job_identifier handles only int and str, so a literal identifier written as a YAML float (job: 1276262.0) is present in the declaration while all four tests stay green."
+        },
+        {
+          "file": "tests/agent/test_flight_placement.py",
+          "line": "98",
+          "text": "test_placement_queries_carry_the_job_substitution_point asserts only that each query is a list carrying a literal {job}, so no edit to the arguments beside the substitution point is observable; the four output fields named above are instances of that gap."
+        }
+      ],
+      "item_aggregate": 6,
+      "item_verdicts": {
+        "call_sites": "no production call sites found",
+        "diff": "The diff adds one 122-line test module and two doc records; the module locates docs/state/imas-ambix/flight.yaml by parents[2] rather than by CWD, walks every scalar and every mapping key with its location, and asserts the declaration's shape only -- it touches no source module and makes no claim about whether a worker was in fact placed.",
+        "done_when": "The run's own done-when reproduces at its head: pytest on tests/agent/test_flight_placement.py run from 6565f989's worktree reports 4 passed in 0.14s, and ruff check over the same file exits 0.",
+        "goal": "The run's goal -- a guard holding the project flight layer's clive placement declaration -- is met for the declaration's shape, since tests/agent/test_flight_placement.py:92, :98 and :111 assert the scheduler is srun, that both queries are argv lists carrying a literal {job}, and that no scalar anywhere in the document is a five-digit-or-longer job identifier, and the document under review is byte-identical in every tree that carries it (sha256 26ca0c56c81d0b9b1ad42bed23c00822bd56658a1a646fe989b065e9c96f7f45 at 6565f989, at this checkout, and at the run's own base dbc8b56e).",
+        "manifest": "The manifest fills every key with substance: the gate command with its 4-passed result, three test logs, the negative_control_log path plus a note disclosing a second control for the repaired identifier check, the flight.yaml sha256 recorded before and after each mutation, and the cgroup naming slurmstepd job 1276262 as proof the gate ran on a compute node rather than the login node.",
+        "write_paths": "dbc8b56e..6565f989 changes exactly three paths -- tests/agent/test_flight_placement.py, docs/evidence/archive/slurm-hosted-agent-fleet-landed.html and docs/plans/slurm-hosted-agent-fleet.html -- 290 insertions and 0 deletions, every path inside the run's declared write paths, and no module under imas_ambix/ is touched."
+      },
+      "justifications": {
+        "durability": "Five single-token edits to docs/state/imas-ambix/flight.yaml keep all four tests green while the consumer's verdict inverts -- at line 50 changing state_query's output field from %T to %j, %t or %R, at line 51 changing reason_query's %r to %N, and appending a literal identifier as a YAML float -- pytest reports 4 passed in every case yet placement_job_alive reads the job's own id, an abbreviated state or a reason string against the live-state set at reckon/crew/runs.py:2637 and answers False for a running job -- and a literal identifier written as a YAML float passes too, because _is_job_identifier at tests/agent/test_flight_placement.py:55 handles int and str and returns False for a float.",
+        "evidence": "The 4-passed gate reproduces at 6565f989 from the run's own worktree, both recorded controls carry their mutation verbatim as the first line of their log (delete-placement 2 failed / 2 passed, int-identifier 1 failed / 3 passed), flight.yaml's sha256 is unchanged across every mutation, and the gate's cgroup proves compute-node placement; the second control is named only in the manifest note rather than in negative_control_log, and no control exercises what the queries ask for.",
+        "fit": "The module sits at tests/agent/ beside seven sibling agent tests and their fixture, ruff check over it exits 0, the reviewed file carries no plan label, ticket reference, version suffix or attribution, and its document is reached by parents[2] so it runs from any working directory.",
+        "goal_fidelity": "The guard holds the declaration's scheduler, its {job} substitution point and the absence of an int-or-str identifier, and the module's docstring is honest that it cannot show a worker was placed, but that same docstring claims to catch \"the queries\" when it checks only that they exist and carry {job}, so a query asking for the wrong thing satisfies every assertion.",
+        "scope_discipline": "Every hunk in dbc8b56e..6565f989 belongs to the guard, its evidence anchor or the plan's comment, the change is insertions only, and each of the three paths sits inside the run's declared write paths."
+      },
+      "model": "deepseek-v4.1-flash",
+      "project": "imas-ambix",
+      "raw_text": "VERDICT goal: The run's goal -- a guard holding the project flight layer's clive placement declaration -- is met for the declaration's shape, since tests/agent/test_flight_placement.py:92, :98 and :111 assert the scheduler is srun, that both queries are argv lists carrying a literal {job}, and that no scalar anywhere in the document is a five-digit-or-longer job identifier, and the document under review is byte-identical in every tree that carries it (sha256 26ca0c56c81d0b9b1ad42bed23c00822bd56658a1a646fe989b065e9c96f7f45 at 6565f989, at this checkout, and at the run's own base dbc8b56e).\nVERDICT done_when: The run's own done-when reproduces at its head: pytest on tests/agent/test_flight_placement.py run from 6565f989's worktree reports 4 passed in 0.14s, and ruff check over the same file exits 0.\nVERDICT write_paths: dbc8b56e..6565f989 changes exactly three paths -- tests/agent/test_flight_placement.py, docs/evidence/archive/slurm-hosted-agent-fleet-landed.html and docs/plans/slurm-hosted-agent-fleet.html -- 290 insertions and 0 deletions, every path inside the run's declared write paths, and no module under imas_ambix/ is touched.\nVERDICT manifest: The manifest fills every key with substance: the gate command with its 4-passed result, three test logs, the negative_control_log path plus a note disclosing a second control for the repaired identifier check, the flight.yaml sha256 recorded before and after each mutation, and the cgroup naming slurmstepd job 1276262 as proof the gate ran on a compute node rather than the login node.\nVERDICT diff: The diff adds one 122-line test module and two doc records; the module locates docs/state/imas-ambix/flight.yaml by parents[2] rather than by CWD, walks every scalar and every mapping key with its location, and asserts the declaration's shape only -- it touches no source module and makes no claim about whether a worker was in fact placed.\nCALL_SITES: none\nSCORE goal_fidelity: 15\nSCORE evidence: 17\nSCORE scope_discipline: 18\nSCORE durability: 10\nSCORE fit: 17\nJUSTIFICATION goal_fidelity: The guard holds the declaration's scheduler, its {job} substitution point and the absence of an int-or-str identifier, and the module's docstring is honest that it cannot show a worker was placed, but that same docstring claims to catch \"the queries\" when it checks only that they exist and carry {job}, so a query asking for the wrong thing satisfies every assertion.\nJUSTIFICATION evidence: The 4-passed gate reproduces at 6565f989 from the run's own worktree, both recorded controls carry their mutation verbatim as the first line of their log (delete-placement 2 failed / 2 passed, int-identifier 1 failed / 3 passed), flight.yaml's sha256 is unchanged across every mutation, and the gate's cgroup proves compute-node placement; the second control is named only in the manifest note rather than in negative_control_log, and no control exercises what the queries ask for.\nJUSTIFICATION scope_discipline: Every hunk in dbc8b56e..6565f989 belongs to the guard, its evidence anchor or the plan's comment, the change is insertions only, and each of the three paths sits inside the run's declared write paths.\nJUSTIFICATION durability: Five single-token edits to docs/state/imas-ambix/flight.yaml keep all four tests green while the consumer's verdict inverts -- at line 50 changing state_query's output field from %T to %j, %t or %R, at line 51 changing reason_query's %r to %N, and appending a literal identifier as a YAML float -- pytest reports 4 passed in every case yet placement_job_alive reads the job's own id, an abbreviated state or a reason string against the live-state set at reckon/crew/runs.py:2637 and answers False for a running job -- and a literal identifier written as a YAML float passes too, because _is_job_identifier at tests/agent/test_flight_placement.py:55 handles int and str and returns False for a float.\nJUSTIFICATION fit: The module sits at tests/agent/ beside seven sibling agent tests and their fixture, ruff check over it exits 0, the reviewed file carries no plan label, ticket reference, version suffix or attribution, and its document is reached by parents[2] so it runs from any working directory.\nFINDING docs/state/imas-ambix/flight.yaml:50 the state_query's output field is unguarded: changing \"%T\" to \"%j\", \"%t\" or \"%R\" leaves all four tests green while placement_job_alive then answers False for a running job, because the string read back is never a member of the live-state set and a readable non-live answer does not fall through to the pid probe.\nFINDING docs/state/imas-ambix/flight.yaml:51 reason_query's output field is unguarded the same way: changing \"%r\" to \"%N\" returns the node list in place of the scheduler's reason, which scheduler_kill_class cannot match against any kill class and a launch-failure record would quote as the scheduler's own words.\nFINDING tests/agent/test_flight_placement.py:55 _is_job_identifier handles only int and str, so a literal identifier written as a YAML float (job: 1276262.0) is present in the declaration while all four tests stay green.\nFINDING tests/agent/test_flight_placement.py:98 test_placement_queries_carry_the_job_substitution_point asserts only that each query is a list carrying a literal {job}, so no edit to the arguments beside the substitution point is observable; the four output fields named above are instances of that gap.\n",
+      "review_run_id": "r-20260923T165337290092-review-of-flight-layer-declares-placement",
+      "reviewed_base": "dbc8b56e2aca325bfec5599fb43f0b36d69012b3",
+      "reviewed_base_sha": "dbc8b56e2aca325bfec5599fb43f0b36d69012b3",
+      "reviewed_commit": "6565f98916c3a1edaeeebdc80fd951e77baa2b49",
+      "reviewed_head_sha": "6565f98916c3a1edaeeebdc80fd951e77baa2b49",
+      "reviewed_run_id": "r-20260923T161249048985-flight-layer-declares-placement",
+      "scores": {
+        "durability": 10,
+        "evidence": 17,
+        "fit": 17,
+        "goal_fidelity": 15,
+        "scope_discipline": 18
+      },
+      "status": "parsed",
+      "total": 77
+    },
+    "project": "imas-ambix",
+    "raw_text": "VERDICT goal: The goal -- a guard holding the declaration -- is met at the repaired head for the three properties the module names, and the two repairs close both vectors the first review scored live: the queries are asserted as exact argv (so a changed output field is a deliberate change to what the fleet observes) and an integral float is now an identifier. The declaration is byte-identical in every tree that carries it (flight.yaml sha256 26ca0c56c81d0b9b1ad42bed23c00822bd56658a1a646fe989b065e9c96f7f45 at 28f0ab31 and in the worktree HEAD).\nVERDICT done_when: The run's own done-when reproduces at its head: pytest tests/agent/test_flight_placement.py reports 4 passed from head content, and ruff check imas_ambix tests exits 0 (all checks passed). Five negative controls fired, one log each, flight.yaml restored byte-identical after every one.\nVERDICT write_paths: 6565f989..28f0ab31 changes exactly three paths -- tests/agent/test_flight_placement.py, docs/evidence/archive/slurm-hosted-agent-fleet-landed.html, docs/plans/slurm-hosted-agent-fleet.html -- 101 insertions, 15 deletions, every path inside the run's declared write paths, and no module under imas_ambix/ is touched.\nVERDICT manifest: Every key carries substance: the gate command with its result, six test logs of which five are controls, six hashes of flight.yaml restored byte-identical, the cgroup naming slurmstepd job 1276262 as evidence the gate ran on a compute node, and a note explaining why only the delete control is named in negative_control_log. Two receipt-hygiene defects, neither touching substance: the control logs' rev= header predates the commit of the module they exercised, and the main gate log carries an unlabelled uv help dump before its successful session.\nVERDICT diff: The repair diff rewrites two functions of the existing module and adds records to the archive and the plan; it touches no source module and makes no claim about whether a worker was in fact placed. The identifier check now covers bool, int, integral float and str (embedded runs included); the query check asserts the exact argv of both queries.\nCALL_SITES: none\nSCORE goal_fidelity: 18\nSCORE evidence: 18\nSCORE scope_discipline: 19\nSCORE durability: 16\nSCORE fit: 18\nJUSTIFICATION goal_fidelity: The node's goal -- a committed guard holding the project flight layer's placement declaration -- is met for the properties the module names. The declaration's shape is held where the guard's own docstring says it is: scheduler srun, both queries exact to their output field, and no baked-in identifier across str, int, integral-float and mapping-key spellings. The first review's deduction here (a docstring claiming to catch \"the queries\" while checking only that they exist and carry {job}) is closed: the argv is now asserted whole. Two points off because the declaration's other declared slots -- job_id_probe, options, requirements -- are outside the guard, and one of them (the probe) is part of what makes a placed run resolvable to its own job rather than merely a worker in the queue.\nJUSTIFICATION evidence: Independently reproduced at head content: 4 passed from a scratch tree whose test module and flight.yaml are byte-identical to 28f0ab31 (sha256 6df097b5..., 26ca0c56...); ruff check imas_ambix tests exits 0 at the worktree, run by me; the worktree holds no uncommitted residue, so the controls left nothing behind. The five control logs each carry their mutation verbatim as the first line and their summaries match my independent re-runs one for one (five at 1 failed, 3 passed; the declared delete control 2 failed, 2 passed), and their failure text carries the repaired assertion, which proves the content exercised was the repaired module. Deductions: the five control logs' rev= header names 6565f989 while the module they exercised was committed later as fb15bf36, so the revision on the receipt is stale and only inferable from the failure text; and the main gate log carries an unlabelled uv help dump between its command header and the successful session, with no exit sentinel.\nJUSTIFICATION scope_discipline: 6565f989..28f0ab31 changes exactly the three declared write paths -- the test module (28 insertions, 10 deletions, confined to _is_job_identifier and the query test), the archive evidence record (70/5) and the plan's records (3/0). Every deletion is a rewritten line inside the node's own record section of the cumulative archive, not a peer's landed entry, so the archive was spliced rather than overwritten; no module under imas_ambix/ is touched.\nJUSTIFICATION durability: All five edits the first review named now redden the guard, re-tried by me at head content: %T -> %j, %T -> %t, %T -> %R and %r -> %N each give 1 failed, 3 passed on the query test, and the float identifier gives 1 failed, 3 passed on the identifier test. A YAML alias spelling is seen through the same way (red), so the query assertion is not defeated by aliasing. Four points off, and the residual is named rather than counted: three further edits stay green -- a four-digit literal below the five-digit run, a job_id_probe answering another job, and a comment carrying the identifier -- and the second of these is a real defeat of the placement's identity resolution, since the probe's answer becomes the run's recorded job_id and the liveness read then asks state_query about that id, answering True for a worker whose own step is gone.\nJUSTIFICATION fit: The module sits beside seven sibling agent tests and their fixture, resolves the document by parents[2] so it runs from any working directory, and the whole-tree ruff gate exits 0. No plan label, sprint identifier, ticket reference, version suffix or attribution appears in the changed source; the naming check over the module returns no hits. The docstring states the mechanism and its own limit -- that it cannot show a worker was placed -- and the added comments explain why a whole-argv assert is the correct granularity rather than restating the code.\nFINDING tests/agent/test_flight_placement.py:106 the query test asserts state_query and reason_query exactly but reads no other slot of the placement, so adding job_id_probe under backends.clive.placement leaves all four tests green while the declaration's job-identity probe answers an unrelated running job: placement_job_id records that other job's identifier and placement_job_alive then asks state_query about it, answering True for a worker whose own step is gone.\nFINDING tests/agent/test_flight_placement.py:54 the identifier threshold is a run of five or more digits, so a literal job identifier of four digits or fewer (job: 6262) sits in the declaration with all four tests green while the guard's own assertion text claims a scheduler job identifier must never be written into the project flight layer.\nFINDING tests/agent/test_flight_placement.py:129 the identifier test walks parsed scalars only, so a comment carrying the allocation identifier leaves all four tests green although the flight layer's documented property is that no identifier is written into it and the plan's own instrument is a grep over the file.\n",
+    "review_kind": "second-review",
+    "review_run_id": "r-20260923T173526865177-second-review-of-flight-layer-declares-placement",
+    "reviewed_base": "dbc8b56e2aca325bfec5599fb43f0b36d69012b3",
+    "reviewed_base_sha": "dbc8b56e2aca325bfec5599fb43f0b36d69012b3",
+    "reviewed_commit": "28f0ab3160d4d32538f2bead014b85c8fa436f40",
+    "reviewed_head_sha": "28f0ab3160d4d32538f2bead014b85c8fa436f40",
+    "reviewed_previous_head_sha": "6565f98916c3a1edaeeebdc80fd951e77baa2b49",
+    "reviewed_run_id": "r-20260923T161249048985-flight-layer-declares-placement",
+    "scores": {
+      "durability": 16,
+      "evidence": 18,
+      "fit": 18,
+      "goal_fidelity": 18,
+      "scope_discipline": 19
+    },
+    "status": "parsed",
+    "total": 89
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The goal -- a guard holding the declaration's placement properties -- is met at the repaired head af9c9bb4 and now closes both residual vectors, each re-tried by me at head content: an added job_id_probe key turns the key-set test red, and a comment carrying the identifier turns the raw-text test red. The declaration file itself is unchanged by the repair (flight.yaml sha256 26ca0c56..., byte-identical to the revision the prior record reviewed), so what moved is the guard's coverage, not the thing it guards.\nVERDICT done_when: The run's own done-when reproduces at its head: pytest tests/agent/test_flight_placement.py reports 6 passed from head content in my own scratch tree (baseline.log), and ruff check imas_ambix tests exits 0 ('All checks passed!') run by me in the run's own worktree at af9c9bb4. The run's manifest names seven controls, one log each; I read the two new ones and both fail for the reason they were aimed at, naming the new test.\nVERDICT write_paths: 28f0ab31..af9c9bb4 changes exactly three paths -- tests/agent/test_flight_placement.py (3fed8055), docs/evidence/archive/slurm-hosted-agent-fleet-landed.html and docs/plans/slurm-hosted-agent-fleet.html (af9c9bb4), 76 insertions and 4 deletions -- every path inside the run's declared write paths, no module under imas_ambix/ touched, and the archive edits land in the node's own record section rather than a peer's.\nVERDICT manifest: Every key carries substance: the gate command with its result (6 passed in 15.40s; ruff exit 0), eight test logs of which seven are controls, the before/mutated/restored sha256 per control, the cgroup naming the compute node for the controls, and an explicit note that this round's green re-run executed on the login node under load above 160 with the reason it was left as a reading. One defect stands, inherited and now repeated: the three new receipts carry rev=28f0ab31 while the content they exercised was committed later as 3fed8055, so the revision on the receipt has to be inferred from the failing test's name.\nVERDICT diff: The repair adds two tests to the module and rewrites the archive and plan records; it makes no claim about whether a worker was in fact placed, and the module's docstring says so. The key set of backends.clive.placement is now asserted equal to the three declared keys exactly, and a raw-text pass over the file catches an identifier a parsed walk cannot see.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nSCORE evidence: 18\nSCORE scope_discipline: 19\nSCORE durability: 18\nSCORE fit: 18\nJUSTIFICATION goal_fidelity: The guard now holds the declaration's shape on four axes -- scheduler, both queries exact to their output field, the key set exclusive, and no baked-in identifier across raw text and parsed scalars -- and the residual the prior record scored live (a job_id_probe answering another job) is closed by asserting the key set rather than the presence of three names. One point off for the sub-five-digit literal: the identifier floor is five in both checks, so `job: 6262` still sits in the declaration with six tests green, and the guard's own assertion text claims an identifier must never be written there. That residual is bounded and now reasoned in the node's own record (machine job ids are seven digits; a four-digit floor reddens on the schema URL's port 8765 on line 42 of the file, which I read and confirmed is that line), so it costs a point rather than being an open defect.\nJUSTIFICATION evidence: Independently reproduced at head content: 6 passed from my own scratch tree -- test module sha256 b4298e6d98751f63... and flight.yaml sha256 26ca0c56c81d0b9b..., the latter byte-identical to the prior review's baseline -- and ruff check imas_ambix tests exits 0 run by me inside the run's worktree at af9c9bb4 (my first attempt used absolute paths outside the config's relative per-file-ignores and reported 346 findings; the histogram is 261 N806, 44 TC003, 15 N803, 10 N812, 9 E501, 6 N802, 1 N817, all categories the repo's per-file-ignores exempt, so that reading is a method artefact and not a finding). The two new control logs each fail for the reason aimed at, naming the new test, and the run's receipts hold their whole-tree gate. Deductions: the stale rev= header the prior record named was not repaired and now appears in three further receipts -- flight_placement.log, nc_add_job_id_probe.log and nc_add_comment_allocation.log all carry rev=28f0ab31 while the content exercised is 3fed8055, recoverable only from the failing test's name or the collected count; the prior round's unlabelled uv help dump has been cleared. Two points off for the receipt-staleness recurring across a round rather than being closed with it.\nJUSTIFICATION scope_discipline: 28f0ab31..af9c9bb4 changes exactly the three declared paths: the test module (two added tests), the archive evidence record, and the plan's landing comment. The archive deletions (4 lines) are the node's own superseded scope paragraph inside its own section, spliced rather than overwriting a peer's landed entry, and the plan gains one comment element after the prior round's. No module under imas_ambix/ is touched, no other node's path is named, and the repair is confined to what the two residuals required.\nJUSTIFICATION durability: Eight edits attempted against head content, one log each, flight.yaml restored byte-identical (sha256 26ca0c56...) after every one - verified by digest before the mutation against digest after the restore. Both prior residuals are now red: a job_id_probe key added beside the three keys gives 3 failed, 3 passed on the key-set test (my argv also carries a literal, which the identifier checks catch; the run's own literal-free probe gives 1 failed, 5 passed), and a comment carrying 1276262 gives 1 failed, 5 passed on the raw-text test, matching the run's own control one for one. Four further spellings invisible to the raw-text check are each caught by the parsed walk: an underscored integer value (1_2762_62), an underscored integer mapping key, an anchored alias of the same, and a YAML 1.1 sexagesimal integer (354:31:2) - each assertion names the offending scalar path. One edit of the eight stays green: `job: 6262`, below the five-digit floor, which is the documented residual and no scheduler id on this machine takes that shape. Two points off: the floor is a real (if narrow) hole relative to the guard's own assertion text, and the prior review's exact mutation content could not be reproduced from its recorded hashes, so my two retries are reconstructions of the same edit class rather than byte-identical repeats - stated here rather than papered over.\nJUSTIFICATION fit: The module sits beside seven sibling agent tests and resolves the document by parents[2], so it runs from any working directory and needs no package import; the whole-tree ruff gate is green at the head I verified. No plan label, sprint identifier, ticket reference, version suffix or attribution appears in the changed source; the added comments explain the mechanism (why the floor is five, why an unquoted integer needs its own branch, why the key set is asserted rather than the three names) rather than restating the code. Two points off for one brittle anchor: the comment cites 'the port in the schema URL on line 42', which I confirmed is that line today but which rots the moment a line is added above it; the mechanism would read better stated as the schema URL itself.",
+  "review_kind": "third-review",
+  "review_run_id": "r-20260924T122903045953-third-review-of-flight-layer-declares-placement",
+  "reviewed_base": "dbc8b56e2aca325bfec5599fb43f0b36d69012b3",
+  "reviewed_base_sha": "dbc8b56e2aca325bfec5599fb43f0b36d69012b3",
+  "reviewed_commit": "af9c9bb4c402e94926c0e4d8c2082454d43ab92c",
+  "reviewed_head_sha": "af9c9bb4c402e94926c0e4d8c2082454d43ab92c",
+  "reviewed_previous_head_sha": "28f0ab3160d4d32538f2bead014b85c8fa436f40",
+  "reviewed_run_id": "r-20260923T161249048985-flight-layer-declares-placement",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-10-07T04:36:21.163897+00:00",
+  "total": 92
+}

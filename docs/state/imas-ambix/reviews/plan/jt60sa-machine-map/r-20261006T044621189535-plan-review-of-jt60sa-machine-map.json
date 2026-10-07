@@ -1,0 +1,51 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T04:53:34.962Z",
+  "dispatched_at": "2026-10-06T04:46:28Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/gs/machine_identity.py:145",
+      "id": "duplicate_owner-1",
+      "reason": "the plan must name `default_registry` (or Nova's generic registry entry point) as the owner to extend with a machine key, which is the same unowned-shared-infrastructure gap the plan closes deliberately everywhere else.",
+      "text": "\u00a77 requires a JT-60SA identity registry to hand `identity_for_shot`, but the registry owner `default_registry()` returns `nova.catalog.mast_geometry.MachineGeometryRegistry.default()` and is cached to MAST alone, while \u00a77 also insists \"nothing JT-60SA-specific is added to nova\"; the plan therefore leaves the JT-60SA registry unowned, so the first selection node will either fork a second registry route beside `default_registry` or silently re-use MAST's",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "8b78a8a8d11a2dca5883d1dbf09793f68de295b2ecba26cc0c0ca1a35a3bc264",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 103,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "coordinator",
+      "reason": "Acted in plan v104: section 7 extends imas_ambix/gs/machine_identity.py default_registry with a machine key, one cached registry per machine; MAST unchanged; a machine with no registry is refused by name.",
+      "when": "2026-10-06T04:55:32.037351+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T044621189535-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "506dd9c34c79e4d9dc3d78ba8b6767486a6cdd40",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the three new modules each hide substantial behaviour behind a small interface (`eddb_remote.py`: ssh transport plus batch framing plus per-channel refusal behind one batch call; `eddb.py`: cache identity, half-written detection and overwrite refusal behind `fetch_channels`/`write_channel`; `selene_deck.py`: three deck grammars plus per-phase IDS emission behind one entry point), so the additions are depth rather than surface.",
+    "duplicate_owner": "a finding \u2014 \u00a77 threads `machine` into `identity_for_shot` and refers to \"the registry for the declared machine\", but the identity-registry owner `gs/machine_identity.py::default_registry` is hard-wired to Nova's MAST registry and no section names the mechanism that yields a JT-60SA one.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the one CLI addition (\u00a77 `scripts/spine_benchmark.py --machine`) states it retires the implicit MAST default an explicit shot list carried, and each section that widens a public definition or refusal family states in its own text why nothing can be retired (\u00a73 \"ambix had no remote reader\", \u00a74 \"no binding could select a struct-array entry before\", \u00a75 \"no EDDB unit spelling is recorded anywhere today\", \u00a76 \"every existing name keeps its caller\"), so the addition is accounted for.",
+    "reuse_search": "pass \u2014 the plan searched the two codebases it names and, for each subsystem it adds, cites the existing mechanism it extends (`StoreEngine.open` gains the selected map; `read_geometry_table`'s machine branch is retired not joined; the COCOS cohort feeds `score_convention`; the equilibrium kernel is `_integrated_current` in `challenge/convention.py`; the reference seam is `read_efit_geometry`'s `loader=`), and every cited owner exists and matches the plan's account.",
+    "thin_wrapper": "pass \u2014 the only interfaces that could read as thin layers carry their justification in-text: the tokamap exporter is \"kept out of the loaders because they read the ambix schema and must not learn tokamap's\", the EQDB reader extends `RemoteEddbExtractor` because \"only the remote read call differs\", and the EQDB record writer sits in `eddb.py` to share the store invariants rather than restate them."
+  },
+  "section_digests": {
+    "_document": "060371ce32b20f0360ee1915d508732a36f1e2589b54c97b2df633bc451a49ed",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "c75137ca1257d03788b8f9a19bb91a13e7afc90da8c96f5b8403a6b19235d138",
+    "s5": "d9699df7cbddeb0512a8fea91555e191404c636d3da53692701ca5e7269c334d",
+    "s6": "6e90bbb718ecc711dad77cf286e778a3b5b19a6134a4c1b72c0aa29197e0d32b",
+    "s7": "c8c5962ba2e82249dc2bb06890ea9981e7508cf3de076c5f96e8fde6f59c003b",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T04:54:37.440508+00:00"
+}

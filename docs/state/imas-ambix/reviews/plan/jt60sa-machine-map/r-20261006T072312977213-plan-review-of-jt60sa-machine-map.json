@@ -1,0 +1,51 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T07:34:22.263Z",
+  "dispatched_at": "2026-10-06T07:23:20Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/description_reader.py:53",
+      "id": "duplicate_owner-1",
+      "reason": "the plan names the second path and justifies leaving it (nothing calls `load_tables`, no JT-60SA read reaches it); consolidating a MAST-only, off-route duplicate is cleanup the plan can defer, and only the acquisition-address supplier is on the new route.",
+      "text": "`_supply_declared_probe_angles` (acquisition-address) and imas_ambix/spine_bench/transform_geometry_source.py:266 `_supply_probe_orientations` (efm campaign map) are two implementations that both fill a b-poloidal probe's directed angle for MAST, and \u00a76 adds a third `probe_angle_source` branch instead of consolidating onto one supplier",
+      "type": "duplicate_owner",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "18a7038a1cbafa7110bf55d00e832ab872a228fb2f9f53744faa476fc298204c",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 122,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "coordinator",
+      "reason": "The two MAST probe-angle suppliers (description_reader._supply_declared_probe_angles and spine_bench/transform_geometry_source._supply_probe_orientations) predate this plan and serve MAST only; the second is off every live route (nothing calls load_tables). Consolidating them is MAST cleanup outside the JT-60SA map, as the review itself judges; this plan adds only the description branch the JT-60SA catalogue selects.",
+      "when": "2026-10-06T07:34:50.084707+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T072312977213-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "8bcf6fd284fd5223715afcbe0e8902ec29433959",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each addition hides substantial behaviour behind a small interface: `data/selene_deck.py` one entry point over deck grammar plus five IDS writers, `data/tokamap_export.py` one function over groups/partitions/global templating, `data/eddb_remote.py` one batch call over one ssh session, the niced module-loaded remote command and the per-channel refusal contract.",
+    "duplicate_owner": "a finding \u2014 the plan leaves two MAST probe-angle suppliers in place and adds a third branch, rather than consolidating the supply of a directed probe angle onto one owner.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds interface surface accounts for it in its own text (\u00a72 exporter \"retires nothing\"; \u00a74 `struct_array_entry` and the description-store slots \"retire nothing\"; \u00a75 the unit-spelling table \"adds one data file and no public definition or refusal family\"; \u00a76 \"ambix retires one public definition and adds none\" and merges `measure_diiid_convention` into `measure_convention`; \u00a77's two EQDB types and the grid writer \"retire nothing\").",
+    "reuse_search": "pass \u2014 every proposed mechanism cites an owner that exists at the cited name (`data/transform_engine.py` store engines and `_read_ids_path`, `data/signal_map.py` `load_packaged_signal_map`, `data/cocos_convention.py` `score_conventions`+`read_level2_observation`, `challenge/convention.py` `measure_diiid_convention`, `eval/efit_referee.py` `judge_geometry`, `gs/artifact_resolution.py` `resolve_machine_description`, `gs/machine_identity.py` `default_registry`, `data/eddb_remote.py`/`eddb.py`), and it searched both ambix and codex.",
+    "thin_wrapper": "pass \u2014 each wrapper states why the machinery it overlies cannot absorb the payload: EQDB's request/record are not channel-shaped (`ChannelRequest` is `(shot,category,dname)` \u2192 `(channel,time)`), and ambix has no exporter, so the tokamap module is kept out of the loaders that read the ambix schema."
+  },
+  "section_digests": {
+    "_document": "e7c366f87071034879dd4d8da567e1db0df2d7f408d79e109116ba642746b15c",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "9358d81e117c8e6b4ccb1aa64f86f2d25c6688ee501ec105e7e99ab2a726c674",
+    "s5": "6982251ed4c8a9182fe0265da5219217b9926e5b6c7490ef0149bf2754a8efc3",
+    "s6": "10440bdbac8b2013ab5929cf988707dcfc402e2b5b9d046d482930a9126bcc06",
+    "s7": "2fdd08fcace1ef13efb5b3672debe534f973a41ecf2688c5d713ff3fe312a92d",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T07:34:48.938605+00:00"
+}

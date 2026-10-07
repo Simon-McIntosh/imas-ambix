@@ -1,0 +1,86 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run is unarmed: its manifest carries no baseline_suite or after_suite key, and its declared write paths reach no test file (its product edit is a COPY of dotfiles bin/gpu-watch placed under the run report directory, plus a docs/evidence fragment). With no base arm and no head arm the read-path set difference is empty: added_failure_count 0, added_failure_ids []. Verified against the reviewed run directory (no logs/ directory; manifest read in full) and the reviewed worktree HEAD. The reviewed worktree's only commit 3d797633 changes a single file, docs/evidence/fragments/serving-record-warehouse/srw-gpu-watch-reads-the-published-ledger.html (+53 insertions, no product source and no test), so there is no code path a suite could fail on.",
+  "after_suite": null,
+  "artifacts": [
+    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-gpu-watch-reads-the-published-ledger/gpu-watch (grep-clean copy)",
+    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-gpu-watch-reads-the-published-ledger/capture.txt (EXIT=0; four period rows, card rows + mean, A/B job table)",
+    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-gpu-watch-reads-the-published-ledger/compare.md (all per-row field comparisons True)",
+    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-gpu-watch-reads-the-published-ledger/watch-read.json (published_at 2026-10-02T20:46:34Z)",
+    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-gpu-watch-reads-the-published-ledger/gpu-watch.diff (806 lines, 493 deletions)",
+    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-gpu-watch-reads-the-published-ledger/negative-control.txt (EXIT=0; mutated copy disagrees)"
+  ],
+  "baseline_suite": null,
+  "blockers": "none",
+  "call_site_count": 3,
+  "call_sites": [
+    "serve_ledger_table (copy)",
+    "serve_table (copy)",
+    "WATCH_DOC / LEDGER_STALE_AFTER (copy)"
+  ],
+  "completed_at": "2026-10-02T21:19:29.973Z",
+  "dispatched_at": "2026-10-02T21:03:58Z",
+  "evidence_inputs": [
+    "Dispatch FENCE-EVIDENCE scoped the work to a COPY of dotfiles bin/gpu-watch (at 5718a80) under the run report directory; dotfiles bin/gpu-watch at HEAD 0d5d7de, blob b4bf220d, unchanged, still defining ledger_cost/match_price/price_at/ledger_integrate/ledger_record/LEDGER_PATH/PRICE_URL.",
+    "Reviewed worktree HEAD 3d79763320fddf88387c020f91a0bf828c140c5e over base 3a438d8eee89c3495727834df30957a9d9f6f465; its single commit changes only docs/evidence/fragments/serving-record-warehouse/srw-gpu-watch-reads-the-published-ledger.html (+53).",
+    "Published watch document read: ~/public/imas-ambix/watch.json, published_at 2026-10-02T20:46:34Z, snapshotted beside the capture as watch-read.json.",
+    "Negative control /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-gpu-watch-reads-the-published-ledger/negative-control.txt: the mutated copy prints 128M for the 1-hour row against the document's 90.9M (EXIT=0)."
+  ],
+  "findings": [
+    {
+      "file": "gpu-watch (copy under the run report directory)",
+      "line": "",
+      "severity": "follow-on",
+      "text": "The revised done-when requires eight card rows in the capture; the capture carries four (group A, the cards the serve reserves) plus the mean row, because the node ran on the fleet allocation where Group B's cards are cgroup-hidden from the sampler. The worker disclosed this under follow_ons and the card-panel code is unchanged. To close the done-when, capture on the login node (where gpu-watch normally runs and all eight cards are visible), or restate the section's requirement as the cards the serve can see."
+    },
+    {
+      "file": "compare.md (run report directory)",
+      "line": "",
+      "severity": "follow-on",
+      "text": "The STALE / MISSING / UNPARSABLE boundary states quoted in compare.md were exercised from a /tmp scratch (gwstates-3rt2vo29) with no retained log, so the claims are readable but not re-runnable from the durable artifacts. The behaviour is implemented in the copy's _watch_document (unavailable / unparsable / stale <age>), but a durable capture of the three states beside compare.md would make the evidence independently reproducible."
+    },
+    {
+      "file": "gpu-watch (copy under the run report directory)",
+      "line": "494",
+      "severity": "follow-on",
+      "text": "gpu-watch still reaches the engine over HTTP outside the ledger path: _serve_state_tail probes /v1/models for the serve card's context window (line 494) and vllm_load() still reads the Prometheus /metrics as a fallback when no overlappable step supplies card readings (lines 1126, 1527). The dispatch's explicit deletion list named only the private-ledger and price symbols, and plan \u00a711 governs the live panel, so this node correctly did not remove these; but the section's stated aim that no serving figure is computed in the dotfiles repository is not fully reached, and the copy's own docstring says the panel needs neither a scrape of the engine nor an index read."
+    }
+  ],
+  "follow_ons": [
+    "Apply /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-gpu-watch-reads-the-published-ledger/gpu-watch.diff to ~/Code/dotfiles/bin/gpu-watch (and its _gpu_sample.py sibling) so the change lives in the repository the section names; the node was fenced to edit only the copy.",
+    "Re-run the capture on the login node to show all eight card rows, or amend \u00a710's done-when to name only the cards the serve can see."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "durability": "The evidence fragment is committed (3d797633) and the run report directory holds the copy and the 806-line diff (493 deleted lines) needed to apply the change to dotfiles later, so the derivation is preserved. Held below full because the actual deliverable named in plan \u00a710 - the rewiring living in dotfiles bin/gpu-watch so that no serving figure is computed in the dotfiles repository - is not landed: dotfiles bin/gpu-watch at HEAD still defines ledger_cost, match_price, price_at, ledger_integrate, ledger_record, LEDGER_PATH and PRICE_URL. That is by design of the dispatch (edit only the copy, never the dotfiles repository) and the diff is the hand-off artifact, so it is a deferred-application risk rather than a defect, but the durable state of the repository does not yet carry the change and the copy lives under a run report directory that cleanup may reclaim.",
+    "evidence": "Strong and largely independently reproducible: the grep-clean claim was re-run here on the copy (no hits for any of the eleven deleted names); the per-row token/cost comparison was reproduced arithmetically from watch-read.json for all four periods; the negative control is real and disagrees (the mutated copy prints 128M for the 1-hour row against the document's 90.9M, EXIT=0, negative-control.txt); the capture shows the four period rows, the serve card rows, the mean row and the job-table header. Held below full for two gaps. (1) The boundary-state claims in compare.md (STALE at published_at 1000 s, MISSING, UNPARSABLE) are implemented in the copy (the _watch_document function prints 'watch document unavailable'/'unparsable'/'stale <age>'), but the run they came from used a /tmp scratch (gwstates-3rt2vo29) that no durable log retains, so a reader can read the claims but cannot re-run them. (2) The eight-card-row requirement is unmet and only partially evidenced (four rows shown, honestly disclosed).",
+    "fit": "Fits the section's design cleanly: gpu-watch stays a standalone script and consumes the published JSON document rather than importing the package, so the document is the single contract; the period ledger and its ledger and cost column come from that document, the serve panel's lane/live blocks come from `agent watch --json --live`, and the node half (card bars, node job table, host load, live mode) is untouched. Two observations, neither blocking: the copy still reaches the engine over HTTP for pre-existing non-ledger paths - _scrape_serve/vllm_load as a fallback when no overlappable step supplies card readings (copy lines 1126, 1527) and _serve_state_tail's /v1/models probe for the serve card's context window (line 494) - which the section's prose ('no serving figure is computed in the dotfiles repository') arguably also covers, though the dispatch's explicit deletion list did not name them and \u00a711 governs the live panel; and the four-of-eight card rows is a state-of-the-node limitation that a login-node run would render as eight.",
+    "goal": "The node's goal under the dispatch FENCE-EVIDENCE is a gpu-watch COPY whose period ledger renders from the fleet's published watch document (the copy of dotfiles bin/gpu-watch at 5718a80), with the private ledger and its price code deleted and the live panel left on `imas-ambix agent watch --json --live`. Independently confirmed: the copy at /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-gpu-watch-reads-the-published-ledger/gpu-watch sets WATCH_DOC=\"~/public/imas-ambix/watch.json\" and LEDGER_STALE_AFTER=600.0; serve_ledger_table() renders every row (tokens_in, cached, tokens_out, utilisation, cost) straight from that document's ledger rows; serve_table() takes its lane/live blocks from the live document; a grep of the copy for ledger_cost, match_price, price_at, ledger_integrate, ledger_record, serve-ledger.jsonl, openrouter.ai, LEDGER_PATH, PRICE_URL and PRICE_PATH returns nothing (grep exit 1). Every period row the copy printed equals watch-read.json's value at the printed precision: I recomputed all four rows from watch-read.json myself (tokens in 90.9M / 4.6G / 17.5G / 24.9G, out 661k / 23.6M / 118M / 177M, cost 0.97 / 46.15 / 183.78 / 264.18, cached 98, util 45 / 85 / 65 / 66) and each matches the capture line. Held one point below full because the revised done-when's 'capture shows all eight card rows' is not demonstrated: the capture carries four group-A card rows plus the mean row and the A/B job table, because the node ran on the fleet allocation where the other reservation group's cards are cgroup-hidden, and the worker disclosed this under follow_ons. The card-panel code is unchanged by the node, so this is an unattainable-under-the-mandated-mint capture requirement rather than a code regression.",
+    "scope_discipline": "Exemplary. The node wrote only to its three granted paths: the run report directory (the edited copy, _gpu_sample.py, capture.txt, watch-read.json, compare.md, gpu-watch.diff, negative-control.txt), the evidence fragment under docs/evidence/fragments/serving-record-warehouse/, and no figure (its done-when names no figure, and none was written). It edited only the copy and never the dotfiles repository, exactly as the dispatch's FENCE-EVIDENCE directed; dotfiles bin/gpu-watch at HEAD 0d5d7de, blob b4bf220d, is unchanged, and the copy's own grep is clean. Its single commit 3d797633 touches one path and carries a conventional subject with a body. No concurrent node's paths were touched."
+  },
+  "model": "deepseek-v4.1-flash",
+  "node": "srw-gpu-watch-reads-the-published-ledger",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "review_kind": "review",
+  "review_run_id": "r-20261002T210334764940-review-of-srw-gpu-watch-reads-the-published-ledger",
+  "reviewed_base_sha": "3a438d8eee89c3495727834df30957a9d9f6f465",
+  "reviewed_head_sha": "3d79763320fddf88387c020f91a0bf828c140c5e",
+  "reviewed_run_id": "r-20261002T202453583172-srw-gpu-watch-reads-the-published-ledger",
+  "reviewer": "review-of-srw-gpu-watch-reads-the-published-ledger",
+  "scores": {
+    "durability": 16,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "section": "\u00a710",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T21:12:00Z",
+  "total": 92
+}

@@ -1,0 +1,107 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's two arms of the reviewed node's declared gate: base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113300885212-review-of-srw-receipt-gaps-read-admission-time/review-base-gate.log at bf1d010eb5d9ce1d7f22a601df5b5f31cdaa9a45 (a scratch copy of my worktree carrying the base revision's cache_estimate.py with the reviewed test file kept at head: 4 failing ids) and head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113300885212-review-of-srw-receipt-gaps-read-admission-time/review-head-gate.log at ebd46b089a91f40e8bf7ecd43559e431a4d75a59 (0 failing ids); the reviewed manifest names no baseline or after arm, so a reader annotating from the reviewed manifest alone reports this count as unmeasured",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider tests/test_cache_estimate.py   (at the reviewed head, scratch tree /tmp/srw-review/head)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113300885212-review-of-srw-receipt-gaps-read-admission-time/review-head-gate.log",
+    "revision": "ebd46b089a91f40e8bf7ecd43559e431a4d75a59"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider tests/test_cache_estimate.py   (base revision's cache_estimate.py in the scratch tree /tmp/srw-review/base, with the reviewed test file kept at head)",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 4,
+    "failure_ids": [
+      "tests/test_cache_estimate.py::test_a_non_completed_row_does_not_break_the_chain",
+      "tests/test_cache_estimate.py::test_a_non_completed_row_is_never_scored_as_a_hit",
+      "tests/test_cache_estimate.py::test_a_row_naming_no_status_is_not_completed",
+      "tests/test_cache_estimate.py::test_arrival_is_the_timestamp"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113300885212-review-of-srw-receipt-gaps-read-admission-time/review-base-gate.log",
+    "revision": "bf1d010eb5d9ce1d7f22a601df5b5f31cdaa9a45"
+  },
+  "blockers": "none",
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/agent/cache_estimate.py:136 arrival_of is called by estimate_hit_rate itself",
+    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/receipt-gap-keyed/build_receipt_gap_report.py:61 estimate_hit_rate prices both windows",
+    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/receipt-gap-keyed/build_receipt_gap_report.py:89 arrival_of orders the rows into the windows",
+    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/receipt-gap-keyed/build_receipt_gap_report.py:63 caller_share reports each window's attributed share"
+  ],
+  "completed_at": "2026-09-29T12:10:44.841Z",
+  "dispatched_at": "2026-09-29T11:33:08Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-receipt-gaps-read-admission-time.html",
+      "line": "4",
+      "text": "the committed fragment ends at </section> with no trailing newline, cosmetic and the only hygiene defect in the change."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/receipt-gap-keyed/receipt-gap-hit-rate.json",
+      "line": "59",
+      "text": "the top-level scalar h is the seven-day figure (0.506540) while the fragment states the keyed window is the reading the estimate should be taken from (0.981659); a consumer that reads the scalar rather than the window it names installs the reading the node itself says is depressed by missing identity, and the record path the printing node fills is the one place that choice becomes a number a reader sees."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T110951289347-srw-receipt-gaps-read-admission-time/manifest.md",
+      "line": "14",
+      "text": "baseline_suite and after_suite read none, correct for an unarmed implement dispatch, so the reviewed run's own evidence cannot answer whether it added failures; the added_failure_count and added_failure_ids this record carries are derived from this review's arms of the node's declared gate, and a reader annotating from the reviewed manifest alone reports them as unmeasured."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/receipt-gap-keyed/receipt-gap-hit-rate.md",
+      "line": "10",
+      "text": "the window is labelled the last seven days while the receipt record's rows begin 2026-09-23T04:38:18Z, so about six and a quarter days of traffic sit in a window the fragment presents as seven."
+    }
+  ],
+  "follow_ons": [
+    "docs/evidence/fragments/serving-record-warehouse/srw-receipt-gaps-read-admission-time.html:4 the committed fragment ends at </section> with no trailing newline; the repair belongs to the reviewed node's path, outside this review's write scope.",
+    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/receipt-gap-keyed/receipt-gap-hit-rate.json the top-level scalar h and nominal_lifetime_s describe the seven-day window while the fragment directs the estimate at the keyed window; the printing node that installs a figure at the record path should read the keyed estimate (or the measured 0.930 figure, which outranks both), not the scalar.",
+    "no test binds a router-produced receipt's timestamp to the started_at passed into the relay, so the premise both this module's docstring and the reviewed fragment state rests on a reading of router.py rather than on a check, and a future change to either producer's stamping would silently move every arrival."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call site binds this module yet: estimate_hit_rate, arrival_of and caller_share are referenced only from tests/test_cache_estimate.py and the out-of-repo build script, so the derived figure currently reaches the cost surface only through the report and the record the printing node installs.",
+    "diff": "three commits read in full -- the arrival and completed-only repair with its docstring rewritten to state the producer's stamp behaviour, the UTC-alias style commit, and the fragment -- 142 insertions and 39 deletions across three files, with bodies stating the mechanism and no AI trailer, plan label or ticket reference.",
+    "done_when": "re-run independently at the reviewed head: tests/test_cache_estimate.py 12 passed exit 0 in review-head-gate.log with the module under test resolving inside the scratch tree, and the base arm 4 failed 8 passed exit 1 in review-base-gate.log; the node's serving-interpreter parse check and ruff gate were read, and the gate log names revision 5ea179a5, whose only difference from the reviewed head is the fragment (one file, 6 insertions).",
+    "goal": "the two recorded defects are both repaired at the site the predecessor's review named: arrival_of returns the row's timestamp with no duration subtracted, and a row whose status is not completed neither scores nor chains while remaining in the prompt-token denominator; the four-line fragment restates h over the keyed window with its caller share and row count, and the module's caller rule is unchanged.",
+    "manifest": "read whole; status complete with three commits, the gate results, the gate and negative-control log paths, a note naming the scratch edit and its restoration, and empty wait fields; baseline_suite and after_suite read none as an unarmed implement node, so its own evidence cannot answer the added-failure question and this record derives it from this review's two arms.",
+    "write_paths": "git diff --name-status bf1d010e..ebd46b08 carries exactly imas_ambix/agent/cache_estimate.py, tests/test_cache_estimate.py and docs/evidence/fragments/serving-record-warehouse/srw-receipt-gaps-read-admission-time.html; the declared figures directory does not exist and the report lives in its declared run directory."
+  },
+  "justifications": {
+    "durability": "the four added guards red at the base revision with the fix reverted (4 failed, 8 passed in this review's base arm) and are green at head, and they pin the mechanism -- the direct arrival equality, hits and hit_prompt_tokens -- rather than a downstream aggregate, while STATUS_COMPLETED is imported from its owner so the vocabulary cannot drift; three points are withheld because the stamping premise itself is carried by prose and by reading the producer, not by a test (no check binds a router row's timestamp to the started_at it was given), and because the module has no production consumer yet, so nothing outside its own tests enforces the rule.",
+    "evidence": "the declared gate was re-run at the reviewed head (12 passed, exit 0, module resolved inside the scratch tree) and the red side is shown twice -- the node's negative-control log repeats its declared string verbatim and reads 00:04:10 against 00:05:50, and this review's base arm reddens four tests at bf1d010e; two points are withheld because the reviewed manifest names no baseline or after arm, so the count below is derived from this review's arms, and because the node's own red covers only the arrival repair, leaving the completed-only repair's red side to this review.",
+    "fit": "the change reuses the module's own vocabulary (STATUS_COMPLETED imported from request_receipts rather than restated), extends the existing test file in place, states the mechanism in the docstrings, and carries no plan label, tracker reference or duplicated constant; the friction recorded in the findings is artifact-level -- the fragment's missing newline, the report's scalar h naming the window the fragment says not to use, and the nominal seven-day window holding six and a quarter days of rows.",
+    "goal_fidelity": "every part of the dispatched measure is met and independently reproduced: arrival is the row's own timestamp at router.py:2197 with started_at taken at the relay call (router.py:1587), only completed rows score or chain (cache_estimate.py:110-118 and :154-160), both are pinned in tests/test_cache_estimate.py, and the report's two windows and four figures reproduce to twelve decimals from the file's own 127448-row prefix against an independent reimplementation written from the plan text.",
+    "scope_discipline": "git diff --name-status bf1d010e..ebd46b08 carries exactly the three declared paths -- imas_ambix/agent/cache_estimate.py, tests/test_cache_estimate.py and the new fragment -- no plan or index file moved, the declared figures directory was never created, the report stayed in its declared run directory, and the reviewed worktree is clean at head; the point is withheld for the fragment's missing trailing newline."
+  },
+  "justifications_detail": {
+    "independent_receipts": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113300885212-review-of-srw-receipt-gaps-read-admission-time/review-repro.log (four rule variants over the 127448-row prefix: new 0.506540272179 / 0.510427976100 and keyed 0.981659492315 / 0.989206595115, caller shares 0.468810809114 and 0.906697873763, and the old-arrival variants 0.504820293028 and 0.978320539625 at 300 s), /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113300885212-review-of-srw-receipt-gaps-read-admission-time/review-head-gate.log (12 passed, exit 0, module under test /tmp/srw-review/head/imas_ambix/agent/cache_estimate.py), /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T113300885212-review-of-srw-receipt-gaps-read-admission-time/review-base-gate.log (4 failed, 8 passed, exit 1, module under test /tmp/srw-review/base/imas_ambix/agent/cache_estimate.py) and the sampling/status/duration profile printed over the same prefix (sample_fraction 1.0 on every row; 124837 completed, 2097 failed, 514 aborted; median duration 11.2 s).",
+    "limits": "the report's figures were reproduced from the receipt file's 127448-line prefix rather than the live file, which had grown to 127935 rows by the time of this review; no relay was restarted and no request was produced end to end, so the producer's stamp was verified by reading router.py:1587 and :2197 and by the 3 rows whose timestamp plus duration reach past the newest row's timestamp, not by observing a request; the printing node's installation of a figure at the record path was not exercised.",
+    "review_basis": "read section 9 of the plan with its rewired paragraph, the reviewed dispatch and manifest, base bf1d010e and head ebd46b08, the three commits with their complete diff, the reviewed gate and negative-control logs, the report JSON and markdown with their build script, the four-line fragment, the producer (router.py's two _record_receipt call sites and request_receipts.py's status vocabulary), and the module's call sites."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260929T110951289347-srw-receipt-gaps-read-admission-time at head ebd46b089a91f40e8bf7ecd43559e431a4d75a59 against base bf1d010eb5d9ce1d7f22a601df5b5f31cdaa9a45, the section-9 node that repairs the receipt-gap estimate a preceding review found misreading its rows. Three commits: 13b1334a reads a request's arrival from the row's own timestamp and scores or chains only rows whose status is completed; 5ea179a5 moves the new test onto the datetime.UTC alias; ebd46b08 is the docs-only commit carrying the four-line fragment, so the gate log at 5ea179a5 and the reviewed head differ by the fragment alone (git diff 5ea179a5..ebd46b08: one file, 6 insertions).\n\nGoal fidelity. The dispatched measure has four parts and each is met and independently reproduced. (1) Arrival is the row's own timestamp, and the premise holding that right is true in the producer: router.py:2197 records timestamp=started_at, and started_at is datetime.now(UTC) taken at the relay call (router.py:1587, and the self-answered producer at 2261), i.e. after the admission gate and before the upstream exchange, so no duration is subtracted. (2) Only completed rows score or chain: _completed reads the module's published STATUS_COMPLETED (request_receipts.py:88) rather than restating the literal, and a non-completed row adds its prompt tokens to the denominator and then continues, so it is never a hit and never becomes the chain anchor. (3) tests/test_cache_estimate.py pins both: the arrival test asserts arrival_of directly and the miss it produces (350 s apart, past the 300 s lifetime, where subtracting the second request's 100 s duration would manufacture a hit), and three tests cover the aborted, failed and absent statuses including the chain-past case. (4) The report restates h at 300 s and 3600 s over rows from 2026-09-26T00:00Z beside the seven-day figures, each with its caller share and row count. An independent reimplementation written from the plan text against the same 127,448-row prefix reproduces every figure to twelve decimals: 7 days: 127448 rows, caller share 0.468810809114, h 0.506540272179 at 300 s and 0.510427976100 at 3600 s; keyed window: 65797 rows, caller share 0.906697873763, h 0.981659492315 at 300 s (58093 hits) and 0.989206595115 at 3600 s (58608 hits), matching the report JSON and the fragment. The caller rule is unchanged from the plan (run_id, else coordinator_session, else none, and a row with neither never counts as a hit).\n\nEvidence. The declared gate was re-run by this review at the reviewed head in a scratch copy of the reviewed files, with the module under test resolving inside the scratch tree and printed in the log header: 12 passed, exit 0. The red side is shown twice: the reviewed node's own negative-control log repeats the declared string verbatim and reddens test_arrival_is_the_timestamp with arrival_of reading 00:04:10 against the expected 00:05:50, and this review's own base arm (the base revision's cache_estimate.py with the reviewed tests kept at head) reddens four tests, 4 failed 8 passed, exit 1. Reproduction of the two recorded defects therefore does not rest on the node's word: at base the arrival reads timestamp minus duration (the AssertionError is the reproduction) and a failed row chains. An instrument check was run on the implausible-looking figure: 0.98 over the keyed window is not an artefact of sampling, since every one of the 127,448 rows carries sample_fraction 1.0, every row carries a status (124837 completed, 2097 failed, 514 aborted), and only 3 rows' timestamp-plus-duration reach past the newest row's timestamp, which is itself independent confirmation that the stamp is taken before the exchange rather than at its completion. The effect sizes are small: with the corrected arrival alone the 7-day figure moves by +0.0017 absolute at 300 s (0.504820 with the old arrival and the completed-only rule, 0.506540 with both repairs), and in the keyed window by +0.0033 (0.978320 against 0.981659); the repair is a correctness fix whose magnitude on this traffic is under a percent, and the fragment does not overstate it. Two points are withheld: the reviewed manifest names no baseline or after arm, so the reviewed run's own evidence cannot answer whether it added failures and the count this record carries is derived from this review's arms; and the node's own negative control covers the arrival repair only, so the completed-only repair's red side comes from this review rather than from the run.\n\nScope discipline. git diff --name-status bf1d010e..ebd46b08 carries exactly the three declared paths: the module, its test file, and the new fragment. No plan or index file moved, the declared figures directory was never created (no docs/figures/serving-record-warehouse/srw-receipt-gaps-read-admission-time exists), the report stayed in its declared run directory outside the repository, and the reviewed worktree reads clean at its head with no modified or untracked tracked files. One point is withheld for the fragment's missing trailing newline.\n\nDurability. The four added tests are real guards rather than assertions of a value nobody would change: they red at the base revision with the fix reverted (4 failed, 8 passed in this review's base arm) and are green at head, and they pin the mechanism (the direct arrival equality, hits, hit_prompt_tokens) rather than a downstream aggregate. The import of STATUS_COMPLETED means the vocabulary cannot drift from the producer. What is not guarded is the premise itself: the claim that the producer stamps at admission lives in the module docstring, the fragment and this review, and no test in the suite binds a router-produced row's timestamp to the started_at passed into the relay, nor would a change at the second producer redden anything here. The module also has no production consumer yet -- estimate_hit_rate, arrival_of and caller_share are referenced only by its own tests and the out-of-repo report builder -- so the derivation rule is enforced by tests alone until the printing node installs a figure.\n\nFit. The change follows the file's existing shape: one cached status predicate beside the caller rule it resembles, the status vocabulary imported from its owner rather than repeated, the tests extended in place with docstrings stating the mechanism, no plan label or tracker reference in code, tests, fragment or commit, and the fragment's numbers delegated to the report rather than restated as literals. Three points of friction remain, all recorded below: the fragment has no trailing newline; the report's top-level scalar h is the seven-day figure the fragment itself says the estimate should not be taken from; and the seven-day window is named for seven days while the record's rows begin 2026-09-23T04:38:18Z, so about six and a quarter days of traffic sit in it.\n",
+  "review_run_id": "r-20260929T113300885212-review-of-srw-receipt-gaps-read-admission-time",
+  "reviewed_base_sha": "bf1d010eb5d9ce1d7f22a601df5b5f31cdaa9a45",
+  "reviewed_head_sha": "ebd46b089a91f40e8bf7ecd43559e431a4d75a59",
+  "reviewed_run_id": "r-20260929T110951289347-srw-receipt-gaps-read-admission-time",
+  "reviewer": "review-of-srw-receipt-gaps-read-admission-time",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T12:09:04.519744+00:00",
+  "total": 92
+}

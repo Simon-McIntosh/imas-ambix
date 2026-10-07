@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T00:54:58.743Z",
+  "dispatched_at": "2026-10-07T00:51:44Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/selene_deck.py:1",
+      "id": "duplicate_owner-1",
+      "reason": "the fork is already justified by measurement and \u00a74 has landed, so the only edit is a one-line record of nakamap's fate; it is a note rather than a design change.",
+      "text": "the SELENE deck \u2192 IDS conversion is implemented a second time in ambix, beside the standalone `nakamap` package (\u00a78 names nakamap at 5fec869 as \"the converter logic\", modules `coil_data`/`pf_active`/`pf_passive`/`magnetics`/`wall`), so two owners now convert the same decks to the same IDSs and can drift; the plan justifies the fork by nakamap's measured inadequacy (DD 3.42 SST-labelled fragments whose magnetics IDS stores probe coordinates as flux loops, 27 loops/17 probes against EDDB's 34/23) but never states whether nakamap is superseded, cross-checked, or retained.",
+      "type": "duplicate_owner",
+      "would_change": false
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:716",
+      "id": "interface_budget-1",
+      "reason": "the section should either scope the EQDB family to FAME alone and defer the build until the server is reachable, or name the merge; as written it adds public surface (request, record, refusal, two `BatchResult` fields, writer, reader) for a consumer whose reachability is unproven, and it leaves a stale SELENE-through-EQDB claim that contradicts its own measurement.",
+      "text": "\u00a76 commits a second transport family on `packages/imas-alambic/src/imas_alambic/eddb_remote.py` (one equilibrium request type, one record type, one third refusal type keyed `(shot, record)`, two new `BatchResult` fields `eqdb_records`/`eqdb_refusals`, and two new envelope sections in `encode_batch`/`decode_batch`) beside the existing `ChannelRequest`/`ChannelRecord`/`ChannelRefusal`/`BatchResult`, plus a grid record writer and reader in `packages/imas-alambic/src/imas_alambic/eddb.py`; the section says these \"retire nothing, because no equilibrium-database request type exists\" \u2014 which answers the request-type question but not the family-level one \u2014 and its sole remaining consumer is FAME, whose server `dbsvr17p` the plan's own locate node found does not resolve from intr26-2, so the transport \"waits until `dbsvr17p` is reachable\". Under a zero interface budget the section must name what the family retires or merges, or state why nothing can be deferred; it does neither, and \u00a77's opening paragraph (line ~826) still asserts \"SELENE's offline equilibria read through the EQDB transport into the EDDB cache\", a source path \u00a76's landed locate node (merge c049bf80) superseded with the PSRC channel read.",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "6f419794c31273d24d242861b0fc131966e9bb24cb47b4dfd0368ce30e4f3069",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 273,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "nakamap is a standalone package outside this repository, and its fate is not this plan's to set. No ambix code imports it. imas_ambix/data/selene_deck.py is the only converter ambix uses, and section 4 records the measured reasons nakamap's output could not serve: DD 3.42 SST-labelled fragments, probe coordinates stored as flux loops, and 27/17 sensors against EDDB's 34/23.",
+      "when": "2026-10-07T00:55:51.538081+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "interface_budget-1",
+      "reason": "",
+      "when": "2026-10-07T00:55:54.810838+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "nakamap is a standalone package outside this repository, and its fate is not this plan's to set. No ambix code imports it. imas_ambix/data/selene_deck.py is the only converter ambix uses, and section 4 records the measured reasons nakamap's output could not serve: DD 3.42 SST-labelled fragments, probe coordinates stored as flux loops, and 27/17 sensors against EDDB's 34/23.",
+      "when": "2026-10-07T00:55:51.538081+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T00:55:54.810838+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v273.json",
+  "review_run_id": "r-20261007T005135875733-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "ee28d15d427b521769e4eabaf484308bc3df3b05",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the open sections delegate to existing deep modules rather than fanning out: \u00a77's SELENE reference loader adapts `EfitLabels` through the one `build_geometry_from_arrays` builder and scores through the one `judge_geometry`, and \u00a76's grid store routes every path through `eddb.channel_path` and extracts the token/overwrite invariants into shared private helpers, so the store keeps one owner.",
+    "duplicate_owner": "a finding \u2014 the plan forks the SELENE-deck\u2192IDS conversion into `imas_ambix/data/selene_deck.py` while `nakamap` remains a live second owner of the same conversion, and the plan does not say what becomes of it.",
+    "interface_budget": "a finding \u2014 \u00a76 adds a whole equilibrium-record transport family (`public_definitions` 0, `cli_options` 0, `mcp_views` 0, `refusal_families` 0 this week); it states why the new request/record/refusal types cannot be the existing channel ones, but does not name what the family retires or merges, and it is scoped to a single consumer the section itself measures as unreachable.",
+    "reuse_search": "pass \u2014 the mechanisms the plan names as owners exist and are the right ones: `imas_ambix/data/cocos_convention.py` `score_conventions`/`surviving_conventions` (JT-60SA supplies a cohort, not a second scorer), `packages/imas-alambic/src/imas_alambic/cocos.py` `canonical_factor`, `imas_ambix/worldmodel/equilibrium_labels.py` `build_geometry_from_arrays` and `imas_ambix/eval/efit_referee.py` `judge_geometry`/`read_efit_geometry` (the SELENE reference enters the existing seam), and `imas_ambix/data/eddb.py`/`eddb_remote.py` (the store and transport owners the \u00a76 equilibrium records extend).",
+    "thin_wrapper": "pass \u2014 no new wrapper is proposed whose only content is a forward to existing machinery; the control of `EmittedArray.cocos_factor` by the engine and `_unit_factor` by the exporter is a split of two genuinely different owners, not a wrapper (the engine computes `cocos_factor` at `transform_engine.py:90`/`:519`; it carries `source_unit`/`target_unit` as metadata only and computes no unit factor)."
+  },
+  "section_digests": {
+    "_document": "4b0129f29940ceb7128674d91afa04605d95f2f33b4788a226b4142aed9c1015",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "dce90786028770c1e6530aceb7be231ba7c2b1487afeb51fb1fc72f39d5be55e",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "405ca79bcfef7954c169032bda683ea5039a5d8a1b47d48ecfd5a06ed652568d",
+    "s7": "17c0d78497811df1e58c7d98fd9be61b4acccd3408bd36adfbd9b5197ab112b1",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T00:55:49.505071+00:00"
+}

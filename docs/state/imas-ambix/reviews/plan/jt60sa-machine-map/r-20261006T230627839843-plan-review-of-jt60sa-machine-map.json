@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T23:11:04.353Z",
+  "dispatched_at": "2026-10-06T23:06:36Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/spine_bench/shots.py:19",
+      "id": "duplicate_owner-1",
+      "reason": "the node that adds the JT-60SA frozen set must declare every consumer as its scope, or the machine-keyed set leaves MAST's readers (runner, channel_gap, machine_artifact_arm) silently bound to the MAST set and the label stays split.",
+      "text": "\u00a77 says \"the two places that turn a set into its label stop being single-valued\" and names `resolve_shotset_version` and the parity guard, but the FROZEN_SHOTSET/SHOTSET_VERSION surface is read directly in at least five production modules that the section does not enumerate and that must be repointed when the set becomes machine-keyed: `imas_ambix/spine_bench/shots.py:60` (the resolver's own default), `imas_ambix/spine_bench/runner.py:33,325` (defaults `shots` to FROZEN_SHOTSET and calls the resolver), `imas_ambix/spine_bench/channel_gap.py:52,152,238` (iterates FROZEN_SHOTSET and resolves its label), `imas_ambix/spine_bench/machine_artifact_arm.py:72,204` (builds the stamp's shots from FROZEN_SHOTSET), `imas_ambix/spine_bench/transform_geometry_source.py:39,498` (pins evidence_shot to FROZEN_SHOTSET[0]), and the re-export `imas_ambix/spine_bench/__init__.py:29,34,35`",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "jt60sa-machine-map#s7",
+      "id": "interface_budget-1",
+      "reason": "with public_definitions supply at 0, the section must give a single, consistent statement of the public surface it adds and name what retires or why nothing can, so the reviewer can bound the addition.",
+      "text": "the frozen-shot-set paragraph adds a second named set with its own version label, a machine-keyed table of frozen sets, and a per-machine label mapping, yet its own account of the added surface is inconsistent: it first calls the set and its version label \"one public definition\", then calls the table \"the one public addition here\", and states only that the set \"retires and merges nothing\" without ever saying why the added machine-keyed table and label mapping cannot be avoided or what they replace",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "e562b32c7676e3971220fbbe51818d7c18de826bce2abbd6b0ecffcb96fc51fa",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 256,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T23:14:16.373624+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "interface_budget-1",
+      "reason": "",
+      "when": "2026-10-06T23:14:33.989245+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T23:14:16.373624+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T23:14:33.989245+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v256.json",
+  "review_run_id": "r-20261006T230627839843-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "e14e69e92b4cb856dc35532520b4859405c0b45b",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new behaviour lands inside existing deep modules (eddb_remote/eddb for the EQDB record and its grid writer, transform_engine for the COCOS resolver, artifact_resolution for the pin table) rather than in a family of shallow wrappers; the EQDB transport extends RemoteEddbExtractor's request/record/refusal interface instead of forking a second transport.",
+    "duplicate_owner": "a finding \u2014 section s7 keys the frozen shot set by machine but its census of the readers of that constant names only two of them.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; section s7's frozen-shot-set paragraph states its added public surface two incompatible ways and never names a retirement for the added machine-keyed table.",
+    "reuse_search": "pass \u2014 the plan names and reuses the owning mechanism at cocos.canonical_factor/nova TRANSFORMATIONS, score_convention, read_efit_geometry's loader seam, build_geometry_from_arrays, judge_geometry, runner._magnetics_residual and machine_identity.default_registry, and it retires the one live duplicate rather than adding a parallel path; a spot-check of fifteen claims (mast_angle_to_canonical and read_catalogue_observation retired, gs/geometry.load_tables caller-less, read_acquisition_channels already machine-keyed, read_efit_geometry already loader-injectable, --machine already required with --shots) all held.",
+    "thin_wrapper": "pass \u2014 every thin layer is justified as an extension of the existing owner: the exporter's `_cocos_transformation` is promoted from the engine rather than wrapped, the probe-angle work adds a branch to the existing read_geometry_table selector rather than a fifth supplier, and the grid writer routes every path through the existing channel_path owner."
+  },
+  "section_digests": {
+    "_document": "6c9fce456e952b00ce33548944718af59d6fb116c0739501f2daf9af22a5e5e8",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "5253ff07c75d9c1a3bb2cd1ff91a6278d3535fee40f693bc99f54d076b185860",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "3a448c8b79c38fd625d13faae57d509601721d863d20ede14ccbd5f4a9fc270e",
+    "s7": "84d399622dc63a3260a9ce1676a1d77d73cd85f5fc71db563861871043fbce86",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T23:13:59.991191+00:00"
+}

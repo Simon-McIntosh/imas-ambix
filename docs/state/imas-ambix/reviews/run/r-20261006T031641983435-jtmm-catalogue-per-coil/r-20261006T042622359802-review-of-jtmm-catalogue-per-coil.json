@@ -1,0 +1,76 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "Derived from gate arms this review ran at both revisions, because the reviewed run's own manifest recorded baseline_suite and after_suite as null (it was an unarmed implement node, not a suite-armed test node). Base arm 0a2735d1fd58862bda44f060f8e8c73baef20e5b in a git-archive export at /home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T042622359802-review-of-jtmm-catalogue-per-coil/scratch-gate/base-tree (header names revision, tree, module under test and cwd): the four pre-existing files, 31 passed, EXIT=0, failure_count 0, failure_ids []. Head arm ecf209b22be6d352b0fc7a36f2d28073149da2a0 in a git-archive export at /home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T042622359802-review-of-jtmm-catalogue-per-coil/scratch-gate/head-tree: the same four files plus the new tests/data/test_jt60sa_machine_map.py, 41 passed, EXIT=0, failure_count 0, failure_ids []. Both arms green, so the failure sets coincide and the added failures are 0 with ids []. The 41-vs-31 pass difference is the node's ten new tests. The reviewer reproduced the head arm a second time in the reviewed worktree itself (review-rerun-gate.log, 41 passed, exit 0) and reproduced the declared negative control independently: dropping struct_array_entry from the 120 pf_active coil-element bindings reddens the new file (8 failed, 2 passed, EXIT=1) with the ragged-counts BindingTransformError naming [40,40,40,40,16,16,16,16,16,16,6,6].",
+  "after_suite": {
+    "command": "TMPDIR=/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T042622359802-review-of-jtmm-catalogue-per-coil/scratch-gate UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T042622359802-review-of-jtmm-catalogue-per-coil/scratch-gate/head-tree command uv run --no-sync pytest -p no:cacheprovider -n 8 tests/data/test_jt60sa_machine_map.py tests/data/test_description_reader.py tests/data/test_transform_engine.py tests/data/test_description_identity.py tests/data/test_geometry_transitions.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T042622359802-review-of-jtmm-catalogue-per-coil/scratch-gate/head-gate.log",
+    "revision": "ecf209b22be6d352b0fc7a36f2d28073149da2a0"
+  },
+  "baseline_suite": {
+    "command": "TMPDIR=/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T042622359802-review-of-jtmm-catalogue-per-coil/scratch-gate UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T042622359802-review-of-jtmm-catalogue-per-coil/scratch-gate/base-tree command uv run --no-sync pytest -p no:cacheprovider -n 8 tests/data/test_description_reader.py tests/data/test_transform_engine.py tests/data/test_description_identity.py tests/data/test_geometry_transitions.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T042622359802-review-of-jtmm-catalogue-per-coil/scratch-gate/base-gate.log",
+    "revision": "0a2735d1fd58862bda44f060f8e8c73baef20e5b"
+  },
+  "completed_at": "2026-10-06T04:42:47.195Z",
+  "dispatched_at": "2026-10-06T04:26:31Z",
+  "findings": [
+    {
+      "category": "evidence",
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T042622359802-review-of-jtmm-catalogue-per-coil/jt60sa-catalogue-gate.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "The reviewed run's gate log does not carry the header its own manifest contract requires: 'a gate log's first line names the revision it ran at, the tree, and the command'. Its first line is the pytest session banner, and neither the revision nor the command appears anywhere in the log (only rootdir names the tree). The gate result is sound and reproduces, but a later reader cannot tie this log to a revision without outside context; this review's own arms (base-gate.log, head-gate.log) carry the header. Recorded so the next catalogue-shaped node emits a headed log, not as a defect of the change."
+    },
+    {
+      "category": "completeness",
+      "file": "imas_ambix/data/machine_maps/jt-60sa.json",
+      "line": "9",
+      "severity": "follow-on",
+      "text": "The catalogue declares probe_angle_source 'description', but binds no magnetics/b_field_pol_probe/angle and the converted store's magnetics.nc carries no probe angle (verified read-only via imas.DBEntry: b_field_pol_probe[0].angle is None), so read_geometry_table yields NaN probe angles. Plan section 4 defers the angle sense to section 6 and calls it 'marked unknown-unvalidated', yet the deferral is recorded only in a comment in tests/data/test_jt60sa_machine_map.py, not as a catalogue-level qualification (identity_qualifications is empty). Not a section-4 done-when failure, but a follow-on for the node that settles the angle sense."
+    }
+  ],
+  "follow_ons": [
+    "probe_angle_source 'description' with no bound probe angle and no store angle leaves the directed probe angles NaN; section 6 is the node that settles their sense, and a catalogue-level qualification would make the deferral explicit rather than leaving it in a test comment.",
+    "The store writes empty pf_active coil-element names, so structure_assemblies' element_identifiers use a trailing-slash placeholder (jt60sa-op1-pf-active-cs1/element-0/); naming the elements in imas_ambix/data/selene_deck.py would let the catalogue carry real element identifiers.",
+    "The reviewed run's gate log lacks a revision/tree/command header; the next node of this shape should emit the header the manifest contract names."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "load_packaged_machine_map('jt-60sa') is the entry the tests use; transform_machine_description and geometry_table_from_description consume the catalogue unchanged. No public symbol or signature changes; the only new repository content is the packaged catalogue, its test file and its evidence fragment.",
+    "diff": "The declaration introduces no new engine code: the struct_array_entry selector and the store-addressing slots were landed by the prior node (merge 1eaa5c3d). This node is data plus tests, binding the store through the existing transform_machine_description / read_geometry_table / geometry_table_from_description path. No machine-name branch is added anywhere on the JT-60SA route; the reader branches on catalog.probe_angle_source, not on the machine name.",
+    "done_when": "The node's measure is the gate over the new declaration plus the real store. Reproduced independently off git-archive exports: head arm 41 passed EXIT=0, base arm 31 passed EXIT=0, added failures 0. The new file asserts the two maps and their refusal, the per-coil family+assembly declaration, the ragged pf_passive loops (OP1 VV1+VV2, OP2 VV1), and against /work/projects/imas_gpu/jt60sa/machine_description: each phase emits and adapts through one path (12 circuits, 17 probes, 27 flux loops, 120/98 vessel filaments), the 12 coils carry 268 elements (40x4,16x6,6x2), determinism, partition consistency, and the OP1/OP2 boundary changing only pf_passive and wall while pf_active and magnetics are byte-equal.",
+    "goal": "The plan (imas-ambix:jt60sa-machine-map section 4) leaves, after the store-addressing node, 'the JT-60SA catalogue that uses them'. The node delivers it: imas_ambix/data/machine_maps/jt-60sa.json declares a netcdf / static-over-map store rooted at the paths.py name JT60SA_DESCRIPTION_DIR with probe_angle_source 'description', and two range-scoped maps OP1 (100001-101173) and OP2 (101174-999999). Independently parsed: maps and ranges match; map_for_shot refuses 60033 and 1000000; both binding sets cover the five IDS (pf_active, pf_passive, magnetics, wall, tf); the twelve pf_active coils are declared one binding family and one structure assembly per coil (27 assemblies: 12x2 coils + OP1 VV1/VV2 + OP2 VV1) with struct_array_entry set to the coil name and source_rank 1.",
+    "manifest": "The reviewed manifest reads status complete and reconciles with the artefacts: commits ef6895dd and ecf209b2, changed_paths the three files above, test_logs naming the gate log. Its negative_control_log exists and shows EXIT=1 on the ragged-counts BindingTransformError; the catalogue restores byte-identical (blob b357fa87347f2a733d4a108656120ef4f6876308, verified against the reviewed HEAD). Its baseline_suite and after_suite are null (unarmed implement node), so this review supplied both arms; the reviewed gate log also omits the required revision/tree/command header (finding 1).",
+    "write_paths": "Declared change is exactly three files and all are inside the node's write grants: imas_ambix/data/machine_maps/jt-60sa.json (+8443), tests/data/test_jt60sa_machine_map.py (+294), docs/evidence/fragments/jt60sa-machine-map/jtmm-catalogue-per-coil.html (+80); 8817 insertions, 0 deletions. mast.json and diii-d.json are untouched, no figure was written, and the reviewed commit ecf209b2 reads clean."
+  },
+  "justifications": "Independent review of run r-20261006T031641983435-jtmm-catalogue-per-coil (plan imas-ambix:jt60sa-machine-map section 4), reviewed_base_sha 0a2735d1fd58862bda44f060f8e8c73baef20e5b, reviewed_head_sha ecf209b22be6d352b0fc7a36f2d28073149da2a0, stored as a parsed record scoring the five dimensions in 0..20 -- goal_fidelity 20, evidence 18, scope_discipline 20, durability 18, fit 20 -- total 96/100, added_failure_count 0 with added_failure_ids []. Goal fidelity is full: the node lands exactly the section's remaining deliverable, the packaged JT-60SA catalogue over the converted per-phase store, and I confirmed the declaration (two maps with the stated ranges, map_for_shot refusal, five IDS per phase, twelve coils each one family and one assembly, 27 assemblies, the ragged pf_passive loops) and reproduced the gate off git-archive exports (head 41 passed, base 31 passed, 0 added failures). Scope is clean: three files, all within the grants, mast.json and diii-d.json untouched, no figure, and the reviewed worktree reads clean at the head. Fit is strong: the change is declaration data plus tests layered on the existing selector and store-addressing machinery, adding no engine code, no public surface and no machine-name branch. Durability and evidence are high but deliberately not full. Evidence: the reviewed run recorded no baseline_suite/after_suite (unarmed node), so this review ran both arms itself, and the run's own gate log omits the revision/tree/command header its manifest contract requires. Durability: the declared negative control reproduces strongly (the 120-binding mutation reddens 8 of the 10 new tests, notably the coil-count and per-phase emit cases, EXIT=1), but the store's empty coil-element names leave the assembly element_identifiers as trailing-slash placeholders, and probe_angle_source 'description' pairs with a description that carries no probe angle, so the directed probe angles the section describes are NaN. Both are recorded as follow-ons: the angle sense is section 6's to settle, and section 4 calls it unknown-unvalidated. No regression and no defect of this change found; the substantial content is the 8443-line catalogue, which the five dimensions do not individually verify value by value.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261006T042622359802-review-of-jtmm-catalogue-per-coil",
+  "reviewed_base_sha": "0a2735d1fd58862bda44f060f8e8c73baef20e5b",
+  "reviewed_head_sha": "ecf209b22be6d352b0fc7a36f2d28073149da2a0",
+  "reviewed_run_id": "r-20261006T031641983435-jtmm-catalogue-per-coil",
+  "reviewer": "review-of-jtmm-catalogue-per-coil",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T04:39:29+00:00",
+  "total": 96
+}

@@ -1,0 +1,73 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "call_site_count": 2,
+  "call_sites": [
+    "scripts/figures_jt60sa_signals.py:_bound_panel",
+    "scripts/figures_jt60sa_signals.py:_flux_panel"
+  ],
+  "completed_at": "2026-10-06T12:49:44.078Z",
+  "dispatched_at": "2026-10-06T12:41:52Z",
+  "findings": [
+    {
+      "file": "docs/figures/jt60sa-signals/jt60sa-E101154-pf-coil-currents.svg",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "the three committed SVGs are 3420501, 3321629 and 1768864 bytes (332456 added lines, ~8.5 MB), each 6-11x the 300 KB data-file threshold; the plan mandates them under docs/figures/ so it is not a scope breach, but an imas-ink decimation option is the fix and the worker recorded the same under follow_ons."
+    },
+    {
+      "file": "imas_ambix/data/eddb.py",
+      "line": "291",
+      "severity": "follow-on",
+      "text": "read_channel's docstring states a half-written channel is refused, but the guard at lines 298-301 catches only open failures, so a channel whose time array exists at a different length is returned rather than refused, and no test exercises the refusal path."
+    },
+    {
+      "file": "scripts/figures_jt60sa_signals.py",
+      "line": "112",
+      "severity": "follow-on",
+      "text": "_flux_loop_indices walks the raw Zarr group (store[category].array_keys(), the _time suffix) to enumerate cached flux loops instead of the eddb.py layout owners, so the cache layout is known in two places; no public enumerator exists to extend, so this is a note rather than a duplicate owner."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "the only production callers of read_channel are scripts/figures_jt60sa_signals.py:_bound_panel and _flux_panel; the test file is not a production call site.",
+    "diff": "read the single commit 2aecdec7 against base 7e975e9c; eddb.py gains read_channel, the test gains one round-trip test, and the script, three SVGs and the fragment are added.",
+    "done_when": "the done-when names tests/data/test_eddb_cache.py and the ruff command; the manifest records 31 passed and ruff exit 0, and logs/figures.log records the per-figure channel names/units and time-base differences the done-when requires.",
+    "goal": "the node goal is to render the JT-60SA cached-pulse signal figures through imas-ink from a new eddb.read_channel; scripts/figures_jt60sa_signals.py:_main renders three figures through imas_ink time_trace_figure_mpl and imas_ambix/data/eddb.py:280 adds read_channel.",
+    "manifest": "read; it states tests/data/test_eddb_cache.py 31 passed and names head_eddb_cache.log, ruff.log, figures.log and negative_control.log.",
+    "write_paths": "the manifest declares six write paths; the seven paths in the diff all sit inside them."
+  },
+  "justifications": {
+    "durability": "tests/data/test_eddb_cache.py:323 test_read_channel_round_trips_data_time_base_and_unit fails on the declared mutation (logs/negative_control.log reddens the time-base assertion), so it guards read_channel, but the figures script has no test covering its output.",
+    "evidence": "the done-when's pytest and ruff runs are recorded in the reviewed manifest and logs (31 passed, exit 0) and logs/figures.log carries the printed channel names/units and time-base differences.",
+    "fit": "imas_ambix/data/eddb.py:280 read_channel sits beside write_channel and reuses channel_path/channel_time_path/UNIT_ATTR/EddbCacheError, but scripts/figures_jt60sa_signals.py:45 redeclares _UNITS_ATTR = \"units\" instead of importing the module's UNIT_ATTR.",
+    "goal_fidelity": "imas_ambix/data/eddb.py:280 adds read_channel and scripts/figures_jt60sa_signals.py renders the three cached-pulse figures through imas-ink exactly as the goal states.",
+    "reuse": "no added definition duplicates an existing capability (eddb.py owns no channel enumerator), but scripts/figures_jt60sa_signals.py:112 re-derives the Zarr layout its channel_path/time_array_name own.",
+    "scope_discipline": "every path in the diff is inside the manifest's declared write paths, but the commit adds 332456 lines of generated SVG (~8.5 MB) exceeding the 300 KB data-file landing threshold even though the plan mandates the figures under docs/figures/."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is to render the JT-60SA cached-pulse signal figures through imas-ink from a new eddb.read_channel; scripts/figures_jt60sa_signals.py:_main renders three figures through imas_ink time_trace_figure_mpl and imas_ambix/data/eddb.py:280 adds read_channel.\nVERDICT done_when: the done-when names tests/data/test_eddb_cache.py and the ruff command; the manifest records 31 passed and ruff exit 0, and logs/figures.log records the per-figure channel names/units and time-base differences the done-when requires.\nVERDICT write_paths: the manifest declares six write paths; the seven paths in the diff all sit inside them.\nVERDICT manifest: read; it states tests/data/test_eddb_cache.py 31 passed and names head_eddb_cache.log, ruff.log, figures.log and negative_control.log.\nVERDICT diff: read the single commit 2aecdec7 against base 7e975e9c; eddb.py gains read_channel, the test gains one round-trip test, and the script, three SVGs and the fragment are added.\nVERDICT call_sites: the only production callers of read_channel are scripts/figures_jt60sa_signals.py:_bound_panel and _flux_panel; the test file is not a production call site.\nCALL_SITES: scripts/figures_jt60sa_signals.py:_bound_panel, scripts/figures_jt60sa_signals.py:_flux_panel\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: imas_ambix/data/eddb.py:280 adds read_channel and scripts/figures_jt60sa_signals.py renders the three cached-pulse figures through imas-ink exactly as the goal states.\nSCORE evidence: 19\nJUSTIFICATION evidence: the done-when's pytest and ruff runs are recorded in the reviewed manifest and logs (31 passed, exit 0) and logs/figures.log carries the printed channel names/units and time-base differences.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: every path in the diff is inside the manifest's declared write paths, but the commit adds 332456 lines of generated SVG (~8.5 MB) exceeding the 300 KB data-file landing threshold even though the plan mandates the figures under docs/figures/.\nSCORE durability: 17\nJUSTIFICATION durability: tests/data/test_eddb_cache.py:323 test_read_channel_round_trips_data_time_base_and_unit fails on the declared mutation (logs/negative_control.log reddens the time-base assertion), so it guards read_channel, but the figures script has no test covering its output.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/data/eddb.py:280 read_channel sits beside write_channel and reuses channel_path/channel_time_path/UNIT_ATTR/EddbCacheError, but scripts/figures_jt60sa_signals.py:45 redeclares _UNITS_ATTR = \"units\" instead of importing the module's UNIT_ATTR.\nSCORE reuse: 17\nJUSTIFICATION reuse: no added definition duplicates an existing capability (eddb.py owns no channel enumerator), but scripts/figures_jt60sa_signals.py:112 re-derives the Zarr layout its channel_path/time_array_name own.\nFINDING docs/figures/jt60sa-signals/jt60sa-E101154-pf-coil-currents.svg:1 follow-on: the three committed SVGs are 3420501, 3321629 and 1768864 bytes (332456 added lines, ~8.5 MB), each 6-11x the 300 KB data-file threshold; the plan mandates them under docs/figures/ so it is not a scope breach, but an imas-ink decimation option is the fix and the worker recorded the same under follow_ons.\nFINDING imas_ambix/data/eddb.py:291 follow-on: read_channel's docstring states a half-written channel is refused, but the guard at lines 298-301 catches only open failures, so a channel whose time array exists at a different length is returned rather than refused, and no test exercises the refusal path.\nFINDING scripts/figures_jt60sa_signals.py:112 follow-on: _flux_loop_indices walks the raw Zarr group (store[category].array_keys(), the _time suffix) to enumerate cached flux loops instead of the eddb.py layout owners, so the cache layout is known in two places; no public enumerator exists to extend, so this is a note rather than a duplicate owner.",
+  "review_run_id": "r-20261006T124146004865-review-of-jtfig-signal-figures",
+  "reviewed_base_sha": "7e975e9ced1dccfae727916a6c8f14917a3b572b",
+  "reviewed_head_sha": "2aecdec7737d421d94b72e2fb8a4e7ed9ac73b30",
+  "reviewed_run_id": "r-20261006T122814917961-jtfig-signal-figures",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "reviewer_run_id": "r-20261006T124146004865-review-of-jtfig-signal-figures",
+  "scores": {
+    "durability": 17,
+    "evidence": 19,
+    "fit": 18,
+    "goal_fidelity": 20,
+    "reuse": 17,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T12:48:28.847006+00:00",
+  "total": 109
+}

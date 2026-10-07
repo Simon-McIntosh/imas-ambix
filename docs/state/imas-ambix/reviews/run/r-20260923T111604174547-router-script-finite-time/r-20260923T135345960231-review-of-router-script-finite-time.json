@@ -1,0 +1,59 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:1656-1665 the router submit path calling generate_router_script then submit_script",
+    "imas_ambix/agent/cli.py:3093-3098 the lane refresher submit path calling generate_lane_refresher_script then submit_script",
+    "imas_ambix/agent/slurm.py:459 where generate_serve_script keeps the engine's profile time and the new engine test pins that boundary"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T13:53:45.960231+00:00",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T111604174547-router-script-finite-time/manifest.md",
+      "line": "12",
+      "text": "changed_paths is an empty list while the landed commit changed imas_ambix/agent/slurm.py and tests/test_agent_router_service.py, and artifacts is empty too, so a reader without the worktree reads no work where two files landed."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/router-script-negative-control.log",
+      "line": "2",
+      "text": "the log restates the mutation it applied rather than repeating the declared string, and the declared string is not a substring of the log, so the promotion check in reckon/crew/promotion.py refuses the passing gate unless the mismatch is waived or the declaration corrected."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "read commit by commit from 7982a138 to 24ae0fbc; one commit with a conventional subject, a body stating what and why, and no attribution trailer; slurm.py adds the shared constant and uses it at the two generators; the test file switches the router assertion to the finite literal and adds the lane-refresher and engine boundary assertions.",
+    "done_when": "every named element is receipted: baseline-reproduction.log at base 7982a138 renders both scripts at --time=0; rendered-time-limits.log at 24ae0fbc renders router and lane-refresher at 7-00:00:00 and engine at 0; router-tests-head.log records 47 passed and ruff-head.log exit 0 with revision-headed first lines; the red log shows the declared mutation failing exactly at the router time-limit assertion with the revert byte-verified; no sbatch receipt exists in the run directory, only render receipts.",
+    "goal": "the goal is a finite time limit on the generated router and lane-refresher scripts; imas_ambix/agent/slurm.py:29 defines _SUPPORTING_SERVICE_TIME_LIMIT = \"7-00:00:00\", used at slurm.py:922 for the lane refresher and slurm.py:987 for the router, and the run's rendered-time-limits.log shows both generated headers at --time=7-00:00:00 with the engine serve script still at --time=0.",
+    "manifest": "read; it names commit 24ae0fbc, both gate logs with the red log's path, and a note recording that the worker died before running its mutation and a separate node ran it at the merged head; changed_paths and artifacts are both left empty although the commit changed two files.",
+    "write_paths": "the diff 7982a138..24ae0fbc touches exactly imas_ambix/agent/slurm.py and tests/test_agent_router_service.py, two of the five declared paths and both inside the fence; the plan, evidence and figure paths declared alongside them are untouched by this commit and the plan's landing line on main records the merge ccab6c1b."
+  },
+  "justifications": {
+    "durability": "the router assertion is proven load-bearing by the delivered mutation at reports/imas-ambix/llac-20260923/router-script-negative-control.log, but the same mutation covers only the router assertion and not the lane-refresher assertion that repairs the second script.",
+    "evidence": "the gate and its receipts all exist and are revision-headed, but the delivered red log restates the mutation instead of repeating the declared string, which the promotion check at reckon/crew/promotion.py:3544 matches as a substring and would refuse without a waiver.",
+    "fit": "the constant sits with the module's other private constants at slurm.py:29 and the new tests follow the file's existing SiteConfig and header-assertion idiom while reusing load_profile as its neighbours do.",
+    "goal_fidelity": "both named scripts render the finite limit from one named constant while the engine path is untouched, and the plan's landing line for this node on main records the same change.",
+    "scope_discipline": "git diff 7982a138..24ae0fbc contains only the two code paths inside the declared fence and adds no unrelated edit."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260923T111604174547-router-script-finite-time, base 7982a138a4ba719634993c86514dade030f1a348, reviewed head 24ae0fbc2f5b579449dec58d3a3d9e1d132c46ac, merged as ccab6c1b.\n\nVERDICT goal: the goal is a finite time limit on the generated router and lane-refresher scripts; imas_ambix/agent/slurm.py:29 defines _SUPPORTING_SERVICE_TIME_LIMIT = \"7-00:00:00\", used at slurm.py:922 for the lane refresher and slurm.py:987 for the router, and the run's rendered-time-limits.log shows both generated headers at --time=7-00:00:00 with the engine serve script still at --time=0.\nVERDICT done_when: every named element is receipted: baseline-reproduction.log at base 7982a138 renders both scripts at --time=0; rendered-time-limits.log at 24ae0fbc renders router and lane-refresher at 7-00:00:00 and engine at 0; router-tests-head.log records 47 passed and ruff-head.log exit 0 with revision-headed first lines; the red log shows the declared mutation failing exactly at the router time-limit assertion with the revert byte-verified; no sbatch receipt exists in the run directory, only render receipts.\nVERDICT write_paths: the diff 7982a138..24ae0fbc touches exactly imas_ambix/agent/slurm.py and tests/test_agent_router_service.py, two of the five declared paths and both inside the fence; the plan, evidence and figure paths declared alongside them are untouched by this commit and the plan's landing line on main records the merge ccab6c1b.\nVERDICT manifest: read; it names commit 24ae0fbc, both gate logs with the red log's path, and a note recording that the worker died before running its mutation and a separate node ran it at the merged head; changed_paths and artifacts are both left empty although the commit changed two files.\nVERDICT diff: read commit by commit from 7982a138 to 24ae0fbc; one commit with a conventional subject, a body stating what and why, and no attribution trailer; slurm.py adds the shared constant and uses it at the two generators; the test file switches the router assertion to the finite literal and adds the lane-refresher and engine boundary assertions.\nCALL_SITES: imas_ambix/agent/cli.py:1656-1665 the router submit path calling generate_router_script then submit_script, imas_ambix/agent/cli.py:3093-3098 the lane refresher submit path calling generate_lane_refresher_script then submit_script, imas_ambix/agent/slurm.py:459 where generate_serve_script keeps the engine's profile time and the new engine test pins that boundary\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: both named scripts render the finite limit from one named constant while the engine path is untouched, and the plan's landing line for this node on main records the same change.\nSCORE evidence: 18\nJUSTIFICATION evidence: the gate and its receipts all exist and are revision-headed, but the delivered red log restates the mutation instead of repeating the declared string, which the promotion check at reckon/crew/promotion.py:3544 matches as a substring and would refuse without a waiver.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff 7982a138..24ae0fbc contains only the two code paths inside the declared fence and adds no unrelated edit.\nSCORE durability: 19\nJUSTIFICATION durability: the router assertion is proven load-bearing by the delivered mutation at reports/imas-ambix/llac-20260923/router-script-negative-control.log, but the same mutation covers only the router assertion and not the lane-refresher assertion that repairs the second script.\nSCORE fit: 20\nJUSTIFICATION fit: the constant sits with the module's other private constants at slurm.py:29 and the new tests follow the file's existing SiteConfig and header-assertion idiom while reusing load_profile as its neighbours do.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T111604174547-router-script-finite-time/manifest.md:12 changed_paths is an empty list while the landed commit changed imas_ambix/agent/slurm.py and tests/test_agent_router_service.py, and artifacts is empty too, so a reader without the worktree reads no work where two files landed.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/router-script-negative-control.log:2 the log restates the mutation it applied rather than repeating the declared string, and the declared string is not a substring of the log, so the promotion check in reckon/crew/promotion.py refuses the passing gate unless the mismatch is waived or the declaration corrected.\nREVIEWED_BASE_SHA: 7982a138a4ba719634993c86514dade030f1a348\nREVIEWED_HEAD_SHA: 24ae0fbc2f5b579449dec58d3a3d9e1d132c46ac",
+  "review_run_id": "r-20260923T135345960231-review-of-router-script-finite-time",
+  "reviewed_base_sha": "7982a138a4ba719634993c86514dade030f1a348",
+  "reviewed_head_sha": "24ae0fbc2f5b579449dec58d3a3d9e1d132c46ac",
+  "reviewed_revision": "24ae0fbc2f5b579449dec58d3a3d9e1d132c46ac",
+  "reviewed_run_id": "r-20260923T111604174547-router-script-finite-time",
+  "reviewer": "review-of-router-script-finite-time",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-23T16:37:05+02:00",
+  "total": 97
+}

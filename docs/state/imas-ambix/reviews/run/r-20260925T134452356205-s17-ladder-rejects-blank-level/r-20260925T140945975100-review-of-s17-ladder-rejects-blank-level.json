@@ -1,0 +1,47 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "local",
+  "call_site_count": 2,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2510",
+    "imas_ambix/agent/cli.py:2612"
+  ],
+  "completed_at": "2026-09-25T14:56:06.694Z",
+  "dispatched_at": "2026-09-25T14:09:52Z",
+  "findings": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "one production call site of the parser: the --levels option declared at imas_ambix/agent/cli.py:2510 and parsed at imas_ambix/agent/cli.py:2612. Driven through the real CLI with the bench body and the serve probe stubbed, agent bench --levels 4,,8 exits 2 with the empty-component message and never reaches run_benchmark, while --levels 4,8 reaches it with [4, 8].",
+    "diff": "read both commits; 03f88c9e replaces the blank-component skip with a click.BadParameter at imas_ambix/agent/cli.py:347-350, extends test_malformed_ladder_is_refused with 4,,8 / 4,8, / ,4,8 and adds test_blank_ladder_component_is_named_in_the_refusal; 2b0d930c adds the landing record, the decision-path figure and the evidence anchor, and carries no production change.",
+    "done_when": "the declared gate uv run --no-sync pytest -p no:cacheprovider tests/test_agent_sweep_options.py re-ran at the reviewed head inside the reviewed worktree, 27 passed exit 0, with uv run --no-sync ruff check imas_ambix tests exit 0; the run's own gate log states it exercised working-tree content committed as 03f88c9e, and my re-run measures that committed head.",
+    "goal": "the node's goal is to make the concurrency-ladder parser refuse a blank component rather than silently absorb it; imas_ambix/agent/cli.py:347 raises click.BadParameter naming the empty component and tests/test_agent_sweep_options.py:303 asserts the refusal names it, which is exactly that.",
+    "manifest": "the manifest names both commits, the five changed paths, and the gate, ruff and negative-control logs with their results; the reviewed worktree is clean at 2b0d930c with no uncommitted work.",
+    "write_paths": "git diff --numstat eb75d76b..2b0d930c carries exactly the run's five declared paths: imas_ambix/agent/cli.py +6/-4, tests/test_agent_sweep_options.py +15/-1, docs/evidence/archive/local-lane-admission-control-landed.html +51, docs/figures/local-lane-admission-control/ladder-refuses-blank-component.svg +53, docs/plans/local-lane-admission-control.html +1; the figure directory is a declared fence entry and the evidence HTML gains one balanced section (15/15 sections at base, 16/16 at head)."
+  },
+  "justifications": {
+    "durability": "the refusal is positively tested for its type and its message, and my own restoration of the base parser in a scratch copy of the head reddened exactly the 8 ids the run's negative-control log records. The residual is that the empty-string refusal is unreachable through the CLI, where the call site treats '--levels \"\"' as unset and runs the default ladder, so the whole-or-refuse contract holds inside the function but is not asserted at the interface.",
+    "evidence": "the gate re-ran green at the reviewed head (27 passed, ruff exit 0) with module.__file__ inside the reviewed tree; the base arm gives 19 collected and 19 passed and reproduces the absorption; my restoration of the base parser in a scratch copy of the head reddened exactly the run's recorded 8 failing ids, byte-identical as a set; and the CLI probe shows the refusal surfacing at the interface.",
+    "fit": "the new test sits beside the malformed-ladder parametrization it extends, reuses the file's local-import convention and the same contract language, the docstring states why a blank entry is malformed, the figure and evidence anchor follow the plan's house style, and both commits are conventional with bodies, no attribution and no plan labels.",
+    "goal_fidelity": "the defect the plan's repair record names reproduces at the base revision ('4,,8' -> [4, 8], also '4,8,' and ',4,8', measured in a scratch export of eb75d76b) and is refused at the head with a message that names the blank entry; both directions were measured, not inferred.",
+    "scope_discipline": "the diff touches five files and no more, all inside the declared fence, and the test file loses no case: base collects 19, head collects 27, so eight cases are added and none removed."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20260925T134452356205-s17-ladder-rejects-blank-level at head 2b0d930c2222bc3c0137ee7f4d4dd56484a5c4fe against base eb75d76b6c9c58949719854f90c74d799ff9977c.\n\nVERDICT goal: the node's goal is to make the concurrency-ladder parser refuse a blank component rather than silently absorb it; imas_ambix/agent/cli.py:347 now raises click.BadParameter naming the empty component, and the two added tests assert that refusal, which is exactly that.\nVERDICT done_when: the declared gate is uv run --no-sync pytest -p no:cacheprovider tests/test_agent_sweep_options.py; I re-ran it at the reviewed head inside the reviewed worktree with the reviewed tree's own module (module.__file__ printed under that worktree), 27 passed exit 0, with uv run --no-sync ruff check imas_ambix tests exit 0.\nVERDICT write_paths: git diff --numstat eb75d76b..2b0d930c carries exactly the five paths the run declared as its fence (cli.py +6/-4, tests +15/-1, evidence html +51, figure svg +53, plan html +1), 126 insertions and 5 deletions, and no test case is removed.\nVERDICT manifest: the manifest names both commits, the five changed paths, and the gate, ruff and negative-control logs with their results; the reviewed worktree is clean at 2b0d930c.\nVERDICT diff: read both commits; 03f88c9e replaces the blank-component skip with a click.BadParameter at imas_ambix/agent/cli.py:347-350, extends the malformed parametrization with 4,,8 / 4,8, / ,4,8 and adds test_blank_ladder_component_is_named_in_the_refusal; 2b0d930c adds the landing record, the decision-path figure and the evidence anchor, with no production change.\nCALL_SITES: imas_ambix/agent/cli.py:2510, imas_ambix/agent/cli.py:2612\nREPRODUCTION: in a scratch export of eb75d76b, _concurrency_levels('4,,8') -> [4, 8], as do '4,8,' and ',4,8'; the base gate collected 19 and passed 19.\nPROBE: at 2b0d930c every blank position refuses with \"empty component in ladder '4,,8'; give levels as 4,8,12,16\" (4,,8, 4,8,, ,4,8, 4, ,8, ,, and ''), and through the real CLI with the bench body and serve probe stubbed, agent bench --levels 4,,8 exits 2 with that message and never reaches the runner, while --levels 4,8 reaches it with [4, 8].\nMUTATION: restoring the base parser (skip blanks, whole-empty guard) in a scratch copy of the head reddened exactly the 8 ids the run's negative-control log records, the id set byte-identical.\nCAVEAT: an explicitly empty option, --levels '', is treated as unset by imas_ambix/agent/cli.py:2612 ('_concurrency_levels(levels) if levels else None') and runs the default ladder rather than refusing, so the parser's own refusal for '' is not reachable through the interface and no test asserts the refusal there; recorded as a follow-on, not a defect in this change.\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: the defect the plan's repair record names reproduces at the base revision ('4,,8' -> [4, 8], also '4,8,' and ',4,8') and is refused at the head with a message naming the blank entry; both directions were measured, not inferred.\nSCORE evidence: 20\nJUSTIFICATION evidence: the gate re-ran green at the reviewed head (27 passed, ruff exit 0); the base arm gives 19 collected and 19 passed; my restoration of the base parser in a scratch copy of the head reddened exactly the run's recorded 8 failing ids; and every measurement printed module.__file__ inside the tree it was taken from.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff touches five files, all inside the declared fence, and the test file loses no case: base collects 19, head collects 27, so eight cases are added and none removed.\nSCORE durability: 19\nJUSTIFICATION durability: the refusal is positively tested for its type and its message, and my mutation shows the guard is load-bearing (8 red on regression). The residual is that the empty-string refusal is unreachable through the CLI, where the call site treats '--levels \"\"' as unset and runs the default ladder, so the whole-or-refuse contract holds inside the function but is not asserted at the interface.\nSCORE fit: 20\nJUSTIFICATION fit: the new test sits beside the malformed-ladder parametrization it extends, reuses the file's local-import convention and the same contract language, the docstring states the reason for the refusal, the figure and evidence anchor follow the plan's house style, and both commits are conventional with bodies, no attribution and no plan labels.",
+  "review_run_id": "r-20260925T140945975100-review-of-s17-ladder-rejects-blank-level",
+  "reviewed_base_sha": "eb75d76b6c9c58949719854f90c74d799ff9977c",
+  "reviewed_head_sha": "2b0d930c2222bc3c0137ee7f4d4dd56484a5c4fe",
+  "reviewed_run_id": "r-20260925T134452356205-s17-ladder-rejects-blank-level",
+  "scores": {
+    "durability": 19,
+    "evidence": 20,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-25T14:53:55.480975+00:00",
+  "total": 99
+}

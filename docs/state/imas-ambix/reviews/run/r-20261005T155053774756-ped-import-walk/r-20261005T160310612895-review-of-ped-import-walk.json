@@ -1,0 +1,51 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "backend": "local",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-05T16:11:56.814Z",
+  "dispatched_at": "2026-10-05T16:03:18Z",
+  "findings": [],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read commit 216e3bcd against base d7f4491f; it adds build_handoff:577, write_handoff:596, WalkResult:603, classify_import:616, module_names:647, walk_imports:660, the synthetic-classifier test:697 and two main modes:747, plus an evidence fragment, all inside the declared scope.",
+    "done_when": "the done-when names four synthetic classifier cases, a no-failure walk in the synced environment and the census test still passing; tests/test_declared_dependencies.py:697 test_walk_classifies_synthetic_import_failures asserts all four cases and the manifest records the walk and the suite result.",
+    "goal": "the node goal is to keep the section-4 fresh-environment import walk in the tree, and tests/test_declared_dependencies.py:577 build_handoff / :660 walk_imports implement exactly that hand-off-plus-walk inside the census module.",
+    "manifest": "read; it records the pytest gate (2 passed), the walk (313 modules, 313 imported, 0 hard failures) and ruff, each with its log path.",
+    "write_paths": "the manifest fences tests/test_declared_dependencies.py, docs/evidence/fragments/project-environment-declared/ped-import-walk.html and the docs/figures path; the diff touches the first two only and nothing outside them."
+  },
+  "justifications": {
+    "durability": "tests/test_declared_dependencies.py:697 test_walk_classifies_synthetic_import_failures asserts at :733 that the optional-root module missing a default distribution is a hard failure, so widening the rule turns it red as the negative control shows.",
+    "evidence": "tests/test_declared_dependencies.py:697 drives the classifier on synthetic modules for all four declared cases and the run's walk-gate.log records 313 modules: 313 imported, 0 optional-missing, 0 hard failures, EXIT=0, the jax CUDA traceback there being an environment artifact rather than a hard failure.",
+    "fit": "tests/test_declared_dependencies.py:603 adds a frozen dataclass and helpers in the module's existing dataclass-and-docstring idiom, with no name the repository naming rules forbid.",
+    "goal_fidelity": "tests/test_declared_dependencies.py:660 walk_imports and :577 build_handoff add exactly the hand-off-and-walk the section states, and :747 extends main with the handoff and walk modes.",
+    "reuse": "build_handoff:577 and walk_imports:660 extend the census module that already owns OPTIONAL_SUBSYSTEM_ROOTS:73 and module_distribution_map:189, and a search over imas_ambix/ and scripts/ found no other import-every-module-and-classify owner.",
+    "scope_discipline": "the diff touches only tests/test_declared_dependencies.py and the new docs/evidence/fragments/project-environment-declared/ped-import-walk.html, both inside the declared write paths."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of node ped-import-walk (head 216e3bcd, base d7f4491f).\n\nVERDICT goal: the node goal is to keep the section-4 fresh-environment import walk in the tree, and tests/test_declared_dependencies.py:577 build_handoff / :660 walk_imports implement exactly that hand-off-plus-walk inside the census module.\nVERDICT done_when: the done-when names four synthetic classifier cases, a no-failure walk in the synced environment and the census test still passing; tests/test_declared_dependencies.py:697 test_walk_classifies_synthetic_import_failures asserts all four cases and the manifest records the walk and the suite result.\nVERDICT write_paths: the manifest fences tests/test_declared_dependencies.py, docs/evidence/fragments/project-environment-declared/ped-import-walk.html and the docs/figures path; the diff touches the first two only and nothing outside them.\nVERDICT manifest: read; it records the pytest gate (2 passed), the walk (313 modules, 313 imported, 0 hard failures) and ruff, each with its log path.\nVERDICT diff: read commit 216e3bcd against base d7f4491f; it adds build_handoff:577, write_handoff:596, WalkResult:603, classify_import:616, module_names:647, walk_imports:660, the synthetic-classifier test:697 and two main modes:747, plus an evidence fragment, all inside the declared scope.\nCALL_SITES: none\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: tests/test_declared_dependencies.py:660 walk_imports and :577 build_handoff add exactly the hand-off-and-walk the section states, and :747 extends main with the handoff and walk modes.\nSCORE evidence: 19\nJUSTIFICATION evidence: tests/test_declared_dependencies.py:697 drives the classifier on synthetic modules for all four declared cases and the run's walk-gate.log records 313 modules: 313 imported, 0 optional-missing, 0 hard failures, EXIT=0, the jax CUDA traceback there being an environment artifact rather than a hard failure.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff touches only tests/test_declared_dependencies.py and the new docs/evidence/fragments/project-environment-declared/ped-import-walk.html, both inside the declared write paths.\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_declared_dependencies.py:697 test_walk_classifies_synthetic_import_failures asserts at :733 that the optional-root module missing a default distribution is a hard failure, so widening the rule turns it red as the negative control shows.\nSCORE fit: 19\nJUSTIFICATION fit: tests/test_declared_dependencies.py:603 adds a frozen dataclass and helpers in the module's existing dataclass-and-docstring idiom, with no name the repository naming rules forbid.\nSCORE reuse: 19\nJUSTIFICATION reuse: build_handoff:577 and walk_imports:660 extend the census module that already owns OPTIONAL_SUBSYSTEM_ROOTS:73 and module_distribution_map:189, and a search over imas_ambix/ and scripts/ found no other import-every-module-and-classify owner.\n",
+  "review_run_id": "r-20261005T160310612895-review-of-ped-import-walk",
+  "reviewed_base_sha": "d7f4491f441c2ae449c3f03ad575acbaeb494013",
+  "reviewed_head_sha": "216e3bcd0a07464f01e4fd87cbb946ed034c5e76",
+  "reviewed_run_id": "r-20261005T155053774756-ped-import-walk",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T16:10:06.616273+00:00",
+  "total": 115
+}

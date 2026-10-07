@@ -1,0 +1,24 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T15:49:21.985Z",
+  "dispatched_at": "2026-10-05T15:42:06Z",
+  "findings": [],
+  "plan_fingerprint": "56b680be8a9830fe32ba37036a27276f46f91d720e3dc9615f441bb07cbcaa6e",
+  "plan_slug": "project-environment-declared",
+  "plan_version": 31,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T154137866119-plan-review-of-project-environment-declared",
+  "reviewed_blob_sha": "fa8dfa540d3622f2bdf9bfcf4cc5236b072ce3ba",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the hand-off writer, the import-and-classify walker, and two `main` modes are added to the one census module that already hides the classification behind `build_census()`, so surface grows by two functions behind an interface that already carries the whole census, not by a family of wrappers.",
+    "duplicate_owner": "pass \u2014 the design extends the owner it names (`tests/test_declared_dependencies.py`) rather than forking classification into a parallel module, and the fresh-environment walk is genuinely new behaviour (import every module in one interpreter and judge each `ModuleNotFoundError` against the census's own optional set), so it duplicates no path-resolution, scheduler or state-reader mechanism.",
+    "interface_budget": "pass \u2014 supplied counts are public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a76 adds modes to a `tests/` module's `main` and states in its own text why this adds nothing to those families (\"it retires nothing and adds no product surface, because the entry point already exists and lives in tests/\"), and \u00a75 adds only `@pytest.mark.timeout` marks and a bounded launcher wait.",
+    "reuse_search": "pass \u2014 \u00a76 searched and cites the mechanism it extends, `tests/test_declared_dependencies.py`, naming its `OPTIONAL_SUBSYSTEM_ROOTS` (line 71), `module_distribution_map()` (line 187) and `main` (line 583), all of which exist; \u00a75 reuses `parse_durations`/`parse_timeouts` (lines 384, 399) from the same module rather than adding a parser.",
+    "thin_wrapper": "pass \u2014 \u00a76 states the walk \"joins it there rather than in a new module\" and justifies the placement from the owner's existing `OPTIONAL_SUBSYSTEM_ROOTS`, module-to-distribution map and entry point; there is no new layer over the census to justify, because it extends the census itself."
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T15:50:54.567550+00:00"
+}

@@ -1,0 +1,81 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest records no baseline_suite and no after_suite (classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null), so its own arms cannot supply the delta. This review therefore measured the reviewed node's declared telemetry gate in two scratch trees built from the reviewed commits' own object store (both extracted with git archive from this review's own worktree into $TMPDIR/arms-srw-retire, no branch created): base arm gate-base.log (revision ce90ad05: 16 passed, EXIT=0) and head arm gate-head.log (revision 182dffcf: 18 passed, EXIT=0). The head set is a superset of the base set (two tests added, none removed or renamed), so head failing ids ([]) minus base failing ids ([]) is 0. The node's scalability claim was reproduced independently: the head's new large-record test, run against the base source (base ce90ad05 plus the head tests/test_telemetry_retention.py), does not complete within a 180 s bound because the base check builds three TelemetryIndexes over 20,000 rows (gate-repro-large.log, EXIT=124), while the reviewed head runs the same test in 0.37 s. The head's own absent-versus-zero test passes at the base source too (gate-repro-absent.log, 1 passed, EXIT=0): the absent-is-not-zero rule already held, so that test is new coverage preserving a pre-existing property, not a defect reproduction -- matching the node's declaration that it added the test rather than fixed the rule.",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_telemetry_retention.py tests/test_telemetry_compaction_runs.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T004051979867-review-of-srw-retire-raw-checks-tiers-without-building-indexes/gate-head.log",
+    "revision": "182dffcfa743206d1d12d64b45d48c0ce502f942"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_telemetry_retention.py tests/test_telemetry_compaction_runs.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T004051979867-review-of-srw-retire-raw-checks-tiers-without-building-indexes/gate-base.log",
+    "revision": "ce90ad058de33298bce25ca590ab0776748b3974"
+  },
+  "completed_at": "2026-10-02T00:57:04.631Z",
+  "dispatched_at": "2026-10-02T00:40:58Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_retention.py",
+      "line": "462,488",
+      "severity": "follow-on",
+      "text": "follow-on (recorded by the reviewed run, confirmed here): when a raw reading falls exactly on a UTC hour boundary, the raw tier's partitioned total drops that boundary-crossing increment while the compacted tiers' carried openings count it, so raw and its compactions disagree per window and the raw file is retained (the safe direction -- a false-negative eligibility, never a wrong deletion). The semantics live in telemetry_index.py / telemetry_store.py, outside this node's write scope; the shipped tests avoid it with a one-second phase offset."
+    }
+  ],
+  "follow_ons": [
+    {
+      "file": "imas_ambix/agent/telemetry_retention.py",
+      "line": "462,488",
+      "severity": "follow-on",
+      "text": "Boundary-crossing increment: a raw reading landing exactly on a UTC hour boundary is dropped from raw's per-window total while a compacted row's carried opening counts it, so the two disagree and raw is kept. Safe direction (retains raw, never deletes), reproduced by the reviewed run on a 20,000-row fixture at an epoch-aligned 5 s cadence; the root is in the run/window arithmetic in telemetry_index.py / telemetry_store.py, outside this node's write paths."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "compare_tiers has exactly one production call site, _verdict at imas_ambix/agent/telemetry_retention.py:569, and is called from the two new tests at tests/test_telemetry_retention.py:233 and :271. _verdict is reached by the retire-raw listing. The reused predicate and row helpers (counter_run_continues, row_host, row_boot_id, row_job_id) are imported read-only from telemetry_index.py, whose scope belongs to another node; no symbol was duplicated. Verified by grep over the head tree's imas_ambix and tests.",
+    "diff": "Read commits e18d24b5 (implementation), 239a31ee and 85ded6ec and 182dffcf (evidence fragment: trailing newline, gate count, measured duration) against base ce90ad05 (git diff ce90ad05..182dffcf): three files, +380/-51 -- imas_ambix/agent/telemetry_retention.py (+263/-... replacing the TelemetryIndex block in compare_tiers with six row helpers), tests/test_telemetry_retention.py (+77 adding test_an_absent_counter_is_absent_not_zero and test_the_tier_check_over_a_large_record_completes_quickly), and the node's own evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-retire-raw-checks-tiers-without-building-indexes.html (+91).",
+    "done_when": "Read the node's measure: the review record stores a parsed record scoring all five dimensions in 0..20, reviewed_base_sha and reviewed_head_sha, and added_failure_count/added_failure_ids. This record carries all of those (95 across the five dimensions, base ce90ad05, head 182dffcf, added_failure_count 0, no added ids). The reviewed run was dispatched unarmed (baseline_suite and after_suite null), so the delta is derived from this review's own two arms of the reviewed node's declared telemetry gate (base 16 passed EXIT=0, head 18 passed EXIT=0) recorded under baseline_suite and after_suite.",
+    "goal": "The node's goal is that compare_tiers in imas_ambix/agent/telemetry_retention.py no longer builds a TelemetryIndex, reads raw/minute/hour rows directly, buckets them by UTC hour, and compares the partitioned totals of engine.generation_tokens, engine.prompt_tokens and engine.uncached_prompt_tokens per hour and counter with the same verdicts. Delivered: the module no longer imports TelemetryIndex or tempfile (grep over the head tree returns neither), compare_tiers reads the three tiers via _read_tier_rows and totals each window through _counter_runs / _run_window_total, and the 12 existing verdict tests pass unchanged at the head (head arm 18 passed includes them). An absent counter is reported None not 0.0, and a tier holding a value where raw holds none yields agrees=False (the new test). The real-data reading was verified independently (next item).",
+    "manifest": "Read; it states status complete, the three-command gate green at e18d24b5 (18 passed / serving-python parse guard 1 passed / ruff All checks passed!, each EXIT=0), a negative control 1 failed EXIT=1, changed_paths imas_ambix/agent/telemetry_retention.py, tests/test_telemetry_retention.py and the evidence fragment, and evidence_inputs naming the real raw file and its staged tiers. The manifest declares no baseline_suite/after_suite arms, so this review reconstructed them. Its follow_ons records the boundary-crossing issue.",
+    "write_paths": "Read the manifest's declared paths (imas_ambix/agent/telemetry_retention.py, tests/test_telemetry_retention.py, docs/evidence/fragments/serving-record-warehouse/srw-retire-raw-checks-tiers-without-building-indexes.html, and the figures dir docs/figures/serving-record-warehouse/srw-retire-raw-checks-tiers-without-building-indexes); the diff touches exactly the source, test and fragment files inside that set. The figures dir was not written (a declared-but-unused path is allowed; the done-when names no artifact, so no figure was required). No plan, index or sprint state is mutated; every reviewed commit is on the run's worktree and the tree is clean at 182dffcf."
+  },
+  "justifications": {
+    "durability": "The scalability guard is a real regression guard: the head's 20,000-row test run against the base source does not complete within a 180 s bound (gate-repro-large.log, EXIT=124 -- the base check rebuilds three indices), where the reviewed head completes it in 0.37 s; and the absent-versus-zero rule is guarded against the declared mutation by the run's own negative control (1 failed, EXIT=1). The 12 pre-existing verdict tests passing unchanged at the head, over the same fixtures the previous index-based implementation was held to, is the strongest evidence that verdicts are preserved. Held at 18 (not higher) because the absent-versus-zero test is coverage for a property that already held at base rather than a defect reproduction, and because the follow-on boundary-crossing window disagreement between raw and its compactions is real and left open (safe direction).",
+    "evidence": "The declared gate ran green at the reviewed head (this review's gate-head.log: 18 passed, EXIT=0; ruff whole-tree All checks passed; serving-python parse guard 1 passed -- both independently reproduced at the head tree) and both arms were rebuilt from the commit's own object store (gate-base.log 16 passed, gate-head.log 18 passed), so the two added tests are the whole delta and added_failure_count is 0. The node's real-data input was verified independently: engine.generation_tokens appears in 0 rows of the raw file, its minute and its hour compactions, while hour 2026-09-15T19:00Z is covered by 272 raw / 23 minute / 1 hour rows -- so 'absent, not zero' is the correct reading. Held at 18 (not higher) because the reviewed run stored no arm logs of its own (dispatched unarmed) and because its new absent-versus-zero test passes at the base source too, so that test does not itself reproduce a defect; the arm delta had to be reconstructed here.",
+    "fit": "The six new helpers are named by mechanism (_read_tier_rows, _counter_value, _counter_opening, _counter_runs, _run_window_total) and carry docstrings stating why (absent is not a measured zero; a compacted row's carried opening is its base), matching the module's existing grammar. The run predicate and row-identity helpers are reused from telemetry_index.py rather than re-declared, honouring the plan's one-shared-predicate repair. No plan label, sprint id, ticket reference, version suffix or attribution appears in the diff (grep over the changed source and test files is clean).",
+    "goal_fidelity": "Read the landed change against the node goal: compare_tiers no longer constructs a TelemetryIndex (the import and the tempfile-based scratch block are gone at imas_ambix/agent/telemetry_retention.py:41-56 and :494-540), reading the three tiers directly and bucketing by UTC hour with the same partitioned-total arithmetic, and the 12 existing verdict tests pass unchanged -- exactly the goal.",
+    "scope_discipline": "Diff ce90ad05..182dffcf touches exactly imas_ambix/agent/telemetry_retention.py, tests/test_telemetry_retention.py and the node's own evidence fragment, every one inside the manifest's declared write paths; the declared figures directory is unused, which is permitted. No plan, shared index or sprint state is edited."
+  },
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-retire-raw-checks-tiers-without-building-indexes",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "review_kind": "review",
+  "review_run_id": "r-20261002T004051979867-review-of-srw-retire-raw-checks-tiers-without-building-indexes",
+  "reviewed_base_sha": "ce90ad058de33298bce25ca590ab0776748b3974",
+  "reviewed_head_sha": "182dffcfa743206d1d12d64b45d48c0ce502f942",
+  "reviewed_run_id": "r-20261002T000925962662-srw-retire-raw-checks-tiers-without-building-indexes",
+  "reviewer": "review-of-srw-retire-raw-checks-tiers-without-building-indexes",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "section": "s8",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T00:54:00+00:00",
+  "total": 95
+}

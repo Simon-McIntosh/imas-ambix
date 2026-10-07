@@ -1,0 +1,74 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "local",
+  "call_site_count": 3,
+  "call_sites": [
+    "reckon/resources.py:28 TYPE_ROOTS mapping the plan and evidence roots to typed resources",
+    "reckon/serve.py:1506 the resource.type gate admitting plan/research/evidence",
+    "reckon/serve.py:2310 GET /plan/<project>/<slug> serving the plan page this change edits"
+  ],
+  "completed_at": "2026-09-26T19:02:44.149Z",
+  "dispatched_at": "2026-09-26T18:38:23Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/cwp-fenced-mcp-tools.md",
+      "line": "40",
+      "text": "the report names .../launch/fenced-summary-nc.json as the control arm's summary and the manifest repeats that path in test_logs and negative_control_log, but no such file exists: this run's driver builds every tagged name from the value passed as FENCED_TAG=-nc, so the control's summary is launch/fenced-summary--nc.json (the single-dash shape belongs to the previous run, whose own file list confirms it), leaving the only pointer to the control's record unresolvable."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T182312980562-cwp-fenced-mcp-tools/launch/fenced-summary.json",
+      "line": "1",
+      "text": "guard.guard_decision_key is recorded false while launch/cc-out/bodies/0002.json carries the hook error text with \"permissionDecision\": \"deny\" and launch/cc-out/bodies/0003.json through 0005.json carry it too; replaying the driver's own expression at launch/launch_fenced.py:241 over those four bodies returns true, so the stored record reports the guard decision absent at the moment it fired, and the manifest's follow_ons names only the other broken needle."
+    },
+    {
+      "file": "docs/plans/clive-worker-profiles.html",
+      "line": "26",
+      "text": "the landed diff bumps plan-version from 25 to 27, which the source brief's landing contract forbids touching because every worker editing that line makes every merge conflict there; the authoritative main-checkout copy still reads 25, so the landed line carries a two-step bump for one authored change and the worker discloses it only in follow_ons."
+    },
+    {
+      "file": "docs/evidence/archive/clive-worker-profiles-landed.html",
+      "line": "92",
+      "text": "the new control bullet states the empty-config arm carries no memory markers, but that arm's own marker report records prompt_or_path_restoration present at .messages[0].content[3].text; the marker is a phrase in the dispatch prompt read from stdin rather than memory, so the sentence is true only under a qualifier the run's own taxonomy does not supply, the same imprecision the previous review raised at line 76."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/cwp-fenced-mcp-tools.md",
+      "line": "28",
+      "text": "the report places the launch on the node 98d4ci-srv-2058; the fleet host is 98dci4-clu-2058 (hostname verified on the node itself), so the compute-placement record names a host that does not exist."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "read against the parent 87806e8d commit by commit; one revision, two files, 15 insertions and 2 deletions, adding an MCP-tools paragraph to plan section 3 and a cumulative-archive section whose insertion removes nothing, with both landed HTML files parsing with no unclosed or misnested tag.",
+    "done_when": "the done_when names four measured items plus the report path; all four are present, each number re-derived by me from the stored bodies (tools 46/23/5/18 against baseline 46/23/5/18 and previous fenced 20/0/0/0; bytes 257265 against 276931 and 224560; .claude.json mode 0600 with mcpServers plus claude's own first-start keys and no projects or oauth key; the git-safety marker and the worker_git_guard deny), and the report exists at the declared path.",
+    "goal": "the node goal is to confirm a fenced clive worker launch carries the reckon and imas-dd MCP tools, and I re-counted the stored first-request body launch/cc-out/bodies/0001.json myself: 46 tools, 23 mcp__* (5 mcp__reckon__* including edit_plan: audit, crew, edit_plan, read_plan, roadmap; 18 mcp__imas-dd__*), with all 46 tool definitions carrying an input_schema and every mcp__* definition byte-identical to the unfenced baseline's.",
+    "manifest": "read; it names its landing revision and both arm logs, but its test_logs names launch/fenced-summary-nc.json, which does not exist on disk (the file the driver wrote is launch/fenced-summary--nc.json), and it does not disclose that the stored summary's own guard.guard_decision_key reads false while the bodies carry the deny.",
+    "write_paths": "read the source manifest's four declared paths; the single landing revision touches docs/evidence/archive/clive-worker-profiles-landed.html (+12/-0) and docs/plans/clive-worker-profiles.html (+3/-2) only, each inside the fence, and the archive addition is a pure insertion."
+  },
+  "justifications": {
+    "durability": "the measurement replays because launch/stub_tooluse.py is byte-identical to the previous run's (sha256 520b9512) and body sha256s are stored beside the numbers, but two of the three guard needles in launch/launch_fenced.py:67-71 misreport and no check in the tree reads the archive's claims back.",
+    "evidence": "every number in the landed prose re-derives from a stored body (launch/cc-out/bodies/0001.json 257265 bytes, launch/cc-out--nc/bodies/0001.json 132450 bytes, 20 tools, 0 mcp__), but the record's pointer to the control arm's summary does not resolve and its stored guard.guard_decision_key contradicts the body it names.",
+    "fit": "the new archive section follows the h2/strong/ul idiom of docs/evidence/archive/clive-worker-profiles-landed.html:81-93 and the message is a two-part subject and body with no attribution and no plan identifier, but the inserted paragraph sits at column 0 against its siblings' indentation and the control bullet over-claims the absence of memory markers.",
+    "goal_fidelity": "launch/cc-out/bodies/0001.json carries the same 46 tools and all 23 mcp__* definitions byte-for-byte as the unfenced baseline body, plus its three built-in resource tools, so the confirmation the goal names is true of the artefact and not only of the account.",
+    "scope_discipline": "docs/evidence/archive/clive-worker-profiles-landed.html:82 gains 12 lines with 0 deletions so the archive's earlier records survive, but docs/plans/clive-worker-profiles.html:26 moves plan-version from 25 to 27 although the source brief's landing contract forbids editing that line and the main checkout still reads 25."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "review of cwp-fenced-mcp-tools, read at base 87806e8d78cb92ea7af9fe7f6cd0dc95c16773ca and head e2e79084e6545a0dc7fb93c851cfffcc2a50ef8e\nREVIEWED_BASE: 87806e8d78cb92ea7af9fe7f6cd0dc95c16773ca\nREVIEWED_HEAD_SHA: e2e79084e6545a0dc7fb93c851cfffcc2a50ef8e\n\nVERDICT goal: the node goal is to confirm a fenced clive worker launch carries the reckon and imas-dd MCP tools, and I re-counted the stored first-request body launch/cc-out/bodies/0001.json myself: 46 tools, 23 mcp__* (5 mcp__reckon__* including edit_plan: audit, crew, edit_plan, read_plan, roadmap; 18 mcp__imas-dd__*), with all 46 tool definitions carrying an input_schema and every mcp__* definition byte-identical to the unfenced baseline's.\nVERDICT done_when: the done_when names four measured items plus the report path; all four are present, each number re-derived by me from the stored bodies (tools 46/23/5/18 against baseline 46/23/5/18 and previous fenced 20/0/0/0; bytes 257265 against 276931 and 224560; .claude.json mode 0600 with mcpServers plus claude's own first-start keys and no projects or oauth key; the git-safety marker and the worker_git_guard deny), and the report exists at the declared path.\nVERDICT write_paths: read the source manifest's four declared paths; the single landing revision touches docs/evidence/archive/clive-worker-profiles-landed.html (+12/-0) and docs/plans/clive-worker-profiles.html (+3/-2) only, each inside the fence, and the archive addition is a pure insertion.\nVERDICT manifest: read; it names its landing revision and both arm logs, but its test_logs names launch/fenced-summary-nc.json, which does not exist on disk (the file the driver wrote is launch/fenced-summary--nc.json), and it does not disclose that the stored summary's own guard.guard_decision_key reads false while the bodies carry the deny.\nVERDICT diff: read against the parent 87806e8d commit by commit; one revision, two files, 15 insertions and 2 deletions, adding an MCP-tools paragraph to plan section 3 and a cumulative-archive section whose insertion removes nothing, with both landed HTML files parsing with no unclosed or misnested tag.\nCALL_SITES: reckon/resources.py:28 TYPE_ROOTS mapping the plan and evidence roots to typed resources, reckon/serve.py:1506 the resource.type gate admitting plan/research/evidence, reckon/serve.py:2310 GET /plan/<project>/<slug> serving the plan page this change edits\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: launch/cc-out/bodies/0001.json carries the same 46 tools and all 23 mcp__* definitions byte-for-byte as the unfenced baseline body, plus its three built-in resource tools, so the confirmation the goal names is true of the artefact and not only of the account.\nSCORE evidence: 17\nJUSTIFICATION evidence: every number in the landed prose re-derives from a stored body (launch/cc-out/bodies/0001.json 257265 bytes, launch/cc-out--nc/bodies/0001.json 132450 bytes, 20 tools, 0 mcp__), but the record's pointer to the control arm's summary does not resolve and its stored guard.guard_decision_key contradicts the body it names.\nSCORE scope_discipline: 16\nJUSTIFICATION scope_discipline: docs/evidence/archive/clive-worker-profiles-landed.html:82 gains 12 lines with 0 deletions so the archive's earlier records survive, but docs/plans/clive-worker-profiles.html:26 moves plan-version from 25 to 27 although the source brief's landing contract forbids editing that line and the main checkout still reads 25.\nSCORE durability: 17\nJUSTIFICATION durability: the measurement replays because launch/stub_tooluse.py is byte-identical to the previous run's (sha256 520b9512) and body sha256s are stored beside the numbers, but two of the three guard needles in launch/launch_fenced.py:67-71 misreport and no check in the tree reads the archive's claims back.\nSCORE fit: 16\nJUSTIFICATION fit: the new archive section follows the h2/strong/ul idiom of docs/evidence/archive/clive-worker-profiles-landed.html:81-93 and the message is a two-part subject and body with no attribution and no plan identifier, but the inserted paragraph sits at column 0 against its siblings' indentation and the control bullet over-claims the absence of memory markers.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/cwp-fenced-mcp-tools.md:40 the report names .../launch/fenced-summary-nc.json as the control arm's summary and the manifest repeats that path in test_logs and negative_control_log, but no such file exists: this run's driver builds every tagged name from the value passed as FENCED_TAG=-nc, so the control's summary is launch/fenced-summary--nc.json (the single-dash shape belongs to the previous run, whose own file list confirms it), leaving the only pointer to the control's record unresolvable.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260926T182312980562-cwp-fenced-mcp-tools/launch/fenced-summary.json:1 guard.guard_decision_key is recorded false while launch/cc-out/bodies/0002.json carries the hook error text with \"permissionDecision\": \"deny\" and launch/cc-out/bodies/0003.json through 0005.json carry it too; replaying the driver's own expression at launch/launch_fenced.py:241 over those four bodies returns true, so the stored record reports the guard decision absent at the moment it fired, and the manifest's follow_ons names only the other broken needle.\nFINDING docs/plans/clive-worker-profiles.html:26 the landed diff bumps plan-version from 25 to 27, which the source brief's landing contract forbids touching because every worker editing that line makes every merge conflict there; the authoritative main-checkout copy still reads 25, so the landed line carries a two-step bump for one authored change and the worker discloses it only in follow_ons.\nFINDING docs/evidence/archive/clive-worker-profiles-landed.html:92 the new control bullet states the empty-config arm carries no memory markers, but that arm's own marker report records prompt_or_path_restoration present at .messages[0].content[3].text; the marker is a phrase in the dispatch prompt read from stdin rather than memory, so the sentence is true only under a qualifier the run's own taxonomy does not supply, the same imprecision the previous review raised at line 76.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/cwp-fenced-mcp-tools.md:28 the report places the launch on the node 98d4ci-srv-2058; the fleet host is 98dci4-clu-2058 (hostname verified on the node itself), so the compute-placement record names a host that does not exist.",
+  "review_run_id": "r-20260926T183816218798-review-of-cwp-fenced-mcp-tools",
+  "reviewed_base_sha": "87806e8d78cb92ea7af9fe7f6cd0dc95c16773ca",
+  "reviewed_head_sha": "e2e79084e6545a0dc7fb93c851cfffcc2a50ef8e",
+  "reviewed_run_id": "r-20260926T182312980562-cwp-fenced-mcp-tools",
+  "scores": {
+    "durability": 17,
+    "evidence": 17,
+    "fit": 16,
+    "goal_fidelity": 19,
+    "scope_discipline": 16
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-26T19:06:03.341566+00:00",
+  "total": 85
+}

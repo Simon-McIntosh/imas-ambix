@@ -1,0 +1,65 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T05:56:10.442Z",
+  "dispatched_at": "2026-10-06T05:51:08Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/jt60sa-machine-map/r-20261006T055101956242-plan-review-of-jt60sa-machine-map/plan.html:747",
+      "id": "reuse_search-1",
+      "reason": "an implementation node reading \u00a77 as written would reintroduce an already-landed field and option; the section must mark them landed so the node's scope is the JT-60SA set, not the field.",
+      "text": "\u00a77 states \"BenchShot therefore gains a machine field\" and \"The same node adds one command-line option, `scripts/spine_benchmark.py --machine`\", but both already exist: `imas_ambix/spine_bench/shots.py:27` declares `machine` on BenchShot and `resolve_shotset_version` (line 74) already compares `(shot.machine, int(shot.shot_id), shot.role)`, and `scripts/spine_benchmark.py:50` already declares `--machine` (refused without `--shots` at line 34). The plan's own comments record the work as landed (`jtmm-shotset-machine`, 2026-10-05), so the \u00a77 body is stale and describes existing machinery as proposed \u2014 the exact \"rebuilds what exists\" failure this review exists to catch",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/jt60sa-machine-map/r-20261006T055101956242-plan-review-of-jt60sa-machine-map/plan.html:575",
+      "id": "reuse_search-2",
+      "reason": "the only caller is the symbol's own test, which is removed with it, so the retirement action is unchanged; the wording should be corrected to \"no production caller\" but no design decision turns on it.",
+      "text": "\u00a76 retires `mast_angle_to_canonical` on the stated premise that it \"has no caller\", but it has a caller: `tests/test_cocos.py:16` imports it and `tests/test_cocos.py:76` calls it, so the section's interface account (\"ambix retires one public definition and adds none\") omits that the removal also deletes its test",
+      "type": "reuse_search",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "8a0307286a36f0fcfc4c3d4f739334bed0b6e2e88463a9be38dda4cab6f84cff",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 119,
+  "project": "imas-ambix",
+  "responses": {
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "coordinator",
+      "reason": "Acted in plan v122: section 7 describes BenchShot.machine and --machine as landed on 2026-10-05 and leaves only the JT-60SA frozen set to do.",
+      "when": "2026-10-06T07:35:22.140936+00:00"
+    },
+    "reuse_search-2": {
+      "action": "acted",
+      "by": "coordinator",
+      "reason": "Acted in plan v122: section 6 says mast_angle_to_canonical has no production caller; its only caller, its own test in tests/test_cocos.py, retires with it.",
+      "when": "2026-10-06T07:35:22.142355+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T055101956242-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "5641455d54fdb3b6040a32592d92f7daa2a2e3ec",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each new module hides its substantial behaviour behind one entry point (`selene_deck.write_phase_description`, `eddb_remote.RemoteEddbExtractor`, `tokamap_export.export_tokamap_directory`), and the \u00a77 EQDB extension adds a request/record type to one transport rather than spreading a second extractor.",
+    "duplicate_owner": "pass \u2014 placement (paths.py), the pin table (`gs/artifact_resolution.py`), the identity registry (`gs/machine_identity.py`), the store engines, the convention scorer, the referee and the EDDB store each keep a single named owner that the plan extends; no forked placement or path-resolution path is introduced.",
+    "interface_budget": "pass \u2014 `public_definitions` 0, `cli_options` 0, `mcp_views` 0, `refusal_families` 0; every open section that adds surface names what it retires or why nothing can be (\u00a72 \"retires nothing, because ambix has no exporter\"; \u00a75 \"adds one data file and no public definition or refusal family\"; \u00a76 retires `mast_angle_to_canonical` and keeps every exported name; \u00a77's two EQDB types, the machine field and the CLI option each carry a retirement or replacement statement).",
+    "reuse_search": "a finding \u2014 \u00a77 presents machinery that already exists in the tree (`BenchShot.machine`, `scripts/spine_benchmark.py --machine`, `resolve_shotset_version`'s triple compare) as work still to be added, and \u00a76 rests a retirement on a caller claim the code contradicts.",
+    "thin_wrapper": "pass \u2014 the one wrapper the plan creates (`measure_diiid_convention` over the generalised `measure_convention`) is justified in its own text by keeping existing callers unchanged; every other section extends an owner rather than layering over it."
+  },
+  "section_digests": {
+    "_document": "060371ce32b20f0360ee1915d508732a36f1e2589b54c97b2df633bc451a49ed",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "7907dbeb096fed78c0fe9c4f297a895b0f431224b63a4d8c185c9fa0528441c4",
+    "s5": "6982251ed4c8a9182fe0265da5219217b9926e5b6c7490ef0149bf2754a8efc3",
+    "s6": "6fce39e36c6aa02afa7f800ec5c32364dcf75664ea2cf619fe4ff541c18d8141",
+    "s7": "339783f4d4bfdbfd5e58b74ff17b0e6b856b054fa9b9307c82ef612a0831c668",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T07:34:48.940464+00:00"
+}

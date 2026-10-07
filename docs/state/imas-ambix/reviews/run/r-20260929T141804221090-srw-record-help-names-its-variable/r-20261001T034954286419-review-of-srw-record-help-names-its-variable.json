@@ -1,0 +1,85 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's two fresh arms of the reviewed node's declared two-file gate: base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T034954286419-review-of-srw-record-help-names-its-variable/rev-base-gate.log (10 passed, exit 0, revision dc059543130d514510dd00110d9bdb8b337961be) and head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T034954286419-review-of-srw-record-help-names-its-variable/rev-head-gate.log (14 passed, exit 0, revision 2df2b97fc5104cf84c8d4906d31f3c2583dd57c1). The reviewed run was dispatched unarmed, so its manifest names no baseline_suite and no after_suite log and its own gate.log carries the head-side receipt only (14 passed, exit 0); the two arms this review ran, with their commands and log paths, are in this record's own baseline_suite and after_suite fields, and a read of this record through reckon's annotation path will report the count unmeasured for lack of a reviewed-run pair.",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_agent_watch_help.py tests/test_agent_ingest_cli.py (the reviewed head revision in a scratch copy at /tmp/rev-srw-help/head)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T034954286419-review-of-srw-record-help-names-its-variable/rev-head-gate.log",
+    "revision": "2df2b97fc5104cf84c8d4906d31f3c2583dd57c1"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_agent_watch_help.py tests/test_agent_ingest_cli.py (the reviewed run's base revision in a scratch copy at /tmp/rev-srw-help/base)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T034954286419-review-of-srw-record-help-names-its-variable/rev-base-gate.log",
+    "revision": "dc059543130d514510dd00110d9bdb8b337961be"
+  },
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2583 the receipts --output help, now naming $AMBIX_AGENT_BASE_DIR/agents/receipts and the /work/projects/imas_gpu default",
+    "imas_ambix/agent/cli.py:2670 the watch --record help, same wording",
+    "imas_ambix/agent/cli.py:2749 the ingest --record help, same wording",
+    "imas_ambix/agent/profile.py:586 the resolution the help claims: base_dir = os.environ.get('AMBIX_AGENT_BASE_DIR', '/work/projects/imas_gpu'), with receipts_dir = base_dir/agents/receipts at :685"
+  ],
+  "completed_at": "2026-10-01T04:15:53.981Z",
+  "dispatched_at": "2026-10-01T03:50:08Z",
+  "findings": [
+    {
+      "file": "manifest.md (the reviewed run's record)",
+      "line": "14",
+      "text": "the negative_control_log field names .../negative_control.log (underscore), but the log on disk is .../negative-control.log (hyphen) \u2014 the same underscore path is also the second entry of test_logs \u2014 so both fields name a file a reader cannot open. The log's content is sound and independently reproduced by this review: its first line repeats the declared mutation verbatim and the arm ends EXIT=1 with test_receipts_help_names_the_base_dir_variable_and_its_default red (1 failed, 3 passed, 5 deselected). The sibling run r-20260929T135846035407 names the hyphen path it also wrote, so the convention is hyphen; this record's pointer is the defect, not the log."
+    }
+  ],
+  "follow_ons": [
+    "Plan \u00a75 prose still describes the ingest as \"scheduled ... and exits\" (serving-record-warehouse.html \u00a75, the paragraph beginning \"A separate ingest, scheduled\"), while f-srw-007's body and this node's tests/test_agent_ingest_cli.py module docstring describe a standing service. The plan text should be reconciled to the standing-service design so the docstring and the plan agree.",
+    "The reviewed run's gate ran at 0aaaf56b (the code and test commit); head 2df2b97f adds only a trailing newline to the evidence fragment, so the manifest's tests field and every gate log cite 0aaaf56b rather than the final head. Nothing executable differs between the two commits and no re-run is needed, but a reader comparing the gate revision against the promoted head should know the delta is one newline in a fragment."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "the three edited help strings were read at the reviewed head, and the resolution they claim was read at its source: profile.py:586 reads AMBIX_AGENT_BASE_DIR with the /work/projects/imas_gpu fallback and :685 joins agents/receipts, so the help's \"$AMBIX_AGENT_BASE_DIR/agents/receipts ... defaults to /work/projects/imas_gpu\" is exactly what the resolver does.",
+    "diff": "four files: cli.py's three help strings (16 lines), tests/test_agent_watch_help.py (+60, three per-command help tests plus one relocation test), tests/test_agent_ingest_cli.py (docstring reword and a literal #SBATCH --time=0 assertion, 13 lines), and the node's own evidence fragment (+40) which ends with a trailing newline \u2014 the content of head 2df2b97f.",
+    "done_when": "the declared gate re-runs green: 14 passed exit 0 over the two named test files at head against 10 at base, the serving-interpreter parse check 1 passed 8 deselected exit 0, and ruff check imas_ambix tests All checks passed exit 0.",
+    "goal": "the dispatched goal is that every receipts-directory default in the agent CLI help name the AMBIX_AGENT_BASE_DIR variable that relocates it. The CLI carries exactly three such defaults \u2014 receipts --output at cli.py:2580 (changed), watch --record at :2666 (changed), ingest --record at :2743 (changed) \u2014 and all three now name the variable and its /work/projects/imas_gpu fallback, so the goal is met with no default left unnamed.",
+    "manifest": "read whole: status complete, commits 0aaaf56b and 2df2b97f, four changed paths matching the diff, three gate commands with per-command EXIT, a negative_control_note naming the mutation, and a landing line. One defect: the negative_control_log field and the second test_logs entry name negative_control.log while the file on disk is negative-control.log.",
+    "write_paths": "git diff --name-status dc059543..2df2b97f lists exactly the four declared paths (A the fragment, M cli.py, M tests/test_agent_watch_help.py, M tests/test_agent_ingest_cli.py); the plan html is untouched and the declared figures directory holds no file under docs/figures/serving-record-warehouse/srw-record-help-names-its-variable."
+  },
+  "justifications": {
+    "durability": "the new help text is pinned, not merely written: three tests read each command's --help through the same CliRunner seam the other help tests use, and a fourth holds the help's own claim to behaviour by relocating AMBIX_AGENT_BASE_DIR and asserting the recorder's default file lands under <base>/agents/receipts. The pin is shown to fire rather than assumed: reverting the receipts --output wording reddens test_receipts_help_names_the_base_dir_variable_and_its_default and only that test (verified independently by this review in a scratch copy, 1 failed 3 passed). Held below full marks because the three help tests are snapshot assertions on prose \u2014 a future wording change reddens them as intended, but they constrain text rather than a mechanism, and the ingest literal pin (#SBATCH --time=0) was already implied by the shared constant it sits beside.",
+    "evidence": "the pin is verified by making the guarded thing happen: this review reverted the receipts --output help in a scratch copy of the head and the new test alone reported the failure, entering the branch rather than passing incidentally. The declared gate re-runs green at head (14 passed, ruff clean, serving-interpreter parse 1 passed) against 10 at base, so no failure is added. The reviewed run's own receipts are otherwise complete \u2014 gate.log names its revision on line 1 and records EXIT=0 for all three commands, and its negative-control log's first line repeats the declared mutation verbatim and ends on a red arm. Held below full marks for one record defect: the manifest's negative_control_log field and the same path inside test_logs name negative_control.log while the file on disk is negative-control.log, so the pointer a reader would open names nothing.",
+    "fit": "the tests are written in the file's own idiom: appended beside the existing help tests, built on the same _help helper, named for what they assert, and free of plan labels, version numbers and author attribution. The relocation test reuses the CLI's own seam (CliRunner, the _default_profile and _resolve_api_key monkeypatches, and serving_receipts.record_receipts stubbed) rather than standing up a second harness, and its docstring explains why the stub keeps the network out. The ingest docstring change explains the standing-service reason rather than the ticket. The fragment matches its siblings' shape and ends with a trailing newline.",
+    "goal_fidelity": "the goal is that the agent CLI help name the base-dir variable in every receipts-directory default, and the three defaults the CLI carries are exactly the three changed help strings; no fourth default exists (grep of cli.py at head for \"the site's receipts\" returns the three edited lines, and the only other \"receipts directory\" hit is a prose module docstring). The node also carries the dispatch's secondary asks \u2014 the ingest docstrings reworded to a standing service and the dry-run script's literal --time=0 pinned \u2014 which the done-when named explicitly, so they are in scope rather than scope creep.",
+    "scope_discipline": "the diff is exactly the four declared paths and nothing else; the plan html and every shared index are untouched, no figure was written under the declared but empty figures directory, and the fragment is the node's own landing anchor. This review's arms ran in /tmp copies under the shared project interpreter, and the reviewed worktree was not mutated by this review."
+  },
+  "justifications_detail": {
+    "independent_receipts": "rev-base-gate.log (10 passed exit 0, module /tmp/rev-srw-help/base/imas_ambix/agent/cli.py, cwd /tmp/rev-srw-help/base); rev-head-gate.log (14 passed exit 0, ruff All checks passed exit 0, serve-parse 1 passed exit 0, module /tmp/rev-srw-help/head/imas_ambix/agent/cli.py); rev-negative-control.log (1 failed 3 passed exit 1; the failure is test_receipts_help_names_the_base_dir_variable_and_its_default asserting 'AMBIX_AGENT_BASE_DIR/agents/receipts' not in the reverted help).",
+    "limits": "no lane, service or SLURM job was touched and nothing was submitted; the two scratch trees were materialised with git archive at the reviewed base and head under /tmp on this compute node, and every arm ran under the shared project interpreter with the imported cli.py resolving inside the scratch copy, as each log's module.__file__ line records.",
+    "review_basis": "read the reviewed dispatch with its declared write paths and done-when, the reviewed manifest.md whole, the reviewed run's gate.log and negative-control.log, the full diff dc059543..2df2b97f, imas_ambix/agent/cli.py's three help strings at head, imas_ambix/agent/profile.py's base_dir resolution at :586 and :685, and plan serving-record-warehouse.html \u00a75; then ran the base arm, the head arm, the two remaining head-only gate commands, and the mutation arm recorded above."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260929T141804221090-srw-record-help-names-its-variable at head 2df2b97f against base dc059543130d514510dd00110d9bdb8b337961be, the \u00a75 node that makes the agent CLI's receipts-directory help name AMBIX_AGENT_BASE_DIR. All three defaults the CLI carries (receipts --output, watch --record, ingest --record) now state $AMBIX_AGENT_BASE_DIR/agents/receipts with the variable's /work/projects/imas_gpu fallback, matching the resolver at profile.py:586/:685. The four new help tests are verified rather than accepted: this review reverted the receipts --output wording in a scratch copy of the head and exactly the new test reddened (1 failed, 3 passed), so the pin fires on the regression it exists to catch. The declared gate re-runs green at head (14 passed, ruff clean, serving-interpreter parse 1 passed exit 0) against 10 at base, so the run adds no failing test. Scope is exactly the four declared paths. One finding is recorded: the manifest's negative_control_log field, and the same path inside test_logs, name negative_control.log (underscore) while the file on disk is negative-control.log (hyphen), so the pointer names nothing though the log itself is sound. Two follow-ons: plan \u00a75 prose still calls the ingest \"scheduled\" where the code and f-srw-007 describe a standing service, and the run's gate ran at 0aaaf56b rather than the final head 2df2b97f, whose only delta is a fragment newline.",
+  "review_run_id": "r-20261001T034954286419-review-of-srw-record-help-names-its-variable",
+  "reviewed_base_sha": "dc059543130d514510dd00110d9bdb8b337961be",
+  "reviewed_head_sha": "2df2b97fc5104cf84c8d4906d31f3c2583dd57c1",
+  "reviewed_run_id": "r-20260929T141804221090-srw-record-help-names-its-variable",
+  "reviewer": "review-of-srw-record-help-names-its-variable",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-01T04:10:31.351148+00:00",
+  "total": 95
+}

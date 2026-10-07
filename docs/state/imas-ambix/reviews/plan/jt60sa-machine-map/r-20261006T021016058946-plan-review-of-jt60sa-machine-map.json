@@ -1,0 +1,51 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T02:15:00.800Z",
+  "dispatched_at": "2026-10-06T02:10:28Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/eddb.py:207",
+      "id": "deep_module-1",
+      "reason": "the section should state that the grid writer shares write_channel's token-match, presence and no-overwrite helpers rather than re-implementing them, keeping one owner for the store's invariants.",
+      "text": "\u00a77 says eddb.py \"gains a grid record writer beside write_channel under the same {shot}.zarr/{category}/{name} layout and the same refuse-to-overwrite rule\", but write_channel's correctness rests on invariants that would have to be duplicated in a second writer: the pulse-group EDDB-token match (EDDB_TOKEN_ATTR), the _channel_present half-written/corrupt predicate, and the create-only no-overwrite guard; a second writer that copies those guards rather than calling them is a second owner of one store's write invariants and can drift (e.g. a grid record with a scalar frame time does not satisfy write_channel's time_length == data width test, so the grid path must branch the presence rule)",
+      "type": "deep_module",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "2bee7bcb8ea1b884c1a52dda23f2787db9a68467dae9e032cc6f908f83b81807",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 85,
+  "project": "imas-ambix",
+  "responses": {
+    "deep_module-1": {
+      "action": "acted",
+      "by": "coordinator",
+      "reason": "Acted in plan v87: section 7 now says the EQDB grid writer shares EDDB_TOKEN_ATTR, _channel_present and the overwrite refusal through the code that enforces them.",
+      "when": "2026-10-06T02:26:18.306614+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T021016058946-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "ae2765bbf86fc62ededf683fffe3fc8b420dee31",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 the \u00a77 grid record writer is added as a second writer beside write_channel in the same store module without stating that the store's invariants are shared rather than re-implemented.",
+    "duplicate_owner": "pass \u2014 placement (paths.py JT60SA_ROOT), state readers (MachineMapCatalog), store addressing (StoreEngine.open), the shot set (spine_bench/shots.py) and the pin route (gs/artifact_resolution.py) are all extended at their named owners; no path-resolution or scheduler duplicate is proposed.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every forward section accounts for its surface: \u00a72 states the exporter retires nothing because ambix had no exporter, \u00a74 that widening StoreEngine.open retires nothing because no engine sees the map today, \u00a75 that it adds one data file and no public definition or refusal family, \u00a76 that the kernel is reused rather than a second scorer written, and \u00a77 that its additions retire nothing because no equilibrium-database reader, scalar reference comparison or shot-set machine field exists yet.",
+    "reuse_search": "pass \u2014 the plan names the ambient owners it extends in every section and each name resolves in the tree: the FAIR-MAST mirror (imas_ambix/data/manifest.py, s5cmd/object store, so \u00a73's ssh extractor is a genuine second transport), the packaged signal-map loader (signal_map.py load_packaged_signal_map), the netCDF/zarr store engines (transform_engine.py StoreEngine.open), the geometry acquisition route (description_reader.py read_geometry_table), the pinned-artifact resolver (gs/artifact_resolution.py), the COCOS scorer (data/cocos_convention.py score_convention/score_conventions/format_sign_report), the typed equilibrium record (challenge/loader.py EfitLabels, which carries grid_r_m/grid_z_m/psirz/cocos as the plan claims), the referee (eval/efit_referee.py judge_geometry with read_efit_geometry's evaluator_context firewall), and the loop-position record (machine_map.py FluxLoopPositionDeclaration / MachineMapCatalog.flux_loop_positions_for). No mechanism the plan proposes was found already built.",
+    "thin_wrapper": "pass \u2014 every added layer forwards to an owner the plan explicitly declines to fork (tokamap exporter kept out of the loaders, EQDB reader reusing SshTransport, SELENE reference loader entering through read_efit_geometry instead of a parallel comparator), and each states why the owner cannot be extended or is the right seam."
+  },
+  "section_digests": {
+    "_document": "81c30464997a0bb8e491a2ec9da6b8861cd25ff2cfad20808b2f114dc78a477d",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "0c6d3ad9d5cf1da1fe7fe4da9f6aaed64bad292c46c517e591b53b1561cdda5b",
+    "s5": "b8fd563c68e5e8518654b5d37d9929467a10f841b4291cd34c629a84f4798199",
+    "s6": "c35de046f0a85a90468ca3326027efcdba7affaac3752fb890a1e987d3ba0277",
+    "s7": "d58647ed5f6919b3ea6ef1c13c5f002f5a96def1edf03c3c66c629e0a2180518",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T02:26:03.722930+00:00"
+}

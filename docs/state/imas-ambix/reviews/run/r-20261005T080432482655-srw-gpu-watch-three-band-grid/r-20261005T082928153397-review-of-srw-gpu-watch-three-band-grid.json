@@ -1,0 +1,89 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest carries no baseline_suite and no after_suite (both keys present and empty), and classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null. It changes no product source or test, so it carries no pytest suite at all; its own gate is the shell driver run_gate.sh (log gate.log, FAILS: none). To supply the two arms the field names, this review reproduced both revisions independently in a scratch tree under $TMPDIR: a base arm at imas-ambix 6ebdaca7 (dotfiles bin/gpu-watch at 4dfef02) and a head arm at imas-ambix 68e548cd (the node's gpu-watch.modified). The head arm is FAILS: none (repro-head-render.log, repro-agreement-head.log: py_compile OK; grid 8 rows; all 19 section-15 labels once; band column edges == ledger header edges (13,28,43,58,73,88,103); card rows / ledger rows / job table byte-identical; agreement on all six named fields). The base arm fails the three measures the change exists to satisfy (repro-base-arm.log: grid 14 rows > 8; bands 1/2/3 off the ledger grid; 'prefill/s' and 'available %' absent), confirming the change is load-bearing. Head failing ids minus base failing ids is empty, so added_failure_count is 0 and added_failure_ids is [].",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python /tmp/reckon-crew-scratch/r-20261005T082928153397-review-of-srw-gpu-watch-three-band-grid/review-srw-89kpF7/render_check.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T082928153397-review-of-srw-gpu-watch-three-band-grid/repro-head-render.log",
+    "revision": "68e548cdcd265f6bf36df9545fdc62f5dce07309"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python /tmp/reckon-crew-scratch/r-20261005T082928153397-review-of-srw-gpu-watch-three-band-grid/review-srw-89kpF7/base_arm.py /tmp/reckon-crew-scratch/r-20261005T082928153397-review-of-srw-gpu-watch-three-band-grid/review-srw-89kpF7",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 3,
+    "failure_ids": [
+      "section15:grid_rows_gt_8",
+      "section15:band_off_ledger_grid",
+      "section15:label_absent"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T082928153397-review-of-srw-gpu-watch-three-band-grid/repro-base-arm.log",
+    "revision": "6ebdaca73bb550b9e669ac6432f26933d8f0f747"
+  },
+  "completed_at": "2026-10-05T08:38:58.514Z",
+  "dispatched_at": "2026-10-05T08:29:35Z",
+  "findings": [
+    {
+      "category": "evidence-note",
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-gpu-watch-three-band-grid.html",
+      "line": "grid description paragraph",
+      "severity": "follow-on",
+      "text": "follow-on (measure wording): the section-15 measure says the grid puts 'at most eight grid rows between the header line and the ledger'; the render in fact places 11 lines there - the 8 grid rows plus a blank box edge above and below the grid table and the ledger's own blank top edge. The gate reports both figures (grid table rows: 8; lines between header and ledger: 11), and the evidence fragment states only 'eight rows in all'. The measure it must satisfy is the count of grid rows, which is 8, so this does not hold the node; the follow-on is to state the 8-row figure beside the 11-line render in the fragment so a reader checking the literal wording does not read the box edges as excess rows."
+    },
+    {
+      "category": "durability",
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-gpu-watch-three-band-grid.html",
+      "line": "header meta paragraph",
+      "severity": "follow-on",
+      "text": "follow-on (durability): the two checks the node owes - render_check.py and agreement_check.py - and the modified copy they measure live only in the run report directory; nothing is committed to any repository that would redden on a regression of the three-band/column-grid layout. This matches the section's stated design (the node writes the copy and the unified diff, the coordinator lands the diff in dotfiles), so it is not a defect of this node, but the persistence of the guard then rests on the coordinator committing both the copy and a runnable version of these checks beside it in dotfiles. Recorded so a later reader does not mistake the report-directory gate for a durable one."
+    }
+  ],
+  "justifications": {
+    "durability": "the assertions in render_check.py fail on regression (the base arm reddens them: repro-base-arm.log grid 14 rows), but they are not committed to any repository, so the guard persists only if the coordinator lands it beside the copy.",
+    "evidence": "the gate at the report dir's gate.log measures each done-when clause and its figures are recorded, and both the head arm and the negative control were reproduced this review (repro-head-render.log).",
+    "fit": "gpu-watch.modified:715-822 reuses the surrounding rich Table idiom, pct(), _ramp(), _lane_age_stale() and _stale_mark(), adds no new helper the file did not already own, and introduces no name the repository naming rules forbid.",
+    "goal_fidelity": "gpu-watch.modified:693-822 serve_grid emits three bands on the ledger's seven-column grid and gpu-watch.modified:815 draws availability_percent by pct(...,'good'); reproduced 8 rows and the ledger-aligned column edges.",
+    "scope_discipline": "the only committed path, docs/evidence/fragments/serving-record-warehouse/srw-gpu-watch-three-band-grid.html, is inside the declared write paths and the diff adds nothing the goal does not imply."
+  },
+  "model": "deepseek-v4.1-flash",
+  "negative_control": {
+    "exit_status": 1,
+    "failing_ids": [
+      "section15:negative_control_disagrees"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T082928153397-review-of-srw-gpu-watch-three-band-grid/repro-head-render.log",
+    "mutation": "compute availability inside gpu-watch from lane.engine_headroom over effective width instead of reading lane.availability_percent (gpu-watch.negcontrol)",
+    "note": "The reviewed node's declared mutation is present in gpu-watch.negcontrol and was reproduced: with engine_headroom 17 differing from headroom 11, its computed availability reads 106 against the document's availability_percent 68.75 (panel shows 106 vs the modified copy's 69). This node declares no negative control of its own (its write paths reach no test path), so this entry records the reviewed node's mutation, not a red log of this node."
+  },
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T082928153397-review-of-srw-gpu-watch-three-band-grid",
+  "reviewed_base_sha": "6ebdaca73bb550b9e669ac6432f26933d8f0f747",
+  "reviewed_head_sha": "68e548cdcd265f6bf36df9545fdc62f5dce07309",
+  "reviewed_run_id": "r-20261005T080432482655-srw-gpu-watch-three-band-grid",
+  "reviewer": "review-of-srw-gpu-watch-three-band-grid",
+  "scores": {
+    "durability": 14,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T08:35:00+00:00",
+  "total": 86,
+  "verdicts": {
+    "call_sites": "none in this repository: the change lands in a copy of dotfiles bin/gpu-watch; no imas-ambix module imports it. Its production caller is bin/gpu-watch's own serve panel (serve_table -> serve_head / serve_grid), exercised by render_check.py.",
+    "diff": "read the two commits against base 6ebdaca7: ebe8f3e5 anchors the fragment, 68e548cd completes it; one file added (29 lines), inside the declared scope. The product change is the uncommitted-then-declared modified copy in the report dir, not a repository source edit, by the section's design.",
+    "done_when": "read the done-when and the gate it names; run_gate.sh produces gate.log with py_compile OK, grid 8 rows, all 19 labels once, band column edges equal to the ledger header edges, card/ledger/job byte-identical, uniform negative control, and FAILS: none; reproduced independently (repro-head-render.log, repro-agreement-head.log).",
+    "goal": "read the node goal (a modified copy of dotfiles bin/gpu-watch whose serve grid fits in three bands on the ledger's own seven-column grid and draws availability_percent as a bar) and the diff; the new serve_grid builds a 7-column Table with box.SIMPLE_HEAD, padding (0,1), pad_edge=False and show_header=False, emits exactly three label/value bands with two blank separators, and draws availability via pct(availability,'good') at gpu-watch.modified:815.",
+    "manifest": "read the node manifest; it states the grid is 8 rows, names gate.log and its figures, and records the three retry_failures in its own harness with scaffolding attributions; the delivered copy and diff sit in the report directory as the section's design requires.",
+    "write_paths": "read the node's declared write paths (the run report dir, docs/evidence/fragments/serving-record-warehouse/srw-gpu-watch-three-band-grid.html, docs/figures/.../srw-gpu-watch-three-band-grid); the only committed path in the diff is the new evidence fragment, inside scope, and no figure was written (the done-when names no artifact)."
+  }
+}

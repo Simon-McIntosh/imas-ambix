@@ -1,0 +1,54 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/agent/node_probe.py:738 NodeProbe.sample -> read_cards",
+    "imas_ambix/agent/serving_receipts.py:490 probe.sample(tick) attaches the sections to the receipt row",
+    "imas_ambix/agent/serving_receipts.py:677 NodeProbe constructed by the serve entry point",
+    "imas_ambix/agent/watch.py:615 render_cards reads the recorded card dict by named key so the added key is inert there"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T08:36:40.663096+00:00",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/node_probe.py",
+      "line": "389",
+      "text": "the name column is the first free-text value in a positional comma split with no quote handling, so a product name nvidia-smi quotes around an internal comma desynchronises the row: driving the landed bytes over a body carrying such a name records the truncated name \"NVIDIA Foo while temperature_c moves to 0.0 and power_draw_w to 41.0, so every numeric field is a wrong reading recorded as a measurement, silently, because nothing raises - the same mislabelled-reading shape the base revision shows and this section exists to prevent; reachability rests on nvidia-smi quoting a comma-bearing name rather than replacing the comma, which I could not verify against the target cards from here, and no assertion covers the case either way."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 4 production call site(s)",
+    "diff": "read commit by commit from the base, which is 6d7617a7's parent; the query gains the name column ahead of the quantities, the name is held out of CARD_FIELDS so the numeric parse cannot refuse it, _card_name refuses the shared unavailable vocabulary on the string path, the quantity zip offset moves to row[2:] with its loop variable renamed so the new name binding is not shadowed, and three tests plus the fixture name column land.",
+    "done_when": "the done-when names the node-probe file, the serving-interpreter guard and whole-tree ruff, and the run's stream carries exit-0 receipts for all three, with the manifest's stated delta confirmed where it can be checked at base: tests/test_node_probe.py collects 40 tests in my worktree at the pre-change revision against 43 at the head.",
+    "goal": "the goal is to record each card's model name in the cards[] section so a reader can name the accelerator, and imas_ambix/agent/node_probe.py:133 defines CARD_NAME_FIELD while :389 reads the name column and records it per card; driving the landed bytes over a recorded body yields name \"NVIDIA H200 NVL\" with the numerics unmoved and a body whose name column is [N/A] omits the key.",
+    "manifest": "read against the named logs and the diffs; it records both commits with their paths, the three gate results, the declared mutation and the reason it was applied at the call site rather than by enlarging CARD_FIELDS, and it leaves the driving followup f-sts-003 open with the stale recorder section contract and the missing vLLM fixture named as carried forward rather than closed.",
+    "write_paths": "git diff 02777874..959b1e38 touches only the four declared paths - node_probe.py and its test file in 6d7617a7, docs/plans/serve-telemetry-spine.html and docs/evidence/archive/serve-telemetry-spine-landed.html in 959b1e38 - and the docs commit is append-only (30 and 38 insertions, zero deletions) onto the cumulative plan and evidence record."
+  },
+  "justifications": {
+    "durability": "applying the declared mutation to the landed bytes removes the name key in my own isolated run, so the two tests asserting a recorded name redden with KeyError while the third holds the omit branch, and the one condition no added assertion pins is a name carrying a quoted comma at node_probe.py:389.",
+    "evidence": "the stream in the reviewed run's directory carries the exit-0 receipt for 43 passed on tests/test_node_probe.py and ruff's all-checks-passed line, and the base half of the manifest's 40-to-43 delta reproduces by collecting that file at the pre-change revision.",
+    "fit": "the constant, helper and refusal vocabulary follow the idiom already at node_probe.py:126 - a documented constant beside CARD_FIELDS and a helper beside _card_value - and no symbol or comment carries a plan, ticket or version label.",
+    "goal_fidelity": "node_probe.py:389 records the name as the string the probe printed and :394 omits it for a bracketed non-value, which the isolated drive of the landed bytes reproduced on both a named body and a [N/A] one.",
+    "scope_discipline": "every path in the diff is inside the four declared write paths, and the landing record and evidence anchor only append to their cumulative files."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260923T052157652054-card-model-name-recorded, base 02777874c077d3aa902e2226b8306fe119b20139, reviewed head 959b1e3843fad21df1b59830e681666de7397130. Read the live plan section 3 and the driving followup, the dispatch contract, the manifest, both commit diffs, the landed source and tests at the reviewed head, the recorded receipts, the declared mutation with its log, and the appended plan and evidence anchors. I also drove the landed bytes at the reviewed head in isolation over recorded bodies, and the same bytes with the declared mutation applied.\n\nreviewed_base_sha: 02777874c077d3aa902e2226b8306fe119b20139\nreviewed_head_sha: 959b1e3843fad21df1b59830e681666de7397130\n\nVERDICT goal: the goal is to record each card's model name in the cards[] section so a reader can name the accelerator, and imas_ambix/agent/node_probe.py:133 defines CARD_NAME_FIELD while :389 reads the name column and records it per card; driving the landed bytes over a recorded body yields name \"NVIDIA H200 NVL\" with the numerics unmoved and a body whose name column is [N/A] omits the key.\nVERDICT done_when: the done-when names the node-probe file, the serving-interpreter guard and whole-tree ruff, and the run's stream carries exit-0 receipts for all three, with the manifest's stated delta confirmed where it can be checked at base: tests/test_node_probe.py collects 40 tests in my worktree at the pre-change revision against 43 at the head.\nVERDICT write_paths: git diff 02777874..959b1e38 touches only the four declared paths - node_probe.py and its test file in 6d7617a7, docs/plans/serve-telemetry-spine.html and docs/evidence/archive/serve-telemetry-spine-landed.html in 959b1e38 - and the docs commit is append-only (30 and 38 insertions, zero deletions) onto the cumulative plan and evidence record.\nVERDICT manifest: read against the named logs and the diffs; it records both commits with their paths, the three gate results, the declared mutation and the reason it was applied at the call site rather than by enlarging CARD_FIELDS, and it leaves the driving followup f-sts-003 open with the stale recorder section contract and the missing vLLM fixture named as carried forward rather than closed.\nVERDICT diff: read commit by commit from the base, which is 6d7617a7's parent; the query gains the name column ahead of the quantities, the name is held out of CARD_FIELDS so the numeric parse cannot refuse it, _card_name refuses the shared unavailable vocabulary on the string path, the quantity zip offset moves to row[2:] with its loop variable renamed so the new name binding is not shadowed, and three tests plus the fixture name column land.\nCALL_SITES: imas_ambix/agent/node_probe.py:738 NodeProbe.sample -> read_cards, imas_ambix/agent/serving_receipts.py:490 probe.sample(tick) attaches the sections to the receipt row, imas_ambix/agent/serving_receipts.py:677 NodeProbe constructed by the serve entry point, imas_ambix/agent/watch.py:615 render_cards reads the recorded card dict by named key so the added key is inert there\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: node_probe.py:389 records the name as the string the probe printed and :394 omits it for a bracketed non-value, which the isolated drive of the landed bytes reproduced on both a named body and a [N/A] one.\nSCORE evidence: 19\nJUSTIFICATION evidence: the stream in the reviewed run's directory carries the exit-0 receipt for 43 passed on tests/test_node_probe.py and ruff's all-checks-passed line, and the base half of the manifest's 40-to-43 delta reproduces by collecting that file at the pre-change revision.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: every path in the diff is inside the four declared write paths, and the landing record and evidence anchor only append to their cumulative files.\nSCORE durability: 18\nJUSTIFICATION durability: applying the declared mutation to the landed bytes removes the name key in my own isolated run, so the two tests asserting a recorded name redden with KeyError while the third holds the omit branch, and the one condition no added assertion pins is a name carrying a quoted comma at node_probe.py:389.\nSCORE fit: 19\nJUSTIFICATION fit: the constant, helper and refusal vocabulary follow the idiom already at node_probe.py:126 - a documented constant beside CARD_FIELDS and a helper beside _card_value - and no symbol or comment carries a plan, ticket or version label.\nFINDING imas_ambix/agent/node_probe.py:389 the name column is the first free-text value in a positional comma split with no quote handling, so a product name nvidia-smi quotes around an internal comma desynchronises the row: driving the landed bytes over a body carrying such a name records the truncated name \"NVIDIA Foo while temperature_c moves to 0.0 and power_draw_w to 41.0, so every numeric field is a wrong reading recorded as a measurement, silently, because nothing raises - the same mislabelled-reading shape the base revision shows and this section exists to prevent; reachability rests on nvidia-smi quoting a comma-bearing name rather than replacing the comma, which I could not verify against the target cards from here, and no assertion covers the case either way.",
+  "review_run_id": "r-20260923T083640663096-card-model-name-review",
+  "reviewed_base_sha": "02777874c077d3aa902e2226b8306fe119b20139",
+  "reviewed_head_sha": "959b1e3843fad21df1b59830e681666de7397130",
+  "reviewed_run_id": "r-20260923T052157652054-card-model-name-recorded",
+  "reviewer": "card-model-name-review",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-23T09:21:27.291910+00:00",
+  "total": 95
+}

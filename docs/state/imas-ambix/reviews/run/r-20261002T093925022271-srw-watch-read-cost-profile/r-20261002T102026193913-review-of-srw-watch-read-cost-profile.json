@@ -1,0 +1,57 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no baseline_suite or after_suite gate log (investigate node; its write scope reaches no test path), so the added-failure count was not taken",
+  "backend": "local",
+  "call_site_count:": 1,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2738"
+  ],
+  "completed_at": "2026-10-02T10:41:47.890Z",
+  "dispatched_at": "2026-10-02T10:20:32Z",
+  "findings": [
+    {
+      "file": "report.md",
+      "line": "236",
+      "severity": "follow-on",
+      "text": "follow-on: the reproduction section cites the node-local scratch path (/tmp/srw-cost-profile/snapshot.py, run_all.py, run_period.py) and the saved scripts hardcode it (run_all.py:3 COPY = \"/tmp/srw-cost-profile/watch-index.sqlite3\"; run_all.py:1 WT = the fleet worktree), so a later reader following the report cannot reproduce the measurement even though the scripts are saved in the report directory itself."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "imas_ambix/agent/cli.py:2738 calls watch_mod.watch_document(record_dir=..., index_path=...) from the agent watch subcommand, which is the production path the profiling measures.",
+    "diff": "the reviewed run made no commit and touched no source file (worktree head = base d0cdc32f, status digest empty); the landed change is the report directory - ten artefacts read, and the report's line citations (watch.py:551/561/615/636, telemetry_index.py:1526/1551/1360/1432) all resolve at d0cdc32f.",
+    "done_when": "read the dispatch's done_when against report.md and its artefacts - the call's wall and RSS, the cProfile top-25 saved beside it (cprofile.txt), time and rows per period and per query (per-period.json, sql-table.json), the three slowest queries with EXPLAIN QUERY PLAN, one recommended change naming files and expected wall/RSS and stating no schema addition, all on the fleet allocation (SLURM_JOB_ID=1277272), and no write to the live index.",
+    "goal": "read the reviewed run's goal (find where imas-ambix agent watch --json spends its time and memory) against report.md at d0cdc32f - the report gives wall (102.9 s) and peak RSS (2.90 GiB), a per-period and per-query attribution, and a cProfile plus EXPLAIN breakdown, so the goal is met.",
+    "manifest": "read manifest.md at d0cdc32f - status complete, checkpoint names the report and its evidence runs, no test suite gate is claimed (investigate node), and the recorded control (periods sum 101.64 s = 98.8% of wall) matches the report's own per-period table.",
+    "write_paths": "read the manifest's declared write paths against the report directory - every artefact (report.md, instrumented.json, sql-table.json, per-period.json, cprofile.txt, cli-time.txt, cli-watch.json, run_all.py, run_period.py, snapshot.py) sits inside the single declared path and the source worktree is unchanged."
+  },
+  "justifications": {
+    "durability": "no source file changed, so there is no code guard to regress, and the report's own reproduction path is partly broken: report.md:236-242 cites /tmp/srw-cost-profile scripts and run_all.py:3 hardcodes COPY there, so the saved scripts do not re-run against the durable copies beside the report; the falsifiable per-period control is met (101.6 s / 102.9 s = 98.8% >= 90%).",
+    "evidence": "every done_when clause is delivered and recorded: per-period.json and instrumented.json carry the per-period rows and times, cprofile.txt carries the 25-function listing (117.447 s, json.loads 47.999 s, execute 43.849 s), sql-table.json carries the per-query row counts and EXPLAIN plans, and the live index journal_mode=delete and 4,799,336,448-byte size are independently reproduced.",
+    "fit": "the report cites exact paths and lines in the surrounding watch.py/telemetry_index.py idiom and the recommended change names the two files it belongs in; the four naming checks over the changed paths return no forbidden plan, version or ticket identifier.",
+    "goal_fidelity": "imas_ambix/agent/watch.py:1056 watch_document is profiled against the index and the report attributes the 102.9 s wall to named calls (telemetry_index.py:1526 rows 49.2 s, :1360 time_weighted_mean 32.1 s, :1432 partitioned_total 16.9 s) and 2.90 GiB peak RSS, matching the goal of finding where the command spends its time and memory.",
+    "scope_discipline": "the reviewed worktree sits at d0cdc32f with an empty status digest, every artefact named in changed_paths is inside the one declared write path reports/imas-ambix/0c4316b2-.../srw-watch-read-cost-profile, and the live index was opened only mode=ro for the backup copy so nothing outside the fence was written."
+  },
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-watch-read-cost-profile",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: read the reviewed run's goal (find where imas-ambix agent watch --json spends its time and memory) against report.md at d0cdc32f - the report gives wall (102.9 s) and peak RSS (2.90 GiB), a per-period and per-query attribution, and a cProfile plus EXPLAIN breakdown, so the goal is met.\nVERDICT done_when: read the dispatch's done_when against report.md and its artefacts - the call's wall and RSS, the cProfile top-25 saved beside it (cprofile.txt), time and rows per period and per query (per-period.json, sql-table.json), the three slowest queries with EXPLAIN QUERY PLAN, one recommended change naming files and expected wall/RSS and stating no schema addition, all on the fleet allocation (SLURM_JOB_ID=1277272), and no write to the live index.\nVERDICT write_paths: read the manifest's declared write paths against the report directory - every artefact (report.md, instrumented.json, sql-table.json, per-period.json, cprofile.txt, cli-time.txt, cli-watch.json, run_all.py, run_period.py, snapshot.py) sits inside the single declared path and the source worktree is unchanged.\nVERDICT manifest: read manifest.md at d0cdc32f - status complete, checkpoint names the report and its evidence runs, no test suite gate is claimed (investigate node), and the recorded control (periods sum 101.64 s = 98.8% of wall) matches the report's own per-period table.\nVERDICT diff: the reviewed run made no commit and touched no source file (worktree head = base d0cdc32f, status digest empty); the landed change is the report directory - ten artefacts read, and the report's line citations (watch.py:551/561/615/636, telemetry_index.py:1526/1551/1360/1432) all resolve at d0cdc32f.\nCALL_SITES: imas_ambix/agent/cli.py:2738\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/watch.py:1056 watch_document is profiled against the index and the report attributes the 102.9 s wall to named calls (telemetry_index.py:1526 rows 49.2 s, :1360 time_weighted_mean 32.1 s, 1432 partitioned_total 16.9 s) and 2.90 GiB peak RSS, matching the goal of finding where the command spends its time and memory.\nSCORE evidence: 19\nJUSTIFICATION evidence: every done_when clause is delivered and recorded: per-period.json and instrumented.json carry the per-period rows and times, cprofile.txt carries the 25-function listing (117.447 s, json.loads 47.999 s, execute 43.849 s), sql-table.json carries the per-query row counts and EXPLAIN plans, and the live index journal_mode=delete and 4,799,336,448-byte size are independently reproduced.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the reviewed worktree sits at d0cdc32f with an empty status digest, every artefact named in changed_paths is inside the one declared write path reports/imas-ambix/0c4316b2-.../srw-watch-read-cost-profile, and the live index was opened only mode=ro for the backup copy so nothing outside the fence was written.\nSCORE durability: 16\nJUSTIFICATION durability: no source file changed, so there is no code guard to regress, and the report's own reproduction path is partly broken: report.md:236-242 cites /tmp/srw-cost-profile scripts and run_all.py:3 hardcodes COPY there, so the saved scripts do not re-run against the durable copies beside the report; the falsifiable per-period control is met (101.64 s / 102.9 s = 98.8% >= 90%).\nSCORE fit: 19\nJUSTIFICATION fit: the report cites exact paths and lines in the surrounding watch.py/telemetry_index.py idiom and the recommended change names the two files it belongs in; the four naming checks over the changed paths return no forbidden plan, version or ticket identifier.\nFINDING report.md:236 follow-on: the reproduction section cites the node-local scratch path (/tmp/srw-cost-profile/snapshot.py, run_all.py, run_period.py) and the saved scripts hardcode it (run_all.py:3 COPY = \"/tmp/srw-cost-profile/watch-index.sqlite3\"; run_all.py:1 WT = the fleet worktree), so a later reader following the report cannot reproduce the measurement even though the scripts are saved in the report directory itself.",
+  "review_run_id": "r-20261002T102026193913-review-of-srw-watch-read-cost-profile",
+  "reviewed_base_sha": "d0cdc32ff612eb8bdf2b6b2be246e6641111e6a5",
+  "reviewed_head_sha": "d0cdc32ff612eb8bdf2b6b2be246e6641111e6a5",
+  "reviewed_run_id": "r-20261002T093925022271-srw-watch-read-cost-profile",
+  "scores": {
+    "durability": 16,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T10:25:00+00:00",
+  "total": 93
+}

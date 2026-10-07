@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T20:01:46.239Z",
+  "dispatched_at": "2026-10-06T19:56:49Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/tokamap_export.py:147",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a72 asserts the collapse is \"asserted by a round-trip test on every binding\" but names no owner for the factor derivation, so the honest change is for the plan to name `transform_engine` as the owner and have the exporter reuse its DD-path resolver, or state why the fork cannot be avoided.",
+      "text": "the exporter resolves a DD path's COCOS transformation with its own `_cocos_transformation` (imas_ambix/data/tokamap_export.py:147), beside `_UNIT_CONVERSIONS` (imas_ambix/data/tokamap_export.py:101) and `_SIGN_FACTORS` (imas_ambix/data/tokamap_export.py:108), while `imas_ambix/data/transform_engine.py:411` `_target_cocos_transformation` already owns the DD-path-to-COCOS-label lookup the engine uses to compile the same unit\u00d7sign\u00d7COCOS factor that the exporter collapses into `scale`; the round-trip test re-derives the expected scale from `canonical_factor` itself (tests/data/test_tokamap_export.py:117) and never compares against the engine's compiled factor, so the exporter's `scale` can drift from what the engine actually applies with both arms green",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "0a4c5c4dadc4bf13cb6f15cfb031dc0cfc28a3228604ddd61b38342d905a8530",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 223,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T20:03:27.316403+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T20:03:27.316403+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v223.json",
+  "review_run_id": "r-20261006T195640196623-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "74e45f72a7c261875ce31ed13b3c6f053957877a",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the plan hides each new behaviour behind a single existing owner rather than a spread of wrappers: one untransformed accessor on `VirtualZarrView` (`imas_ambix/data/virtual_zarr.py:89`), one `probe_angle_source` branch on `read_geometry_table` (`imas_ambix/data/description_reader.py:253`), one private kernel in `cocos_convention.py`, one generic entry (`measure_convention`, `imas_ambix/challenge/convention.py:283`) with the DIII-D loader as its first instance, and one machine-keyed pin table replacing three constants. No new shallow module is added.",
+    "duplicate_owner": "a finding \u2014 the landed tokamap exporter re-implements the COCOS-label resolution that `imas_ambix/data/transform_engine.py` already owns, and its round-trip test does not compare against the engine that applies the factor, so the two can diverge silently.",
+    "interface_budget": "a pass, citing the supplied figures public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0 \u2014 every section that adds surface names what it retires or merges or states why nothing can be (\u00a72 exporter \"retires nothing, because ambix has no exporter\"; \u00a73 \"retire nothing, because ambix had no remote reader\"; \u00a76 EQDB \"retire nothing, because no equilibrium-database request type exists\"; \u00a76 `read_catalogue_observation` retired for `read_signal_map_observation`; \u00a76 \"one public definition retired and none added\" for the probe-angle work; \u00a76 `read_catalogue_observation` \"retires with its tests, so the interface account is one definition retired and one added\"; \u00a77 the pin table \"retires three public definitions and their re-export, and adds one\"). No section adds surface without that account.",
+    "reuse_search": "pass \u2014 the plan searched both named codebases and cites the mechanism it extends for every added subsystem (\u00a71 codex EDDB/wiki/LLM pipeline and ambix store engines; \u00a72 tokamap/libtokamap; \u00a76 nova `TRANSFORMATIONS`, `cocos_convention.score_convention`, the `gs/operator.py` forward model, `challenge/convention.py`; \u00a77 `gs/artifact_resolution.py`, `eval/efit_referee.judge_geometry`, `worldmodel/equilibrium_labels.build_geometry_from_arrays`). The one prior-art gap found is emitted below under `duplicate_owner`.",
+    "thin_wrapper": "pass \u2014 the additions that look wrapper-shaped are extensions that replace a hard-coded path with a parameterised one: `measure_convention` takes a loader and eligibility rather than re-wrapping `measure_diiid_convention`; `_apply_cocos_convention` gains a `pol_angle_like` branch (`imas_ambix/data/transform_engine.py:457`) instead of a parallel angle engine; the EQDB request/record types extend `eddb_remote.py` rather than sitting beside it. \u00a76 and \u00a77 both state why the existing mechanism cannot simply be called unchanged (the view applies the assumed sign the sign reader exists to measure; the spine must read one geometry route)."
+  },
+  "section_digests": {
+    "_document": "62723cd7583dc5b18a64491724a048c3d8c8b0e2245109da9998ff5051244217",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "01e55d33e340390efdc4c8435a86bb3d3ae52039169d60f1f67126bbc0b258a3",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "643b22456948928fca9daae2f7557c772d875571ee7cb8ea1e29db85498ec031",
+    "s7": "109c81721e032ecd3e79868e5dd9e43e95ab3104daea488fb8f3e581b91f60be",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T20:03:10.763443+00:00"
+}

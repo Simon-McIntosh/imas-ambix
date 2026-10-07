@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T09:54:13.818Z",
+  "dispatched_at": "2026-10-05T09:49:41Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/machine_map.py:1081",
+      "id": "interface_budget-1",
+      "reason": "the rubric requires each added surface named in its own section's text, and the fix is one clause stating that the layout key retires nothing because the catalogue had no layout slot, so the author can close the accounting gap directly.",
+      "text": "\u00a74 grows load_machine_map's required key set with four catalogue slots but accounts for three (\"the two store-addressing keys retire nothing \u2026 and the probe-angle key retires the machine branch\"), so the store-layout slot is added without a named retirement or a statement that none can be",
+      "type": "interface_budget",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/eddb_remote.py:100",
+      "id": "interface_budget-2",
+      "reason": "the modules already implement the richer surface and the design is otherwise sound, so restating the surface is a documentation correction rather than a design change.",
+      "text": "\u00a73 states \"the extractor's public surface is one batch-fetch function and one cache writer\", but the merged modules expose a Transport protocol with a second ssh implementation, a batch codec and request/record types (eddb_remote.py Transport, SshTransport, ChannelRequest, ChannelRecord, encode_batch, decode_batch, RemoteEddbExtractor) plus the eddb.py cache surface, so the plan's own accounting understates the interface it introduces",
+      "type": "interface_budget",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "18e0e30cd16cc1dc97c8cfefc5786adc14b02e9bef04e16113ddcd731d72080c",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 50,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T094935496667-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "d277684df92994d2ec4870259198df52ab8baca6",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each new module hides substantial behaviour behind a small interface: imas_ambix/data/selene_deck.py parses the EQSLE.DATA/geo.in/coil_vv grammars into five IDSs behind parse+build entry points, imas_ambix/data/eddb_remote.py hides the ssh transport and the batch codec behind one extractor, and the remaining \u00a77 EQDB reader is declared to reuse that transport rather than add a second path.",
+    "duplicate_owner": "pass \u2014 no forked owner found; each section routes through the existing file it names \u2014 imas_ambix/data/paths.py (MIRROR_ROOT\u2192JT60SA_ROOT), imas_ambix/data/transform_engine.py (StoreEngine.open widened, both engines extended), imas_ambix/data/description_reader.py (read_geometry_table / _supply_declared_probe_angles machine branch retired), imas_ambix/data/cocos_convention.py and imas_ambix/challenge/convention.py (kernel reused, eligibility moved into loaders), imas_ambix/eval/efit_referee.py judge_geometry (SELENE loader added, not a parallel comparator), imas_ambix/gs/artifact_resolution.py + machine_selection.py + machine_identity.py (pin table and machine keyed, not a second selector), imas_ambix/spine_bench/transform_geometry_source.py (frozen JT-60SA shot set beside MAST's).",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a74 enumerates four new catalogue slots (store format, store root, store layout, directed probe-angle source) but its accounting sentence names only two store-addressing keys plus the probe-angle key, leaving the store-layout slot's disposition unnamed.",
+    "reuse_search": "pass \u2014 the plan names the existing mechanism behind every proposed addition and the searches that found them; the shipped owners it cites (imas_ambix/data/paths.py MIRROR_ROOT, imas_ambix/data/transform_engine.py StoreEngine/transform_machine_description, imas_ambix/data/cocos_convention.py score_convention, imas_ambix/challenge/convention.py _integrated_current, imas_ambix/eval/efit_referee.py judge_geometry, imas_ambix/gs/artifact_resolution.py, imas_ambix/gs/machine_selection.py, imas_ambix/spine_bench/transform_geometry_source.py, imas_ambix/data/eddb_remote.py) all exist in the tree, and \u00a73/\u00a74 cite the searches behind the extractor and the SELENE deck (jt60sa-eddb-census, jtmm-geometry-source, jtmm-analysis-sensor-search).",
+    "thin_wrapper": "pass \u2014 every layer that could be a wrapper states why it is an extension instead: \u00a73 owns the extractor rather than importing codex's remote layer (the dependency-avoidance reason is given), \u00a72 keeps the tokamap exporter out of the loaders that read the ambix schema, and \u00a74 extends NetCDFTransformEngine rather than adding a per-call deck engine."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.858231+00:00"
+}

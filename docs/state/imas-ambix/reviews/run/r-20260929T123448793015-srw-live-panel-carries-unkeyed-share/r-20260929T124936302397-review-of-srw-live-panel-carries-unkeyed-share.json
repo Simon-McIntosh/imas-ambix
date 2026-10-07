@@ -1,0 +1,86 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's own two arms of the reviewed node's declared gate, because the reviewed manifest arms no baseline_suite/after_suite: base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T124936302397-review-of-srw-live-panel-carries-unkeyed-share/review-base-arm.log (revision d26bba16, the reviewed head's tests/test_live_panel.py placed over the base package in a scratch tree; EXIT=1, the single failure being tests/test_live_panel.py::test_lane_block_copies_the_published_fields with KeyError: 'unkeyed_share') against head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T124936302397-review-of-srw-live-panel-carries-unkeyed-share/review-head-arm.log (revision b88149e9, 19 passed plus the serving-interpreter guard and ruff, EXIT=0). Derivation log /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T124936302397-review-of-srw-live-panel-carries-unkeyed-share/added-failures-derivation.log. My own third arm, a mutation removing the worker-slot copy's presence guard, is at /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T124936302397-review-of-srw-live-panel-carries-unkeyed-share/review-falsifier-absence-limb.log and is not part of the added-failure count: it falsified the new absence limb, not the reviewed run.",
+  "after_suite": {
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_live_panel.py; python -m pytest -p no:cacheprovider -q tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python; python -m ruff check --no-cache imas_ambix tests (at the reviewed head, in a scratch tree)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T124936302397-review-of-srw-live-panel-carries-unkeyed-share/review-head-arm.log",
+    "revision": "b88149e932fb9882bf44b605adb95645ba888592"
+  },
+  "artifacts": {
+    "added_failures_derivation_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T124936302397-review-of-srw-live-panel-carries-unkeyed-share/added-failures-derivation.log",
+    "base_arm_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T124936302397-review-of-srw-live-panel-carries-unkeyed-share/review-base-arm.log",
+    "falsifier_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T124936302397-review-of-srw-live-panel-carries-unkeyed-share/review-falsifier-absence-limb.log",
+    "head_arm_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T124936302397-review-of-srw-live-panel-carries-unkeyed-share/review-head-arm.log"
+  },
+  "baseline_suite": {
+    "command": "python -m pytest -p no:cacheprovider -q tests/test_live_panel.py (the reviewed head's tests/test_live_panel.py placed over the base package, in a scratch tree)",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 1,
+    "failure_ids": [
+      "tests/test_live_panel.py::test_lane_block_copies_the_published_fields"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T124936302397-review-of-srw-live-panel-carries-unkeyed-share/review-base-arm.log",
+    "revision": "d26bba1659147a93657e533ed763e339f05c7a79"
+  },
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/agent/live_panel.py:437 inside lane_block:401, reached from read_lane_block:447 and composed into the watch document at :480 \u2014 the only references to WORKER_SLOT_FIELDS in the tree besides its definition at :76"
+  ],
+  "completed_at": "2026-09-29T13:24:56.999Z",
+  "dispatched_at": "2026-09-29T12:49:42Z",
+  "findings": [
+    {
+      "detail": "The committed fragment ends at </section> with no terminating newline; the file's last byte is '>' with 36 bytes following the final newline. This plan's reviews have recorded the same defect on sibling fragments twice already, so it is a recurring artifact convention failure rather than a one-off.",
+      "line": 4,
+      "path": "docs/evidence/fragments/serving-record-warehouse/srw-live-panel-carries-unkeyed-share.html",
+      "summary": "the delivered evidence fragment has no trailing newline; the file ends at </section> with no line terminator"
+    }
+  ],
+  "follow_ons": [
+    "imas_ambix/agent/live_panel.py:437 the case \u00a721 singles out is unexercised: when the window holds no request the lane publishes unkeyed_share as null, and the copy passes that through because it tests key presence, not truth. No test holds that distinction, so a future edit that filtered falsy values would silently turn 'undefined' into 'absent'. A fixture publishing \"unkeyed_share\": None beside live_runs 0 would pin it.",
+    "Nothing ties the consumer's WORKER_SLOT_FIELDS to the producer's published slot keys, so the two can drift again \u2014 the drift class this plan already recorded once when the live panel's time-to-first-token reader and the recorder disagreed about cumulative buckets. A test asserting the panel's copy list covers the router's published slot keys would catch it."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "1 \u2014 WORKER_SLOT_FIELDS has only its definition and the lane block's copy; unkeyed_share appears nowhere else in imas_ambix, tests or scripts at the reviewed head.",
+    "diff": "41 insertions and 2 deletions across the three declared paths: one tuple member and a comment in the module, one fixture key and one sibling test in the test file, and the evidence fragment; no dependency, no second code path, no unrelated edit.",
+    "done_when": "the declared gate re-run in this review's own scratch tree at b88149e9 reproduces the reviewed run's figures command for command (19 passed; guard 1 passed; ruff clean; EXIT=0), and the base arm at d26bba16 shows the change adds no failing test (1 failed, 18 passed, the failure being the new literal assertion).",
+    "goal": "the coordinator's goal is delivered: WORKER_SLOT_FIELDS carries unkeyed_share, the lane block copies it when published, omits it otherwise, and the comment's semantics match \u00a721's definitions block.",
+    "manifest": "complete and consistent with the logs it cites; check-manifest returns ok with no findings; the negative-control log's first line repeats the declared string verbatim; the worktree is clean at the reviewed head.",
+    "write_paths": "exactly the three declared paths the done-when exercises; the declared figures path is correctly left unwritten."
+  },
+  "justifications": {
+    "durability": "both limbs are real detectors \u2014 the literal limb is red at the base revision and the absence limb is red under a presence-guard mutation \u2014 but the published-null case \u00a721 names and the consumer/producer key agreement are each held by nothing.",
+    "evidence": "the gate log names revision, tree, resolved cwd and imported module path, the negative control's red log repeats the declared string verbatim, and this review reproduced every figure independently; the deduction is the fragment's missing trailing newline.",
+    "fit": "the change extends the field-tuple mechanism the module already had and adds one sibling test, with a comment that states why the figure travels with the run-keyed ones.",
+    "goal_fidelity": "the goal is met and the documented semantics are \u00a721's own: a share of busy time, the ratio over the keyed remainder, and absent kept distinct from zero.",
+    "scope_discipline": "the commit touches exactly the declared paths, leaves the figures path unused as the done-when requires, and edits no plan, index or shared state."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "review of run r-20260929T123448793015-srw-live-panel-carries-unkeyed-share, attached by r-20260929T124936302397-review-of-srw-live-panel-carries-unkeyed-share\nplan imas-ambix:serving-record-warehouse \u00a711; role implement; spec exact; base d26bba1659147a93657e533ed763e339f05c7a79 head b88149e932fb9882bf44b605adb95645ba888592\nread: the whole diff at b88149e9 against d26bba16 (three files, 41 insertions, 2 deletions), imas_ambix/agent/live_panel.py and tests/test_live_panel.py at head in full, plan section 11 and its build done-when, section 21 of local-lane-admission-control with its definitions block, the router's own worker-slot publisher at the integrated HEAD (imas_ambix/agent/router.py:278-359), the reviewed run's manifest and its three gate logs beside the declared negative-control string in the round-trip rule, the committed evidence fragment, an independent two-arm re-run of the declared gate in scratch trees extracted from b88149e9 and d26bba16, and a mutation of mine that removes the copy's presence guard.\n\nVERDICT goal: the coordinator's goal for this node \u2014 \"Copy the lane document's admission.unkeyed_share into the live panel's lane block beside the worker-slot fields\" \u2014 is delivered exactly. imas_ambix/agent/live_panel.py:76 now carries WORKER_SLOT_FIELDS = (\"live_runs\", \"requests_per_run\", \"worker_slots\", \"unkeyed_share\"), and the copy at :437 is generic over that tuple ({key: admission.get(key) for key in WORKER_SLOT_FIELDS if key in admission}), so the key rides into block[\"worker_slots\"] whenever the lane publishes it and is omitted otherwise. The semantics the new comment states match \u00a721's definitions block: unkeyed_share is the busy request-seconds of in-scope requests without a usable run id over all in-scope busy request-seconds, the ratio beside it is computed over the keyed remainder, and \"without it those figures describe an unstated fraction of the lane\" is the reason the two travel together. The producer is real at the tree this lands into: imas_ambix/agent/router.py:344 publishes \"unkeyed_share\": (unkeyed_busy / total_busy) if total_busy > 0 else None at the integrated HEAD, though it is absent from the reviewed tree's own base, which is what the manifest's evidence_inputs says.\n\nVERDICT done_when: the node's declared measure is met limb for limb. WORKER_SLOT_FIELDS includes unkeyed_share; tests/test_live_panel.py:318 and :350 assert the published 0.25 by literal from a fixture lane document that publishes it; tests/test_live_panel.py:360-385 asserts the key's absence, as a set equality and not merely a key test, from a document that publishes the other slot fields without it. The three gate commands pass in this review's own scratch tree at the reviewed head: 19 passed for tests/test_live_panel.py, the serving-interpreter parse guard 1 passed with 8 deselected, ruff check imas_ambix tests All checks passed, EXIT=0 for each \u2014 the reviewed run's own gate figures command for command.\n\nVERDICT write_paths: git diff --stat d26bba16 b88149e9 lists exactly docs/evidence/fragments/serving-record-warehouse/srw-live-panel-carries-unkeyed-share.html (new, 4 lines), imas_ambix/agent/live_panel.py (7 lines), tests/test_live_panel.py (32 lines) \u2014 three of the four declared paths, with the declared figures path correctly left unwritten because the node's done-when names no figure. The reviewed worktree is clean at b88149e9 and carries no trace of the scratch mutation its negative control applied.\n\nVERDICT manifest: the reviewed manifest reads status complete with both commits, changed_paths, landing, the three gate commands and their logs; reckon crew check-manifest --run r-20260929T123448793015-srw-live-panel-carries-unkeyed-share returns ok with no findings. Its negative_control_log line is a bare path, and that log's first line repeats the declared string verbatim: \"dropping unkeyed_share from the copy list must fail the new literal test; applied as a scratch edit and restored\". Its evidence_inputs claim that the router admission_snapshot does not yet publish unkeyed_share is true of the reviewed tree and false of the merge target, where router.py:344 already publishes the key \u2014 a staleness to report, not a defect in the deliverable.\n\nVERDICT diff: 41 insertions and 2 deletions across the three committed paths. The module change is one tuple member and a comment; no second code path, no new helper, no dependency. The test change adds the published key to the existing fixture and one sibling test. The fragment records the change, the measure and the control. The comment's claim that the run-keyed figures are computed over the remainder is checked against \u00a721's definitions block, which states the exclusion of unkeyed requests from the ratio.\n\nCALL_SITES: 1\ncall sites: grepping imas_ambix, tests and scripts at the reviewed head, WORKER_SLOT_FIELDS has exactly two references in the tree \u2014 its definition at live_panel.py:76 and the copy at :437 inside lane_block:401, reached from read_lane_block:447 and composed into the watch document at :480 \u2014 and unkeyed_share appears nowhere else in imas_ambix, tests or scripts at that revision. The \u00a711 gpu-watch reader is a separate node in another repository and is not a call site of this constant.\n\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: the goal is delivered and the semantics documented in the module match the governing section's definitions: the share is a share of busy time over keyed and unkeyed requests alike, the ratio is computed over the keyed remainder, and the copy is presence-gated so absent and zero stay distinguishable, which is exactly what \u00a721's \"published whenever the window holds a request\" and \"null, because a share of no busy time is undefined\" require of a reader.\nSCORE evidence: 19\nJUSTIFICATION evidence: the gate log's first line names the revision, the tree, the resolved cwd and the imported module path, each command's exit status is recorded, and the declared negative control's red log repeats the declared string verbatim and reddens the literal limb with a KeyError on the copied block; this review reproduced all of it independently in its own scratch trees and added a control of its own that the node did not run. The deduction is the committed fragment's missing trailing newline, the one blemish in an otherwise exact evidence set.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff touches exactly the declared paths the done-when exercises, leaves the declared figures path unwritten as that done-when requires, edits no plan, index or shared state, and the reviewed worktree is clean at its head with no residue of the scratch mutation its negative control applied.\nSCORE durability: 18\nJUSTIFICATION durability: both limbs are pinned by tests that fail without the change \u2014 the literal limb is red at the base revision in this review's own base arm (KeyError: 'unkeyed_share'), and the absence limb is red under my own mutation that removes the copy's presence guard \u2014 so neither is vacuous. What is not pinned is the case \u00a721 singles out: a lane that publishes unkeyed_share as null is copied through by presence and not by truth, and no test holds that against a future falsy filter; and nothing ties the consumer's copy list to the producer's published slot keys, the reader/producer drift class this plan already recorded once.\nSCORE fit: 19\nJUSTIFICATION fit: the change extends the mechanism the module already had \u2014 one field tuple read by one generic comprehension \u2014 rather than adding a parallel copy or a second reader, the new test sits beside the sibling it belongs to, the comment states why the figure travels with the run-keyed ones rather than restating the code, and the changed paths carry no plan label, ticket reference or changelog prose in their names, comments or symbols.\n\nFINDING docs/evidence/fragments/serving-record-warehouse/srw-live-panel-carries-unkeyed-share.html:4 the committed fragment ends at </section> with no trailing newline (36 bytes of file after the last newline), which is the same defect this plan's reviews have already recorded twice on sibling fragments.\n",
+  "review_run_id": "r-20260929T124936302397-review-of-srw-live-panel-carries-unkeyed-share",
+  "reviewed_base_sha": "d26bba1659147a93657e533ed763e339f05c7a79",
+  "reviewed_head_sha": "b88149e932fb9882bf44b605adb95645ba888592",
+  "reviewed_run_id": "r-20260929T123448793015-srw-live-panel-carries-unkeyed-share",
+  "reviewer": "review-of-srw-live-panel-carries-unkeyed-share",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T13:13:41.268511+00:00",
+  "total": 96
+}

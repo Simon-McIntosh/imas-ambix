@@ -1,0 +1,99 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's two arms of the reviewed node's own declared gate: base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T083420499989-review-of-srw-receipts-help-names-its-default/review-base-receipts-help.red.log (revision 7f36237a62e352f27beda581198ea57daa8ae882: 2 failed by id) and head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T083420499989-review-of-srw-receipts-help-names-its-default/review-after-receipts-help.log (revision 0bf0b6031182cb26dc4670224e82b1cb9df2fbde: 0 failed); the reviewed run's manifest names no baseline_suite/after_suite log, so a reader that annotates from the reviewed manifest alone reports this count as unmeasured, which agrees on the substance: the change adds no failing test",
+  "after_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_watch_help.py at the reviewed head",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T083420499989-review-of-srw-receipts-help-names-its-default/review-after-receipts-help.log",
+    "revision": "0bf0b6031182cb26dc4670224e82b1cb9df2fbde"
+  },
+  "baseline_suite": {
+    "command": "uv run --no-sync --directory /tmp/review-srw-receipts-base python -m pytest -p no:cacheprovider tests/test_agent_watch_help.py   (the reviewed node's test file at 0bf0b6031182cb26dc4670224e82b1cb9df2fbde driven against the base revision)",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 2,
+    "failure_ids": [
+      "tests/test_agent_watch_help.py::test_receipts_help_does_not_name_the_superseded_record_default",
+      "tests/test_agent_watch_help.py::test_receipts_help_names_the_site_configuration_source"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T083420499989-review-of-srw-receipts-help-names-its-default/review-base-receipts-help.red.log",
+    "revision": "7f36237a62e352f27beda581198ea57daa8ae882"
+  },
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2579 the corrected --output help literal; imas_ambix/agent/cli.py:2634 the receipts default now resolved through default_record_dir; imas_ambix/agent/watch.py:50 default_record_dir is a callable returning SiteConfig.from_env().receipts_dir; imas_ambix/agent/profile.py:675 SiteConfig.receipts_dir is base_dir/agents/receipts with base_dir from AMBIX_AGENT_BASE_DIR; imas_ambix/agent/watch.py:709 the reader resolves its --record default the same way"
+  ],
+  "completed_at": "2026-09-29T09:33:13.291Z",
+  "dispatched_at": "2026-09-29T08:34:27Z",
+  "findings": [
+    {
+      "file": "tests/test_agent_watch_help.py",
+      "line": "52",
+      "text": "the two receipts tests pin the help's wording and the helper's value but not the writer's use of the helper: reverting imas_ambix/agent/cli.py to Path.home() / '.local' / 'share' / 'ambix' / 'receipts' leaves all five tests green, so the exact two-spelling drift this repair removes can return unguarded."
+    },
+    {
+      "file": "imas_ambix/agent/cli.py",
+      "line": "2582",
+      "text": "the option help names watch.default_record_dir, an internal module symbol, where a user reads for a setting; the actionable knob is the environment-backed site base (AMBIX_AGENT_BASE_DIR) and the help would be complete only if it named that."
+    },
+    {
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-receipts-help-names-its-default.html",
+      "line": "4",
+      "text": "the committed fragment ends at </section> with no trailing newline (three newlines in a four-line file), cosmetic and the only hygiene defect in the change."
+    },
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "44",
+      "text": "the docstring above default_record_dir still says the recorder and this helper agree without a shared constant that only one of them reads, which the change superseded when the receipts command began calling the helper directly; the file is outside this node's write fence so the repair is a follow-on rather than a defect of the diff."
+    }
+  ],
+  "follow_ons": [
+    "imas_ambix/agent/cli.py:2634 the writer's call to default_record_dir is unpinned: add a test that redirects the site base and asserts the path the receipts command hands the recorder, so a revert to the home-directory spelling cannot pass.imas_ambix/agent/watch.py:44 the docstring above default_record_dir still describes the two sides agreeing without a shared function; it now reads as a description of code that no longer exists and the file was outside this node's write fence.The receipts option help names an internal symbol rather than the setting that moves the default; naming the environment-backed site base would be complete for a user."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "one commit of 51 insertions and 15 deletions read in full: the help literal, the default-resolution branch, the shared test helper, the two new receipts tests and the helper-value test; the commit body states the two-spelling consequence and carries no plan or ticket identifier.",
+    "done_when": "the declared measure was re-run independently at the reviewed head -- 5 passed on the help file, 1 passed on the serving-interpreter parse guard, ruff exit 0 -- and the falsification the node declared reproduces: the new receipts tests are red on the restored old help string and red at the base revision.",
+    "goal": "the plan's receipts defect is removed at the exact site: the stale path is absent from the rendered help and the command writes where the deployed recorder writes, verified at runtime under a redirected site base.",
+    "manifest": "complete and recognised with commits, changed paths, gate results, log paths and a bare-path negative-control log whose first line repeats the declared string; the armed-suite fields are empty because this node's role carried no arms, which this review fills with its own re-runs.",
+    "write_paths": "git diff carries exactly imas_ambix/agent/cli.py, tests/test_agent_watch_help.py and the fragment; the declared figure path was not created and no plan or index file moved."
+  },
+  "justifications": {
+    "durability": "the stale string cannot be stated again while the two help tests run, and the resolver's value is pinned to the site configuration; the point is withheld because nothing pins the writer's call to the helper, so a revert of the code path alone keeps the suite green.",
+    "evidence": "three declared gates re-run green at the reviewed head with the module file named, the node's negative-control log repeats the declared string verbatim and reds both new tests for the stale-path reason, and this review's base arm reproduces the defect from the base blob (2 failed, 3 passed); the point is withheld because the reviewed node's own manifest carries no gate arms, so the base/head pair this review scores was supplied by the review.",
+    "fit": "reuses the existing helper rather than a second spelling, and the new tests state the mechanism instead of a tracker reference; the point is withheld because the option help names an internal module symbol where a reader expects the setting that changes the default, and because the neighbouring docstring above the helper now describes a coupling the change replaced.",
+    "goal_fidelity": "the help no longer names the removed default and the replacement is true at runtime, verified by rendering the help and by tracing the command's own default end to end to the site base; the point is withheld because the stronger claim in the landing line -- that the writer resolves through the same helper -- is demonstrated by this review's probe rather than by any receipt the node itself produced.",
+    "scope_discipline": "exactly the three declared paths changed, the fourth declared path correctly unused, no plan metadata touched, worktree clean at the reviewed head and after this review's runs; the point is withheld for the committed fragment's missing trailing newline."
+  },
+  "justifications_detail": {
+    "independent_receipts": "review-after-receipts-help.log: the three declared gates re-run at the reviewed head with module.__file__ inside the reviewed worktree -- 5 passed, 1 passed 8 deselected, All checks passed, all exits 0. review-base-receipts-help.red.log: the reviewed test file driven against a scratch tree carrying the base revision's package -- 2 failed, 3 passed, exit 1, with the base blob quoted. review-head-help-and-resolution.log: both helps rendered at the head with the stale path absent, default_record_dir() equal to SiteConfig.from_env().receipts_dir under a redirected AMBIX_AGENT_BASE_DIR, and the command handing its recorder deepseek-v4-flash.jsonl inside that redirected site base.",
+    "limits": "The live site receipts directory was inspected read-only (80 entries) but no live recording was started and no file under it was written; the end-to-end trace stubbed the recorder so the resolution path could be followed without a network call.",
+    "review_basis": "Read plan section 10 and its node table, the reviewed prompt and manifest, the base 7f36237a62e352f27beda581198ea57daa8ae882 and head 0bf0b6031182cb26dc4670224e82b1cb9df2fbde, the single commit with its complete diff, the three gate logs, the negative-control log, the four-line fragment, the plan's prior research chain, and the sibling watch review this node implements a follow-on from."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260929T081404104870-srw-receipts-help-names-its-default at head 0bf0b6031182cb26dc4670224e82b1cb9df2fbde against base 7f36237a62e352f27beda581198ea57daa8ae882. The node repairs the same class of defect the plan records for the watch command, at the receipts writer: the agent receipts --output help named ~/.local/share/ambix/receipts and the command itself wrote there, while the recorder that slurm launches and the watch reader both resolve the site's receipts directory through imas_ambix.agent.watch.default_record_dir, so the same serve's record could be defective.\n\nGoal fidelity. The --output help now reads 'Receipts file path (default: the site's receipts directory, resolved by watch.default_record_dir through the site configuration, under <slug>.jsonl).' and the command's own default now reads 'receipts_path = default_record_dir() / f\"{name}.jsonl\"'. Both halves were verified at the reviewed head, not read: the help was rendered through click's CliRunner, and with AMBIX_AGENT_BASE_DIR pointed at a temporary base the command handed the recorder /tmp/receipts-default-check/agents/receipts/deepseek-v4-flash.jsonl while its help named the same resolution. The default follows the environment rather than a frozen constant, which is the property the whole repair exists to restore.\n\nIndependent verification. The declared gate was re-run at 0bf0b6031182cb26dc4670224e82b1cb9df2fbde under the shared project interpreter with module.__file__ named inside the reviewed worktree: tests/test_agent_watch_help.py 5 passed; tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python 1 passed 8 deselected; ruff check imas_ambix tests All checks passed. The reviewed node's own negative-control log opens with the declared string verbatim and shows both new receipts tests failing on the restored stale string. Against the base revision the reviewed tests fail for that same reason (2 failed, 3 passed) with the base blob quoted.\n\nWrite scope. git diff --name-status base..head carries exactly three paths: imas_ambix/agent/cli.py, tests/test_agent_watch_help.py, and the four-line evidence fragment; no plan-version or plan-modified meta line moved, the declared figures directory was never created, and the worktree reads clean at the reviewed head and after this review's read-only runs.\n\nResidual gaps. Nothing pins the writer's use of the helper: the help text and the helper's value are both asserted, so reverting the writer to Path.home() while leaving the help green keeps all five tests passing, which is exactly the drift this repair exists to prevent. The help names a Python symbol where a user looks for a setting; the actionable knob is the environment-backed site base. The fragment is committed without a trailing newline, and the docstring above default_record_dir still describes the two sides agreeing without a shared function, which the change superseded.\n\nSCORE goal_fidelity: 19\nSCORE evidence: 19\nSCORE scope_discipline: 19\nSCORE durability: 18\nSCORE fit: 18\nJUSTIFICATION goal_fidelity: the help no longer names the removed default and the replacement is true at runtime, verified by rendering the help and by tracing the command's own default end to end to the site base; the point is withheld because the stronger claim in the landing line -- that the writer resolves through the same helper -- is demonstrated by this review's probe rather than by any receipt the node itself produced.\nJUSTIFICATION evidence: three declared gates re-run green at the reviewed head with the module file named, the node's negative-control log repeats the declared string verbatim and reds both new tests for the stale-path reason, and this review's base arm reproduces the defect from the base blob (2 failed, 3 passed); the point is withheld because the reviewed node's own manifest carries no gate arms, so the base/head pair this review scores was supplied by the review.\nJUSTIFICATION scope_discipline: exactly the three declared paths changed, the fourth declared path correctly unused, no plan metadata touched, worktree clean at the reviewed head and after this review's runs; the point is withheld for the committed fragment's missing trailing newline.\nJUSTIFICATION durability: the stale string cannot be stated again while the two help tests run, and the resolver's value is pinned to the site configuration; the point is withheld because nothing pins the writer's call to the helper, so a revert of the code path alone keeps the suite green.\nJUSTIFICATION fit: reuses the existing helper rather than a second spelling, and the new tests state the mechanism instead of a tracker reference; the point is withheld because the option help names an internal module symbol where a reader expects the setting that changes the default, and because the neighbouring docstring above the helper now describes a coupling the change replaced.\n\nVERDICT goal: the plan's receipts defect is removed at the exact site: the stale path is absent from the rendered help and the command writes where the deployed recorder writes, verified at runtime under a redirected site base.\nVERDICT done_when: the declared measure was re-run independently at the reviewed head -- 5 passed on the help file, 1 passed on the serving-interpreter parse guard, ruff exit 0 -- and the falsification the node declared reproduces: the new receipts tests are red on the restored old help string and red at the base revision.\nVERDICT write_paths: git diff carries exactly imas_ambix/agent/cli.py, tests/test_agent_watch_help.py and the fragment; the declared figure path was not created and no plan or index file moved.\nVERDICT manifest: complete and recognised with commits, changed paths, gate results, log paths and a bare-path negative-control log whose first line repeats the declared string; the armed-suite fields are empty because this node's role carried no arms, which this review fills with its own re-runs.\nVERDICT diff: one commit of 51 insertions and 15 deletions read in full: the help literal, the default-resolution branch, the shared test helper, the two new receipts tests and the helper-value test; the commit body states the two-spelling consequence and carries no plan or ticket identifier.\nCALL_SITES: imas_ambix/agent/cli.py:2579 the corrected --output help literal; imas_ambix/agent/cli.py:2634 the receipts default now resolved through default_record_dir; imas_ambix/agent/watch.py:50 default_record_dir is a callable returning SiteConfig.from_env().receipts_dir; imas_ambix/agent/profile.py:675 SiteConfig.receipts_dir is base_dir/agents/receipts with base_dir from AMBIX_AGENT_BASE_DIR; imas_ambix/agent/watch.py:709 the reader resolves its --record default the same way\nFINDING tests/test_agent_watch_help.py:52 the two receipts tests pin the help's wording and the helper's value but not the writer's use of the helper: reverting imas_ambix/agent/cli.py to Path.home() / '.local' / 'share' / 'ambix' / 'receipts' leaves all five tests green, so the exact two-spelling drift this repair removes can return unguarded.\nFINDING imas_ambix/agent/cli.py:2582 the option help names watch.default_record_dir, an internal module symbol, where a user reads for a setting; the actionable knob is the environment-backed site base (AMBIX_AGENT_BASE_DIR) and the help would be complete only if it named that.\nFINDING docs/evidence/fragments/serving-record-warehouse/srw-receipts-help-names-its-default.html:4 the committed fragment ends at </section> with no trailing newline (three newlines in a four-line file), cosmetic and the only hygiene defect in the change.\nFINDING imas_ambix/agent/watch.py:44 the docstring above default_record_dir still says the recorder and this helper agree without a shared constant that only one of them reads, which the change superseded when the receipts command began calling the helper directly; the file is outside this node's write fence so the repair is a follow-on rather than a defect of the diff.\n",
+  "review_run_id": "r-20260929T083420499989-review-of-srw-receipts-help-names-its-default",
+  "reviewed_base_sha": "7f36237a62e352f27beda581198ea57daa8ae882",
+  "reviewed_head_sha": "0bf0b6031182cb26dc4670224e82b1cb9df2fbde",
+  "reviewed_run_id": "r-20260929T081404104870-srw-receipts-help-names-its-default",
+  "reviewer": "review-of-srw-receipts-help-names-its-default",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T10:58:00+02:00",
+  "total": 93
+}

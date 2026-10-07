@@ -1,0 +1,102 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T04:25:06.389Z",
+  "dispatched_at": "2026-10-06T04:22:24Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/imas_ambix/data/eddb.py:104",
+      "id": "duplicate_owner-1",
+      "reason": "the signal script should import eddb.channel_path/channel_time_path/UNIT_ATTR (or read through VirtualZarrView) rather than re-deriving the layout, and the plan should say so.",
+      "text": "\u00a73 has scripts/figures_jt60sa_signals.py read the zarr cache directly and restates the path, time-sibling and unit-attribute conventions that eddb.py already exposes as channel_path, time_array_name, channel_time_path and UNIT_ATTR; a second reader of the same layout drifts from the owner when the layout changes",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/imas_ambix/data/description_reader.py:124",
+      "id": "duplicate_owner-2",
+      "reason": "\u00a72 must either extend read_geometry_table (e.g. register the jt60sa map/store so it serves the table) or state in its own text why the sole route cannot be used before the map's build lands.",
+      "text": "\u00a72's figures_jt60sa_geometry.py is to read the description store with imas.DBEntry per IDS, but description_reader.read_geometry_table is documented as \"the sole machine-description acquisition route\" and geometry_adapter already yields the conductor/sensor table; a direct DBEntry read forks that route",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/imas_ambix/data/paths.py:33",
+      "id": "duplicate_owner-3",
+      "reason": "the scripts should resolve through imas_ambix.data.paths, and the plan should name that owner so the figure code cannot pin a stale root.",
+      "text": "\u00a71 and \u00a73 write the store and cache roots as literal /work/projects/imas_gpu/jt60sa/machine_description and /work/projects/imas_gpu/jt60sa/, which paths.py owns as JT60SA_ROOT and JT60SA_DESCRIPTION_DIR; a hardcoded second copy is the recurring path-resolution duplicate",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-geometry-and-signal-figures.html:89",
+      "id": "reuse_search-1",
+      "reason": "adding the searched mechanisms (and why each is extended, wrapped or not usable) is what turns \u00a72/\u00a73 from a rebuild into an extension, and is the specific gap this review exists to close.",
+      "text": "neither \u00a72 nor \u00a73 cites a search of imas_ambix/data/ (description_reader, description_identity, geometry_adapter, eddb, paths), the package that owns every input the plan reads, so the reuse map is absent for the two sections that consume existing machinery",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-geometry-and-signal-figures.html:71",
+      "id": "interface_budget-1",
+      "reason": "the section must account in its own text for the public surface it adds (one line \u2014 \"first style module, retires nothing\" \u2014 would satisfy the rule and records the accounting).",
+      "text": "\u00a71 introduces imas_ambix/plot_style.py as a new public module carrying public colour-role and neutral definitions, and its text neither names a definition retired or merged nor states why nothing can be, against the supplied counts public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "3c4cef5c5e17daaf9e96dcde3c1aece208d133b4edee09464d99658ac89a1792",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 1,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v2 \u00a73 reads each channel through eddb.channel_path, channel_time_path and UNIT_ATTR; the restated layout prose is removed",
+      "when": "2026-10-06T04:28:03.159330+00:00"
+    },
+    "duplicate_owner-2": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v2 \u00a71 states why \u00a72 reads the store with imas.DBEntry: no packaged JT-60SA map yet (load_packaged_machine_map serves mast only), and the figures must show converter output before the adapter transforms it",
+      "when": "2026-10-06T04:28:03.162164+00:00"
+    },
+    "duplicate_owner-3": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v2 names JT60SA_ROOT and JT60SA_DESCRIPTION_DIR from imas_ambix.data.paths and forbids literal roots in the scripts",
+      "when": "2026-10-06T04:28:03.163878+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v2 \u00a71 states plot_style.py is the first style module and retires nothing, and names its public surface (role names and the apply function)",
+      "when": "2026-10-06T04:28:03.166391+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v2 \u00a71 carries a reuse paragraph from a search of imas_ambix/data and scripts naming paths, eddb, VirtualZarrView and description_reader with the disposition of each",
+      "when": "2026-10-06T04:28:03.165138+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T042217302583-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "d2b00634ddedb0755b7d6843e7ec82c71a0b3843",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 imas_ambix/plot_style.py hides the data-ink sheet application and the per-component colour roles behind named role symbols, and the two figure scripts follow the repo's established scripts/figures_*.py convention, so complexity is not spread across shallow wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a73 re-derives the EDDB cache layout owned by imas_ambix/data/eddb.py and states it in prose (\"one {shot}.zarr per pulse laid out {category}/{dname} with a sibling {dname}_time array and the EDDB unit string as an attribute\") rather than naming the owner it should extend; \u00a71/\u00a73 also hardcode /work/projects/imas_gpu/jt60sa/* beside the owner imas_ambix/data/paths.py (JT60SA_ROOT, JT60SA_DESCRIPTION_DIR).",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a71 adds a new public module imas_ambix/plot_style.py with named public colour-role definitions and does not name what it retires or merges, or state why nothing can be, as the rule requires of a section adding to the public_definitions family.",
+    "reuse_search": "a finding \u2014 the plan cites no search for two mechanisms that already exist in the codebases it names: the EDDB cache reader imas_ambix/data/eddb.py (which owns the {shot}.zarr/{category}/{dname} layout, the _time sibling suffix and the units attribute the plan restates) and the machine-description acquisition route imas_ambix/data/description_reader.py; only \u00a71's \"no style module yet\" claim (true) is a search result.",
+    "thin_wrapper": "pass \u2014 no proposed layer wraps existing machinery: no shared style module exists to extend (data-ink is installed as a sheet, not a Python module), and the two scripts sit beside, not over, eddb.py and description_reader.py, so a wrapper-without-justification is not what is wrong here (the duplication is)."
+  },
+  "section_digests": {
+    "_document": "83930f1b7b0267bad4eee3074ee3f5577a04323602d949d1724a1b4f6aa3671c",
+    "s1": "1877dc4602e86d44d3c63197b2696c56fe0911a1925d0a6fed09e0a9893c133f",
+    "s2": "f2139e0c8b156d95fa4ae46758baba9a35b787d04ccea2907dc51a26520ca9e3",
+    "s3": "729c3ca9cdb83eca42c93cfb0362e70ee5f9a6291f3f084678ec0171f9816c8d"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T04:27:53.681235+00:00"
+}

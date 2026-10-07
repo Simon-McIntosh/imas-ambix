@@ -1,0 +1,88 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "Derived from the reviewed run's own suite fields by the read-path rule (reckon/crew/review.py added_failures_from_gate_logs: a set difference over pytest FAILED/ERROR ids, head minus base). The reviewed manifest's baseline_suite and after_suite both carry log_path = /home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T172728758497-srw-agent-publishes-the-watch-document/negative_control.log, so base_text and head_text are the same file and the difference is empty: added_failure_count 0, no ids. That negative-control log lists one FAILED id (tests/test_agent_publish_watch.py::test_failed_replace_keeps_the_target_unchanged), but it is present on both sides so it is not counted. Neither field carries a base/head suite arm: they hold the head and mutated arms of the declared negative control. The reviewed change's own head gate was re-run independently here and is fully green (22 passed; 1 passed, 8 deselected; ruff All checks passed; every EXIT=0), so no suite failure is attributable to the change.",
+  "after_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_publish_watch.py::test_failed_replace_keeps_the_target_unchanged -q",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 1,
+    "failure_ids": [
+      "tests/test_agent_publish_watch.py::test_failed_replace_keeps_the_target_unchanged"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T172728758497-srw-agent-publishes-the-watch-document/negative_control.log",
+    "revision": "68bb9bf5 (mutated)"
+  },
+  "baseline_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_agent_publish_watch.py::test_failed_replace_keeps_the_target_unchanged -q",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T172728758497-srw-agent-publishes-the-watch-document/negative_control.log",
+    "revision": "68bb9bf5"
+  },
+  "call_site_count": 2,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2819",
+    "imas_ambix/agent/watch_publish.py:110"
+  ],
+  "completed_at": "2026-10-02T18:35:28.007Z",
+  "dispatched_at": "2026-10-02T18:05:59Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T172728758497-srw-agent-publishes-the-watch-document/manifest.md",
+      "line": "13",
+      "severity": "follow-on",
+      "text": "baseline_suite and after_suite both name the same log, negative_control.log, and describe the head and mutated arms of the declared negative control rather than a base/head suite. Because the read-path derivation (reckon/crew/review.py added_failures_from_gate_logs) subtracts the base log's ids from the head log's ids, a field pair naming one file reduces to the empty set and reports a measured added_failure_count 0 although no suite baseline/after was ever armed. The two fields also carry no gate-log revision header the read path can read: the named log's first line is 'negative control', so recorded_log_revision returns None for both arms. A reader deriving the count from these fields cannot distinguish this 0 from a genuinely clean suite delta; only the run's separate gate.log (its first line names revision 68bb9bf5, three commands each followed by EXIT=0) records the real head suite."
+    },
+    {
+      "file": "tests/test_agent_publish_watch.py",
+      "line": "125",
+      "severity": "follow-on",
+      "text": "The done-when's clause that 'a failed iteration ... leaves an existing target byte-for-byte unchanged and the loop continues to its next iteration' is only half covered. tests/test_agent_publish_watch.py:125 drives run() for three iterations but every iteration succeeds; the failure paths (a raising derivation at :63 and a raising os.replace at :88) are exercised only through --once, i.e. iterations=1, so a failing iteration inside a multi-iteration loop is never driven. The continue clause is therefore asserted only by construction, not observed: a change making one_iteration re-raise, or run() exit after the first failure, would keep the suite green."
+    }
+  ],
+  "follow_ons": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "The changed production surface is called from imas_ambix/agent/cli.py:2819 (the publish-watch command invokes watch_publish.run) into imas_ambix/agent/watch_publish.py:110 (publish_once calls watch.watch_document); watch.watch_document itself is unchanged and is also reached by the existing watch command at imas_ambix/agent/cli.py:2738.",
+    "diff": "Read both commits. 32f4819c adds imas_ambix/agent/watch_publish.py (181 lines), the publish-watch command in imas_ambix/agent/cli.py (82 lines) and tests/test_agent_publish_watch.py (163 lines); 68bb9bf5 only replaces the bare try/except cleanup with contextlib.suppress (ruff SIM105) and trims trailing newlines, no behaviour change. git diff --stat 92850b4d 68bb9bf5 -- imas_ambix tests is 3 files, 426 insertions, 0 deletions; no plan HTML, fragment fragment, figure or shared index is touched.",
+    "done_when": "Every clause of the declared measure is present and was re-run green at the reviewed head: a new module and a publish-watch command with --output/--cadence/--once/--record/--index; each iteration calls watch.watch_document in-process, adds compute_seconds (float wall time) and published_at (UTC to the second, taken after the call and before the temp write); the JSON is written via tempfile.mkstemp in the target's own directory and renamed over the target with os.replace, and exactly one flushed physical line is printed per iteration (success or failure) with newlines flattened to spaces; a failed iteration leaves an existing target byte-for-byte unchanged and the loop continues. All clauses are present and independently re-run green at 68bb9bf5 (finding 2 names the one clause no test observes).",
+    "goal": "The node's goal is a publish-watch command that publishes the watch document to a file on a cadence. imas_ambix/agent/watch_publish.py implements publish_once/one_iteration/run over watch.watch_document and imas_ambix/agent/cli.py:2787 registers the command with the five options; the atomic-write and one-line-per-iteration properties are the deliverable's substance and are present.",
+    "manifest": "Read; status is a recognised value (complete), commits 32f4819c and 68bb9bf5 are named, the gate command and its result are recorded, negative_control_log names a real red arm, landing and evidence_inputs carry the change's substance. Its baseline_suite/after_suite fields point at the negative-control log rather than a base/head suite (finding 1).",
+    "write_paths": "The manifest declares imas_ambix/agent/watch_publish.py, imas_ambix/agent/cli.py, tests/test_agent_publish_watch.py and the node's evidence fragment and figures directory. Only the three source paths are changed; the evidence fragment and figures path are declared but unused, which is correct because the dispatch states the done-when names no evidence artifact. git status of the reviewed worktree is clean and its HEAD is 68bb9bf5."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_publish_watch.py pins the --once content and both added keys (:47), a raising derivation with an embedded newline prints one line and keeps the target (:63), a raising os.replace keeps the target (:88), and the declared negative control reddens exactly :88 when the atomic write is removed. The multi-iteration loop is tested only with all-success iterations (:125), so the continue-after-failure clause is not observed (finding 2).",
+    "evidence": "The gate log's first line names revision 68bb9bf5 and each of its three commands runs to its summary with EXIT=0 (22 passed; 1 passed, 8 deselected; ruff All checks passed); the negative control carries a genuine red arm (1 failed, EXIT=1) and its own head arm (1 passed, EXIT=0). Every one of these was independently re-run at 68bb9bf5 in a scratch export and reproduced. It is marked down for the suite-field defect (finding 1), not for the gate.",
+    "fit": "The module reads like the surrounding agent code: a module docstring stating the contract, small single-purpose functions (_stamp, _one_line, _write_atomic), injectable clock/sleep/stream seams matching _utc_now in cli.py, and a command whose help states the resolution of each default. No plan, sprint or ticket identifier and no forbidden name is introduced.",
+    "goal_fidelity": "The goal and every clause of the done-when are delivered and independently reproduced at the reviewed head; watch.watch_document returns a fresh payload dict per call (imas_ambix/agent/watch.py:1074) so publish_once mutating the returned dict cannot alter agent watch --json, and watch.py does not import watch_publish. No correctness defect found in the change; withheld one point because the loop-continue behaviour of the cadence command is the one clause a defect could break without any test noticing (finding 2).",
+    "scope_discipline": "git diff --name-only 92850b4d 68bb9bf5 -- imas_ambix tests names exactly imas_ambix/agent/cli.py, imas_ambix/agent/watch_publish.py and tests/test_agent_publish_watch.py; the reviewed worktree is clean at 68bb9bf5, no plan HTML, shared index or peer path is touched, and the declared-but-unused evidence paths were correctly left unwritten."
+  },
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-agent-publishes-the-watch-document",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "raw_text": "Review of run r-20261002T172728758497-srw-agent-publishes-the-watch-document, plan imas-ambix:serving-record-warehouse section 10 (support node f-srw-019). Reviewed base 92850b4d1f306be3aba04e4ae332c67eb4ea0dde, head 68bb9bf57882a145b87883192ec089ed3908c38d. Read the plan section s10, the dispatch prompt's done-when, the two commits, the source and test diff, the reviewed manifest, the gate log and the negative-control log; re-ran the declared gate and re-applied the declared mutation in a scratch export under the run's TMPDIR.\n\nVERDICT goal: the node's goal is a publish-watch command that publishes the watch document to a file on a cadence; imas_ambix/agent/watch_publish.py implements publish_once/one_iteration/run over watch.watch_document and imas_ambix/agent/cli.py:2787 registers the command with --output/--cadence/--once/--record/--index.\nVERDICT done_when: a new module and command with the five options; each iteration calls watch.watch_document in-process, adds compute_seconds (float) and published_at (UTC to the second, after the call, before the temp write), writes to a tempfile in the target's directory and renames with os.replace, prints exactly one flushed line per iteration with newlines flattened, and leaves a previous target byte-for-byte unchanged on failure; all present, and independently re-run green at 68bb9bf5.\nVERDICT write_paths: the manifest declares the module, cli.py, the test file and the evidence fragment and figures directory; git diff --name-only 92850b4d 68bb9bf5 names exactly the three source paths and git status of the reviewed worktree is clean.\nVERDICT manifest: read; status complete, commits 32f4819c and 68bb9bf5, gate command and results recorded, negative_control_log names a real red arm; its baseline_suite/after_suite name the negative-control log rather than a suite (finding 1).\nVERDICT diff: read commit by commit; 32f4819c adds the module, command and tests; 68bb9bf5 only replaces a bare try/except with contextlib.suppress and trims newlines.\nVERDICT call_sites: the command at imas_ambix/agent/cli.py:2819 calls watch_publish.run, which at imas_ambix/agent/watch_publish.py:110 calls watch.watch_document.\nCALL_SITES: imas_ambix/agent/cli.py:2819, imas_ambix/agent/watch_publish.py:110\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: the goal and every done-when clause are delivered and reproduced at the reviewed head; watch_document returns a fresh dict so agent watch --json is unchanged, but the loop-continue clause is unobserved by any test.\nSCORE evidence: 18\nJUSTIFICATION evidence: gate.log names revision 68bb9bf5 and runs three commands each to EXIT=0 with ruff clean, the negative control reddens exactly the os.replace-raises test, and all three were re-run independently green; marked down because the manifest's suite fields name the negative-control log, so the read-path added-failure derivation reduces to an empty difference (finding 1).\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff names exactly the three declared source paths, the reviewed worktree is clean at 68bb9bf5, and no plan, index or peer path is modified.\nSCORE durability: 17\nJUSTIFICATION durability: the tests pin both added keys, the newline-flattened single failure line, the kept target on a raising derivation and on a raising os.replace, and the negative control proves the atomic-write guard fires; the multi-iteration loop is tested only with all-success iterations, so the continue-after-failure clause is unobserved (finding 2).\nSCORE fit: 19\nJUSTIFICATION fit: the module follows the surrounding agent style with injectable clock/sleep/stream seams and a help text stating each default's resolution, and introduces no forbidden or plan-derived name.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T172728758497-srw-agent-publishes-the-watch-document/manifest.md:13 follow-on: baseline_suite and after_suite both name the same negative_control.log and describe the head and mutated arms of the negative control, so the read-path derivation subtracts one file from itself and reports a measured added_failure_count 0 although no suite baseline/after was armed; the log's first line is 'negative control', so no revision header is readable either.\nFINDING tests/test_agent_publish_watch.py:125 follow-on: the continue-after-failure clause of the done-when is asserted only by construction; the failure paths are driven through --once (iterations=1), so a failing iteration inside a multi-iteration loop is never executed.\n",
+  "review_kind": "review",
+  "review_run_id": "r-20261002T180550871497-review-of-srw-agent-publishes-the-watch-document",
+  "reviewed_base_sha": "92850b4d1f306be3aba04e4ae332c67eb4ea0dde",
+  "reviewed_head_sha": "68bb9bf57882a145b87883192ec089ed3908c38d",
+  "reviewed_run_id": "r-20261002T172728758497-srw-agent-publishes-the-watch-document",
+  "reviewer": "review-of-srw-agent-publishes-the-watch-document",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "section": "s10",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T18:22:57.999882+00:00",
+  "total": 93
+}

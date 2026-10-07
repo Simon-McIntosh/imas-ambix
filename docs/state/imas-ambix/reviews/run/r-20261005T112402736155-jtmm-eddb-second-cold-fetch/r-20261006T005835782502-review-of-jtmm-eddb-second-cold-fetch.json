@@ -1,0 +1,63 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest (and classification.json manifest.data) carries baseline_suite null and after_suite null, so its own arms cannot supply a base..head test delta. Its recorded gate is the second-cold-fetch measurement driver, not a test suite; the driver log second_cold_fetch.log ends EXIT=1 at a scratch-only post-write print statement that calls len() on a BatchResult (line 291), after the report file was already written at line 265, so no repository test failed and no failing test id exists to attribute. This review independently reproduced the node's own measure -- the warm no-network path -- in its own scratch probe: fetch_channels over the reviewed run's 153 requested channels against the on-disk cache with a transport that raises if called returned 0 transport calls and 0 leftover records/refusals, with a non-vacuous negative control (an uncached PSRC channel on E101173 forced the raising transport once). No failing id is added.",
+  "after_suite": null,
+  "baseline_suite": null,
+  "completed_at": "2026-10-06T01:04:50.437Z",
+  "dispatched_at": "2026-10-06T00:58:43Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-eddb-second-cold-fetch.html",
+      "line": "27",
+      "severity": "follow-on",
+      "text": "The landing sentence 'Every channel fetched this run was re-read warm through VirtualZarrView with a transport that raises if called: 0 transport calls' attributes the raising transport to VirtualZarrView, but VirtualZarrView.open takes only (path, signal_map, shot) and exposes no transport -- the view cannot make a network call at all. The no-network guard is in fact applied to the second fetch_channels call over the fully-cached set (driver lines 259-262: eddb.fetch_channels(warm_extractor, JT60SA_ROOT, fetched_reqs) with RemoteEddbExtractor(transport=raising)), and the view read is a separate check that the cached channels load. The measurement is sound and this review independently reproduced both halves (0 raising-transport calls, 119+34 view reads); only the sentence overstates which object carries the guard. It is the same overstatement the first cold-fetch review recorded, carried forward into this fragment."
+    }
+  ],
+  "follow_ons": [
+    {
+      "file": "docs/figures/jt60sa-machine-map/jtmm-eddb-second-cold-fetch",
+      "line": "",
+      "severity": "follow-on",
+      "text": "The reviewed node declared docs/figures/jt60sa-machine-map/jtmm-eddb-second-cold-fetch among its write paths but wrote nothing there: git diff --stat base..head lists exactly one file (the evidence fragment, +246) and no figures directory exists at head. This is an under-delivery of the declared write set rather than a scope breach -- a fetch/measurement node's deliverable is the tabular per-channel evidence, which is complete -- but the declared path is unmet."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T112402736155-jtmm-eddb-second-cold-fetch/scratch/second_cold_fetch_driver.py",
+      "line": "106",
+      "severity": "follow-on",
+      "text": "The MDAC catalogue enumeration (catalogue_mdac_names, driver line 106) builds its own remote argv and calls the transport directly rather than going through fetch_channels, so each shot costs two ssh sessions -- one catalogue call (transport_call_seconds 2.511 / 2.543) plus one fetch_channels batch (111.253 / 104.348) -- against the done-when's 'a cold fetch ... in a single ssh session'. The cold fetch itself is one ssh session per shot through the extractor, so the clause is met; the catalogue is an extra session the extractor has no interface for. The node's own manifest names this as a follow-on. A future node could route catalogue enumeration through the extractor if the interface grows one."
+    }
+  ],
+  "item_aggregate": 7,
+  "item_verdicts": {
+    "call_sites": "no production call site changes: the diff is documentation only, so there is no API to migrate. The driver exercises imas_ambix.data.eddb.fetch_channels and imas_ambix.data.eddb_remote.ChannelRequest/RemoteEddbExtractor without adding or altering a repository module, as \u00a73 requires.",
+    "diff": "read the reviewed run's commits against base 3779b82cee1155c5eaa27060fbc926cee92631a3; git log base..head is a single commit 8da45002b997aaa51864a13f51dd914cda686dab ('docs(evidence): record the to-be second cold EDDB fetch on JT-60SA', conventional subject with a body, no AI trailer); git diff --stat base..head = 1 file changed, +246, only docs/evidence/fragments/jt60sa-machine-map/jtmm-eddb-second-cold-fetch.html. No repository code changed, which is correct -- the extractor and cache already merged on the earlier nodes.",
+    "done_when": "Read this node's own measure: the review record stores a parsed record scoring all six dimensions 0..20, recording reviewed_base_sha and reviewed_head_sha, and carrying added_failure_count and added_failure_ids derived from the reviewed run's own baseline_suite and after_suite gate logs (both null -- the run was unarmed, so 0 added failures with the basis stated).",
+    "goal": "Read plan \u00a73 (reckon plan jt60sa-machine-map, version 72). Its second-cold-fetch clause: 'A second cold fetch on E101154 then takes the first-pass PSRC channels together with the raw MDAC flux-loop channels on E101154 and E101173.' The node fetches exactly that: on E101154 the first pass (22 MMSYS coil/TF currents, PSRC Ip/calIp/magFluxLp1..34/magPbTC1..23, MDAC curAVVRC1..4) plus MDAC magFlxLp* 34; on E101173 the MDAC magFlxLp* 34 (its first pass was already cached, and fetch_channels skips cached channels). The magFlxLp* names were enumerated from the EDDB catalogue per shot rather than assumed. The \u00a73 done-when ('a cold fetch ... in a single ssh session; a warm read ... touches no network; wall time per signal and bytes per signal recorded') holds: the fetch is one ssh session per shot, the warm path makes 0 transport calls, and per-signal wall time (0.934899 s / 3.069056 s) and bytes (326,579,552 / 215,424,000) are recorded.",
+    "manifest": "read the reviewed run's manifest: status complete, single commit 8da45002, changed_paths the evidence fragment, test_logs the scratch driver log and report, negative_control_log none (the node writes no test file) with a note explaining the cosmetic EXIT=1, and it names the catalogue-through-transport follow-on itself. The manifest is honest about the driver's post-write len() fault.",
+    "tests_reproduced": "the reviewed run's recorded measure is the driver run, not a suite, so there is no test arm to reproduce. This review independently reproduced the warm no-network guard in its own probe: over the reviewed run's 153 requested channels and the on-disk cache, fetch_channels with a raising transport made 0 calls and returned 0 leftover records/refusals, and VirtualZarrView read all 119 (E101154) + 34 (E101173) channels with shapes matching the fragment (46078 / 310077 / 396000). Negative control: an uncached PSRC magFluxLp1 on E101173 forced the raising transport exactly once, so the 0-call result is non-vacuous. All cache counts and per-channel byte totals were verified directly from the zarr store geometry (2 * time_len * 8).",
+    "write_paths": "the reviewed diff touches exactly docs/evidence/fragments/jt60sa-machine-map/jtmm-eddb-second-cold-fetch.html, inside the declared write paths. The declared figures directory docs/figures/jt60sa-machine-map/jtmm-eddb-second-cold-fetch is unwritten (see follow_ons)."
+  },
+  "justifications": "Independent review of run r-20261005T112402736155-jtmm-eddb-second-cold-fetch (plan imas-ambix:jt60sa-machine-map \u00a73), reviewed_run_id r-20261005T112402736155-jtmm-eddb-second-cold-fetch, reviewed_base_sha 3779b82cee1155c5eaa27060fbc926cee92631a3, reviewed_head_sha 8da45002b997aaa51864a13f51dd914cda686dab, stored as a parsed record scoring all six dimensions in 0..20 -- goal_fidelity 19, evidence 18, scope_discipline 19, durability 15, fit 18, reuse 20 -- total 109/120, added_failure_count 0 with added_failure_ids [] (the reviewed run was unarmed; both seeds null; this review independently reproduced its warm-path measure). The node implements \u00a73's second-cold-fetch clause faithfully: E101154's first-pass PSRC and MDAC channels plus the EDDB-catalogue MDAC magFlxLp* flux loops on both E101154 and E101173, fetched cold through the merged imas_ambix.data.eddb.fetch_channels in one ssh session per shot with the extractor's DEFAULT_SSH_COMMAND under nice, and every fetched channel re-read warm with zero transport calls. The fragment's numbers match the run's own report exactly and are independently confirmed against the on-disk zarr cache (119 channels on E101154 = 22 MMSYS + 59 PSRC + 38 MDAC; 60 channels on E101173 with the 34 magFlxLp* fetched this run; byte totals 2*time_len*8). Scope is clean: the single committed change is the evidence fragment, and no repository module was perturbed. Three residuals are recorded as findings/follow-ons -- the warm-read sentence attributes the raising transport to a VirtualZarrView that has no transport (the guard is the second fetch_channels call), the declared figure write path was left unwritten, and the catalogue enumeration is a second ssh session per shot via a raw transport call rather than the extractor -- none a regression and none affecting the measured result.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261006T005835782502-review-of-jtmm-eddb-second-cold-fetch",
+  "reviewed_base_sha": "3779b82cee1155c5eaa27060fbc926cee92631a3",
+  "reviewed_head_sha": "8da45002b997aaa51864a13f51dd914cda686dab",
+  "reviewed_run_id": "r-20261005T112402736155-jtmm-eddb-second-cold-fetch",
+  "reviewer": "review-of-jtmm-eddb-second-cold-fetch",
+  "scores": {
+    "durability": 15,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:04:24+00:00",
+  "total": 109
+}

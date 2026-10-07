@@ -1,0 +1,48 @@
+{
+  "absent": [],
+  "backend": "clive",
+  "completed_at": "",
+  "dispatched_at": "2026-09-17T13:45:40.645632+00:00",
+  "findings": [
+    {
+      "file": "artifacts/sidecar-memory-1272783.txt",
+      "line": "8",
+      "text": "the summary line reads \"tightest free across all cards: 21425 MiB = 20.9 GiB\" while the artifact's own table gives 21217 MiB (20.7 GiB) on cards 1 and 2 - understating tightness by 208 MiB, so any margin derived from this line is about 1 percent looser than from the table beneath it."
+    },
+    {
+      "file": "reports/imas-ambix/dsv41-tune/load-log-tuning-audit.md",
+      "line": "145",
+      "text": "the block quoted as \"Profile\" is the plan's section 5 dismissal text verbatim (docs/plans/dsv41-serve-tuning-for-concurrency.html:552); the profile's own chunked_prefill_size comment (imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:126-128) states the transient-peak rationale instead, so the row does not meet its section's contract of quoting the setting's profile comment."
+    },
+    {
+      "file": "reports/imas-ambix/dsv41-tune/load-log-tuning-audit.md",
+      "line": "246",
+      "text": "follow-on 1's clause \"The profile enables the architectural path\" names no key the profile contains - no file under imas_ambix/ mentions flashinfer_allreduce_fusion (grep, zero hits) and the frozen log's server_args carry enable_flashinfer_allreduce_fusion: False - so the enabling premise is unsourced even though the observation (probe fails with cuMulticastGetGranularity on all four ranks) is log-backed."
+    }
+  ],
+  "justifications": {
+    "durability": "The frozen log ships with an md5 and both harvest instruments are recorded alongside, so every figure re-derives while the artifacts live, but nothing guards the report's arithmetic - the sidecar defect is prose drifting from its own table with nothing to catch it.",
+    "evidence": "The core counts re-derive exactly from the frozen artifacts under independent parsing (2,906 decode intervals, 3,676 prefill batches, 250 clamps at 16,384, 3,406 requests, 876,681 verify calls, 32 running-width peak), but the sidecar receipt contradicts its own table, so that one must be read against itself.",
+    "fit": "The audit answers the plan's section 5 dismissals in the plan's own idiom (verdict vocabulary, the bin floor stated where it bites, quotes side by side) using in-repo instruments, with section 3.2 showing the correct source label that section 3.1 misses.",
+    "goal_fidelity": "All eleven settings carry a verdict from the required vocabulary with a deciding quantity and a measured value, and the demanded instruments are used (decode bins, sidecar memory, Prometheus counters, whole-window distributions, quotes side by side) - docked because section 3.1's quotation is labelled \"Profile\" while it exists only in docs/plans/dsv41-serve-tuning-for-concurrency.html:552.",
+    "scope_discipline": "Only the report under crew/reports and its run-dir artifacts were written; the source worktree is clean at its recorded base 0aca24bb and no repository, plan or index file changed."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Review of run r-20260917T130446323429-load-log-tuning-audit, plan imas-ambix:dsv41-serve-tuning-for-concurrency section 5. Artifact under review: crew/reports/imas-ambix/dsv41-tune/load-log-tuning-audit.md.\n\nSCORE goal_fidelity: 18\nSCORE evidence: 17\nSCORE scope_discipline: 20\nSCORE durability: 15\nSCORE fit: 19\nJUSTIFICATION goal_fidelity: All eleven settings carry a verdict from the required vocabulary with a deciding quantity and a measured value, and the demanded instruments are used (decode bins, sidecar memory, Prometheus counters, whole-window distributions, quotes side by side) - docked because section 3.1's quotation is labelled \"Profile\" while it exists only in docs/plans/dsv41-serve-tuning-for-concurrency.html:552.\nJUSTIFICATION evidence: The core counts re-derive exactly from the frozen artifacts under independent parsing (2,906 decode intervals, 3,676 prefill batches, 250 clamps at 16,384, 3,406 requests, 876,681 verify calls, 32 running-width peak), but the sidecar receipt contradicts its own table, so that one must be read against itself.\nJUSTIFICATION scope_discipline: Only the report under crew/reports and its run-dir artifacts were written; the source worktree is clean at its recorded base 0aca24bb and no repository, plan or index file changed.\nJUSTIFICATION durability: The frozen log ships with an md5 and both harvest instruments are recorded alongside, so every figure re-derives while the artifacts live, but nothing guards the report's arithmetic - the sidecar defect is prose drifting from its own table with nothing to catch it.\nJUSTIFICATION fit: The audit answers the plan's section 5 dismissals in the plan's own idiom (verdict vocabulary, the bin floor stated where it bites, quotes side by side) using in-repo instruments, with section 3.2 showing the correct source label that section 3.1 misses.\nFINDING artifacts/sidecar-memory-1272783.txt:8 the summary line reads \"tightest free across all cards: 21425 MiB = 20.9 GiB\" while the artifact's own table gives 21217 MiB (20.7 GiB) on cards 1 and 2 - understating tightness by 208 MiB, so any margin derived from this line is about 1 percent looser than from the table beneath it.\nFINDING reports/imas-ambix/dsv41-tune/load-log-tuning-audit.md:145 the block quoted as \"Profile\" is the plan's section 5 dismissal text verbatim (docs/plans/dsv41-serve-tuning-for-concurrency.html:552); the profile's own chunked_prefill_size comment (imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:126-128) states the transient-peak rationale instead, so the row does not meet its section's contract of quoting the setting's profile comment.\nFINDING reports/imas-ambix/dsv41-tune/load-log-tuning-audit.md:246 follow-on 1's clause \"The profile enables the architectural path\" names no key the profile contains - no file under imas_ambix/ mentions flashinfer_allreduce_fusion (grep, zero hits) and the frozen log's server_args carry enable_flashinfer_allreduce_fusion: False - so the enabling premise is unsourced even though the observation (probe fails with cuMulticastGetGranularity on all four ranks) is log-backed.\n\nNote for the next reader: this review did not trace the section 1 speculative row's \"3,442,609 decode tokens\" to a named counter inside artifacts/prometheus-1272783.txt; it is neither confirmed nor disputed here.\n",
+  "review_run_id": "r-20260917T134540645632-review-of-load-log-tuning-audit",
+  "reviewed_base": "0aca24bb39a71028c6b9fe10c1abd39e9f40fd06",
+  "reviewed_commit": null,
+  "reviewed_run_id": "r-20260917T130446323429-load-log-tuning-audit",
+  "scores": {
+    "durability": 15,
+    "evidence": 17,
+    "fit": 19,
+    "goal_fidelity": 18,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-17T14:01:20.060546+00:00",
+  "total": 89
+}

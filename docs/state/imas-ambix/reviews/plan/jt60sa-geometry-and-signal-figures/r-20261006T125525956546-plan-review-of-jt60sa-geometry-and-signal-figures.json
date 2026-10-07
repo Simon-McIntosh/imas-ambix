@@ -1,0 +1,49 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T13:01:16.123Z",
+  "dispatched_at": "2026-10-06T12:55:31Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-geometry-and-signal-figures.html:62",
+      "id": "reuse_search-1",
+      "reason": "\u00a73 stands on unlanded imas-ink machinery exactly as \u00a74 does, so \u00a73 should either be marked `deferred` behind that plan (the disposition \u00a74 already took for its unlanded `geometry-figure-vessel-units` dependency) or its text should stop asserting the behaviour already exists.",
+      "text": "\u00a73 (status `implementable`) asserts in the present tense that \"long traces are drawn at display resolution and the shared time axis is labelled once, by imas-ink's `trace-figure-display-resolution` plan\", but that plan (imas-ink `docs/plans/trace-figure-display-resolution.html`) is `draft` with \u00a71 (min/max envelope) and \u00a72 (single time-axis label) both `implementable`, and imas-ink has no such code: a recursive search of `imas_ink/` for envelope|simplif|decimat|downsample|max_points|min_max returns only two comment hits in `three_d/coilset.py` about a geometric TF case envelope, unrelated to trace drawing, while the same search over known-present strings (linestyle, `def time_trace_figure_mpl`) returns matches and so is shown to see what is there \u2014 a worker implementing \u00a73 as written would expect the envelope and single label to be provided and they are not",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "3952b334724ae12953521f848ecc982af9820a4d7830334dcd2912fbe86af278",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 45,
+  "project": "imas-ambix",
+  "responses": {
+    "reuse_search-1": {
+      "action": "declined",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "\u00a73 is held on imas-ink:trace-figure-display-resolution through plan-section-depends-on and does not dispatch until that plan lands; the sentence states what \u00a73 relies on when it runs",
+      "when": "2026-10-06T13:02:03.343469+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T125525956546-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "12f92cc5c1931fbe0aae89e3ce0af40c3252b0b4",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a73 adds one function (`read_channel`) plus one caller script whose drawing is delegated to imas-ink's `time_trace_figure_mpl`; no sprawl of shallow wrappers.",
+    "duplicate_owner": "pass \u2014 the cache's raw read has no existing owner (`VirtualZarrView`/`ZarrTransformEngine` read transformed values with no time base, and `tests/data/test_eddb_cache.py` only inlines the zarr read), so `read_channel` belongs beside `write_channel` in the layout owner `imas_ambix/data/eddb.py` rather than forking a new one; the only shared machinery the two figure scripts both reach is `imas_ink/io.py`'s `render_to_bytes`, which \u00a72 already uses and \u00a73 can reuse.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 names `read_channel` and its script as additions and states it retires nothing because they are the read counterpart nothing provides, \u00a72b adds no public name, \u00a74 names its single public addition.",
+    "reuse_search": "a finding \u2014 \u00a73 cites imas-ink's `trace-figure-display-resolution` machinery (min/max-envelope drawing, single time-axis label) as already doing that work, but that plan is still draft with both sections implementable and `imas_ink/` carries no such code.",
+    "thin_wrapper": "pass \u2014 `read_channel` is justified as the raw read beside the engine path that supplies the time base `VirtualZarrView` cannot, and the signals script is justified as a second caller reading the EDDB cache rather than the description store."
+  },
+  "section_digests": {
+    "_document": "88997c3bedfc09e9e8e7c088a8bd3c6e2f920a84b4f31e0131b9ad549249bf9b",
+    "s1": "bb8d550544a521bde0263696163651a2d7a045188e07eb5e9a5e525932df317a",
+    "s1b": "844dff090679558edecc0cbbeca77e332dbe493edcbf84a5baec67bd6cd0d692",
+    "s2": "2565e40e98e8d0857a479584a4eaba693f80a101caf05bae3dbfb7c8ff0e2275",
+    "s2b": "7b4d49c27321bde0841c29af88705c7d63c0728c12930427774984e11584bbf4",
+    "s3": "8bd590e1b3f784ef9da2b5ce39d7c62bbd7d648f7215e2e0bb3ffdcf0e289778",
+    "s4": "ed6d5b8d0a5d98145a24fe9d1ab0e074e3d9c40bfd067beba80e2b1992dbbf26"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T13:02:03.341161+00:00"
+}

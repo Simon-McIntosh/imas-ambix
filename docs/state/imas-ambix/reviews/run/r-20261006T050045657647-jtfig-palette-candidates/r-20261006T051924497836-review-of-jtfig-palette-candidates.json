@@ -1,0 +1,85 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no baseline_suite or after_suite gate log (a figure node with no pytest suite), so the added-failure count was not taken",
+  "call_site_count": 1,
+  "call_sites": [
+    "scripts/figures_jt60sa_geometry.py:main"
+  ],
+  "completed_at": "2026-10-06T05:25:49.016Z",
+  "dispatched_at": "2026-10-06T05:19:31Z",
+  "findings": [
+    {
+      "file": "scripts/figures_jt60sa_geometry.py",
+      "line": "45",
+      "severity": "follow-on",
+      "text": "follow-on: CANDIDATES is the sole source of the drawn colours, yet the colour-blind dE check the done-when requires is run outside the repository against a hand-typed hex list (gate_palette_validator.log and the fragment's verdict blocks), so nothing ties the recorded ALL CHECKS PASS to the landed CANDIDATES and a later palette edit leaves the check green."
+    },
+    {
+      "file": "imas_ambix/plot_style.py",
+      "line": "106",
+      "severity": "follow-on",
+      "text": "follow-on: palette()'s unknown-role KeyError is the module's only runtime guard and no landed assertion exercises it, so a misspelled role name fails only at render time and no record captures the behaviour."
+    }
+  ],
+  "gate_logs": {
+    "palette_validator": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T050045657647-jtfig-palette-candidates/gate_palette_validator.log"
+    },
+    "ruff": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T050045657647-jtfig-palette-candidates/gate_ruff.log",
+      "revision": "714acadee345f35a8c2de274245446a0d5b7389f"
+    }
+  },
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "Read commit eb7b8f63 against its parent 714acade: it adds imas_ambix/plot_style.py (145 lines), scripts/figures_jt60sa_geometry.py (333 lines), six candidate figures and the evidence fragment, nine files total, all inside the declared scope.",
+    "done_when": "The done-when requires plot_style.py applying data-ink, two-to-four candidate cross-sections under docs/figures/jt60sa-palette/ each captioned with its role-to-colour table and a dE check, an evidence fragment showing them, and a landing recording an open decision palette; all are present, the fragment docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-palette-candidates.html carrying three tables and three verdict blocks and the manifest landing recording the palette decision.",
+    "goal": "The node goal is section 1 of jt60sa-geometry-and-signal-figures: a style module that applies data-ink with named colour roles and two-to-four candidate palettes rendered on the real OP1/OP2 store; imas_ambix/plot_style.py:98 and scripts/figures_jt60sa_geometry.py:305 land both.",
+    "manifest": "Read; it records commit eb7b8f63, the ruff gate (All checks passed, EXIT=0) and the per-candidate validate_palette.js run (ALL CHECKS PASS, EXIT=0), names gate_ruff.log and gate_palette_validator.log, and states baseline_suite and after_suite are absent because the node has no pytest suite.",
+    "write_paths": "The manifest declares imas_ambix/plot_style.py, scripts/figures_jt60sa_geometry.py, docs/figures/jt60sa-palette, docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-palette-candidates.html and docs/figures/jt60sa-geometry-and-signal-figures/jtfig-palette-candidates; every path in the diff is inside them."
+  },
+  "justifications": {
+    "durability": "The landed change adds no test and no assertion; a regression in scripts/figures_jt60sa_geometry.py:141 (read_phase) or imas_ambix/plot_style.py:106 (palette role validation) would leave every recorded gate green because neither definition is exercised by one.",
+    "evidence": "The ruff and validate_palette.js results are recorded in the run's gate logs and reproduced in docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-palette-candidates.html, but the dE check the done-when names is run outside the repository against a hand-typed hex list rather than the module's CANDIDATES, so the recorded verdict is not tied to the landed colours.",
+    "fit": "imas_ambix/plot_style.py:25 vendors the data-ink parameters and I verified each entry matches the installed ~/.config/matplotlib/stylelib/data-ink.mplstyle, so a bare checkout renders identically, and no forbidden plan or ticket name appears in the diff.",
+    "goal_fidelity": "imas_ambix/plot_style.py:98 applies the data-ink sheet and names six component roles plus three reference neutrals, and scripts/figures_jt60sa_geometry.py:305 renders three candidates on the store addressed through load_packaged_machine_map(\"jt-60sa\").",
+    "reuse": "A search across imas_ambix/ and scripts/ found no existing plotting style module or named-role palette, and the only other cross-section drawer (scripts/validate_mast_geometry.py:401) draws from the adapted table with a tab20 colormap, a different route, so no capability owner is forked.",
+    "scope_discipline": "git diff 714acade..eb7b8f63 touches only imas_ambix/plot_style.py, scripts/figures_jt60sa_geometry.py, the six jt60sa-palette figures and the fragment, all inside the manifest's declared write paths."
+  },
+  "node": "review-of-jtfig-palette-candidates",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The node goal is section 1 of jt60sa-geometry-and-signal-figures: a style module that applies data-ink with named colour roles and two-to-four candidate palettes rendered on the real OP1/OP2 store; imas_ambix/plot_style.py:98 and scripts/figures_jt60sa_geometry.py:305 land both.\nVERDICT done_when: The done-when requires plot_style.py applying data-ink, two-to-four candidate cross-sections under docs/figures/jt60sa-palette/ each captioned with its role-to-colour table and a dE check, an evidence fragment showing them, and a landing recording an open decision palette; all are present, the fragment docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-palette-candidates.html carrying three tables and three verdict blocks and the manifest landing recording the palette decision.\nVERDICT write_paths: The manifest declares imas_ambix/plot_style.py, scripts/figures_jt60sa_geometry.py, docs/figures/jt60sa-palette, docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-palette-candidates.html and docs/figures/jt60sa-geometry-and-signal-figures/jtfig-palette-candidates; every path in the diff is inside them.\nVERDICT manifest: Read; it records commit eb7b8f63, the ruff gate (All checks passed, EXIT=0) and the per-candidate validate_palette.js run (ALL CHECKS PASS, EXIT=0), names gate_ruff.log and gate_palette_validator.log, and states baseline_suite and after_suite are absent because the node has no pytest suite.\nVERDICT diff: Read commit eb7b8f63 against its parent 714acade: it adds imas_ambix/plot_style.py (145 lines), scripts/figures_jt60sa_geometry.py (333 lines), six candidate figures and the evidence fragment, nine files total, all inside the declared scope.\nCALL_SITES: scripts/figures_jt60sa_geometry.py:main\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/plot_style.py:98 applies the data-ink sheet and names six component roles plus three reference neutrals, and scripts/figures_jt60sa_geometry.py:305 renders three candidates on the store addressed through load_packaged_machine_map(\"jt-60sa\").\nSCORE evidence: 14\nJUSTIFICATION evidence: The ruff and validate_palette.js results are recorded in the run's gate logs and reproduced in docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-palette-candidates.html, but the dE check the done-when names is run outside the repository against a hand-typed hex list rather than the module's CANDIDATES, so the recorded verdict is not tied to the landed colours.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: git diff 714acade..eb7b8f63 touches only imas_ambix/plot_style.py, scripts/figures_jt60sa_geometry.py, the six jt60sa-palette figures and the fragment, all inside the manifest's declared write paths.\nSCORE durability: 6\nJUSTIFICATION durability: The landed change adds no test and no assertion; a regression in scripts/figures_jt60sa_geometry.py:141 (read_phase) or imas_ambix/plot_style.py:106 (palette role validation) would leave every recorded gate green because neither definition is exercised by one.\nSCORE fit: 17\nJUSTIFICATION fit: imas_ambix/plot_style.py:25 vendors the data-ink parameters and I verified each entry matches the installed ~/.config/matplotlib/stylelib/data-ink.mplstyle, so a bare checkout renders identically, and no forbidden plan or ticket name appears in the diff.\nSCORE reuse: 18\nJUSTIFICATION reuse: A search across imas_ambix/ and scripts/ found no existing plotting style module or named-role palette, and the only other cross-section drawer (scripts/validate_mast_geometry.py:401) draws from the adapted table with a tab20 colormap, a different route, so no capability owner is forked.\nFINDING scripts/figures_jt60sa_geometry.py:45 follow-on: CANDIDATES is the sole source of the drawn colours, yet the colour-blind dE check the done-when requires is run outside the repository against a hand-typed hex list (gate_palette_validator.log and the fragment's verdict blocks), so nothing ties the recorded ALL CHECKS PASS to the landed CANDIDATES and a later palette edit leaves the check green.\nFINDING imas_ambix/plot_style.py:106 follow-on: palette()'s unknown-role KeyError is the module's only runtime guard and no landed assertion exercises it, so a misspelled role name fails only at render time and no record captures the behaviour.\nreviewed_base_sha: 714acadee345f35a8c2de274245446a0d5b7389f\nreviewed_head_sha: eb7b8f63f92336cb64329ce8c25b5e0bc89c3f03\n",
+  "review_run_id": "r-20261006T051924497836-review-of-jtfig-palette-candidates",
+  "review_scope": "Committed section-1 palette delta (plot_style.py, the OP1/OP2 reader and cross-section script, three candidate palettes and the evidence fragment) against the node goal and done-when; read-only, no re-render.",
+  "reviewed_base_sha": "714acadee345f35a8c2de274245446a0d5b7389f",
+  "reviewed_commits": [
+    "eb7b8f63f92336cb64329ce8c25b5e0bc89c3f03"
+  ],
+  "reviewed_head_sha": "eb7b8f63f92336cb64329ce8c25b5e0bc89c3f03",
+  "reviewed_run_id": "r-20261006T050045657647-jtfig-palette-candidates",
+  "reviewer": "review-of-jtfig-palette-candidates",
+  "scores": {
+    "durability": 6,
+    "evidence": 14,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "reuse": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T05:24:59.805064+00:00",
+  "total": 93,
+  "verification_logs": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T050045657647-jtfig-palette-candidates/gate_ruff.log",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T050045657647-jtfig-palette-candidates/gate_palette_validator.log"
+  ]
+}

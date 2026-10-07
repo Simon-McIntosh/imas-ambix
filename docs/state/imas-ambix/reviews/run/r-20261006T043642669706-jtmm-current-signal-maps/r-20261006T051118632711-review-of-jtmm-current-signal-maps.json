@@ -1,0 +1,81 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run armed only a head gate (its run directory gate.log, revision a9518f2d, tree the jtmm-current-signal-maps worktree: 25 passed in 11.82s, EXIT=0) and recorded no baseline_suite or after_suite arm in its manifest, so its own record supports no added-failure derivation on its own. This review therefore ran both arms against a git-archive export of the reviewed repository under $TMPDIR. Base arm: a9518f2d, tree $TMPDIR/review-gate/base-tree, command TMPDIR=$TMPDIR PYTHONPATH=$TMPDIR/review-gate/base-tree /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q --basetemp=$TMPDIR/bt-base tests/data/test_signal_map.py tests/data/test_virtual_zarr.py, log $TMPDIR/base-gate.log, 14 passed in 2.48s, EXIT=0, failure_ids []. Head arm: 11dc5d02, tree $TMPDIR/review-gate/head-tree, command TMPDIR=$TMPDIR PYTHONPATH=$TMPDIR/review-gate/head-tree /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q --basetemp=$TMPDIR/bt-head tests/data/test_signal_map.py tests/data/test_virtual_zarr.py tests/data/test_jt60sa_signal_maps.py, log $TMPDIR/head-gate.log, 25 passed in 4.01s, EXIT=0, failure_ids []. The two arms share the two regression surfaces test_signal_map.py and test_virtual_zarr.py; the new test_jt60sa_signal_maps.py exists only at head. Both logs were read to their summary lines before the zero was stated; added failures are 0 with ids [].",
+  "after_suite": {
+    "command": "TMPDIR=/tmp/reckon-crew-scratch/r-20261006T051118632711-review-of-jtmm-current-signal-maps PYTHONPATH=/tmp/reckon-crew-scratch/r-20261006T051118632711-review-of-jtmm-current-signal-maps/review-gate/head-tree /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q --basetemp=/tmp/reckon-crew-scratch/r-20261006T051118632711-review-of-jtmm-current-signal-maps/bt-head tests/data/test_signal_map.py tests/data/test_virtual_zarr.py tests/data/test_jt60sa_signal_maps.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/tmp/reckon-crew-scratch/r-20261006T051118632711-review-of-jtmm-current-signal-maps/head-gate.log",
+    "revision": "11dc5d02e98ac138452738647edc50ec0a394cea"
+  },
+  "baseline_suite": {
+    "command": "TMPDIR=/tmp/reckon-crew-scratch/r-20261006T051118632711-review-of-jtmm-current-signal-maps PYTHONPATH=/tmp/reckon-crew-scratch/r-20261006T051118632711-review-of-jtmm-current-signal-maps/review-gate/base-tree /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q --basetemp=/tmp/reckon-crew-scratch/r-20261006T051118632711-review-of-jtmm-current-signal-maps/bt-base tests/data/test_signal_map.py tests/data/test_virtual_zarr.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/tmp/reckon-crew-scratch/r-20261006T051118632711-review-of-jtmm-current-signal-maps/base-gate.log",
+    "revision": "a9518f2d4f885b640c0eee7a3fb4636746357a66"
+  },
+  "completed_at": "2026-10-06T05:21:31.005Z",
+  "dispatched_at": "2026-10-06T05:11:26Z",
+  "findings": [
+    {
+      "category": "spec-deviation",
+      "file": "imas_ambix/data/maps/jt-60sa/magnetics.json",
+      "line": "25",
+      "severity": "follow-on",
+      "text": "The magnetics map binds PSRC Ip with unit_factor 1.0, but the reviewed node's own SPEC and plan section 5 as of the reviewed base (a9518f2d) both required kA with a declared unit factor of 1000 (prompt.txt line 88 clause 4; plan html 'PSRC/Ip in kA ... with a declared unit factor of 1000'). The delivered binding is nevertheless physically correct: I read the on-demand cache read-only and the PSRC/Ip array carries attrs {units: A} with peak |Ip| = 998576.25 A (~1 MA flat top) on the plasma shot 101154, so a 1000 factor would serve ~1 GA. The plan was corrected to unit factor 1 on main at commit 520f5340 ('bind JT-60SA PSRC Ip in amperes, unit factor 1'), so the spec/code disagreement is already reconciled upstream. Recorded so a coordinator sees that the node deviated from its SPEC-as-written (a reportable deviation under the exact-SPEC rule) and is independently corroborated rather than asserted."
+    },
+    {
+      "category": "correctness",
+      "file": "imas_ambix/data/maps/jt-60sa/tf.json",
+      "line": "4",
+      "severity": "follow-on",
+      "text": "The blocked row for cur2TFLKAT gives the reason 'duplicate of tf_coil_TF1_current; the second TF chain is not served'. The 'duplicate' characterisation does not hold on the cached shots: on E060033 cur2TFLKAT is a dead channel (every sample exactly 0.0) while cur1TFLKAT reads 25.7 kA, and on E101154 the two chains both peak near 23.3 kA but correlate only 0.646 over the cached window (max|cur1-cur2|/max|cur1| = 0.0091), so cur2 is not a faithful copy of cur1 there. Blocking one chain per signal is correct and the map's own evidence string correctly states cur2 reads zero on E060033, but the reason's 'duplicate' wording misdescribes the second chain's status (dead on one shot, similar-but-not-identical on the other)."
+    },
+    {
+      "category": "documentation",
+      "file": "imas_ambix/data/maps/jt-60sa/pf_active.json",
+      "line": "7",
+      "severity": "follow-on",
+      "text": "The nine non-EF6 coils are served from the LKAT chain and the blocked rows name the unmet condition as 'a validated chain-selection verdict that distinguishes HiTe from LKAT for coil CSn'. On the plasma shot E101154 I reproduced the map's per-coil agreement exactly (max|HiTe-LKAT|/max|LKAT|: CS1 0.0724, CS2 0.0504, CS3 0.0729, CS4 0.0647, EF1 0.1231, EF2 0.0810, EF3 0.0645, EF4 0.0578, EF5 0.0554, EF6 0.2947; min corr 0.9948 at EF6, all others >= 0.9987), so EF6 is correctly the sole circuit beyond 15% and is served from HiTe. The other two cached shots cannot corroborate the choice: on E101173 and E060033 the PF coil currents sit at the noise floor (|I| of order 10-100 A, chains uncorrelated apart from EF2 on E101173 at 1496 A, which agrees at 0.103/corr 0.9996). The record documents no reason to prefer LKAT over HiTe for the nine agreeing coils beyond 'the choice rests on how the two agree'; the latter is true and disclosed as unvalidated, so this is a rationale gap rather than a wrong binding."
+    }
+  ],
+  "follow_ons": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "imas_ambix/data/signal_map.py:631 load_packaged_signal_map, imas_ambix/data/virtual_zarr.py VirtualZarrView (read path over the cache), imas_ambix/data/maps/ (PACKAGED_MAP_ROOT the loader resolves)",
+    "diff": "Read both commits against base a9518f2d. eca46d31 adds the three JSON maps and the test file; 11dc5d02 adds the fragment HTML. The maps are additive data files consuming the existing SignalMap schema (blocked/signals/target/discovery keys, exact-validated at signal_map.py:574); the test consumes load_packaged_signal_map and VirtualZarrView; the fragment follows the sibling evidence-fragment idiom. No product source, plan meta line, or machine_maps catalogue is modified.",
+    "done_when": "The done_when (prompt.txt line 88) names the gate command over tests/data/test_jt60sa_signal_maps.py, tests/data/test_signal_map.py and tests/data/test_virtual_zarr.py and five properties. All hold: (1) the three maps load and name the cache; (2) pf_active holds ten one-chain-per-coil rules at the store index with the other chain blocked; (3) tf binds cur1TFLKAT to tf/coil/current/data at index 0 with cur2TFLKAT blocked; (4) magnetics binds PSRC Ip to magnetics/ip/data in A (factor 1, not the SPEC's 1000 -- see finding); (5) VirtualZarrView reads every present rule as a finite 1-D array on 101154 and reports PSRC Ip absent on 101173/60033. The reviewed run's own gate.log records 25 passed, EXIT=0, and its negative control (negative-control.log) fires: the 1000 factor mutation fails two tests, EXIT=1. All three DD target paths exist (magnetics/ip/data, pf_active/coil/current/data, tf/coil/current/data, all FLT_1D units A).",
+    "goal": "The node goal (prompt.txt line 30) is to bind the JT-60SA coil currents, TF current and plasma current as packaged signal maps over the EDDB cache. The landed commit eca46d31 adds the three maps imas_ambix/data/maps/jt-60sa/{pf_active,tf,magnetics}.json plus tests/data/test_jt60sa_signal_maps.py, and commit 11dc5d02 adds the evidence fragment. load_packaged_signal_map('jt-60sa', system) resolves all three through the existing loader; the maps bind ten MMSYS coil chains, cur1TFLKAT, and PSRC Ip. I re-ran the reviewed gate (25 passed, EXIT=0) and independently read the cache read-only: the Ip unit is A at ~1 MA, and the chain agreement reproduces the map's own evidence to four significant figures.",
+    "manifest": "The reviewed run's manifest reads status complete and reconciles with the artefacts: commits eca46d31 and 11dc5d02; changed_paths the three maps, the test and the fragment; tests and test_logs name run tests/data/test_jt60sa_signal_maps.py at gate.log and ruff.log (All checks passed); negative_control_log names the unit-factor mutation; checkpoint_notes records the Ip unit-factor deviation. It records no baseline_suite/after_suite arms, consistent with a gate that armed only the head tree, so this review supplied the base arm (see added_failures_basis).",
+    "write_paths": "The reviewed dispatch granted imas_ambix/data/maps/jt-60sa, tests/data/test_jt60sa_signal_maps.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-current-signal-maps.html and docs/figures/jt60sa-machine-map/jtmm-current-signal-maps. git diff --stat a9518f2d..11dc5d02 touches exactly five files, all inside those paths: the three maps, the one test, and the one fragment (+577 lines, no deletions). No catalogue JSON under imas_ambix/data/machine_maps and no plan file is touched, and the reviewed worktree is clean at 11dc5d02."
+  },
+  "justifications": "Independent review of run r-20261006T043642669706-jtmm-current-signal-maps (plan imas-ambix:jt60sa-machine-map section 5), reviewed_base_sha a9518f2d4f885b640c0eee7a3fb4636746357a66, reviewed_head_sha 11dc5d02e98ac138452738647edc50ec0a394cea, stored as a parsed record scoring all six dimensions in 0..20 -- goal_fidelity 18, evidence 18, scope_discipline 20, durability 18, fit 19, reuse 20 -- total 113 in the 0..120 sum. Goal fidelity is high but not full: the three maps bind the ten MMSYS coil chains, cur1TFLKAT and PSRC Ip and I reproduced the coiled chain-agreement table exactly on 101154 (EF6 0.2947 sole circuit above 0.15, all others 0.050-0.123, min corr 0.9948), but the Ip binding contradicts the node's SPEC-as-written (kA, factor 1000) in favour of the physically correct factor 1, so the node did what the cache requires rather than what its spec said. Evidence is strong: the reviewed gate is green in the run's own log (25 passed, EXIT=0), its negative control fires (the 1000 mutation fails two tests, EXIT=1), and every headline number is independently reproducible against the read-only cache (PSRC/Ip units=A, peak 9.9857625e5 A on 101154; the three DD paths exist). Scope is full: the diff is exactly the five declared files (+577 lines) with no plan or catalogue edit, worktree clean. Durability is strong: test_jt60sa_signal_maps.py:184 asserts unit_factor==1.0 and the negative control demonstrates that assertion reddens on the units regression, the chain-selection test asserts EF6 is the sole >15% circuit, and the target-index test asserts each coil's index against the store. Fit is strong: the maps use the existing SignalMap schema exactly and the adapter name spaces match the loader's regex. Reuse is full: the change extends load_packaged_signal_map and VirtualZarrView, adding data files and a test, and re-implements no capability. Three follow-on findings are recorded (the SPEC-deviating Ip factor, the tf 'duplicate' wording, and the unstated LKAT-over-HiTe rationale for the nine agreeing coils); none blocks landing.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_notes": "Contract checks: (a) the HiTe/LKAT chain choice per coil was re-measured against the cached shots 101154, 101173 and 60033 -- the plasma-shot agreement reproduces the map's evidence and EF6 is served from HiTe at 0.2947 > 0.15, while the two non-plasma shots carry PF coil currents at the noise floor so they cannot corroborate the choice (documented under the pf_active finding); (b) the Ip unit factor of 1 was checked against the cache unit attribute (PSRC/Ip attrs units='A', peak 101154 = 998576.25 A), so factor 1 is correct and the SPEC's factor 1000 would serve gigaamperes; (c) all reads of /work/projects/imas_gpu/jt60sa were read-only and no JT-60SA server contact (no ssh jt-60sa, no EDDB call) was made. The node recorded five scoreable dimensions in the dispatch contract but the reckon review schema (reckon/crew/review.py:88) defines six; the record scores all six so it parses, and this note records the dispatch/schema discrepancy.",
+  "review_run_id": "r-20261006T051118632711-review-of-jtmm-current-signal-maps",
+  "reviewed_base_sha": "a9518f2d4f885b640c0eee7a3fb4636746357a66",
+  "reviewed_head_sha": "11dc5d02e98ac138452738647edc50ec0a394cea",
+  "reviewed_run_id": "r-20261006T043642669706-jtmm-current-signal-maps",
+  "reviewer": "review-of-jtmm-current-signal-maps",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 18,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T04:36:22.454012+00:00",
+  "total": 113
+}

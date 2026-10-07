@@ -1,0 +1,50 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 6,
+  "call_sites": [
+    "imas_ambix/agent/router.py:1223-1265 RouterApp generation request path acquires the gate and carries gate_wait_s through disconnected, timeout, relay and release outcomes",
+    "imas_ambix/agent/router.py:1419 _publish_lane calls the gate snapshot after each atomic lane-capacity publication",
+    "imas_ambix/agent/router.py:1423-1445 _publish_gate_snapshot writes admission, preserves engine_headroom and clamps top-level headroom",
+    "imas_ambix/agent/router.py:1677-1686 relay finalization writes gate_wait_s into the request receipt",
+    "imas_ambix/agent/router.py:2045-2052 gate-timeout self-answer writes gate_wait_s into the failed receipt",
+    "imas_ambix/agent/request_receipts.py:464-480 RequestReceipt serialization persists the new gate_wait_s field"
+  ],
+  "completed_at": "2026-09-25T13:56:20Z",
+  "dispatched_at": "2026-09-25T13:44:52Z",
+  "findings": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 6 production call sites covering lane publication, generation admission, relay completion, timeout refusal and receipt serialization; no generation outcome drops the measured wait",
+    "diff": "read a30208faba5b9d127391502df33e1f7e84f4f027..3b42f115b522d229346d69b3bf58bc9ff8c9dc7f commit by commit: 8fc472a adds the admission and receipt implementation plus focused tests, e050d89 adds the plan and cumulative evidence record, 275f82d9 adds over-width and paused verdict regressions, and 3b42f115 records the final documentation correction; the five changed paths are exactly the implementation, receipt model, focused test, plan section and evidence archive declared by the candidate manifest",
+    "done_when": "\u00a720 requires the admission block, gate-aware top-level headroom, controlled completed and timed-out gate waits, existing focused tests and lint. The candidate logs show 65 passed at 8fc472a, 66 passed at 275f82d9 after the edge correction, and Ruff exit 0 at both code heads. At the reviewed head, the pure admission and width-controller subset independently passed 19/19 and Ruff exited 0. The full socket-backed rerun could not bind 127.0.0.1 on this review host; all 22 failures are the same environment OSError before test logic, so they are not attributed to the candidate.",
+    "goal": "the implementation directly realizes \u00a720: admission_snapshot computes width minus in_flight minus waiting, reports FIFO age and open/full/congested/paused verdicts, _publish_gate_snapshot preserves engine_headroom while clamping top-level headroom, and acquire measures arrival-to-admission time for completed, disconnected and timed-out outcomes",
+    "manifest": "the candidate manifest is complete and agrees with its durable artifacts: four listed commits resolve to the reviewed worktree, changed_paths match the five-path diff, gate and Ruff logs have revision/tree/command headers, the negative-control path is bare, and its note quotes the recorded base-arm KeyError reproduction",
+    "write_paths": "git diff --name-only a30208faba5b9d127391502df33e1f7e84f4f027..3b42f115b522d229346d69b3bf58bc9ff8c9dc7f lists exactly five paths, all within the candidate fence; the evidence archive addition is append-only and the worktree is clean"
+  },
+  "justifications": {
+    "durability": "the new tests exercise congested queue publication with 14 in flight and 9 waiting, open and full snapshots, width narrowing below current in-flight work, paused precedence, a completed receipt wait and a timed-out receipt wait. The recorded base-arm negative control fails with KeyError: 'engine_headroom' before the repair, while the candidate logs show the repaired gate green; the only limitation is that the review host could not execute the socket-backed cases because loopback binding is denied.",
+    "evidence": "the candidate's gate-edge.log independently records 66 passed in 6.77 s at 275f82d9706ab9675f82758e97a36636b2e4cd45 and ruff-edge.log records a clean whole-tree lint result. The final commit is documentation-only, and the reviewed head's 19 non-network tests plus Ruff pass independently. The full rerun is preserved at review-gate.log and fails uniformly at aiohttp binding 127.0.0.1:0, before assertions; this is reported as an environment limitation rather than hidden.",
+    "fit": "the change follows the existing router design: immutable gate settings and admission records, the existing FIFO condition, atomic lane-document replacement, and the existing receipt sink. The new field is threaded by keyword through all receipt construction paths, tests use the repository's existing async stub helpers, and the source diff passes git diff --check and Ruff.",
+    "goal_fidelity": "all requested semantics are present and tested: queue pressure is separate from engine capacity, negative headroom and at-or-above-width full states are preserved, paused state takes precedence and clamps headroom, and wait duration is recorded even when the gate returns a 529 timeout.",
+    "scope_discipline": "the candidate worktree is clean and its four commits touch only the five declared paths. No router restart, public lane write or unrelated source change is present, and the plan/evidence edits are limited to the \u00a720 landing record and cumulative anchor."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260925T132721214026-s20-gate-aware-lane, reviewed base a30208faba5b9d127391502df33e1f7e84f4f027 and reviewed head 3b42f115b522d229346d69b3bf58bc9ff8c9dc7f.\n\nThe live plan section \u00a720 requires a lane.json admission block with queue-aware headroom and verdicts, preservation of the engine headroom, and gate_wait_s on completed and timed-out request receipts. I read the candidate manifest, all four commits, the router and receipt call sites, the focused tests, the plan landing and cumulative evidence anchor, and the candidate's gate, edge-gate, lint and negative-control logs. I independently ran the non-network admission and width tests at the reviewed head (19 passed) and whole-tree Ruff (exit 0). The full socket-backed gate rerun is retained in review-gate.log; its 22 failures all occur before test logic at aiohttp loopback bind 127.0.0.1:0, so they are an execution-host limitation rather than candidate failures.\n\nVERDICT goal: router.py:208-232 computes width - in_flight - waiting and reports oldest FIFO age plus open/full/congested/paused; router.py:1431-1445 publishes that block, moves engine capacity to engine_headroom and clamps top-level headroom; router.py:1223-1265 and request_receipts.py:464-480 carry gate_wait_s through acquired, disconnected, timed-out and relayed receipt paths.\nVERDICT done_when: the candidate's initial focused gate is 65 passed at 8fc472a, the edge-corrected gate is 66 passed at 275f82d9, and both whole-tree Ruff logs exit 0. The reviewed head is documentation-only after 275f82d9; the independent pure subset is 19 passed and Ruff is clean. The complete rerun could not bind loopback on this host, with every failure showing the same OSError before assertions.\nVERDICT write_paths: the reviewed diff has exactly five paths -- router.py, request_receipts.py, test_agent_router_admission.py, the plan and the cumulative evidence archive -- all within the candidate scope, and the candidate worktree is clean.\nVERDICT manifest: the candidate manifest's commits, paths, logs and negative-control path agree with the files on disk; the logs carry revision/tree/command headers and the negative-control first line records the base-arm KeyError reproduction.\nVERDICT diff: four commits add the queue telemetry and wait propagation, record the evidence, correct full/paused boundary states, and append the final landing prose. No unrelated code or operational state change is present.\nCALL_SITES: 6 production call sites verified across generation admission, lane publication, snapshot rewriting, relay receipt completion, timeout refusal and receipt serialization.\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: all \u00a720 semantics are implemented and covered: queue pressure is separate from engine capacity, top-level headroom is the minimum of engine and admission capacity, over-width and paused states are explicit, and gate wait is recorded on successful and timed-out requests.\nSCORE evidence: 19\nJUSTIFICATION evidence: candidate logs provide the 65 and 66 passing gates, clean Ruff, and a base-arm red KeyError; the reviewed head independently passes the non-network 19-test subset and Ruff. The full rerun is not green only because this host rejects aiohttp loopback binds, and that limitation is preserved in the review log rather than presented as a candidate result.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the four commits touch exactly the five declared paths, the candidate worktree is clean, and no deployment or unrelated file mutation appears.\nSCORE durability: 19\nJUSTIFICATION durability: the focused tests cover congested, open, full, narrowed, paused, completed-wait and timeout-wait states, while the recorded base-arm negative control fails before the repair with KeyError: 'engine_headroom'.\nSCORE fit: 19\nJUSTIFICATION fit: the implementation uses the existing FIFO condition, atomic lane writer, frozen settings and receipt sink idioms; the only deduction is conservative because the socket-backed gate could not be re-executed on this host.\nFINDING none.",
+  "review_run_id": "r-20260925T134443408723-review-of-s20-gate-aware-lane",
+  "reviewed_base_sha": "a30208faba5b9d127391502df33e1f7e84f4f027",
+  "reviewed_head_sha": "3b42f115b522d229346d69b3bf58bc9ff8c9dc7f",
+  "reviewed_run_id": "r-20260925T132721214026-s20-gate-aware-lane",
+  "reviewer": "review-of-s20-gate-aware-lane",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-25T14:32:00+02:00",
+  "total": 97
+}

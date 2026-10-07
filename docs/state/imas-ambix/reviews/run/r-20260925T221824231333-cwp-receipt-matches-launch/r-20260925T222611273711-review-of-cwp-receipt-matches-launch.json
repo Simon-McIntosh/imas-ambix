@@ -1,0 +1,58 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "clive",
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2173-2181 (the imas-ambix agent clive command that generates and deploys the launcher carrying the changed bash)",
+    "imas_ambix/agent/clive.py:42 generate_clive_script",
+    "and the deployed launcher at site.clive_path which this change does not redeploy"
+  ],
+  "completed_at": "2026-09-25T22:38:25.960Z",
+  "dispatched_at": "2026-09-25T22:26:17Z",
+  "findings": [
+    {
+      "file": "tests/test_agent_clive_worker_profile.py",
+      "line": "310",
+      "text": "the agreement assertion checks only the prefix args[: len(added)] == added, so an argument appended to PROFILE_ARGS after the receipt read -- the shape a partial re-duplication of the removed literal builds -- leaves the receipt under-reporting while this line stays green, and the done-when's \"equals the argument vector the launch emitted\" is stronger than what the line proves."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T221824231333-cwp-receipt-matches-launch/gate-ruff.log",
+      "line": "1",
+      "text": "the header names revision 82ec18b6 although the tree it linted carried the uncommitted change, so a reader re-running the gate at the named revision would measure different content and the exit-0 claim cannot be tied to the landed diff from the log alone."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "read commit by commit against base 82ec18b6 -- 77beecaa removes the duplicated bash argv construction and replaces it with one read of receipt.added_arguments plus the two new assertions (16 insertions, 17 deletions across clive.py and the test), and 3d533861 appends one h2 section to the cumulative evidence archive by pure insertion (11 insertions, 0 deletions, the prior two sections intact at lines 14 and 29) and adds the landing paragraph plus the plan-version bump to plan section 2.",
+    "done_when": "the done-when names four measures and the record carries all four, but one of them is weaker than its wording; the gate log records uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_worker_profile.py tests/test_agent_clive_picker.py = 23 passed at revision 77beecaa and ruff check imas_ambix tests exit 0, the settings-route test asserts record[\"added_arguments\"] against the argv the harness stub observed on its own command line and pins evidence.hook_route_measurement to the full report path, and the negative control's first line repeats the declared string byte for byte with its 1 failed / 9 passed count -- yet the red traceback is the pre-existing assertion args[args.index(\"--setting-sources\") + 1] == \"\" (tests/test_agent_clive_worker_profile.py:300), so the record contains no demonstration that either assertion added by this change fires.",
+    "goal": "the node goal is to make the worker-profile expansion receipt provably agree with the arguments the launch emits; reading imas_ambix/agent/clive.py at 3d533861, the hook-carrying route no longer builds its own argv (PROFILE_PROMPT, PROFILE_TOOLS and MCP_ARGUMENTS are gone with the literal --setting-sources \"\"), and mapfile -d '' -t PROFILE_ARGS (clive.py:852) now reads receipt.added_arguments, which I reproduced in bash 5.1.8 with the real argument shapes: the empty --setting-sources value and the multi-line system prompt both survive the NUL round trip and no element collapses.",
+    "manifest": "read; it states 23 passed and ruff exit 0 with both log paths on disk, names both commits and all four changed paths, records the negative control verbatim with its failing count alongside the log path, and discloses the tool-managed plan-version bump under follow_ons rather than leaving it unexplained.",
+    "write_paths": "the five declared paths are imas_ambix/agent/clive.py, tests/test_agent_clive_worker_profile.py, docs/evidence/archive/clive-worker-profiles-landed.html, docs/figures/clive-worker-profiles and docs/plans/clive-worker-profiles.html; the diff of range 82ec18b6..3d533861 is exactly four files, every one of them inside that list, with the figures directory untouched and no path outside the scope in either commit."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_clive_worker_profile.py:310 asserts agreement between the receipt and the stub-observed argv through two independent artifacts, but it reddens on drift between two definitions rather than on a bare revert of 77beecaa, its prefix form leaves an argument appended after the receipt read unguarded, and the recorded control reddens only the pre-existing assertion at line 300.",
+    "evidence": "the gate logs record 23 passed at 77beecaa and ruff exit 0, but gate-ruff.log's first line names base 82ec18b6 while the run measured a tree carrying the still-uncommitted change, so that log does not itself state what it measured.",
+    "fit": "mapfile -d '' is the idiomatic NUL round trip beside the block's existing python3 -c reads at clive.py:845-853 and the added comments state the mechanism without plan, ticket or version references.",
+    "goal_fidelity": "clive.py:852 is now the single definition feeding the launch's argv and clive.py:811 carries the only remaining --setting-sources value literal, so the record and the emitted command cannot disagree.",
+    "scope_discipline": "the range 82ec18b6..3d533861 touches only the four declared files, and the cumulative evidence archive grew by pure insertion at docs/evidence/archive/clive-worker-profiles-landed.html:44."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is to make the worker-profile expansion receipt provably agree with the arguments the launch emits; reading imas_ambix/agent/clive.py at 3d533861, the hook-carrying route no longer builds its own argv (PROFILE_PROMPT, PROFILE_TOOLS and MCP_ARGUMENTS are gone with the literal --setting-sources \"\"), and mapfile -d '' -t PROFILE_ARGS (clive.py:852) now reads receipt.added_arguments, which I reproduced in bash 5.1.8 with the real argument shapes: the empty --setting-sources value and the multi-line system prompt both survive the NUL round trip and no element collapses.\nVERDICT done_when: the done-when names four measures and the record carries all four, but one of them is weaker than its wording; the gate log records uv run --no-sync pytest -p no:cacheprovider tests/test_agent_clive_worker_profile.py tests/test_agent_clive_picker.py = 23 passed at revision 77beecaa and ruff check imas_ambix tests exit 0, the settings-route test asserts record[\"added_arguments\"] against the argv the harness stub observed on its own command line and pins evidence.hook_route_measurement to the full report path, and the negative control's first line repeats the declared string byte for byte with its 1 failed / 9 passed count -- yet the red traceback is the pre-existing assertion args[args.index(\"--setting-sources\") + 1] == \"\" (tests/test_agent_clive_worker_profile.py:300), so the record contains no demonstration that either assertion added by this change fires.\nVERDICT write_paths: the five declared paths are imas_ambix/agent/clive.py, tests/test_agent_clive_worker_profile.py, docs/evidence/archive/clive-worker-profiles-landed.html, docs/figures/clive-worker-profiles and docs/plans/clive-worker-profiles.html; the diff of range 82ec18b6..3d533861 is exactly four files, every one of them inside that list, with the figures directory untouched and no path outside the scope in either commit.\nVERDICT manifest: read; it states 23 passed and ruff exit 0 with both log paths on disk, names both commits and all four changed paths, records the negative control verbatim with its failing count alongside the log path, and discloses the tool-managed plan-version bump under follow_ons rather than leaving it unexplained.\nVERDICT diff: read commit by commit against base 82ec18b6 -- 77beecaa removes the duplicated bash argv construction and replaces it with one read of receipt.added_arguments plus the two new assertions (16 insertions, 17 deletions across clive.py and the test), and 3d533861 appends one h2 section to the cumulative evidence archive by pure insertion (11 insertions, 0 deletions, the prior two sections intact at lines 14 and 29) and adds the landing paragraph plus the plan-version bump to plan section 2.\nCALL_SITES: imas_ambix/agent/cli.py:2173-2181 (the imas-ambix agent clive command that generates and deploys the launcher carrying the changed bash), imas_ambix/agent/clive.py:42 generate_clive_script, and the deployed launcher at site.clive_path which this change does not redeploy\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: clive.py:852 is now the single definition feeding the launch's argv and clive.py:811 carries the only remaining --setting-sources value literal, so the record and the emitted command cannot disagree.\nSCORE evidence: 18\nJUSTIFICATION evidence: the gate logs record 23 passed at 77beecaa and ruff exit 0, but gate-ruff.log's first line names base 82ec18b6 while the run measured a tree carrying the still-uncommitted change, so that log does not itself state what it measured.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: the range 82ec18b6..3d533861 touches only the four declared files, and the cumulative evidence archive grew by pure insertion at docs/evidence/archive/clive-worker-profiles-landed.html:44.\nSCORE durability: 16\nJUSTIFICATION durability: tests/test_agent_clive_worker_profile.py:310 asserts agreement between the receipt and the stub-observed argv through two independent artifacts, but it reddens on drift between two definitions rather than on a bare revert of 77beecaa, its prefix form leaves an argument appended after the receipt read unguarded, and the recorded control reddens only the pre-existing assertion at line 300.\nSCORE fit: 19\nJUSTIFICATION fit: mapfile -d '' is the idiomatic NUL round trip beside the block's existing python3 -c reads at clive.py:845-853 and the added comments state the mechanism without plan, ticket or version references.\nFINDING tests/test_agent_clive_worker_profile.py:310 the agreement assertion checks only the prefix args[: len(added)] == added, so an argument appended to PROFILE_ARGS after the receipt read -- the shape a partial re-duplication of the removed literal builds -- leaves the receipt under-reporting while this line stays green, and the done-when's \"equals the argument vector the launch emitted\" is stronger than what the line proves.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T221824231333-cwp-receipt-matches-launch/gate-ruff.log:1 the header names revision 82ec18b6 although the tree it linted carried the uncommitted change, so a reader re-running the gate at the named revision would measure different content and the exit-0 claim cannot be tied to the landed diff from the log alone.",
+  "review_run_id": "r-20260925T222611273711-review-of-cwp-receipt-matches-launch",
+  "reviewed_base_sha": "82ec18b6b6887ed7fc76e624e1af7f944fde72a8",
+  "reviewed_head_sha": "3d53386129510995f8747bd54085aeed0934db37",
+  "reviewed_run_id": "r-20260925T221824231333-cwp-receipt-matches-launch",
+  "scores": {
+    "durability": 16,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-25T22:37:40.414209+00:00",
+  "total": 91
+}

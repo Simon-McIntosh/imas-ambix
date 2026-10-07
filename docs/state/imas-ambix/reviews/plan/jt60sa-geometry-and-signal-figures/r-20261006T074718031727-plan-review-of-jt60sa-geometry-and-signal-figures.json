@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T07:56:00.287Z",
+  "dispatched_at": "2026-10-06T07:47:24Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/transform_engine.py:385",
+      "id": "duplicate_owner-1",
+      "reason": "three seams the plan's own \"no script re-derives store layout\" intent promises to close (engine selection, per-IDS filename, element shape type) remain open, and naming each owner (get_transform_engine, _NetCDFStoreArrays.read, PolygonSection) lets \u00a71b retire them in the same pass rather than leaving a second addressing route beside the owner.",
+      "text": "\u00a71/\u00a71b resolve the phase store by naming the concrete class, `NetCDFTransformEngine.open(...)`, rather than resolving the format the catalogue declares through the registered engine factory `get_transform_engine`, which is the route the canonical acquisition path already uses at imas_ambix/data/transform_engine.py:511 (`transform_machine_description` \u2192 `get_transform_engine(store_format)`); and within that route, scripts/figures_jt60sa_geometry.py:161 (`_read_ids`: `path = phase_dir / f\"{ids_name}.nc\"`) re-derives the per-IDS netCDF filename that the static-over-map reader owns at imas_ambix/data/transform_engine.py:288 (`source = self.path / f\"{ids_name}.nc\"`), so \u00a71b retires only the root+phase join and leaves the filename convention duplicated; and scripts/figures_jt60sa_geometry.py:124 (`class Shape`) keeps a drawable-kind type whose fields no longer carry anything the readers' imas_ambix/gs/geometry.py:240 `PolygonSection` (vertices + name) does not, once \u00a71b draws the readers' vertices directly",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/../scripts/figures_jt60sa_geometry.py:486",
+      "id": "interface_budget-1",
+      "reason": "the miscount is prose only; \u00a71b adds no option and the design does not turn on the option count, so correcting it to \"two existing options\" is a text fix that leaves the plan's shape unchanged.",
+      "text": "\u00a71 says the geometry script carries \"one command-line option, --palette-candidates\" and \u00a71b says it \"adds no option\", but the landed script exposes two options (`--palette-candidates` and `--out-dir`, scripts/figures_jt60sa_geometry.py:486-495), so the section's own accounting of the interface it is widening understates the surface it keeps",
+      "type": "interface_budget",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "a9b109b527731020ebf6ddb273a7e189a2eb22256b75ce6a1cf8cee8e51825e6",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 22,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "superseded by the lead's 2026-10-06 ruling that JT-60SA figures render through imas-ink with no labels: plan v27 retires plot_style.py, the hand-drawn geometry script and its --palette-candidates and --out-dir options (\u00a71b), and \u00a72's replacement passes the store's IDSs straight to imas-ink",
+      "when": "2026-10-06T08:03:02.312012+00:00"
+    },
+    "interface_budget-1": {
+      "action": "declined",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "superseded by the lead's 2026-10-06 ruling that JT-60SA figures render through imas-ink with no labels: plan v27 retires plot_style.py, the hand-drawn geometry script and its --palette-candidates and --out-dir options (\u00a71b), and \u00a72's replacement passes the store's IDSs straight to imas-ink",
+      "when": "2026-10-06T08:03:02.313021+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T074718031727-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "576522ac383ae00dbfc009d729ce37278aaa868e",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the one new module, imas_ambix/plot_style.py, hides the base sheet (with its vendored rcParams fallback), the role-to-colour map and the direct-label helper behind apply_data_ink/palette/direct_label; the geometry reader and drawer stay in one script that both the palette gallery and the phase figures call, so there is one reader per source rather than a spread of small wrappers.",
+    "duplicate_owner": "finding \u2014 the plan retires the reader's own root-and-phase join but re-derives two further pieces of description-store addressing that the transform-engine owners already own, and keeps a drawable shape type the readers already return.",
+    "interface_budget": "finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a71 and \u00a71b state in their own text that nothing is retired (the first style module, no existing JT-60SA drawer) and \u00a73 states read_channel retires nothing, but \u00a71 and \u00a71b each describe the geometry script as carrying \"one command-line option, --palette-candidates\" while the landed script already exposes two options.",
+    "reuse_search": "pass \u2014 the plan searched imas_ambix/data/, imas_ambix/gs/ and scripts/ on 2026-10-06 and names, for each mechanism it adds, the existing mechanism it extends or the one it deliberately avoids, and every owner it cites exists: imas_ambix/data/paths.py (JT60SA_ROOT:33, JT60SA_DESCRIPTION_DIR:34), imas_ambix/data/eddb.py (channel_path:104, channel_time_path:118, UNIT_ATTR:51, write_channel:208), imas_ambix/gs/artifact_geometry.py (read_artifact_pf_active:302, read_artifact_pf_passive:409, read_artifact_magnetics:577, read_artifact_limiter:671), imas_ambix/data/machine_map.py (load_packaged_machine_map:1623, description_store_root_path:1006) and imas_ambix/data/machine_maps/jt-60sa.json.",
+    "thin_wrapper": "pass \u2014 every layer the plan adds over existing machinery carries its own justification in its section text: read_channel beside write_channel because ZarrTransformEngine.read needs a ChannelBinding from a packaged signal map and returns a bare array (transform_engine.py:288 reads {ids}.nc only via a binding), the signals script as a second entry point because it reads the EDDB cache and shares no reader with the geometry script, and plot_style because imas_ambix/ holds no plotting style code."
+  },
+  "section_digests": {
+    "_document": "d608f2360eef134e400abf9b7d123c3dd66ad748bc83882079b1f12c05272af6",
+    "s1": "aaf047afbd6570c22021ee3aeff220ba37be04745a8af13fb227db5f2252ce25",
+    "s1b": "9263532a376145d28a790cc108086a936589309b1bde24eb1259c0a66c93b2c8",
+    "s2": "b96aa25e42885522a799230565d1d6f25e1d297a18ae16581a2b08a623c99e6f",
+    "s3": "919287d37de703a43ac484a1e231002f2e9229422bad77b20b83a00cada08c0c"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T08:03:02.310038+00:00"
+}

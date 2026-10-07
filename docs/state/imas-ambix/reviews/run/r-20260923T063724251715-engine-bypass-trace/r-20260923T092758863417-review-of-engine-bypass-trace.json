@@ -1,0 +1,62 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 6,
+  "call_sites": [
+    "imas_ambix/agent/registry.py:354 write_endpoint_document serialises endpoints and routing_origins",
+    "imas_ambix/agent/cli.py:3052 lane resolves and dials endpoints[0]",
+    "imas_ambix/agent/clive.py:358 document mode reads and probes endpoints plus routing_origins",
+    "/work/projects/imas_gpu/agents/clive:260 deployed legacy mode dials its embedded router origin",
+    "reckon/reckon/flight.py:949 _probe_serving reads endpoints without dialing them",
+    "reckon/reckon/crew/serving_origin.py:85 check_origin dials the launcher-reported origin rather than the document"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-09-23T09:27:58.863417+00:00",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/engine-bypass-trace.md",
+      "line": "145-157",
+      "text": "The report correctly shows that agent lane constructs http://{endpoints[0].host}:{port}, but then concludes that binding the engine to loopback leaves that dial working merely because the refresher runs on the same node. A socket bound only to loopback does not accept traffic addressed to the node's FQDN/non-loopback interface. With the currently published 98dci4-gpu-0003.iter.org:18810 origin, the refresher would stop updating lane.json after the bind unless its explicit origin or the document contract is changed. Therefore the claims that the bind alone needs no consumer/document change and that agent lane survives it are unsafe deployment guidance."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T063724251715-engine-bypass-trace/manifest.md",
+      "line": "9-10",
+      "text": "The manifest records outcome summaries for the three-document selection but names the generated launcher, an empty diff and the rendered launcher as test logs; none is a revision/tree/command-headed result receipt, and no named file records the three selected origins or curl exits. The stream preserves contemporaneous execution, but the declared test_logs do not let a later reader verify the quantitative result directly."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified the writer, the direct endpoints[0] lane dialer, both generated-launcher modes, Reckon's read-only availability probe and its launcher-origin dial path",
+    "diff": "the source node is report-only and made no repository commit; the retained target worktree remains clean at base 8d6f8dca, so the review compared the sole report artifact and run artifacts against that recorded base rather than inventing a code diff",
+    "done_when": "the report enumerates the imas_ambix, generated-clive and Reckon readers with fields and fallback behavior, identifies the writer and current bind, and the retained fixtures plus selection body support the router-versus-engine fallback; however the named test_logs are inputs/scripts rather than result receipts, and the current live rerun no longer reaches a model, so only the contemporaneous run record supports the measured network rows",
+    "goal": "the report accurately traces the endpoint-document readers and demonstrates that document-mode clive falls back to endpoints[0], but its deployment consequence is wrong: the existing lane refresher's FQDN dial will not reach an engine bound only to loopback",
+    "manifest": "read against the report, retained fixtures, rendered launcher, deployed launcher and target worktree; it names the report-only scope and no commit honestly, but its test_logs field does not point to result receipts for the central three-document experiment",
+    "write_paths": "the node's only declared write path is the external report and no repository path changed; run-directory fixtures support the investigation and no service, scheduler or plan state was mutated"
+  },
+  "justifications": {
+    "durability": "the retained document-mode launcher, extracted selection body and two isolated fixtures can reproduce the fallback logic, but no result log captures their original outputs and the report's loopback-survival assertion would direct the next deployment toward a broken lane refresher.",
+    "evidence": "the source citations at imas_ambix/agent/cli.py:3077-3085 and imas_ambix/agent/clive.py:358-425 support the reader trace, and the deployed launcher still hashes identically to clive-print.txt, but manifest.md:9-10 names no durable result receipt for the network and three-document measurements.",
+    "fit": "the report uses the repository's source paths and separates legacy from document mode clearly, but its lines 145-157 replace the plan's router-only publication requirement with an incorrect bind-only conclusion.",
+    "goal_fidelity": "the inventory and field-level trace satisfy the dispatched investigation at report lines 39-98, while the erroneous same-node/loopback conclusion at lines 145-157 materially weakens the design answer that section 9 needed.",
+    "scope_discipline": "the retained worktree is clean at 8d6f8dca and the only delivered change is the declared report path; the node performed read-only source, artifact and endpoint checks without reconfiguring the live lane."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the report at /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/engine-bypass-trace.md:39-98 accurately traces the endpoint-document readers and demonstrates document-mode clive fallback, but lines 145-157 wrongly say the FQDN-based lane refresher survives an engine bind to loopback.\nVERDICT done_when: the report enumerates the imas_ambix, generated-clive and Reckon readers with file and field, identifies registry.py:354 as writer and the running log's 0.0.0.0:18810 bind, while manifest.md:9-10 fails to name a result receipt for the three-document and curl measurements.\nVERDICT write_paths: the source node's sole declared write path is the external engine-bypass-trace.md report, the retained worktree is clean at base 8d6f8dca, and no live service, scheduler or plan state was changed.\nVERDICT manifest: read against the report, fixtures, extracted selector, deployed launcher and target worktree; it truthfully records no commit for a report-only node, but its test_logs are scripts or inputs rather than result logs.\nVERDICT diff: there is no repository diff because the node is report-only; the review read the sole report artifact and supporting run artifacts against the recorded clean base rather than treating an absent commit as code evidence.\nCALL_SITES: imas_ambix/agent/registry.py:354 write_endpoint_document, imas_ambix/agent/cli.py:3052 lane, imas_ambix/agent/clive.py:358 document-mode selection, /work/projects/imas_gpu/agents/clive:260 deployed legacy selection, reckon/reckon/flight.py:949 _probe_serving, reckon/reckon/crew/serving_origin.py:85 check_origin\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: report lines 39-98 deliver the requested field-level inventory, but lines 145-157 turn the correct trace into unsafe loopback deployment guidance.\nSCORE evidence: 15\nJUSTIFICATION evidence: cli.py:3077-3085 and clive.py:358-425 support the trace and clive-print.txt still matches the deployed launcher byte-for-byte, but manifest.md:9-10 names no revision/tree/command-headed result receipt for the central measured outputs.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the retained source worktree is clean at 8d6f8dca and the only delivery is the declared external report, with no live mutation.\nSCORE durability: 14\nJUSTIFICATION durability: the retained selector and isolated fixtures can replay the fallback, but no durable result log records the original outputs and report lines 145-157 encode a false operational consequence.\nSCORE fit: 16\nJUSTIFICATION fit: the report follows the source layout and distinguishes read-only probes from dialers, but lines 145-157 contradict the plan's required router-only publication by claiming loopback alone is sufficient.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/llac-20260923/engine-bypass-trace.md:145-157 agent lane dials the FQDN from endpoints[0]; running on the same node does not make that non-loopback address reach a loopback-only listener, so the bind-alone and refresher-survives conclusions are wrong and would stop lane.json refresh unless origin/publication changes too.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260923T063724251715-engine-bypass-trace/manifest.md:9-10 the declared test logs are a generated launcher, an empty diff and a selector script rather than result receipts; no named log records the three selected origins or curl exits for later verification.\nREVISION: 8d6f8dcae68f08237a946dad5a479202c30d2b39",
+  "review_run_id": "r-20260923T092758863417-review-of-engine-bypass-trace",
+  "reviewed_base_sha": "8d6f8dcae68f08237a946dad5a479202c30d2b39",
+  "reviewed_head_sha": "8d6f8dcae68f08237a946dad5a479202c30d2b39",
+  "reviewed_revision": "8d6f8dcae68f08237a946dad5a479202c30d2b39",
+  "reviewed_run_id": "r-20260923T063724251715-engine-bypass-trace",
+  "reviewer": "review-of-engine-bypass-trace",
+  "scores": {
+    "durability": 14,
+    "evidence": 15,
+    "fit": 16,
+    "goal_fidelity": 18,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-23T11:52:04+02:00",
+  "total": 83
+}

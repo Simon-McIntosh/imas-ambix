@@ -1,0 +1,70 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2599",
+    "imas_ambix/agent/serving_receipts.py:407",
+    "imas_ambix/agent/watch.py:540",
+    "imas_ambix/agent/receipt_bins.py:211",
+    "imas_ambix/agent/telemetry_index.py:1074"
+  ],
+  "completed_at": "",
+  "dispatched_at": "",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/flat-columns.md",
+      "line": "58",
+      "text": "the version-keyed reader contract is wrong in both directions: schema-3 rows already carry the engine section and a numeric flat prefix_cache_hits_total, the rows carrying a numeric flat prefix_cache_hit_rate are the pre-schema files with no schema_version key at all (114,717 rows of deepseek-v4-flash-1264576.jsonl), and schema-3 flat rate and interval are null in every row, so the advice sends a reader to the rows where the flat columns are empty and away from the rows where they hold values."
+    },
+    {
+      "file": "imas_ambix/agent/receipt_bins.py",
+      "line": "211",
+      "text": "_prefix_hit_rate differences the current row's engine counters against the previous row's with no job, host or boot identity, so a window interleaving two counter-family serves emits a rate no serve measured \u2014 measured on the head module, previous 4,000,000 hits / 500,000 queries and current 5,000,000 / 4,000,000 yields 0.2857 because the guard only refuses a non-positive advance; latent today, since no recorded row carries an engine section from a counter-only family."
+    },
+    {
+      "file": "imas_ambix/agent/receipt_bins.py",
+      "line": "238",
+      "text": "the refusal of a non-positive advance is held by no test: deleting the branch leaves tests/test_agent_receipt_bins.py at 3 passed, while a positive control forcing every rate to zero reddens all three, so the suite binds the function's output and not this branch."
+    },
+    {
+      "file": "tests/test_agent_serving_receipts.py",
+      "line": "671",
+      "text": "the schema-version bit is asserted against the constant under test at 671, 869 and 1344, payload[\"schema_version\"] == sr.ROW_SCHEMA_VERSION, so no test reddens if the value reverts to 3 and the distinguishing bit the version exists to carry is held by nothing."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 5 production call site(s)",
+    "diff": "the change does what it says where the corpus can test it; the one behaviour it adds, reader-side differencing of engine counters, carries a serve-provenance gap that its own guard does not catch.",
+    "done_when": "all five items hold and each was reproduced independently \u2014 four-file gate 94 passed against 91 collected at base 913bd953, ruff exit 0, serving-interpreter guard 1 passed, the declared mutation reddens exactly the named watch test (1 failed of 14, replayed through a sys.modules shadow so the reviewed tree was untouched), and the live-row statement re-derived against job 1273253 on port 18810.",
+    "goal": "the ten flat columns are removed and every consumer verified; on the recorded corpus the removed interval and rate columns carried a value in zero rows and the one removed column that carried values, prefix_cache_hit_delta at 1,269 rows, is recoverable by differencing the engine counts the same rows still state, so the goal is met without losing recorded information.",
+    "manifest": "accurate on every measured field with one exception \u2014 the version-keyed reader contract it states matches no recorded population, so a reader following it looks in the wrong place.",
+    "write_paths": "one edited file sits outside the declared list, tests/test_agent_receipt_bins.py, because the declared name tests/test_receipt_bins.py does not exist; the edit is confined to that file's own content and the fence's consumer list requires receipt_bins coverage, so the substantive scope is respected and the mismatch is reported rather than hidden."
+  },
+  "justifications": {
+    "durability": "the added assertions are mutation-sensitive and the refuse-on-backwards branch is not \u2014 deleting it leaves the bins suite at 3 passed while a positive control that forces every rate to zero reddens all three.",
+    "evidence": "every gate claim reproduced at the reviewed revision and the live-row claim re-derived on the running serve, with the one gap that the live-row numbers exist only as prose.",
+    "fit": "the rate-assembly rule now exists in two places, watch.py and receipt_bins.py, with one refusing a non-positive advance and the other unguarded, which is the divergence the duplication invites.",
+    "goal_fidelity": "the removal is complete and lossless on the corpus, but the manifest's reader contract describes a version-keyed population split that no recorded row exhibits.",
+    "scope_discipline": "the single out-of-list path is the file the fence's own consumer requires, and the discrepancy is disclosed instead of silently renamed."
+  },
+  "project": "imas-ambix",
+  "raw_text": "REVISION: 4d540b354fd9a2a0b9d4c0c8b6c7a1ec38f1689f\nVERDICT goal: the ten flat columns are removed and every consumer verified; on the recorded corpus the removed interval and rate columns carried a value in zero rows and the one removed column that carried values, prefix_cache_hit_delta at 1,269 rows, is recoverable by differencing the engine counts the same rows still state, so the goal is met without losing recorded information.\nVERDICT done_when: all five items hold and each was reproduced independently \u2014 four-file gate 94 passed against 91 collected at base 913bd953, ruff exit 0, serving-interpreter guard 1 passed, the declared mutation reddens exactly the named watch test (1 failed of 14, replayed through a sys.modules shadow so the reviewed tree was untouched), and the live-row statement re-derived against job 1273253 on port 18810.\nVERDICT write_paths: one edited file sits outside the declared list, tests/test_agent_receipt_bins.py, because the declared name tests/test_receipt_bins.py does not exist; the edit is confined to that file's own content and the fence's consumer list requires receipt_bins coverage, so the substantive scope is respected and the mismatch is reported rather than hidden.\nVERDICT manifest: accurate on every measured field with one exception \u2014 the version-keyed reader contract it states matches no recorded population, so a reader following it looks in the wrong place.\nVERDICT diff: the change does what it says where the corpus can test it; the one behaviour it adds, reader-side differencing of engine counters, carries a serve-provenance gap that its own guard does not catch.\nVERDICT call_sites: five production sites verified and the summariser is the only one whose contract changed; its new docstring states the two-row rule correctly.\nCALL_SITES: imas_ambix/agent/cli.py:2599, imas_ambix/agent/serving_receipts.py:407, imas_ambix/agent/watch.py:540, imas_ambix/agent/receipt_bins.py:211, imas_ambix/agent/telemetry_index.py:1074\nSCORE goal_fidelity: 16\nJUSTIFICATION goal_fidelity: the removal is complete and lossless on the corpus, but the manifest's reader contract describes a version-keyed population split that no recorded row exhibits.\nSCORE evidence: 18\nJUSTIFICATION evidence: every gate claim reproduced at the reviewed revision and the live-row claim re-derived on the running serve, with the one gap that the live-row numbers exist only as prose.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: the single out-of-list path is the file the fence's own consumer requires, and the discrepancy is disclosed instead of silently renamed.\nSCORE durability: 13\nJUSTIFICATION durability: the added assertions are mutation-sensitive and the refuse-on-backwards branch is not \u2014 deleting it leaves the bins suite at 3 passed while a positive control that forces every rate to zero reddens all three.\nSCORE fit: 16\nJUSTIFICATION fit: the rate-assembly rule now exists in two places, watch.py and receipt_bins.py, with one refusing a non-positive advance and the other unguarded, which is the divergence the duplication invites.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/flat-columns.md:58 the version-keyed reader contract is wrong in both directions: schema-3 rows already carry the engine section and a numeric flat prefix_cache_hits_total, the rows carrying a numeric flat prefix_cache_hit_rate are the pre-schema files with no schema_version key at all (114,717 rows of deepseek-v4-flash-1264576.jsonl), and schema-3 flat rate and interval are null in every row, so the advice sends a reader to the rows where the flat columns are empty and away from the rows where they hold values.\nFINDING imas_ambix/agent/receipt_bins.py:211 _prefix_hit_rate differences the current row's engine counters against the previous row's with no job, host or boot identity, so a window interleaving two counter-family serves emits a rate no serve measured \u2014 measured on the head module, previous 4,000,000 hits / 500,000 queries and current 5,000,000 / 4,000,000 yields 0.2857 because the guard only refuses a non-positive advance; latent today, since no recorded row carries an engine section from a counter-only family.\nFINDING imas_ambix/agent/receipt_bins.py:238 the refusal of a non-positive advance is held by no test: deleting the branch leaves tests/test_agent_receipt_bins.py at 3 passed, while a positive control forcing every rate to zero reddens all three, so the suite binds the function's output and not this branch.\nFINDING tests/test_agent_serving_receipts.py:671 the schema-version bit is asserted against the constant under test at 671, 869 and 1344, payload[\"schema_version\"] == sr.ROW_SCHEMA_VERSION, so no test reddens if the value reverts to 3 and the distinguishing bit the version exists to carry is held by nothing.",
+  "review_run_id": "legacy-06288b844111",
+  "review_run_id_source": "derived",
+  "reviewed_revision": "4d540b354fd9a2a0b9d4c0c8b6c7a1ec38f1689f",
+  "reviewed_run_id": "r-20260922T160007783783-flat-columns",
+  "reviewer": "review-of-flat-columns",
+  "scores": {
+    "durability": 13,
+    "evidence": 18,
+    "fit": 16,
+    "goal_fidelity": 16,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "unknown",
+  "timestamp": "2026-09-22T17:33:01.700012+00:00",
+  "total": 81
+}

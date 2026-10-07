@@ -1,0 +1,75 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T06:33:27.303Z",
+  "dispatched_at": "2026-10-06T06:29:08Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/plot_style.py:87",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a71/\u00a71b should give the colour table one owner (plot_style.py, with the script's candidates drawn from it) rather than two copies that drift when the choice changes.",
+      "text": "the repository's colour-role mapping is owned in two places at once: `DEFAULT_PALETTE` (lines 88-93) and `CANDIDATES[\"A-blue-vessel\"]` (scripts/figures_jt60sa_geometry.py:66-71) are byte-identical, yet \u00a71b keeps `CANDIDATES` in the script as the palette authority and the module keeps the default \u2014 so the palette the lead eventually locks and the palette a figure gets by default can diverge silently",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/gs/artifact_geometry.py:808",
+      "id": "duplicate_owner-2",
+      "reason": "the plan's justification for declining the composer (it wants shapes, not a `GeometryTable`) does not require a second open-and-read implementation; \u00a71b should factor that block onto `artifact_geometry.py` (or the catalogue path) so the figure reader and the composer share one acquisition path instead of two that must be kept in step.",
+      "text": "the geometry script's reader re-implements the acquisition half of `MachineArtifactGeometryReader.read`: both open `pf_active`, `pf_passive`, `wall` and `magnetics` and pass the four structs to the same `read_artifact_*` readers, the script via `_read_ids` (scripts/figures_jt60sa_geometry.py:158) building `phase_dir / f\"{ids_name}.nc\"` itself \u2014 a filename convention owned by `transform_engine._NetCDFStoreArrays.read` (transform_engine.py:288)",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/camdyn/elm_sampling_audit.py:712",
+      "id": "reuse_search-1",
+      "reason": "the extra sites are per-figure inline styling that \u00a71 explicitly scopes out of restyling, so the over-claim does not change what the plan builds, though the \"no style code\" sentence should be narrowed to \"no style module\".",
+      "text": "\u00a71 asserts \"imas_ambix/ holds no plotting style code\", but this function sets `plt.rcParams` (spines, grid, dpi, font size) inline, and `scripts/` holds about eighteen figure scripts (`figures_machine_configuration_map.py`, `figures_topology_census.py`, `plot_*.py`, \u2026) of which \u00a71 names only two",
+      "type": "reuse_search",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "a1385fa02290d351b89bf676c6100152d20318e2eaa1343f2d8baefc1dd4d04e",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 21,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "carried in the jtfig-palette-range node contract (done-when): CANDIDATES['A-blue-vessel'] is built from plot_style's default palette so plot_style holds the one copy; plan text left unchanged to end the edit-review cycle on a node-level detail",
+      "when": "2026-10-06T06:34:03.195128+00:00"
+    },
+    "duplicate_owner-2": {
+      "action": "declined",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "restates the v13 duplicate_owner finding already declined: MachineArtifactGeometryReader's acquisition sits inside a nova-artifact resolve and GeometryTable build, and factoring a four-line open-and-read helper into gs/ would widen that package for one figure script; the {ids}.nc name is the one-file-per-IDS store convention the catalogue's static-over-map layout declares",
+      "when": "2026-10-06T06:34:03.196307+00:00"
+    },
+    "reuse_search-1": {
+      "action": "declined",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "the reviewer marks it not plan-changing: inline rcParams in elm_sampling_audit.py and the other figure scripts are per-figure styling the plan scopes out, and plot_style.py is the first style module; narrowing the sentence would cost a review round with no change to what is built",
+      "when": "2026-10-06T06:34:03.197553+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T062902208667-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "e62328bb72156c313518b21d09bd4096e670745b",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 `imas_ambix/plot_style.py` hides the base sheet, the role contract and the direct-label helper behind three functions, and the geometry script's `read_phase` hides the store format and the element dispatch behind one call returning one `PhaseGeometry`; neither is a spread of shallow wrappers.",
+    "duplicate_owner": "a finding \u2014 the colour-role mapping is owned twice: `imas_ambix/plot_style.py` `DEFAULT_PALETTE` and `scripts/figures_jt60sa_geometry.py` `CANDIDATES[\"A-blue-vessel\"]` carry byte-identical values, and the geometry-figure reader re-implements the acquisition block of `MachineArtifactGeometryReader.read`.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; each section that adds surface names, in its own text, what it retires \u2014 \u00a71 \"retires and merges nothing\" because no existing script draws JT-60SA, \u00a71b adds no option/module/public name, and \u00a73 adds one script with no option and states it \"retires or merges nothing, since no script in `scripts/` draws a JT-60SA signal\".",
+    "reuse_search": "pass \u2014 the plan cites a search of `imas_ambix/data/`, `imas_ambix/gs/` and `scripts/`, and every mechanism it names was opened and exists: `read_artifact_pf_active`/`_pf_passive`/`_magnetics`/`_limiter` in `imas_ambix/gs/artifact_geometry.py`, `MachineArtifactGeometryReader` at `artifact_geometry.py:726`, `NetCDFTransformEngine.open` at `transform_engine.py:348`, `load_packaged_machine_map` at `machine_map.py:1623`, `description_store_root_path` at `machine_map.py:1006`, and the `eddb.py` addressing helpers.",
+    "thin_wrapper": "pass \u2014 `read_channel` is added to `imas_ambix/data/eddb.py`, the module that already owns the cache layout (`channel_path`, `channel_time_path`, `UNIT_ATTR`), and \u00a73 states in its own text why `ZarrTransformEngine.read` cannot serve it (needs a packaged `ChannelBinding`) and returns neither time base nor unit."
+  },
+  "section_digests": {
+    "_document": "d608f2360eef134e400abf9b7d123c3dd66ad748bc83882079b1f12c05272af6",
+    "s1": "aaf047afbd6570c22021ee3aeff220ba37be04745a8af13fb227db5f2252ce25",
+    "s1b": "4bb30892d69f3e6c1d9eb06314ad3f0b5a495d51a3adcc5c9a6a1bc0246e6421",
+    "s2": "b391ea9d406a4719464d8a231cfcece8ad1fa20156ea57d91f78655b36962d48",
+    "s3": "9ea6cda410eac5f72568edb6b1aeaf589b4d4651e9dfbcc6724394ea36000bbd"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T06:34:02.668882+00:00"
+}

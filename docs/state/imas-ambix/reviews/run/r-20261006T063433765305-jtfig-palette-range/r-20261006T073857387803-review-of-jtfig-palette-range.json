@@ -1,0 +1,83 @@
+{
+  "absent": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run recorded no baseline_suite arm (its manifest: 'not run in this node (single-file test added)'), so no base-vs-head difference can be taken over tests/test_plot_style.py, which did not exist at de4cdc4e. Its after_suite arm carries zero failing ids: its own log (.../runs/r-20261006T063433765305-jtfig-palette-range/logs/pytest_plot_style.log) reads 2 passed, and my independent re-run of the same target at 60e1dacc reads 2 passed, EXIT=0. With the head side empty the added set is empty, so the count is 0 rather than unmeasured; the base side contributes nothing because the only test the node added is new.",
+  "after_suite": {
+    "command": "PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/1caa45fb-fbb8-4737-b47e-bf483c56289e/jtfig-palette-range /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider tests/test_plot_style.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T073857387803-review-of-jtfig-palette-range/review_verification.log",
+    "revision": "60e1dacc9760c43477f47850cc8fb3b412b7445a"
+  },
+  "baseline_suite": null,
+  "blockers": "none",
+  "call_site_count": 1,
+  "call_sites": [
+    "scripts/figures_jt60sa_geometry.py:main"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-10-06T07:38:57.387803+00:00",
+  "evidence_inputs": "Delta reviewed de4cdc4e -> 60e1dacc (commits 21c9cae5, 24c7acb1, 60e1dacc). Independently reproduced at 60e1dacc: pytest tests/test_plot_style.py 2 passed EXIT=0, ruff check imas_ambix tests scripts/figures_jt60sa_geometry.py All checks passed EXIT=0, and the eight docs/figures/jt60sa-palette/validate_*.txt each read ALL CHECKS PASS (no [FAIL], no contrast WARN); the eight SVGs are real SVG text (A ~207805 bytes) with no .png twin under docs/figures/jt60sa-palette/ at 60e1dacc. The reader migration is genuine: read_artifact_pf_active returns a 4-tuple (filaments, sections, circuits, flags), read_artifact_pf_passive a 5-tuple, read_artifact_magnetics a 3-tuple and read_artifact_limiter a 3-tuple, matching the run's unpacking, and NetCDFTransformEngine.open(root, shot, dd_version, machine_map=..., store_layout=...) resolves {root}/{map name} for the static-over-map store, so the script no longer joins a root and a phase name itself. The direct-label-to-legend change and the SVG-only output were both coordinator/lead rulings (the reviewed run's resume-1-advice and resume-2-advice), the latter matched by the plan amendment at 26b74602; the node's dispatched FENCE-EVIDENCE text lagged that ruling and still named PNG and SVG. Carry-forward for writeback: this record extends the palette decision's options to the eight candidates for the lead to choose; the plan's section 1b remains open on that choice.",
+  "findings": [
+    {
+      "file": "scripts/figures_jt60sa_geometry.py",
+      "line": "160",
+      "severity": "follow-on",
+      "text": "require_validator is the fix section 1b asked for, naming a missing node executable or validator file before the first check runs, but no landed test drives it: a regression that makes it return early would leave every recorded gate green, so the guard the earlier follow-on finding demanded reports its safety only by inspection."
+    },
+    {
+      "file": "scripts/figures_jt60sa_geometry.py",
+      "line": "174",
+      "severity": "follow-on",
+      "text": "coloured_hexes drops every plot_style neutral from a candidate's hex list, so candidate H's validate file reports ALL CHECKS PASS over only 2 slots (the two vessel colours) while the four neutral families it draws are outside that verdict; the exclusion is principled, but the recorded PASS is narrower than the file reads."
+    }
+  ],
+  "follow_ons": "Guard tests for require_validator (missing node / missing validator file) and the WARN rejection so the new run-guards are exercised rather than read; state in candidate H's verdict file or fragment that its check covers only the coloured slots and not the four plot_style neutrals it draws.",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "scripts/figures_jt60sa_geometry.py:main - the module is a leaf script, invoked as python scripts/figures_jt60sa_geometry.py --palette-candidates; no production module imports it.",
+    "diff": "read commit by commit against de4cdc4e; the reader moves onto read_artifact_pf_active/pf_passive note pf_passive with first_circuit=0, read_artifact_magnetics and read_artifact_limiter through NetCDFTransformEngine.open, the geometry_type dispatch and root-and-name join are retired, CANDIDATES widens to eight, the outside legend replaces the direct labels, the validator path becomes PALETTE_VALIDATOR-overridable with require_validator, and render_candidate writes SVG only.",
+    "done_when": "the landed gate writes one SVG per candidate with no PNG twin and a validate_ file each reading ALL CHECKS PASS with exit 0; the reviewed run's render.log records eight [PASS] at 60e1dacc and the eight validate_*.txt all read ALL CHECKS PASS; the dispatched evidence line named PNG and SVG, and the lead's resume-2 ruling - matched by the plan amended at 26b74602 - directed SVG only, which the run follows.",
+    "goal": "the node goal is eight rule-checked candidate palettes rendered on the OP1 and OP2 cross-section through the artifact_geometry struct-level readers; scripts/figures_jt60sa_geometry.py:230 reads pf_active, pf_passive, wall and magnetics through read_artifact_* and CANDIDATES:86 holds eight entries.",
+    "manifest": "read at 60e1dacc; it records commits 21c9cae5, 24c7acb1 and 60e1dacc, tests/test_plot_style.py 2 passed, ruff green, the eight-PASS render, and baseline_suite 'not run in this node (single-file test added)'.",
+    "write_paths": "the diff de4cdc4e..60e1dacc touches scripts/figures_jt60sa_geometry.py, tests/test_plot_style.py, the eight SVGs and the five new validate_*.txt under docs/figures/jt60sa-palette/, the three A/B/C PNGs deleted there, and the evidence fragment - every path inside the manifest's changed_paths."
+  },
+  "justifications": {
+    "durability": "tests/test_plot_style.py guards the plot_style contract and its negative control reddens on a mutated palette(), but require_validator, the WARN rejection at :215 and coloured_hexes have no landed test, so a regression in the new run-guards would leave every recorded gate green.",
+    "evidence": "the eight docs/figures/jt60sa-palette/validate_*.txt each read ALL CHECKS PASS (A worst deutan 12.2, H 18.9 over 2 slots) and my independent pytest (2 passed, EXIT=0) and ruff (EXIT=0) at 60e1dacc confirm the recorded gate, though the render gate itself was read from render.log, not re-run.",
+    "fit": "the script follows the repo idiom and the PALETTE_VALIDATOR environment variable with a workstation default matches section 1b's ruling, but _gather_extent at scripts/figures_jt60sa_geometry.py:314 drops the return annotation its neighbouring helpers carry.",
+    "goal_fidelity": "scripts/figures_jt60sa_geometry.py:230 draws the eight CANDIDATES at :86 through read_artifact_pf_active/pf_passive/magnetics/limiter and NetCDFTransformEngine.open, in both phases, so the node goal is met.",
+    "reuse": "the run extends the owners - imas_ambix/gs/artifact_geometry.py readers, imas_ambix/plot_style.py palette roles and data/transform_engine.py open - and forks no capability, the outside legend having no existing owner.",
+    "scope_discipline": "git diff de4cdc4e..60e1dacc touches only the reviewed manifest's declared write paths, all under scripts/figures_jt60sa_geometry.py, tests/test_plot_style.py and docs/, with no plan, index or unrelated edit."
+  },
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-jtfig-palette-range",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is eight rule-checked candidate palettes rendered on the OP1 and OP2 cross-section through the artifact_geometry struct-level readers; scripts/figures_jt60sa_geometry.py:230 reads pf_active, pf_passive, wall and magnetics through read_artifact_* and drawn, and CANDIDATES:86 holds eight entries.\nVERDICT done_when: the landed gate writes one SVG per candidate with no PNG twin and a validate_ file each reading ALL CHECKS PASS with exit 0; the reviewed run's render.log records eight [PASS] at 60e1dacc and the eight validate_*.txt all read ALL CHECKS PASS; the dispatched evidence line named PNG and SVG, and the lead's resume-2 ruling, matched by the plan amended at 26b74602, directed SVG only, which the run follows.\nVERDICT write_paths: the diff de4cdc4e..60e1dacc touches scripts/figures_jt60sa_geometry.py, tests/test_plot_style.py, the eight SVGs and the five new validate_*.txt under docs/figures/jt60sa-palette/, the three A/B/C PNGs deleted there, and the evidence fragment - every path inside the manifest's changed_paths.\nVERDICT manifest: read at 60e1dacc; it records commits 21c9cae5, 24c7acb1 and 60e1dacc, tests/test_plot_style.py 2 passed, ruff green, the eight-PASS render, and baseline_suite 'not run in this node (single-file test added)'.\nVERDICT diff: read commit by commit against de4cdc4e; the reader moves onto read_artifact_pf_active, read_artifact_pf_passive with first_circuit=0, read_artifact_magnetics and read_artifact_limiter through NetCDFTransformEngine.open, the geometry_type dispatch and root-and-name join are retired, CANDIDATES widens to eight, the outside legend replaces the direct labels, the validator path becomes PALETTE_VALIDATOR-overridable with require_validator, and render_candidate writes SVG only.\nCALL_SITES: scripts/figures_jt60sa_geometry.py:main\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: scripts/figures_jt60sa_geometry.py:230 draws the eight CANDIDATES at :86 through read_artifact_pf_active/pf_passive/magnetics/limiter and NetCDFTransformEngine.open, in both phases, so the node goal is met.\nSCORE evidence: 18\nJUSTIFICATION evidence: the eight docs/figures/jt60sa-palette/validate_*.txt each read ALL CHECKS PASS (A worst deutan 12.2, H 18.9 over 2 slots) and my independent pytest (2 passed, EXIT=0) and ruff (EXIT=0) at 60e1dacc confirm the recorded gate, though the render gate itself was read from render.log, not re-run.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: git diff de4cdc4e..60e1dacc touches only the reviewed manifest's declared write paths, all under scripts/figures_jt60sa_geometry.py, tests/test_plot_style.py and docs/, with no plan, index or unrelated edit.\nSCORE durability: 12\nJUSTIFICATION durability: tests/test_plot_style.py guards the plot_style contract and its negative control reddens on a mutated palette(), but require_validator, the WARN rejection at :215 and coloured_hexes have no landed test, so a regression in the new run-guards would leave every recorded gate green.\nSCORE fit: 18\nJUSTIFICATION fit: the script follows the repo idiom and the PALETTE_VALIDATOR environment variable with a workstation default matches section 1b's ruling, but _gather_extent at scripts/figures_jt60sa_geometry.py:314 drops the return annotation its neighbouring helpers carry.\nSCORE reuse: 19\nJUSTIFICATION reuse: the run extends the owners - imas_ambix/gs/artifact_geometry.py readers, imas_ambix/plot_style.py palette roles and data/transform_engine.py open - and forks no capability, the outside legend having no existing owner.\nFINDING scripts/figures_jt60sa_geometry.py:160 follow-on: require_validator is the fix section 1b asked for, naming a missing node executable or validator file before the first check runs, but no landed test drives it: a regression that makes it return early would leave every recorded gate green, so the guard the earlier follow-on finding demanded reports its safety only by inspection.\nFINDING scripts/figures_jt60sa_geometry.py:174 follow-on: coloured_hexes drops every plot_style neutral from a candidate's hex list, so candidate H's validate file reports ALL CHECKS PASS over only 2 slots (the two vessel colours) while the four neutral families it draws are outside that verdict; the exclusion is principled, but the recorded PASS is narrower than the file reads.\nreviewed_base_sha: de4cdc4e91e207640da5c2f74d8289aadd99713f\nreviewed_head_sha: 60e1dacc9760c43477f47850cc8fb3b412b7445a",
+  "review_run_id": "r-20261006T073857387803-review-of-jtfig-palette-range",
+  "review_scope": "Whole delta of run r-20261006T063433765305-jtfig-palette-range: commits 21c9cae5, 24c7acb1 and 60e1dacc against base de4cdc4e, over sections 1b of the jt60sa-geometry-and-signal-figures plan - the eight-candidate palette range rendered on the OP1/OP2 cross-section through the artifact_geometry readers, the outside legend, the PALETTE_VALIDATOR override and the SVG-only render. Read-only; the figure store was not re-rendered.",
+  "reviewed_base_sha": "de4cdc4e91e207640da5c2f74d8289aadd99713f",
+  "reviewed_commits": [
+    "21c9cae576f2c5527388bb6b1899ffe0365f96d3",
+    "24c7acb1015b282281b53a2060272618dfbdf7bc",
+    "60e1dacc9760c43477f47850cc8fb3b412b7445a"
+  ],
+  "reviewed_head_sha": "60e1dacc9760c43477f47850cc8fb3b412b7445a",
+  "reviewed_run_id": "r-20261006T063433765305-jtfig-palette-range",
+  "reviewer": "review-of-jtfig-palette-range",
+  "scores": {
+    "durability": 12,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-10-06T07:52:48.194641+00:00",
+  "total": 105
+}

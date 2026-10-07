@@ -1,0 +1,99 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite (both null in the classification record), so its own arms cannot supply the delta. This review measured the reviewed node's declared gate (tests/data/test_selene_deck.py) in two scratch trees built from the reviewed commit's own object store (git archive of 395b6a68 into /tmp/selene-review.pt5JBZ/base and 82fed0c7 into /tmp/selene-review.pt5JBZ/head, no worktree created and neither the reviewed worktree nor the main checkout written). The node is a pure addition: the declared gate target does not exist at the base revision, so the base arm collected nothing (gate-base.log: 'ERROR: file or directory not found', EXIT=4, zero failing ids, completed=false) and the head arm is green (gate-head.log: 11 passed, EXIT=0, zero failing ids, completed=true). Head failing ids ([]) minus base failing ids ([]) is 0. The green gate does exercise the two defects fixed in 82fed0c7: test_real_tfc_sections_and_wall_arcs_round_trip asserts each TFC section round-trips as 7 elements with types [2,2,2,1,2,2,2] and strictly positive end-to-end squared length, and that all 10 wall arcs of the 43-segment table lie within 1e-6 m of their circle in a 638-point outline.",
+  "after_suite": {
+    "command": "TMPDIR=/tmp PYTHONPATH=/tmp/selene-review.pt5JBZ/head /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -P -m pytest -p no:cacheprovider -q --basetemp=/tmp/selene-review.pt5JBZ/bt-head /tmp/selene-review.pt5JBZ/head/tests/data/test_selene_deck.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T085045765738-review-of-jtmm-selene-deck-converter/gate-head.log",
+    "revision": "82fed0c7c76fa70eb1ec3e796436a1f0c0025734"
+  },
+  "baseline_suite": {
+    "command": "TMPDIR=/tmp PYTHONPATH=/tmp/selene-review.pt5JBZ/base /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -P -m pytest -p no:cacheprovider -q --basetemp=/tmp/selene-review.pt5JBZ/bt-base /tmp/selene-review.pt5JBZ/base/tests/data/test_selene_deck.py",
+    "completed": false,
+    "exit_status": 4,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T085045765738-review-of-jtmm-selene-deck-converter/gate-base.log",
+    "revision": "395b6a683ef3d1d85234a4cd67b9300ee1441ab8"
+  },
+  "completed_at": "2026-10-05T09:07:21.215Z",
+  "dispatched_at": "2026-10-05T08:51:02Z",
+  "findings": [
+    {
+      "category": "plan-consistency",
+      "file": "imas_ambix/data/selene_deck.py",
+      "line": "write_phase_description (the wall entry of ids_map) and parse_coil_vv_deck / CoilVesselDeck",
+      "severity": "follow-on",
+      "text": "The OP2 wall is silently the OP1 wall. write_phase_description always builds the wall IDS from eqsle.limiter_and_first_wall, and parse_coil_vv_deck returns a CoilVesselDeck carrying only the vessel (fields: path, sha256, vessel) -- it parses no limiter or first-wall table. So a caller converting phase=OP2 with coil_vv=coil_vv_OP2.dat emits the EQSLE limiter/first-wall contour, not the OP2 deck's. Plan section 4's IDS table names 'the limiter and first-wall blocks of coil_vv_OP2.dat' as the OP2 wall source, while the same section's decision rationale ('pf_active, tf and wall are built now and OP2 pf_passive from coil_vv_OP2.dat provisionally') reads as building the wall from the facility EQSLE file at this stage. The converter follows the rationale; the table is not reconciled. Confirmed independently: coil_vv_OP2.dat carries its own 51-point nlim limiter table and a 128-row wall table, so the two phases' walls are genuinely distinct. The plan should be reconciled; if the table governs, the converter must parse the OP2 wall."
+    },
+    {
+      "category": "plan-fidelity",
+      "file": "imas_ambix/data/selene_deck.py",
+      "line": "build_tf / write_phase_description (derived TF field handling)",
+      "severity": "follow-on",
+      "text": "The plan's one COCOS-dependent tf field is not written into the IDS. Plan section 4 requires the tf IDS to be populated with tf/coil/current bound to the MMSYS TF current and tf/b_field_phi_vacuum_r derived from it and the turn count 'so the one COCOS-dependent tf field is produced by a declared relation rather than a guess'. derive_b_field_phi_vacuum_r exists and is tested, but write_phase_description never writes ids.tf.b_field_phi_vacuum_r (a STRUCTURE, units m.T) nor tf/coil/current into the emitted IDS: when both tf_current and turns are supplied it stores the scalar under a non-DD receipt key 'tf_b_field_phi_vacuum_r' only. tf/coil[0]/turns and tf/coils_n are left unset with a recorded validation_gaps entry because EQSLE.DATA states neither. This is a named plan deliverable not yet met in the IDS, blocked on the MMSYS current and a turn count that section 5/6 must supply; it was flagged in the prior review round and remains."
+    },
+    {
+      "category": "evidence-integrity",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-selene-deck-converter.html",
+      "line": "jtmm-selene-deck-converter-evidence, the gate sentence",
+      "severity": "follow-on",
+      "text": "The committed evidence fragment states the gate as '8 tests pass in tests/data/test_selene_deck.py'. At the reviewed head the gate passes 11 tests (reviewed run gate-test.log '11 passed', and this review's independent head arm '11 passed in 2.90s', EXIT=0). The fragment was itself updated in 82fed0c7 (the TFC-element and wall-arc sentences) but its test count was left stale from the first commit."
+    },
+    {
+      "category": "plan-qualification",
+      "file": "imas_ambix/data/selene_deck.py",
+      "line": "build_magnetics (probe poloidal_angle)",
+      "severity": "follow-on",
+      "text": "The probe angle is written to magnetics/b_field_pol_probe/poloidal_angle as radians (deg2rad of the geo.in column, which sweeps 0.28 to 350.24 so the degree reading is right). Plan section 4 requires the probe angle to be marked unknown-unvalidated until section 6 settles its sense against vacuum data; the emitted value carries no such qualification. Carried from the prior review round."
+    },
+    {
+      "category": "dd-semantics",
+      "file": "imas_ambix/data/selene_deck.py",
+      "line": "build_wall",
+      "severity": "follow-on",
+      "text": "The wall IDS is written with description_2d[0].limiter.unit[0].outline but description_2d[0].type is left unset. The DD identifier wall_description_2d_type_identifier defaults to 0 (single_unit_vessel -- 'limiter structure is using a single unit, the vessel structure is filled'), while the converter fills no wall-level vessel structure; type 1 (multiple_units_no_vessel) or a filled vessel would match the emitted content. Low severity, inherited from the first commit."
+    }
+  ],
+  "follow_ons": [
+    "Reconcile plan section 4: its IDS table names coil_vv_OP2.dat's limiter/first-wall blocks as the OP2 wall source, while its decision rationale reads as building the wall from EQSLE.DATA now. The converter currently emits the EQSLE wall for OP2.",
+    "Write tf/coil/current and tf/b_field_phi_vacuum_r into the tf IDS once the MMSYS TF current and a TF turn count are available (section 5/6), rather than only into the receipt.",
+    "Update the evidence fragment's gate count from 8 to the head's 11 passing tests.",
+    "Correct plan section 4 line 320: the OP1 EQSLE vessel block is not uniform 7.76e-7 -- it is 63 filaments at 7.76e-7 and 57 at 7.20e-7 (independently reproduced).",
+    "Mark the probe angle unknown-unvalidated in the magnetics output until section 6 settles its sense."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "New module; imas_ambix/data/selene_deck.py is its own public surface (parse_eqsle_deck, parse_geo_in, parse_coil_vv_deck, build_*, write_phase_description, derive_b_field_phi_vacuum_r). Reviewed by grep: no other module in imas_ambix imports selene_deck, consistent with section 4's note that it retires nothing inside ambix.",
+    "diff": "Read 82fed0c7 against base 395b6a68: three files, +1293/-0, all inside the declared write set (imas_ambix/data/selene_deck.py +849, tests/data/test_selene_deck.py +388, docs/evidence/fragments/jt60sa-machine-map/jtmm-selene-deck-converter.html +56). No other file touched. The reviewed worktree is clean at 82fed0c7 (git status --porcelain empty), so the 84 uncommitted insertions the prior review found are now committed at 930dac7c and carried forward.",
+    "done_when": "Read the node's measure: a parsed record scoring all five dimensions 0..20, reviewed_base_sha and reviewed_head_sha, and added_failure_count/added_failure_ids derived from the reviewed run's own arms where present. The reviewed run is unarmed (its manifest names baseline_suite null and after_suite null), so this review built its own two arms of the reviewed node's declared gate from the shared object store under /tmp and supplies the delta; the durable logs are gate-base.log and gate-head.log in this review's run directory.",
+    "goal": "The node delivers plan section 4's converter: imas_ambix/data/selene_deck.py parses EQSLE.DATA (PF COIL block, NV vessel block, TFC inside/outside segments, limiter/first-wall table), geo.in (Magnetic Probe and Flux Loop blocks) and coil_vv_*.dat (vessel block) into provenance-carrying elements and writes pf_active, pf_passive, magnetics, wall and tf IDS netCDF per phase at DD 4.1.1 with a receipt.json naming each source's path, sha256 and line ranges plus the converter commit. This review independently reproduced the real-deck parse exactly (12 PF coils CS1-4/EF1-6/FPPC_UP/DOWN as 40/40/40/40/16x6/6/6 elements; 120 OP1 and 98 OP2 vessel filaments; 7+7 TFC segments; 43 wall segments of 33 lines and 10 arcs; 17 probes; 27 flux loops) and ran write_phase_description against the real copies, reading every IDS back through imas.DBEntry at DD 4.1.1. The two defects fixed in 82fed0c7 are confirmed: each TFC segment is one tf conductor element with distinct endpoints (types [2,2,2,1,2,2,2], min end-to-end length^2 2.02/2.51) and all 10 wall arcs are in the 638-point outline with worst-case distance 0.0 m from their circles. Two plan deliverables remain unmet (OP2 wall source; the tf COCOS field in the IDS).",
+    "manifest": "Read; it states both gates green at head 82fed0c7 (tests/data/test_selene_deck.py 11 passed EXIT=0; whole-tree ruff check imas_ambix tests EXIT=0), a negative control failing test_provenance_carries_path_sha256_and_line_range (EXIT=1), the real-deck parse counts and the TFC/wall fixes, names changed_paths imas_ambix/data/selene_deck.py, tests/data/test_selene_deck.py and the evidence fragment, and records commit 82fed0c7. Its baseline_suite and after_suite are null (dispatched unarmed).",
+    "write_paths": "The commit touches only the three declared paths. The module and test are under the declared set; the evidence fragment under docs/evidence/fragments/jt60sa-machine-map/ is the declared doc path. No path outside the write set was committed."
+  },
+  "justifications": "Independent review of run r-20261005T075837853987-jtmm-selene-deck-converter, base 395b6a68, head 82fed0c7, plan imas-ambix:jt60sa-machine-map section 4, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 17, evidence 17, scope_discipline 18, durability 17, fit 17 -- total 86, added_failure_count 0 with added_failure_ids [] derived from this review's own two arms of the reviewed node's declared gate (the reviewed run was dispatched unarmed, so its own baseline_suite and after_suite are null): base arm gate-base.log (scratch tree /tmp/selene-review.pt5JBZ/base, revision 395b6a68: gate target absent at base, EXIT=4, completed=false) and head arm gate-head.log (scratch tree /tmp/selene-review.pt5JBZ/head, revision 82fed0c7: 11 passed, EXIT=0, completed=true). The node is a pure addition, so the base arm is empty and the delta is 0. Both defects fixed in 82fed0c7 were independently reproduced against the real facility deck: (a) the tf conductor elements are no longer degenerate -- each TFC inside/outside section round-trips as 7 elements with types [2,2,2,1,2,2,2] and strictly positive end-to-end squared length (min 2.02 and 2.51), read back through netCDF; (b) the wall outline keeps all 10 of its 43 segments' arcs -- 638 outline points with worst-case distance 0.0 m from every arc's circle. The prior round's blocking extent defect is also confirmed fixed: PF and vessel element width/height equal the deck dR/dZ and Va/Vb columns directly, and CS1's centre span plus one extent reproduces the facility rectangle 0.327 m x 1.574 m exactly, while the OP1 vessel's 120 filaments split 63 at 7.76e-7 and 57 at 7.20e-7 into two pf_passive loops. The reviewed worktree is clean; the previously-uncommitted changes are now committed at 930dac7c. The declared negative control was reproduced independently rather than accepted: setting the first PF element of each coil to line range 0..0 in a scratch copy of the head module reddens test_provenance_carries_path_sha256_and_line_range and test_receipt_names_sources_and_converter_commit (2 failed, 9 passed, EXIT=1, negative-control-repro.log), so the guard is real and broader than declared. Remaining gaps, none blocking OP1: the OP2 wall is silently taken from EQSLE.DATA rather than coil_vv_OP2.dat (the plan's table and its decision rationale disagree, and the OP2 deck carries its own 51-point limiter and 128-row wall tables); tf/coil/current and tf/b_field_phi_vacuum_r are never written into the tf IDS (only into a non-DD receipt key, and only when turns and current are both supplied), the field the plan names as the one COCOS-dependent tf output; the evidence fragment's gate count is stale at 8 against the head's 11; the probe angle is not marked unknown-unvalidated; and the plan text still describes the OP1 vessel as a uniform 120 filaments at 7.76e-7.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T085045765738-review-of-jtmm-selene-deck-converter",
+  "reviewed_base_sha": "395b6a683ef3d1d85234a4cd67b9300ee1441ab8",
+  "reviewed_head_sha": "82fed0c7c76fa70eb1ec3e796436a1f0c0025734",
+  "reviewed_run_id": "r-20261005T075837853987-jtmm-selene-deck-converter",
+  "reviewer": "review-of-jtmm-selene-deck-converter",
+  "scores": {
+    "durability": 17,
+    "evidence": 17,
+    "fit": 17,
+    "goal_fidelity": 17,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T09:08:00+00:00",
+  "total": 86
+}

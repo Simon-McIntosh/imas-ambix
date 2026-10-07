@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T19:15:43.059Z",
+  "dispatched_at": "2026-10-06T19:12:38Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/pulse_mint.py:206",
+      "id": "duplicate_owner-1",
+      "reason": "the node that adds the accessor must either migrate pulse_mint._served_entries onto it or state why pulse_mint keeps its own raw time-base read, otherwise the design ships the duplicate it claims to have removed.",
+      "text": "pulse_mint._served_entries resolves each SignalRule's rule.source_group and rule.source_array itself and reads the raw channel through imas_ambix/data/eddb.py read_channel to obtain that channel's own time base; this is the identical rule-to-source resolution that imas_ambix/data/virtual_zarr.py:134-135 already owns inside VirtualZarrView.__getitem__, and it is the exact need the \u00a76 node jtmm-observation-time-alignment adds an untransformed accessor to serve (imas_ambix/data/cocos_convention.py:800-817 is the only site the plan migrates). The plan's sentence \"That leaves one owner of rule-to-channel resolution, adds one accessor to the view and retires nothing\" is a census of one, not of the type, so the new accessor ships with a same-shaped bypass still live beside it.",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "a2c1386c093da11a8affe008922d10c3adb55ff249340f3e81d3eebe2bf27d2f",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 217,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T19:16:51.292616+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T19:16:51.292616+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v217.json",
+  "review_run_id": "r-20261006T191221206312-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "dcc504080fe6473e6c0f7126864f577bdeeae153",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the two new public surfaces (\u00a76 read_signal_map_observation, imas_ambix/data/cocos_convention.py:759, and the EQDB request/record types added to imas_ambix/data/eddb_remote.py) hide a kernel, a store dispatch and a framing change behind small interfaces, and extend RemoteEddbExtractor/eddb.py rather than spawning a second engine or store.",
+    "duplicate_owner": "a finding \u2014 the plan asserts it leaves \"one owner of rule-to-channel resolution\" (\u00a76) but its census counts only its own site; imas_ambix/data/pulse_mint.py:206 resolves rule.source_group/rule.source_array and reads the raw channel through read_channel, a second site un-migrated onto the untransformed accessor it is adding.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every implementable section accounts for its own surface in its text (the pin table retires three public definitions and their re-export in imas_ambix/gs/artifact_resolution.py and imas_ambix/spine_bench/machine_artifact_arm.py and adds one; read_signal_map_observation retires one and adds one; the EQDB request and record types, the eddb grid writer, the JT-60SA frozen shot set and the two scalar record fields each state they retire nothing and why nothing can be), so no section adds to a family without naming its retirement, merge, or the reason none is possible.",
+    "reuse_search": "pass \u2014 the plan names and the review verified the existing machinery each proposed mechanism extends (score_convention/format_sign_report and the private _integrated_current kernel in imas_ambix/data/cocos_convention.py, judge_geometry in imas_ambix/eval/efit_referee.py, ForwardOperator.vacuum_prediction and assemble_pf_currents in imas_ambix/gs/operator.py:578/582, read_geometry_table's probe_angle_source branch at imas_ambix/data/description_reader.py:253-257, the eddb read_channel/write_channel store, and the artifact_resolution pin constants), and cites what it searches rather than proposing a parallel subsystem.",
+    "thin_wrapper": "pass \u2014 the wrappers the plan would add are extensions of an existing owner with the extension stated, not parallel layers: read_signal_map_observation replaces read_catalogue_observation (one retired, one added), read_geometry_table gains a probe_angle_source branch rather than a fifth probe-angle supplier, and the grid writer is folded behind helpers extracted from write_channel so the token and overwrite contract has one implementation."
+  },
+  "section_digests": {
+    "_document": "62723cd7583dc5b18a64491724a048c3d8c8b0e2245109da9998ff5051244217",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "c3441edd36d42bb41b0a95c45aa1c7dd75080ae58715e1c3492fe15bb2e3a405",
+    "s7": "98cb613c0803ddc3cc31bcc07322fe88b7c08be5c7b6784f39a60e84c93f8ca4",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T19:16:37.167172+00:00"
+}

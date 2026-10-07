@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T19:22:08.512Z",
+  "dispatched_at": "2026-10-06T19:17:14Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html#s2",
+      "id": "interface_budget-1",
+      "reason": "the interface account is at 0 for refusal families, so \u00a72 must either name the added `TokamapExportError` family or fold it into an existing error type, and correct its \"one public function\" claim.",
+      "text": "\u00a72 states the exporter \"is one public function ... It retires nothing\", but the shipped `imas_ambix/data/tokamap_export.py` `__all__` (line 456) exports seven public names, including the refusal family `TokamapExportError` (`tokamap_export.py:61`) and two public classes `TokamapEntry`/`TokamapExport`; against the week's refusal_families budget of 0 the section neither names the refusal family it adds nor states why it cannot reuse an existing one",
+      "type": "interface_budget",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html#s6",
+      "id": "interface_budget-2",
+      "reason": "with refusal_families at 0, \u00a76 must name the refusal shape for EQDB (reuse with a stated key convention, or a new named family) before the transport node is released, or the refusal contract drifts from the channel refusal it claims to keep.",
+      "text": "\u00a76's EQDB transport \"gains one request type and one record type ... rather than widening the channel types\" and keeps \"the per-request refusal contract\", but `ChannelRefusal` (`imas_ambix/data/eddb_remote.py:101`) is keyed `(shot, category, dname)` while an EQDB request names a shot and an equilibrium record and \"its request and record are not channels\", so the existing refusal shape cannot represent an EQDB refusal without a second refusal type; the section does not say whether it reuses `ChannelRefusal` under a synthetic category/dname or adds a refusal family",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "233a2235223a80325728938265c413fdfd022088c0465f4e142283a0e2ae9100",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 219,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "interface_budget-1",
+      "reason": "",
+      "when": "2026-10-06T19:23:23.098730+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "interface_budget-2",
+      "reason": "",
+      "when": "2026-10-06T19:23:39.702424+00:00"
+    }
+  ],
+  "responses": {
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T19:23:23.098730+00:00"
+    },
+    "interface_budget-2": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T19:23:39.702424+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v219.json",
+  "review_run_id": "r-20261006T191704054282-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "3cbceb8ebfdbf1ff1ff438f191f85d98ad443069",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new modules hide substantial behaviour behind a",
+    "duplicate_owner": "pass \u2014 every shared mechanism is extended at its owner:",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0,",
+    "reuse_search": "pass \u2014 the plan cites the existing mechanism for every",
+    "thin_wrapper": "pass \u2014 the two wrapper-shaped additions each justify"
+  },
+  "section_digests": {
+    "_document": "62723cd7583dc5b18a64491724a048c3d8c8b0e2245109da9998ff5051244217",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "8f1eb9023c52d7d94dd72eea728b785bffa4a5bca90c35c6f43a994392be3630",
+    "s7": "98cb613c0803ddc3cc31bcc07322fe88b7c08be5c7b6784f39a60e84c93f8ca4",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T19:23:07.946808+00:00"
+}

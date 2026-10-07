@@ -1,0 +1,53 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/clive.py:32-37 (generate_clive_script launcher generator)",
+    "imas_ambix/agent/clive.py:627-664 (generated context branch)",
+    "imas_ambix/agent/clive.py:769-771 (ceiling placeholder replacement)"
+  ],
+  "completed_at": "2026-09-25T13:16:37.252Z",
+  "dispatched_at": "2026-09-25T12:33:07Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T120318053991-s19-clive-compact-window/gate-clive-picker.log",
+      "line": "1-6",
+      "text": "and gate-ruff.log:1-4: both receipts name base afe7aa086e00a79414e3902fd3b2a4055975c4a8 even though the candidate was later landed as 2fde47dd and e8f5b2c4. The module marker in the picker receipt proves the candidate was present in the working tree, but the record does not disclose the dirty-tree timing or bind the passing gate to the landed blobs. Rerun at e8f5b2c4 or correct the receipt metadata before treating the gate as a committed-revision receipt."
+    }
+  ],
+  "item_aggregate": 93,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "2fde47dd adds the named module constant, generated-shell comparison, export/unset behavior and three tests. e8f5b2c4 adds the plan landing, cumulative evidence anchor and figure, with the evidence metadata extended to include s19. The implementation and documentation remain inside the declared fence.",
+    "done_when": "the worker receipt records the named picker gate at 13 passed and whole-tree ruff at exit 0. The declared no-op export mutation reaches the dsv4.1-flash assertion and records 1 failed with KeyError and 12 deselected. The plan and evidence records preserve the not-deployed boundary and the deploy-node handoff.",
+    "goal": "imas_ambix/agent/clive.py defines AUTO_COMPACT_WINDOW_CEILING = 300000 with its lane-memory reason, interpolates it into the generated launcher, exports the lesser of USABLE_INPUT_BUDGET and that ceiling, and unsets CLAUDE_CODE_AUTO_COMPACT_WINDOW in the no-context branch. The three added assertions cover the large-window, smaller-release and contextless cases. The later deployed-worker observation remains correctly assigned to the deploy node.",
+    "manifest": "the target manifest names both commits, all five paths, the focused gate, ruff receipt, negative-control receipt, headline values and the no-deployment boundary. The gate and ruff receipts name the base afe7aa08 rather than the landed 2fde47dd/e8f5b2c4, so the passing gate is not bound to the landed blobs; the receipt's module marker shows the candidate was present in the working tree but does not establish the committed blob identity.",
+    "write_paths": "afe7aa08..e8f5b2c4 changes exactly five declared paths: imas_ambix/agent/clive.py, tests/test_agent_clive_picker.py, the plan HTML, the cumulative evidence HTML and the auto-compact-window SVG. No installed launcher or peer-owned path was changed."
+  },
+  "justifications": {
+    "durability": "Direct assertions cover the capped, smaller-budget and no-context branches, and the no-op mutation reaches the intended assertion rather than failing at shell parse time; only the receipt-to-commit linkage remains incomplete.",
+    "evidence": "The named gate, ruff receipt and discriminating negative control are present, but gate-clive-picker.log and gate-ruff.log name base afe7aa08 rather than landed 2fde47dd/e8f5b2c4, and the review sandbox cannot bind the fixture listener for an independent rerun.",
+    "fit": "The constant/template boundary, symmetric cleanup, cumulative evidence record and project-absolute figure fit the repository conventions; the shell-local ceiling is a small necessary rendering duplication.",
+    "goal_fidelity": "The source-level \u00a719 clauses are implemented exactly; one point is withheld because the live post-250k compaction observation belongs to the separately dispatched deploy node.",
+    "scope_discipline": "The two implementation commits change exactly the five declared paths, leave the installed launcher untouched and do not cross into peer scopes."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260925T120318053991-s19-clive-compact-window, reviewed base afe7aa086e00a79414e3902fd3b2a4055975c4a8 and reviewed head e8f5b2c4802d37198bb4de52158fd3dcd8a63d86.\n\nI read the live local-lane-admission-control \u00a719 section, the target prompt and manifest, both implementation commits, the generated launcher branch, the picker tests, the plan landing, the cumulative evidence anchor and the figure. This stores the already-completed independent review; no reviewed source or test was changed here.\n\nVERDICT goal: imas_ambix/agent/clive.py defines AUTO_COMPACT_WINDOW_CEILING = 300000 with its lane-memory reason, interpolates it into the generated launcher, exports the lesser of USABLE_INPUT_BUDGET and that ceiling, and unsets CLAUDE_CODE_AUTO_COMPACT_WINDOW in the no-context branch. The three added assertions cover the large-window, smaller-release and contextless cases. The later deployed-worker observation remains correctly assigned to the deploy node.\nVERDICT done_when: the worker receipt records the named picker gate at 13 passed and whole-tree ruff at exit 0. The declared no-op export mutation reaches the dsv4.1-flash assertion and records 1 failed with KeyError and 12 deselected. The plan and evidence records preserve the not-deployed boundary and the deploy-node handoff.\nVERDICT write_paths: afe7aa08..e8f5b2c4 changes exactly five declared paths: imas_ambix/agent/clive.py, tests/test_agent_clive_picker.py, the plan HTML, the cumulative evidence HTML and the auto-compact-window SVG. No installed launcher or peer-owned path was changed.\nVERDICT manifest: the target manifest names both commits, all five paths, the focused gate, ruff receipt, negative-control receipt, headline values and the no-deployment boundary. The gate and ruff receipts name the base afe7aa08 rather than the landed 2fde47dd/e8f5b2c4, so the passing gate is not bound to the landed blobs; the receipt's module marker shows the candidate was present in the working tree but does not establish the committed blob identity.\nVERDICT diff: 2fde47dd adds the named module constant, generated-shell comparison, export/unset behavior and three tests. e8f5b2c4 adds the plan landing, cumulative evidence anchor and figure, with the evidence metadata extended to include s19. The implementation and documentation remain inside the declared fence.\nVERDICT evidence: the target receipts provide the 13-test gate, ruff result and discriminating negative control. My review sandbox forbids localhost sockets, so an independent picker rerun could not bind its catalog fixture; the shared uv cache was also read-only on the first attempt, and the retry used a node-local cache. These are environment limitations, not source failures. The remaining evidence defect is the base-SHA receipt linkage stated above.\nVERDICT fit: the generator/template boundary, mechanism-based constant comment, symmetric no-context cleanup, cumulative evidence addition and project-absolute figure follow the repository conventions.\n\nCALL_SITES: imas_ambix/agent/clive.py:32-37 (generate_clive_script launcher generator), imas_ambix/agent/clive.py:627-664 (generated context branch), imas_ambix/agent/clive.py:769-771 (ceiling placeholder replacement)\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: The source-level \u00a719 clauses are implemented exactly; one point is withheld because the live post-250k compaction observation belongs to the separately dispatched deploy node.\nSCORE evidence: 17\nJUSTIFICATION evidence: The named gate, ruff receipt and discriminating negative control are present, but gate-clive-picker.log and gate-ruff.log name base afe7aa08 rather than landed 2fde47dd/e8f5b2c4, and the review sandbox cannot bind the fixture listener for an independent rerun.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: The two implementation commits change exactly the five declared paths, leave the installed launcher untouched and do not cross into peer scopes.\nSCORE durability: 18\nJUSTIFICATION durability: Direct assertions cover the capped, smaller-budget and no-context branches, and the no-op mutation reaches the intended assertion rather than failing at shell parse time; only the receipt-to-commit linkage remains incomplete.\nSCORE fit: 19\nJUSTIFICATION fit: The constant/template boundary, symmetric cleanup, cumulative evidence record and project-absolute figure fit the repository conventions; the shell-local ceiling is a small necessary rendering duplication.\n\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T120318053991-s19-clive-compact-window/gate-clive-picker.log:1-6 and gate-ruff.log:1-4: both receipts name base afe7aa086e00a79414e3902fd3b2a4055975c4a8 even though the candidate was later landed as 2fde47dd and e8f5b2c4. The module marker in the picker receipt proves the candidate was present in the working tree, but the record does not disclose the dirty-tree timing or bind the passing gate to the landed blobs. Rerun at e8f5b2c4 or correct the receipt metadata before treating the gate as a committed-revision receipt.\n",
+  "review_run_id": "r-20260925T123259577068-review-of-s19-clive-compact-window",
+  "reviewed_base_sha": "afe7aa086e00a79414e3902fd3b2a4055975c4a8",
+  "reviewed_head_sha": "e8f5b2c4802d37198bb4de52158fd3dcd8a63d86",
+  "reviewed_revision": "e8f5b2c4802d37198bb4de52158fd3dcd8a63d86",
+  "reviewed_run_id": "r-20260925T120318053991-s19-clive-compact-window",
+  "scores": {
+    "durability": 18,
+    "evidence": 17,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-25T13:33:13.650396+00:00",
+  "total": 93
+}

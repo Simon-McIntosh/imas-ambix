@@ -1,0 +1,54 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T09:08:42.686Z",
+  "dispatched_at": "2026-10-05T09:03:36Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/project-environment-declared.html#s3",
+      "id": "reuse_search-1",
+      "reason": "the plan's reuse map is unfailable only if it names the existing declaration guard it is converging with, and \u00a73 should state whether that guard is extended or stays beside the new census; without that the two guards can drift on what \"declared\" means.",
+      "text": "\u00a73 edits the declaration and reruns the census without naming `tests/physics/test_dependency_contract.py:32` (`test_project_and_lock_declare_editable_nova_checkout`), the repository's existing guard that asserts the `[tool.uv.sources]` editable entry and its `uv.lock` projection \u2014 the machinery \u00a73 is about to relocks",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/tests/test_declared_dependencies.py:163",
+      "id": "duplicate_owner-1",
+      "reason": "the author should extract one resolver (or extend the existing owner) rather than grow a second, because a duplicated path-resolution mechanism is exactly the recurring duplicate this item names and it is already diverging.",
+      "text": "`installation_top_level_modules` reads an editable install's `direct_url.json`, `urlsplit`s the `file:` URL and takes `Path(url).path` to locate the checkout, duplicating `tests/physics/test_dependency_contract.py:61-66`, which already opens `direct_url.json` for the nova editable install and resolves its source directory; the two implementations already diverge \u2014 the census omits the `unquote(...)` the existing owner applies, so a checkout path containing an escaped character resolves wrongly",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "4f8734d35e3defbba27b36cb1a86d234203c8b829c96188e509451b4d15f3956",
+  "plan_slug": "project-environment-declared",
+  "plan_version": 9,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T09:09:42.481782+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T09:09:41.823924+00:00"
+    }
+  },
+  "review_run_id": "r-20261005T090330599229-plan-review-of-project-environment-declared",
+  "reviewed_blob_sha": "dace9e694874ed4533e9f71f7231dd6979a399b3",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 `build_census` hides the AST walk, the module\u2192distribution mapping, the transitive closure and the default/optional/unused/transitive classification behind one call, and both the assertion and the fragment renderer read that one result, so the two cannot disagree.",
+    "duplicate_owner": "a finding \u2014 the census re-implements resolving an editable install's checkout from `direct_url.json`, which `tests/physics/test_dependency_contract.py` already implements.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73's additions (a `video` extra, a `dev` dependency-group replacing the `dev` extra, a pytest `timeout` default) touch none of the four families, so no section adds surface that has to name what it retires.",
+    "reuse_search": "a finding \u2014 the design adds the import census and the fresh-environment import proof without citing `tests/physics/test_dependency_contract.py`, which already reads `[tool.uv.sources]` and `uv.lock` to assert the editable declaration, nor `tests/test_serving_interpreter_parse.py`, which already enumerates the package's modules.",
+    "thin_wrapper": "pass \u2014 \u00a73 adds no wrapper over existing machinery; it uses uv's native `[dependency-groups]` installed by a plain sync, and \u00a74 is a one-shot proof rather than a committed layer."
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T09:09:34.761299+00:00"
+}

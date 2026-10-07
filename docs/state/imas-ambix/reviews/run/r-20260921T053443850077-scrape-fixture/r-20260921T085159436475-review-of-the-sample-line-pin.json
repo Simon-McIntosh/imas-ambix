@@ -1,0 +1,47 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "claude-code",
+  "completed_at": "",
+  "dispatched_at": "2026-09-21T08:51:59.436475+00:00",
+  "findings": [
+    {
+      "file": "tests/test_engine_metrics.py",
+      "line": "129",
+      "text": "the pin holds the value-token requirement only on the label-bearing line: the unlabelled branch is asserted by nothing, and measured, neutralising that branch's value at :130 (labels, value = \"\", \"\") leaves the whole file green (16 passed, exit 0, /tmp/pincheck/logs/spacebranch.log) - so a regression or a removal here is invisible. The same requirement demonstrably covers the unlabelled shapes and nothing feeds them: head refuses `sglang:num_running_reqs ` (name, space, no value) and `sglang:num_running_reqs{engine_type=\"unified\",tp_rank=\"0\"` (unterminated label set), the pre-fix implementation accepted both, and neither appears in the pin's not_a_source cases at :297-304. The docstring at :280-287 states the rule generally ('Only a line that ends in a value token counts'), so the mechanism is written more broadly than its tests hold, one round after the same class of gap was reported at :110."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T053443850077-scrape-fixture/manifest.md",
+      "line": "13",
+      "text": "the declared-control figure quoted in the manifest's tests line (`-k test_the_recorded_scrape_sources_every_canonical_field` -> `1 failed, 15 deselected`, exit 1) has no receipt on disk and disagrees with the log the manifest itself names: negative_control.log:15 still records the pre-rename selector `-k test_the_recorded_scrape_carries_every_canonical_field_the_plan_names` with `1 failed, 14 deselected` (15-test file), and replaying that command verbatim at the reviewed head selects nothing (16 deselected, exit 5, /tmp/pincheck/logs/replay-oldname.log) - the selection error the checklist names, not the recorded red. The repair round renamed the test in the manifest but left the retained receipt it points at quoting the retired name, and no command in the repair session touched the fixture file in a pytest invocation."
+    }
+  ],
+  "item_aggregate": null,
+  "item_verdicts": {},
+  "justifications": {
+    "durability": "the pin is real rather than nominal and I measured it myself: recovering the pre-fix _has_sample_line from d917d12c, splicing it into a scratch copy of the head file, and running it turns exactly one test red (1 failed, 15 deselected, exit 1; whole file 1 failed, 15 passed) while the unmodified head copy is 16 passed - so the labels-only regression the second round reported is now signalled by a committed test and cannot return unnoticed - docked two because the same requirement's unlabelled branch is pinned by nothing: neutralising it at tests/test_engine_metrics.py:130 leaves the file green, and the two unlabelled shapes the shipped code refuses (`sglang:num_running_reqs ` and the unterminated brace form) are accepted by the pre-fix implementation with no test feeding either.",
+    "evidence": "the pin's control log quotes the mutated implementation and it is byte-identical to the pre-fix source recovered from d917d12c (compared programmatically), its red is a genuine assertion failure (where True = _has_sample_line('sglang:num_running_reqs{engine_type=\"unified\",tp_rank=\"0\"}', 'num_running_reqs', '')) rather than a collection error, the file was restored byte-identically, and I reproduced the red independently; the gate is re-run green at the reviewed head by this reviewer (35 passed, exit 2... exit 0, /tmp/pincheck/logs/gate-head.log), the fixture worktree is clean, and the four reader-mutation rows the record re-denominates to 16 are backed by the repair session's own execution record (gauge 6 failed /10 passed, counter 5/11, histogram 4/16, storage 2/14, each summing to 16); docked because the declared control's retained receipt no longer matches the record: negative_control.log still names the pre-rename selector and 14 deselected, the manifest quotes the new selector and 15 deselected with no log on disk, and replaying the receipt verbatim at head selects nothing (exit 5).",
+    "fit": "the rename is complete and verified rather than assumed: the former plan-named test is now test_the_recorded_scrape_sources_every_canonical_field, the table is _CANONICAL_FIELD_SOURCES, and the naming sweeps over the file return nothing - case-sensitive plan/\u00a7/ticket/reference patterns, deliverable-ID patterns, changelog prose ('the plan's', 'before this fix'), version suffixes and author attribution all empty; the new pin test is named for the behaviour it holds and its docstring states the mechanism (a line that carries nothing to parse is not a source); docked one because that docstring states the value-token rule generally while the file's own unlabelled branch is unwitnessed, leaving the comment reading more broadly than the tests do.",
+    "goal_fidelity": "the second round's two findings are both closed at the reviewed head: the value-token requirement is now held by a committed test that I verified goes red against the restored pre-fix behaviour and green against the shipped one, and the plan citations are gone from the file with no comment, docstring or table caption still citing a plan document; the field-set expectation at tests/test_engine_metrics.py:55 still asserts the eleven entries over nine canonical quantities from the fixture's own bytes through engine_metrics, which is the offline re-assertion the node's goal names; docked two because the pin's own stated rule is only partly held (the unlabelled branch and the unterminated-brace shape are uncovered), so the requirement a scrape that lost its samples is refused by is demonstrated for the labelled spelling of a line and inferred for the rest.",
+    "scope_discipline": "both repair commits touch exactly the paths they declare - tests/test_engine_metrics.py in 62f659f3 (53 insertions",
+    "scope_discipline_note": "docked one for the inherited, unchanged pin of the fixture's quiet zero (tests/test_engine_metrics.py:331 and :413 assert requests_running == 0.0), a value the node's own fixture-refresh follow-on must then rewrite; the fixture blob is untouched by this round, the worktree is clean, the commits carry conventional subjects with bodies, and nothing was pushed."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "PLACEHOLDER",
+  "review_run_id": "r-20260921T085159436475-review-of-the-sample-line-pin",
+  "reviewed_base": "3e677eb6fe695e24a2f8fab07f16cd2623c3ab36",
+  "reviewed_commit": "38151b7429b4f9391751b9b397fd98e6f6ddd68b",
+  "reviewed_run_id": "r-20260921T053443850077-scrape-fixture",
+  "scores": {
+    "durability": 16,
+    "evidence": 17,
+    "fit": 19,
+    "goal_fidelity": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-21T09:26:41.378340+00:00",
+  "total": 89
+}

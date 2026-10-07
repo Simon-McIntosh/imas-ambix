@@ -1,0 +1,51 @@
+{
+  "backend": "clive",
+  "completed_at": "",
+  "dispatched_at": "2026-09-21T10:10:45.414947+00:00",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": 306,
+      "severity": "moderate",
+      "text": "A caller that goes away while still uploading its request body leaves no receipt row at all, which is the one request outcome the section's own done-when says must be recorded rather than dropped. Input: POST /v1/chat/completions with Content-Length: 4000 and 10 of the 37 JSON body bytes written before the transport is aborted. uvicorn hands the handler http.disconnect, _request_body returns (b\"\", True) and the handler returns at line 306, before any branch that records anything.\n\nReproduced twice, on two instruments. On the wire through a live uvicorn router at the reviewed head: the receipts file for that scenario was never created (rows=0, no file on disk), against one row for each of the four paths that do answer. At the ASGI level with the message sequence above (receipts_file_exists=False, messages_sent=0, rows=0). The repair moved the refusal branches onto one recording funnel and this return sits outside it, so the coverage the commit claims -- \"the requests a caller reports as broken were absent from the record\" -- is narrowed for the branches it enumerates and unchanged for this one. Its manifest reports it as none of the three defects, so the omission is not an accepted limit but an unmeasured one."
+    },
+    {
+      "file": "tests/test_request_receipts.py",
+      "line": 585,
+      "severity": "moderate",
+      "text": "The self-answered upstream sentinel is held by nothing: the test asserts the row's upstream against SELF_ANSWERED_UPSTREAM imported from the module under test, so the assertion follows any change to the constant's value. Mutation: SELF_ANSWERED_UPSTREAM in imas_ambix/agent/request_receipts.py:48 changed from \"(router)\" to \"http://engine.example\", which is exactly the defect the field exists to prevent -- a reader summing traffic per upstream folds the router's own answers into an engine-shaped origin's share. The gate is at the landed revision over tests/test_request_receipts.py and tests/test_agent_router.py: 20 passed, exit 0, nothing failed. The string \"(router)\" appears in no test file, so only the symbol is pinned and not the value; the test needs the literal, or needs to assert the sentinel is none of the resolved engine origins."
+    },
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": 609,
+      "severity": "low",
+      "text": "The two self-answered record sites pass the status in as a literal argument rather than deriving it from what the caller received, which is the rule the repair established for every relayed response. Deterministic input: a GET /v1/models whose ASGI receive already holds {\"type\": \"http.disconnect\"} still receives a full response from _serve_catalog and still leaves a row (status failed, upstream (router)) -- the row is written for an answer nobody received, and unlike the relay the self-answered paths never consult the disconnect channel. The relay holds its promotion until the body has been forwarded, so a reader can take a (router) row's completed status as proof of delivery while an engine row's status was earned by observation. Low severity: the catalog path's only completed status is a 200 the router really produced, the field is an attribution one, and every engine-attributed row keeps the stricter rule, so the record cannot overstate an engine's share. Stated because the section's whole thesis is that the row must carry the outcome the relay observed, and here the outcome is the one the router intended."
+    }
+  ],
+  "justifications": {
+    "durability": "Six mutations were applied one at a time to a scratch copy of the reviewed head and the focused gate re-run each time. Caught: promoting the status before the body loop (1 failed -- the run's own declared control, reproduced independently and also present verbatim in its log), dropping the catalog row (caught), dropping the refusal row (caught), ignoring the sampling setting (the two ceiling tests failed; a third failure in the same run, test_agent_router.py's SSE byte-identity test, was a TimeoutError in a timing-sensitive test rather than a receipt assertion, and is not counted as this mutation's signal), and recording an abort as completed (caught). Not caught: replacing the self-answered sentinel's value with an engine-shaped origin (20 passed). Independently caught nothing for the mid-request-body departure, because no test drives it at all, which is the second finding. Five of six claims hold; the two that do not are reported above.",
+    "evidence": "Everything claimed was re-derived at the reviewed head rather than read from the run's manifest. The receipts file itself was read for every checklist path, through a live uvicorn router on 127.0.0.1 with a real aiohttp engine behind it: relay completes 200 -> one row, completed, tokens 21/5/7; engine refuses 5xx -> one row, failed; engine answers 200 then aborts its transport mid-body -> one row, failed (the defect the section was dispatched to repair, verified on the stored row rather than in the code); caller drops mid-relay -> one row, aborted. Self-answered: unrouted model -> one row, failed, model \"nope\", upstream \"(router)\"; catalog GET -> one row, completed, model \"\", upstream \"(router)\"; unrouted path -> one row, failed. Ceiling on the wire: at a ceiling of inf, 40 offered requests wrote 40 rows all with fraction 1.0; at 2 per second, 40 offered wrote 11 rows whose fractions run 0.0625 to 1.0. The run's declared negative-control log was replayed verbatim rather than trusted: its first line repeats the declared mutation, and its body shows test_an_upstream_that_dies_mid_body_is_recorded_as_failed failing on 'assert completed == failed'. Two things are asserted rather than re-derived, and both are named in the findings: the claimed 16-passed base count, and the 20-passed landed count, which this review re-ran and confirmed as a side effect of the mutation controls.",
+    "fit": "The repairs follow the repository's own habits: the sink keeps its frozen slots dataclass, the refusal funnel mirrors the existing _json_error single-exit shape, the environment-then-argument-then-default resolution matches the module's existing environment probes (AMBIX_ROUTER_PREFIX_PROBE), and the row's fields are exactly the ones section 6 names. The outcome vocabulary is extended in the docstring where the strings are defined rather than in a second place. The one misfit is the sentinel being tested through its own symbol, which is the finding above rather than a convention question.",
+    "goal_fidelity": "The section's goal lands: one append-only row per request, carrying the named fields, with the aborted and failed paths recorded rather than dropped, and the cost attribution attributable per caller and per engine. All three recorded defects reproduce as repaired against the stored rows. The gap is that the durable record of an aborted request is still not total -- a caller that leaves during upload (first finding) is the one outcome the record defines and still omits, and its consequence is real for attribution: a client that times out while uploading disappears from the record entirely, which is exactly the shape of traffic a saturated lane produces. The self-answered rows now carry the sentinel, so the per-upstream attribution the commit claims is available, but its value is what the second finding shows is unpinned.",
+    "scope_discipline": "One repair commit (9467fc0d) touching imas_ambix/agent/router.py, imas_ambix/agent/request_receipts.py and tests/test_request_receipts.py, plus a plan edit and an evidence record, all within the write paths the run's orientation write declares. Nothing outside the declared set changed in the diff, the receipts module's public surface is extended rather than reshaped, and the sampling ceiling is threaded through the two existing construction paths (RouterApp and create_router_app and serve_router) instead of gaining a second one. The cli.py flag it declined to add is correctly left as a follow-on for the file's owner rather than reached for."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "REVISION READ: 261ec20ada9fa0bda68f16f79ee0f7e006df6a19 in /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/telemetry-spine/review-of-the-relayed-outcome (repair commit 9467fc0d on base 4180572a).\n\nVERDICT: the three recorded defects are repaired, verified against the rows on disk rather than the code; total 84 of 100. One unrecorded gap remains in the same claim (a caller that leaves during upload leaves no row), one claimed property is held by nothing (the self-answered sentinel), and one minor site keeps the old intent-over-observation rule.\n\nFINDINGS\n1. router.py:306.\n2. tests/test_request_receipts.py:585,589.\n3. router.py:609.\n\nEVIDENCE: see scores and justifications; logs at /home/ITER/mcintos/.config/reckon/crew/runs/r-20260921T101045414947-review-of-the-relayed-outcome/logs/ (drive.log, stderr.log, probe.log, mutation-*.log, negative-control-status-set-early.log replay).",
+  "review_run_id": "r-20260921T101045414947-review-of-the-relayed-outcome",
+  "reviewed_base": "4180572a906b0f36bde9462ecacfb7a8f728ce5d",
+  "reviewed_commit": "9467fc0dee337335449890f8ce34e68a1ee62edf",
+  "reviewed_head": "261ec20ada9fa0bda68f16f79ee0f7e006df6a19",
+  "reviewed_run_id": "r-20260921T084952190551-receipt-records-the-outcome-it-saw",
+  "scores": {
+    "durability": 14,
+    "evidence": 17,
+    "fit": 17,
+    "goal_fidelity": 17,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-21T10:45:00Z",
+  "total": 84
+}

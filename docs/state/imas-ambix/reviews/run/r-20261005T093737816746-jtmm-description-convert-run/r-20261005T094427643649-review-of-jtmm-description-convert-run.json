@@ -1,0 +1,61 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run is unarmed and has no test target: its manifest carries baseline_suite null and after_suite null, its classification record agrees, and it changes no repository source (its single commit adds an evidence fragment only). Its write paths name no test file. There is therefore no suite whose base and head failure ids could be differenced, and the delta is definitionally 0 with ids []. The node's own measure (the one-off converter driver /home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T093737816746-jtmm-description-convert-run/convert_jt60sa.py) was, however, reproduced by this reviewer independently rather than accepted: reconvert.log re-drives imas_ambix.data.selene_deck on the intact facility copies into a scratch tree and reads every IDS back (EXIT=0, all counts matching), and negative-control-repro.log reproduces the declared refusal (EXIT=1).",
+  "after_suite": null,
+  "baseline_suite": null,
+  "completed_at": "2026-10-05T09:54:30.209Z",
+  "dispatched_at": "2026-10-05T09:44:34Z",
+  "findings": [
+    {
+      "category": "provenance",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-description-convert-run.html",
+      "line": "the converter commit sentence (and manifest evidence_inputs converter_git_commit_in_receipts)",
+      "severity": "follow-on",
+      "text": "The fragment states 'The converter's git commit recorded in each receipt is b466d2f33f2e09813ddf5992963ff52638f52011', and the manifest's evidence_inputs repeats converter_git_commit_in_receipts as b466d2f3. Both receipts on disk record a different commit. Independent readback: OP1/receipt.json and OP2/receipt.json each carry converter = {'module': 'imas_ambix/data/selene_deck.py', 'git_commit': '6ea7df62b4c3d7c715d87bc5308c42a054557529'} -- a search for b466d2f3 counts 0 lines in each receipt and a search for 6ea7df62 counts 1 line in each. The mechanism is converter_git_commit() at imas_ambix/data/selene_deck.py:86, which runs `rev-parse HEAD` in the module's directory, i.e. the HEAD of the tree the converter is imported from at run time; this reviewer confirmed that by driving the same module from the review worktree, whose receipts recorded b829653caa3ff29b03397566a94656c2ae85ffa6. The receipts therefore record the run's own tree HEAD (the fragment commit 6ea7df62), not the base b466d2f3 the fragment names, and neither is the commit that last changed selene_deck.py (31f57375ff8bbb611c1b86d74579d125e4854659). A reader following the fragment's provenance pointer is sent to a commit the artifact does not carry. No artifact value is affected, since the converter module is byte-identical across b466d2f3 and 6ea7df62 (the fragment commit touches only the HTML); the defect is confined to the provenance claim."
+    },
+    {
+      "category": "plan-fidelity",
+      "file": "/work/projects/imas_gpu/jt60sa/machine_description/OP1/receipt.json (and OP2)",
+      "line": "sources[:].path",
+      "severity": "follow-on",
+      "text": "Plan section 4 states the run's measure as: 'its receipts name the facility path and hash of each source'. The delivered receipts name the landed copy path (/work/projects/imas_gpu/jt60sa/machine_description/source/<file>) and its sha256, not the facility path; the facility origin lives only in source/provenance.json, joined by sha256. The follow-on is recorded by the run itself and is a converter behaviour (selene_deck.py records the path it read), outside this node's no-code-change measure. The hash half of the clause is met and independently verified against two separate investigation inventories."
+    }
+  ],
+  "follow_ons": [
+    "Embed the facility path (not only the local landed-copy path) in each receipt, or have the run write it, so the plan section 4 receipt clause is met without a provenance.json join. This is a converter change.",
+    "Correct the fragment's converter-commit sentence and the manifest's converter_git_commit_in_receipts: the receipts record 6ea7df62 (the run's tree HEAD), not b466d2f3.",
+    "tf/coils_n and tf/coil[:]/turns remain unset with a recorded validation gap, because neither deck states a TF coil or turn count; a value would need a source not in these decks.",
+    "The tf COCOS field and the probe unknown-unvalidated label (carried from the converter review) are not in scope of this run's measure and remain open for the description-bindings node."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "artifacts": "Verified against /work/projects/imas_gpu/jt60sa/machine_description/: source/ holds EQSLE.DATA, geo.in, coil_vv_OP2.dat and provenance.json; OP1/ and OP2/ each hold pf_active.nc, pf_passive.nc, magnetics.nc, wall.nc, tf.nc and receipt.json. Headline metrics are the run's own: 12 PF coils; pf_passive 120 filaments as 63@7.76e-7 + 57@7.20e-7 ohm.m (OP1) and 98@7.20e-7 (OP2); 17 probes and 27 flux loops per phase; wall 638 (OP1) / 51 (OP2); TF 7+7 elements. Every value independently reproduced.",
+    "diff": "Read 6ea7df62 against base b466d2f3: one file added, docs/evidence/fragments/jt60sa-machine-map/jtmm-description-convert-run.html, +123/-0, inside the declared write paths. The reviewed worktree is clean at 6ea7df62 (git status --porcelain empty); no repository source or test file is touched. The GPFS artifacts under /work/projects/imas_gpu/jt60sa/machine_description/ are data outputs, not repository paths.",
+    "done_when": "Read the node's measure: a parsed record at the fenced path scoring all five dimensions in 0..20, naming reviewed_base_sha=b466d2f3 and reviewed_head_sha=6ea7df62, and carrying added_failure_count and added_failure_ids. The reviewed run is unarmed and changes no code, so the suite delta is 0 and ids [] with the basis recorded; the node's own conversion was reproduced independently (reconvert.log EXIT=0, byte-identical outputs) and its declared negative control reproduced (negative-control-repro.log EXIT=1).",
+    "goal": "The node delivers plan section 4's one-off conversion run. Independently reproduced: the three facility copies (EQSLE.DATA and geo.in and coil_vv_OP2.dat) are landed under /work/projects/imas_gpu/jt60sa/machine_description/source/ and their sha256 match both the inventories of the investigations that copied them and the landed files (this reviewer recomputed all three against jtmm-analysis-sensor-search/inventory.json and jtmm-geometry-source/inventory.json: d2e9f0ac, de826dc8, 0077a024 all equal across inventory, source copy and landed copy). Both phases are converted both in the delivery and in an independent scratch re-conversion driven from the reviewed worktree's own module (module file confirmed under the reviewed worktree): 12 PF coils (CS1-4 x40, EF1-6 x16, FPPC_UP/DOWN x6), OP1 pf_passive 2 loops 63@7.76e-7 + 57@7.20e-7 ohm.m (120 filaments), OP2 pf_passive 1 loop 98@7.20e-7, 17 probes and 27 flux loops in each phase, wall outline 638 (OP1) / 51 (OP2), tf 7+7 conductor elements. All ten delivered ids netCDF files hash byte-identical to the independently re-converted ones (OP1/OP2 pf_active a59b767f, magnetics bc8ed1ac, tf aa48eddb, OP1 pf_passive 99f8a53b, OP2 pf_passive 0ced38b0, OP1 wall 31404ff7, OP2 wall 5d26b2cc, on the first 16 hex). wall type index is 1 in both phases and every IDS reads back through imas.DBEntry at DD 4.1.1. Two named parts of the run's measure are short: the receipts name the landed path and hash, not the facility path (plan section 4 clause), and the fragment misstates the receipt's converter commit.",
+    "manifest": "Read; it declares status complete, commit 6ea7df62, changed_paths the fragment alone, tests EXIT=0 with the negative control EXIT=1, and records both test_logs. Its baseline_suite and after_suite are null (dispatched unarmed) and its negative_control_note correctly says the node's write paths include no test file. Its evidence_inputs claim converter_git_commit_in_receipts b466d2f3, which the receipts contradict (finding 1).",
+    "write_paths": "The single commit 6ea7df62 touches only docs/evidence/fragments/jt60sa-machine-map/jtmm-description-convert-run.html, inside the node's declared paths; docs/figures/... (also declared) was correctly left empty since the measure names no figure. No path outside the write set was committed."
+  },
+  "justifications": "Independent review of run r-20261005T093737816746-jtmm-description-convert-run, base b466d2f3, head 6ea7df62, plan imas-ambix:jt60sa-machine-map section 4, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 17, evidence 17, scope_discipline 20, durability 18, fit 19 -- total 91, added_failure_count 0 with added_failure_ids [] (the reviewed run is unarmed and changes no code, so there is no suite delta; basis in added_failures_basis). Verification was by three independent routes, none of them a re-read of the run's own summary. (1) Provenance: recomputed sha256 of the three landed source copies and found each equal to the investigation inventories (jtmm-analysis-sensor-search/inventory.json for EQSLE.DATA and geo.in, jtmm-geometry-source/inventory.json for coil_vv_OP2.dat) and to the source copies in the report directories -- all three triples agree. (2) Content: drove the reviewed worktree's own imas_ambix.data.selene_deck into a scratch tree from the intact facility copies; the ten emitted ids netCDF files are byte-identical to the delivered ones, and every headline count (12 coils 40,40,40,40,16x6,6,6; OP1 63@7.76e-7 + 57@7.20e-7; OP2 98@7.20e-7; 17 probes; 27 loops; wall 638/51; tf 7+7) matches. (3) Guard: reproduced the declared negative control by appending one byte to an EQSLE.DATA copy and driving the run's own driver with CONVERT_SRC_OVERRIDE -- refused on sha256 mismatch with the identical mutated hash 84daa250 and EXIT=1 before any write, artifacts on GPFS untouched (mtime unchanged). Two defects recorded against the delivery: the evidence fragment (and manifest) state the receipts record converter commit b466d2f3, while both receipts record 6ea7df62 -- the run's own tree HEAD, proven by the mechanism (selene_deck.py:86 rev-parse HEAD) and by the reviewer's own scratch receipts recording the review worktree's HEAD b829653c; and the receipts name the landed copy path, not the facility path the plan section 4 measure asks for (already disclosed as a follow-on). Neither affects an artifact value, since the converter module is unchanged across the heads involved. Reviewed worktree clean at 6ea7df62; one commit, one file, inside the declared write set.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T094427643649-review-of-jtmm-description-convert-run",
+  "reviewed_base_sha": "b466d2f33f2e09813ddf5992963ff52638f52011",
+  "reviewed_head_sha": "6ea7df62b4c3d7c715d87bc5308c42a054557529",
+  "reviewed_run_id": "r-20261005T093737816746-jtmm-description-convert-run",
+  "reviewer": "review-of-jtmm-description-convert-run",
+  "scores": {
+    "durability": 18,
+    "evidence": 17,
+    "fit": 19,
+    "goal_fidelity": 17,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T09:54:00+00:00",
+  "total": 91
+}

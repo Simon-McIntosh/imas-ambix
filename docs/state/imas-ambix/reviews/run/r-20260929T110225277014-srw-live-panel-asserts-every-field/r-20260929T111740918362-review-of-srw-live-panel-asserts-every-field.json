@@ -1,0 +1,70 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's own two arms of the reviewed node's declared gate, because the reviewed manifest arms no baseline_suite/after_suite: base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T111740918362-review-of-srw-live-panel-asserts-every-field/review-base-arm.log (revision 4dc0a3de, the reviewed head's test file driven against the base package in a scratch tree; exit 1, the new mid-append test failing at base is the defect reproduced) against head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T111740918362-review-of-srw-live-panel-asserts-every-field/review-head-arm.log (revision 1121eda1, 17 passed plus the serving-interpreter guard and ruff, exit 0); the derivation log is /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T111740918362-review-of-srw-live-panel-asserts-every-field/added-failures-derivation.log.",
+  "after_suite": {
+    "command": "python -m pytest -p no:cacheprovider tests/test_live_panel.py; python -m pytest -p no:cacheprovider tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python; ruff check --no-cache imas_ambix tests (at the reviewed head, in a scratch tree)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T111740918362-review-of-srw-live-panel-asserts-every-field/review-head-arm.log",
+    "revision": "1121eda1482e94d2227e9b75bd70e49f57e4b9e3"
+  },
+  "baseline_suite": {
+    "command": "python -m pytest -q -p no:cacheprovider tests/test_live_panel.py (the reviewed head's test file at 1121eda1 applied to the base revision, in a scratch tree)",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 1,
+    "failure_ids": [
+      "tests/test_live_panel.py::test_newest_raw_receipt_survives_a_half_written_final_line"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T111740918362-review-of-srw-live-panel-asserts-every-field/review-base-arm.log",
+    "revision": "4dc0a3def206d8bf11202eea15f465744ff699bc"
+  },
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-09-29T11:46:13.904Z",
+  "dispatched_at": "2026-09-29T11:17:48Z",
+  "findings": [],
+  "follow_ons": [
+    "imas_ambix/agent/live_panel.py:88 the SELECTION_TAIL_LINES=8 tolerance is documented (one torn line per append) but not tested at its boundary: an assertion pinning the choice when a candidate's tail holds no parseable row would fix what the file does then, rather than leaving it to the docstring."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "52 insertions and 6 deletions across the three declared paths, with nothing unrelated: the module change reads a short tail instead of one line and reflows the docstring, the test file gains one mid-append case and eight literal assertions on five previously unasserted fields, and the evidence fragment records both with their measure; the module adds no dependency and import cost, and the tail read stays bounded (SELECTION_TAIL_LINES=8, and _tail_lines stops after limit+1 newlines).",
+    "done_when": "the gate re-run in a scratch tree at 1121eda1 gives 17 passed for tests/test_live_panel.py, 1 passed with 8 deselected for the serving-interpreter guard and All checks passed for ruff check imas_ambix tests, matching the reviewed run's own gate log command for command; the mid-append test is a real detector, since at the base revision it fails with assert None == PosixPath(...), which is the defect reproduced.",
+    "goal": "both limbs of the declared evidence are delivered: the lane test now asserts by literal the admission queue's waiting, the generation gate's width, in_flight, waiting and reason, and the worker-slot fields live_runs, requests_per_run and worker_slots from a fixture that publishes them (tests/test_live_panel.py:237-311), and imas_ambix/agent/live_panel.py:152-176 chooses the newest raw receipt file by its last parseable row within a short tail rather than by its final line, with a mid-append case asserting the file is chosen and its job and served name named (tests/test_live_panel.py:221-234).",
+    "manifest": "the reviewed manifest reads complete with commits, changed_paths, landing, tests, test_logs and a bare negative_control_log path; every value I re-read agrees with the log it cites (gate log first line names 1121eda1 and each command's EXIT=0; the negative-control log repeats the declared string verbatim and reddens the mid-append test; the worktree is clean at 1121eda1 with no trace of the scratch mutation); it arms no baseline_suite or after_suite, so the two arms stored with this review are this review's own.",
+    "write_paths": "the diff touches imas_ambix/agent/live_panel.py, tests/test_live_panel.py and docs/evidence/fragments/serving-record-warehouse/srw-live-panel-asserts-every-field.html, three of the four declared paths, leaving the declared docs/figures path unused because the done-when names no figure, and nothing outside them."
+  },
+  "justifications": {
+    "durability": "the repair is a small bounded read (imas_ambix/agent/live_panel.py:99-137 reads at most a short tail) whose constant is documented from the writer's one-row-per-append flush (imas_ambix/agent/serving_receipts.py:532-536), and the selection and its window arithmetic are pinned by tests, but the tolerance boundary itself (more trailing unreadable lines than SELECTION_TAIL_LINES allows) is documented rather than tested.",
+    "evidence": "this review re-ran the declared gate itself in scratch trees at 1121eda1 and 4dc0a3de (review-head-arm.log and review-base-arm.log, each naming on its header lines the imported module path and the resolved working directory) and derived the added-failure count with the store's own function (added-failures-derivation.log, base ids {'tests/test_live_panel.py::test_newest_raw_receipt_survives_a_half_written_final_line'} minus head ids {} = 0).",
+    "fit": "the change reuses the module's existing _read_rows and _tail_lines rather than adding a reader, sits in the same module and test file as the block it repairs, and the new assertions extend the existing fixture style instead of introducing a second harness.",
+    "goal_fidelity": "every field section 11 names for the lane block is now asserted by literal (imas_ambix/agent/live_panel.py:388-431 copies them; tests/test_live_panel.py:237-311 reads them back, with age asserted in the stale test at :288), and the last-line defect from the prior review is repaired and pinned by a test that fails at the base revision.",
+    "scope_discipline": "git diff --stat 4dc0a3de 1121eda1 lists exactly the three declared paths and nothing else, the declared figures path is correctly left unwritten, and no plan, index or shared state is touched."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "review of run r-20260929T110225277014-srw-live-panel-asserts-every-field, attached by r-20260929T111740918362-review-of-srw-live-panel-asserts-every-field\nplan imas-ambix:serving-record-warehouse \u00a711; role implement; spec exact; base 4dc0a3def206d8bf11202eea15f465744ff699bc head 1121eda1482e94d2227e9b75bd70e49f57e4b9e3\nread: the whole diff at 1121eda1 against 4dc0a3de (three files, 52 insertions, 6 deletions), imas_ambix/agent/live_panel.py and tests/test_live_panel.py at head in full, plan section 11 and its build done-when, the reviewed run's manifest, gate log and negative-control log, the reviewed dispatch's declared negative-control string, the prior section 11 review record whose two findings this node repairs, and an independent two-arm re-run of the node's declared gate in scratch trees extracted from 1121eda1 and 4dc0a3de.\n\nVERDICT goal: both limbs of the declared evidence are delivered: the lane test now asserts by literal the admission queue's waiting, the generation gate's width, in_flight, waiting and reason, and the worker-slot fields live_runs, requests_per_run and worker_slots from a fixture that publishes them (tests/test_live_panel.py:237-311), and imas_ambix/agent/live_panel.py:152-176 chooses the newest raw receipt file by its last parseable row within a short tail rather than by its final line, with a mid-append case asserting the file is chosen and its job and served name named (tests/test_live_panel.py:221-234).\n\nVERDICT done_when: the gate re-run in a scratch tree at 1121eda1 gives 17 passed for tests/test_live_panel.py, 1 passed with 8 deselected for the serving-interpreter guard and All checks passed for ruff check imas_ambix tests, matching the reviewed run's own gate log command for command; the mid-append test is a real detector, since at the base revision it fails with assert None == PosixPath(...), which is the defect reproduced.\n\nVERDICT write_paths: the diff touches imas_ambix/agent/live_panel.py, tests/test_live_panel.py and docs/evidence/fragments/serving-record-warehouse/srw-live-panel-asserts-every-field.html, three of the four declared paths, leaving the declared docs/figures path unused because the done-when names no figure, and nothing outside them.\n\nVERDICT manifest: the reviewed manifest reads complete with commits, changed_paths, landing, tests, test_logs and a bare negative_control_log path; every value I re-read agrees with the log it cites (gate log first line names 1121eda1 and each command's EXIT=0; the negative-control log repeats the declared string verbatim and reddens the mid-append test; the worktree is clean at 1121eda1 with no trace of the scratch mutation); it arms no baseline_suite or after_suite, so the two arms stored with this review are this review's own.\n\nVERDICT diff: 52 insertions and 6 deletions across the three declared paths, with nothing unrelated: the module change reads a short tail instead of one line and reflows the docstring, the test file gains one mid-append case and eight literal assertions on five previously unasserted fields, and the evidence fragment records both with their measure; the module adds no dependency and import cost, and the tail read stays bounded (SELECTION_TAIL_LINES=8, and _tail_lines stops after limit+1 newlines).\n\nVERDICT call_sites: none\nCALL_SITES: none\ncall sites checked by grepping imas_ambix/ and tests/ at the reviewed head for live_panel: the only references are the module itself and tests/test_live_panel.py; wiring --live into agent watch is the neighbouring wire node's scope, so no production call sites exist yet and none was expected to.\n\nSCORE goal_fidelity: 20\nSCORE evidence: 20\nSCORE scope_discipline: 20\nSCORE durability: 19\nSCORE fit: 19\n\nJUSTIFICATION goal_fidelity: every field section 11 names for the lane block is now asserted by literal (imas_ambix/agent/live_panel.py:388-431 copies them; tests/test_live_panel.py:237-311 reads them back, with age asserted in the stale test at :288), and the last-line defect from the prior review is repaired and pinned by a test that fails at the base revision.\nJUSTIFICATION evidence: this review re-ran the declared gate itself in scratch trees at 1121eda1 and 4dc0a3de (review-head-arm.log and review-base-arm.log, each naming on its header lines the imported module path and the resolved working directory) and derived the added-failure count with the store's own function (added-failures-derivation.log, base ids {'tests/test_live_panel.py::test_newest_raw_receipt_survives_a_half_written_final_line'} minus head ids {} = 0).\nJUSTIFICATION scope_discipline: git diff --stat 4dc0a3de 1121eda1 lists exactly the three declared paths and nothing else, the declared figures path is correctly left unwritten, and no plan, index or shared state is touched.\nJUSTIFICATION durability: the repair is a small bounded read (imas_ambix/agent/live_panel.py:99-137 reads at most a short tail) whose constant is documented from the writer's one-row-per-append flush (imas_ambix/agent/serving_receipts.py:532-536), and the selection and its window arithmetic are pinned by tests, but the tolerance boundary itself (more trailing unreadable lines than SELECTION_TAIL_LINES allows) is documented rather than tested.\nJUSTIFICATION fit: the change reuses the module's existing _read_rows and _tail_lines rather than adding a reader, sits in the same module and test file as the block it repairs, and the new assertions extend the existing fixture style instead of introducing a second harness.\n",
+  "review_run_id": "r-20260929T111740918362-review-of-srw-live-panel-asserts-every-field",
+  "reviewed_base_sha": "4dc0a3def206d8bf11202eea15f465744ff699bc",
+  "reviewed_head_sha": "1121eda1482e94d2227e9b75bd70e49f57e4b9e3",
+  "reviewed_run_id": "r-20260929T110225277014-srw-live-panel-asserts-every-field",
+  "reviewer": "review-of-srw-live-panel-asserts-every-field",
+  "scores": {
+    "durability": 19,
+    "evidence": 20,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T11:41:20.600495+00:00",
+  "total": 98
+}

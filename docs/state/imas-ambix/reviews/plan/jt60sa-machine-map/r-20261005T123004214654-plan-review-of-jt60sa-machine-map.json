@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T12:35:07.521Z",
+  "dispatched_at": "2026-10-05T12:30:10Z",
+  "findings": [
+    {
+      "anchor": "plan.html:222",
+      "id": "duplicate_owner-1",
+      "reason": "the extractor stays either way; the fix is deleting one false supporting clause, not changing a decision.",
+      "text": "the \u00a73 extractor re-implements the codex remote-execution layer (owner: imas_codex/remote/executor.py with ssh_worker.py and serialization.py) and justifies the fork by claiming \"Importing it would make imas-codex, with its graph, LLM and tool-installation dependencies, a dependency of every ambix read\"; opening those modules shows the claim is false \u2014 executor.py imports only stdlib (subprocess, shlex, socket, json, pathlib), ssh_worker.py only asyncio/dataclasses/weakref, serialization.py only json/logging, and none imports neo4j, an LLM client, or a graph package, so the named layer carries no graph/LLM weight \u2014 the fork still stands on the plan's other, correct reason (ambix must not depend on imas-codex at all, which the map-persistence decision sets), so the remedy is to correct the reason rather than the design",
+      "type": "duplicate_owner",
+      "would_change": false
+    },
+    {
+      "anchor": "plan.html:639",
+      "id": "interface_budget-1",
+      "reason": "the author adds a one-line accounting clause (or declares the second set as an extension of the existing frozen-set owner) that the zero budget requires.",
+      "text": "\u00a77 adds to the `public_definitions` family by giving `BenchShot` a `machine` field and adding a second named frozen shot set in `imas_ambix/spine_bench/shots.py`, and the change to `resolve_shotset_version` (key `(shot_id, role)` \u2192 `(machine, shot_id, role)`), but the section states neither what the addition retires or merges nor why nothing can be, while other sections of the same plan use exactly that accounting line \u2014 with the week's `public_definitions` budget at 0 the omission is the one place the rule is not met",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "ef0b653059cb85f4c617eab689dbbf08a6954db3ecbeb4339b0aa82b5d033dcc",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 68,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T123004214654-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "946a0a6df902289ed2b62df1d6cbdff01be06e92",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each new module hides substantial behaviour behind one entry point: `selene_deck.py` (one converter: deck grammar \u2192 five IDS netCDF + receipt), `tokamap_export.py` (one function: catalogue \u2192 validator-passing directory with the unit\u00d7sign\u00d7COCOS collapse), the EDDB extractor plus cache (batch fetch + one cache writer over zarr, read through the existing VirtualZarrView).",
+    "duplicate_owner": "a finding \u2014 the plan re-implements remote execution (ssh-launched remote script, batched request in, arrays back) rather than extending the existing owner, and its stated reason for the fork is factually wrong while its sound reason is stated separately.",
+    "interface_budget": "public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; almost every section accounts for its added surface in its own text (exporter \"retires nothing, because ambix has no exporter\"; extractor \"retires nothing, because ambix has no remote reader today\"; converter \"retires nothing inside ambix, because ambix has no deck reader today\"; StoreEngine.open \"widens one protocol method and retires nothing\"; the two \u00a77 record fields \"retire nothing, because no scalar reference comparison exists yet\"), so the item largely passes \u2014 but one section adds to public_definitions without the required accounting line.",
+    "reuse_search": "pass \u2014 the plan names the codex remote layer (`imas_codex/remote/executor.py`, `ssh_worker.py`, `serialization.py`), tokamap/libtokamap, and the ambix owners it extends; each was opened and matches the plan's account (signal_map.load_packaged_signal_map, description_reader.read_geometry_table with the machine branch already retired, transform_engine.StoreEngine.open, cocos_convention.score_convention, challenge/loader.py, eval/efit_referee.judge_geometry, spine_bench/shots.py BenchShot, gs/artifact_resolution.py pins).",
+    "thin_wrapper": "a finding \u2014 the remote extractor is a small stdlib transport/batch layer over infrastructure already owned by codex, and the plan justifies the fork with a claim the code does not support."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.841177+00:00"
+}

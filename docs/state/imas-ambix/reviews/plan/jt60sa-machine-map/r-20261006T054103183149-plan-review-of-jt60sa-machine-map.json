@@ -1,0 +1,65 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T05:47:25.798Z",
+  "dispatched_at": "2026-10-06T05:41:08Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/selene_deck.py:62",
+      "id": "interface_budget-1",
+      "reason": "the section's whole argument for retiring nothing is that it adds one entry point; the surface must be narrowed to that entry point (underscore the parsers/builders or declare `__all__`) or the section must account for the eleven-plus symbols it actually adds, and the discrepancy is invisible from the plan text alone.",
+      "text": "\u00a74 states the converter's public surface is \"the one converter entry point\", but the module declares no `__all__` and so presents thirteen top-level functions (three deck parsers, five IDS builders, two provenance helpers, one geometry derivation, plus `build_receipt`/`write_phase_description`) and nine dataclasses (`Provenance`, `EqSleDeck`, `GeoIn`, `CoilVesselDeck`, \u2026) as public API",
+      "type": "interface_budget",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/challenge/convention.py:266",
+      "id": "duplicate_owner-1",
+      "reason": "if the EQDB record and the SELENE loader read the same equilibrium, two readers of one equilibrium with independent COCOS/axis handling is exactly the drift \u00a77 says it is preventing; the plan should name the \u00a76 SELENE loader as the single equilibrium reader and route the EQDB record through it, or state that EQDB is a distinct source.",
+      "text": "\u00a76 asserts its SELENE loader is \"the only reader of a SELENE equilibrium\" and \u00a77 says its reference loader adapts that loader rather than reading SELENE a second time, but \u00a77's second-rung EQDB reader independently reads \"psi on its grid, boundary, p\u2032 and FF\u2032\" for the same machine, and the plan does not say whether the EQDB record is that loader's source or a second route to the same equilibrium",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "7973c4bbe3bd18de04329955db4b72af409cfed13d2bb6e8e53fff3c31eac1b2",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 118,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "coordinator",
+      "reason": "Acted in plan v119: section 6 states the EQDB record is its SELENE loader source; one fetch, one reader, two adapters.",
+      "when": "2026-10-06T05:50:16.151144+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "coordinator",
+      "reason": "Acted by jtmm-coil-element-names, merged at 6d3d4d4d: imas_ambix/data/selene_deck.py declares __all__, so its public surface is write_phase_description.",
+      "when": "2026-10-06T07:35:22.138560+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T054103183149-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "19ff1a9fd6cc1f0828c3a9cc39e53c4b799691f8",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new modules hide substantial behaviour behind a small interface: `eddb_remote.py` hides ssh transport, batch framing and encoding behind `RemoteEddbExtractor`; `selene_deck.py` hides three deck grammars (EQSLE.DATA, geo.in, coil_vv) behind `write_phase_description`; `tokamap_export.py` hides group/partition/unit/sign/COCOS collapse behind `export_tokamap_directory`.",
+    "duplicate_owner": "pass \u2014 each recurring duplicate is routed to its owner rather than forked: description store roots through `imas_ambix/data/paths.py`, description publication through `gs/artifact_resolution.py`, machine identity through `gs/machine_identity.py`, shot sets through `spine_bench/shots.py`, convention scoring through `challenge/convention.py`. No second placement, path-resolution, scheduler-query or state-reader path is introduced.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the \u00a74 converter section accounts its surface as \"the one converter entry point\" and retires nothing, but the landed module exposes a far wider public API than that claim accounts for.",
+    "reuse_search": "pass \u2014 the plan cites the mechanism it extends for each proposal and each citation checks out against the code: `load_packaged_signal_map` for the \u00a75 maps, `imas_ambix/data/signal_map.py` `CalibrationRule`, `challenge/convention.py` `score_convention`/`measure_diiid_convention` for \u00a76, `gs/artifact_resolution.py` `publish_object`/`resolve_machine_description` and `gs/machine_identity.py` `default_registry` for \u00a77, `eval/efit_referee.py` `judge_geometry`/`read_efit_geometry` for the \u00a77 gate, and `spine_bench/runner.py` `_magnetics_residual`. The three new subsystems (EDDB extractor, SELENE-deck converter, tokamap exporter) have no in-repo prior art, verified by grep.",
+    "thin_wrapper": "pass \u2014 every layer the plan adds is a stated extension of an existing owner, with the justification the item asks for: `StoreEngine.open` gains the selected map instead of a second engine, `measure_diiid_convention` becomes a loader-parameterised call into a shared kernel, the EQDB request extends `eddb_remote`'s extractor rather than sitting beside it, and the grid writer shares `eddb.py`'s token/overwrite helpers."
+  },
+  "section_digests": {
+    "_document": "060371ce32b20f0360ee1915d508732a36f1e2589b54c97b2df633bc451a49ed",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "ba3f7886e9f461e019f04f248796ed99e912591d87c5aadffd9029a4882f6ccc",
+    "s5": "6982251ed4c8a9182fe0265da5219217b9926e5b6c7490ef0149bf2754a8efc3",
+    "s6": "ae0a287d48c9527fa25ec7bb6a866619654ec1f045937a3bb02c34fc9a51dd91",
+    "s7": "339783f4d4bfdbfd5e58b74ff17b0e6b856b054fa9b9307c82ef612a0831c668",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T05:48:58.452305+00:00"
+}

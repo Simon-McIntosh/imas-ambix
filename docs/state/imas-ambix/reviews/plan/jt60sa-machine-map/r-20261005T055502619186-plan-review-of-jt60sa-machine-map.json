@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T05:58:44.718Z",
+  "dispatched_at": "2026-10-05T05:55:07Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:212",
+      "id": "reuse_search-1",
+      "reason": "naming the existing owner forces the plan to state whether the EDDB cache is a new transport beside the mirror or an extension of it, which determines where the cache code lands.",
+      "text": "\u00a73 introduces an on-demand cache and mirror writer without citing ambix's existing mirror subsystem (`imas_ambix/data/paths.py`, `manifest.py`, and the `ambix data download/inventory` commands in `imas_ambix/data/cli.py`) as the mechanism it extends or deliberately departs from",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/paths.py:24",
+      "id": "duplicate_owner-1",
+      "reason": "extending `paths.py` (and reusing its naming) is the honest change; a hard-coded sibling root is exactly the fork that file exists to prevent.",
+      "text": "the plan adds a second mirror root `/work/projects/imas_gpu/jt60sa` (\u00a73, \u00a78, decisions `mirror-location`) and re-states the layout in prose rather than adding it to `paths.py`, whose docstring declares itself the single source of truth for mirror layout so it is not hard-coded in multiple places",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:185",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the new public surface it adds, even if the answer is \"nothing can be merged because no exporter exists\", so the interface cost is visible before the node is released.",
+      "text": "\u00a72's done-when requires a `<code>tokamap</code> exporter` (a new public definition) and states no retirement, merge, or reason nothing can be, against the supplied counts public_definitions 0 / cli_options 0 / mcp_views 0 / refusal_families 0",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "7248de332af45d70105ee92acb713f5b02fcc7751425d898ab7ab4942ad45c6b",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 8,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T055502619186-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "a9299110561d1289e2bf4d73c69662e181438cdf",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new behaviour is concentrated behind the existing machine-map/transform engine seam; the extractor hides ssh transport, batching and binary streaming behind one request contract, and the EQDB reader is explicitly wrapped in that same contract rather than spread as separate wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a73 places the EDDB cache at a hard-coded `/work/projects/imas_gpu/jt60sa`, duplicating mirror path resolution that `imas_ambix/data/paths.py` owns as its declared single source of truth.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a72 adds a public tokamap exporter without naming what it retires or merges, or why nothing can be.",
+    "reuse_search": "a finding \u2014 the plan searched the ambix machine-map substrate thoroughly and cites it (machine_map.py, transform_engine.py, geometry_adapter.py, virtual_zarr.py, signal_map.py), but did not search or cite ambix's own mirror/ingest machinery (paths.py, manifest.py, cli.py) before proposing a second cache-and-mirror subsystem in \u00a73.",
+    "thin_wrapper": "pass \u2014 the one wrapper-shaped addition (the EQDB reader) is bound to the remote-extractor contract because the server-side library cannot run at ITER, and the plan states why the extractor cannot simply be codex's remote executor (\"ambix must not require codex at runtime\", \u00a73)."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.885688+00:00"
+}

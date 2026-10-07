@@ -1,0 +1,54 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T07:47:56.701Z",
+  "dispatched_at": "2026-10-05T07:42:08Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/gs/machine_selection.py:135",
+      "id": "duplicate_owner-1",
+      "reason": "the plan must thread the machine through select_machine/ArtifactMachineSelector and say how JT-60SA identity resolves (a second registry or a machine-keyed lookup), which is a different open item from the authoring route it does flag (jt60sa-artifact-authoring) and is currently unnamed.",
+      "text": "\u00a77 makes resolve_machine_description machine-keyed but leaves the spine's selection path MAST-pinned: ArtifactMachineSelector.select calls identity_for_shot (machine_identity.py:207, whose default_registry at :145 is nova.catalog.mast_geometry.MachineGeometryRegistry) and selects the artifact with no machine argument, and _read at machine_selection.py:172 calls read_acquisition_channels() with the default machine=\"mast\" \u2014 so a JT-60SA shot raises MachineIdentityError at the registry select before the new pin table is ever consulted",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/eval/efit_referee.py:272",
+      "id": "interface_budget-1",
+      "reason": "with the week's interface budget at 0 across all four families, the section must either state what the added verdict surface retires or merges or why nothing can be, and the honest design is a unit-carrying reference verdict, or a scalar-equilibrium reference-scoring owner, rather than widening a metre-geometry referee.",
+      "text": "\u00a77 adds q95 and Ip \"as verdict components\" to judge_geometry, whose GeometryVerdict (efit_referee.py:174) is documented geometry-in-metres with metre tolerances and whose passed verdict checks only axis/x-point/boundary; q95 is dimensionless and Ip is a current, so the two scalars would sit in the components dict unreported in passed and un-scored, mixing unit systems inside a module firewalled and named for EFIT reconstruction outputs",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "09e6b62f998df2477279a1c3248151039a193dc0ced5db4061f7c2f3a7b969c7",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 36,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T07:50:00.767898+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T07:50:01.302946+00:00"
+    }
+  },
+  "review_run_id": "r-20261005T074203984716-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "72a7a7b2e2813e662aeb7018464391f778f5dc1d",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new modules are deep rather than wide: \u00a73 lands one batch-fetch function and one cache writer behind which the ssh session, the msgpack array codec and the {shot}.zarr layout hide, and \u00a72's exporter is one public function writing the directory from a catalogue and its signal maps.",
+    "duplicate_owner": "a finding \u2014 the plan routes the JT-60SA description through gs/artifact_resolution.py's machine-keyed pin table, but the owner of \"which machine is this shot\" is gs/machine_selection.py ArtifactMachineSelector and gs/machine_identity.py identity_for_shot/default_registry, which are pinned to MAST and are not named as something to extend.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a77 adds q95 and Ip as new verdict components to the public judge_geometry interface without naming what it retires or merges, or why nothing can be.",
+    "reuse_search": "pass \u2014 the plan searched both codebases it names and cites the mechanism each proposed piece extends (read_geometry_table, NetCDFTransformEngine, cocos_convention.score_conventions, challenge/convention._integrated_current, spine_bench.runner._magnetics_residual, gs/artifact_resolution.resolve_machine_description), and justifies the one parallel subsystem it adds (\u00a73's extractor) against codex's existing remote layer (enumerate_edas.py / ssh_worker.py / serialization.py).",
+    "thin_wrapper": "pass \u2014 the single layer the plan places over existing machinery without extending it (\u00a73's extractor over codex's remote-execution layer) states why that machinery cannot be extended instead: importing it would make imas-codex's graph, LLM and tool-installation dependencies a dependency of every ambix read, which the map-persistence decision rules out."
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T07:49:49.844646+00:00"
+}

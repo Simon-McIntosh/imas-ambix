@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T20:33:41.471Z",
+  "dispatched_at": "2026-10-06T20:28:56Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/tokamap_export.py:116",
+      "id": "duplicate_owner-1",
+      "reason": "the plan must name the unit-conversion owner (extend the engine to compile the unit factor, or a shared unit module) and stop asserting a factor the engine does not compile.",
+      "text": "`_unit_factor` and its `_UNIT_CONVERSIONS` table (imas_ambix/data/tokamap_export.py:101) are the only unit-conversion implementation in ambix, while the transform engine applies no unit factor at all (imas_ambix/data/transform_engine.py:78-89 `EmittedArray` carries `source_unit`/`target_unit` as metadata and the transform applies only `cocos_factor`, lines 447-477); so \u00a72's stated mechanism for `jtmm-tokamap-jt60sa` \u2014 take \"each binding's factor from the engine's own resolution\" and assert the exported `scale` against \"the engine's compiled factor\" \u2014 would silently drop the unit half of the collapsed scale, and \u00a76's unit-audit done-when (\"every binding's source and target units resolve through the DD unit vocabulary with the derived factor asserted\") has no resolver to resolve against.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/transform_engine.py:411",
+      "id": "duplicate_owner-2",
+      "reason": "the author should extend the owner (transform_engine) with a named public per-binding resolution the exporter consumes, closing the duplicate and the private-symbol dependency in one change.",
+      "text": "the DD-path COCOS-label lookup exists twice with byte-identical logic over `cocos_label_transformation`: `_target_cocos_transformation` at imas_ambix/data/transform_engine.py:411 and `_cocos_transformation` at imas_ambix/data/tokamap_export.py:147; the plan names retiring the exporter copy, but the owner (transform_engine) exposes no public resolution for a binding's compiled factor \u2014 both resolvers are private and the factor path (`_apply_cocos_convention` line 447, `_apply_sign_convention` line 396, `_poloidal_angle_sense_factor` line 425) is private too, so the retirement will either import a private symbol or re-fork the lookup, and \u00a72's interface account does not name the public entry point.",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "eb9c51db9d2a7dd7913a3497dc422aea94d396fd3502f2c82893e0b8278634fa",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 235,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T20:34:52.200380+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-2",
+      "reason": "",
+      "when": "2026-10-06T20:35:08.988615+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T20:34:52.200380+00:00"
+    },
+    "duplicate_owner-2": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T20:35:08.988615+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v235.json",
+  "review_run_id": "r-20261006T202843179008-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "48f93740e3ecfdd6d3eb99deaab67d5f6fc1b046",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each new public entry hides substantial behaviour behind it (imas_ambix/data/tokamap_export.py export_tokamap_directory collapses unit\u00b7sign\u00b7COCOS into one scale; imas_ambix/data/cocos_convention.py read_signal_map_observation hides rule resolution and interpolation behind one call), and the EQDB work extends the existing transport's dispatch rather than widening its channel types.",
+    "duplicate_owner": "a finding \u2014 the plan assumes an engine-side factor resolution the engine does not perform for units, and does not name the owner for the unit-conversion mechanism \u00a76's unit audit needs.",
+    "interface_budget": "public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0 \u2014 pass; each section that adds a public name states what it retires or why nothing can be (the \u00a72 seven exporter names, the \u00a76 three EQDB types and measure_convention, the \u00a77 pin table and the JT-60SA shot-set identity all carry that account).",
+    "reuse_search": "pass \u2014 the plan names and cites the mechanism it extends at each proposal (imas_ambix/data/cocos_convention.py score_convention, imas_ambix/challenge/convention.py _integrated_current, imas_ambix/gs/operator.py assemble_pf_currents, imas_ambix/gs/machine_identity.py default_registry, imas_ambix/gs/artifact_resolution.py pins, imas_ambix/data/eddb.py store, imas_ambix/data/paths.py JT60SA_ROOT), so it does not rebuild a subsystem it did not search for.",
+    "thin_wrapper": "pass \u2014 the two adapters the plan adds route through existing seams and say so: the SELENE reference reduction goes through imas_ambix/worldmodel/equilibrium_labels.py build_geometry_from_arrays behind eval/efit_referee.py read_efit_geometry(loader=...), and the machine pin read goes through the selector, rather than wrapping a second read path."
+  },
+  "section_digests": {
+    "_document": "62723cd7583dc5b18a64491724a048c3d8c8b0e2245109da9998ff5051244217",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "a88f0b049bbae9833bd7732de13f54949ebd17c49cc47fac3f30e2b84546297a",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "104be3d703e64286fcab5aed2797fcefc7421dec0b92d7f66fd974bb7eb4ba47",
+    "s7": "109c81721e032ecd3e79868e5dd9e43e95ab3104daea488fb8f3e581b91f60be",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T20:34:36.362164+00:00"
+}

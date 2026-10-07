@@ -1,0 +1,60 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T05:38:13.681Z",
+  "dispatched_at": "2026-10-06T05:31:40Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/cocos.py:100",
+      "id": "duplicate_owner-1",
+      "reason": "the \u00a76 author would either retire the orphaned `imas_ambix/cocos.py` angle adapters into the new COCOS class or add one line stating why the two mechanisms must coexist, which changes what the section writes.",
+      "text": "`mast_angle_to_canonical` (line 100) and `project_poloidal_field` (line 113) are public (both in `__all__`), live in ambix's own COCOS contract module, and convert a directed probe angle to DDv4, yet `grep -rn \"mast_angle_to_canonical\\|project_poloidal_field\" imas_ambix/ tests/` returns no caller anywhere in the repo; \u00a76 introduces a second, generic angle mechanism (a `pol_angle_like` class in `nova/io/cocos.py` plus a description branch beside `_supply_declared_probe_angles` in `imas_ambix/data/description_reader.py`) without naming these existing angle adapters, so the plan neither retires them nor says why they coexist",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/cocos.py:100",
+      "id": "reuse_search-1",
+      "reason": "a search that had run would surface the same two public functions and force the retire-or-justify sentence the plan currently lacks.",
+      "text": "the plan's \u00a76 prior-art account names the three gaps it must close (the missing `pol_angle_like` class, the `unknown-unvalidated` emit rule, the adapter that reads the angle) but reports no search of ambix's own `cocos.py`, where directed-angle conversion already has an owner, so the reuse map for the one novel mechanism the plan adds is incomplete",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html",
+      "id": "interface_budget-1",
+      "reason": "the section needs one sentence accounting for the added public surface, which is the rule this item enforces.",
+      "text": "\u00a76 adds `pol_angle_like` to the COCOS factor table (`TRANSFORMATIONS` in `nova/io/cocos.py`, entry points at `imas_ambix/cocos.py canonical_factor`) without naming what it retires or merges, or stating why nothing can be; every other addition in the plan (\u00a72 exporter, \u00a73 modules and refusal families, \u00a74 `struct_array_entry` slot, \u00a77 EQDB types, `--machine`, `BenchShot.machine`, `measure_convention`, the two record fields) carries such a statement",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "95d87f5fc2001d219b06fc5da242055d58db4154c4aa5b89e83a5dc5c6d855c5",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 115,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T053133957165-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "b1cdbcd065e7d01969ff5ec4d10868f880095221",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the plan adds no new shallow module; each change extends an existing owner behind its current interface (eddb.py, description_reader.py, transform_engine.py, artifact_resolution.py, machine_identity.py, machine_map.py), and the two new types \u00a77 adds live inside the existing extractor/store owners.",
+    "duplicate_owner": "a finding \u2014 \u00a76 adds a generic `pol_angle_like` COCOS class in nova and a description-branch probe-angle supply in `read_geometry_table`, while a duplicate probe-angle concern (`mast_angle_to_canonical`, `project_poloidal_field`) already lives in `imas_ambix/cocos.py`; the plan names neither as the owner to extend nor as retired, so the angle contract has two homes.",
+    "interface_budget": "a finding \u2014 \u00a76 adds a public COCOS transformation class to nova's `TRANSFORMATIONS` (public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0 supplied) without stating in its own text what it retires or merges, or why nothing can be.",
+    "reuse_search": "a finding \u2014 the plan cites the mechanism it extends for almost every proposal (\u00a73 eddb.py/eddb_remote.py, \u00a74 transform_engine.py/description_reader.py, \u00a75 signal_map.py/tokamap_export.py, \u00a76 cocos_convention.py/convention.py, \u00a77 artifact_resolution.py/machine_identity.py), but \u00a76 adds probe-angle machinery without citing the probe-angle adapters already present and public in `imas_ambix/cocos.py`.",
+    "thin_wrapper": "pass \u2014 the one wrapper-shaped addition (the \u00a72 tokamap exporter, one public function) states it is kept out of the loaders because they read the ambix schema, and the \u00a75 unit table is justified as an authoring-time spelling map resolved into existing `unit_factor` owners rather than a run-time conversion layer."
+  },
+  "section_digests": {
+    "_document": "060371ce32b20f0360ee1915d508732a36f1e2589b54c97b2df633bc451a49ed",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "ba3f7886e9f461e019f04f248796ed99e912591d87c5aadffd9029a4882f6ccc",
+    "s5": "6982251ed4c8a9182fe0265da5219217b9926e5b6c7490ef0149bf2754a8efc3",
+    "s6": "c3c9e458056f056c60b47034fec86690af4741edbcf7f814119b33a219fc8b84",
+    "s7": "339783f4d4bfdbfd5e58b74ff17b0e6b856b054fa9b9307c82ef612a0831c668",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T05:48:58.454798+00:00"
+}

@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T12:40:54.796Z",
+  "dispatched_at": "2026-10-05T12:37:07Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/transform_engine.py:169",
+      "id": "reuse_search-1",
+      "reason": "\u00a74's text and its done-when (\"\u00a74 therefore extends that engine\", \"that branch is retired\") should be re-pointed at what remains \u2014 the JT-60SA catalogue and the OP1/OP2 identity assertions \u2014 so a dispatched worker does not go to extend an engine that already carries the extension.",
+      "text": "\u00a74 presents the `StoreEngine.open` store-layout extension and the probe-angle machine-branch retirement as work the plan will do, but both are already present in the reviewed tree: `transform_engine.py:169`/`:282` already receive `store_layout` and refuse/read `static-over-map`, and `description_reader.py:144` branches on `catalog.probe_angle_source == \"acquisition-address\"`, with no `machine == \"mast\"` branch anywhere \u2014 so \u00a74's account of the mechanism it \"extends\" and of a machine branch it \"retires\" describes landed machinery.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/eddb_remote.py",
+      "id": "duplicate_owner-1",
+      "reason": "the plan names the owning files, gives the dependency-weight reason (codex's neo4j/fastmcp/lxml/pypdf requirement set on ambix's runtime path, which the map-persistence decision rules out) and defers a shared core to a second facility needing remote execution \u2014 the honest decline the item asks for, not a fork that ignored its owner.",
+      "text": "\u00a73 forks codex's remote layer (`imas_codex/remote/scripts/enumerate_edas.py`, `executor.py`, `ssh_worker.py`, `serialization.py`) into ambix rather than importing or extracting a shared core.",
+      "type": "duplicate_owner",
+      "would_change": false
+    },
+    {
+      "anchor": "imas_ambix/challenge/convention.py:226",
+      "id": "thin_wrapper-1",
+      "reason": "\u00a76 already states the loader boundary is a canonical record contract (grid, psi, axis, boundary) that the DIII-D loader maps onto and the kernel reads, which is exactly the extension of `challenge/loader.py`'s `ChallengeShot`/`EfitLabels.psirz`, so the plan's stated design already covers the coupling.",
+      "text": "\u00a76 generalises `measure_diiid_convention` to take an equilibrium record through a loader while the head of `convention.py` still reads DIII-D corpus keys (`efit_grid_R`, `efit_psirz`, `efit_z_axis`) directly in `_axis_and_boundary`/`_integrated_current`, so the loader boundary is described but `_axis_and_boundary` and `_integrated_current` retain corpus-key coupling on the DIII-D side.",
+      "type": "thin_wrapper",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "164432c84bd6ae6fff03075ed19df4665ba46e3bf9f6e0a243a1ffab4318bb98",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 69,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T123701232334-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "0283eca661b9b014b959a74e3d268156990a10d7",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the proposed new modules each hide substantial behaviour behind a single small surface: `data/eddb_remote.py` (one batch-fetch function) over ssh transport plus the remote script, `data/eddb.py` (one cache writer) over the raw-unit zarr layout and the series-letter/int shot-identity refusal, `data/selene_deck.py` (one converter entry point) over four deck grammars and five IDS writers, `data/tokamap_export.py` (one public function) over the group-scoped collapse of unit \u00d7 sign \u00d7 COCOS into `scale`.",
+    "duplicate_owner": "pass \u2014 the recurring duplicate classes are all routed to their owners: path resolution to `data/paths.py` (`JT60SA_ROOT` beside `MIRROR_ROOT`), the frozen shot set to `spine_bench/shots.py`, the artifact pins to `gs/artifact_resolution.py`, and probe-angle sourcing to `description_reader.py` via a catalogue declaration. The single cross-repo fork is filed below.",
+    "interface_budget": "pass \u2014 supplied counts public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; no section adds to any of these families, so none needs to name a retirement or merge.",
+    "reuse_search": "pass \u2014 the plan cites and the code confirms every owner it extends: codex's remote layer (`imas_codex/remote/scripts/enumerate_edas.py`, `executor.py`, `ssh_worker.py`, `serialization.py`), the MAST machinery (`load_packaged_signal_map`, `VirtualZarrView`, `cocos_convention.score_convention`, `challenge/loader.py`, `challenge/convention._integrated_current`), and the spine route (`gs/artifact_resolution.py`, `gs/machine_selection.ArtifactMachineSelector`, `spine_bench/machine_artifact_arm.MachineArtifactGeometrySource`, `eval/efit_referee.read_efit_geometry`'s loader seam). One clause is stale \u2014 see the finding.",
+    "thin_wrapper": "pass \u2014 the one wrapper-shaped addition, \u00a77's EQDB reader, is explicitly \"one remote script and one fetch entry beside the \u00a73 extractor's, using its transport and cache rather than a second path\", and \u00a73's forked remote extractor is not a wrapper over codex but a deliberate small re-implementation carrying a stated dependency-weight rationale."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.835036+00:00"
+}

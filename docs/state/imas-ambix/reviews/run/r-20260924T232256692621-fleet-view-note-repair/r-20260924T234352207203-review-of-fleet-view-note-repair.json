@@ -1,0 +1,55 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "clive",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "",
+  "dispatched_at": "2026-09-24T23:43:52.207203+00:00",
+  "findings": [
+    {
+      "file": "docs/research/fleet-view-rendering.html",
+      "line": "83",
+      "text": "the figure \"the log continuing to 23:44:22.328 without another\" is wrong by one millisecond and is the one claim in this change that a reader can check against the log and find false: grep -c '23:44:22.328' on /tmp/zellij-39486/zellij-log/zellij.log returns 0 while five lines carry .329 and the file's last line is 'Bye from plugin 0' at 23:44:22.329, and the same .328 figure is repeated at docs/figures/fleet-view-rendering/evidence-probe/stall-lines.txt:8, docs/evidence/archive/agent-sessions-live-on-the-fleet-node-landed.html:44 and docs/plans/agent-sessions-live-on-the-fleet-node.html:350."
+    },
+    {
+      "file": "docs/figures/fleet-view-rendering/evidence-probe/stall-lines.txt",
+      "line": "1",
+      "text": "the receipt states \"Total matching lines: 33\" but three of its own header lines (1, 4 and 9) contain the phrase 'did not complete within', so grep -c 'did not complete within' on the receipt itself returns 36; a reader who re-counts on the receipt the note points them to sees a three-line drift that is not real, while counting the timestamped data lines gives the true 33."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "One commit (fa8800e8..52691cc1) over four documentation files \u2014 the note in four hunks, a new 50-line receipt, a new 62-line landed-evidence archive, and an appended plan comment \u2014 with no executable code changed and the note's measured table untouched.",
+    "done_when": "The done-when names five checks; each re-ran true \u2014 reckon audit-doc exits 0, grep 'plan-slug\" content=\"agent-sessions-live-on-the-fleet-node' returns 0 on the note, plan-informs names the plan, the interval sentence reads 8.85 s, docs/figures/fleet-view-rendering/probe/create-cc-10000.out is 28 B carrying 'There is no active session!', and the receipt's 33 lines match a fresh grep of /tmp/zellij-39486/zellij-log/zellij.log on 98dci4-clu-2058 line for line (last 22:30:48.186).",
+    "goal": "The goal is to repair the four recorded defects in docs/research/fleet-view-rendering.html \u2014 the create-failure pointer, the missing stall-line receipt, the 40 s interval and the plan-slug collision; I read the target prompt's goal and done-when lines, the landed diff and the note, and all four are repaired and independently verified.",
+    "manifest": "Read; status complete, one commit named with its base and head, the gate recorded with its log path, the negative-control log named with the pre-state it recorded, and check-manifest returns ok:true on the target run.",
+    "write_paths": "The manifest declares five paths (the note, docs/figures/fleet-view-rendering, the landed-evidence archive, the plan, the plan's figures dir); the single commit 52691cc1 changes four files, every one inside that fence and nothing outside it."
+  },
+  "justifications": {
+    "durability": "The change materially improves durability over the reviewed node's base by committing the receipt in-tree (docs/figures/fleet-view-rendering/evidence-probe/stall-lines.txt) so the zero-stall claim is checkable from the record and audit-doc stays re-runnable, but no test fails if any figure in the note regresses and the 33/33 count rests on a stated premise rather than a recorded per-run measurement.",
+    "evidence": "Every repaired claim was re-derived rather than read from the manifest \u2014 the receipt's 33 lines diff clean against a live read of /tmp/zellij-39486/zellij-log/zellij.log on 98dci4-clu-2058, that log is proven the fleet servers' own by /proc/<pid>/fd on the three live servers, the 8.85 s interval follows from tab 6 at 22:22:56.655 to the first stall at 22:23:05. The two deductions are a one-millisecond misstatement this change introduces (docs/research/fleet-view-rendering.html:83 'continuing to 23:44:22.328', where the log's last write is .329) and the receipt stating its probe-timing premise (every run read 33 before and after) rather than carrying a measurement of it, though I corroborated that premise from the source run's own stream, whose probe activity begins 22:56 local.",
+    "fit": "The note keeps its meta block and followup idiom, the receipt sits beside the other evidence-probe files with a comment header naming source, extraction time and command, and the new archive follows the landed-evidence form; the deduction is that the receipt's header repeats the counted phrase, so grep -c on the receipt itself returns 36 rather than the 33 it states.",
+    "goal_fidelity": "docs/research/fleet-view-rendering.html:8-9,80-84,122-127,165-168 and the receipt's header implement all four repairs and the fourth bullet's audit-doc gate re-runs clean, so the dispatched goal is met as written.",
+    "scope_discipline": "All four changed paths sit inside the declared fence, the receipt was placed beside the measurement it belongs to, and the plan edit at docs/plans/agent-sessions-live-on-the-fleet-node.html:349-351 appends a comment instead of rewriting the shared section."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The goal is to repair the four recorded defects in docs/research/fleet-view-rendering.html \u2014 the create-failure pointer, the missing stall-line receipt, the 40 s interval and the plan-slug collision; I read the target prompt's goal and done-when lines, the landed diff and the note, and all four are repaired and independently verified.\nVERDICT done_when: The done-when names five checks; each re-ran true \u2014 reckon audit-doc exits 0, grep 'plan-slug\" content=\"agent-sessions-live-on-the-fleet-node' returns 0 on the note, plan-informs names the plan, the interval sentence reads 8.85 s, docs/figures/fleet-view-rendering/probe/create-cc-10000.out is 28 B carrying 'There is no active session!', and the receipt's 33 lines match a fresh grep of /tmp/zellij-39486/zellij-log/zellij.log on 98dci4-clu-2058 line for line (last 22:30:48.186).\nVERDICT write_paths: The manifest declares five paths (the note, docs/figures/fleet-view-rendering, the landed-evidence archive, the plan, the plan's figures dir); the single commit 52691cc1 changes four files, every one inside that fence and nothing outside it.\nVERDICT manifest: Read; status complete, one commit named with its base and head, the gate recorded with its log path, the negative-control log named with the pre-state it recorded, and check-manifest returns ok:true on the target run.\nVERDICT diff: One commit (fa8800e8..52691cc1) over four documentation files \u2014 the note in four hunks, a new 50-line receipt, a new 62-line landed-evidence archive, and an appended plan comment \u2014 with no executable code changed and the note's measured table untouched.\nCALL_SITES: none\nreviewed_base_sha: fa8800e892fc88f6ccde84b981c7d6675e4c21c2\nreviewed_head_sha: 52691cc19613ed866ed56d0e1a4329d657af48a0\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: docs/research/fleet-view-rendering.html:8-9,80-84,122-127,165-168 and the receipt's header implement all four repairs and the fourth bullet's audit-doc gate re-runs clean, so the dispatched goal is met as written.\nSCORE evidence: 17\nJUSTIFICATION evidence: Every repaired claim was re-derived rather than read from the manifest \u2014 the receipt's 33 lines diff clean against a live read of /tmp/zellij-39486/zellij-log/zellij.log on 98dci4-clu-2058, that log is proven the fleet servers' own by /proc/<pid>/fd on the three live servers, the 8.85 s interval follows from tab 6 at 22:22:56.655 to the first stall at 22:23:05. The two deductions are a one-millisecond misstatement this change introduces (docs/research/fleet-view-rendering.html:83 'continuing to 23:44:22.328', where the log's last write is .329) and the receipt stating its probe-timing premise (every run read 33 before and after) rather than carrying a measurement of it, though I corroborated that premise from the source run's own stream, whose probe activity begins 22:56 local.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: All four changed paths sit inside the declared fence, the receipt was placed beside the measurement it belongs to, and the plan edit at docs/plans/agent-sessions-live-on-the-fleet-node.html:349-351 appends a comment instead of rewriting the shared section.\nSCORE durability: 16\nJUSTIFICATION durability: The change materially improves durability over the reviewed node's base by committing the receipt in-tree (docs/figures/fleet-view-rendering/evidence-probe/stall-lines.txt) so the zero-stall claim is checkable from the record and audit-doc stays re-runnable, but no test fails if any figure in the note regresses and the 33/33 count rests on a stated premise rather than a recorded per-run measurement.\nSCORE fit: 18\nJUSTIFICATION fit: The note keeps its meta block and followup idiom, the receipt sits beside the other evidence-probe files with a comment header naming source, extraction time and command, and the new archive follows the landed-evidence form; the deduction is that the receipt's header repeats the counted phrase, so grep -c on the receipt itself returns 36 rather than the 33 it states.\nFINDING docs/research/fleet-view-rendering.html:83 the figure \"the log continuing to 23:44:22.328 without another\" is wrong by one millisecond and is the one claim in this change that a reader can check against the log and find false: grep -c '23:44:22.328' on /tmp/zellij-39486/zellij-log/zellij.log returns 0 while five lines carry .329 and the file's last line is 'Bye from plugin 0' at 23:44:22.329, and the same .328 figure is repeated at docs/figures/fleet-view-rendering/evidence-probe/stall-lines.txt:8, docs/evidence/archive/agent-sessions-live-on-the-fleet-node-landed.html:44 and docs/plans/agent-sessions-live-on-the-fleet-node.html:350.\nFINDING docs/figures/fleet-view-rendering/evidence-probe/stall-lines.txt:1 the receipt states \"Total matching lines: 33\" but three of its own header lines (1, 4 and 9) contain the phrase 'did not complete within', so grep -c 'did not complete within' on the receipt itself returns 36; a reader who re-counts on the receipt the note points them to sees a three-line drift that is not real, while counting the timestamped data lines gives the true 33.",
+  "review_run_id": "r-20260924T234352207203-review-of-fleet-view-note-repair",
+  "reviewed_base_sha": "fa8800e892fc88f6ccde84b981c7d6675e4c21c2",
+  "reviewed_head_sha": "52691cc19613ed866ed56d0e1a4329d657af48a0",
+  "reviewed_run_id": "r-20260924T232256692621-fleet-view-note-repair",
+  "scores": {
+    "durability": 16,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-25T00:18:16.650384+00:00",
+  "total": 90
+}

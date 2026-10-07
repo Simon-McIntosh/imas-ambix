@@ -1,0 +1,52 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T05:11:14.364Z",
+  "dispatched_at": "2026-10-06T05:04:04Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html \u00a77 (lines 630-657)",
+      "id": "thin_wrapper-1",
+      "reason": "the extractor's request/batch contract is the interface the node must implement, and the plan must state whether EQDB reuses `ChannelRequest` or adds a request type before the node can be dispatched.",
+      "text": "`RemoteEddbExtractor` and its batch framing are channel-shaped (`encode_batch` serialises `ChannelRequest(shot, category, dname)` and `write_channel` writes `(channel, time)`), but an EQDB record is psi on a 2-D grid with boundary and profiles; the plan asserts the EQDB read \"keeps everything it already owns\" and that \"only the remote read call differs\" while leaving the decoded record type to the open question `eqdb-reader` and saying nothing about the request encoding, so the public request contract change is unbudgeted and a node dispatched on this text cannot know whether it reuses or widens `ChannelRequest`",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html \u00a76 (line 590) and \u00a77 (line 735)",
+      "id": "duplicate_owner-1",
+      "reason": "two independent readers of one SELENE equilibrium can drift in COCOS/axis handling, and the plan's own \"one equilibrium has one shape\" principle argues for a single SELENE source reader that both the sign scorer and the geometry referee adapt.",
+      "text": "\u00a76 generalises the COCOS scorer so \"the SELENE and FAME loaders each return an `EfitLabels`\", and \u00a77 separately \"adds a SELENE reference loader and its firewall tier\" reducing SELENE's psi/boundary/axis to `EquilibriumGeometry` for `read_efit_geometry`; that is two readers of the same facility equilibrium source into two typed records, with no owner named for the read",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "caf57411bad436626ec95eac0082ae613140e1b8b6338ed0dc322697ad5defe3",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 105,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T050357705843-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "1ab7b0a70e7fb2dd3c8c760d41d755536b2512fa",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new modules hide substantial behaviour behind small interfaces (one `selene_deck.py` converter entry point, one `tokamap_export.py` function, one EQDB grid writer sharing `eddb.py` helpers), and the machine-keyed tables in the pin registry, identity registry and shot set extend three distinct existing owners rather than spreading a single mechanism across wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a76 and \u00a77 add two separate readers of the same SELENE equilibrium (an `EfitLabels` loader for the COCOS scorer and an `EquilibriumGeometry` loader for `read_efit_geometry`), and the plan does not name the one that owns the SELENE read.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; each section that touches a family accounts for it in its own text (\u00a72 and \u00a75 \"adds one data file and no public definition or refusal family\"; \u00a74 \"widens one binding contract and retires nothing\"; \u00a77's `--machine` \"replaces the implicit MAST default ... it retires nothing else\"), so nothing is added without a stated retire/merge or a why-nothing-can-be.",
+    "reuse_search": "pass \u2014 the plan names both codebases and the precise mechanisms it extends (`eddb.py`, `signal_map.py`, `transform_engine.py`, `cocos_convention.py`, `challenge/convention.py`, `efit_referee.py`, `artifact_resolution.py`, `machine_identity.py`, `spine_bench/shots.py`); each was opened and matches the plan's description.",
+    "thin_wrapper": "a finding \u2014 \u00a77 claims the EQDB read \"extends\" the channel-shaped extractor with \"only the remote read call\" differing, but `ChannelRequest(shot, category, dname)` cannot express a grid-equilibrium read and the plan never states whether the request contract widens or is overloaded."
+  },
+  "section_digests": {
+    "_document": "060371ce32b20f0360ee1915d508732a36f1e2589b54c97b2df633bc451a49ed",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "c75137ca1257d03788b8f9a19bb91a13e7afc90da8c96f5b8403a6b19235d138",
+    "s5": "d9699df7cbddeb0512a8fea91555e191404c636d3da53692701ca5e7269c334d",
+    "s6": "6e90bbb718ecc711dad77cf286e778a3b5b19a6134a4c1b72c0aa29197e0d32b",
+    "s7": "fcd62b03196e42c522d5f895af4501e6ee689fbac54f829b6f7bdd8d3d0988ac",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T05:21:11.955806+00:00"
+}

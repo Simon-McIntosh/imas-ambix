@@ -1,0 +1,50 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "clive",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "",
+  "dispatched_at": "2026-09-25T02:45:11.971481+00:00",
+  "findings": [
+    {
+      "file": "docs/research/fleet-view-rendering.html",
+      "line": "200",
+      "text": "the replacement explanation names the probes' differing quiet threshold (500 ms versus the client's own) as the reason the resize figures are not comparable, but both probes time a resize the same way \u2014 last byte of the client's stream before silence minus the resize moment \u2014 and a longer quiet threshold can only lengthen the figure, so the named difference cannot produce the 34x gap: the earlier probe's own receipt reaches its first byte at 13 ms and ends at 439 ms (docs/figures/fleet-view-rendering/evidence-probe/log-shell-50000.timed:2, resize_first_ms=13 resize_render_ms=439), while this probe's one-tab control delivers 15,213 bytes in 13 ms, which is why the node's own follow_ons (a) still records the cause as unsettled rather than explained."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "one commit against base; the note hunk replaces the reproduction sentence, run.log gains one marker line, the plan gains one comment, and the archive gains a 33-line landing anchor with zero deletions \u2014 no measurement, marks file, figure or conclusion is touched.",
+    "done_when": "the fence's three checks re-verified at head 9ad7b060 \u2014 the note's sentence carries the 500 ms quiet period against the client's own quiet period wording and the 3,756 ms against 12-13 ms within-probe comparison, run.log's superseded count is 1 at head against 0 at base (marker at run.log:11 naming zj-second-live.marks.json's 147/3756/10247/25041, which that committed file carries), and reckon audit-doc on the note exited 0 at rev 9ad7b060.",
+    "goal": "the node's goal (prompt.txt line 25) was to correct the two wording findings in the fleet-view note's second-client section; the landed note no longer claims its 13 ms resize reproduces the earlier 418-439 ms column (docs/research/fleet-view-rendering.html head lines 196-203) and run.log's live line carries a supersession marker, so both findings are addressed, though the replacement explanation names a mechanism the receipts do not support.",
+    "manifest": "read; status complete, base 80a6c258, head 9ad7b060, the gate and the before/after negative-control receipts recorded with their log path; its quoted figures re-derived true (marks 147/3756/10247/25041; both live runs 33/33/0; control resize 13 ms), with the cause of the 34x resize gap left open under follow_ons (a), as my finding also records.",
+    "write_paths": "the manifest declares five paths; git diff --numstat 80a6c258 9ad7b060 lists only four changed files (archive +33/-0, run.log +1/-0, plan +3/-0, note +9/-3), every one inside those declared paths."
+  },
+  "justifications": {
+    "durability": "no assertion fails if the sentence regresses \u2014 audit-doc checks document spelling and links only \u2014 so the repair rests on the recorded before/after greps rather than on a guard.",
+    "evidence": "the gate is reckon audit-doc docs/research/fleet-view-rendering.html, exit 0 at 9ad7b060 (log at /home/ITER/mcintos/.cache/imas-ambix-fleet-view-wording-repair/audit-doc.log) and every number in the new sentence traces to a committed receipt, but audit-doc asserts none of the prose and the sentence's causal clause is unsupported by those receipts.",
+    "fit": "the new sentence matches the note's own render-completion idiom at docs/research/fleet-view-rendering.html:53 and introduces no name the repository naming rules forbid.",
+    "goal_fidelity": "docs/research/fleet-view-rendering.html:196-203 no longer claims the 13 ms resize reproduces the earlier probe's 418-439 ms column and states the comparison holds within each probe.",
+    "scope_discipline": "git diff --numstat 80a6c258 9ad7b060 lists only the four changed files, each inside the manifest's five declared write paths, and the archive diff carries no deletions."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20260925T023508527905-fleet-view-wording-repair at head 9ad7b060a062b2f635c9b57a435353c1901b7480 against base 80a6c25826c295707dc1060030231f3a09d019d8.\n\nVERDICT goal: the node's goal (prompt.txt line 25) was to correct the two wording findings in the fleet-view note's second-client section; the landed note no longer claims its 13 ms resize reproduces the earlier 418-439 ms column (docs/research/fleet-view-rendering.html head lines 196-203) and run.log's live line carries a supersession marker, so both findings are addressed, though the replacement explanation names a mechanism the receipts do not support.\nVERDICT done_when: the fence's three checks re-verified at head 9ad7b060 \u2014 the note's sentence carries the 500 ms quiet period against the client's own quiet period wording and the 3,756 ms against 12-13 ms within-probe comparison, run.log's superseded count is 1 at head against 0 at base (marker at run.log:11 naming zj-second-live.marks.json's 147/3756/10247/25041, which that committed file carries), and reckon audit-doc on the note exited 0 at rev 9ad7b060.\nVERDICT write_paths: the manifest declares five paths; git diff --numstat 80a6c258 9ad7b060 lists only four changed files (archive +33/-0, run.log +1/-0, plan +3/-0, note +9/-3), every one inside those declared paths.\nVERDICT manifest: read; status complete, base 80a6c258, head 9ad7b060, the gate and the before/after negative-control receipts recorded with their log path; its quoted figures re-derived true (marks 147/3756/10247/25041; both live runs 33/33/0; control resize 13 ms), with the cause of the 34x resize gap left open under follow_ons (a), as my finding also records.\nVERDICT diff: one commit against base; the note hunk replaces the reproduction sentence, run.log gains one marker line, the plan gains one comment, and the archive gains a 33-line landing anchor with zero deletions \u2014 no measurement, marks file, figure or conclusion is touched.\nCALL_SITES: none\nSCORE goal_fidelity: 16\nJUSTIFICATION goal_fidelity: docs/research/fleet-view-rendering.html:196-203 no longer claims the 13 ms resize reproduces the earlier probe's 418-439 ms column and states the comparison holds within each probe.\nSCORE evidence: 15\nJUSTIFICATION evidence: the gate is reckon audit-doc docs/research/fleet-view-rendering.html, exit 0 at 9ad7b060 (log at /home/ITER/mcintos/.cache/imas-ambix-fleet-view-wording-repair/audit-doc.log) and every number in the new sentence traces to a committed receipt, but audit-doc asserts none of the prose and the sentence's causal clause is unsupported by those receipts.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --numstat 80a6c258 9ad7b060 lists only the four changed files, each inside the manifest's five declared write paths, and the archive diff carries no deletions.\nSCORE durability: 9\nJUSTIFICATION durability: no assertion fails if the sentence regresses \u2014 audit-doc checks document spelling and links only \u2014 so the repair rests on the recorded before/after greps rather than on a guard.\nSCORE fit: 18\nJUSTIFICATION fit: the new sentence matches the note's own render-completion idiom at docs/research/fleet-view-rendering.html:53 and introduces no name the repository naming rules forbid.\nFINDING docs/research/fleet-view-rendering.html:200 the replacement explanation names the probes' differing quiet threshold (500 ms versus the client's own) as the reason the resize figures are not comparable, but both probes time a resize the same way \u2014 last byte of the client's stream before silence minus the resize moment \u2014 and a longer quiet threshold can only lengthen the figure, so the named difference cannot produce the 34x gap: the earlier probe's own receipt reaches its first byte at 13 ms and ends at 439 ms (docs/figures/fleet-view-rendering/evidence-probe/log-shell-50000.timed:2, resize_first_ms=13 resize_render_ms=439), while this probe's one-tab control delivers 15,213 bytes in 13 ms, which is why the node's own follow_ons (a) still records the cause as unsettled rather than explained.",
+  "review_run_id": "r-20260925T024511971481-review-of-fleet-view-wording-repair",
+  "reviewed_base_sha": "80a6c25826c295707dc1060030231f3a09d019d8",
+  "reviewed_head_sha": "9ad7b060a062b2f635c9b57a435353c1901b7480",
+  "reviewed_run_id": "r-20260925T023508527905-fleet-view-wording-repair",
+  "scores": {
+    "durability": 9,
+    "evidence": 15,
+    "fit": 18,
+    "goal_fidelity": 16,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-25T03:01:49.657269+00:00",
+  "total": 78
+}

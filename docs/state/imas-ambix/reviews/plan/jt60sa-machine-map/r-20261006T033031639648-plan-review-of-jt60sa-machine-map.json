@@ -1,0 +1,35 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T03:37:22.906Z",
+  "dispatched_at": "2026-10-06T03:30:45Z",
+  "findings": [],
+  "plan_fingerprint": "e92f92b88aeea6fa137ae12ed165846318e6a8bfa5a4f373d293ac9f7cddc785",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 93,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T033031639648-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "3dc9b1bb878dafd9cd6859e6fdc44620aa8d5723",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the remaining work is extensions behind existing interfaces rather than a spread of shallow wrappers: the catalogue is data consumed by `load_machine_map`; the EQDB read is one request kind on `RemoteEddbExtractor` (which already hides batch framing, the per-request refusal contract and the niced ssh command); the grid record is a sibling writer of `write_channel` in `imas_ambix/data/eddb.py` sharing `EDDB_TOKEN_ATTR`/`_channel_present`/overwrite refusal; the SELENE comparator nests in `efit_referee.judge_geometry` and `runner._magnetics_residual`. The one new public callable, `export_tokamap_directory`, hides the unit\u00d7sign\u00d7COCOS collapse behind a single entry point.",
+    "duplicate_owner": "pass \u2014 each shared concern is routed to its named owner to extend, not forked: placement/path resolution to `imas_ambix/data/paths.py`; machine selection to `imas_ambix/gs/machine_selection.py` (`ArtifactMachineSelector`) and `gs/machine_identity.py` (`identity_for_shot`); the shot\u2192machine declaration to `imas_ambix/spine_bench/shots.py` (`BenchShot.machine`, already landed); EDDB transport/store to `eddb_remote.py`/`eddb.py`; geometry resolution to `gs/artifact_resolution.py`; the machine pin constants to a machine-keyed table in that same file. The plan explicitly reconciles the netCDF source-layer store against the content-addressed artifact store instead of adding a second resolver (\"not a second machine-description artifact store\").",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that widens surface accounts for it in its own text: \u00a72 \"retires nothing, because ambix has no exporter\"; \u00a74 \"widens one protocol method and retires nothing\" and \"the slot widens one binding contract and retires nothing\"; \u00a75 \"adds one data file and no public definition or refusal family\"; \u00a76 \"retires nothing public, because every existing name keeps its caller\"; \u00a77 \"retires nothing, because no equilibrium-database reader exists in ambix\" and \"adds two record fields and retires nothing\".",
+    "reuse_search": "pass \u2014 every remaining mechanism names the existing owner it extends and the file is real: \u00a72 `export_tokamap_directory` in `imas_ambix/data/tokamap_export.py`; \u00a74 `StoreEngine.open` in `imas_ambix/data/transform_engine.py`, `read_geometry_table`/`_supply_declared_probe_angles` in `imas_ambix/data/description_reader.py`, roots via `imas_ambix/data/paths.py`; \u00a75 `load_packaged_signal_map` in `imas_ambix/data/signal_map.py`; \u00a76 `score_convention` in `imas_ambix/data/cocos_convention.py` and `judge_geometry`/`measure_diiid_convention` in `imas_ambix/eval/efit_referee.py`+`imas_ambix/challenge/convention.py`; \u00a77 `RemoteEddbExtractor`/`eddb.py`, `resolve_machine_description`, `ArtifactMachineSelector`, `spine_bench/shots.py`, `_magnetics_residual` in `spine_bench/runner.py`.",
+    "thin_wrapper": "pass \u2014 each layer over existing machinery states why the machinery cannot be extended instead: \u00a72's exporter stays out of the loaders \"because they read the ambix schema and must not learn tokamap's\"; \u00a75's normalisation file is \"a spelling map, not a second conversion mechanism\", leaving conversion with `signal_map.py` and `tokamap_export._unit_factor`; \u00a74/\u00a77 extend `StoreEngine.open` and `RemoteEddbExtractor` \"rather than adding one\"/\"rather than sitting beside it\"."
+  },
+  "section_digests": {
+    "_document": "81c30464997a0bb8e491a2ec9da6b8861cd25ff2cfad20808b2f114dc78a477d",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "978348f9ca560d52451e65fd8e70efba5d44976616b33aa9e3cef8464d8b75a2",
+    "s5": "b8fd563c68e5e8518654b5d37d9929467a10f841b4291cd34c629a84f4798199",
+    "s6": "74c26a09a208a6ba05c3237f425df468a2268a55e4c2660252ada8961082454f",
+    "s7": "62951da3372b659457fced3f72dd70f8514a9f1d9724d70e75e25619f5a84493",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T03:38:01.034077+00:00"
+}

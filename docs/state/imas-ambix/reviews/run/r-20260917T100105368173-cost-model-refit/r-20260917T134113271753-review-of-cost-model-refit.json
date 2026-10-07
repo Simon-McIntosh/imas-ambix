@@ -1,0 +1,59 @@
+{
+  "absent": [],
+  "completed_at": "",
+  "dispatched_at": "2026-09-17T13:41:13.271753+00:00",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/cost-model-refit.md",
+      "line": "103",
+      "text": "the predicted-versus-baseline table gives width 16 a ratio of 1.326, while the node's own curve artifact (cmr_ratio.json) and a recomputation from its stated model both give 1.3311, so that row understates the ratio by 0.005."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/cost-model-refit.md",
+      "line": "48",
+      "text": "the GB derivation is stated as 35.0 MB per expert per layer, but the fit executes with 35.4 (/tmp/cmr_extract.py:30) and 35.0 would put width 1 at 42.1 GB rather than the tabulated 42.6, so a reader re-deriving from the prose gets every GB value about 1.1 percent low."
+    },
+    {
+      "file": "docs/plans/dsv41-serve-tuning-for-concurrency.html",
+      "line": "375",
+      "text": "the landing record writes the slope's spread as \"0.267 to 0.356 ms/curve\", a unit matching nothing in the analysis; the quantity is milliseconds per GB read, and this sentence is the plan's durable statement of it."
+    },
+    {
+      "file": "docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html",
+      "line": "195",
+      "text": "the figure alt text says \"Nine fitted with three thin widths beyond\" while the figure plots exactly two thin widths (w10 n=11, w11 n=6), so the anchor's accessible description of its own figure is off by one."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/cost-model-refit.md",
+      "line": "87",
+      "text": "the reproducibility note points at /tmp/cmr_extract.py as the only instrument; it survives today but nothing commits it, so a reboot or another checkout leaves the numbers restatable only by re-deriving the method from prose."
+    }
+  ],
+  "justifications": {
+    "durability": "no test fails if the refit regresses; the instrument named at cost-model-refit.md:87 lives only in /tmp (cmr_extract.py, still present, with the window frozen by a snapshot) so nothing in the repository carries the parse rules.",
+    "evidence": "I re-derived all eleven table rows from the raw log at the stated 12:08:20 cutoff (608 intervals, every n, accept length, throughput and ms identical to cost-model-refit.md:73) and the ratio curve reproduces exactly (4.753 at width 1, minimum 1.3123 at width 12.7, nothing below 1.2), but the record carries two number slips (the 35.0 MB prose constant, the width-16 ratio).",
+    "fit": "the landing record follows the plan's own \"Landing record \u2014\" idiom at docs/plans/dsv41-serve-tuning-for-concurrency.html:358 and the figure uses docs/figures/<topic>/ with a project-absolute src, but the same paragraph mis-states the slope's unit as ms/curve.",
+    "goal_fidelity": "cost-model-refit.md:12 lands the refit to 8.338 + 0.30370 x GB from the measured accept length per width, and my independent byte-mode parse of deepseek-v4-1-flash-1272783.log confirms the assumed 3.31 is replaced by measured 3.585 at width 1 falling to 3.615 at width 11.",
+    "scope_discipline": "the two commits touch only the declared write paths (docs/figures/dsv41-serve-tuning-for-concurrency/cost-model-refit.svg, the evidence anchor, the plan; the report sits outside git at its declared path), the plan hunk is additions-only and leaves the meta lines, and no banned label appears on any added line."
+  },
+  "project": "imas-ambix",
+  "raw_text": "SCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: cost-model-refit.md:12 lands the refit to 8.338 + 0.30370 x GB from the measured accept length per width, and my independent byte-mode parse of deepseek-v4-1-flash-1272783.log confirms the assumed 3.31 is replaced by measured 3.585 at width 1 falling to 3.615 at width 11.\nSCORE evidence: 18\nJUSTIFICATION evidence: I re-derived all eleven table rows from the raw log at the stated 12:08:20 cutoff (608 intervals, every n, accept length, throughput and ms identical to cost-model-refit.md:73) and the ratio curve reproduces exactly (4.753 at width 1, minimum 1.3123 at width 12.7, nothing below 1.2), but the record carries two number slips (the 35.0 MB prose constant, the width-16 ratio).\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the two commits touch only the declared write paths (docs/figures/dsv41-serve-tuning-for-concurrency/cost-model-refit.svg, the evidence anchor, the plan; the report sits outside git at its declared path), the plan hunk is additions-only and leaves the meta lines, and no banned label appears on any added line.\nSCORE durability: 13\nJUSTIFICATION durability: no test fails if the refit regresses; the instrument named at cost-model-refit.md:87 lives only in /tmp (cmr_extract.py, still present, with the window frozen by a snapshot) so nothing in the repository carries the parse rules.\nSCORE fit: 18\nJUSTIFICATION fit: the landing record follows the plan's own \"Landing record \u2014\" idiom at docs/plans/dsv41-serve-tuning-for-concurrency.html:358 and the figure uses docs/figures/<topic>/ with a project-absolute src, but the same paragraph mis-states the slope's unit as ms/curve.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/cost-model-refit.md:103 the predicted-versus-baseline table gives width 16 a ratio of 1.326, while the node's own curve artifact (cmr_ratio.json) and a recomputation from its stated model both give 1.3311, so that row understates the ratio by 0.005.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/cost-model-refit.md:48 the GB derivation is stated as 35.0 MB per expert per layer, but the fit executes with 35.4 (/tmp/cmr_extract.py:30) and 35.0 would put width 1 at 42.1 GB rather than the tabulated 42.6, so a reader re-deriving from the prose gets every GB value about 1.1 percent low.\nFINDING docs/plans/dsv41-serve-tuning-for-concurrency.html:375 the landing record writes the slope's spread as \"0.267 to 0.356 ms/curve\", a unit matching nothing in the analysis; the quantity is milliseconds per GB read, and this sentence is the plan's durable statement of it.\nFINDING docs/evidence/archive/dsv41-serve-tuning-for-concurrency-landed.html:195 the figure alt text says \"Nine fitted with three thin widths beyond\" while the figure plots exactly two thin widths (w10 n=11, w11 n=6), so the anchor's accessible description of its own figure is off by one.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/dsv41-tune/cost-model-refit.md:87 the reproducibility note points at /tmp/cmr_extract.py as the only instrument; it survives today but nothing commits it, so a reboot or another checkout leaves the numbers restatable only by re-deriving the method from prose.\n",
+  "review_run_id": "r-20260917T134113271753-review-of-cost-model-refit",
+  "reviewed_run_id": "r-20260917T100105368173-cost-model-refit",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "reviewer_run_id": "r-20260917T134113271753-review-of-cost-model-refit",
+  "scores": {
+    "durability": 13,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-17T13:54:28.022824+00:00",
+  "total": 88
+}

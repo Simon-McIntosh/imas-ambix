@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T07:25:58.335Z",
+  "dispatched_at": "2026-10-05T07:19:47Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/description_reader.py:81",
+      "id": "reuse_search-1",
+      "reason": "the required change (resolve format/root from the catalogue and retire the probe-angle machine branch) is unchanged; only the description of the starting point is imprecise.",
+      "text": "\u00a74 calls `read_geometry_table` an extension point that \"today resolves one fixed store format and root\", but `store_format` and `store_root` are already keyword parameters (defaults `\"zarr\"` and `LEVEL2_DIR`); the only machine-name branch is `_supply_declared_probe_angles` at line 103, so the section overstates the store work and understates that only the probe-angle branch is machine-named",
+      "type": "reuse_search",
+      "would_change": false
+    },
+    {
+      "anchor": "imas_ambix/gs/artifact_resolution.py:304",
+      "id": "duplicate_owner-1",
+      "reason": "without naming where the JT-60SA semantic identity is registered and by which function it is authored from the \u00a74 netCDF, \u00a77's spine gate has no executable artifact source and risks a second resolver beside the pinned one the plan explicitly rejects.",
+      "text": "\u00a77 says the spine reads JT-60SA geometry \"with a JT-60SA pin rather than a second resolver (so `resolve_machine_description` gains a machine to resolve, and how the artifact is authored from the \u00a74 source ... is settled in this section)\", but the section does not settle it: `author_pinned_description` takes no machine and hard-imports `nova.imas.mast_geometry`, `PINNED_SEMANTIC_IDENTITY`/`PINNED_PHYSICAL_DIGEST`/`PINNED_REGISTRY_DIGEST` are single module constants (lines 69\u201378), and `select_machine`/`resolve_machine_description` take no machine argument, so a JT-60SA pin needs a machine-keyed pin registry and a non-nova authoring entry point that the plan leaves unnamed",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html#s4",
+      "id": "interface_budget-1",
+      "reason": "one sentence recording that the two store-addressing keys retire nothing (the catalogue had no store-format slot) or merge into the engine's existing `store_format` concept would satisfy the interface-budget rule the other sections already meet.",
+      "text": "\u00a74 grows `load_machine_map`'s \"fixed key set\" by three catalogue entries under its own \"\u00a72 slot rule\" (justified-by-structure), but states a retirement only for the probe-angle source / machine branch; the description store-format and store-root keys add public map-schema surface with no statement of what they retire or merge or why nothing can, unlike \u00a72, \u00a73 and \u00a77 which each carry that sentence",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "588033b73b991f1a6d28acc0f634be807b11f1c078626fad3c5e81bffc0a1ed3",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 25,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T071942516138-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "3f359939fe6da98e9510afc01ca31b40de16eb71",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new pieces hide substantial behaviour behind small interfaces: one batch-fetch function plus one cache writer at the ssh boundary; one exporter function; one EQDB remote script riding the \u00a73 transport. No spread of shallow wrappers over the same machinery.",
+    "duplicate_owner": "a finding \u2014 the artifact-identity owner in `gs/artifact_resolution.py` is extended for resolution, but its pin store is a single module-level constant and its authoring route is MAST-only through nova, so \"a JT-60SA pin of its own\" names no mechanism.",
+    "interface_budget": "a finding \u2014 \u00a74 adds catalogue keys (store format, store root, probe-angle source) to the public map schema and names a retirement only for the probe-angle machine branch, leaving the store-format and store-root keys as added public-definition surface with no retire, merge or why-nothing statement.",
+    "reuse_search": "pass \u2014 every proposed mechanism is placed against a named existing owner (paths.py, transform_engine.py, description_reader.py, cocos_convention.py, efit_referee.py, artifact_resolution.py), and each cited symbol exists, though \u00a74's account of `read_geometry_table` is imprecise (below).",
+    "thin_wrapper": "pass \u2014 the remote extractor is the only wrapper risk and \u00a73 states why codex's layer cannot be imported (graph/LLM/tool-install dependencies on every ambix read) and explicitly defers a shared remote core to the second facility that needs one."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.873026+00:00"
+}

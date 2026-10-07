@@ -1,0 +1,70 @@
+{
+  "call_sites": [
+    "ops/lane-cycle/AGENTS.md:35-217 \u2014 seven-step operational runbook, bounds, rollback and router-restart distinction",
+    "AGENTS.md:245 \u2014 root pointer to the scoped runbook",
+    "imas_ambix/agent/AGENTS.md:1734-1751 \u2014 serving guidance replaced by the runbook link and corrected 4,000,000-token pool figure",
+    "docs/plans/local-lane-admission-control.html:771-777 \u2014 section s17 requirements and landing comment",
+    "docs/evidence/archive/local-lane-admission-control-landed.html:528-583 \u2014 evidence anchor, help transcript provenance and figure"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-09-25T12:59:18.916111+00:00",
+  "findings": [
+    {
+      "file": "ops/lane-cycle/AGENTS.md",
+      "line": "35-48,157-170",
+      "text": "The runbook says each of seven steps carries its own command, but announcement supplies only the pseudo-call crew(view=\"directory\") plus prose about messaging sessions, and recording supplies only destinations/fields with no command. Add explicit, checkable operations for discovering/notifying coordinators and writing the cycle record."
+    },
+    {
+      "file": "ops/lane-cycle/AGENTS.md",
+      "line": "94",
+      "text": "The uv run dry-run piped to grep -c returns grep's zero even when uv fails before producing a script, so the required no-worktree check can report success on a failed dry run. Capture/check the producer's exit status or enable pipefail before accepting zero matches."
+    },
+    {
+      "file": "docs/evidence/archive/local-lane-admission-control-landed.html",
+      "line": "13",
+      "text": "The new lane-cycle evidence section is present, but the cumulative plan-verifies meta omits local-lane-admission-control#s17; the worker disclosed this as a follow-on, and the coordinator should add the missing binding before treating the evidence index as complete."
+    }
+  ],
+  "follow_ons": [
+    "Add local-lane-admission-control#s17 to docs/evidence/archive/local-lane-admission-control-landed.html plan-verifies metadata.",
+    "Repair the dry-run check to preserve uv's exit status and add executable commands for coordinator notification and cycle recording."
+  ],
+  "item_aggregate": 90,
+  "item_verdicts": {
+    "call_sites": "verified five documentation integration sites and both runbook links resolve in the reviewed tree",
+    "diff": "read c79d278c commit-by-commit from c2901ec5; it changes exactly seven intended paths: the scoped runbook and loader, two guidance files, the plan landing comment, the evidence anchor and the timeline figure",
+    "done_when": "the runbook contains the seven-step cycle, 15-minute RUNNING-to-readiness bound, 40-minute pause ceiling inside the approximately 56-minute client ride-out, rollback, and a router-restart versus engine-relaunch table; the four CLI help captures are present and the worker's ruff gate is green. The exact-command promise is incomplete for announcement and cycle recording, and the dry-run check has a false-zero failure mode",
+    "goal": "the landed procedure follows the plan's router-pause cycle and keeps the operational action coordinator-owned; the engine drain uses a classified successful lane reading, relaunch and rollback are explicit, and the engine/router restart distinction is spelled out",
+    "manifest": "the target manifest agrees with c79d278c, lists all seven changed paths, records its clean commit and green ruff result, and honestly says no pause, resume, restart or shutdown was executed; its disclosed s17 evidence-link metadata follow-on is reproducible in the reviewed evidence file",
+    "write_paths": "git diff --name-status c2901ec5..c79d278c contains only the seven paths in the worker's declared scope, with the root and agent guidance edits limited to the intended pointer/pool correction and no unrelated source or peer worktree changes"
+  },
+  "justifications": {
+    "durability": "The worker committed a clean, reviewable c79d278c with a body, preserved the help output and lint log on disk, added a project-absolute figure reference, and recorded an honest no-deployment boundary. The record is durable, but the evidence metadata and the shell check need repair before the runbook is a fully reliable operational receipt.",
+    "evidence": "The help transcript is verbatim for pause, resume, restart and shutdown, the live lane probe is honestly recorded as measured running=13 rather than misreported as a drain, and the 4M profile figure is source-bound. Evidence is reduced for the false-zero dry-run pipeline, the lack of an executable record/notification command, and the evidence archive's missing s17 plan-verifies entry.",
+    "fit": "The scoped AGENTS.md plus two-line loader is the right repository-native location for operational guidance; root and component pointers avoid duplication, the plan/evidence artifacts are additive, and the figure materially explains the bounded sequence. The pipeline's unguarded error path and prose-only steps keep this below a fully fitted runbook.",
+    "goal_fidelity": "The procedure directly implements s17: announce, pause, drain on a measured zero, relaunch from the main checkout, validate a real completion, resume, and record. It also preserves the plan's coordinator-owned operational boundary and explicitly distinguishes an engine relaunch from a router restart. Two points are withheld because steps 1 and 7 do not provide executable commands despite the plan's exact-command requirement.",
+    "scope_discipline": "The target commit has exactly the seven declared documentation/guidance paths: ops/lane-cycle/AGENTS.md, its CLAUDE.md loader, the root and agent guidance, the plan landing comment, the cumulative evidence anchor and the figure. No serving action was run and no production code or peer path was touched."
+  },
+  "justifications_detail": {
+    "negative_control": "No negative control was declared for this documentation node; no serving mutation was attempted, consistent with the target manifest.",
+    "review_basis": "Reviewed the live plan section, target prompt and manifest, c79d278c commit and parent, all changed files, the four help-output blocks, the ruff log, the relevant lane classifier, profile port/pool settings, link targets, SVG parseability and diff cleanliness."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260925T115355281795-s17-lane-cycle-runbook, reviewed base c2901ec5dbb8a3bc03314b72b3596ef7b68a5566 and reviewed head c79d278c41b2718978ae27a3d0a754acf82cef8e.\n\nThe live plan requires ops/lane-cycle/AGENTS.md to state each of the seven cycle steps with an exact command, the 15-minute readiness bound from RUNNING, rollback, the pause bound and the router-restart distinction; it also requires links to resolve and keeps the operational cycle coordinator-owned. I read that section before the target manifest and then audited the target commit, its changed files, the recorded help transcript, the ruff receipt, the classifier and profile references used by the runbook, the evidence anchor and the figure.\n\nVERDICT goal: c79d278c implements the router-pause cycle with measured drain classification, main-checkout relaunch, real completion validation, rollback and resume. The engine-relaunch/router-restart distinction is explicit and operational actions remain coordinator-owned. Steps 1 and 7 are prose/pseudo-invocation rather than executable commands, so the exact-command done-when is not fully met.\nVERDICT done_when: the seven-step runbook, bounds, rollback, help provenance, links and figure are present. The dry-run safety check at ops/lane-cycle/AGENTS.md:94 is `uv run ... --dry-run | grep -c ...`; without pipefail or explicit capture, a failing uv command can still produce grep's zero and falsely pass the required no-worktree assertion. The announcement at lines 35-48 has no concrete notification command, and recording at lines 157-170 has no command for writing the cycle record.\nVERDICT write_paths: git diff --name-status c2901ec5..c79d278c reports exactly the seven paths declared by the worker; the changes are scoped to operational guidance, plan/evidence landing and one figure.\nVERDICT manifest: the target manifest accurately reports c79d278c, its paths, the green ruff log, the four help screens and that no pause/resume/restart/shutdown was executed. Its disclosed follow-on is confirmed: the reviewed evidence file's plan-verifies meta at line 13 omits local-lane-admission-control#s17 even though the new evidence section is present.\nVERDICT evidence: the help blocks match the CLI option surfaces in the reviewed tree; classify_reading returns measured/stale/unavailable from the stamped lane document and the profile serves on port 18810 with max_total_tokens 4000000. The run's live probe honestly measured running=13, so it is evidence that the instrument works, not a fabricated successful drain.\nVERDICT fit: the new directory-scoped guidance and loader, root/component pointers and project-absolute figure follow repository conventions and preserve cumulative evidence. The missing executable steps and shell false-zero path are operational reliability defects, not scope violations.\n\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: The mechanism and coordinator boundary match the plan; exact commands are missing for announcement and recording.\nSCORE evidence: 16\nJUSTIFICATION evidence: Help and source-backed measurements are present and honest, but the dry-run check can false-pass and s17 is absent from the evidence archive's plan-verifies metadata.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: Exactly seven intended paths changed and no operational action or unrelated code was touched.\nSCORE durability: 18\nJUSTIFICATION durability: The committed run and on-disk receipts are durable and traceable; the procedural receipt still has the metadata and shell-check weaknesses above.\nSCORE fit: 18\nJUSTIFICATION fit: The scoped runbook architecture is appropriate and illustrated; the incomplete exact-command surface and false-zero guard prevent full credit.\n\nFINDING ops/lane-cycle/AGENTS.md:35-48 and :157-170: the file says each of seven steps carries its own command, but announcement supplies only the pseudo-call `crew(view=\"directory\")` plus prose about messaging sessions, and recording supplies only destinations/fields with no command. Add explicit, checkable operations for discovering/notifying coordinators and writing the cycle record.\nFINDING ops/lane-cycle/AGENTS.md:94: the `uv run ... --dry-run | grep -c` pipeline returns grep's zero even when uv fails before producing a script, so the required no-worktree check can report success on a failed dry run. Capture/check the producer's exit status (or enable pipefail) before accepting zero matches.\nFINDING docs/evidence/archive/local-lane-admission-control-landed.html:13: the new lane-cycle evidence section is present, but the cumulative `plan-verifies` meta omits `local-lane-admission-control#s17`; the worker disclosed this as a follow-on, and the coordinator should add the missing binding before treating the evidence index as complete.",
+  "review_run_id": "r-20260925T125918916111-review-of-s17-lane-cycle-runbook",
+  "reviewed_base_sha": "c2901ec5dbb8a3bc03314b72b3596ef7b68a5566",
+  "reviewed_head_sha": "c79d278c41b2718978ae27a3d0a754acf82cef8e",
+  "reviewed_run_id": "r-20260925T115355281795-s17-lane-cycle-runbook",
+  "reviewer": "review-of-s17-lane-cycle-runbook",
+  "scores": {
+    "durability": 18,
+    "evidence": 16,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-id",
+  "timestamp": "2026-09-25T15:05:00+02:00",
+  "total": 90
+}

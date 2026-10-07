@@ -1,0 +1,25 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T11:42:39.051Z",
+  "dispatched_at": "2026-10-05T11:33:28Z",
+  "findings": [],
+  "plan_fingerprint": "198e9df80af35ade2d5b8849dce531b3b8f58df2b5c1a6fbbd447f8c5e4905a6",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 65,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T113322428609-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "2b6f2d8252ede16875b5553498b357809a0cad95",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new modules each hide substantial behaviour behind a stated small surface: the EDDB extractor is one batch-fetch function plus one cache writer, the SELENE converter one entry point, the tokamap exporter one public function, and the \u00a74 store-layout change is a single widened protocol method carrying catalogue-driven addressing.",
+    "duplicate_owner": "pass \u2014 the recurring duplicates are routed through their owners: mirror/cache paths through `imas_ambix/data/paths.py` (`JT60SA_ROOT` beside `MIRROR_ROOT`), description geometry through `gs/artifact_resolution.resolve_machine_description`, shot identity through `spine_bench/shots.py`, and probe-angle supply through `read_geometry_table`; the plan names `manifest.py`/`cli.py` and the MAST-only `gs/geometry.py load_tables` and the benchmark `transform_geometry_source` explicitly as owners it does not fork.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the plan adds no CLI or MCP surface by design (\"adds no `ambix data` command\"), and every section that adds a public definition accounts for it in its own text \u2014 \u00a72 exporter (\"retires nothing, because ambix has no exporter\"), \u00a73 extractor (\"retires nothing, because ambix has no remote reader today\"), \u00a74 converter and widened `StoreEngine.open` and catalogue keys (each stating what it retires or that no slot existed), \u00a77 EQDB reader and record fields (each stating retirement or why none).",
+    "reuse_search": "pass \u2014 the plan searches both named repositories and cites the existing mechanism for every subsystem it extends (`load_packaged_signal_map`, `read_geometry_table`, `cocos_convention`, `efit_referee`, `artifact_resolution`, `spine_bench/shots.py`, `load_machine_map`); each was opened and matches the plan's account, and no JT-60SA map or JT-60SA reader pre-exists in ambix.",
+    "thin_wrapper": "pass \u2014 every layer the plan adds is a new capability with a stated reason not to extend an existing one: \u00a73 declines to import imas-codex's remote layer (dependency isolation) and states when a shared core would become cheaper; \u00a74 declines a second deck store engine and extends `NetCDFTransformEngine.open` instead; \u00a77 routes the EQDB reader through the \u00a73 transport rather than a second path."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.842844+00:00"
+}

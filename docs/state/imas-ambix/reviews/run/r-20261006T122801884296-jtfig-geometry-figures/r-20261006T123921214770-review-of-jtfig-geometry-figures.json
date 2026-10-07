@@ -1,0 +1,64 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite. This review measured the reviewed node's declared ruff gate in two scratch trees extracted with git archive from the reviewed commit's own object store into $TMPDIR/arms-jtfig (no worktree created): base arm gate-base.log (revision 7e975e9c: ruff check imas_ambix tests, All checks passed!, EXIT=0) and head arm gate-head.log (revision c35e1783: ruff check imas_ambix tests scripts/figures_jt60sa_geometry.py, All checks passed!, EXIT=0). The reviewed node's substantive check is the count guard the script prints and asserts, which reads the real JT-60SA description store and cannot run on this host's lane; it was read from the reviewed run's own script-run.log (both phases, all six counts equal to the store, EXIT=0). Non-pytest gates report no FAILED node ids, so both arms are empty: head failing ids minus base failing ids is 0.",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/ruff check --no-cache /tmp/arms-jtfig/head/imas_ambix /tmp/arms-jtfig/head/tests /tmp/arms-jtfig/head/scripts/figures_jt60sa_geometry.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T123921214770-review-of-jtfig-geometry-figures/gate-head.log",
+    "revision": "c35e1783744e792ae479d8b4efb026eb3b7c308c"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/ruff check --no-cache /tmp/arms-jtfig/base/imas_ambix /tmp/arms-jtfig/base/tests",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T123921214770-review-of-jtfig-geometry-figures/gate-base.log",
+    "revision": "7e975e9ced1dccfae727916a6c8f14917a3b572b"
+  },
+  "completed_at": "2026-10-06T12:47:54.261Z",
+  "dispatched_at": "2026-10-06T12:39:28Z",
+  "findings": [
+    {
+      "file": "scripts/figures_jt60sa_geometry.py",
+      "line": "104",
+      "severity": "follow-on",
+      "text": "follow-on: the node's only assertion is _report's count-equality guard, and nothing in the test suite can reach it. _report compares the drawn counts against the store's counts and raises SystemExit on a mismatch (line 135), and the reviewed run demonstrated it fires (probes 17->16 refused, negative-control.log). But the guard runs only when the script is executed against the real JT-60SA description store under /work/projects/imas_gpu/jt60sa/machine_description, which is a heavy, data-coupled run this lane must not perform; no file under tests/ imports or exercises scripts/figures_jt60sa_geometry.py (grep -rln figures_jt60sa tests/ returns nothing). A regression that broke the machine-map addressing, the IDS reads or the extract/render call would not fail the suite -- only a worker who re-runs the script on the data (or its negative control) would see it. Durability is scored 8 on that basis. The done-when named no test, so this is recorded as a follow-on, not a defect this commit introduced."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "none",
+    "diff": "Read commit c35e1783 against base 7e975e9c; four files changed, +2043/-0, matching the declared write paths (script 188 lines, two SVGs, one evidence fragment); no PNG twin, and no file outside the scope.",
+    "done_when": "The node's measure is 'uv run --no-sync ruff check imas_ambix tests scripts/figures_jt60sa_geometry.py exits 0' plus the per-phase counts equalling the store. The gate is recorded green in gate-ruff.log (EXIT=0) and the count equality in script-run.log (both phases, six quantities each equal to the store, EXIT=0); the script asserts the equality itself by raising SystemExit on any mismatch, and its negative control shows the refusal. Reproduced independently at the declared gate: this review re-ran ruff at both arms and both are green.",
+    "goal": "The goal is to render the JT-60SA OP1 and OP2 geometry figures through imas-ink. The commit adds scripts/figures_jt60sa_geometry.py which loads load_packaged_machine_map('jt-60sa'), opens each phase through NetCDFTransformEngine.open, reads wall/pf_active/magnetics with imas.DBEntry, and renders both phases via imas_ink.extract.extract_geometry and imas_ink.figures.geometry_figure_mpl in DEFAULT_STYLE; both landed SVGs carry drawn geometry (68 <path> plus rects and 88 <use> markers each) and the reviewed run's script-run.log shows both phases rendering with every count equal to the store.",
+    "manifest": "Read; it reports status complete, commits c35e1783, changed_paths the four files above, the ruff gate EXIT=0 and the script run EXIT=0 with counts equal to the store, a negative control (probes 17->16 refused), and names gate-ruff.log, script-run.log and negative-control.log.",
+    "write_paths": "Declared: scripts/figures_jt60sa_geometry.py, docs/figures/jt60sa-geometry, docs/evidence/fragments/jt60sa-geometry-and-signal-figures->jtfig-geometry-figures.html, docs/figures/jt60sa-geometry-and-signal-figures/jtfig-geometry-figures. The diff touches exactly scripts/figures_jt60sa_geometry.py, docs/figures/jt60sa-geometry/op1-op2-side-by-side.svg, docs/figures/jt60sa-geometry/op1-op2-overlay.svg and docs/evidence/fragments/jtfig-geometry-figures.html -- all inside the declared set."
+  },
+  "justifications": "Independent review of run r-20261006T122801884296-jtfig-geometry-figures, reviewed_run_id the same, base 7e975e9c, head c35e1783, stored as a parsed record scoring all six dimensions in 0..20 -- goal_fidelity 20, evidence 18, scope_discipline 20, durability 8, fit 18, reuse 20 -- total 104, added_failure_count 0 with added_failure_ids [] derived from this review's own two arms of the reviewed node's declared ruff gate (base $TMPDIR/arms-jtfig/base revision 7e975e9c EXIT=0; head $TMPDIR/arms-jtfig/head revision c35e1783 EXIT=0; the reviewed run itself was unarmed, its manifest naming no baseline_suite or after_suite). The landed change renders JT-60SA OP1 and OP2 through imas-ink without drawing anything itself: scripts/figures_jt60sa_geometry.py:151-183 lays out axes and calls geometry_figure_mpl twice, holding no colour, label or style constant of its own (the OP1 overlay dash comes from DEFAULT_STYLE.ref_lcfs_linestyle via dataclasses.replace); the two committed SVGs carry real geometry (68 paths and 88 use-markers each, 32 kB apiece, no PNG). One finding is recorded as a follow-on: durability rests on a runtime count guard (scripts/figures_jt60sa_geometry.py:104-135) that no test reaches, so a regression would fail only a re-run against the real store.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261006T123921214770-review-of-jtfig-geometry-figures",
+  "reviewed_base_sha": "7e975e9ced1dccfae727916a6c8f14917a3b572b",
+  "reviewed_head_sha": "c35e1783744e792ae479d8b4efb026eb3b7c308c",
+  "reviewed_run_id": "r-20261006T122801884296-jtfig-geometry-figures",
+  "reviewer": "review-of-jtfig-geometry-figures",
+  "scores": {
+    "durability": 8,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T12:45:15+00:00",
+  "total": 104
+}

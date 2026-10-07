@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T08:49:30.710Z",
+  "dispatched_at": "2026-10-05T08:42:24Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/spine_bench/transform_geometry_source.py:266",
+      "id": "reuse_search-1",
+      "reason": "\u00a74's retirement claim and \u00a77's \"keyed by machine\" resolver plan are both under-scoped until they name `_supply_probe_orientations` and the `mast.json` path and fold them into the same catalogue-driven source, or the branch is retired in one file and re-joined in another.",
+      "text": "\u00a74 asserts that resolving store format, root and probe-angle source from the catalogue will retire `description_reader.py:103`'s `machine == \"mast\"` branch \"not joined by a second\", but a second MAST-only probe-angle source lives at `_supply_probe_orientations` (line 266), which the \u00a77 stamp route passes through: `TransformGeometrySource.table_for` calls `read_geometry_table(shot_id, store_root=self.store_root)` (line 325) with `machine`/`store_format` defaulting to MAST's zarr, and `TransformGeometrySource.revision` hard-codes `PACKAGED_MACHINE_MAP_ROOT / \"mast.json\"` (line 362). \u00a77 keys only the shot set by machine; the class itself carries three further MAST hard-codings \u2014 the reader defaults, `revision`'s catalogue path, and `provenance`'s `\"store_format\": \"zarr\"` \u2014 that the JT-60SA stamp must displace.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas-codex:imas_codex/remote/scripts/ssh_worker.py (with executor.py, serialization.py, enumerate_edas.py)",
+      "id": "duplicate_owner-1",
+      "reason": "the fork is deliberate, justified by dependency direction, limited to one ssh process per batch with no session pool, host registry or installer, and already landed; the finding records the owner to extend if a second facility later needs remote execution, which the plan already commits to deciding then.",
+      "text": "\u00a73 adds an ambix remote extractor that duplicates the ssh worker, process executor and msgpack array format already owned by codex's remote layer; the plan names the owner and states the reason (importing codex would make its graph, LLM and tool-installation dependencies a dependency of every ambix read) and defers a shared remote core to a later plan.",
+      "type": "duplicate_owner",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "5db555b56e7c998da34412e4321bc862afd2ad2ace749d6b9d5629a2bdc1740c",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 43,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T084219094199-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "63b3d1fbfd5e32fa400117913ebc7d9ab30e9af2",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each new mechanism (deck converter, tokamap exporter, EDDB extractor, EQDB reader) is one entry point hiding substantial parsing, transport or collapse behaviour, not a spread of shallow wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a73 re-implements codex's remote-execution core rather than extending it; the plan names the owner, so the finding records it rather than blocks on it.",
+    "interface_budget": "pass \u2014 with all four figures at 0, every section that adds surface accounts for it in its own text (\u00a72 \"retires nothing, because ambix has no exporter\"; \u00a73 \"retires nothing, because ambix has no remote reader today\" and \"adds no `ambix data` command\"; \u00a74 \"retires nothing inside ambix, because ambix has no deck reader today\" and the probe-angle key retires the machine branch; \u00a77 \"retires nothing, because no equilibrium-database reader exists\").",
+    "reuse_search": "a finding \u2014 the plan searched and cites a mechanism per subsystem, but its \u00a74 claim to retire the one `machine == \"mast\"` branch misses a second MAST-only probe-angle source and a hard-coded MAST catalogue on the \u00a77 route.",
+    "thin_wrapper": "pass \u2014 the one wrapper-shaped addition, \u00a73's extractor over remote execution, states in its own text why codex's layer cannot be imported (`imas-codex`'s graph/LLM/tool-installation dependencies would become a dependency of every ambix read) and defers a shared core to its own plan."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.865149+00:00"
+}

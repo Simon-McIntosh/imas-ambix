@@ -1,0 +1,56 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T15:42:52.725Z",
+  "dispatched_at": "2026-10-06T15:37:26Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/pulse_mint.py (proposed)",
+      "id": "reuse_search-1",
+      "reason": "the plan should either route the write through nova's `IdsEgress`/`IdsEntry` or state in \u00a71 why its `DBEntry.put` path cannot reuse them, exactly as it already justifies not importing from the bench.",
+      "text": "\u00a71's reuse map enumerates `selene_deck.write_phase_description` and `bench/store_arms.write_imas_netcdf` but misses the closest existing mechanism, which is \"assemble a true IMAS IDS from the \u2026 signal store\" and write it with a single `put()`: `nova/io/egress.py:27` `IdsEgress` (`.write` at `nova/io/egress.py:67`, `homogeneous_time` handling at :60) over `nova/imas/ids_entry.py:11` `IdsEntry.put_ids` (`nova/imas/ids_entry.py:24`); the plan names nova only for topology finding (\u00a72: \"nova's equilibrium topology (nova/equilibrium) owns separatrix and X-point finding\") and never for the write, and ambix already imports nova (`imas_ambix/physics/equilibrium.py:12`, `imas_ambix/gs/artifact_geometry.py:767`), so the omission is not a boundary the plan declares",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "nova/io/egress.py:67",
+      "id": "duplicate_owner-1",
+      "reason": "naming the owner to extend (`nova/io/egress.py`) and accounting for `thomson_ids.py` turns a fourth parallel writer into a decision, which is the whole point of the item.",
+      "text": "the plan forks the owner of \"assemble IDS from stored signal arrays + write with one put()\"; the census of IDS-write sites in the plan's own codebases is `imas_ambix/data/selene_deck.py:1278` (named), `imas_ambix/bench/store_arms.py:200` (named and declined), and the three the plan does not name: `imas_ambix/challenge/thomson_ids.py:169` (a second ambix `DBEntry(path,\"w\")` IDS writer), `nova/io/egress.py:67` `IdsEgress.write`, and `nova/imas/pulsedesign.py:534` `write_ids` (which writes the equilibrium IDS from a design)",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "jt60sa-pulse-ids#s4",
+      "id": "interface_budget-1",
+      "reason": "no figure-script option exists for a pulse to retire and the option is additive, so the plan would only gain one accounting sentence, not a design change.",
+      "text": "\u00a74 adds an option to `scripts/figures_jt60sa_geometry.py` (currently no argument parser; `main()` hardcodes `PHASES` at `scripts/figures_jt60sa_geometry.py:144`) without stating in the section what it retires or merges or why nothing can be",
+      "type": "interface_budget",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "19388c0d8bcc748e190ee1e64418b0804cfe2c22c112f22a30d0417a9f140a41",
+  "plan_slug": "jt60sa-pulse-ids",
+  "plan_version": 6,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T153719577974-plan-review-of-jt60sa-pulse-ids",
+  "reviewed_blob_sha": "c48048d96b48be105a6300d0a91a447eccba617f",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a71 puts the description copy, the compiled-signal application, the homogeneous_time rule and the on-disk write layout behind one module `imas_ambix/data/pulse_mint.py` and one function `mint_pulse` returning a receipt, so the interface is smaller than the behaviour it hides.",
+    "duplicate_owner": "a finding \u2014 the plan re-implements IDS assembly-and-write in `pulse_mint.py` without naming the existing owner to extend, `nova/io/egress.py`.",
+    "interface_budget": "public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a71 accounts for the one public function and one command it adds and states why nothing is retired (no data CLI command writes an IDS \u2014 verified: the 13 `@data.command` entries in `imas_ambix/data/cli.py` all read, fetch or write token stores), but \u00a74 adds a figure-script option without naming what it retires or why nothing can be.",
+    "reuse_search": "a finding \u2014 \u00a71 and \u00a72 cite ambix's machinery and nova only as an equilibrium-topology finder, but the plan never searches nova's IDS assembly/egress owner (`nova/io/egress.py` `IdsEgress`, `nova/imas/ids_entry.py` `IdsEntry`) nor ambix's other IDS writers.",
+    "thin_wrapper": "pass \u2014 \u00a71's `mint` command is a thin entry over the one function (justified), and \u00a74 extends `scripts/figures_jt60sa_geometry.py` rather than adding a parallel script and states the reason (a rendering change stays an imas-ink change)."
+  },
+  "section_digests": {
+    "_document": "0dea75f200142acf3751ee07356619f8292696f39d847499fc323a132fc3e353",
+    "s1": "3e1a02ee7840ccf6a8a3af89f754b783b41f960a270fe3e67694a4a866e241ea",
+    "s2": "a4777f322652085b6d61eccea7dd2f4462c81ae78cccb432fb91f46643014969",
+    "s3": "e0c752d72775115b7987ba7db0722d7fe24721ae7a504604a237ca7050f3775d",
+    "s4": "f4423e7945db7306635cbd5404d42e2211f984be5107710fe79abbc0067787db"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T16:03:45.635065+00:00"
+}

@@ -1,0 +1,142 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T15:52:17.217Z",
+  "dispatched_at": "2026-10-06T15:46:56Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/paths.py:1",
+      "id": "reuse_search-1",
+      "reason": "the plan's stated placement is where the roots currently are not, so the pre-move extraction it implies is a missing step in \u00a72.",
+      "text": "\u00a72 says \"the packaged map roots in `paths.py`\" stay with ambix, but `paths.py` defines no packaged root; both roots are module-level constants in files \u00a72 moves to the engine \u2014 `PACKAGED_MACHINE_MAP_ROOT = Path(__file__).with_name(\"machine_maps\")` at `imas_ambix/data/machine_map.py:24` and `PACKAGED_MAP_ROOT = Path(__file__).with_name(\"maps\")` at `imas_ambix/data/signal_map.py:43` \u2014 so unless the plan relocates those constants first, they travel with `machine_map.py`/`signal_map.py` into `imas-alambic` and ambix's packaged MAST/DIII-D maps resolve against the engine's directory, not ambix's",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/machine_map.py:1623",
+      "id": "reuse_search-2",
+      "reason": "generalising these owners to search a set of roots is the honest change and the plan should name them as the seam it extends instead of a new resolver.",
+      "text": "\u00a73 proposes a new by-name, multi-root resolution for a machine's catalogue, signal maps and description store without citing the existing by-name resolvers it mirrors: `load_packaged_machine_map(machine)` at `imas_ambix/data/machine_map.py:1623`, `load_packaged_signal_map(machine, system)` at `imas_ambix/data/signal_map.py:631`, and `resolve_description_store_root(name)` at `imas_ambix/data/machine_map.py:118`, each of which already takes a name and refuses an unknown one (`machine-map` \u00a7\"refuses a\" cites the same `PACKAGED_MAP_ROOT/<machine>/<system>.json` rule)",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/eddb_remote.py:373",
+      "id": "reuse_search-3",
+      "reason": "without factoring the reader out of `REMOTE_SCRIPT` into a module function there is no shared code, and the \"not a second reader\" claim is not implementable as written; the extension point that already exists for this is the `Transport` protocol (`imas_ambix/data/eddb_remote.py:153`, injected via `RemoteEddbExtractor(..., transport=...)` at 291), which \u00a73 does not cite.",
+      "text": "\u00a73 says the in-process transport runs \"the same code the remote script already runs, not a second reader\", but that code is the `REMOTE_SCRIPT` string literal at `imas_ambix/data/eddb_remote.py:373`, executed by `python -c` on the server; there is no importable function to share, and the plan names no extraction step",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/machine_map.py:118",
+      "id": "duplicate_owner-1",
+      "reason": "a forked resolver drifts from the `paths.py` owner exactly as the two `PACKAGED_*` constants already sit outside it, and the plan should extend the symbolic-name resolution to accept bundle roots rather than add a parallel search.",
+      "text": "\u00a73 makes `IMAS_ALAMBIC_MAP_PATH` plus entry-point group `imas_alambic.bundles` the resolver for a machine's catalogue, signal maps and `machine_description/<machine>/` store, a second path-resolution owner beside the existing one: `imas_ambix/data/paths.py` owns the on-disk layout and `resolve_description_store_root` (`imas_ambix/data/machine_map.py:118`) resolves declared names against it, refusing anything not a `Path` constant there (\"the on-disk layout stays owned by `imas_ambix.data.paths`\"); the plan reroutes the description store through the bundle search without extending that owner",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "jt60sa-facility-mint#s2",
+      "id": "interface_budget-1",
+      "reason": "with every supplied count at 0 the section must state in its own text what the new console/CLI/env/entry-point surface retires or merges, or why nothing can be, and say whether `mint` lands in ambix's CLI or the engine's.",
+      "text": "\u00a72 and \u00a73 add interface surface without accounting for it against the supplied counts: a new console script `imas-alambic` with `--version` and `validate PATH` (\u00a72), the env var `IMAS_ALAMBIC_MAP_PATH` and the entry-point group `imas_alambic.bundles` (\u00a73), and a new refusal family \"a machine found in two places is refused, naming both\" (\u00a73); the section names the modules it moves out of ambix but names nothing in the CLI, env or entry-point families it retires or merges, and does not reconcile the new `imas-alambic` command surface with the `mint` command `jt60sa-pulse-ids` \u00a71 adds to `imas_ambix/data/cli.py` (which \u00a72 then moves into the engine)",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "fabcc8c8b8ccd67a85de714908ad35e46bd06758cc2cfa1c0d939c7a0597d9e4",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 4,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "reuse_search-1",
+      "reason": "v5: s2 says PACKAGED_MACHINE_MAP_ROOT (machine_map.py:24) and PACKAGED_MAP_ROOT (signal_map.py:43) are moved out to ambix paths.py first, and the engine loaders take their root from the caller until s3.",
+      "when": "2026-10-06T15:55:28.654148+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "reuse_search-2",
+      "reason": "v5: s3 generalises load_packaged_machine_map, load_packaged_signal_map and resolve_description_store_root in place to search an ordered set of bundles; no resolver beside them.",
+      "when": "2026-10-06T15:55:28.656608+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "reuse_search-3",
+      "reason": "v5: s3 keeps REMOTE_SCRIPT as the one reader and adds a second implementation of the existing Transport protocol, passed via RemoteEddbExtractor(transport=...), that runs the script under the server Python with no ssh hop.",
+      "when": "2026-10-06T15:55:28.658746+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "duplicate_owner-1",
+      "reason": "v5: s3 makes ambix register its packaged maps and the paths.py store-root names through the imas_alambic.bundles entry point, so paths.py stays the owner of ambix's layout and the engine has one resolver; the env var only names non-package bundle directories.",
+      "when": "2026-10-06T15:55:28.660484+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "finding": "interface_budget-1",
+      "reason": "v5: s2 carries an interface account. s2 adds no command, env var or refusal; the console script arrives only with mint, which moves from imas-ambix data mint (retired) to imas-alambic mint; validate PATH dropped; duplicate machines raise the existing MachineMapError.",
+      "when": "2026-10-06T15:55:28.662221+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v5: s3 makes ambix register its packaged maps and the paths.py store-root names through the imas_alambic.bundles entry point, so paths.py stays the owner of ambix's layout and the engine has one resolver; the env var only names non-package bundle directories.",
+      "when": "2026-10-06T15:55:28.660484+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v5: s2 carries an interface account. s2 adds no command, env var or refusal; the console script arrives only with mint, which moves from imas-ambix data mint (retired) to imas-alambic mint; validate PATH dropped; duplicate machines raise the existing MachineMapError.",
+      "when": "2026-10-06T15:55:28.662221+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v5: s2 says PACKAGED_MACHINE_MAP_ROOT (machine_map.py:24) and PACKAGED_MAP_ROOT (signal_map.py:43) are moved out to ambix paths.py first, and the engine loaders take their root from the caller until s3.",
+      "when": "2026-10-06T15:55:28.654148+00:00"
+    },
+    "reuse_search-2": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v5: s3 generalises load_packaged_machine_map, load_packaged_signal_map and resolve_description_store_root in place to search an ordered set of bundles; no resolver beside them.",
+      "when": "2026-10-06T15:55:28.656608+00:00"
+    },
+    "reuse_search-3": {
+      "action": "acted",
+      "by": "reckon-build coordinator",
+      "reason": "v5: s3 keeps REMOTE_SCRIPT as the one reader and adds a second implementation of the existing Transport protocol, passed via RemoteEddbExtractor(transport=...), that runs the script under the server Python with no ssh hop.",
+      "when": "2026-10-06T15:55:28.658746+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T154650140471-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "7d5f8f9610fa7d4f593b01f6d325395eb1f53e31",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a73 hides multi-root search, entry-point registration and duplicate-machine refusal behind one resolve-by-name interface over a bundle layout ambix already packages.",
+    "duplicate_owner": "a finding \u2014 \u00a73 forks path resolution (`IMAS_ALAMBIC_MAP_PATH` + `imas_alambic.bundles` entry points) beside the owner `imas_ambix/data/paths.py` and the by-name resolvers in `machine_map.py`/`signal_map.py`.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a72 and \u00a73 add a console script, an env var, an entry-point group and a new refusal family without naming what they retire or merge.",
+    "reuse_search": "a finding \u2014 the plan's reuse map cites the modules it moves but misplaces the packaged map roots and omits the existing by-name resolvers and the injectable EDDB transport it would extend.",
+    "thin_wrapper": "pass \u2014 the in-process EDDB read implements the existing `Transport` protocol rather than adding a parallel reader, and the `imas-alambic` distribution moves the data layer, not a thin shell over it."
+  },
+  "section_digests": {
+    "_document": "93c833217c9e92a6b025b2fe5d301ca48156b77a61f552540cb508ed255d4141",
+    "s1": "a626816f6bcb1ce47a10ea362f17ab612f5a91b89ab9c0de8c52868321270e3a",
+    "s2": "b2fce9aefab4ceb81fd5bd63a9a2c5d6a0ef9d5f5ad78f2a4d733c1b0c61bf42",
+    "s3": "9d94f0542bd3f10dc6c48c6e9bc8b71e7f80f72f76e435e59fa0dab3e4ef692e",
+    "s4": "2bbbe0cd27af99818003c3d9bdf5a01476b9ce22ed704885443ac31328b4b54b",
+    "s5": "b4dbdb3fcf39b785d6d07aa7a240c270f155346080f1b5cbfe82e986d4c41681",
+    "s6": "8d9e5bb7b012c87d930bdc0e4fcafb8c2e8b780ccbf88d623f425754090b7ff8"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T15:55:18.116482+00:00"
+}

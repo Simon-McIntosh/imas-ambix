@@ -1,0 +1,69 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T05:52:05.227Z",
+  "dispatched_at": "2026-10-05T05:35:20Z",
+  "findings": [
+    {
+      "anchor": "imas_codex/imas_codex/remote/executor.py:1",
+      "id": "duplicate_owner-1",
+      "reason": "the plan should either declare codex the owner of the EDDB extractor or name the shared-remote-core extraction, instead of forking ~5k lines that will drift.",
+      "text": "the plan's \u00a73 remote extractor (\"a stdlib-plus-wrapper script executed over ssh, niced, that takes a batch of (shot, category, dname) requests on stdin and streams compact binary arrays back\", plan.html:207-211) reproduces the subsystem owned by imas-codex/remote/: executor.py (1365 lines), ssh_worker.py (898, the persistent ssh pool that amortizes the ~2.6 s session setup), serialization.py (114, the msgpack array wire format), and locations.py/tools.py carry the per-host nice registry the plan's \"niced\" mirrors; imas_codex/remote/scripts/enumerate_edas.py is already the JT-60SA EDDB-over-ssh script. The plan names the owner only as \"the codex remote executor\" (no file) and justifies the fork with one line (\"ambix must not require codex at runtime\", plan.html:210-212) without weighing extracting the facility-agnostic remote core (5,241 lines) into a package both repos import.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/paths.py:24",
+      "id": "duplicate_owner-2",
+      "reason": "a second literal mirror root is exactly the duplication the owner exists to prevent, and adding JT60SA_ROOT beside MIRROR_ROOT is a one-line change the plan should name.",
+      "text": "\u00a73 and the mirror-location decision hardcode the JT-60SA cache root as a literal \"/work/projects/imas_gpu/jt60sa\" (plan.html:229,544) rather than declaring it in imas_ambix/data/paths.py, whose own docstring (paths.py:3-4) states it is \"the single source of truth \u2014 every other module imports from here so we don't accidentally hardcode the mirror layout in multiple places\" and which already holds MIRROR_ROOT for the MAST store. The plan names no owner for the new root.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html#s2",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the interface surface it adds in its own text, per the one rule the interface budget imposes.",
+      "text": "\u00a72 adds a tokamap exporter, \u00a73 a remote extractor and \u00a77 an EQDB reader (new public definitions; supplied counts public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0); none of these sections names what it retires or merges, and none states why nothing can be.",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "f8436f7c9dbc4a054d1659775a096f7628c74910302ddc59d30b9c4f0ed870f6",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 7,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "coordinator",
+      "reason": "Acted in later plan versions: section 3 names imas_codex/remote (executor.py, ssh_worker.py, serialization.py) as the owner it does not extend, states why (the codex distribution drags neo4j, fastmcp, rapidfuzz, lxml and pypdf onto ambix's runtime path) and defers a shared core to the second facility. This answer replaces a section 5 reason misapplied to this record on 2026-10-06, when review-plan --answer resolved the newest record by file mtime and a bulk store had just made this version-7 record the newest.",
+      "when": "2026-10-06T01:57:10.587206+00:00"
+    },
+    "duplicate_owner-2": {
+      "action": "acted",
+      "by": "coordinator",
+      "reason": "Acted in later plan versions: JT60SA_ROOT is declared in imas_ambix/data/paths.py beside MIRROR_ROOT, and the cache writer imports it. This answer replaces a section 5 reason misapplied to this record on 2026-10-06, when review-plan --answer resolved the newest record by file mtime and a bulk store had just made this version-7 record the newest.",
+      "when": "2026-10-06T01:57:10.589124+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "coordinator",
+      "reason": "Acted in later plan versions: sections 2, 3 and 7 each state what they retire or merge, or why nothing can be. This answer replaces a section 5 reason misapplied to this record on 2026-10-06, when review-plan --answer resolved the newest record by file mtime and a bulk store had just made this version-7 record the newest.",
+      "when": "2026-10-06T01:57:10.590398+00:00"
+    }
+  },
+  "review_run_id": "r-20261005T053516032552-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "4e10964310079b2f1989ab1b2cb5fe18224b1a6b",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new capability layers on existing deep modules (machine_map schema, transform engine, description reader, virtual zarr view, cocos_convention scorer) through their existing interfaces; the plan adds distinct capabilities (extractor, cache writer, census, tokamap export, EQDB reader) rather than a spread of shallow wrappers over one mechanism.",
+    "duplicate_owner": "a finding \u2014 the \u00a73 remote extractor re-implements the remote-execution subsystem owned by imas-codex/remote/ (executor.py, ssh_worker.py, serialization.py), and the cache root bypasses imas_ambix/data/paths.py, the declared single source of truth for mirror paths.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a72 (\u00a72 adds a tokamap exporter), \u00a73 (a remote extractor) and \u00a77 (an EQDB reader) add public definitions without naming what they retire or merge, or why nothing can be.",
+    "reuse_search": "pass \u2014 the plan searched imas-ambix, imas-codex, nakamap and nova and cites the mechanisms it layers on: transform_machine_description and geometry_table_from_description (imas_ambix/data/description_reader.py:23-102), the zarr and netCDF store engines (imas_ambix/data/transform_engine.py:140,234), VirtualZarrView (imas_ambix/data/virtual_zarr.py), the MAST geometry transitions (imas_ambix/data/geometry_transitions.py), and the codex EDAS scanner.",
+    "thin_wrapper": "pass \u2014 the two wrapping proposals each state why the existing machinery cannot be extended: tokamap has no slot for units, sign, COCOS or evidence, so ambix-schema is authoritative with a lossless forward export, and the extractor is owned by ambix because the runtime must not depend on imas-codex."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.889221+00:00"
+}

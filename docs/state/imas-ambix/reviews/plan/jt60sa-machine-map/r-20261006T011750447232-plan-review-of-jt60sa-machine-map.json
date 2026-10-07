@@ -1,0 +1,52 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T01:23:26.675Z",
+  "dispatched_at": "2026-10-06T01:17:57Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/eddb.py:208",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a77 must either name the extension to `imas_ambix/data/eddb.py` (a record-shape-general cache) or drop the reuse claim and declare a separate store, because the reuse it asserts is not possible as written.",
+      "text": "\u00a77 says the EQDB reader uses the \u00a73 extractor's \"transport and cache rather than a second path\", but `fetch_channels` is typed `extractor: RemoteEddbExtractor` (imas_ambix/data/eddb.py:278) and `write_channel` persists a `ChannelRecord` whose layout is a `(nch, ntime)` time-series keyed `{int(shot)}.zarr/{category}/{dname}` with a sibling time array; an EQDB equilibrium record is a 2-D psi snapshot on a grid with no single time axis, so it cannot ride that cache, and the plan's own open question `eqdb-reader` concedes the record shape is unknown. The node's brief would otherwise build a fetch entry that cannot write through the cited cache.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html#s3",
+      "id": "interface_budget-1",
+      "reason": "under the one rule for interface-budget sections, \u00a73 must add a sentence accounting for the interface it introduced (the extractor/cache surface and the two error families), so the added surface is visible in the plan rather than only in the merged code.",
+      "text": "\u00a73 (measured additions public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0) lands two new public modules, `imas_ambix/data/eddb_remote.py` (public `RemoteEddbExtractor`, `BatchResult`, `ChannelRecord`, `ChannelRefusal`, `ChannelRequest`, `SshTransport`, `Transport`, `fetch_batch`) and `imas_ambix/data/eddb.py` (public `fetch_channels`, `write_channel`, `is_cached`, `channel_path`, `time_array_name`, \u2026), plus two new refusal families `EddbRemoteError` and `EddbCacheError`, yet the section's own text names no public surface retired or merged and says nothing about why there is none.",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "120f3334e80b2a7cc131cdfb49fe1396278119b7c2ef1e9d226e85c7353f0efa",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 75,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T011750447232-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "5cbd32d08c6a89e2cc41230c7a3be87220388fcf",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new units hide substantial behaviour behind small interfaces: one converter entry point (`imas_ambix/data/selene_deck.py`) parsing three deck grammars into five IDS netCDF, and one exporter function (`export_tokamap_directory`, imas_ambix/data/tokamap_export.py:349) collapsing unit\u00d7sign\u00d7COCOS over every binding. No design is spread across shallow wrappers over one mechanism.",
+    "duplicate_owner": "a finding \u2014 \u00a77 claims the EQDB reader reuses \"its transport and cache rather than a second path\", but the \u00a73 cache is owned by `imas_ambix/data/eddb.py` and is EDDB-time-series-specific.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0 (supplied); \u00a73's access path adds two public modules and two refusal families without a retirement or merge statement in its own text.",
+    "reuse_search": "pass \u2014 the plan searched the codebase it names and cites each mechanism it extends (MAST's 254-binding map and level-2 store, the nakamap deck seed it explicitly supersedes, existing `load_packaged_signal_map`/`load_machine_map` loaders, `transform_engine`/`description_reader`, `cocos_convention.py`, `challenge/convention.py`, `eval/efit_referee.judge_geometry`, `gs/artifact_resolution.py`), rather than proposing parallel machinery.",
+    "thin_wrapper": "pass \u2014 where the plan adds a layer it names why the owner cannot be extended and then extends the owner: `StoreEngine.open` gains the selected map (`imas_ambix/data/transform_engine.py:413` already holds the map), `read_geometry_table`'s machine branch is replaced by a catalogue-declared `probe_angle_source` (verified: `_supply_declared_probe_angles` is now gated on `probe_angle_source == \"acquisition-address\"`, no `machine ==` branch), and `measure_diiid_convention` is generalised through a loader contract rather than joined by a second scorer."
+  },
+  "section_digests": {
+    "_document": "46341b2fcdb48f73dbcb2101faff610d46e6c154d27996878a53684fcba4c566",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "80042b2daa89a86be0ede8882aa5dd92a47ec81c6f28b57d4a8b87e183ba5bc2",
+    "s5": "f3706c92b3d91c7d5ec7c5dcbfa9f2a96329d3968082303fe7a012172e398eb1",
+    "s6": "2a80a7a62c8dc5613a449b07cfc23202673e04b88f6ee73ab77207f7bd29e8e7",
+    "s7": "d96baee4efb449cc78a63fb160595bcd18e00081f12d297d4856c86286cbb2bc",
+    "s8": "dc927a84798e174646abbd624dc854aed5a6ea958611016dc88a0a4ec6823d64"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.832902+00:00"
+}

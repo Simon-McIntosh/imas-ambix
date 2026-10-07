@@ -1,0 +1,83 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run is unarmed: its manifest carries no baseline_suite and no after_suite (classification.json records manifest.data.status complete with no arm JSON). Its delta is therefore derived from its own two gate logs on disk: gate.log names rev adb67e5f (the reviewed base) and ends '70 passed' EXIT=0; gate-repair.log names rev 426c4e00 (the code head, its parent chain 426c4e00->82df579e->cbef27a7 with cbef27a7 a docs-only fragment commit) and ends '72 passed' EXIT=0. Neither arm records a failing test id, so added_failure_count is 0 with ids []. This review independently re-ran the node's declared three-file gate from scratch trees extracted with git archive into $TMPDIR: base adb67e5f 67 passed EXIT=0, head cbef27a7 72 passed EXIT=0 (head reproducing gate-repair.log's 72). The two independent arms carry the same empty failure set, so the added-failure count is 0. Note the run's own base log (gate.log) is mislabelled: it names adb67e5f but collects 70 tests (12 in test_shotset_labelling.py) whereas the committed tree at adb67e5f collects 67 (9 in that file), so that log was taken with uncommitted test edits present and is not the clean base arm; it is not cited in the manifest's declared test_logs, and the declared head arm gate-repair.log is consistent. The reviewer's clean base arm (67) is the arm used for the delta.",
+  "after_suite": {
+    "command": "PATH=/home/ITER/mcintos/Code/imas-ambix/.venv/bin:$PATH PYTHONPATH=$PWD PYTHONDONTWRITEBYTECODE=1 /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider --basetemp=$PWD/.pt tests/spine_bench/test_shotset_labelling.py tests/spine_bench/test_parity.py tests/spine_bench/test_machine_artifact_arm.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T131209269722-review-of-jtmm-shotset-machine/review-evidence/head-arm.log",
+    "revision": "cbef27a7c6fcd07c64da50ef90c00075d0f47c38"
+  },
+  "baseline_suite": {
+    "command": "PATH=/home/ITER/mcintos/Code/imas-ambix/.venv/bin:$PATH PYTHONPATH=$PWD PYTHONDONTWRITEBYTECODE=1 /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider --basetemp=$PWD/.pt tests/spine_bench/test_shotset_labelling.py tests/spine_bench/test_parity.py tests/spine_bench/test_machine_artifact_arm.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T131209269722-review-of-jtmm-shotset-machine/review-evidence/base-arm.log",
+    "revision": "adb67e5f37a4b939971300f645c37ddabe77ba12"
+  },
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/spine_bench/__init__.py:29 re-exports BenchShot, FROZEN_SHOTSET, SHOTSET_VERSION; the new required field is a pydantic model field, so the re-export is unaffected.",
+    "imas_ambix/spine_bench/{channel_gap.py,parity.py,runner.py,machine_artifact_arm.py,transform_geometry_source.py} consume FROZEN_SHOTSET and resolve_shotset_version but read only shot.shot_id and shot.role (and pass the set to resolve_shotset_version), so widening the comparison key does not reach them.",
+    "scripts/spine_benchmark.py:76 is the only non-test constructor of BenchShot outside shots.py and was updated to pass machine=args.machine; no caller anywhere constructs BenchShot positionally (git grep at head shows only keyword construction), so inserting the required field first breaks no existing caller."
+  ],
+  "completed_at": "2026-10-05T13:20:34.081Z",
+  "dispatched_at": "2026-10-05T13:12:21Z",
+  "findings": [
+    {
+      "category": "evidence-hygiene",
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T125917372067-jtmm-shotset-machine/gate.log",
+      "line": "header",
+      "severity": "follow-on",
+      "text": "The run's first gate log is mislabelled: its header names rev adb67e5f (the reviewed base) but it collected 70 tests, 12 of them in tests/spine_bench/test_shotset_labelling.py, whereas the committed tree at adb67e5f collects 67 with 9 in that file. The extra assertions were uncommitted at the time, so the log's base arm does not correspond to the revision it names and is not a clean before-picture. This review's own clean base arm (67 passed) is the correct baseline. The run's declared head arm (gate-repair.log, 72 passed at 426c4e00) is consistent, and the mislabelled log is not among the manifest's declared test_logs, so no declared evidence is affected; the only cost is a reader who diffs the two on-disk logs against the git revisions."
+    },
+    {
+      "category": "deferred-scope",
+      "file": "imas_ambix/spine_bench/shots.py",
+      "line": "42",
+      "severity": "follow-on",
+      "text": "Plan section 7 also names a second JT-60SA frozen set in this module with its own version label; the reviewed run added only the machine field and the (machine, int(shot_id), role) comparison and deliberately added no JT-60SA set, because its shots are not yet chosen. This is correct against the node's own done-when, which explicitly excludes the second set, and the run records it in its manifest follow_ons and its evidence fragment; it remains the next node's work when the OP2 set is fixed."
+    }
+  ],
+  "follow_ons": [
+    "Add the JT-60SA frozen shot set as a second named set in imas_ambix/spine_bench/shots.py with its own SHOTSET_VERSION label, once the OP2 shots are chosen (plan section 7; declared by the reviewed run).",
+    "The benchmark's other MAST-frozen resolver imas_ambix/spine_bench/transform_geometry_source.py remains keyed on FROZEN_SHOTSET by shot_id only, unchanged by this node and correctly so per the plan; a JT-60SA key there is the plan's explicit non-goal."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "Three consumption surfaces read the changed module: the __init__ re-export, the five spine_bench modules that read FROZEN_SHOTSET/resolve_shotset_version by shot_id and role only, and scripts/spine_benchmark.py as the sole non-test BenchShot constructor (updated). No further call site needs the machine today.",
+    "diff": "Read cbef27a7 against base adb67e5f: 4 files, +161/-17. shots.py adds the required machine field, re-declares MAST's six shots machine=\"mast\", and widens resolve_shotset_version to (machine, int(shot_id), role); spine_benchmark.py adds a _Parser subclass whose parse_args refuses --shots without --machine, adds --machine defaulting to None, and passes machine=args.machine; the test file adds five tests plus keyword machine= to existing constructions; the fragment is new, 57 lines. No caller constructs BenchShot positionally, so the inserted required field breaks none.",
+    "done_when": "The node's measure is the declared three-file gate exiting 0 with tests asserting the required machine field, MAST's six declaring mast, the (machine, int(shot_id), role) comparison refusing the frozen label under another machine while MAST's own set is unchanged, BenchShot constructed with its machine by scripts/spine_benchmark.py, no JT-60SA set added, and whole-tree ruff exit 0. Read through and independently reproduced: the reviewer re-ran the gate from scratch trees at base adb67e5f (67 passed, EXIT=0) and head cbef27a7 (72 passed, EXIT=0), reproducing the run's gate-repair.log (72 passed), and re-ran ruff check imas_ambix tests scripts/spine_benchmark.py at head (All checks passed, EXIT=0).",
+    "goal": "The node's goal is to make the benchmark's frozen shot set declare the machine each shot belongs to. BenchShot (imas_ambix/spine_bench/shots.py:27) now carries a required machine: str with no default, MAST's six FROZEN_SHOTSET entries each declare machine=\"mast\", and resolve_shotset_version compares (machine, int(shot_id), role) against MAST's set, so a set whose Shot ids and roles equal MAST's under another machine resolves AD_HOC and never the frozen label. scripts/spine_benchmark.py takes --machine with no default and constructs its ad-hoc BenchShots with it; the parser itself refuses --shots without --machine. Independently verified by direct probes on the head tree: BenchShot(shot_id=21978, role=...) raises ValidationError on the machine field; resolve_shotset_version(list(FROZEN_SHOTSET))==SHOTSET_VERSION; a jt60sa set with MAST's ids and roles resolves 'ad-hoc'; resolve_shotset_version(None)==SHOTSET_VERSION; the parser exits 2 on --shots without --machine, returns machine None with no args, and accepts --shots with --machine.",
+    "manifest": "Read; it declares status complete, base adb67e5f, commits 426c4e00 82df579e cbef27a7, the four changed paths, tests 72 passed EXIT=0 plus ruff exit 0, both gate logs, and the declared negative control with its note. The three commits carry conventional subjects and two-part bodies and no AI attribution; the changed source introduces no plan/sprint/ticket identifiers and the fragment's element ids all begin with the node id.",
+    "write_paths": "Read the reviewed diff adb67e5f..cbef27a7: exactly four paths changed, all inside the declared write set -- imas_ambix/spine_bench/shots.py, scripts/spine_benchmark.py, tests/spine_bench/test_shotset_labelling.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-shotset-machine.html. The declared figures path docs/figures/jt60sa-machine-map/jtmm-shotset-machine is correctly empty: the node's done-when names no artifact, so no figure is due. Nothing outside the write set was touched."
+  },
+  "justifications": "Independent review of run r-20261005T125917372067-jtmm-shotset-machine, base adb67e5f, head cbef27a7, plan imas-ambix:jt60sa-machine-map section 7, stored as a parsed record scoring all six dimensions in 0..20 -- goal_fidelity 19, evidence 18, scope_discipline 19, durability 19, fit 19, reuse 20 -- total 114, added_failure_count 0 with added_failure_ids []. Verification was by independent routes, not a re-read of the run's summary. (1) Gate delta: extracted the reviewed base and head with git archive into $TMPDIR scratch trees and ran the node's declared three-file gate in each (module.__file__ and cwd on each log header name the scratch tree); base 67 passed EXIT=0, head 72 passed EXIT=0, head reproducing the run's gate-repair.log. (2) Guard: reproduced the declared negative control by mutating resolve_shotset_version to compare (shot_id, role) only; test_the_frozen_ids_and_roles_under_another_machine_are_labelled_ad_hoc turns red (1 failed, 13 passed, EXIT=1), the same refusal the run declared, and the head arm does not fail it. (3) Behaviour: direct probes on the head tree confirm the required machine field (ValidationError when omitted), the frozen label for MAST's own set and for None, AD_HOC for a coincident other-machine set, and the CLI refusing --shots without --machine (exit 2) while requiring no machine for the frozen set. (4) Hygiene: ruff check imas_ambix tests scripts/spine_benchmark.py at head exits 0; the three commits have bodies and no AI attribution; the four changed paths are exactly the declared write set; the fragment's element ids all begin with the node id. Two follow-ons: the run's stray base gate.log is mislabelled (names adb67e5f but reflects uncommitted test edits; not cited in the manifest) and plan section 7's second JT-60SA frozen set is deferred, correctly per the done-when.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: BenchShot.imas_ambix/spine_bench/shots.py:27 gains a required machine:str with no default; MAST's six FROZEN_SHOTSET entries declare machine=\"mast\"; resolve_shotset_version compares (machine, int(shot_id), role); scripts/spine_benchmark.py takes --machine with no default and its parser refuses --shots without --machine. Verified by direct probes on the head tree.\nVERDICT done_when: declared three-file gate exits 0; reviewer re-ran base adb67e5f 67 passed EXIT=0 and head cbef27a7 72 passed EXIT=0, reproducing gate-repair.log; ruff check imas_ambix tests scripts/spine_benchmark.py EXIT=0.\nVERDICT write_paths: diff adb67e5f..cbef27a7 changes exactly four declared paths; the declared figures path is correctly empty.\nVERDICT manifest: read; status complete, base adb67e5f, commits 426c4e00 82df579e cbef27a7, tests 72 passed EXIT=0, negative control declared with note; commits carry bodies and no AI attribution.\nVERDICT diff: 4 files +161/-17; required machine field first, comparison widened, _Parser refuses --shots without --machine, five tests added, 57-line fragment; no positional BenchShot constructor exists to break.\nVERDICT call_sites: __init__ re-export; five spine_bench modules read FROZEN_SHOTSET/resolve_shotset_version by shot_id and role only; scripts/spine_benchmark.py is the sole non-test constructor and was updated.\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: every clause of the done-when is delivered and independently probed; the plan's second JT-60SA set is deferred exactly as the done-when states, not omitted by oversight.\nSCORE evidence: 18\nJUSTIFICATION evidence: gate recorded and independently reproduced (base 67, head 72); negative control declared and reproduced red; ruff clean; the one blemish is the run's own mislabelled base gate.log, which is not declared evidence.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: exactly the declared write set changed; the declared figures path is empty and correctly so.\nSCORE durability: 19\nJUSTIFICATION durability: a real code change with tests that fail when the guard is removed (proved by the negative control); the comparison key and the CLI refusal are both covered.\nSCORE fit: 19\nJUSTIFICATION fit: follows the sibling document idiom and the module's existing style; the _Parser override is the natural argparse idiom; docstrings explain the mechanism; no banned labels.\nSCORE reuse: 20\nJUSTIFICATION reuse: the existing labeller is widened in place rather than duplicated; the CLI guard rides the parser; no capability is forked.\nFINDING gate.log:header follow-on: base-arm log names rev adb67e5f but collected 70 (12 shotset) against the committed tree's 67 (9), so it was taken with uncommitted edits; not cited in the manifest.\nFINDING imas_ambix/spine_bench/shots.py:42 follow-on: the plan's second JT-60SA frozen set is deferred pending the OP2 shot choice, correctly per the done-when, and recorded by the run.\n",
+  "review_run_id": "r-20261005T131209269722-review-of-jtmm-shotset-machine",
+  "reviewed_base_sha": "adb67e5f37a4b939971300f645c37ddabe77ba12",
+  "reviewed_head_sha": "cbef27a7c6fcd07c64da50ef90c00075d0f47c38",
+  "reviewed_run_id": "r-20261005T125917372067-jtmm-shotset-machine",
+  "reviewer": "review-of-jtmm-shotset-machine",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T13:20:00+00:00",
+  "total": 114
+}

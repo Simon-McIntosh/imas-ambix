@@ -1,0 +1,75 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite and classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null, so its own arms cannot supply the delta. This review therefore built two scratch arms from the reviewed commit's object store (git archive into $TMPDIR/arms/{base,head}, no git worktree created; the reviewed worktree is not writable by this node). The reviewed gate file tests/data/test_tokamap_export.py is added by the change and is absent at base, so a same-selection delta is measured on the pre-existing tests that exercise the modules the change integrates with: tests/data/test_machine_map.py tests/data/test_signal_map.py tests/test_cocos.py. Both arms are green and identical over the same command: base arm 43 passed EXIT=0 (gate-base.log, revision 0111d5a1) and head arm 43 passed EXIT=0 (gate-head.log, revision 6785dcdd). The reviewed node's own additive gate re-run in the head scratch arm is 4 passed EXIT=0 (gate-head-review.log), matching the node's test_gate.log. Head failing ids ([]) minus base failing ids ([]) is 0, and the additive test file contributes 0 failures, so added_failure_count is 0.",
+  "after_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider -q tests/data/test_machine_map.py tests/data/test_signal_map.py tests/test_cocos.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T065204728047-review-of-jtmm-tokamap-export/gate-head.log",
+    "revision": "6785dcdde8b451afcf014dda3590be8138aa1509"
+  },
+  "baseline_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD command uv run --no-sync pytest -p no:cacheprovider -q tests/data/test_machine_map.py tests/data/test_signal_map.py tests/test_cocos.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T065204728047-review-of-jtmm-tokamap-export/gate-base.log",
+    "revision": "0111d5a1d575ab015e142c102d25fa3274c68bf4"
+  },
+  "completed_at": "2026-10-05T07:08:54.445Z",
+  "dispatched_at": "2026-10-05T06:52:10Z",
+  "findings": [
+    {
+      "category": "correctness",
+      "file": "imas_ambix/data/tokamap_export.py",
+      "line": "392",
+      "severity": "blocking",
+      "text": "correctness: every IDS group directory is written with the SAME mappings.json, carrying all four groups' keys, because the write is not filtered by group. In export_tokamap_directory the loop `for group in groups: for machine_map in catalog.maps:` calls `_leaf_mappings(catalog, machine_map, signal_maps)`, which iterates `catalog.bindings_for(machine_map)` and returns every binding of that map across all IDS groups, and then writes that whole mapping set to `leaf/'mappings.json'` under whichever group directory is current (line 392). The later `if record.group != group: continue` (line 394) filters only the returned TokamapEntry list, NOT the file on disk. Reproduced this review on the packaged MAST catalogue: each of its 6 maps binds all four groups (magnetics 58, pf_active 71, pf_passive 110, wall 3 bindings per map), so the exported `magnetics/11766/mappings.json`, `pf_active/11766/mappings.json`, `pf_passive/11766/mappings.json` and `wall/11766/mappings.json` are byte-identical, each with the same 43 keys and the same four-group prefix set {b_field_phi_probe[#], b_field_pol_probe[#]} (magnetics), {coil[#], ip[#]} (pf_active), {loop[#]} (pf_passive), {description_2d[#]} (wall). A consumer loading group 'magnetics' therefore receives pf_active/pf_passive/wall keys under the magnetics namespace. tokamap-validator exits 0 because it validates structure, not that a key belongs to its group's IDS; the green gate does not exercise the property that matters. The fix is to restrict the written mappings to the keys whose group equals the directory being written (filter `mappings` by the key's IDS prefix, or emit per-group inside `_leaf_mappings`). A regression test must assert that a group directory's mappings.json contains only that group's IDS keys \u2014 the current tests check only that the group directory exists and that the validator exits 0."
+    },
+    {
+      "category": "missing-deliverable",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-tokamap-export.html",
+      "line": "section jtmm-tokamap-export",
+      "severity": "follow-on",
+      "text": "follow-on: plan \u00a72 done-when asks for a directory that 'passes tokamap-validator for the five first-pass groups' (the plan's scope is 'five first-pass IDSs', \u00a71), but the delivered evidence validates four IDS groups only \u2014 those the packaged MAST catalogue binds (magnetics, pf_active, pf_passive, wall). The exporter is IDS-agnostic and would emit whatever groups a catalogue binds, so the shortfall is in the TEST CATALOGUE, not in the code path; but as delivered the five-group clause is not demonstrated. The follow-on is to run the export+validator against the JT-60SA catalogue once it exists (\u00a72's other, unshipped clause: 'the ambix schema accepts a JT-60SA catalogue without a machine-name branch') and record the five-group validator result. A reader of the fragment's 'all four IDS groups the MAST map binds' should not take the plan's five-group clause as satisfied."
+    },
+    {
+      "category": "evidence",
+      "file": "imas_ambix/data/tokamap_export.py",
+      "line": "378",
+      "severity": "follow-on",
+      "text": "minor, evidence integrity: the exported TokamapExport result object reports 258 entries (252 catalogue + 6 signal) over 4 groups, which reads as a group-scoped, deduplicated export, while the disk holds 24 mappings.json files (4 groups x 6 partitions), each carrying the full 43-key cross-group set \u2014 so the result object materially understates what was written and hides the duplication reported in the major finding. The manifest's headline '258 entries over 6 shot partitions' is true of `result.entries` but not of the directory contents. Recording the written-key count (or making entries reflect the per-group filtering that the file write should apply) would let the reported metric reconcile with the artifact."
+    },
+    {
+      "category": "evidence-note",
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T063236505228-jtmm-tokamap-export/test_gate.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "minor, provenance: the header of every gate log the node carries (test_gate.log, validator.log, ruff.log) records 'revision: 0111d5a1...' \u2014 the BASE, not the delivered head 6785dcdd \u2014 because the node ran its gates with the new files present in the working tree but uncommitted. Nothing in the run directory ties the green gate to the 6785dcdd content. This review re-ran the node's gate at the committed head 6785dcdd and it is green (4 passed EXIT=0, gate-head-review.log), so the result holds; but the log alone cannot show it. Re-running the gate after the commit, or recording the tree content revision, would close the gap."
+    }
+  ],
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T065204728047-review-of-jtmm-tokamap-export",
+  "reviewed_base_sha": "0111d5a1d575ab015e142c102d25fa3274c68bf4",
+  "reviewed_head_sha": "6785dcdde8b451afcf014dda3590be8138aa1509",
+  "reviewed_run_id": "r-20261005T063236505228-jtmm-tokamap-export",
+  "reviewer": "review-of-jtmm-tokamap-export",
+  "scores": {
+    "durability": 16,
+    "evidence": 15,
+    "fit": 14,
+    "goal_fidelity": 13,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T07:06:00+00:00",
+  "total": 77
+}

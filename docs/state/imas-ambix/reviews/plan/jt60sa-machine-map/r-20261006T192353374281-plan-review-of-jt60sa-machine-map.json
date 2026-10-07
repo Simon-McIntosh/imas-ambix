@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T19:27:36.225Z",
+  "dispatched_at": "2026-10-06T19:24:03Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/pulse_mint.py:192",
+      "id": "duplicate_owner-1",
+      "reason": "the accessor's signature and the handover node's scope both change once the mint's actual need (transformed values + raw time) is stated, and naming pulse_mint as a second resolver tells the author to extend the owner once rather than migrate one site and leave the other.",
+      "text": "the plan (plan.html \u00a76, the observation-time-alignment paragraph) claims the new `VirtualZarrView` untransformed accessor is \"the one both are meant to share\", but `_served_entries` resolves a rule twice already: it takes transformed canonical values through `view.for_target(...)` (`imas_ambix/data/pulse_mint.py:203`) and separately the raw time base through `read_channel(...)` (`imas_ambix/data/pulse_mint.py:209`, `imas_ambix/data/eddb.py:280`), so it needs a *time-base* accessor beside transformed values, not an *untransformed-values* accessor; the same rule\u2192source resolution is re-implemented at `imas_ambix/data/virtual_zarr.py:124` (`__getitem__` opens `rule.source_group`/`rule.source_array`) and at `imas_ambix/data/cocos_convention.py:759` (`read_signal_map_observation`, which the section migrates) \u2014 the ownership census is `VirtualZarrView` as the owner, with `pulse_mint._served_entries` and `read_signal_map_observation` as the two resolvers, and the plan has named only one of them for migration",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "50ffecb69b99d5d4c00699a4253a8e3a8775e0619dfeb6ff922565df221430a6",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 220,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T19:28:39.437832+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T19:28:39.437832+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v220.json",
+  "review_run_id": "r-20261006T192353374281-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "77ea770aaadb3ac13b0cdc279ae2071505b56402",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new behaviour (request-type dispatch, batch framing, the grid writer, the rule-to-source accessor) is hidden behind one extractor method and one view accessor, not spread across per-case wrappers; the request/record/refusal triple mirrors the existing `ChannelRequest`/`ChannelRecord`/`ChannelRefusal` shape because the key differs `(shot, record)` vs `(shot, category, dname)`, which is a data-shape necessity rather than surface for its own sake.",
+    "duplicate_owner": "a finding \u2014 the plan leaves two rule-to-source resolvers in the tree and misstates the accessor as the surface both share; the census and the mismatch are in the finding below.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface names in its own text what it retires or why nothing can be. \u00a77 retires three pin constants and their re-export for one machine-keyed table; \u00a76 retires `read_catalogue_observation` for `read_signal_map_observation`; the \u00a76 EQDB types retire nothing \"because no equilibrium-database request type exists\"; a transport failure stays `EddbRemoteError` and \u00a76 adds no refusal family, consistent with the supplied `refusal_families 0`.",
+    "reuse_search": "pass \u2014 the design cites the mechanisms it extends and opens them: the \u00a76 EQDB transport extends `imas_ambix/data/eddb_remote.py` (`SshTransport`, `RemoteEddbExtractor`) rather than a parallel ssh path, the sign scorer reuses `imas_ambix/data/cocos_convention.py score_convention`, the comparator reuses `imas_ambix/eval/efit_referee.py judge_geometry`, and the machine registry extends `imas_ambix/gs/machine_identity.py default_registry`; `grep -rni eqdb imas_ambix/` returns nothing, so the transport adds no duplicate of an existing reader.",
+    "thin_wrapper": "pass \u2014 the \u00a76 untransformed accessor on `VirtualZarrView` is justified in its own text: the existing `__getitem__`/`for_target` apply the compiled transform, which carries the assumed +1 sign the section exists to measure, so the reader cannot be served by the transformed path and the view, which already owns rule\u2192source resolution (`imas_ambix/data/virtual_zarr.py:124`), is where the raw read belongs."
+  },
+  "section_digests": {
+    "_document": "62723cd7583dc5b18a64491724a048c3d8c8b0e2245109da9998ff5051244217",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "01e55d33e340390efdc4c8435a86bb3d3ae52039169d60f1f67126bbc0b258a3",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "e32e039d62e9523a5a49776883517b4700f0581df72c9009f0247cb1e82b056f",
+    "s7": "98cb613c0803ddc3cc31bcc07322fe88b7c08be5c7b6784f39a60e84c93f8ca4",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T19:28:24.075875+00:00"
+}

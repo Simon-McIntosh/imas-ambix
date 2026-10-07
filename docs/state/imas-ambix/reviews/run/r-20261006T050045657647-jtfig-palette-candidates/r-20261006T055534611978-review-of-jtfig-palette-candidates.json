@@ -1,0 +1,80 @@
+{
+  "absent": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed run's manifest records no baseline_suite or after_suite gate log (a figure node with no pytest suite), so the added-failure count was not taken; a count that was never taken is not stored as zero",
+  "blockers": "none",
+  "call_site_count": 1,
+  "call_sites": [
+    "scripts/figures_jt60sa_geometry.py:main"
+  ],
+  "completed_at": "2026-10-06T06:06:29.523Z",
+  "dispatched_at": "2026-10-06T05:55:41Z",
+  "evidence_inputs": "Delta reviewed base 01eb5bd3 -> head 369a705d (commit 369a705d only). The three recorded verdicts reproduce byte-identically from the landed CANDIDATES in COMPONENT_ROLES order through validate_palette.js --mode light --pairs all (A worst CVD 12.2 deutan / 15.9 normal, B 9.4 / 16.2, C 8.2 / 15.9; all six roles >= 3:1 contrast vs #fcfcfb); candidate C's tritan separation is 7.7, under 8, while its deutan (the checked common axis) is 8.2 -- the validator reports ALL CHECKS PASS. The three SVGs are identical to 01eb5bd3 modulo matplotlib's random element ids and the embedded <dc:date>, so the 'regenerate identically' claim is substantiated. Carry-forward for writeback: the plan still has open_decisions [] and the run is in_flight, so section 1's open decision `palette` is not yet on the plan; ensure it lands at promotion. The two prior follow-on findings from the .at-01eb5bd3 record (Shape.points under-covering the axis window at scripts/figures_jt60sa_geometry.py:104, and _draw_shape ignoring thickness for thick_line/oblique at :252) are outside this delta and are not re-examined here; both remain open in the pinned .at-01eb5bd3 record.",
+  "findings": [
+    {
+      "file": "scripts/figures_jt60sa_geometry.py",
+      "line": "95",
+      "severity": "follow-on",
+      "text": "VALIDATOR hard-codes a machine-local absolute path (/home/ITER/mcintos/.cache/dataviz/validate_palette.js), so the in-script palette check runs on this workstation only: elsewhere the run either crashes (subprocess.run raises FileNotFoundError when node is absent, uncaught) or fails closed with a misleading 'palette validation failed' message (node present, file absent -> output lacks ALL CHECKS PASS). Section 1 states every root resolves through imas_ambix.data.paths rather than a literal path in a script, and plot_style.py already vendors the data-ink sheet's parameters when the sheet is absent, so the validator belongs in the same treated category (vendor it or resolve it from a configured location) rather than a bare home path."
+    }
+  ],
+  "follow_ons": "Vendor or config-resolve validate_palette.js so the in-script palette check is portable (VALIDATOR at scripts/figures_jt60sa_geometry.py:95 is a bare /home/ITER/mcintos path). Guard subprocess.run against a missing node so the failure reads as a missing tool rather than a palette verdict. Carry the two earlier section-1 palette follow-ons (Shape.points extent coverage, _draw_shape thickness for thick_line/oblique) to whichever node next touches scripts/figures_jt60sa_geometry.py -- they are outside this delta.",
+  "gate_logs": {
+    "palette_validator": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T055534611978-review-of-jtfig-palette-candidates/review_verification.log"
+    },
+    "ruff": {
+      "completed": true,
+      "exit_status": 0,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T055534611978-review-of-jtfig-palette-candidates/review_verification.log",
+      "revision": "369a705df86ec6feda1981f76a58ad8869b82043"
+    }
+  },
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "Read commit 369a705d against base 01eb5bd3: it adds subprocess/sys and COMPONENT_ROLES imports, VALIDATOR/PASS_MARKER/FAIL_MARKER and validate_candidate(), changes render_candidate to take a resolved colours dict, calls palette() once in main(), and after each render runs the checker, records its output and returns 1 on failure; the three SVGs differ from 01eb5bd3 only in matplotlib's random ids and the embedded date (colour histograms identical), and the three validate_*.txt and the fragment paragraph are added.",
+    "done_when": "The done-when requires the candidate cross-sections each captioned with a dE check; the delta makes that check self-recording -- validate_candidate writes docs/figures/jt60sa-palette/validate_<candidate>.txt and main() exits non-zero when a candidate's output lacks ALL CHECKS PASS or contains [FAIL], so the three fragment verdict blocks cannot drift from the drawn colours.",
+    "goal": "Section 1 of jt60sa-geometry-and-signal-figures requires each candidate cross-section captioned with its role-to-colour table and a colour-blind dE check; this delta moves that dE check into the render script so the recorded verdict comes from the same CANDIDATES roles the figure draws, at scripts/figures_jt60sa_geometry.py:95-121 and :498-514.",
+    "manifest": "Read at 369a705d; it records commits eb7b8f63, 01eb5bd3 and 369a705d, the ruff gate (All checks passed!, EXIT=0) and the per-candidate validate_palette.js run, names gate_ruff.log and gate_palette_validator.log plus the three validate_<candidate>.txt, and states baseline_suite/after_suite are absent because the node has no pytest suite.",
+    "write_paths": "The delta touches only scripts/figures_jt60sa_geometry.py, the three docs/figures/jt60sa-palette/cross_section_*.svg, the three new docs/figures/jt60sa-palette/validate_*.txt and the evidence fragment, every one inside the reviewed manifest's declared changed_paths."
+  },
+  "justifications": {
+    "durability": "The delta adds a real runtime guard -- a failing candidate aborts the run with exit 1 -- which is a durability gain over the prior hand-run check, but no landed test exercises validate_candidate() or the failure exit, so a regression in the marker logic or the return would leave every recorded gate green; the guard is also reachable only through --palette-candidates.",
+    "evidence": "I rebuilt each candidate's hex list in COMPONENT_ROLES order from the landed CANDIDATES and re-ran validate_palette.js --mode light --pairs all: all three outputs are byte-identical to the committed validate_*.txt (A 12.2/15.9, B 9.4/16.2, C 8.2/15.9, contrast PASS vs the #fcfcfb surface), and the real validate_candidate() exercised end-to-end returned passed=True for candidate A and passed=False for a six-identical-grey palette (3 [FAIL] lines, no ALL CHECKS PASS), so the guard demonstrably fires; the remaining gap is that the checker is a machine-local file outside the repository.",
+    "fit": "The delta follows the style sheet and adds no plan or ticket identifier, but VALIDATOR = Path(\"/home/ITER/mcintos/.cache/dataviz/validate_palette.js\") is a machine-local absolute path in a repo script, against section 1's stated rule that roots resolve through imas_ambix.data.paths rather than a literal path in a script.",
+    "goal_fidelity": "scripts/figures_jt60sa_geometry.py:498 runs render then validate per CANDIDATES entry and returns 1 when any candidate fails, so section 1's requirement that each candidate be checked to a colour-blind dE before the lead chooses is now enforced by the render path rather than by a separate hand-run.",
+    "reuse": "validate_candidate builds its hex list from the existing COMPONENT_ROLES tuple and the same palette()/CANDIDATES the figure draws with, and extends the existing render script rather than forking a second checker or a second palette source.",
+    "scope_discipline": "git diff 01eb5bd3..369a705d touches only scripts/figures_jt60sa_geometry.py, the three cross_section_*.svg, the three validate_*.txt and the evidence fragment, all inside the manifest's declared write paths, with no plan, index or unrelated source edit."
+  },
+  "node": "review-of-jtfig-palette-candidates",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: section 1 of jt60sa-geometry-and-signal-figures requires each candidate cross-section captioned with its role-to-colour table and a colour-blind dE check; this delta moves that dE check into the render script so the recorded verdict comes from the same CANDIDATES roles the figure draws.\nVERDICT done_when: the done-when requires the candidate cross-sections each captioned with a dE check; the delta makes that check self-recording -- validate_candidate writes docs/figures/jt60sa-palette/validate_<candidate>.txt and main() exits non-zero when a candidate's output lacks ALL CHECKS PASS or contains [FAIL].\nVERDICT write_paths: the delta touches only scripts/figures_jt60sa_geometry.py, the three docs/figures/jt60sa-palette/cross_section_*.svg, the three new validate_*.txt and the evidence fragment, all inside the manifest's declared changed_paths.\nVERDICT manifest: read at 369a705d; it records commits eb7b8f63, 01eb5bd3 and 369a705d, the ruff gate (All checks passed!, EXIT=0) and the per-candidate validate_palette.js run, names gate_ruff.log and gate_palette_validator.log plus the three validate_<candidate>.txt, and records no baseline_suite/after_suite (a figure node with no pytest suite).\nVERDICT diff: read commit 369a705d against base 01eb5bd3: it adds validate_candidate(), which builds each candidate's hex list from its CANDIDATES roles, runs validate_palette.js through a subprocess, records the output beside the figures and makes main() return 1 on any failure; the three SVGs differ from 01eb5bd3 only in matplotlib's random ids and the embedded date.\nCALL_SITES: scripts/figures_jt60sa_geometry.py:main\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: scripts/figures_jt60sa_geometry.py:498 runs render then validate per CANDIDATES entry and returns 1 when any candidate fails, so section 1's requirement that each candidate be checked to a colour-blind dE before the lead chooses is now enforced by the render path rather than by a separate hand-run.\nSCORE evidence: 18\nJUSTIFICATION evidence: I rebuilt each candidate's hex list in COMPONENT_ROLES order from the landed CANDIDATES and re-ran validate_palette.js --mode light --pairs all: all three outputs are byte-identical to the committed validate_*.txt (A 12.2/15.9, B 9.4/16.2, C 8.2/15.9, contrast PASS vs #fcfcfb), and the real validate_candidate() exercised end-to-end returned passed=True for candidate A and passed=False for a six-identical-grey palette, so the guard demonstrably fires; the remaining gap is the machine-local checker path.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: git diff 01eb5bd3..369a705d touches only scripts/figures_jt60sa_geometry.py, the three cross_section_*.svg, the three validate_*.txt and the evidence fragment, all inside the manifest's declared write paths, with no plan, index or unrelated source edit.\nSCORE durability: 8\nJUSTIFICATION durability: the delta adds a runtime guard -- a failing candidate aborts the run with exit 1 -- a durability gain over the prior hand-run check, but no landed test exercises validate_candidate() or the failure exit, so a regression would leave every recorded gate green; the guard is reachable only through --palette-candidates.\nSCORE fit: 16\nJUSTIFICATION fit: the delta follows the style sheet and adds no plan or ticket identifier, but VALIDATOR = Path(\"/home/ITER/mcintos/.cache/dataviz/validate_palette.js\") is a machine-local absolute path in a repo script, against section 1's rule that roots resolve through imas_ambix.data.paths rather than a literal path in a script.\nSCORE reuse: 18\nJUSTIFICATION reuse: validate_candidate builds its hex list from the existing COMPONENT_ROLES tuple and the same palette()/CANDIDATES the figure draws with, and extends the existing render script rather than forking a second checker.\nFINDING scripts/figures_jt60sa_geometry.py:95 follow-on: VALIDATOR hard-codes a machine-local absolute path, so the in-script palette check runs on this workstation only -- elsewhere subprocess.run raises an uncaught FileNotFoundError when node is absent, or the run fails closed with a misleading 'palette validation failed' message when the file is absent; section 1 states every root resolves through imas_ambix.data.paths rather than a literal path in a script, so the checker belongs in a vendored/config-resolved location.\nreviewed_base_sha: 01eb5bd399ef3ae1573e1dad8847483b82b05f21\nreviewed_head_sha: 369a705df86ec6feda1981f76a58ad8869b82043",
+  "review_run_id": "r-20261006T055534611978-review-of-jtfig-palette-candidates",
+  "review_scope": "Section-1 palette delta gained since the prior review: commit 369a705d against base 01eb5bd3 (in-script palette validation -- the render script now builds each candidate's hex list from its CANDIDATES roles, runs validate_palette.js through a subprocess, writes validate_<candidate>.txt beside the figures and exits non-zero on any failure, with the three validate records and the three regenerated SVGs); read-only, no re-render of the store figures.",
+  "reviewed_base_sha": "01eb5bd399ef3ae1573e1dad8847483b82b05f21",
+  "reviewed_commits": [
+    "369a705df86ec6feda1981f76a58ad8869b82043"
+  ],
+  "reviewed_head_sha": "369a705df86ec6feda1981f76a58ad8869b82043",
+  "reviewed_run_id": "r-20261006T050045657647-jtfig-palette-candidates",
+  "reviewer": "review-of-jtfig-palette-candidates",
+  "scores": {
+    "durability": 8,
+    "evidence": 18,
+    "fit": 16,
+    "goal_fidelity": 19,
+    "reuse": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T06:06:00.000000+00:00",
+  "total": 98,
+  "verification_logs": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T055534611978-review-of-jtfig-palette-candidates/review_verification.log"
+  ]
+}

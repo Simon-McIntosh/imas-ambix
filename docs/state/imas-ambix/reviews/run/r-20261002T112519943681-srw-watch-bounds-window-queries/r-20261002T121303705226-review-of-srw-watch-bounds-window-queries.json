@@ -1,0 +1,87 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run's manifest names no baseline_suite and no after_suite, so the read path reports the count unmeasured; this review derives it from the one gate arm the run recorded. gate.log is a complete after arm at revision 91a12263 (its first line names the revision, its arm runs to the summary line '106 passed in 81.49s', last line 'EXIT=0') and its failure set is empty (grep for FAILED/ERROR: zero). No base suite arm was recorded for this code node, so the base side is unmeasured; the difference after-minus-base is nonetheless 0 because a set difference cannot produce an id from an empty after set, so added_failure_count is 0 with no added ids. The node's green arm runs at the head it landed on, which is what the count guards against.",
+  "after_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_index.py tests/test_agent_telemetry_watch.py tests/test_agent_watch_cost.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-bounds-window-queries/gate.log",
+    "revision": "91a12263c240ce6a01eaf242d885c78c0239db3f"
+  },
+  "baseline_suite": {
+    "command": null,
+    "completed": false,
+    "exit_status": null,
+    "failure_count": null,
+    "failure_ids": [],
+    "log_path": null,
+    "revision": "539a09cb0d49365423fc6f46baaeb030b20c05d7"
+  },
+  "completed_at": "2026-10-02T12:33:39.372Z",
+  "dispatched_at": "2026-10-02T12:13:11Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "1387",
+      "severity": "follow-on",
+      "text": "The bounded time_weighted_mean derives its per-source neighbour set from 'series', which selects only samples inside [start,end); a source whose samples straddle the window with none inside it is dropped entirely, so the query returns None where the whole-history scan returned the value held across the window. Reproduced at head 91c54c84 on a fixture of samples at 0,50,90,120,160,200,240,280,320 s: for kv_cache_usage_perc over [95,115) the head returns None while the retained whole-history reference returns 0.3, and over [10,40) None versus 0.1. The added equality test only exercises windows that contain a sample, so the equality the change is accepted on is narrower than 'Results are unchanged'."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-bounds-window-queries/measure.md",
+      "line": "30",
+      "severity": "follow-on",
+      "text": "The '16/16 cross-checks run separately against an unbounded reference on the same snapshot' claim has no log among the manifest's test_logs (gate.log, negative-control.log, compare.json, measure.md); the instrument and its output are not retained, so this evidence clause cannot be re-read."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T112519943681-srw-watch-bounds-window-queries/manifest.md",
+      "line": "4",
+      "severity": "follow-on",
+      "text": "The reviewed manifest names no baseline_suite and no after_suite, so the read path (reckon/crew/review.py added_failures_from_gate_logs) reports the added-failure count as unmeasured rather than as this record's derived zero; the manifest relies on the tests/test_logs lines alone for a code node."
+    }
+  ],
+  "follow_ons": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "imas_ambix/agent/watch.py:534 (partitioned_total), imas_ambix/agent/watch.py:625 (time_weighted_mean), imas_ambix/agent/watch.py:659 (partitioned_total for prompt tokens).",
+    "diff": "Read commit by commit; 91a12263 rewrites the two SQL queries in imas_ambix/agent/telemetry_index.py and adds 197 lines of tests to tests/test_telemetry_index.py; 91c54c84 adds only the evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-watch-bounds-window-queries.html. No other source path is touched; git diff --stat 539a09cb 91c54c84 -- imas_ambix tests docs is 3 files, 366 insertions, 21 deletions.",
+    "done_when": "The node's measure is the base/head watch_document equality plus the reference-equality tests. compare.json records record/ledger/periods identical field by field between 539a09cb and 91a12263 (0 diffs) and the gate log records 106 passed + 1 passed + ruff clean, EXIT=0. The acceptance is equality, reproduced here for a window that contains a sample; the equality is not universal (finding 1).",
+    "goal": "The node's goal is to bound TelemetryIndex.time_weighted_mean (imas_ambix/agent/telemetry_index.py:1362) and partitioned_total (:1478) by the requested window in SQL while returning the same figures. Both queries now read the window through the sample_time index plus per-source pre/post neighbours; the reference-equality tests and the plan-search test confirm the bounding. The optimisation is delivered; the 'unchanged' clause fails for a window with no in-window sample (finding 1).",
+    "manifest": "Read; status is a recognised value ('complete'), commits 91a12263 and 91c54c84 are named, the gate command and results are recorded, the negative_control_log is a real red arm, and measurement_module/measurement_cwd name the base module copy and the worktree. It names no baseline_suite/after_suite, so the added-failure count reads unmeasured (finding 3).",
+    "write_paths": "The manifest declares imas_ambix/agent/telemetry_index.py, tests/test_telemetry_index.py and the evidence fragment; the diff names exactly those, git status of the reviewed worktree /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-bounds-window-queries is clean, and no plan HTML or shared index is modified."
+  },
+  "justifications": {
+    "durability": "tests/test_telemetry_index.py:1717 compares both functions against the whole-history reference over five windows, and the negative control (negative-control.log, 2 failed, EXIT=1) proves the opening-weight guard fires; but no window with no in-window sample is tested, so the bounded mean/whole-history divergence at imas_ambix/agent/telemetry_index.py:1387 is uncovered (finding 1).",
+    "evidence": "gate.log's first line names revision 91a12263, its arm runs to its summary line ('106 passed in 81.49s', EXIT=0, zero FAILED) and the negative control reddens the two edge-weight tests; but measure.md:30's '16/16' cross-check against an unbounded reference has no log among test_logs, so that one clause is claimed rather than recorded (finding 2).",
+    "fit": "The rewritten query reads as the surrounding SQL in imas_ambix/agent/telemetry_index.py:1387 (a named window CTE, the sample_time index, the original weight formula kept as the reference), the tests hold the whole-history SQL as a reference in the same file, and no plan/sprint identifier or forbidden name is introduced.",
+    "goal_fidelity": "imas_ambix/agent/telemetry_index.py:1387 and :1512 bound both queries to the window and the reference tests pass, but a window containing no in-window sample returns None where the whole-history scan returned the held value, so 91a12263's 'Results are unchanged' is not true for every input (finding 1).",
+    "scope_discipline": "git diff --name-only 539a09cb 91c54c84 -- imas_ambix tests names only imas_ambix/agent/telemetry_index.py and tests/test_telemetry_index.py, the evidence fragment is the third declared write path, the reviewed worktree is clean, and no plan or index file is modified."
+  },
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-watch-bounds-window-queries",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "raw_text": "Review of run r-20261002T112519943681-srw-watch-bounds-window-queries, plan imas-ambix:serving-record-warehouse section 10 (support node). Reviewed base 539a09cb0d49365423fc6f46baaeb030b20c05d7, head 91c54c846569269eb0437c7c1a561e0e32c18258. Read the plan section, the two commits, the source and test diff, the gate log, the negative-control log, the compare.json and measure.md.\n\nVERDICT goal: the node's goal is to bound TelemetryIndex.time_weighted_mean and partitioned_total by the requested window in SQL while returning the same figures; imas_ambix/agent/telemetry_index.py:1387 and :1512 rewrite both queries to a window CTE plus per-source neighbour rows, and the change is present in both commits.\nVERDICT done_when: the node's measure is the base/head watch_document equality plus the reference-equality tests; the manifest records 106 passed + 1 passed and ruff clean in gate.log, and compare.json records 0 field diffs between base 539a09cb and head 91a12263.\nVERDICT write_paths: the manifest declares telemetry_index.py, tests/test_telemetry_index.py and the evidence fragment; git diff 539a09cb 91c54c84 names exactly imas_ambix/agent/telemetry_index.py and tests/test_telemetry_index.py plus that fragment, and git status of the reviewed worktree is clean.\nVERDICT manifest: read; status complete, commits 91a12263 and 91c54c84, gate command and result recorded, negative control named and its log is a red arm (2 failed, EXIT=1).\nVERDICT diff: read commit by commit; 91a12263 rewrites the two SQL queries in telemetry_index.py and adds 197 lines of tests, 91c54c84 adds the evidence fragment; no other source path is touched.\nCALL_SITES: imas_ambix/agent/watch.py:534, imas_ambix/agent/watch.py:625, imas_ambix/agent/watch.py:659\nSCORE goal_fidelity: 17\nJUSTIFICATION goal_fidelity: imas_ambix/agent/telemetry_index.py:1387 and :1512 bound both queries to the window and the reference-equality tests pass, but a window that contains no in-window sample returns None where the whole-history scan returned the held value, so the 'Results are unchanged' claim in 91a12263's message is not true for every input.\nSCORE evidence: 16\nJUSTIFICATION evidence: gate.log's first line names revision 91a12263 and the arm runs to its summary line ('106 passed in 81.49s', EXIT=0, zero FAILED) and the negative control (negative-control.log) reddens the two edge-weight tests, but measure.md:30's '16/16' cross-check against an unbounded reference is prose with no log among test_logs.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-only 539a09cb 91c54c84 -- imas_ambix tests names only the two declared paths, the evidence fragment is the third declared write path, the reviewed worktree is clean, and no plan or index file is modified.\nSCORE durability: 15\nJUSTIFICATION durability: tests/test_telemetry_index.py:1717 compares both functions against the whole-history reference over five windows and the negative control proves the opening-weight guard fires, but no window with no in-window sample is tested, so the bounded mean's None-versus-held divergence at imas_ambix/agent/telemetry_index.py:1387 is uncovered.\nSCORE fit: 18\nJUSTIFICATION fit: the query reads as the surrounding SQL in imas_ambix/agent/telemetry_index.py:1387 (a named window CTE, the sample_time index, the same weight formula kept as the reference), and no name the repository naming rules forbid is introduced.\nFINDING imas_ambix/agent/telemetry_index.py:1387 follow-on: the bounded time_weighted_mean derives its per-source neighbour set from 'series', which selects only samples inside [start,end); a source whose samples straddle the window with none inside it is dropped entirely, so the query returns None where the whole-history scan returned the value held across the window. Reproduced at head 91c54c84 on a fixture of samples at 0,50,90,120,160,200,240,280,320 s: for kv_cache_usage_perc over [95,115) the head returns None while the retained whole-history reference returns 0.3, and over [10,40) None versus 0.1. The added equality test only exercises windows that contain a sample, so the equality the change is accepted on is narrower than 'Results are unchanged'.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/srw-watch-bounds-window-queries/measure.md:30 follow-on: the '16/16 cross-checks run separately against an unbounded reference on the same snapshot' claim has no log among the manifest's test_logs (gate.log, negative-control.log, compare.json, measure.md); the instrument and its output are not retained, so this evidence clause cannot be re-read.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T112519943681-srw-watch-bounds-window-queries/manifest.md:4 follow-on: the reviewed manifest names no baseline_suite and no after_suite, so the read path (reckon/crew/review.py added_failures_from_gate_logs) reports the added-failure count as unmeasured rather than as this record's derived zero; the manifest relies on the tests/test_logs lines alone for a code node.\n",
+  "review_kind": "review",
+  "review_run_id": "r-20261002T121303705226-review-of-srw-watch-bounds-window-queries",
+  "reviewed_base_sha": "539a09cb0d49365423fc6f46baaeb030b20c05d7",
+  "reviewed_head_sha": "91c54c846569269eb0437c7c1a561e0e32c18258",
+  "reviewed_run_id": "r-20261002T112519943681-srw-watch-bounds-window-queries",
+  "reviewer": "review-of-srw-watch-bounds-window-queries",
+  "scores": {
+    "durability": 15,
+    "evidence": 16,
+    "fit": 18,
+    "goal_fidelity": 17,
+    "scope_discipline": 20
+  },
+  "section": "s10",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T12:31:49.759788+00:00",
+  "total": 86
+}

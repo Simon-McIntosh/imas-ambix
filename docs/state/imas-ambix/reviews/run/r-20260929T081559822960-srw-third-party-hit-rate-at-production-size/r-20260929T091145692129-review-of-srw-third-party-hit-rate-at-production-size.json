@@ -1,0 +1,76 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "after_suite": "none: this node's write scope contains no test file and no suite gate exists for it",
+  "baseline_suite": "none: this node's write scope contains no test file and no suite gate exists for it",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-09-29T10:35:21.123Z",
+  "dispatched_at": "2026-09-29T09:11:55Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/build_report.py",
+      "line": "51",
+      "text": "h is summed over all 60 rows including the 3 guaranteed cold first responses of the re-send windows (w98f 91042, w38d 102203, w2f9 95597 prompt tokens, cached 0), so the recorded rate is a weighted mix whose value depends on how many windows were run: warm-only h is 0.9768 and per-window warm h is w98f 0.9448, w38d 0.9864, w2f9 0.9959, and neither the report nor /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/third-party-hit-rate.json states this decomposition."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/build_report.py",
+      "line": "57-58",
+      "text": "the two gap series take rows[1:] over a concatenation of three independent windows, so rows [21, 41] (the first response of the second and third windows) contribute structural zeros to both series: 2 of 59 values are not inter-request gaps, the recorded median reads 7.964 s where the same series without them reads 7.990 s, and a reader cannot tell them from real zero gaps."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/send_production.py",
+      "line": "88",
+      "text": "the only clipped gap (row 2: a recorded 1583.411 s slept as 300.0 s) coincides with the only within-window provider switch (row 2) and with the only warm-turn cache miss of the run, so the two candidate causes are not separable and the recorded switch share 0.03389830508474576 over all 59 transitions is not a measurement of provider-driven cache loss: the within-window share is 1/57 = 0.0175, and the remaining provider change falls on a window boundary whose next prompt is a cold start anyway."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/build_report.py",
+      "line": "23",
+      "text": "the negative-control figure is a literal while the stratum it compares against has its own record at .../third-party-hit-rate/third-party-hit-rate.json, so a re-measurement of that stratum cannot reach this comparison; the same file reimplements make_report.py, which the directory carries md5-identical to the sibling stratum's, so the two strata's reports are built by different code."
+    },
+    {
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-third-party-hit-rate-at-production-size.html",
+      "line": "3",
+      "text": "the landed fragment states the figure and points at \"the node write path\", which is crew-tooling vocabulary rather than a path a plan reader can resolve, and it carries none of the evidence that makes the claim checkable (response count, prompt floor, spend, source kind, observation time); the fragment beside it states its measure and its evidence path directly."
+    }
+  ],
+  "follow_ons": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read against base 7f36237a62e352f27beda581198ea57daa8ae882; one file, one section of three lines, no code and no path outside the declared scope.",
+    "done_when": "the done_when is that clause; the gate the node ran (gate.log lines 1-7 name the floor, the three windows, the gap cap and the sleep budget) asserts it, and all 60 rows I recomputed sit above the 80,000-token floor (minimum 91042 tokens) with 5591424 cached of 6013219 prompt tokens.",
+    "goal": "the goal is the plan's first measurement of the third-party cache rate (docs/plans/serving-record-warehouse.html:716, \"h is computed as the summed cached prompt tokens over the summed prompt tokens\"); the node landed h 0.929855 over 60 OpenRouter responses of deepseek/deepseek-v4.1-flash, recorded in /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/third-party-hit-rate.json.",
+    "manifest": "read; it states the gate command, its result (60 responses, h 0.929855, spend USD 0.134458) and names gate.log and measure.log, both present and consistent with responses_prod.jsonl.",
+    "write_paths": "the declared paths are the reports directory, docs/evidence/fragments/serving-record-warehouse/srw-third-party-hit-rate-at-production-size.html and a figures directory; the commit's single changed file is inside the second, and every driver, aggregator and row file I checked is inside the first."
+  },
+  "justifications": {
+    "durability": "the deliverable is a one-shot external measurement with no test surface, so no assertion reddens on a regression; the driver and aggregator are preserved beside the rows, but /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/build_report.py:23 hard-codes the comparison stratum's figure instead of reading the record beside it.",
+    "evidence": "I reproduced h 0.929855374, spend USD 0.134458, the provider split Counter({'Together': 39, 'AtlasCloud': 21}), the clipped count 1 and sleep 891.743 s from responses_prod.jsonl under /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/build_report.py:48-51, and OpenRouter's own generation receipts confirm the cached-token and cost fields of rows 1, 3 and 60; the deduction is the undecomposed aggregation the findings below name.",
+    "fit": "the fragment follows the fragments directory's section of plan HTML and the record follows the small-record contract, while the fragment departs from the sibling fragment's self-contained measure line and /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/build_report.py duplicates the aggregator make_report.py the same directory already carries.",
+    "goal_fidelity": "the record carries h, its source kind, its citation and its observation time as docs/plans/serving-record-warehouse.html:386-387 requires, and the plan's preference order is satisfied because a third-party measurement was obtained rather than a published figure.",
+    "scope_discipline": "the commit changes one file (docs/evidence/fragments/serving-record-warehouse/srw-third-party-hit-rate-at-production-size.html:1) and everything else the node wrote lies inside the reports directory it declared, with nothing written into the repository."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260929T081559822960-srw-third-party-hit-rate-at-production-size at head 0cd5d04e6114c9c00385617046b3d52fe90e9a81 against base 7f36237a62e352f27beda581198ea57daa8ae882.\n\nVERDICT goal: the goal is the plan's first measurement of the third-party cache rate (docs/plans/serving-record-warehouse.html:716, \"h is computed as the summed cached prompt tokens over the summed prompt tokens\"); the node landed h 0.929855 over 60 OpenRouter responses of deepseek/deepseek-v4.1-flash, recorded in /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/third-party-hit-rate.json.\nVERDICT done_when: the done_when is that clause; the gate the node ran (gate.log lines 1-7 name the floor, the three windows, the gap cap and the sleep budget) asserts it, and all 60 rows I recomputed sit above the 80,000-token floor (minimum 91042 tokens) with 5591424 cached of 6013219 prompt tokens.\nVERDICT write_paths: the declared paths are the reports directory, docs/evidence/fragments/serving-record-warehouse/srw-third-party-hit-rate-at-production-size.html and a figures directory; the commit's single changed file is inside the second, and every driver, aggregator and row file I checked is inside the first.\nVERDICT manifest: read; it states the gate command, its result (60 responses, h 0.929855, spend USD 0.134458) and names gate.log and measure.log, both present and consistent with responses_prod.jsonl.\nVERDICT diff: read against base 7f36237a62e352f27beda581198ea57daa8ae882; one file, one section of three lines, no code and no path outside the declared scope.\n\nNo production call site reaches the landed change yet: the record's intended reader is the printing node the plan schedules after this one, and imas_ambix/agent/watch.py:339 still prices our own cached count, so nothing in code reads /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/third-party-hit-rate.json today; the fragment is spliced plan HTML rather than runtime.\n\nCALL_SITES: none\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: the record carries h, its source kind, its citation and its observation time as docs/plans/serving-record-warehouse.html:386-387 requires, and the plan's preference order is satisfied because a third-party measurement was obtained rather than a published figure.\nSCORE evidence: 17\nJUSTIFICATION evidence: I reproduced h 0.929855374, spend USD 0.134458, the provider split Counter({'Together': 39, 'AtlasCloud': 21}), the clipped count 1 and sleep 891.743 s from responses_prod.jsonl under /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/build_report.py:48-51, and OpenRouter's own generation receipts confirm the cached-token and cost fields of rows 1, 3 and 60; the deduction is the undecomposed aggregation the findings below name.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: the commit changes one file (docs/evidence/fragments/serving-record-warehouse/srw-third-party-hit-rate-at-production-size.html:1) and everything else the node wrote lies inside the reports directory it declared, with nothing written into the repository.\nSCORE durability: 16\nJUSTIFICATION durability: the deliverable is a one-shot external measurement with no test surface, so no assertion reddens on a regression; the driver and aggregator are preserved beside the rows, but /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/build_report.py:23 hard-codes the comparison stratum's figure instead of reading the record beside it.\nSCORE fit: 17\nJUSTIFICATION fit: the fragment follows the fragments directory's section of plan HTML and the record follows the small-record contract, while the fragment departs from the sibling fragment's self-contained measure line and /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/build_report.py duplicates the aggregator make_report.py the same directory already carries.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/build_report.py:51 h is summed over all 60 rows including the 3 guaranteed cold first responses of the re-send windows (w98f 91042, w38d 102203, w2f9 95597 prompt tokens, cached 0), so the recorded rate is a weighted mix whose value depends on how many windows were run: warm-only h is 0.9768 and per-window warm h is w98f 0.9448, w38d 0.9864, w2f9 0.9959, and neither the report nor /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/third-party-hit-rate.json states this decomposition.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/build_report.py:57-58 the two gap series take rows[1:] over a concatenation of three independent windows, so rows [21, 41] (the first response of the second and third windows) contribute structural zeros to both series: 2 of 59 values are not inter-request gaps, the recorded median reads 7.964 s where the same series without them reads 7.990 s, and a reader cannot tell them from real zero gaps.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/send_production.py:88 the only clipped gap (row 2: a recorded 1583.411 s slept as 300.0 s) coincides with the only within-window provider switch (row 2) and with the only warm-turn cache miss of the run, so the two candidate causes are not separable and the recorded switch share 0.03389830508474576 over all 59 transitions is not a measurement of provider-driven cache loss: the within-window share is 1/57 = 0.0175, and the remaining provider change falls on a window boundary whose next prompt is a cold start anyway.\nFINDING /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/0c4316b2-553f-4a0a-ae02-c42d88de747c/third-party-hit-rate-production-size/build_report.py:23 the negative-control figure is a literal while the stratum it compares against has its own record at .../third-party-hit-rate/third-party-hit-rate.json, so a re-measurement of that stratum cannot reach this comparison; the same file reimplements make_report.py, which the directory carries md5-identical to the sibling stratum's, so the two strata's reports are built by different code.\nFINDING docs/evidence/fragments/serving-record-warehouse/srw-third-party-hit-rate-at-production-size.html:3 the landed fragment states the figure and points at \"the node write path\", which is crew-tooling vocabulary rather than a path a plan reader can resolve, and it carries none of the evidence that makes the claim checkable (response count, prompt floor, spend, source kind, observation time); the fragment beside it states its measure and its evidence path directly.\n",
+  "review_run_id": "r-20260929T091145692129-review-of-srw-third-party-hit-rate-at-production-size",
+  "reviewed_base_sha": "7f36237a62e352f27beda581198ea57daa8ae882",
+  "reviewed_head_sha": "0cd5d04e6114c9c00385617046b3d52fe90e9a81",
+  "reviewed_run_id": "r-20260929T081559822960-srw-third-party-hit-rate-at-production-size",
+  "reviewer": "review-of-srw-third-party-hit-rate-at-production-size",
+  "scores": {
+    "durability": 16,
+    "evidence": 17,
+    "fit": 17,
+    "goal_fidelity": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T10:27:04.027486+00:00",
+  "total": 87
+}

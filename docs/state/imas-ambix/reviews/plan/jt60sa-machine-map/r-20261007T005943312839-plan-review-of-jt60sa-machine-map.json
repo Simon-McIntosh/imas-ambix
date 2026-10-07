@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T01:05:17.170Z",
+  "dispatched_at": "2026-10-07T00:59:50Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/gs/machine_identity.py:245",
+      "id": "reuse_search-1",
+      "reason": "an incomplete caller census on a signature change is exactly the defect the plan's own \"every instance, not the first\" discipline exists to prevent, and it would otherwise surface as a broken call site in the node that implements the requirement.",
+      "text": "the plan states that identity_for_shot \"gains a required machine keyword\" and that \"its two production callers pass it: the selector, and the geometry reader's `_shot_evidence`\", but identity_for_table calls identity_for_shot at line 245 with a bare `int(shot)`, so there is a third production caller the census omits; the migration node that makes `machine` required must also thread `signature.machine` through identity_for_table, or the requirement is unsatisfiable at a live call site.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html#s2",
+      "id": "interface_budget-1",
+      "reason": "under a zero public-definition budget each section is held to naming its public retirement or merge (or why none is possible), and \u00a72 is the one open node that grows an exported family without that statement.",
+      "text": "the jtmm-tokamap-jt60sa node promotes `_target_cocos_transformation` to a public resolver (\"that adds one public definition, the resolver, and retires the exporter's private copy\"), so with public_definitions at 0 the exported surface grows by one while the only retirement is module-private; \u00a72 does not say why no public name can be retired or merged instead of promoting a private one.",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "8c87bded58a158f48b6507b16075cbb64c5680324ff1f3c3b78aef48f1adf3d8",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 278,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-1",
+      "reason": "",
+      "when": "2026-10-07T01:06:40.185404+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "interface_budget-1",
+      "reason": "",
+      "when": "2026-10-07T01:07:03.137695+00:00"
+    }
+  ],
+  "responses": {
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T01:07:03.137695+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T01:06:40.185404+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v278.json",
+  "review_run_id": "r-20261007T005943312839-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "38ff3e131f291a99a9c44c80060581c7026b0493",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the open design adds one promoted resolver and reuses deep modules rather than spreading shallow wrappers; the one new module (\u00a76's deferred EQDB transport) hides its framing behind encode_batch/decode_batch and a single dispatched request type.",
+    "duplicate_owner": "pass \u2014 the plan names the duplicate owner it repairs (imas_ambix/data/tokamap_export.py:147 `_cocos_transformation` beside packages/imas-alambic/src/imas_alambic/transform_engine.py:411 `_target_cocos_transformation`, with tests/data/test_tokamap_export.py:117-136 re-deriving the same scale via canonical_factor and a test-local transformation helper) and names the owner to extend, the engine.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a72's open node adds a public definition while retiring only a module-private symbol, so it does not state what it retires or merges in the public family, or why nothing can be.",
+    "reuse_search": "a finding \u2014 the plan reuses the machinery it names (transform_engine's COCOS resolver, cocos_convention.score_convention, efit_referee.judge_geometry, worldmodel/equilibrium_labels.build_geometry_from_arrays, machine_identity.default_registry, eddb.channel_path), but its census of the callers its own change touches is incomplete.",
+    "thin_wrapper": "pass \u2014 where \u00a76 extends the \u00a73 extractor it states why the channel machinery cannot carry an EQDB record (different request/answer shape, keyed differently) and extends BatchResult rather than forking a parallel path."
+  },
+  "section_digests": {
+    "_document": "4b0129f29940ceb7128674d91afa04605d95f2f33b4788a226b4142aed9c1015",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "dce90786028770c1e6530aceb7be231ba7c2b1487afeb51fb1fc72f39d5be55e",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "740617fe029f597a224a530755e683f2103d7b60149c59c940c21ddc4e957da9",
+    "s7": "17c0d78497811df1e58c7d98fd9be61b4acccd3408bd36adfbd9b5197ab112b1",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T01:06:20.048509+00:00"
+}

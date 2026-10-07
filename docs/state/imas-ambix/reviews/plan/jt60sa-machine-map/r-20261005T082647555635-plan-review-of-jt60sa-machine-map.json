@@ -1,0 +1,54 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T08:32:29.463Z",
+  "dispatched_at": "2026-10-05T08:26:52Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/spine_bench/transform_geometry_source.py:492",
+      "id": "duplicate_owner-1",
+      "reason": "naming whether `resolve_geometry_source` is extended with a JT-60SA source name (or deliberately bypassed) decides whether \u00a77 forks the very selection path the plan reuses everywhere else.",
+      "text": "\u00a77 routes JT-60SA spine geometry through `gs/artifact_resolution.py` with a machine-keyed pin table and `gs/machine_selection.py`, but the benchmark that actually stamps the \u00a77 baseline resolves its geometry through `resolve_geometry_source`, whose only names are CAMPAIGN / IDENTITY_BOUND / TRANSFORM and which is frozen to the MAST `FROZEN_SHOTSET`; the plan does not name this owner, so a JT-60SA geometry-source path may grow beside it",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/transform_engine.py:236",
+      "id": "duplicate_owner-2",
+      "reason": "the addressing owner needs a named store-layout/shot-independent parameter, and without it the plan either copies the description per shot (the outcome it rejects) or silently adds a third mechanism at implementation time.",
+      "text": "\u00a74 proposes to extend `NetCDFTransformEngine` \"so a store can be addressed by the map a shot selects\" using two new catalogue keys (store format, store root), but `NetCDFTransformEngine.open` composes `{root}/{int(shot)}` and reads one `{binding}.nc` per binding, so neither key removes the per-shot directory the plan explicitly says it wants to avoid copying a static description into",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "71e053417165ea764d924a319dabf653db9ae877a2c9712f2a2886e1efc176bf",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 39,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T08:41:26.863719+00:00"
+    },
+    "duplicate_owner-2": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T08:41:27.577630+00:00"
+    }
+  },
+  "review_run_id": "r-20261005T082647555635-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "15b086605239df5013c0437ab4a526c13a8fac2e",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each new module hides substantial behaviour behind one entry point: `selene_deck.py` folds the SELENE deck grammar (EQSLE.DATA `&DSK`/PF/NV/TFC/limiter blocks, geo.in probe and loop tables, coil_vv_OP2 vessel) plus five IDS netCDF writers behind one converter; `eddb_remote.py` + `eddb.py` (landed) already present one batch-fetch and one cache-writer; `tokamap_export.py` exports through one function.",
+    "duplicate_owner": "a finding \u2014 \u00a77 names `gs/artifact_resolution.py` and `gs/machine_selection.py` as the spine's geometry route but not the spine benchmark's own geometry-source resolver, `imas_ambix/spine_bench/transform_geometry_source.py:resolve_geometry_source` \u2014 and \u00a74's store-addressing extension names two catalogue keys that do not cover the per-shot directory `NetCDFTransformEngine.open` hard-codes.",
+    "interface_budget": "pass \u2014 supplied counts are public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds a store key, module or refusal states in its own text what it retires or merges, or why nothing can be (\u00a72 exporter and \u00a74 converter \"retire nothing, because ambix has no exporter / no deck reader today\"; \u00a74 store-addressing keys \"retire nothing\" and the probe-angle key \"retires the machine branch\"; \u00a73 cache \"adds no `ambix data` command\"; \u00a77 EQDB reader and the two scalar record fields each \"retire nothing, because none exists\"), so no section adds to those families without accounting.",
+    "reuse_search": "pass \u2014 the plan cites codex's remote layer and ambix's engines by name, and a search of the tree found no SELENE/EQDB/deck machinery in ambix that the plan ignores (grep for selene|eqdb|coil_vv|fort.96|getseldata|jt-?60 hits only the landed eddb modules and paths.py).",
+    "thin_wrapper": "pass \u2014 the two layers that could read as thin each carry an in-text justification for not extending the deeper mechanism: the tokamap exporter is deliberately kept out of the loaders (\"they read the ambix schema and must not learn tokamap's\"), and the EQDB reader is a remote script over \u00a73's existing transport and cache rather than a second read path."
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T08:41:19.594454+00:00"
+}

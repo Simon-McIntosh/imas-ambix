@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T15:33:13.967Z",
+  "dispatched_at": "2026-10-06T15:27:47Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/spine_bench/machine_artifact_arm.py:67",
+      "id": "duplicate_owner-1",
+      "reason": "the retirement still proceeds and the miscount does not change the design, but the node that retires these names must read the arm's own __all__ rather than the plan's list, or it will either miss the SEMANTIC exclusion rationale or over-retire CACHE_ENV/DIGEST_ENV.",
+      "text": "\u00a77 states the arm \"imports them, uses them as dataclass field defaults, and re-exports them in its own __all__\", i.e. all three of PINNED_SEMANTIC_IDENTITY, PINNED_PHYSICAL_DIGEST and PINNED_REGISTRY_DIGEST, but the file imports and re-exports only PINNED_PHYSICAL_DIGEST and PINNED_REGISTRY_DIGEST (imports 67-68, __all__ 88-89); PINNED_SEMANTIC_IDENTITY never appears in the file and the module docstring records that it is deliberately excluded so the arm can run on any description revision, while CACHE_ENV and DIGEST_ENV are also re-exported there and are not among the names being retired \u2014 so a blanket retirement of the arm's __all__, and the \"three public definitions and their re-export\" count, are both off by what the file actually carries",
+      "type": "duplicate_owner",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "185effd3ac4556d99f25203df5dc003e158541ae86a85ca1f6a952f14a315a02",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 155,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T15:34:29.000635+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T15:34:29.000635+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v155.json",
+  "review_run_id": "r-20261006T152740248486-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "0117eaf6f03173874ef4e6f6d3443277f2e01197",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the two substantive new entries hide real behaviour behind a small interface: cocos_convention's private kernel hides the raw/equilibrium read and coefficient derivation behind a shared computation, and challenge/convention.measure_convention hides the Grad\u2013Shafranov integral, the sign tests and per-corpus eligibility behind one entry, with measure_diiid_convention collapsing to a loader argument.",
+    "duplicate_owner": "a finding \u2014 the \u00a77 retirement census of the duplicate PINNED_* re-export surface in machine_artifact_arm.py under-enumerates it.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface states in its own text what it retires or why nothing can be (e.g. \u00a75 \"adds one schema field and retires nothing, because no signal-rule validation state exists\"; \u00a76 \"retires nothing, because no catalogue-driven observation reader exists\" for read_catalogue_observation and \"no generic convention entry exists\" for measure_convention; \u00a77 retires the three PINNED_* names and their re-export and names the table that replaces them). No section adds surface unaccounted.",
+    "reuse_search": "pass \u2014 the plan names the existing owner for each mechanism it extends and every one I opened exists: gs/operator.py build_operator (805), ForwardOperator.vacuum_prediction (578) and assemble_pf_currents (582); eval/efit_referee.py read_efit_geometry's loader= seam (120-124); machine_map.py's validation vocabulary (_VALIDATION_STATES, line 38) and _SIGN/_VALIDATION pairing (1613); cocos_convention.py score_convention/score_conventions/format_sign_report; eddb_remote.py to extend for EQDB; gs/machine_identity.default_registry (145); spine_bench/shots.py machine field. No mechanism is rebuilt where an owner exists.",
+    "thin_wrapper": "pass \u2014 the wrappers the plan keeps are seam adapters it justifies rather than parallel machinery: measure_diiid_convention becomes a call to measure_convention with the DIII-D loader (callers unchanged), and the \u00a77 SELENE reference loader adapts \u00a76's EfitLabels into the EquilibriumGeometry that read_efit_geometry already returns, which the plan states is required so the sign scorer and the geometry referee cannot drift."
+  },
+  "section_digests": {
+    "_document": "8e40dfcd847d0cd47a734d972ceeb5d32d8fa3a99a8dc3a72ef8114767d48088",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "0e95ce9e5fe16bf2fc91efb14b507599ae7bd4fa1ba88874646985904558979c",
+    "s6": "d8c15027db9d604433c480ea318c396e813b34f715c9b86b25899f4b2423a1c6",
+    "s7": "ad044a830a67027eaf3a8a9743d1398a554721118874a8b456b6858215ede9e6",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T15:34:16.837906+00:00"
+}

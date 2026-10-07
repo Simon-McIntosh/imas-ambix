@@ -1,0 +1,103 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T19:09:16.772Z",
+  "dispatched_at": "2026-10-06T19:04:04Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/cocos_convention.py:447",
+      "id": "reuse_search-1",
+      "reason": "the node should be dropped and \u00a76's factor-table prose corrected to the current state so the section's remaining work is the genuinely open items.",
+      "text": "\u00a76 states that `MAST_TO_COCOS_17_FACTORS` still carries a `pol_angle_like: -1.0` entry and a `tor_angle_like` entry and that the node `jtmm-angle-factor-retire` is remaining work, but both entries are already gone (the table now holds only psi_like/ip_like/b0_like/q_like/dodpsi_like/one_like, retired by commit 0113d0b9 \"retire unowned angle classes from the source-to-COCOS factors\", and the table's own docstring already states \"no angle class appears here\"); the described defect does not reproduce, so the plan would dispatch a node for work already landed.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/selene_deck.py:927",
+      "id": "reuse_search-2",
+      "reason": "`jtmm-probe-axis-store` and the re-render of `docs/figures/jt60sa-geometry/` are already done; \u00a76 must be rewritten around the open remainder (the vacuum adjudication and the angle binding) or it re-does landed work.",
+      "text": "\u00a76 states that `build_magnetics` writes the deck angle \u03c9 straight into `poloidal_angle` (converting only degrees to radians) and that the node `jtmm-probe-axis-store` is the repair, but the converter already writes \u03b8 = (90\u00b0 \u2212 \u03c9) mod 360\u00b0 with the tangent-direction convention documented in a comment (`out.poloidal_angle = float(np.deg2rad((90.0 - probe.angle) % 360.0))`, commit c203652e \"store the tangential sensing axis for SELENE deck probes\"), so the stale-axis premise the section builds on is no longer true.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/cocos_convention.py:759",
+      "id": "reuse_search-3",
+      "reason": "the section should record the replacement as landed and carry only `jtmm-observation-time-alignment`, which is genuinely open (`VirtualZarrView` at imas_ambix/data/virtual_zarr.py:89 still has no untransformed accessor and `read_signal_map_observation` still resolves rules through `imas_ambix/data/eddb.py` `read_channel`).",
+      "text": "\u00a76 describes `read_catalogue_observation` \"as built (merges 07add818 and 149763e2)\" reading a machine-map catalogue's per-shot bindings and names the node `jtmm-observation-signal-maps` to replace it, but the function no longer exists in the tree (grep across `imas_ambix/` and `tests/` finds no reference) and its replacement `read_signal_map_observation` is already in `__all__` (commit 59023973 \"read observations through machine signal maps\"), so the node named to perform the replacement is already complete.",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "ea6fd2828f73a82a25a0706cb3c8ce84b512c811fb4c1fdc9ffe72774296306e",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 215,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-1",
+      "reason": "",
+      "when": "2026-10-06T19:11:19.509302+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-2",
+      "reason": "",
+      "when": "2026-10-06T19:11:36.636854+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-3",
+      "reason": "",
+      "when": "2026-10-06T19:11:52.445794+00:00"
+    }
+  ],
+  "responses": {
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T19:11:19.509302+00:00"
+    },
+    "reuse_search-2": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T19:11:36.636854+00:00"
+    },
+    "reuse_search-3": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T19:11:52.445794+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v215.json",
+  "review_run_id": "r-20261006T190346575197-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "caab620519fb06e7c45fc95d22c2baff7b001177",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new behaviour sits behind small interfaces over one shared kernel (`cocos_convention._observation_from_series`) and one store (`eddb.py`), not a spread of shallow wrappers over the same machinery.",
+    "duplicate_owner": "pass \u2014 every shared mechanism the design touches names the owner to extend (`read_geometry_table` at `imas_ambix/data/description_reader.py:222`, `default_registry` at `imas_ambix/gs/machine_identity.py:145`, the pins at `imas_ambix/gs/artifact_resolution.py:69`, `build_operator`/`ForwardOperator` in `imas_ambix/gs/operator.py`, `judge_geometry`/`read_efit_geometry` in `imas_ambix/eval/efit_referee.py`), no placement step is added, and the plan explicitly distinguishes the live identity registry from the frozen pin table so they are not two owners.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface states in its own text what it retires or why nothing can be (the exporter and the EQDB request/record types retire nothing because no prior owner exists; \u00a76's angle-factor node retires one definition and adds none; \u00a76's observation reader is one definition retired and one added; \u00a77's pin table retires three public definitions and their re-export and adds one table).",
+    "reuse_search": "a finding \u2014 \u00a76 re-proposes three changes whose machinery already exists in the tree (the source-to-COCOS angle-factor retirement, the SELENE converter's tangential-axis write, and the catalogue-to-signal-map observation reader), so its search is stale against the revision it would extend.",
+    "thin_wrapper": "pass \u2014 each new layer (`measure_convention` generalising the DIII-D entry, the description-route probe-angle supplier) extends an existing owner with a stated reason rather than paralleling it; the two readers that produce `ShotSignObservation` share one kernel, and the EQDB additions extend `RemoteEddbExtractor`/`eddb.py` with helpers extracted from `write_channel` rather than a second store."
+  },
+  "section_digests": {
+    "_document": "62723cd7583dc5b18a64491724a048c3d8c8b0e2245109da9998ff5051244217",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "6e15bf0dbaf6c06de48f1cfc3bc4a035e455f9cc6105b9b090027bdfc403a966",
+    "s7": "98cb613c0803ddc3cc31bcc07322fe88b7c08be5c7b6784f39a60e84c93f8ca4",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T19:11:04.822657+00:00"
+}

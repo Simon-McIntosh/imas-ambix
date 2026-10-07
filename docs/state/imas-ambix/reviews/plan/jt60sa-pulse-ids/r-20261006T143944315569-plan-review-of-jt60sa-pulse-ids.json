@@ -1,0 +1,72 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T14:44:15.431Z",
+  "dispatched_at": "2026-10-06T14:39:50Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/worldmodel/equilibrium_labels.py:264",
+      "id": "reuse_search-1",
+      "reason": "the plan's claim that no finder exists in ambix is false, and topology-source is still open, so the decision should cite the in-repo finders before choosing nova.",
+      "text": "\u00a72 states X-points and strike points come from the EQDB record or nova \"rather than by a new finder in ambix\", but ambix already carries topology finders the census missed: equilibrium_labels.xpoint_null_set (ima_ambix/worldmodel/equilibrium_labels.py:264) and camera_topology_targets._strike_points (imas_ambix/worldmodel/camera_topology_targets.py:258), plus the axis/boundary extractor at imas_ambix/challenge/convention.py:226; the open decision topology-source must account for them (extend, retire, or state they are MAST-surrogate-scoped)",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-pulse-ids.html#s1",
+      "id": "deep_module-1",
+      "reason": "naming the module and its interface is exactly the deep-module decision the plan leaves unstated, and it is cheaper to fix before the first implementation node.",
+      "text": "the section names a CLI entry point and says the writer \"extends the two owners\", but names no module that owns the join of description arrays, signal-map samples and the netCDF write, so the substantial behaviour (which field gets which time base, homogeneous_time, the write layout) has no hiding place and will accrete as CLI-body glue",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-pulse-ids.html#s4",
+      "id": "thin_wrapper-1",
+      "reason": "an unjustified second JT-60SA imas-ink driver drifts from the first and doubles the surface a rendering change must touch; the plan should extend figures_jt60sa_geometry.py or say in \u00a74 why it cannot.",
+      "text": "the section adds scripts/jt60sa_pulse_animation.py as a new script that opens IDSs, builds geometry with extract_geometry and calls animate_pulse, which is what scripts/figures_jt60sa_geometry.py:144 main already does (it imports NetCDFTransformEngine and imas_ink.extract.extract_geometry), and several scripts already drive equilibrium_figure_mpl (scripts/patch_flux_map_report.py:311, scripts/topology_engine_overlays.py:154, scripts/connectivity_boundary_gate_eval.py:699); the plan neither extends the existing script nor justifies a parallel one",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/bench/store_arms.py:193",
+      "id": "duplicate_owner-1",
+      "reason": "the mint should extend the existing netCDF writer and reuse machine_description_bytes for the byte-for-byte assertion rather than fork both.",
+      "text": "the plan's mint writes one netCDF IDS per file through imas.DBEntry, a path already owned in the tree by store_arms.write_imas_netcdf (imas_ambix/bench/store_arms.py:193, \"Write an IDS through the public imas.DBEntry netCDF path\") and repeated at imas_ambix/challenge/thomson_ids.py:157 and imas_ambix/data/selene_deck.py:1278 (the store's own writer), plus imas_ambix/gs/geometry_export.py:425 write_geometry_fields; the plan adds a fourth without naming any as the owner, and its \"static geometry equals the OP1 description byte for byte\" check ignores the existing serialiser imas_ambix/data/description_identity.py:67 machine_description_bytes",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-pulse-ids.html#s1",
+      "id": "interface_budget-1",
+      "reason": "with cli_options at 0 the section must, in its own text, name what the new command retires or merges or why nothing can be, before the first node adds the surface.",
+      "text": "the section adds a `mint` subcommand to imas_ambix/data/cli.py (a cli_options entry) into a week whose cli_options budget is 0, and its text names no existing command it retires or merges and states no reason none can be; \u00a74 similarly adds a new public script entry point without an interface account",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "f2a2211d8490dce133c15d38be672d2cde4fa0c4df28bda0f3b0578d92eceaf6",
+  "plan_slug": "jt60sa-pulse-ids",
+  "plan_version": 2,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T143944315569-plan-review-of-jt60sa-pulse-ids",
+  "reviewed_blob_sha": "3f40c482dc2c8c2c4b571651499cc4c0be2119ab",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 \u00a71 names a CLI command and two owners but no module that holds the join, so the load\u2192write behaviour is spread over StoreEngine + VirtualZarrView + an unnamed new writer rather than hidden behind one interface.",
+    "duplicate_owner": "a finding \u2014 the plan's netCDF IDS writer duplicates imas_ambix/bench/store_arms.py:193 write_imas_netcdf (and the store's own writer in selene_deck.py) without naming either as the owner to extend.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a71 adds a `mint` CLI command without naming what it retires or merges, or why nothing can be.",
+    "reuse_search": "a finding \u2014 \u00a71 cites the two owners it extends (StoreEngine, the compiled signal map) and \u00a72 defers topology to nova, but the plan nowhere searched ambix for the IDS\u2192netCDF writers, the description-identity serialiser, or the existing ambix topology finders that already do part of what \u00a71/\u00a72 add.",
+    "thin_wrapper": "a finding \u2014 \u00a74 adds scripts/jt60sa_pulse_animation.py, a driver over imas_ink.extract.extract_geometry + animate_pulse that substantially repeats scripts/figures_jt60sa_geometry.py, without saying why that script cannot be extended."
+  },
+  "section_digests": {
+    "_document": "505b728cca7d56bf4f650e0aef85c781ceff7ff45cdb139c5550150771afd491",
+    "s1": "f50aeb6040aec5df7615fd122fb4e662084c659bbfa249a688fa7ad93c861170",
+    "s2": "712d6df68f49e71795e64de8913830f479c8fc09670d8694444e513f3a3d714a",
+    "s3": "38190a4ec674bd12cd93aff1e3435a024a772bb7c85faa1a49d6895d9842a3a3",
+    "s4": "1d32a95bd52011f48e560db73991fee727233ac7153ec64d1964c3f98c493ab3"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T16:03:45.636782+00:00"
+}

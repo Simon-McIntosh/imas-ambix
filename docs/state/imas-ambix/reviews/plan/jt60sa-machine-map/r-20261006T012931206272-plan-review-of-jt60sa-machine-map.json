@@ -1,0 +1,52 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T01:35:41.499Z",
+  "dispatched_at": "2026-10-06T01:29:41Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/eval/efit_referee.py:120",
+      "id": "reuse_search-1",
+      "reason": "the author would pin the SELENE reader to the existing loader seam and state that its psi/boundary/axis reduce to the EquilibriumGeometry contract, keeping one firewalled read path.",
+      "text": "\u00a77 says it \"adds a SELENE reference loader and its firewall tier\" to efit_referee but does not name the seam it must use: read_efit_geometry(loader=...) already accepts any reader returning an EquilibriumGeometry and is the single firewall-gated read path (evaluator_context / _gate_open), so a SELENE loader named without that contract risks a second read path that bypasses the gate",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/machine_map.py:202",
+      "id": "duplicate_owner-1",
+      "reason": "the author should extend the machine-map packaged registry as the shot\u2192machine owner (or state why only the benchmark needs a bare-shot declaration), so the machine name has one source across \u00a74 and \u00a77.",
+      "text": "\u00a77 puts per-shot machine identity in BenchShot.machine (spine_bench/shots.py) as \"one owner\", but MachineMap.machine plus load_packaged_machine_map / map_for_shot already own which machine a shot range belongs to, and \u00a74's transform_machine_description selects a catalogue without a stated route from a bare shot to its machine",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "6b77f7f68fced394518b18bbfbddc7da09b1fb0d3716c6a4a01f6cce8851d85a",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 78,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T012931206272-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "00c8419fb0f234860862ff5a93a1c233214ab0ae",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new modules hide their machinery behind small interfaces (eddb_remote.py: RemoteEddbExtractor / SshTransport / BatchResult; eddb.py: fetch_channels / write_channel / is_cached; selene_deck.py: one converter entry point), and the remaining design extends the existing engines (StoreEngine.open already receives the selected map; the netCDF engine reads the static-over-map layout) rather than adding a parallel one.",
+    "duplicate_owner": "a finding \u2014 \u00a77 declares per-shot machine identity in spine_bench/shots.py (BenchShot.machine) while imas_ambix/data/machine_map.py already owns which machine a shot's range belongs to (MachineMap.machine, load_packaged_machine_map, map_for_shot), and the plan names no owner that maps a bare shot to a machine for the non-benchmark read path.",
+    "interface_budget": "pass \u2014 supplied figures public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; each remaining section states what it retires or merges (\u00a74 retires the read_geometry_table machine branch, \u00a76 supplies cocos_convention the JT-60SA cohort and generalises measure_diiid_convention rather than adding a second scorer, \u00a77 adds two record fields and retires nothing because no scalar reference comparison exists).",
+    "reuse_search": "a finding \u2014 every mechanism the plan cites was opened and matches its account (machine_map.load_packaged_machine_map / map_for_shot, signal_map.load_packaged_signal_map, description_reader.read_geometry_table, cocos_convention.score_convention, challenge/loader.load_shot, efit_referee.judge_geometry / GeometryVerdict, spine_bench/shots.resolve_shotset_version, gs/artifact_resolution PINNED_* / resolve_machine_description, gs/machine_identity.identity_for_shot), but \u00a77's SELENE addition does not name the existing injectable reference-loader seam it must use.",
+    "thin_wrapper": "pass \u2014 \u00a77's EQDB reader adds a genuinely different remote script (eqdbms / eqdbget) and reuses the transport owner (eddb_remote.SshTransport) rather than wrapping or forking RemoteEddbExtractor, which is EDDB-shaped (hard-coded REMOTE_SCRIPT, EDDB paths); the plan states the cache cannot be reused (record shape differs) so the record store is a declared sibling, not a wrapper."
+  },
+  "section_digests": {
+    "_document": "e259d365e0cc5fd79d86544cb6f966b0cec1b2ce404536d03efb256108367467",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "0c6d3ad9d5cf1da1fe7fe4da9f6aaed64bad292c46c517e591b53b1561cdda5b",
+    "s5": "83fb72d7ab35eaa0286bd0c4b0b1807b76fc0846bbc4b153f8b5efd32a27c265",
+    "s6": "2a80a7a62c8dc5613a449b07cfc23202673e04b88f6ee73ab77207f7bd29e8e7",
+    "s7": "f900480710954a0c3c051aabcde8ce91909c3857109c91a748d0c1cb8c1f7b4e",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.829112+00:00"
+}

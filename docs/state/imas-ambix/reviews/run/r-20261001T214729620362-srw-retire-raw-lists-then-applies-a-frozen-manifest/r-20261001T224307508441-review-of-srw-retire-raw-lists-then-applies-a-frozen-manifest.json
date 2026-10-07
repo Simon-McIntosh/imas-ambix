@@ -1,0 +1,81 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite (classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null), so its own arms cannot supply the delta. This review therefore measured the reviewed node's declared cmd1 gate in two scratch trees built from the reviewed commit's own object store (both extracted with git archive from this reviewer's own worktree, which shares that object store, into $TMPDIR/arms; no git worktree created, the reviewed object store is not writable by this node and neither is its worktree): base arm gate-base.log (revision 56713e79, production tree carrying the head's tests/test_*_retention.py: 11 collected / 1 error, a collection ImportError because imas_ambix.agent.telemetry_retention does not exist at base, EXIT=2) and head arm gate-head.log (revision 1a1670f6: 18 passed, EXIT=0). The base arm cannot fail a named test because the module under review does not exist there, so the head's tests fail at base only as a missing-module collection error and not as named failing ids; head failing ids ([]) minus base failing ids ([]) is 0.",
+  "after_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_retention.py tests/test_telemetry_compaction_runs.py tests/test_agent_ingest_cli.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T224307508441-review-of-srw-retire-raw-lists-then-applies-a-frozen-manifest/gate-head.log",
+    "revision": "1a1670f6cd589dc0bf86d2cddcdf8841cc078ff8"
+  },
+  "baseline_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/test_telemetry_retention.py tests/test_telemetry_compaction_runs.py tests/test_agent_ingest_cli.py",
+    "completed": true,
+    "exit_status": 2,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T224307508441-review-of-srw-retire-raw-lists-then-applies-a-frozen-manifest/gate-base.log",
+    "revision": "56713e79ff92dbca2b9952c90b36101787d5a04a"
+  },
+  "completed_at": "2026-10-01T23:15:22.708Z",
+  "dispatched_at": "2026-10-01T22:43:15Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_retention.py",
+      "line": "233",
+      "severity": "follow-on",
+      "text": "follow-on: is_raw_receipt decides by filename shape alone, and the job-id it derives from the router's request-receipt rotation is not the marker the module's own docstring claims. The module states a request receipt 'carries no job id at all', which holds for requests.jsonl but not for a date-suffixed rotation. receipts_job_id's pattern (-(\\d+)\\.jsonl(?:\\.\\d+)?(?:\\.gz)?\\Z) reads requests-2026-10-01.jsonl as raw receipt job '01'; reproduced from a scratch copy of the head: is_raw_receipt('requests-2026-10-01.jsonl') is True with job '01', against requests.jsonl which is correctly False. A raw serving receipt and the router's request receipts live in different directories, and the plan states the retention command never opens the directory the request files live in, so the misclassification is reachable today only through a hand-edited or forged manifest naming such a path with an eligible age and digest; recorded because the guard's by-name claim overstates what a shape test proves, and a future placement of request rotations beside the receipts would make the name check the only thing keeping them from the deletion set -- it is not sufficient for that."
+    }
+  ],
+  "follow_ons": [
+    {
+      "file": "imas_ambix/agent/telemetry_retention.py",
+      "line": "247",
+      "severity": "follow-on",
+      "text": "raw_receipt_files globs *.jsonl, so a rotated or compressed raw receipt (foo-123.jsonl.1, foo-123.jsonl.1.gz) is accepted as a raw file by is_raw_receipt and by the index's discovery regex but is never enumerated for retirement. The module docstring asserts the raw file never rolls, which is what makes this unreachable today; if rotation or gzip of raw receipts is ever added, retirement silently misses them rather than refusing. Not a wrong-direction defect: a missed file is left alone."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_retention.py",
+      "line": "349",
+      "severity": "follow-on",
+      "text": "The deletion licence is the per-window equality of the three token counters against whichever minute and hour files are on disk, and nothing in the eligibility test distinguishes a tier rebuilt under the current compaction code from a tier compacted before per-leaf counts landed. The plan's rule 2 requires that rebuild first ('Tiers are rebuilt from raw before anything is deleted', 'its rebuilt tiers passed the check in rule 2'), and the plan's own follow-up f-srw-009 records that a pre-per-leaf-counts tier declares no obs.leaves and that the rebuild must happen 'while every raw file is still on disk ... after retention they cannot'. So this command licenses deletion on a figure the rebuild makes meaningful, and must be ordered after that rebuild; the command neither performs nor names that prerequisite. Out of this node's declared scope (the node is the listing-and-apply mechanism, and the rebuild is f-srw-009's stated prerequisite), recorded so the ordering is not lost."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified the new command's call sites -- cli.py retire_raw calls retention.scan/write_manifest for the listing and retention.apply_manifest, resolving the default record dir through watch.default_record_dir, which exists at the head -- and that compare_tiers calls TelemetryIndex.partitioned_total(name, start, end) with the existing signature, and tier_paths/receipts_job_id exist untouched. The new module is imported lazily inside the command, so it is not an import-time dependency of cli.py.",
+    "diff": "Read commit 1a1670f6 against base 56713e79; three files changed at 23a26f10 plus the evidence fragment at 1a1670f6, +901 then +21. The implementation commit 23a26f10 adds imas_ambix/agent/telemetry_retention.py (+593), imas_ambix/agent/cli.py (+83, the retire-raw command), and tests/test_telemetry_retention.py (+225, 7 tests); 1a1670f6 adds docs/evidence/fragments... the node's own evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-retire-raw-lists-then-applies-a-frozen-manifest.html (+21). No existing behaviour is modified.",
+    "done_when": "Read the node's measure: the review record stores a parsed record scoring all five dimensions in 0..20, reviewed_base_sha and reviewed_head_sha, and added_failure_count/added_failure_ids. This record carries all of those. The reviewed run declares neither baseline_suite nor after_suite, so the delta is derived from this review's own two arms of the reviewed node's declared cmd1 gate (base 56713e79 with the head's test file: collection ImportError, EXIT=2; head 1a1670f6: 18 passed, EXIT=0), recorded under baseline_suite and after_suite, added_failure_count 0.",
+    "goal": "The node's declared goal is the retention block's rules 3 and 7-of-'+2: a listing pass that judges each raw receipt file eligible only when its serve job is not running, its last parseable row is more than the threshold old, and its minute and hour compactions reproduce its own totals window by window; and an apply pass that deletes exactly a frozen manifest's files, after re-checking each. The commit does this. telemetry_retention.scan judges liveness once for the whole listing (default_running_job_ids, one squeue for the account, and a scheduler that cannot be run raises rather than reading as an empty set), the 24-hour quiet window, the age measured from the last parseable row rather than mtime, and compare_tiers' per-window, per-counter equality over the raw file's own span using TelemetryIndex.partitioned_total on each tier in isolation. write_manifest freezes path, size, sha256 of the file and of both siblings, and last row time; apply_manifest re-checks liveness, quietness, age and all three digests per file and removes only raw receipt files, refusing a compacted tier by name. Every uncertain path fails safe: a missing or unreadable tier, an absent window, a stale tier total, a changed digest, or a manifest entry missing a digest all keep the file. The one gap, the request-receipt rotation the by-name guard does not positively exclude, is recorded as the single finding.",
+    "manifest": "Read; it states the three-command gate green (18 passed / 1 passed serving-interpreter guard / ruff All checks passed!, each EXIT=0), a negative control 1 failed 6 deselected EXIT=1, changed_paths imas_ambix/agent/telemetry_retention.py, imas_ambix/agent/cli.py, tests/test_telemetry_retention.py and the evidence fragment, and states the command was never run against /work/projects/imas_gpu/agents/receipts in either mode. Its negative_control_log path is the bare path required and the log's last line is a bare EXIT=1.",
+    "write_paths": "Read the manifest's declared paths; the diff touches exactly imas_ambix/agent/telemetry_retention.py, imas_ambix/agent/cli.py, tests/test_telemetry_retention.py and the node's own evidence fragment. All changed paths are within the declared set; no plan, index or sprint state is mutated by the commits. The reviewed run's own gate ran on the fleet compute node (job 1277272) and this review's arms ran on the reviewed run's declared cmd1 gate in scratch trees on the same fleet node, no srun/sbatch."
+  },
+  "justifications": "independent review of run r-20261001T214729620362-srw-retire-raw-lists-then-applies-a-frozen-manifest, reviewed_run_id r-20261001T214729620362-srw-retire-raw-lists-then-applies-a-frozen-manifest, base 56713e79, head 1a1670f6, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 18, evidence 18, scope_discipline 20, durability 18, fit 18 -- total 92, added_failure_count 0 with added_failure_ids []. The node's single commit adds a new module, a CLI command and seven tests and changes no existing behaviour; the diff is entirely inside the declared write paths, the symbols are named by what they do with no plan identifiers, and the implementation reuses the existing tier_paths, receipts_job_id and TelemetryIndex.partitioned_total rather than re-deriving tier identity or window arithmetic. added_failure_count 0 with added_failure_ids [] is derived from this review's own two arms of the reviewed run's declared cmd1 gate (the reviewed run was dispatched unarmed, so its own baseline_suite and after_suite are null): base arm gate-base.log (revision 56713e79 carrying the head's test file, collection ImportError because the module is absent, EXIT=2) and head arm gate-head.log (revision 1a1670f6, 18 passed, EXIT=0). The reviewed node's negative control was reproduced independently rather than accepted: removing the per-window counter-agreement check in a scratch copy of the head (/tmp/.../arms/neg) reddens head's tests/test_telemetry_retention.py::test_an_ended_old_job_whose_minute_window_differs_is_ineligible (1 failed, 6 deselected, EXIT=1, negative-control.log). Every uncertain path fails safe -- a missing sibling, an absent window, a stale total, a changed digest or a manifest entry lacking a digest all keep the file -- so no wrong-direction defect (a deletion the equality does not license) was found; that is the basis for the high scores. goal_fidelity and fit lose two points each, and durability two, for the single recorded follow-on finding: is_raw_receipt decides by filename shape, and a date-suffixed rotation of the router's request receipts (requests-2026-10-01.jsonl) is read as raw receipt job '01', contrary to the module docstring's claim that a request receipt carries no job id at all; today the request files live in a directory the command never opens, so this is a weakness in the guard's by-name claim rather than a reachable deletion. Two follow-ons: raw_receipt_files globs *.jsonl so rotated or compressed raw receipts are never enumerated for retirement, and the eligibility test cannot tell a tier rebuilt under the current compaction code from a pre-per-leaf-counts one, so the plan's rule-2 rebuild (f-srw-009's stated prerequisite) must be sequenced before this command is applied.",
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-retire-raw-lists-then-applies-a-frozen-manifest",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "review_kind": "review",
+  "review_run_id": "r-20261001T224307508441-review-of-srw-retire-raw-lists-then-applies-a-frozen-manifest",
+  "reviewed_base_sha": "56713e79ff92dbca2b9952c90b36101787d5a04a",
+  "reviewed_head_sha": "1a1670f6cd589dc0bf86d2cddcdf8841cc078ff8",
+  "reviewed_run_id": "r-20261001T214729620362-srw-retire-raw-lists-then-applies-a-frozen-manifest",
+  "reviewer": "review-of-srw-retire-raw-lists-then-applies-a-frozen-manifest",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "scope_discipline": 20
+  },
+  "section": "s8",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T00:58:00+00:00",
+  "total": 92
+}

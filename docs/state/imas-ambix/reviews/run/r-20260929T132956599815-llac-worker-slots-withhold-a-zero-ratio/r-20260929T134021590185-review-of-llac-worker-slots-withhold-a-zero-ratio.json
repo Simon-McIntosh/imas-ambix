@@ -1,0 +1,86 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived by reckon.crew.review.added_failures_from_gate_logs over this review's two arms of the reviewed node's declared two-file gate: base arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T134021590185-review-of-llac-worker-slots-withhold-a-zero-ratio/review-base-gate.log (17 passed, exit 0, revision 47225329e4112b2697b99bca31485b744e881132) and head arm /home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T134021590185-review-of-llac-worker-slots-withhold-a-zero-ratio/review-head-gate.log (18 passed, exit 0, revision 2028839eaaae970de2f8588969185d1eed930eee). The reviewed run was dispatched unarmed, so its manifest names no baseline_suite and no after_suite log and its own gate.log carries the head-side receipt only (18 passed, exit 0); the two arms this review ran, with their commands and log paths, are in this record's own baseline_suite and after_suite fields, and a read of this record through reckon's annotation path will report the count unmeasured for lack of a reviewed-run pair.",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_agent_router_worker_slots.py tests/test_agent_router_admission.py  (the reviewed head revision in a scratch copy at /tmp/rev-llac-zero/head)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T134021590185-review-of-llac-worker-slots-withhold-a-zero-ratio/review-head-gate.log",
+    "revision": "2028839eaaae970de2f8588969185d1eed930eee"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_agent_router_worker_slots.py tests/test_agent_router_admission.py  (the reviewed run's base revision in a scratch copy at /tmp/rev-llac-zero/base)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20260929T134021590185-review-of-llac-worker-slots-withhold-a-zero-ratio/review-base-gate.log",
+    "revision": "47225329e4112b2697b99bca31485b744e881132"
+  },
+  "call_site_count": 5,
+  "call_sites": [
+    "tests/test_agent_router_worker_slots.py:158 the new test, three runs at 0.1 s keyed busy each",
+    "imas_ambix/agent/router.py:350 the thin-window null rule the fixture stays clear of (live_runs 3, 600 s of history)",
+    "imas_ambix/agent/router.py:354 the rounded ratio the guard reads",
+    "imas_ambix/agent/router.py:355 the zero-rounding guard the test pins",
+    "imas_ambix/agent/router.py:371 the slot arithmetic that divides by the withheld ratio when the guard is loosened"
+  ],
+  "completed_at": "2026-09-29T14:09:00.022Z",
+  "dispatched_at": "2026-09-29T13:40:30Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/local-lane-admission-control/llac-worker-slots-withhold-a-zero-ratio.html",
+      "line": "2",
+      "text": "the committed fragment asserts that no file other than the test file changes, while the same commit adds the fragment itself; the claim's substance \u2014 that nothing under imas_ambix/ moves \u2014 is what the diff shows, so this is wording and not a scope breach, but a reader checking the sentence against git show --stat finds it false as written"
+    }
+  ],
+  "follow_ons": [
+    "section 21's definitions name only two conditions under which requests_per_run and worker_slots are null \u2014 fewer than three live runs, or under 300 s of history. The code carries a third, part of the reviewed node's base and now pinned by it: a ratio that rounds to 0.0 at three decimals is withheld rather than published beside a slot arithmetic that divides by it. The plan text should carry that condition, and the precedence of that branch over the congested clamp, since the definitions fix precedence for the two they name.",
+    "no test drives the ratio-rounding guard under a congested, full or paused verdict, where the definitions' precedence rule and this branch both yield null; a later node could pin that interaction, which is currently asserted by neither branch's own test."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "the guard the test pins and the three rules it sits among were read at the reviewed head: the thin-window null rule at router.py:350, the rounded ratio at :354, the guard at :355, and the floor at :371 that divides by the ratio the guard withholds",
+    "diff": "one test of 22 added lines placed beside its siblings and built on _NOW and _AdmissionLedger, with a self-check that the fixture's own arithmetic rounds to 0.0; the fragment is four lines and ends with a trailing newline",
+    "done_when": "the declared gate re-runs to 18 passed exit 0 over the two named test files at head against 17 at base, the serving-interpreter parse check to 1 passed 8 deselected exit 0, and ruff check --no-cache imas_ambix tests to exit 0; the new test fails alone when the guard is loosened, so the pin is real rather than incidental",
+    "goal": "the dispatched goal is that tests/test_agent_router_worker_slots.py gains one test, built on the file's existing admission-ledger fixtures, in which at least three live runs hold keyed busy time small enough that keyed_busy / window / live_runs rounds to 0.0 at three decimals, asserting the published snapshot carries requests_per_run None and worker_slots None while live_runs is still published; the added test is exactly that, three runs at 0.1 s each publishing live_runs 3 beside None/None, and no product source changes",
+    "manifest": "read whole and consistent: status complete, commit 2028839e, two changed paths, three gate commands each with its own EXIT status, a negative_control_log holding the bare path alone, and a negative_control_note naming the mutation, its exception and the restore",
+    "write_paths": "git diff --name-status 47225329..2028839e lists exactly the two declared paths, tests/test_agent_router_worker_slots.py (M, +22) and the node's own fragment docs/evidence/fragments/local-lane-admission-control/llac-worker-slots-withhold-a-zero-ratio.html (A, +4); the declared figures directory holds no file and nothing under imas_ambix/ changes"
+  },
+  "justifications": {
+    "durability": "the guard is now falsifiable: it is the only thing between the fixture and a ZeroDivisionError, and the mutation shows the new test alone reports it. The test documents why the branch exists in its docstring, so a later reader who changes the rounding rule sees what depends on it. Two residuals keep this below full marks: the guard is a third null condition that section 21's definitions do not carry (they name only fewer than three live runs and less than 300 s of history), so the code still guards something the specification does not say; and no test drives the guard through the congested or paused verdict, where the definitions' precedence rule \u2014 insufficient evidence ahead of the clamp \u2014 and this branch both resolve to null without either being asserted.",
+    "evidence": "the pin is verified by making the guarded thing happen rather than by a passing suite: loosening the guard from published_ratio <= 0 to published_ratio < 0 at the reviewed head fails exactly one test, the new one, with ZeroDivisionError at router.py:371, and the other 17 pass \u2014 so the test enters the branch and is its first and only pin. The same arm run against the base revision with the head test files passes 18, which is the expected shape for a test that pins behaviour the base already carries. The reviewed run's own receipt is complete: gate.log names its revision on line 1 and records EXIT=0 for all three commands, and its negative-control log's first line repeats the declared mutation verbatim and ends on a red arm. Deduction: the fragment's line-2 sentence claims no file other than the test file changes while the same commit adds that fragment; the substantive claim, that no module changes, is what the diff shows.",
+    "fit": "the test is written in the file's own idiom, appended beside the sibling ratio and window tests, named for what it measures, and free of plan labels, version numbers and author attribution. Its docstring explains the arithmetic instead of the ticket. The fragment matches its siblings' shape, and unlike the two fragments the preceding reviews found, it ends with a trailing newline.",
+    "goal_fidelity": "the goal is a test-only pin of the ratio-rounding guard the preceding node introduced, and the delivered test is precisely that: the fixture's keyed busy time is 0.3 s over the 900 s window for three runs, so the published ratio would round to 0.0, and the test asserts live_runs 3 with requests_per_run None and worker_slots None. The test's third assertion recomputes the rounding from the snapshot's own window_seconds, so a reader can see the regime rather than infer it, and the file's existing _AdmissionLedger and _NOW fixtures are reused rather than a second harness is built. It does not assert unkeyed_share or samples, which the goal does not ask for.",
+    "scope_discipline": "the diff carries exactly the two declared paths and nothing else; the test file is the sole add under tests/, the fragment is the node's own landing anchor, and the declared figures directory is empty, so no figure was written where none was named. The reviewed worktree was clean before and after every arm of this review, and this review ran its measurements in /tmp copies under the shared project interpreter."
+  },
+  "justifications_detail": {
+    "independent_receipts": "review-head-gate.log (18 passed exit 0, ruff exit 0, serve parse 1 passed exit 0, module /tmp/rev-llac-zero/head/imas_ambix/agent/router.py), review-base-gate.log (17 passed exit 0, ruff exit 0, module /tmp/rev-llac-zero/base/imas_ambix/agent/router.py), review-mutation-guard-comparison.log (1 failed, 17 passed exit 1; the failure is ZeroDivisionError at router.py:371), review-base-router-head-tests.log (18 passed exit 0). Every log's header names its revision, tree, command, the imported module path and the resolved cwd.",
+    "limits": "no router process was restarted and no lane document was written; the arms ran in /tmp copies of the reviewed revision under the shared project interpreter with PYTHONPATH and cwd pointing into the copy, each header showing module.__file__ resolving inside that copy. The scratch trees were copied with excluded .git, .venv and .env, and were verified byte-identical to the two revisions before any arm ran.",
+    "review_basis": "read section 21 of the plan with its s21-definitions subsection, the reviewed dispatch with its declared write paths and measure, the reviewed manifest.md whole, the reviewed run's gate.log and negative-control.log, the complete diff 47225329..2028839e, imas_ambix/agent/router.py's ledger and snapshot at both revisions, and tests/test_agent_router_worker_slots.py at both revisions; then ran the four arms recorded above."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20260929T132956599815-llac-worker-slots-withhold-a-zero-ratio at head 2028839eaaae970de2f8588969185d1eed930eee against base 47225329e4112b2697b99bca31485b744e881132, the section-21 node that pins the router's ratio-rounding guard with a test. The test is verified rather than accepted: with the guard loosened from published_ratio <= 0 to published_ratio < 0 in a scratch copy of the head, the whole declared two-file gate reports exactly one failure, the new test_ratio_rounding_to_zero_withholds_both_derived_figures, raising ZeroDivisionError at imas_ambix/agent/router.py:371, so the test enters the branch and is the branch's only pin. The declared gate re-runs green at head (18 passed, ruff 0, serving-interpreter parse 1 passed) against 17 at base, and the run added no failing test (added_failure_count 0 over the two arms this review ran; the run was dispatched unarmed, so it names no suite logs itself). Scope is exactly the declared two paths. One finding is recorded: the fragment's line-2 claim that no file other than the test file changes is falsified by the fragment's own addition in the same commit, though nothing under imas_ambix/ moves. Two follow-ons: section 21's definitions should carry the guard's third null condition and its precedence over the congested clamp, and no test pins the guard under a congested verdict.",
+  "review_run_id": "r-20260929T134021590185-review-of-llac-worker-slots-withhold-a-zero-ratio",
+  "reviewed_base_sha": "47225329e4112b2697b99bca31485b744e881132",
+  "reviewed_head_sha": "2028839eaaae970de2f8588969185d1eed930eee",
+  "reviewed_run_id": "r-20260929T132956599815-llac-worker-slots-withhold-a-zero-ratio",
+  "reviewer": "review-of-llac-worker-slots-withhold-a-zero-ratio",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-29T14:04:50.193585+00:00",
+  "total": 95
+}

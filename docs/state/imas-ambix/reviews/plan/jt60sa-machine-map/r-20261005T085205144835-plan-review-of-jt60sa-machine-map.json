@@ -1,0 +1,34 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T08:58:58.570Z",
+  "dispatched_at": "2026-10-05T08:52:10Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/gs/machine_identity.py:152",
+      "id": "duplicate_owner-1",
+      "reason": "the \u00a77 selection path cannot run without naming the JT-60SA shot-range/physical-identity source and extending gs/machine_identity.py's default_registry/identity_for_shot to be machine-parameterised, so the plan must state that owner rather than leave it to the open jt60sa-artifact-authoring question (which covers authoring, not identity resolution).",
+      "text": "\u00a77 has ArtifactMachineSelector.select (gs/machine_selection.py:135) resolve a shot through identity_for_shot (gs/machine_identity.py:207), whose default_registry is nova's MAST geometry registry MachineGeometryRegistry and whose select() raises when the shot lies outside the MAST registry's shot ranges; the plan proposes the selector \"takes the machine from the catalogue the shot belongs to and passes it to the identity registry, the pin table and the plan (which forbids a JT-60SA module in nova, \u00a71) never names where JT-60SA shot ranges and its physical identity are held, so \u00a77 either forks the identity owner or is unimplementable for E101173/integer JT-60SA shots",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "20d6e76425715b40c1cf67f3cfa7dc8ba184227aaa1f520f28a46bdbb1915309",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 44,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T085205144835-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "13d6df9e40af0ebf172ca0f958bb4678222a4859",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each new module is a single-entry point hiding substantial behaviour (selene_deck.py one converter entry point over the deck grammar + geo.in + vessel block; eddb_remote.py one batch fetch + one cache writer; the EQDB reader one remote script charging the \u00a73 transport), and the store-addressing change extends NetCDFTransformEngine (transform_engine.py:236) rather than spawning a store engine per format.",
+    "duplicate_owner": "a finding \u2014 \u00a77 routes JT-60SA shot selection through a machine-identity mechanism whose current owner cannot answer for a JT-60SA shot, and the plan does not name the owner to extend.",
+    "interface_budget": "pass \u2014 supplied counts public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; each section that adds surface states what it retires or why nothing can (the \u00a72 exporter, \u00a73 extractor and \u00a74 converter retire nothing because ambix has no exporter/remote reader/deck reader today; the \u00a74 probe-angle slot retires the machine branch; the \u00a74 two store-addressing slots retire nothing because the catalogue had no addressing slot and they move read_geometry_table's MAST defaults into the catalogue; \u00a77's two record fields retire nothing).",
+    "reuse_search": "pass \u2014 the plan cites ~15 existing mechanisms by file path (paths.py MIRROR_ROOT/JT60SA_ROOT, description_reader.py read_geometry_table, transform_engine.py NetCDFTransformEngine.open, artifact_resolution.py PINNED_* constants, cocos_convention.py, challenge/convention.py, eval/efit_referee.py, spine_bench/transform_geometry_source.py, machine_map.py map_for_loader), and every load-bearing citation I opened is accurate.",
+    "thin_wrapper": "pass \u2014 every wrapper carries its \"why not extend\" in its own text: the \u00a73 extractor over codex's remote layer (importing it would drag the graph/LLM/tool-installer into every read), the tokamap exporter kept out of the loaders, the receipted netCDF over a deck store engine (no per-shot cost to amortise), and the EQDB reader reusing the \u00a73 transport/cache."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.859496+00:00"
+}

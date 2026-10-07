@@ -1,0 +1,80 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run is an unarmed measurement node: its manifest records baseline_suite and after_suite as null, and its only gate logs are the two census scripts (flux_loop_correspondence.py, instrument_check.py, both EXIT=0), so no pytest arm was armed on it. The count was therefore taken from arms this review ran, both against a git-archive export of the reviewed repository: base a9518f2d at /tmp/reckon-crew-scratch/r-20261006T044654970636-review-of-jtmm-flux-loop-correspondence/review-gate/base-tree (tests/data/test_virtual_zarr.py, 4 passed, EXIT=0, failure_ids []) and head 54569fc3 at .../review-gate/head-tree (tests/data/test_virtual_zarr.py, 4 passed, EXIT=0, failure_ids []), logs base-gate.log and head-gate.log in this run directory. The reviewed diff touches one HTML evidence fragment and no product source or test, so the two failure sets coincide and the added failures are 0 with ids []. This is stated as a measured zero only after both logs were read to their summary lines. The reviewer also re-ran the reviewed census script read-only against /work/projects/imas_gpu/jt60sa/101154.zarr in a scratch copy (review-census/), which reproduced flux_loop_table.json byte-for-byte.",
+  "after_suite": {
+    "command": "env -C /tmp/reckon-crew-scratch/r-20261006T044654970636-review-of-jtmm-flux-loop-correspondence/review-gate/head-tree TMPDIR=/tmp/reckon-crew-scratch/r-20261006T044654970636-review-of-jtmm-flux-loop-correspondence/review-gate/head-tree PYTHONPATH=/tmp/reckon-crew-scratch/r-20261006T044654970636-review-of-jtmm-flux-loop-correspondence/review-gate/head-tree /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/data/test_virtual_zarr.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T044654970636-review-of-jtmm-flux-loop-correspondence/head-gate.log",
+    "revision": "54569fc36ee660ec447cc19aac6baaa2354b69bc"
+  },
+  "baseline_suite": {
+    "command": "env -C /tmp/reckon-crew-scratch/r-20261006T044654970636-review-of-jtmm-flux-loop-correspondence/review-gate/base-tree TMPDIR=/tmp/reckon-crew-scratch/r-20261006T044654970636-review-of-jtmm-flux-loop-correspondence/review-gate/base-tree PYTHONPATH=/tmp/reckon-crew-scratch/r-20261006T044654970636-review-of-jtmm-flux-loop-correspondence/review-gate/base-tree /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/data/test_virtual_zarr.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T044654970636-review-of-jtmm-flux-loop-correspondence/base-gate.log",
+    "revision": "a9518f2d4f885b640c0eee7a3fb4636746357a66"
+  },
+  "completed_at": "2026-10-06T05:06:02.495Z",
+  "dispatched_at": "2026-10-06T04:47:03Z",
+  "findings": [
+    {
+      "category": "correctness",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-flux-loop-correspondence.html",
+      "line": "44",
+      "severity": "blocking",
+      "text": "The fragment states the same-index raw MDAC channels magFlxLp28..34 'are mutually uncorrelated, so they are distinct signals rather than one duplicated'. Re-measured on the same common PSRC window, their mutual Pearson correlation is min|r| = 0.99991 (max 0.999999), i.e. near-perfectly correlated during this window, not uncorrelated; the manifest's evidence_inputs repeats it as 'min off-diagonal corr ~0'. The node's own dispersion measure flags PSRC magFluxLp28..34 as mutually uncorrelated (min|r| = 0.038), so the statement was apparently written about the processed channels but attributed to the raw ones. The identity/no-partner conclusion is unaffected, but the durable record carries a measurement claim inverted from the data."
+    },
+    {
+      "category": "correctness",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-flux-loop-correspondence.html",
+      "line": "40",
+      "severity": "follow-on",
+      "text": "The summary sentence says channels 28..34 'best residual exceeds 5 % of range under every candidate', but magFluxLp30's best residual is 4.96% (flux_loop_table.json row magFluxLp30, rel_residual 4.9595e-02), below the 5% threshold. The fragment's own flags section correctly omits magFluxLp30 from the high-residual list, so the prose contradicts the record's own output."
+    },
+    {
+      "category": "correctness",
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-flux-loop-correspondence.html",
+      "line": "38",
+      "severity": "follow-on",
+      "text": "The fragment says, for channels 1..27, 'the two channels' ranges agree to within 0.3 %'. Re-measured, the raw ranges over the common window differ by up to 2.54% (magFluxLp3), and even the slope-scaled range a*ptp(MDAC) differs by up to 0.69%; the fitted slopes themselves span 0.985-1.030, a spread inconsistent with 0.3% range agreement."
+    }
+  ],
+  "follow_ons": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "none",
+    "diff": "Read commit by commit against base a9518f2d: bce19606 adds the 34-row fragment (census of PSRC->MDAC fits) and 54569fc3 adds the instrument-check section (positive control). Both are additive to one HTML file inside the declared fragment path; no product source, test, or plan file is touched and no plan meta line is edited.",
+    "done_when": "The done-when is the script+log+JSON under the run reports directory plus the 34-row fragment table naming every non-unique (runner-up ratio < 2) and high-residual (> 5%) channel and stating the identity verdict. All are present: flux_loop_correspondence.log SUMMARY has identity_permutation false, nonunique magFluxLp28..34, high_residual magFluxLp28,29,31,32,33,34; the fragment carries the 34 rows and the same flag lists. The node also added instrument_check.py/.log as a positive control (identity recovered at Pearson r=0.9995-0.9999 at indices 1..5,27). Three supplementary prose claims are false (see findings).",
+    "goal": "The node goal is to measure which raw MDAC flux-loop channel each processed PSRC flux loop is, with its scale, sign and offset, on the cached E101154, without assigning geo.in positions. The landed fragment delivers exactly this: flux_loop_table.json relates each of the 34 PSRC magFluxLp1..34 against all 34 MDAC magFlxLp1..34 under the linear and integral relations, gives the best channel, relation, slope a and offset b, and the fragment states the identity permutation for 1..27 and the absence of a unique partner for 28..34, explicitly deferring geo.in positions to SELENE. I re-ran the census read-only and reproduced the table byte-for-byte.",
+    "manifest": "The run manifest reads status complete and reconciles with the artefacts: commits 54569fc3 bce19606; changed_paths the single fragment; tests name the two census scripts with EXIT=0 and test_logs name their logs; artifacts name flux_loop_table.json and the scripts. Its evidence_inputs repeats the false 'mutually uncorrelated' claim. No baseline_suite/after_suite arms are recorded, consistent with an unarmed measurement node.",
+    "write_paths": "The declared write paths were docs/evidence/fragments/jt60sa-machine-map/jtmm-flux-loop-correspondence.html and the (unused) docs/figures/jt60sa-machine-map/jtmm-flux-loop-correspondence directory. The diff touches only the fragment HTML (+121 then +19 lines over commits bce19606 and 54569fc3); the worktree is clean at 54569fc3 and no figure was written, matching the dispatch's 'done-when names no artifact' clause."
+  },
+  "justifications": "Independent review of run r-20261006T043701845781-jtmm-flux-loop-correspondence (plan imas-ambix:jt60sa-machine-map section 5), reviewed_base_sha a9518f2d4f885b640c0eee7a3fb4636746357a66, reviewed_head_sha 54569fc36ee660ec447cc19aac6baaa2354b69bc, stored as a parsed record scoring all six dimensions in 0..20 -- goal_fidelity 19, evidence 14, scope_discipline 20, durability 12, fit 18, reuse 20 -- total 20 in the 0..120 sum. Goal fidelity is high: I re-ran the reviewed census script read-only against the cached E101154 store in a scratch copy and reproduced flux_loop_table.json byte-for-byte (identity_permutation false; nonunique magFluxLp28..34; high_residual magFluxLp28,29,31,32,33,34), confirming the identity correspondence for 1..27 and the absence of a unique raw partner for 28..34 without any geo.in assignment. Scope is full: the two commits touch only the single declared fragment HTML, the reviewed worktree is clean, no plan or product source is touched and no figure was written. Fit and reuse are strong: the fragment follows the sibling evidence-fragment idiom with element ids prefixed by the node id, and adds no code so nothing is forked or duplicated. Durability is weak: no test guards the correspondence, and the instrument (flux_loop_correspondence.py, instrument_check.py) lives only under the operator's run reports directory, outside version control, so a later reader cannot reproduce the numbers from the repository alone; the fragment's unsupported prose claims are themselves evidence that nothing checks them. Evidence is reduced below the required outputs because three quantitative claims in the fragment are false or unsupported against the cache: channels 28..34 do not all exceed 5% (magFluxLp30 is 4.96%), the raw MDAC 28..34 channels are near-perfectly correlated (min|r| 0.99991) not 'mutually uncorrelated', and the 1..27 raw ranges agree to within 2.54% not 0.3%. The required outputs (the 34-row table, the flag lists, the identity verdict, the positive control) are correct and reproduced; the errors are in the interpretive prose, one of which is recorded as blocking.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261006T044654970636-review-of-jtmm-flux-loop-correspondence",
+  "reviewed_base_sha": "a9518f2d4f885b640c0eee7a3fb4636746357a66",
+  "reviewed_head_sha": "54569fc36ee660ec447cc19aac6baaa2354b69bc",
+  "reviewed_run_id": "r-20261006T043701845781-jtmm-flux-loop-correspondence",
+  "reviewer": "review-of-jtmm-flux-loop-correspondence",
+  "scores": {
+    "durability": 12,
+    "evidence": 14,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T05:02:36+00:00",
+  "total": 103
+}

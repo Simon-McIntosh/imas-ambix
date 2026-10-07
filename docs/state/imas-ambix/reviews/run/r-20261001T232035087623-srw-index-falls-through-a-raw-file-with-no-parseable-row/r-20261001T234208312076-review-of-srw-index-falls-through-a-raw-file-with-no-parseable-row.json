@@ -1,0 +1,75 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite (classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null), so its own arms cannot supply the delta. This review therefore measured the reviewed node's declared telemetry gate in two scratch trees built from the reviewed commit's own object store (both extracted with git archive into $TMPDIR/arms, no git worktree created): base arm gate-base.log (revision 0bfbf46a: 70 passed, EXIT=0) and head arm gate-head.log (revision 84738710: 71 passed, EXIT=0). The head set is a superset of the base set (one test added, none removed; the failed-read retention fixture was adjusted but not removed), so both arms are green and head failing ids ([]) minus base failing ids ([]) is 0. The defect was reproduced independently, not accepted: carrying the head test file into the base source reddens test_a_job_whose_raw_file_has_no_parseable_row_is_answered_from_minute (1 failed, 54 deselected, EXIT=1, gate-repro-base-with-head-test.log), and this review's own mutation at head (reverting the predicate to non-blank-only) reddens the same test (1 failed, 54 deselected, EXIT=1, independent-mutation.log).",
+  "after_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_telemetry_index.py tests/test_telemetry_ingest.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T234208312076-review-of-srw-index-falls-through-a-raw-file-with-no-parseable-row/gate-head.log",
+    "revision": "84738710f24327bbcff7360ceacfa0097dce044d"
+  },
+  "baseline_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_telemetry_index.py tests/test_telemetry_ingest.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261001T234208312076-review-of-srw-index-falls-through-a-raw-file-with-no-parseable-row/gate-base.log",
+    "revision": "0bfbf46ac50135b0f77de1f6987c5b3b6a5701a9"
+  },
+  "completed_at": "2026-10-02T00:00:51.257Z",
+  "dispatched_at": "2026-10-01T23:42:16Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "1022,1058",
+      "severity": "follow-on",
+      "text": "follow-on: the same absent-vs-empty distinction the commit fixed for the raw tier is not applied one tier down. _raw_has_no_row returns False for any non-raw tier (line 1048: info[1] != _RAW_TIER), so a minute or hour file that is blank or holds no parseable row is still offered and can be selected by one_tier_per_job, which chooses by file presence, not by whether the file yields a job's rows. A job whose raw file is retired and whose minute compaction wrote nothing would then be pinned to an empty minute tier and its window read as uncovered while a populated hour tier sat beside it -- the identical hazard rule 1 of the retention block exists to prevent, one resolution coarser. Recorded as a residual of the node's goal rather than a defect the commit introduced: the node's brief and plan reading 10 name the raw tier only, and no in-repo path produces a blank minute beside a populated hour today (a compaction that writes nothing is exactly the case the _raw_has_no_row docstring names for the raw tier). If the tier selection is ever widened, the predicate belongs on every tier the selection ranks, not on the raw tier alone."
+    }
+  ],
+  "follow_ons": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "484,498",
+      "severity": "follow-on",
+      "text": "_holds_a_record_line now parses lines rather than testing them for non-blankness, and it is invoked from _raw_has_no_row inside ingest's per-pass offering filter (line 919) for every discovered raw file on every pass. A raw file whose every line fails to parse now costs a full lex of the file per pass until it settles, where a blank test stopped at the first byte. The common case is unchanged and cheap -- the scan stops at the first line that parses -- and the cost is bounded by the raw file, which is small against the ingest already reading it, so this is recorded rather than raised. It becomes material only for a pathologically large raw file that is unparseable end to end."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "_holds_a_record_line has exactly one production call site, _raw_has_no_row (line 1051); _raw_has_no_row has exactly one call site, ingest's offering filter (line 919); one_tier_per_job is called only from ingest (line 920) and re-exported at line 1590. Verified by grep over the head tree's imas_ambix and tests.",
+    "diff": "read commit 1c719858 (implementation) and 84738710 (evidence fragment) against base 0bfbf46a; three files changed, +142/-18: imas_ambix/agent/telemetry_index.py (+40/-? across the predicate and the _raw_has_no_row docstring), tests/test_telemetry_index.py (+41/-? including the new test and the adjusted retention fixture), and the node's own evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-index-falls-through-a-raw-file-with-no-parseable-row.html (+79).",
+    "done_when": "Read the node's measure: the review record stores a parsed record scoring all five dimensions in 0..20, reviewed_base_sha and reviewed_head_sha, and added_failure_count/added_failure_ids. This review record carries all of those. The reviewed run declares neither baseline_suite nor after_suite, so the delta is derived from this review's own two arms of the reviewed node's declared telemetry gate (base 70 passed EXIT=0, head 71 passed EXIT=0), recorded under baseline_suite and after_suite.",
+    "goal": "The node's declared goal is plan reading 10 (settled after the retention read-back): 'An empty or unreadable raw file counts as absent. A raw file with no parseable row does not stop the fall-through, so the index reads that job's minute tier.' The commit implements it: _holds_a_record_line now returns True only when some non-blank line parses as a JSON Mapping, mirroring the reader's own record grammar in _parse (line 1225: isinstance(parsed, Mapping)), so a raw file whose every line fails to parse is treated as absent exactly as a blank one is; _raw_has_no_row then drops it from the offering and one_tier_per_job falls through to the minute tier. The behaviour is asserted and passes: the new test answers a job whose raw file holds one non-blank unparseable line from minute with totals 2000/1000/800 and held tier {minute}. A raw file holding at least one parseable record is still offered, so a later unreadable line is refused in place by the read rather than absorbed by the fall-through -- verified by the adjusted retention test and by the node's negative control.",
+    "manifest": "read; it states the three-command gate green (71 passed / serving-python parse guard 1 passed / ruff All checks passed!, each EXIT=0), a negative control 1 failed EXIT=1, and names changed_paths imas_ambix/agent/telemetry_index.py, tests/test_telemetry_index.py and the evidence fragment. The manifest declares no baseline_suite/after_suite arms, so this review reconstructed them.",
+    "write_paths": "read the manifest's declared paths (imas_ambix/agent/telemetry_index.py, tests/test_telemetry_index.py, the evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-index-falls-through-a-raw-file-with-no-parseable-row.html, and the figures dir docs/figures/serving-record-warehouse/srw-index-falls-through-a-raw-file-with-no-parseable-row); the diff touches exactly the three files inside that set and the figures dir was not written -- under-delivery of the declared figures dir, not a scope breach. No plan, index or sprint state is mutated by either commit."
+  },
+  "justifications": "independent review of run r-20261001T232035087623-srw-index-falls-through-a-raw-file-with-no-parseable-row, reviewed_run_id r-20261001T232035087623-srw-index-falls-through-a-raw-file-with-no-parseable-row, base 0bfbf46a, head 84738710, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 19, evidence 18, scope_discipline 20, durability 16, fit 18 -- total 91, added_failure_count 0 with added_failure_ids [] derived from this review's own two arms of the reviewed run's declared telemetry gate (the reviewed run was dispatched unarmed, so its own baseline_suite and after_suite are null): base arm gate-base.log (scratch tree $TMPDIR/arms/base, revision 0bfbf46a: 70 passed, EXIT=0) and head arm gate-head.log (scratch tree $TMPDIR/arms/head, revision 84738710: 71 passed, EXIT=0). The reviewed node's declared goal -- plan reading 10's raw-tier fall-through -- is delivered and reproduced independently: at base (0bfbf46a) an unparseable-only raw file counted as a record line, so a job was pinned to a file carrying no sample while its minute tier went unread; at head the predicate judges a line by whether it parses as a JSON object exactly as the reader does, the new test answers from minute (2000/1000/800, held tier {minute}), and a raw file with at least one parseable record is still offered so a later corrupt line is refused in place. The defect was reproduced from the base source rather than accepted (carrying the head test file into the base source reddens the new test, 1 failed, 54 deselected, EXIT=1), and the guard was falsified by this review's own mutation at head (reverting the predicate to non-blank-only reddens the same test, 1 failed, 54 deselected, EXIT=1). One follow-on is recorded: the absent-vs-empty distinction is applied to the raw tier only, so a blank minute file beside a populated hour file would reproduce the same uncovered-window hazard one tier down, and the parse-based scan costs a full lex of an unparseable raw file per ingest pass. goal_fidelity and evidence lose a point each only for that untested tier-2 boundary; scope_discipline and fit are near-full: the diff is entirely inside the declared write paths, the predicate mirrors the reader's grammar rather than inventing a second one, and the change is one focused edit with no plan identifiers.",
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-index-falls-through-a-raw-file-with-no-parseable-row",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "review_kind": "review",
+  "review_run_id": "r-20261001T234208312076-review-of-srw-index-falls-through-a-raw-file-with-no-parseable-row",
+  "reviewed_base_sha": "0bfbf46ac50135b0f77de1f6987c5b3b6a5701a9",
+  "reviewed_head_sha": "84738710f24327bbcff7360ceacfa0097dce044d",
+  "reviewed_run_id": "r-20261001T232035087623-srw-index-falls-through-a-raw-file-with-no-parseable-row",
+  "reviewer": "review-of-srw-index-falls-through-a-raw-file-with-no-parseable-row",
+  "scores": {
+    "durability": 16,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "scope_discipline": 20
+  },
+  "section": "s8",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-01T23:59:10+00:00",
+  "total": 91
+}

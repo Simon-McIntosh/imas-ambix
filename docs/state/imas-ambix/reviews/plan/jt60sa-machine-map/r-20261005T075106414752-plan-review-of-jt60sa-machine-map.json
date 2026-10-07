@@ -1,0 +1,68 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T07:57:22.167Z",
+  "dispatched_at": "2026-10-05T07:51:11Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/selene_deck.py:325",
+      "id": "duplicate_owner-1",
+      "reason": "the plan should name nakamap's disposition (retired, or extended in place) so the deck grammar has exactly one owner.",
+      "text": "\u00a74 reimplements the deck\u2192IDS conversion that the cited `nakamap` package already performs (`coil_data`, `pf_active`, `pf_passive`, `magnetics`, `wall` at 5fec869), justified only as \"the seed, not the deliverable\"; the plan never states whether nakamap is superseded once `selene_deck.py` carries its grammar, so two converters for the same three deck files can coexist and drift, and the receipt/provenance the plan wants has to be re-derived rather than added to one owner",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/selene_deck.py:325",
+      "id": "interface_budget-1",
+      "reason": "with public_definitions at 0 this week, the section must account for the converter's surface the way the sibling sections do, which is a one-line addition to \u00a74.",
+      "text": "\u00a74 adds a public converter module and does not state in its own text what it retires or merges, or why nothing can be, while \u00a72, \u00a73 and \u00a77 each account for their added surface under the same rule; the \u00a74 retirement statement covers only the store-addressing and probe-angle catalogue slots (\"the probe-angle key retires the machine branch\"), leaving the module itself unaccounted",
+      "type": "interface_budget",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/gs/artifact_resolution.py:316",
+      "id": "reuse_search-1",
+      "reason": "the plan already records this as an open question carrying the \u00a77 gate, so naming the dependency confirms rather than alters the design.",
+      "text": "the \u00a77 claim that the JT-60SA description is authored \"from this source ... published through that owner with a pin of its own\" rests on `author_pinned_description`, which hard-imports `nova.imas.mast_geometry` and verifies against the three MAST pin constants; the plan defers the authoring route to the open question `jt60sa-artifact-authoring` but still sizes \u00a77's done-when as a runnable spine stamp, which cannot execute until that question is settled",
+      "type": "reuse_search",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "7d336e3a5446ea20830278d85e55e26e8aca6fb759dff089769038bbda1a67b8",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 37,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T07:58:35.433896+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "",
+      "reason": "",
+      "when": "2026-10-05T07:58:35.976637+00:00"
+    },
+    "reuse_search-1": {
+      "action": "declined",
+      "by": "",
+      "reason": "the open question jt60sa-artifact-authoring already names the dependency, and section 7 is gated behind section 6, so the stamp cannot be dispatched before the question is settled; the review itself marks it as not changing the plan",
+      "when": "2026-10-05T07:58:36.444257+00:00"
+    }
+  },
+  "review_run_id": "r-20261005T075106414752-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "f51a0d9a502be9bc61f4822b2070469eb7705fd1",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the two new modules each hide substantial behaviour behind one entry point: `imas_ambix/data/selene_deck.py` hides three deck grammars plus IDS netCDF emission behind one converter, and `imas_ambix/data/eddb_remote.py` hides the ssh transport, the remote module-loaded python and the batch array codec behind `RemoteEddbExtractor.fetch_batch` and `json/dataclass` records (eddb_remote.py:206,251). The plan routes the rest of JT-60SA into existing owners (description_reader, transform_engine, cocos_convention, efit_referee, spine_bench) rather than spreading a parallel surface over them.",
+    "duplicate_owner": "a finding \u2014 \u00a74 adds `imas_ambix/data/selene_deck.py` to parse the SELENE decks into pf_active/pf_passive/magnetics/wall/tf IDS, reimplementing the conversion the plan itself cites the `nakamap` package (Simon-McIntosh/nakamap at 5fec869, modules `coil_data`/`pf_active`/`pf_passive`/`magnetics`/`wall`) as already performing, and says only that nakamap is \"the seed, not the deliverable\" without naming its disposition.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a74 adds a new public converter module (`selene_deck.py`) without naming, in its own text, what it retires or merges, or why nothing can be \u2014 the accounting \u00a74 does give covers only the catalogue's store-addressing and probe-angle slots, not the converter module that \u00a72, \u00a73 and \u00a77 each supply for their own new surface.",
+    "reuse_search": "pass \u2014 every mechanism the plan names exists in the tree and does what the plan claims, verified by opening the code: `description_reader.read_geometry_table` carries the `machine == \"mast\"` branch and `_supply_declared_probe_angles` (imas_ambix/data/description_reader.py:103,51); `load_machine_map` refuses empty `binding_sets` (imas_ambix/data/machine_map.py:1107) and validates with `_exact_keys` (machine_map.py:51); `cocos_convention.score_conventions`/`surviving_conventions`/`format_sign_report`/`ShotSignObservation` exist (imas_ambix/data/cocos_convention.py:382,392,606,183); `FluxLoopPositionDeclaration`/`flux_loop_positions_for` exist (machine_map.py:746,997); `efit_referee.judge_geometry`/`GeometryVerdict` and its loader-injection firewall exist (imas_ambix/eval/efit_referee.py:273,174,81); `spine_bench.runner._magnetics_residual` exists (imas_ambix/spine_bench/runner.py:161); `gs/artifact_resolution` holds `PINNED_SEMANTIC_IDENTITY`/`PINNED_PHYSICAL_DIGEST`/`PINNED_REGISTRY_DIGEST` and `author_pinned_description` hard-imports `nova.imas.mast_geometry.publish_refined_artifact` (imas_ambix/gs/artifact_resolution.py:69,77,316); `gs/machine_selection.ArtifactMachineSelector`/`select_machine` and `machine_identity.identity_for_shot`/`default_registry` point at the Nova MAST registry (imas_ambix/gs/machine_selection.py:101,192; imas_ambix/gs/machine_identity.py:207,145). The plan is unusual in citing the code rather than only searching for it, and the citations hold.",
+    "thin_wrapper": "pass \u2014 every layer the plan adds over existing machinery carries its reason in the section's own text: the \u00a72 tokamap exporter \"retires nothing, because ambix has no exporter\"; the \u00a73 extractor \"retires nothing, because ambix has no remote reader today\" and \"adds no `ambix data` command\"; \u00a76 supplies an observation cohort to the existing scorer and generalises the `convention.py` entry point \"rather than writing a second scorer\"; \u00a77 adds a SELENE reference loader to `efit_referee` \"instead of a parallel comparator\" and the EQDB reader \"using its transport and cache rather than a second path\". No wrapper is proposed without that justification."
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T07:58:24.984448+00:00"
+}

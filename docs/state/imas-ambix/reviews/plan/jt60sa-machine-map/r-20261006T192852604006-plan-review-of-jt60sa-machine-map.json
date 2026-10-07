@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T19:34:01.171Z",
+  "dispatched_at": "2026-10-06T19:29:02Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/worldmodel/equilibrium_labels.py:477",
+      "id": "duplicate_owner-1",
+      "reason": "naming the owner makes \u00a77 feed EfitLabels into build_geometry_from_arrays instead of writing a second reduction, which is the reuse the section's own drift argument requires.",
+      "text": "\u00a77's SELENE reference loader (docs/plans/jt60sa-machine-map.html:716-718) reduces a SELENE EfitLabels (psi, boundary, axis) into an EquilibriumGeometry while citing only the return type, but that reduction is already owned by build_geometry_from_arrays (imas_ambix/worldmodel/equilibrium_labels.py:477), reached via load_equilibrium_geometry (line 400) which is the default loader behind read_efit_geometry's seam (imas_ambix/eval/efit_referee.py:118); a parallel adapter would re-derive the X-point null-set handling, the LCFS radius resampling at fixed poloidal angles and the frame projection \u2014 exactly the axis/COCOS drift the plan says this chain exists to prevent",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "5e4e1e2861b6cdd67cc9b10f880c8a12cef2e490b2d8ae481b012ac14bce9b09",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 221,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T19:35:07.201389+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T19:35:07.201389+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v221.json",
+  "review_run_id": "r-20261006T192852604006-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "60bc3a268bc485c515971454322285c9ee199cf9",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the open work extends existing deep modules with narrow additions (one untransformed accessor on VirtualZarrView, two extracted helpers in eddb.py, a machine-keyed pin table and registry) rather than spreading new behaviour across wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a77 reduces a SELENE EfitLabels into an EquilibriumGeometry without naming the existing builder that owns that reduction.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds surface states in its own text what it retires or merges or why nothing can be (\u00a72 exporter \"retires nothing, because ambix has no exporter\"; \u00a77 pin table \"retires three public definitions ... and adds one\"; \u00a76 EQDB types \"retire nothing, because no equilibrium-database request type exists\").",
+    "reuse_search": "pass \u2014 the plan names the mechanism it extends for each open node and the codebase confirms each exists (eddb.write_channel, VirtualZarrView, cocos_convention._observation_from_series, machine_identity.default_registry, spine_bench.shots.FROZEN_SHOTSET, eval.efit_referee.read_efit_geometry).",
+    "thin_wrapper": "pass \u2014 the EQDB transport and grid writer are additions inside the owning modules (eddb_remote.py, eddb.py) and the plan states why the channel types cannot be widened rather than sitting beside them."
+  },
+  "section_digests": {
+    "_document": "62723cd7583dc5b18a64491724a048c3d8c8b0e2245109da9998ff5051244217",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "01e55d33e340390efdc4c8435a86bb3d3ae52039169d60f1f67126bbc0b258a3",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "15e1e84b0b147011d0f8b30b6d9212e27f4d456c36e8d1411ea6283e1491a7fe",
+    "s7": "98cb613c0803ddc3cc31bcc07322fe88b7c08be5c7b6784f39a60e84c93f8ca4",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T19:34:51.576164+00:00"
+}

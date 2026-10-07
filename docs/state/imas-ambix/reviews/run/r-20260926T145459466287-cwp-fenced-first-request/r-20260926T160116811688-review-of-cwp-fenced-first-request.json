@@ -1,0 +1,62 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "clive",
+  "call_site_count": 2,
+  "call_sites": [
+    "reckon/serve.py:2151 do_GET serving the plan page and the figure through the mount-relative route documented at reckon/serve.py:32",
+    "reckon/resources.py:45 INFRA_DIRS marking docs/figures as an infrastructure directory rather than a typed resource"
+  ],
+  "completed_at": "2026-09-26T16:34:34.397Z",
+  "dispatched_at": "2026-09-26T16:01:25Z",
+  "findings": [
+    {
+      "file": "docs/figures/clive-worker-profiles/fenced-first-request-bytes.svg",
+      "line": "37",
+      "text": "the axis label carries text-anchor=\"end\" twice, so the file is not well-formed XML (expat reports duplicate attribute at line 37 column 53)) \u2014 an SVG loaded through the img src at docs/evidence/archive/clive-worker-profiles-landed.html:79 is XML-parsed, so the figure does not render; the two pre-existing figures in the same directory parse cleanly, so this is introduced by this change."
+    },
+    {
+      "file": "docs/evidence/archive/clive-worker-profiles-landed.html",
+      "line": "75",
+      "text": "the 52,371-byte difference is explained as memory and settings, but re-reading the two stored bodies shows 34,456 bytes of it (65.8%) is the tools array, because the unfenced arm carries 26 tool definitions the fenced arm does not (20 mcp__imas-dd__ tools, 5 mcp__reckon__ tools, and the MCP resource tools) that the harness home's user-scope config never declares, so the record attributes to memory a saving that is mostly the loss of every MCP tool."
+    },
+    {
+      "file": "docs/evidence/archive/clive-worker-profiles-landed.html",
+      "line": "72",
+      "text": "the second marker recorded as git-safety memory, \"or path restoration\", sits at .messages[0].content[3].text which is the dispatch prompt on stdin, and the control arm reports it present at the same path with an empty harness home, so as evidence of memory that line would read PRESENT in an arm that carries no memory at all while the control table at report.md:110-118 omits it."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 2 production call site(s)",
+    "diff": "read abd1d766 against its parent b97ab0075d86fd8d90d7394cc416be323d2dd5fa; one commit, three files, 57 insertions and 0 deletions, adding the measurement paragraph to the plan, the evidence section with its table to the cumulative archive, and a new three-bar figure, with no repository file changed outside those three.",
+    "done_when": "all four named items are present and I re-read each artifact behind them at the sizes the record states, and the declared negative control holds in launch/fenced-summary-nc.json (marker absent, counter absent, fixture stays in-progress); the one soft spot is item (1)'s second needle, whose control arm also reports present and which I name in a finding below.",
+    "goal": "the node goal is to measure what a fenced clive worker launch sends and runs, and the landed record reports all four surfaces with their evidence paths: launch/fenced-summary.json.first_request_bytes 224,560, launch/stop-hook-fixture/.worker_stop_blocks reading 3 with launch/stop-hook-fixture/manifest.md capped to status: blocked, launch/cc-out/bodies/0002.json .messages[3].content[0].content carrying a PreToolUse:Bash hook error with \"permissionDecision\": \"deny\", and the git-safety bytes at .messages[0].content[0].text.",
+    "manifest": "read; it names commit abd1d766, records the launch itself as the gate with both arm logs, states the control holding, and its follow_ons field discloses that the driver's guard_refusal_phrase needle cannot match the guard's wording, which launch/launch_fenced.py:69-72 confirms is \"outside the run\" against a guard whose text reads \"mutating git refused\".",
+    "write_paths": "read the manifest's four declared paths; the single commit abd1d766 touches exactly docs/evidence/archive/clive-worker-profiles-landed.html (+15), docs/figures/clive-worker-profiles/fenced-first-request-bytes.svg (+40) and docs/plans/clive-worker-profiles.html (+2), each inside the fence and each a pure insertion, with the reports path outside the repository and unmodified."
+  },
+  "justifications": {
+    "durability": "launch/launch_fenced.py replays a stored argv against a stored stub with its sha256 so the numbers are re-derivable, but the guard needle at launch/launch_fenced.py:70 can never match and no check in the tree parses the figure's XML.",
+    "evidence": "the byte counts and the deny text trace to stored bodies, but launch/fenced-summary-nc.json shows the needle \"or path restoration\" present at .messages[0].content[3].text in the empty-home control, so the memory claim at docs/evidence/archive/clive-worker-profiles-landed.html:72 rests on a marker that arm also carries.",
+    "fit": "the prose and markup follow the archive's idiom and carry no plan-stage or author label, but docs/figures/clive-worker-profiles/fenced-first-request-bytes.svg:37 is not well-formed XML, so the one figure this record adds will not render where it is embedded.",
+    "goal_fidelity": "launch/fenced-summary.json records all four surfaces the goal names and the anchor at docs/evidence/archive/clive-worker-profiles-landed.html:70-80 states each with its JSON location, so the measurement matches the goal.",
+    "scope_discipline": "the commit abd1d766 touches only the three declared repository paths and the cumulative evidence archive gained 15 lines with 0 deletions, so no earlier landing was displaced."
+  },
+  "project": "imas-ambix",
+  "raw_text": "review of cwp-fenced-first-request, read at base b97ab0075d86fd8d90d7394cc416be323d2dd5fa and head abd1d766ee71ef4f12551f6ecdf01cbb669bdbc8\n\nVERDICT goal: the node goal is to measure what a fenced clive worker launch sends and runs, and the landed record reports all four surfaces with their evidence paths: launch/fenced-summary.json.first_request_bytes 224,560, launch/stop-hook-fixture/.worker_stop_blocks reading 3 with launch/stop-hook-fixture/manifest.md capped to status: blocked, launch/cc-out/bodies/0002.json .messages[3].content[0].content carrying a PreToolUse:Bash hook error with \"permissionDecision\": \"deny\", and the git-safety bytes at .messages[0].content[0].text.\nVERDICT done_when: all four named items are present and I re-read each artifact behind them at the sizes the record states, and the declared negative control holds in launch/fenced-summary-nc.json (marker absent, counter absent, fixture stays in-progress); the one soft spot is item (1)'s second needle, whose control arm also reports present and which I name in a finding below.\nVERDICT write_paths: read the manifest's four declared paths; the single commit abd1d766 touches exactly docs/evidence/archive/clive-worker-profiles-landed.html (+15), docs/figures/clive-worker-profiles/fenced-first-request-bytes.svg (+40) and docs/plans/clive-worker-profiles.html (+2), each inside the fence and each a pure insertion, with the reports path outside the repository and unmodified.\nVERDICT manifest: read; it names commit abd1d766, records the launch itself as the gate with both arm logs, states the control holding, and its follow_ons field discloses that the driver's guard_refusal_phrase needle cannot match the guard's wording, which launch/launch_fenced.py:69-72 confirms is \"outside the run\" against a guard whose text reads \"mutating git refused\".\nVERDICT diff: read abd1d766 against its parent b97ab0075d86fd8d90d7394cc416be323d2dd5fa; one commit, three files, 57 insertions and 0 deletions, adding the measurement paragraph to the plan, the evidence section with its table to the cumulative archive, and a new three-bar figure, with no repository file changed outside those three.\nCALL_SITES: reckon/serve.py:2151 do_GET serving the plan page and the figure through the mount-relative route documented at reckon/serve.py:32, reckon/resources.py:45 INFRA_DIRS marking docs/figures as an infrastructure directory rather than a typed resource\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: launch/fenced-summary.json records all four surfaces the goal names and the anchor at docs/evidence/archive/clive-worker-profiles-landed.html:70-80 states each with its JSON location, so the measurement matches the goal.\nSCORE evidence: 17\nJUSTIFICATION evidence: the byte counts and the deny text trace to stored bodies, but launch/fenced-summary-nc.json shows the needle \"or path restoration\" present at .messages[0].content[3].text in the empty-home control, so the memory claim at docs/evidence/archive/clive-worker-profiles-landed.html:72 rests on a marker that arm also carries.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: the commit abd1d766 touches only the three declared repository paths and the cumulative evidence archive gained 15 lines with 0 deletions, so no earlier landing was displaced.\nSCORE durability: 18\nJUSTIFICATION durability: launch/launch_fenced.py replays a stored argv against a stored stub with its sha256 so the numbers are re-derivable, but the guard needle at launch/launch_fenced.py:70 can never match and no check in the tree parses the figure's XML.\nSCORE fit: 16\nJUSTIFICATION fit: the prose and markup follow the archive's idiom and carry no plan-stage or author label, but docs/figures/clive-worker-profiles/fenced-first-request-bytes.svg:37 is not well-formed XML, so the one figure this record adds will not render where it is embedded.\nFINDING docs/figures/clive-worker-profiles/fenced-first-request-bytes.svg:37 the axis label carries text-anchor=\"end\" twice, so the file is not well-formed XML (expat reports duplicate attribute at line 37 column 53)) \u2014 an SVG loaded through the img src at docs/evidence/archive/clive-worker-profiles-landed.html:79 is XML-parsed, so the figure does not render; the two pre-existing figures in the same directory parse cleanly, so this is introduced by this change.\nFINDING docs/evidence/archive/clive-worker-profiles-landed.html:75 the 52,371-byte difference is explained as memory and settings, but re-reading the two stored bodies shows 34,456 bytes of it (65.8%) is the tools array, because the unfenced arm carries 26 tool definitions the fenced arm does not (20 mcp__imas-dd__ tools, 5 mcp__reckon__ tools, and the MCP resource tools) that the harness home's user-scope config never declares, so the record attributes to memory a saving that is mostly the loss of every MCP tool.\nFINDING docs/evidence/archive/clive-worker-profiles-landed.html:72 the second marker recorded as git-safety memory, \"or path restoration\", sits at .messages[0].content[3].text which is the dispatch prompt on stdin, and the control arm reports it present at the same path with an empty harness home, so as evidence of memory that line would read PRESENT in an arm that carries no memory at all while the control table at report.md:110-118 omits it.",
+  "review_run_id": "r-20260926T160116811688-review-of-cwp-fenced-first-request",
+  "reviewed_base_sha": "b97ab0075d86fd8d90d7394cc416be323d2dd5fa",
+  "reviewed_head_sha": "abd1d766ee71ef4f12551f6ecdf01cbb669bdbc8",
+  "reviewed_run_id": "r-20260926T145459466287-cwp-fenced-first-request",
+  "scores": {
+    "durability": 18,
+    "evidence": 17,
+    "fit": 16,
+    "goal_fidelity": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-26T16:27:00.657750+00:00",
+  "total": 89
+}

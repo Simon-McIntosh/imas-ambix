@@ -1,0 +1,84 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest names no baseline_suite/after_suite gate arms, so this count was read by this review from the reviewed run's own six default-bound gate logs (logs/default300-*.log, each at revision adb67e5f37a4b939971300f645c37ddabe77ba12): all six end EXIT=0 with zero FAILED or ERROR node ids (66 passed, 3 skipped). The change is docs-only, so the head arm at 192707f11d639df769d8c3f355f15eb9361f9d6a is the same tree for tests; this review's own head-arm runs (basin-scout at the default bound: 1 passed, EXIT=0; the same test at --timeout=60: 1 failed, EXIT=1, the negative control) add no failure beyond the reviewed run's own. added_failure_count is therefore 0 and added_failure_ids is empty.",
+  "after_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/a663ef24-6dba-4bb9-9ea5-3f1597c64253/ped-timeout-latent command uv run --no-sync pytest -p no:cacheprovider --durations=0 --basetemp=/tmp/ptl300-engine tests/latent/test_engine.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T125152619186-ped-timeout-latent/logs/default300-*.log",
+    "note": "literal command for tests/latent/test_engine.py at the default 300 s bound; the reviewed run repeated it per file (logs default300-*.log)",
+    "revision": "192707f11d639df769d8c3f355f15eb9361f9d6a"
+  },
+  "artifacts_note": "independent negative-control reproduction on the fleet compute node (job 1277272): tests/latent/test_synthetic_truth.py::test_basin_scout_reaches_confined_where_fixed_shape_drifts alone at --timeout=60 -> 1 failed in 68.75s, EXIT=1, 'Failed: Timeout (>60.0s) from pytest-timeout'; the same test at the default 300 s bound -> 1 passed in 133.44 s, EXIT=0 (reviewed run measured 132.97 s). Logs under this review run's logs/ (negctl-timeout60-basin-scout.log, def300-basin-scout.log).",
+  "base_log_revision": "adb67e5f37a4b939971300f645c37ddabe77ba12",
+  "baseline_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/a663ef24-6dba-4bb9-9ea5-3f1597c64253/ped-timeout-latent command uv run --no-sync pytest -p no:cacheprovider --timeout=3600 --durations=0 --basetemp=/tmp/ptl-engine tests/latent/test_engine.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T125152619186-ped-timeout-latent/logs/measure-*.log",
+    "note": "literal command for tests/latent/test_engine.py, one of the six files the reviewed run measured; the run repeated it per file at --timeout=3600 (logs measure-*.log)",
+    "revision": "adb67e5f37a4b939971300f645c37ddabe77ba12"
+  },
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-05T13:53:40.749Z",
+  "dispatched_at": "2026-10-05T13:42:16Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T125152619186-ped-timeout-latent/manifest.md",
+      "line": "baseline_suite",
+      "severity": "follow-on",
+      "text": "follow-on: the reviewed manifest names no baseline_suite/after_suite gate arms -- its evidence is the tests and test_logs fields with per-file logs under logs/ -- so a read-time annotation of this review yields an unmeasured added-failure count; the six default-bound logs each end EXIT=0 with zero FAILED or ERROR ids, so the count is zero, but carrying the two arms would let a reader derive it rather than read it by hand."
+    },
+    {
+      "file": "docs/evidence/fragments/project-environment-declared/ped-timeout-latent.html",
+      "line": "4",
+      "severity": "follow-on",
+      "text": "follow-on: the 'Load (1 min)' column repeats one value per file (7.17 for five files, 8.44 for two) rather than a per-test reading, so a reader can mistake the file-level load for a per-test one; the column would name its scope better as 'Load (1 min, file)'."
+    }
+  ],
+  "head_log_revision": "192707f11d639df769d8c3f355f15eb9361f9d6a",
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "read both commits; 35 + 3 insertions, the new fragment and its negative-control paragraph, nothing else.",
+    "done_when": "the node's deliverable is a table row per listed test; the fragment carries eighteen rows, one per id, each with phase, measured seconds, load and outcome.",
+    "goal": "\u00a75's goal for this node is to resolve each tests/latent/ test the 300 s bound reached by its measured duration; each of the eighteen was run alone on the fleet compute node and every one is under the bound, so no mark was added.",
+    "manifest": "read; it records the six files, both measurement rounds, the slowest test at 132.97 s, the ruff gate and the negative control, with log paths under logs/.",
+    "write_paths": "the run declares docs/evidence/fragments/project-environment-declared/ped-timeout-latent.html, and git diff adb67e5f..192707f1 touches that path alone (38 insertions)."
+  },
+  "justifications": {
+    "durability": "the fragment is a durable per-test record and the new negative control shows the bound is live, but the 'under bound' claim rests on a one-time measurement that can drift as the latent tests grow and no test asserts the per-test bound.",
+    "evidence": "every fragment duration reconciles with the reviewed run's own measure-*.log durations tables, the eighteen ids equal the plan's source list, and the negative control was independently reproduced; the reviewed manifest names no baseline_suite/after_suite arms, so the added-failure count is read from the per-file gate logs rather than derived from named arms.",
+    "fit": "the fragment follows the evidence-fragment conventions with node-id-prefixed element ids (ped-timeout-latent, ped-timeout-latent-table) and plan-free naming, and both commits carry a conventional subject and a body.",
+    "goal_fidelity": "\u00a75 asks each tests/latent/ row the 300 s bound reached to be resolved by its measured duration; the fragment gives all eighteen a row with phase, measured seconds and outcome, and no test needed a raised mark.",
+    "reuse": "the node reuses the existing fragment/evidence pattern and the plan's shared-fixture rule rather than duplicating a per-variant measurement, one table row per listed test.",
+    "scope_discipline": "git diff adb67e5f37a4b939971300f645c37ddabe77ba12..192707f11d639df769d8c3f355f15eb9361f9d6a is exactly the one declared fragment path, 38 insertions, 0 deletions, with no product source and no test file touched."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20261005T125152619186-ped-timeout-latent at head\n192707f11d639df769d8c3f355f15eb9361f9d6a against base adb67e5f37a4b939971300f645c37ddabe77ba12 (plan imas-ambix:project-environment-declared\n\u00a75, \"Triage the tests the 300 s bound reaches\"). The reviewed run carries two\ncommits on top of base: 2c58c884 records per-test measurements for the\ntests/latent/ rows the whole-suite 300 s bound reached, and 192707f1 adds the\nnegative control for that triage. Both touch the single declared evidence\nfragment; nothing under tests/ or imas_ambix/ changed (docs only, 38 insertions,\n0 deletions). The reviewed worktree was clean at head and this review changed\nnothing in it.\n\nIndependently verified in this reviewer's own reading:\n(1) The fragment's eighteen tests/latent/ ids are exactly the eighteen the plan's\nsource list records (docs/evidence/fragments/project-environment-declared/\nped-declare-relock.html) -- none missing, none extra (set equality).\n(2) Every measured duration in the fragment reconciles with the reviewed run's\nown measure-*.log durations tables: 37.36 s setup (policy_run[fixed]), 3.93 s\n(policy_run[warm-start]), 4.94 s structure-regularisation, 13.54 s engine-grounds,\n7.54 s patch-encoder overfit, 6.10 s training-step, 132.97 s basin-scout, 3.81 s\nsign-prior-softplus, 8.07 s gaussian-overfit, 7.68 s sign-prior-penalty.\n(3) The reviewed run's six default-bound logs each end EXIT=0 with zero FAILED or\nERROR node ids (5+8+10+28+8+7 = 66 passed, 3 skipped).\n(4) The new negative control was reproduced here on the fleet compute node: the\nbasin-scout test alone bound to --timeout=60 aborts with 'Failed: Timeout\n(>60.0s) from pytest-timeout' on exactly that test id (1 failed in 68.75s,\nEXIT=1), and the same test at the default 300 s bound passes in 133.44 s\n(EXIT=0) -- the reviewed run measured 132.97 s. So the per-test bound is live and\nthe under-bound claim holds with margin.\n\nVERDICT goal: \u00a75's goal for this node is to resolve each tests/latent/ test the\n300 s bound reached by its measured duration; each of the eighteen was run alone\non the fleet compute node and every one is under the bound, so no mark was added.\nVERDICT done_when: the node's deliverable is a table row per listed test; the\nfragment carries eighteen rows, one per id, each with phase, measured seconds,\nload and outcome.\nVERDICT write_paths: the run declares docs/evidence/fragments/project-environment-\ndeclared/ped-timeout-latent.html, and git diff adb67e5f37a4b939971300f645c37ddabe77ba12..192707f11d639df769d8c3f355f15eb9361f9d6a touches that path\nalone (38 insertions).\nVERDICT manifest: read; it records the six files, both measurement rounds, the\nslowest test at 132.97 s, the ruff gate and the negative control, with log paths\nunder logs/.\nVERDICT diff: read both commits; 35 + 3 insertions, the new fragment and its\nnegative-control paragraph, nothing else.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: \u00a75 asks each tests/latent/ row the 300 s bound\nreached to be resolved by its measured duration; the fragment gives all eighteen\na row with phase, measured seconds and outcome, and no test needed a raised mark.\nSCORE evidence: 18\nJUSTIFICATION evidence: every fragment duration reconciles with the reviewed run's\nown measure-*.log durations tables, the eighteen ids equal the plan's source list,\nand the negative control was independently reproduced; the reviewed manifest names\nno baseline_suite/after_suite arms, so the added-failure count is read from the\nper-file gate logs rather than derived from named arms.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff adb67e5f37a4b939971300f645c37ddabe77ba12..192707f11d639df769d8c3f355f15eb9361f9d6a is exactly the one\ndeclared fragment path, 38 insertions, 0 deletions, with no product source and no\ntest file touched.\nSCORE durability: 17\nJUSTIFICATION durability: the fragment is a durable per-test record and the new\nnegative control shows the bound is live, but the 'under bound' claim rests on a\none-time measurement that can drift as the latent tests grow and no test asserts\nthe per-test bound.\nSCORE fit: 19\nJUSTIFICATION fit: the fragment follows the evidence-fragment conventions with\nnode-id-prefixed element ids (ped-timeout-latent, ped-timeout-latent-table) and\nplan-free naming, and both commits carry a conventional subject and a body.\nSCORE reuse: 19\nJUSTIFICATION reuse: the node reuses the existing fragment/evidence pattern and\nthe plan's shared-fixture rule rather than duplicating a per-variant measurement,\none table row per listed test.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T125152619186-ped-timeout-latent/manifest.md:baseline_suite follow-on: the reviewed manifest names no\nbaseline_suite/after_suite gate arms -- its evidence is the tests and test_logs\nfields with per-file logs under logs/ -- so a read-time annotation of this review\nyields an unmeasured added-failure count; the six default-bound logs each end\nEXIT=0 with zero FAILED or ERROR ids, so the count is zero, but carrying the two\narms would let a reader derive it rather than read it by hand.\nFINDING docs/evidence/fragments/project-environment-declared/ped-timeout-latent.html:4\nfollow-on: the 'Load (1 min)' column repeats one value per file (7.17 for five\nfiles, 8.44 for two) rather than a per-test reading, so a reader can mistake the\nfile-level load for a per-test one; the column would name its scope better as\n'Load (1 min, file)'.\n",
+  "review_run_id": "r-20261005T134207994054-review-of-ped-timeout-latent",
+  "reviewed_base_sha": "adb67e5f37a4b939971300f645c37ddabe77ba12",
+  "reviewed_head_sha": "192707f11d639df769d8c3f355f15eb9361f9d6a",
+  "reviewed_run_id": "r-20261005T125152619186-ped-timeout-latent",
+  "reviewer": "review-of-ped-timeout-latent",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T13:51:04Z",
+  "total": 112
+}

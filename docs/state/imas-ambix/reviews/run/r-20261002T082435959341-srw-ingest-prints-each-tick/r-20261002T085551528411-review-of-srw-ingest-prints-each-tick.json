@@ -1,0 +1,67 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest records no baseline_suite and no after_suite (the run's classification.json records manifest.data.baseline_suite and manifest.data.after_suite both null), so its own arms cannot supply the delta. This review reconstructed two arms from the reviewed commit's own object store, extracted with git archive (base 01147152, head 4e15882c) into $TMPDIR scratch trees (no branch or worktree created), and ran the node's declared telemetry gate in each: base arm gate-base.log (revision 01147152: 21 passed, EXIT=0) and head arm gate-head.log (revision 4e15882c: 24 passed, EXIT=0). Both arms are fully green, so head failing ids ([]) minus base failing ids ([]) is 0 and added_failure_count is 0. The head test set is a superset of the base set -- exactly the three new tests added by this node (test_help_names_the_per_tick_line, test_each_tick_prints_one_line_from_its_own_counts, test_a_flush_follows_each_line), none removed or renamed -- and the 21->24 delta is the positive control that the arm instrument sees the change. The node's mutation claim was reproduced independently: removing out.flush() from a copy of the head tree (not the reviewed worktree) reddens the flush-ordering test (negctl-review.log: FAILED tests/test_agent_ingest_cli.py::test_a_flush_follows_each_line, 1 failed, EXIT=1). Its real-loop claim was also reproduced: running the real agent ingest --once command (no stub, real telemetry_ingest.run) over an empty receipts dir prints one UTC-stamped line and exits 0 (real-loop.log).",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_agent_ingest_cli.py tests/test_telemetry_ingest.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T085551528411-review-of-srw-ingest-prints-each-tick/logs/gate-head.log",
+    "revision": "4e15882c97e1d66c406f5f319a9987dc3165765a"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_agent_ingest_cli.py tests/test_telemetry_ingest.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261002T085551528411-review-of-srw-ingest-prints-each-tick/logs/gate-base.log",
+    "revision": "0114715248ad22187aae4e201529292d54dd5843"
+  },
+  "completed_at": "2026-10-02T09:14:35.851Z",
+  "dispatched_at": "2026-10-02T08:55:58Z",
+  "findings": [],
+  "follow_ons": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "on_tick is a pre-existing optional parameter of telemetry_ingest.run (telemetry_ingest.py:209), invoked at telemetry_ingest.py:248-249 once per tick after the pass completes; nothing else in the tree passes it, so agent ingest is the sole production caller. _emit_ingest_tick is called only from the ingest command (cli.py:2865) and reached directly by the two command-level tests; _format_ingest_tick only from _emit_ingest_tick; _utc_now only from _emit_ingest_tick. Verified by grep over the head tree's imas_ambix and tests.",
+    "diff": "Read commit 4e15882c against base 01147152 (git diff --stat 01147152..4e15882c): exactly three files, +239/-0, all additions -- imas_ambix/agent/cli.py (+49: sys and datetime imports, the _utc_now/_format_ingest_tick/_emit_ingest_tick helpers, and the on_tick= argument plus the help paragraph in the ingest command), tests/test_agent_ingest_cli.py (+127: the frozen-clock and two-tick fixtures, the stubbed run, and three tests), and the node's own evidence fragment docs/evidence/fragments/serving-record-warehouse/srw-ingest-prints-each-tick.html (+63). The commit is a pure addition: no line removed anywhere.",
+    "done_when": "Read the node's measure: the review record stores a parsed record scoring all five dimensions in 0..20, reviewed_base_sha and reviewed_head_sha, and added_failure_count/added_failure_ids derived from the reviewed run's baseline_suite and after_suite gate logs. This record carries all of those (97 across the five dimensions, base 01147152, head 4e15882c, added_failure_count 0, no added ids). The reviewed run recorded no arms of its own, so the delta is derived from this review's two arms of the node's declared telemetry gate (base 21 passed EXIT=0, head 24 passed EXIT=0) stored under baseline_suite and after_suite.",
+    "goal": "The plan's \u00a75 fixes the ingest as a standing loop run by the lead over the fleet allocation whose liveness must be visible in the service log; the node goal is that agent ingest hands telemetry_ingest.run an on_tick callback writing one flushed UTC-stamped line per tick. Delivered: imas_ambix/agent/cli.py:2865 passes on_tick=_emit_ingest_tick to telemetry_ingest.run; _emit_ingest_tick (cli.py:2775) builds the line through _format_ingest_tick and writes then flushes it; the ingest help names the line and its fields so the format is discoverable. telemetry_ingest.run already accepted on_tick and invokes it once per tick after each pass (telemetry_ingest.py:248-249), and telemetry_ingest.py is unchanged by the real commit (0 lines in git show --stat). The stamp is the UTC wall clock at callback time via the _utc_now seam (cli.py:2748).",
+    "manifest": "Read the reviewed run's manifest; it states status complete, the three-command gate green at 4e15882c (24 passed / serving-python parse guard 1 passed / ruff clean, each EXIT=0), a negative control 1 failed EXIT=1, changed_paths imas_ambix/agent/cli.py, tests/test_agent_ingest_cli.py and the evidence fragment, and evidence_inputs naming the fabricated example line in the help. The manifest declares no baseline_suite/after_suite arms (dispatched unarmed), so this review reconstructed them from the commit's own object store. Its follow_ons: none.",
+    "write_paths": "Read the manifest's declared write paths (imas_ambix/agent/cli.py, tests/test_agent_ingest_cli.py, docs/evidence/fragments/serving-record-warehouse/srw-ingest-prints-each-tick.html, and the figures dir docs/figures/serving-record-warehouse/srw-ingest-prints-each-tick); the diff touches exactly the source, test and fragment files inside that set. The declared figures directory is unused, which is permitted (the done-when names no figure). No plan, shared index or sprint state is mutated. The reviewed worktree is clean at 4e15882c (git status empty) and all work is committed there; the commit is not yet an ancestor of the primary branch, which is expected -- merge belongs to the orchestrator."
+  },
+  "justifications": {
+    "durability": "The change is guarded by a real regression test that fails when the flush is removed (demonstrated by the run's own and this review's independent mutation), and by a command-level test that drives the real agent ingest command end-to-end. The 21 pre-existing tests pass unchanged at the head (the 21->24 delta is exactly the three additions), so no prior behaviour regressed. The real-loop control confirms the seam fires through the unstubbed loop. Held at 19 (not 20) because the on_tick seam itself (the thing that actually invokes the callback) is pre-existing and outside this node's change, so the node adds no coverage of it, and because the three tests run through a stubbed run rather than the real loop (compensated here by an independent real-loop control, not by the shipped suite).",
+    "evidence": "The declared gate reproduced green at both arms from the commit's own object store (gate-base.log 21 passed EXIT=0; gate-head.log 24 passed EXIT=0), and the head arm is a superset of the base arm by exactly the three new tests, so added_failure_count is 0. The node's own stored gate log matches (24 passed / 1 passed / ruff clean). The negative control was reproduced independently on a copy of the head tree: removing out.flush() reddens the flush-ordering test (1 failed, EXIT=1). A real-loop positive control (agent ingest --once over an empty dir, no stub, real telemetry_ingest.run) prints one UTC-stamped line and exits 0. Held at 19 (not 20) because the reviewed run stored no base/after arm logs of its own, so the delta had to be reconstructed here, and because the per-tick line's field names are asserted by literal string, which is necessarily coupled to the format.",
+    "fit": "The three helpers are named by mechanism (_utc_now, _format_ingest_tick, _emit_ingest_tick) and carry one-line docstrings stating why (the UTC seam; one line naming what a tick discovered; one flushed line so the log shows liveness), matching the module's existing grammar. No plan label, sprint id, ticket reference, version suffix or attribution appears in the diff; grep over the changed source and test files is clean. The help paragraph documents the emitted format at the point of emission, which is where a reader looks.",
+    "goal_fidelity": "Read the landed change against the node goal: agent ingest now passes on_tick=_emit_ingest_tick to telemetry_ingest.run (cli.py:2865), the callback writes one line to stdout and flushes it (cli.py:2775-2783). The line is UTC-stamped through the _utc_now seam.",
+    "scope_discipline": "Diff 01147152..4e15882c touches exactly imas_ambix/agent/cli.py, tests/test_agent_ingest_cli.py and the node's own evidence fragment, every one inside the manifest's declared write paths; the declared figures directory is unused, which is permitted. The change is a pure addition. No plan, shared index or sprint state is edited; the reviewed worktree is clean at the head."
+  },
+  "model": "deepseek-v4.1-flash",
+  "node": "review-of-srw-ingest-prints-each-tick",
+  "plan": "serving-record-warehouse",
+  "project": "imas-ambix",
+  "review_kind": "review",
+  "review_run_id": "r-20261002T085551528411-review-of-srw-ingest-prints-each-tick",
+  "reviewed_base_sha": "0114715248ad22187aae4e201529292d54dd5843",
+  "reviewed_head_sha": "4e15882c97e1d66c406f5f319a9987dc3165765a",
+  "reviewed_run_id": "r-20261002T082435959341-srw-ingest-prints-each-tick",
+  "reviewer": "review-of-srw-ingest-prints-each-tick",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "scope_discipline": 20
+  },
+  "section": "s5",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-02T09:12:00+00:00",
+  "total": 97
+}

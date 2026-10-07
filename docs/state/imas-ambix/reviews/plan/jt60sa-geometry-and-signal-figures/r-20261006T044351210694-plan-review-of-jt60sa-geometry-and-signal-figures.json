@@ -1,0 +1,46 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T04:51:54.093Z",
+  "dispatched_at": "2026-10-06T04:43:57Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-geometry-and-signal-figures.html:52",
+      "id": "duplicate_owner-1",
+      "reason": "the reader should resolve the phase directory through the same declared-store addressing the catalogue will own (or state that it mirrors those names only until `jt-60sa.json` lands), so the phase-to-directory map stays with the catalogue rather than being retyped in a figure script.",
+      "text": "the plan hardcodes the phase directories `OP1/`/`OP2/` under `JT60SA_DESCRIPTION_DIR` and builds `{phase}/{ids}.nc` itself, re-deriving store addressing that already has an owner: `imas_ambix/data/machine_map.py` `resolve_description_store_root` resolves a declared store root and `imas_ambix/data/transform_engine.py` `_NetCDFStoreArrays.read` addresses `{map dir}/{ids}.nc` for the static-over-map layout the `jt60sa-machine-map` catalogue is about to declare \u2014 two places naming the same phase directories will drift when the catalogue lands",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "80ea80a7ee93bc470556e643353e2cb8ce2507dcd3cc2b8bfe516e646347ba26",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 4,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v5 \u00a71 has the reader load jt-60sa.json (landed ef6895dd), take the root from description_store_root_path() and join each catalog.maps name, the static-over-map addressing transform_engine applies; the stale 'serves only mast' reason is removed",
+      "when": "2026-10-06T04:53:13.218684+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T044351210694-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "ce9b4659b9f98e32b3d2c02b54a0ee65ccd12316",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the substantial behaviour (a phase's store to drawable families for coils, vessel, wall, flux loops and probes) sits behind one reader and one cross-section function in `scripts/figures_jt60sa_geometry.py`, which \u00a72 extends rather than re-reading the store; the added `imas_ambix/plot_style.py` is a small, honest surface (named colour roles, an apply function, one shared direct-label helper), not a spread of wrappers over one mechanism.",
+    "duplicate_owner": "a finding \u2014 the plan names the phase directories `OP1/` and `OP2/` itself, but those are the JT-60SA map names the machine-map plan lands as `imas_ambix/data/machine_maps/jt-60sa.json` and that `imas_ambix/data/machine_map.py` `resolve_description_store_root` plus `transform_engine.py` `_NetCDFStoreArrays` use to address exactly this store.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a71 adds one module and states in its own text that it \"retires nothing\" because `imas_ambix/` holds no plotting style code, and that the inline-styling scripts stay as they are, so the added surface is accounted for.",
+    "reuse_search": "pass \u2014 the plan cites a specific 2026-10-06 search of `imas_ambix/data/`, `imas_ambix/gs/` and `scripts/`, naming `description_reader.read_geometry_table`, `load_packaged_machine_map`, `eddb.channel_path`/`channel_time_path`/`UNIT_ATTR`, `VirtualZarrView`, `MachineGeometryService.operator()`, `geometry_export.build_geometry_fields_from_table` and `scripts/validate_mast_geometry.py`, and gives a reason for rejecting each; no existing raw-store reader exists to reuse, so it is not rebuilding one.",
+    "thin_wrapper": "pass \u2014 the two layers the plan adds are each justified in its own text: the store read is raw `imas.DBEntry` because `read_geometry_table` would transform what the figure must show as converter output, and `plot_style.py` is the repository's first colour assignment (nothing to extend or merge) whose direct-label helper \u00a72 and \u00a73 share."
+  },
+  "section_digests": {
+    "_document": "83930f1b7b0267bad4eee3074ee3f5577a04323602d949d1724a1b4f6aa3671c",
+    "s1": "2662c02fc4487147e0db41bb7b01dadce00c5611582854b40ff321ebeb1f601d",
+    "s2": "87ae6ffa44e8fe7542f26495d17e914d4508cd9fce2f7b82d2043b4e7d7e79b7",
+    "s3": "412d685335710bd6f5f357e93d8240bc3eecde6d6630573d29e2bdcd32c98cbf"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T04:52:53.030010+00:00"
+}

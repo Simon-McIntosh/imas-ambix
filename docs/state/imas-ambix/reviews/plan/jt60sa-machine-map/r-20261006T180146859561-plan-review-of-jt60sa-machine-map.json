@@ -1,0 +1,124 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T18:08:18.292Z",
+  "dispatched_at": "2026-10-06T18:02:02Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/transform_engine.py:456",
+      "id": "reuse_search-1",
+      "reason": "\u00a76's central \"three changes\" narrative must be rewritten to name the landed node and point the remaining work at jtmm-angle-factor-retire alone, or \u00a76 re-authorises work already done.",
+      "text": "\u00a76 states \"the engine gains a pol_angle_like branch that applies no COCOS-digit factor and takes the angle's rotation sense only from the binding's authored sign_convention, refusing a binding whose sense is unknown-unvalidated\"; that branch already exists (_poloidal_angle_sense_factor at imas_ambix/data/transform_engine.py:425, dispatched at :456), it was already landed by commit b72dcfab and is guarded by tests/data/test_transform_engine.py:751,780, so an implementer reading \u00a76 as a spec would rebuild a guard the tree already carries",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/description_reader.py:255",
+      "id": "reuse_search-2",
+      "reason": "the \u00a76 prior-art sentence is now false and would send a worker to add a supplier that is present.",
+      "text": "\u00a76 states \"read_geometry_table applies nothing for probe_angle_source description today, so that branch fills each probe's angle from the emitted poloidal_angle\"; that branch already exists (description_reader.py:253-255, `_supply_declared_probe_angles` at :55, `_PROBE_ANGLE_DD_PATH` at :85), landed by the same b72dcfab and hardened by jtmm-probe-angle-guards",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/cocos.py:111",
+      "id": "reuse_search-3",
+      "reason": "the \u00a76 interface account (\"ambix retires one public definition\") counts a retirement already made, under-counting net surface change.",
+      "text": "\u00a76 states \"mast_angle_to_canonical has no production caller (its only caller is its own test in tests/test_cocos.py, which retires with it), ... so \u00a76 retires it\"; the symbol is already absent from the tree \u2014 imas_ambix/cocos.py __all__ (lines 111-120) no longer exports it, and b72dcfab removed both the function and its test reference \u2014 so \u00a76's retirement clause names a symbol that no longer exists",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/challenge/convention.py:283",
+      "id": "reuse_search-4",
+      "reason": "\u00a76 lists as new a definition the plan already shipped; the prose must record the landing so no node re-creates it.",
+      "text": "\u00a76 states \"The generic entry is one new public definition ... measure_convention(records, eligibility, *, shots)\"; that exact function already exists at convention.py:283, is already exported (__all__ line 353), and measure_diiid_convention already delegates to it with DIIID_ELIGIBILITY (line 333-341), landed by jtmm-convention-entry (cd8e9a7a, review 112/120)",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "477c7153d8d5612b3e68cf25bef9ea18dbf846bd8f071dc8dff49a5aa771a00d",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 201,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-1",
+      "reason": "",
+      "when": "2026-10-06T18:09:30.331458+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-2",
+      "reason": "",
+      "when": "2026-10-06T18:09:45.307053+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-3",
+      "reason": "",
+      "when": "2026-10-06T18:09:59.100954+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-4",
+      "reason": "",
+      "when": "2026-10-06T18:10:13.420024+00:00"
+    }
+  ],
+  "responses": {
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T18:09:30.331458+00:00"
+    },
+    "reuse_search-2": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T18:09:45.307053+00:00"
+    },
+    "reuse_search-3": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T18:09:59.100954+00:00"
+    },
+    "reuse_search-4": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T18:10:13.420024+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v201.json",
+  "review_run_id": "r-20261006T180146859561-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "20a476337374001efc27096ef3a9cf1b8a725fba",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 every new behaviour lands behind an existing deep module (eddb.py, transform_engine.py, cocos_convention.py, description_reader.py, eval/efit_referee.py) whose interface is unchanged; no section spreads one mechanism across parallel wrappers.",
+    "duplicate_owner": "pass \u2014 each shared mechanism is extended at its owner (eddb.py write_channel helpers shared by the grid writer; machine_identity.default_registry keyed per machine; the probe angle supplied by read_geometry_table's own selector branch), and the plan names each owner it extends.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; every section that adds a public definition carries an interface account in its own text (\u00a72 exporter \"retires nothing, because ambix has no exporter\"; \u00a76 \"one definition retired and one added\"; \u00a77 \"retires three public definitions and their re-export, and adds one, the table\").",
+    "reuse_search": "a finding \u2014 \u00a76's implementation narrative describes as future work the pol_angle_like engine branch, the description probe-angle supplier and the retirement of cocos.mast_angle_to_canonical, all three of which are already in the tree (b72dcfab), and it states that measure_convention and the generic convention kernel are still to be written when they exist (cd8e9a7a).",
+    "thin_wrapper": "pass \u2014 the readers the plan adds are justified replacements, not wrappers: read_signal_map_observation replaces the consumerless read_catalogue_observation, and the FAME/SELENE equilibrium maps extend the signal-map owner rather than layering over it."
+  },
+  "section_digests": {
+    "_document": "62723cd7583dc5b18a64491724a048c3d8c8b0e2245109da9998ff5051244217",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "b9c8c2627732a374aa73979a4f29d764a31720ca044b26c8e16c9554e43ae247",
+    "s7": "98cb613c0803ddc3cc31bcc07322fe88b7c08be5c7b6784f39a60e84c93f8ca4",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T18:09:16.738411+00:00"
+}

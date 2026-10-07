@@ -1,0 +1,51 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T04:35:42.212Z",
+  "dispatched_at": "2026-10-06T04:28:49Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html#s7",
+      "id": "interface_budget-1",
+      "reason": "the section would name the `--machine` argument and record it as replacing the implicit MAST default, so the added CLI surface is accounted for rather than silent.",
+      "text": "\u00a77's shot-set paragraph accounts for the new `BenchShot.machine` field (\"retire nothing, because no shot set records its machine today\") but never names the CLI option the same node adds: `scripts/spine_benchmark.py` takes `--machine` with no default and refuses `--shots` without it, a registered interface-budget family whose weekly count is 0 \u2014 the section must state what that option replaces (the prior implicit MAST default) or why nothing can be",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "127086becce4c2e2519f3154000001c13a74b8025572740cbff88e67f6f9a2ea",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 99,
+  "project": "imas-ambix",
+  "responses": {
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "coordinator",
+      "reason": "Acted in plan v100: section 7 names scripts/spine_benchmark.py --machine, required with --shots and with no default, as replacing the implicit MAST default.",
+      "when": "2026-10-06T04:38:11.752516+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T042842546008-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "28ec83f2e969fe12497d38e48b71839448547828",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the surface-bearing modules hide substantial behaviour behind small interfaces: `imas_ambix/data/eddb_remote.py` (`RemoteEddbExtractor`, `SshTransport` behind one batch contract), `imas_ambix/data/selene_deck.py` (one converter entry point over the deck/geo.in grammars), and `tokamap_export.export_tokamap_directory` (one public function over the collapse of unit x sign x COCOS into `scale`). The new \u00a77 behaviour is added to these owners, not spread over parallel wrappers.",
+    "duplicate_owner": "pass \u2014 the proposals extend the named owners rather than fork them: store addressing via `StoreEngine.open` + `read_geometry_table` (imas_ambix/data/description_reader.py), pins via `imas_ambix/gs/artifact_resolution.resolve_machine_description`, equilibrium scoring via `imas_ambix/data/cocos_convention.py` and `imas_ambix/eval/efit_referee.py`, and the EQDB store via `imas_ambix/data/eddb.py`. No second resolver, store or scorer is added; no existing grid-writer owner exists for eddb.py to duplicate.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a77 adds a CLI option (`--machine` in `scripts/spine_benchmark.py`) without naming it or stating what it retires or merges, or why nothing can be.",
+    "reuse_search": "pass \u2014 the plan searched both named codebases (imas-codex, imas-ambix) and nova, and for every mechanism it names the owner it extends: \u00a72 reuses `imas_ambix/data/tokamap_export.py` (visible as `_unit_factor`, `_sign_factor`, `export_tokamap_directory`), \u00a73 reuses the FAIR-MAST mirror's non-remote path, \u00a74 extends `StoreEngine.open`/`read_geometry_table`, \u00a75 reuses `load_packaged_signal_map` and `VirtualZarrView`, \u00a76 reuses `score_convention`/`read_level2_observation` etc, \u00a77 extends `RemoteEddbExtractor`, `eddb.py`, `resolve_machine_description` and `judge_geometry`. Every claim was checked by opening the code, not by reading the plan's account of it.",
+    "thin_wrapper": "pass \u2014 no proposal is a passive forwarder. \u00a74's `struct_array_entry` and the store-layout slots are justified in-text as a widening of an existing contract that had no such capability (\"retires nothing, because no binding could select a struct-array entry before\"; \"the engine cannot choose a layout from what it is given today\"), and \u00a77's grid writer shares invariants with `write_channel` under the same refuse-to-overwrite rule rather than standing as a second store."
+  },
+  "section_digests": {
+    "_document": "060371ce32b20f0360ee1915d508732a36f1e2589b54c97b2df633bc451a49ed",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "978348f9ca560d52451e65fd8e70efba5d44976616b33aa9e3cef8464d8b75a2",
+    "s5": "d9699df7cbddeb0512a8fea91555e191404c636d3da53692701ca5e7269c334d",
+    "s6": "74c26a09a208a6ba05c3237f425df468a2268a55e4c2660252ada8961082454f",
+    "s7": "62951da3372b659457fced3f72dd70f8514a9f1d9724d70e75e25619f5a84493",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T04:36:06.555457+00:00"
+}

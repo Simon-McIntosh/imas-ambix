@@ -1,0 +1,47 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T06:09:16.658Z",
+  "dispatched_at": "2026-10-06T06:04:50Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/transform_engine.py:363",
+      "id": "duplicate_owner-1",
+      "reason": "path resolution is the recurring duplicate this item exists for, and a second copy of the root/map-name/{ids}.nc rule drifts silently from the owner if the layout ever changes; \u00a71b already retires the same script's element-shape dispatch onto artifact_geometry, so applying the same remedy here (add a map-directory accessor to MachineMapCatalog or the netcdf engine and call it) closes the pattern the plan is otherwise correcting.",
+      "text": "\u00a71's reader resolves phase_dir = catalog.description_store_root_path() / machine_map.name and then reads phase_dir / f\"{ids}.nc\", re-implementing the static-over-map addressing that NetCDFTransformEngine.open performs at transform_engine.py:363-369 (Path(root) / machine_map.name, one {ids}.nc per IDS); the plan even names the owner (\"the static-over-map addressing transform_engine applies\") and then forks the rule instead of extending the owner with a public phase-directory accessor",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "0078d030c9bb8e62fa55b981cf61278514b1db5fc202160d4ca434974345f3fa",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 14,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v18 \u00a71 and \u00a71b resolve each phase directory through NetCDFTransformEngine.open (its returned store's path) with the catalogue's root, layout and map, retiring the reader's own join without adding a public name or editing the engine",
+      "when": "2026-10-06T06:11:27.617156+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T060444251094-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "a45d807053b1058777105e1e624b964e22d2674b",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 imas_ambix/plot_style.py hides the sheet, the role table and the direct-label helper behind apply_data_ink / palette / direct_label plus two role constants, and scripts/figures_jt60sa_geometry.py hides catalogue reading and cross-section drawing behind read_phase / cross_section; \u00a72 reuses that one reader rather than reading the store a second time.",
+    "duplicate_owner": "a finding \u2014 the reader re-derives the static-over-map phase directory (root / map.name, then {ids}.nc) that imas_ambix/data/transform_engine.py NetCDFTransformEngine.open owns.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a71 states the new plot_style module \"is the first and retires nothing\" because imas_ambix/ holds no plotting style code, and the one CLI option (--palette-candidates) \"retires and merges nothing\" because no existing script draws JT-60SA; \u00a71b explicitly adds no option, module or public name, widening the table behind the existing option.",
+    "reuse_search": "pass \u2014 \u00a71 carries an explicit reuse search over imas_ambix/data/, imas_ambix/gs/ and scripts/, and every mechanism it cites exists and is the right owner: imas_ambix/data/paths.py (JT60SA_ROOT, JT60SA_DESCRIPTION_DIR), imas_ambix/data/eddb.py (channel_path, channel_time_path, UNIT_ATTR), imas_ambix/data/machine_map.py (load_packaged_machine_map, description_store_root_path), and imas_ambix/gs/artifact_geometry.py's struct-level readers; VirtualZarrView is declined with a verification-consistent reason (it needs a CompiledSignalMap \u2014 virtual_zarr.py:92).",
+    "thin_wrapper": "pass \u2014 the style module is justified (imas_ambix/ holds no plotting style code, and the workstation mandate is one style module per repo) and the figure scripts add a capability nothing in scripts/ has (no script draws JT-60SA); the plan states why artifact_geometry.MachineArtifactGeometryReader is not the entry point (it resolves a content-addressed nova artifact by manifest and digest, not a per-phase description store) rather than wrapping it."
+  },
+  "section_digests": {
+    "_document": "0e65058252d0ab4bde21b9c35c53f1385c98dc79e86ef6e87685bbc459367536",
+    "s1": "c561398dfdd1c5caff4562e5032efa0b2bd12fe45fbd40153756310bb15bc76d",
+    "s1b": "8b0442fa7634a8a1a6a65228c124878ccfa389a5f871d0fab68e1e853fe410c7",
+    "s2": "b391ea9d406a4719464d8a231cfcece8ad1fa20156ea57d91f78655b36962d48",
+    "s3": "412d685335710bd6f5f357e93d8240bc3eecde6d6630573d29e2bdcd32c98cbf"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T06:11:02.907969+00:00"
+}

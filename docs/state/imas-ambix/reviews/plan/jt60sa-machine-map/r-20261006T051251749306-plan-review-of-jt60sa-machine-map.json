@@ -1,0 +1,65 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T05:20:06.715Z",
+  "dispatched_at": "2026-10-06T05:12:58Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-machine-map.html#s5",
+      "id": "thin_wrapper-1",
+      "reason": "as written the unit-ownership is ambiguous (raw spelling vs `source_unit`), and the runtime table may be redundant if the census resolves the unit at authoring.",
+      "text": "\u00a75 says the EDDB spelling is \"turned into the unit string a binding declares as its `source_unit`\", yet also says \"an EDDB spelling with no entry is refused when the catalogue loads\". The binding's `source_unit` is the DD unit (`imas_ambix/data/signal_map.py:89`), so a load-time refusal keyed on the EDDB spelling requires the binding to carry the raw string as well \u2014 the plan does not say it does, nor whether the mapping is stored so it can be consulted at load rather than resolved once at census time",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-machine-map.html#s6",
+      "id": "interface_budget-1",
+      "reason": "the section adds a public definition while stating only that the existing names are kept, so the exported surface it creates cannot be reviewed.",
+      "text": "\u00a76 generalises the equilibrium-convention entry point to take an equilibrium record through a loader with DIII-D, SELENE and FAME as loaders, but keeps `measure_diiid_convention` as the DIII-D entry (`imas_ambix/challenge/convention.py:266`); the generic entry the SELENE/FAME loaders call is never named and is not accounted for as public surface",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "6a6cbcee3f092b2232198a90014b0bffae2d5a5f6b2074344bdc69ed6f70d51f",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 109,
+  "project": "imas-ambix",
+  "responses": {
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "coordinator",
+      "reason": "Acted in plan v114: section 6 names measure_convention(records, eligibility, *, shots) as one new public definition; measure_diiid_convention calls it.",
+      "when": "2026-10-06T05:24:19.016255+00:00"
+    },
+    "thin_wrapper-1": {
+      "action": "acted",
+      "by": "coordinator",
+      "reason": "Acted in plan v114: section 5 resolves the EDDB spelling table at authoring; source_unit holds the DD unit and a test checks each binding against the table.",
+      "when": "2026-10-06T05:24:19.014590+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T051251749306-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "5e9e3d5bbf9d588c11ca78a5de2c6a3b9fe8213b",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the new modules that carry behaviour are deep: `imas_ambix/data/selene_deck.py` hides the `EQSLE.DATA`/`geo.in`/`coil_vv` grammars behind one converter. `imas_ambix/data/eddb_remote.py` hides transport, batch framing and the refusal protocol behind `RemoteEddbExtractor`; `imas_ambix/data/tokamap_export.py` hides the group/partition/key derivation behind one `export_tokamap_directory`. The catalogue/store additions are schema slots and one widened protocol argument, not a spread of wrappers.",
+    "duplicate_owner": "pass \u2014 I looked for forked placement, path resolution and state readers and found the plan extending the named owners rather than adding parallels: `machine_identity.default_registry` (keyed by machine, not a second registry), `gs/artifact_resolution.py` (`resolve_machine_description`/`author_pinned_description` take a machine), `data/eddb.py` (grid writer under the same store, not a second store over `JT60SA_ROOT`), `data/description_identity.py` (extended to the JT-60SA phases), and `spine_bench/shots.py` `resolve_shotset_version` (label widened, not a second labeller). `find imas_ambix -iname '*unit*'` and a grep for any `eqdb` symbol both return nothing, so the \u00a75 table and the \u00a77 EQDB reader are genuinely new rather than rebuilds.",
+    "interface_budget": "a finding \u2014 the current week's figures are public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a76 generalises the convention scorer and keeps `measure_diiid_convention` exported but never names the generic entry the SELENE/FAME loaders call, so a new public definition is added without naming it or what it retires.",
+    "reuse_search": "pass \u2014 the plan names an existing owner for nearly every mechanism it touches and I opened each one; the owners exist and match the plan's account (see below), and the two codebases it names for discovery were searched by explicit census/sensor/geometry investigations recorded in its own sections.",
+    "thin_wrapper": "a finding \u2014 \u00a75 adds a packaged EDDB-spelling\u2192DD-unit table beside the binding's own declared `source_unit` and does not say which of the two owns the channel's unit."
+  },
+  "section_digests": {
+    "_document": "060371ce32b20f0360ee1915d508732a36f1e2589b54c97b2df633bc451a49ed",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "c75137ca1257d03788b8f9a19bb91a13e7afc90da8c96f5b8403a6b19235d138",
+    "s5": "b1ca95f93524fad5dcaa09080213a735427d728a4919dc2fa32d7249aae3d47d",
+    "s6": "73a5dc6445bec47018f35b4576dfe6f0b82216dccd2d3c050a04caf2b429f959",
+    "s7": "339783f4d4bfdbfd5e58b74ff17b0e6b856b054fa9b9307c82ef612a0831c668",
+    "s8": "58b6e789d670a81a77921ce11cdc22415e6293096d863adf69680112fe089e9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T05:21:11.953892+00:00"
+}

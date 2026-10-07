@@ -1,0 +1,97 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T02:05:06.513Z",
+  "dispatched_at": "2026-10-07T01:58:49Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-signal-figures-from-ids.html:61",
+      "id": "reuse_search-1",
+      "reason": "the section must be held (deferred/blocked) on its declared `plan-depends-on imas-ink:ids-signal-traces`, or its status and a sequencing note must say so, otherwise the first builder is released against a missing dependency.",
+      "text": "\u00a71 calls `extract_signal_traces(pf_active, \"coil/current\")` and `extract_signal_traces(magnetics, \"ip\")`, but that symbol does not exist in imas-ink: `imas_ink/extract.py` defines `extract_geometry` (line 564) and no `extract_signal_traces`, and the plan it comes from, imas-ink `docs/plans/ids-signal-traces.html`, is `plan-status: draft` with no landed summary \u2014 yet \u00a71's `data-status` is `implementable`. The section is not implementable as written; its whole body is a call to a function that has not been written.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-signal-figures-from-ids.html:56",
+      "id": "reuse_search-2",
+      "reason": "each opener reads a different on-disk layout (phase `.nc` vs pulse directory) and no shared owner exists, so a script-local opener is the honest form here; the census is recorded for completeness, not as a required change.",
+      "text": "\u00a71 adds a new IDS opener `_read_pulse_ids(pulse_dir, ids_name)` but cites no existing opener it searched for; one already exists in the sibling figure script, `scripts/figures_jt60sa_geometry.py:44-50` (`_read_ids`, the same `imas.DBEntry(path,\"r\"); get(ids_name, autoconvert=False)` shape), and the same idiom recurs at `imas_ambix/gs/artifact_geometry.py:814-823`, `imas_ambix/bench/store_arms.py:212-214`, `imas_ambix/challenge/thomson_ids.py:196-197` and `tests/data/test_pulse_mint.py:54-62`.",
+      "type": "reuse_search",
+      "would_change": false
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-signal-figures-from-ids.html:74",
+      "id": "duplicate_owner-1",
+      "reason": "the node must be funded to repair the referencing fragment and the parent plan's landed summary (or the withdrawn figures kept), which is additional, unscoped work the author needs to name.",
+      "text": "\u00a71 deletes `jt60sa-E101154-flux-loops.svg` and `jt60sa-C060033-pf-coil-currents.svg` and says only that \"the evidence fragment embeds it\" (the surviving figure), without naming or repairing the owners that already embed the two withdrawn files: `docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-signal-figures.html:66` and `:82`, and the parent plan's landed summary at `docs/plans/jt60sa-geometry-and-signal-figures.html:66` (which also needs its `read_channel`-era caption withdrawn). Deleting the files without extending those owners leaves three broken `<img src=\"/imas-ambix/figures/jt60sa-signals/...\">` references rendering as missing images. The plan also implies a fresh fragment while the existing fragment already owns the signal-figure evidence.",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "618884587ce2b42a11cf142b56e46941dd3a4115169cc1374dc179fedbd4805e",
+  "plan_slug": "jt60sa-signal-figures-from-ids",
+  "plan_version": 0,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "finding": "reuse_search-1",
+      "reason": "\u00a71 now states it waits on imas-ink ids-signal-traces \u00a71, declared as plan-section-depends-on {s1: [imas-ink:ids-signal-traces#s1]} beside the plan-level depends_on, and no builder is released before that merges",
+      "when": "2026-10-07T02:06:28.924237+00:00"
+    },
+    {
+      "action": "declined",
+      "by": "reckon-build coordinator 1caa45fb",
+      "finding": "reuse_search-2",
+      "reason": "each existing opener reads a different on-disk layout (phase description .nc, artifact geometry, bench store) and none owns the pulse directory; the plan now cites them and keeps a script-local opener, as the reviewer's own reason states",
+      "when": "2026-10-07T02:06:28.925846+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "finding": "duplicate_owner-1",
+      "reason": "\u00a71 now names both owners embedding the withdrawn SVGs, the jtfig-signal-figures evidence fragment and the parent plan's \u00a73 landed summary, and assigns their repair to the coordinator at landing, since a worker never edits another plan; the worker's evidence goes to a new fragment under this plan",
+      "when": "2026-10-07T02:06:28.926840+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "\u00a71 now names both owners embedding the withdrawn SVGs, the jtfig-signal-figures evidence fragment and the parent plan's \u00a73 landed summary, and assigns their repair to the coordinator at landing, since a worker never edits another plan; the worker's evidence goes to a new fragment under this plan",
+      "when": "2026-10-07T02:06:28.926840+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "\u00a71 now states it waits on imas-ink ids-signal-traces \u00a71, declared as plan-section-depends-on {s1: [imas-ink:ids-signal-traces#s1]} beside the plan-level depends_on, and no builder is released before that merges",
+      "when": "2026-10-07T02:06:28.924237+00:00"
+    },
+    "reuse_search-2": {
+      "action": "declined",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "each existing opener reads a different on-disk layout (phase description .nc, artifact geometry, bench store) and none owns the pulse directory; the plan now cites them and keeps a script-local opener, as the reviewer's own reason states",
+      "when": "2026-10-07T02:06:28.925846+00:00"
+    }
+  },
+  "review_run_id": "r-20261007T015836733367-plan-review-of-jt60sa-signal-figures-from-ids",
+  "reviewed_blob_sha": "db57be2195c74b587ea4f7cd814ce60a99d61c4f",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a71 hides the pulse file layout and the IDS open behind one small private opener, `_read_pulse_ids`, and delegates all extraction to imas-ink; the complexity is behind the interface rather than spread across wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a71 withdraws two SVGs whose embedding is owned by an existing evidence fragment and by the parent plan's landed summary, neither of which the plan names for repair, and the withdrawal leaves those owners referencing files that no longer exist.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a71 adds no name to any of these families (its only new symbol, `_read_pulse_ids`, is script-private) and withdraws a documentation figure rather than an API, so no retirement or merge is owed.",
+    "reuse_search": "a finding \u2014 \u00a71 reuses imas-ink's `extract_signal_traces`, which does not yet exist in imas-ink (its source plan `ids-signal-traces` is draft and unlanded), and it does not cite the IDS opener that already exists in the sibling figure script.",
+    "thin_wrapper": "pass \u2014 the extraction behaviour belongs to imas-ink and the plan moves the script onto imas-ink's extractor rather than layering a wrapper over ambix machinery; the script becomes a consumer, as its sibling `figures_jt60sa_geometry.py` already is."
+  },
+  "section_digests": {
+    "_document": "fef92cd446c002fb68543297d0aec84441c7616741d8eca7dc0589dce5f9a8fd",
+    "s1": "6b2d779d99b11ffe6988ea0c0fccc48862cfdd2cc775da09b8edce01c1b770ae",
+    "s2": "212ae7f1f752adeec8510f660184ff6aad6cc24505348821abed350d26b63f65",
+    "s3": "cbd5bdb0a8ad36fd81c42f63da9a96cd623108daa6680248b4f4a878b31a0d2e"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T02:05:53.989458+00:00"
+}

@@ -1,0 +1,70 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "Derived from the reviewed run's own armed arms (its manifest baseline_suite and after_suite, both completed:true on their summary lines, and both log headers naming the revision they ran at). Base arm 0a2735d1 (base-gate.log header: tree /tmp/reckon-crew-scratch/r-20261006T031703442015-jtmm-selector-rank-composition/base-tree): 21 passed, EXIT=0, failure_count 0, failure_ids []. Head arm 6172d751 (head-gate.log header: tree the reviewed worktree): 23 passed, EXIT=0, failure_count 0, failure_ids []. Both arms green, so the failure sets coincide and the added failures are 0 with ids []. The 23-vs-21 pass difference is the node's two new tests. This reviewer reproduced the defect the node repairs and the fix independently: an unmutated git-archive export of the reviewed head at 6172d751 read selecting coil C at source_rank 0 -> shape (), rank 1 -> (1,), rank 2 -> BindingTransformError, rank 3 -> refused; the pre-fix revision (this review worktree at 95f80f71, the same read path as base 0a2735d1) returned shape (1,) silently at source_rank 2 with no refusal, so the guard the node adds fires where the base did not. A one-line mutation of the head probe (consumed_levels forced back to 0) reddened test_selecting_binding_counts_only_levels_below_the_consumed_struct_array (1 failed, 1 passed), reproducing the declared negative control.",
+  "after_suite": {
+    "command": "TMPDIR=/tmp UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/a663ef24-6dba-4bb9-9ea5-3f1597c64253/jtmm-selector-rank-composition command uv run --no-sync pytest -p no:cacheprovider -n 8 tests/data/test_transform_engine.py tests/data/test_description_reader.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T031703442015-jtmm-selector-rank-composition/head-gate.log",
+    "revision": "6172d7519c67df08bf8b9de444c30ab0dc500934"
+  },
+  "baseline_suite": {
+    "command": "TMPDIR=/tmp UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/tmp/reckon-crew-scratch/r-20261006T031703442015-jtmm-selector-rank-composition/base-tree command uv run --no-sync pytest -p no:cacheprovider -n 8 tests/data/test_transform_engine.py tests/data/test_description_reader.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T031703442015-jtmm-selector-rank-composition/base-gate.log",
+    "revision": "0a2735d1fd58862bda44f060f8e8c73baef20e5b"
+  },
+  "completed_at": "2026-10-06T03:44:04.119Z",
+  "dispatched_at": "2026-10-06T03:34:42Z",
+  "findings": [
+    {
+      "category": "robustness",
+      "file": "imas_ambix/data/transform_engine.py",
+      "line": "297-311",
+      "severity": "follow-on",
+      "text": "The new KeyError-to-BindingTransformError conversion in _NetCDFStoreArrays.read is correctly scoped to binding.struct_array_entry is not None, so an empty first struct array under a selecting binding now names the binding as the run claims. A NON-selecting binding over an empty struct array still surfaces a bare KeyError, raised by _struct_array_positions (line 191) before the read's rank check, or by _read_ids_path (line 262) for a later empty array. This is pre-existing behaviour, outside this node's stated goal (the selecting-binding rank), and unreachable for the JT-60SA store whose coils are non-empty; recorded as a follow-on rather than a defect of this change."
+    }
+  ],
+  "follow_ons": [
+    "Resolves the prior node's review finding 2 (r-20261006T025925726270-review-of-jtmm-static-entry-selector): a selecting binding over an empty first struct array no longer raises a bare KeyError but a BindingTransformError naming the binding, covered by test_selecting_binding_over_an_empty_struct_array_is_refused.",
+    "Resolves the prior node's review finding 1: the new test_selecting_binding_counts_only_levels_below_the_consumed_struct_array exercises struct_array_entry together with a preserved position below the selected level (source_rank 1 preserves the element level, shape (1,), beneath the consumed coil level), the selector-plus-preserved-position composition the plan asserts and the earlier node left untested.",
+    "The non-selecting empty-struct-array KeyError noted in the finding is a separate concern for whichever node next touches the empty-array error family."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "_NetCDFStoreArrays.read, _struct_array_positions and _read_ids_path have no callers outside transform_engine.py; the change alters only the internal read path and the existing BindingsTransformError/TransformEngineError family (BindingTransformError subclasses TransformEngineError, line 43). No new public symbol, no signature change, and no machine-name branch is introduced.",
+    "diff": "The fix in read() adds: a try/except around _struct_array_positions converting its empty-struct-array KeyError to a BindingTransformError naming the binding when a selector is declared; consumed_levels = 1 for a selecting binding and 0 otherwise; the rank bound available_levels = len(positions) - consumed_levels; and the preserved slice positions[consumed_levels:][-structural_rank:]. For a binding without the slot consumed_levels is 0, so available_levels, the rank bound and the preserved slice are byte-for-byte the pre-fix expression -- existing bindings are unaffected, as claimed and as the unchanged base-arm-passing bindings attest.",
+    "done_when": "The node's measure is the code path plus the two new tests and the tightened empty-array refusal. base-gate.log 21 passed EXIT=0, head-gate.log 23 passed EXIT=0 (+2 new tests over base, 0 added failures); ruff check imas_ambix tests exits 0 (ruff.log). This reviewer reproduced the defect at the pre-fix revision (source_rank 2 silently returned shape (1,) instead of refusing) and the fix at the reviewed head (rank 2 refused, empty first struct array -> BindingTransformError not KeyError). The declared negative control reproduced independently: forcing consumed_levels back to 0 reddens test_selecting_binding_counts_only_levels_below_the_consumed_struct_array.",
+    "goal": "The plan (imas-ambix:jt60sa-machine-map section 4) states the selector 'consumes the first struct-array level: the named entry is read and that level contributes no axis. source_rank then counts the leaf and the struct levels below it'. The node delivers exactly this: _NetCDFStoreArrays.read computes consumed_levels = 1 when struct_array_entry is set, bounds the rank check by available_levels = len(positions) - consumed_levels, and preserves only positions[consumed_levels:]. Selecting coil C reads shape (1,) at source_rank 1 (the element level preserved), a scalar at 0, and source_rank 2 (which would count the consumed coil level) is refused under BindingTransformError naming the binding and the rank -- all independently reproduced off an unmutated export of the reviewed head.",
+    "manifest": "The run manifest reads status complete and reconciles with the artefacts: commits [6172d751] is the change; baseline_suite and after_suite name revisions 0a2735d1 and 6172d751 with failure_count 0 and empty ids, matching base-gate.log and head-gate.log; negative_control_log exists and shows EXIT=1 on the stated test id; measurement_module and measurement_cwd name the base-arm scratch export /tmp/reckon-crew-scratch/.../base-tree, matching base-gate.log's header.",
+    "write_paths": "Only declared paths changed; the reviewed worktree is clean and its single commit 6172d751 is the reviewed head. git show --stat 6172d751: imas_ambix/data/transform_engine.py +18/-4, tests/data/test_transform_engine.py +48, docs/evidence/fragments/jt60sa-machine-map/jtmm-selector-rank-composition.html +30 (new file); 3 files, 95 insertions, 4 deletions. No catalogue JSON and no machine-map data touched, matching the node's instruction."
+  },
+  "justifications": "Independent review of run r-20261006T031703442015-jtmm-selector-rank-composition (plan imas-ambix:jt60sa-machine-map section 4), reviewed_base_sha 0a2735d1fd58862bda44f060f8e8c73baef20e5b, reviewed_head_sha 6172d7519c67df08bf8b9de444c30ab0dc500934, stored as a parsed record scoring all six dimensions in 0..20 -- goal_fidelity 20, evidence 19, scope_discipline 20, durability 19, fit 20, reuse 20 -- total 118/120, added_failure_count 0 with added_failure_ids []. Goal fidelity is full: the node implements the plan section 4 sentence verbatim, correcting the prior node's rank check symmetry by making the consumed struct-array level contribute no axis, and I reproduced both the raised defect (source_rank 2 silently yielded shape (1,) pre-fix) and the refusal at head off an unmutated export of the reviewed commit. Scope is clean -- three declared files, no catalogue or data artefact touched, single commit, worktree clean. Fit and reuse are strong: the change extends the existing read path and error family with a two-line adjustment and a scoped exception conversion, leaving non-selecting bindings byte-for-byte unchanged and adding no parallel path or machine-name branch. Durability is high and deliberately not full: two new tests guard the fixed behaviour including the selector-plus-preserved-position composition the earlier node left untested, and the declared negative control reproduces, but the re-slice observations: the empty-array conversion covers only the selecting case (a non-selecting empty array still raises a bare KeyError, recorded as a follow-on, pre-existing and out of scope). Evidence is strong (both arms green and consistent with their logs, negative control reproduced) but rests on a single small synthetic store rather than the real JT-60SA netCDF, so it scores one below the maximum. This run closes both findings the prior node's review recorded; no regression and no defect of this change found.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261006T033432336323-review-of-jtmm-selector-rank-composition",
+  "reviewed_base_sha": "0a2735d1fd58862bda44f060f8e8c73baef20e5b",
+  "reviewed_head_sha": "6172d7519c67df08bf8b9de444c30ab0dc500934",
+  "reviewed_run_id": "r-20261006T031703442015-jtmm-selector-rank-composition",
+  "reviewer": "review-of-jtmm-selector-rank-composition",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T03:42:19+00:00",
+  "total": 118
+}

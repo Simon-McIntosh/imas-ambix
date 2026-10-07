@@ -1,0 +1,57 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names no baseline_suite and no after_suite, so its own arms cannot supply the delta. This review measured the reviewed node's declared gate (tests/test_lane_availability.py) in two scratch trees built from the reviewed commit's own object store (git archive of 6ebdaca7 into $TMPDIR/arms.j8U5OR/base and dce1459bf into .../head, no git worktree created, the reviewed worktree is not writable by this node). Both arms are green: base arm gate-base.log (revision 6ebdaca73bb550b9e669ac6432f26933d8f0f747: 10 passed, EXIT=0) and head arm gate-head.log (revision dce1459bf683e9a11b8f202845dbb55fff501d84: 16 passed, EXIT=0). Head failing ids ([]) minus base failing ids ([]) is 0; the head arm is a strict superset (six new parametrised cases, no test removed).",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_lane_availability.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T081028283284-review-of-srw-lane-availability-rejects-non-finite/gate-head.log",
+    "revision": "dce1459bf683e9a11b8f202845dbb55fff501d84"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_lane_availability.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T081028283284-review-of-srw-lane-availability-rejects-non-finite/gate-base.log",
+    "revision": "6ebdaca73bb550b9e669ac6432f26933d8f0f747"
+  },
+  "completed_at": "2026-10-05T08:14:27.504Z",
+  "dispatched_at": "2026-10-05T08:10:35Z",
+  "findings": [],
+  "follow_ons": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified availability_percent and _is_finite_number are internal to imas_ambix.agent.lane; the guard is module-private, no external caller holds a second copy.",
+    "diff": "read commit dce1459bf against base 6ebdaca7; two files changed, +26/-4 (imas_ambix/agent/lane.py +18/-4, tests/test_lane_availability.py +12), both inside the declared write paths, no other file touched.",
+    "done_when": "Read the node's measure: a parsed record scoring all five dimensions 0..20, reviewed_base_sha and reviewed_head_sha, and added_failure_count/ids derived from the reviewed run's own arms where present (it declares neither, so this review's own two arms supply the delta).",
+    "goal": "The node repairs the \u00a714 review follow-on recorded at docs/plans/serving-record-warehouse.html (lane._is_finite_number accepts inf and nan, so availability_percent returns a nan percentage for a non-finite input). The commit makes _is_finite_number require math.isfinite(value) and adds six parametrised cases (inf/-inf/nan for both headroom and effective width) asserting availability_percent returns None. The guard now rejects every non-finite input; the docstring states the withheld-vs-nan rationale.",
+    "manifest": "read; it states the gate green (tests/test_lane_availability.py 16 passed, guard tests 2 passed, whole-tree ruff clean, each EXIT=0), a negative control 5 failed EXIT=1, and names changed_paths imas_ambix/agent/lane.py, tests/test_lane_availability.py.",
+    "write_paths": "the diff touches imas_ambix/agent/lane.py and tests/test_lane_availability.py, both inside the declared write set. The manifest also declares an evidence fragment and a figures dir as write paths; the reviewed mean (small node) records neither was needed."
+  },
+  "justifications": "independent review of run r-20261005T080455168018-srw-lane-availability-rejects-non-finite, reviewed_run_id r-20261005T080455168018-srw-lane-availability-rejects-non-finite, base 6ebdaca7, head dce1459bf, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 19, evidence 17, scope_discipline 19, durability 17, fit 18 -- total 90, added_failure_count 0 with added_failure_ids [] derived from this review's own two arms of the reviewed run's declared gate (the reviewed run was dispatched unarmed, so its own baseline_suite and after_suite are null): base arm gate-base.log (scratch tree $TMPDIR/arms.j8U5OR/base, revision 6ebdaca7: 10 passed, EXIT=0) and head arm gate-head.log (scratch tree $TMPDIR/arms.j8U5OR/head, revision dce1459bf: 16 passed, EXIT=0). The head arm is a strict superset of the base arm (six new parametrised cases over inf/-inf/nan for headroom and width, none removed). The reviewed run's negative control was reproduced independently rather than accepted: removing the added 'and math.isfinite(value)' conjunct from a scratch copy of the head lane.py reddens exactly the six new cases plus one pre-existing width case (5 failed, 11 passed, EXIT=1, negative-control-reviewer.log), matching the reviewed run's own 5-failed mutation. The base arm is green, so the new cases are exercisable and the guard is what turns them green at head. No finding raised: the change is the repair the plan's \u00a714 review follow-on named, it is minimal and inside scope, and the withheld-not-nan contract is stated in the docstring.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T081028283284-review-of-srw-lane-availability-rejects-non-finite",
+  "reviewed_base_sha": "6ebdaca73bb550b9e669ac6432f26933d8f0f747",
+  "reviewed_head_sha": "dce1459bf683e9a11b8f202845dbb55fff501d84",
+  "reviewed_run_id": "r-20261005T080455168018-srw-lane-availability-rejects-non-finite",
+  "reviewer": "review-of-srw-lane-availability-rejects-non-finite",
+  "scores": {
+    "durability": 17,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T08:16:00+00:00",
+  "total": 90
+}

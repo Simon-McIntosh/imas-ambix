@@ -1,0 +1,58 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T10:26:09.026Z",
+  "dispatched_at": "2026-10-05T10:22:23Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/data/signal_map.py:631",
+      "id": "reuse_search-1",
+      "reason": "\u00a75 must name `load_packaged_signal_map` as the loader for the JT-60SA maps (or state why it cannot be), or the map-loading half of \u00a75 lands against an unnamed mechanism.",
+      "text": "the plan places pulse signal maps at `imas_ambix/data/maps/jt-60sa/<system>.json` (\u00a71/\u00a75) but names no loader for them, while `load_packaged_signal_map(machine, system)` already keyed by machine and system is the mechanism that reads the MAST maps; a plan that does not cite it risks authoring a parallel loader",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/gs/geometry.py:842",
+      "id": "reuse_search-2",
+      "reason": "\u00a74's \"zero machine-name branches\" done-when is only checkable if the plan names every existing machine-keyed angle owner, and this one is absent from the text.",
+      "text": "a MAST-keyed directed-probe-angle conversion (`load_packaged_signal_map(\"mast\", \"magnetics\")`, compiled `poloidal_field_probe_directed_angle`) is a machine-name-keyed angle path the plan never cites while it claims \"no JT-60SA read reaches a machine-named angle path\"",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/gs/geometry.py:842",
+      "id": "duplicate_owner-1",
+      "reason": "the author must either name this owner as off the JT-60SA route (as \u00a77 already does for `transform_geometry_source`) or extend it, so the \"retired, not joined by a second\" claim covers every angle path.",
+      "text": "`load_packaged_signal_map(\"mast\", \"magnetics\")` is a machine-named directed-angle owner beside `read_geometry_table`'s, and the plan retires only the latter; if any JT-60SA geometry is read through `gs/geometry.py` the two owners diverge",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/eddb_remote.py",
+      "id": "duplicate_owner-2",
+      "reason": "the plan already names the owner and states why extension is unavailable (it would make imas-codex, with its graph/LLM/tool-installer dependencies, a dependency of every ambix read), and defers the shared core to a second-facility plan; the item is answered in the text.",
+      "text": "the \u00a73 extractor re-implements the remote-batch layer codex already owns (`imas_codex/remote/executor.py`, `ssh_worker.py`, `serialization.py`, and `scripts/enumerate_edas.py`), which the plan names and declines to import; the owner to extend is codex's remote layer",
+      "type": "duplicate_owner",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "f16d1c9714baa798cfae28340aefd50cb92d22a6c1470c5c2895673288cd8b6c",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 60,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T102214061113-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "c82d2264cc916dfebd529efc313b36e50ed4556f",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 each new concern is one deep entry point rather than a spread of wrappers: `selene_deck.py` one converter entry point, the \u00a73 extractor \"one batch-fetch function and one cache writer\", the \u00a72 exporter \"one public function\", and \u00a77 reuses the \u00a73 transport/cache for the EQDB reader rather than adding a second path; `read_geometry_table` remains the one acquisition route.",
+    "duplicate_owner": "a finding \u2014 the plan retires `description_reader._supply_declared_probe_angles`'s `machine == \"mast\"` branch but leaves the second MAST-keyed angle owner at `gs/geometry.py` unnamed; the \u00a73 extractor is a named duplicate of codex's remote layer that the plan already answers in its own text.",
+    "interface_budget": "pass \u2014 against this week's 0 public_definitions, 0 cli_options, 0 mcp_views, 0 refusal_families, every section that adds surface accounts for it in its own text: \u00a72 \"retires nothing, because ambix has no exporter\", \u00a73 extractor \"retires nothing, because ambix has no remote reader today\" and the cache \"adds no `ambix data` command\", \u00a74 the two store-addressing keys \"retire nothing, because the catalogue had no addressing slot\" while the probe-angle key \"retires the machine branch\", \u00a77 the EQDB reader and the two record fields each \"retire nothing\" with a stated absence.",
+    "reuse_search": "a finding \u2014 the plan cites its prior art densely and correctly (VirtualZarrView, cocos_convention.score_convention, description_identity, efit_referee.judge_geometry, MachineArtifactGeometrySource, DIIID loader, paths.py owners, tokamap export, eddb/selene_deck \u2014 all verified present), but it never names `load_packaged_signal_map` (imas_ambix/data/signal_map.py:631), the existing per-machine-per-system signal-map loader that should read the \u00a75 JT-60SA signal maps, nor the second MAST-keyed directed-probe-angle owner at imas_ambix/gs/geometry.py:842.",
+    "thin_wrapper": "pass \u2014 the layers that could have been thin wrappers each carry an explicit justification for existing instead of extending: the tokamap exporter is forward-only with no reverse claim (\u00a72), the extractor exists because ambix has no remote reader and importing codex's layer would make it a runtime dependency (\u00a73), and the deck reaches the engine through the existing netCDF engine with a receipt rather than a new store engine (\u00a74 decision `description-source-engine`)."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T01:55:19.846247+00:00"
+}

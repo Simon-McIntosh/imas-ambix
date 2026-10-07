@@ -1,0 +1,59 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "backend": "local",
+  "call_site_count": 8,
+  "call_sites": [
+    "imas_ambix/agent/router.py:1867",
+    "imas_ambix/agent/router.py:2000",
+    "imas_ambix/agent/router.py:1251",
+    "imas_ambix/agent/router.py:1331",
+    "imas_ambix/agent/router.py:1667",
+    "imas_ambix/agent/router.py:2209",
+    "imas_ambix/agent/router.py:1931",
+    "imas_ambix/agent/request_receipts.py:519"
+  ],
+  "completed_at": "2026-09-25T21:30:56.342Z",
+  "dispatched_at": "2026-09-25T20:57:36Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": "1931",
+      "text": "the header extraction sits above the try whose docstring at imas_ambix/agent/router.py:1924 promises the method never raises into the relay, so a header sequence that is not a pair of bytes raises out of _record_receipt and replaces a propagating relay error with a bookkeeping one; moving the call inside the guarded block restores the stated invariant."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 8 production call site(s)",
+    "diff": "read commit by commit against a099ee9b -- 91c2b563 lands the two fields, the extractor and five tests, 60fe41b8 appends the plan landing record with its evidence anchor and the figure, a83dd422 replaces one undefined XML entity in that figure; no existing test body was modified.",
+    "done_when": "the node's measure is the three-file pytest gate with its named assertions, the verbatim negative control and whole-tree ruff; gate.log records 55 passed at revision 60fe41b8, negative-control.log's first line is the declared mutation with 3 failed / 30 passed, and I re-ran tests/test_request_receipts.py at the delivered head myself: 33 passed, exit 0.",
+    "goal": "the goal is to record the X-Reckon-Run-Id and X-Reckon-Session headers on the router's request receipts; the diff adds the run_id and coordinator_session fields (imas_ambix/agent/request_receipts.py:154-155), fills them once in RouterApp._record_receipt (imas_ambix/agent/router.py:1931), and the added tests read both back off a written JSONL row.",
+    "manifest": "read at /home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T203411617863-s16-receipt-run-id/manifest.md; it states complete, quotes the negative control verbatim with its 3 failed / 30 passed, names the module under test and the gate command with its result, and every path it names exists.",
+    "write_paths": "the manifest declares six paths and every changed path in the three commits is inside them -- imas_ambix/agent/router.py, imas_ambix/agent/request_receipts.py, tests/test_request_receipts.py, the plan HTML, the evidence archive and the figure directory -- with the source worktree clean at a83dd422."
+  },
+  "justifications": {
+    "durability": "the recorded red log shows the declared control failing the header, malformed-value and gate-timeout tests, so the core assertions fail on a nameable regression; off two because the boundary cases at tests/test_request_receipts.py:1133-1146 are parameterised by the module's own MAX_IDENTITY_CHARS (no literal pins 128, which every real 26-43 character run id depends on) and because the last-wins rule documented at imas_ambix/agent/request_receipts.py:117 has no test.",
+    "evidence": "gate.log heads with its revision, tree, command, module.__file__ and cwd and records 55 passed, and negative-control.log's first line is the declared mutation with 3 failed / 30 passed; one point off because the recorded gate ran one doc-only commit before the delivered head, which I re-ran myself at a83dd422 (33 passed).",
+    "fit": "the two constants sit beside the module's existing ones at imas_ambix/agent/request_receipts.py:56-63, the extractor follows the file's pure-helper idiom, no name carries a plan or version label, and the three commits are conventional with bodies and no trailers.",
+    "goal_fidelity": "the landed fields, the single extraction at imas_ambix/agent/router.py:1931 and the never-inferred rule match \u00a716, and every row path -- the relay finally at imas_ambix/agent/router.py:1867 and all five _record_self_answer callers -- reaches that one extractor.",
+    "scope_discipline": "every path in the three commits is inside the six declared write paths and no module outside imas_ambix/agent/router.py constructs the sink or the receipt; the one unrelated hunk is an inert formatter reflow at imas_ambix/agent/router.py:1768."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of r-20260925T203411617863-s16-receipt-run-id (node s16-receipt-run-id,\nplan imas-ambix:local-lane-admission-control \u00a716). Reviewed pair: base\na099ee9b15cdb377111d276574fc5d4ff2251e93, head a83dd422f4dc9eaa5e60354bcd23646c184e668c.\n\nVERDICT goal: the goal is to record the X-Reckon-Run-Id and X-Reckon-Session headers on the router's request receipts; the diff adds the run_id and coordinator_session fields (imas_ambix/agent/request_receipts.py:154-155), fills them once in RouterApp._record_receipt (imas_ambix/agent/router.py:1931), and the added tests read both back off a written JSONL row.\nVERDICT done_when: the node's measure is the three-file pytest gate with its named assertions, the verbatim negative control and whole-tree ruff; gate.log records 55 passed at revision 60fe41b8, negative-control.log's first line is the declared mutation with 3 failed / 30 passed, and I re-ran tests/test_request_receipts.py at the delivered head myself: 33 passed, exit 0.\nVERDICT write_paths: the manifest declares six paths and every changed path in the three commits is inside them -- imas_ambix/agent/router.py, imas_ambix/agent/request_receipts.py, tests/test_request_receipts.py, the plan HTML, the evidence archive and the figure directory -- with the source worktree clean at a83dd422.\nVERDICT manifest: read at /home/ITER/mcintos/.config/reckon/crew/runs/r-20260925T203411617863-s16-receipt-run-id/manifest.md; it states complete, quotes the negative control verbatim with its 3 failed / 30 passed, names the module under test and the gate command with its result, and every path it names exists.\nVERDICT diff: read commit by commit against a099ee9b -- 91c2b563 lands the two fields, the extractor and five tests, 60fe41b8 appends the plan landing record with its evidence anchor and the figure, a83dd422 replaces one undefined XML entity in that figure; no existing test body was modified.\nCALL_SITES: imas_ambix/agent/router.py:1867, imas_ambix/agent/router.py:2000, imas_ambix/agent/router.py:1251, imas_ambix/agent/router.py:1331, imas_ambix/agent/router.py:1667, imas_ambix/agent/router.py:2209, imas_ambix/agent/router.py:1931, imas_ambix/agent/request_receipts.py:519\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: the landed fields, the single extraction at imas_ambix/agent/router.py:1931 and the never-inferred rule match \u00a716, and every row path -- the relay finally at imas_ambix/agent/router.py:1867 and all five _record_self_answer callers -- reaches that one extractor.\nSCORE evidence: 19\nJUSTIFICATION evidence: gate.log heads with its revision, tree, command, module.__file__ and cwd and records 55 passed, and negative-control.log's first line is the declared mutation with 3 failed / 30 passed; one point off because the recorded gate ran one doc-only commit before the delivered head, which I re-ran myself at a83dd422 (33 passed).\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every path in the three commits is inside the six declared write paths and no module outside imas_ambix/agent/router.py constructs the sink or the receipt; the one unrelated hunk is an inert formatter reflow at imas_ambix/agent/router.py:1768.\nSCORE durability: 18\nJUSTIFICATION durability: the recorded red log shows the declared control failing the header, malformed-value and gate-timeout tests, so the core assertions fail on a nameable regression; off two because the boundary cases at tests/test_request_receipts.py:1133-1146 are parameterised by the module's own MAX_IDENTITY_CHARS (no literal pins 128, which every real 26-43 character run id depends on) and because the last-wins rule documented at imas_ambix/agent/request_receipts.py:117 has no test.\nSCORE fit: 20\nJUSTIFICATION fit: the two constants sit beside the module's existing ones at imas_ambix/agent/request_receipts.py:56-63, the extractor follows the file's pure-helper idiom, no name carries a plan or version label, and the three commits are conventional with bodies and no trailers.\nFINDING imas_ambix/agent/router.py:1931 the header extraction sits above the try whose docstring at imas_ambix/agent/router.py:1924 promises the method never raises into the relay, so a header sequence that is not a pair of bytes raises out of _record_receipt and replaces a propagating relay error with a bookkeeping one; moving the call inside the guarded block restores the stated invariant.",
+  "review_run_id": "r-20260925T205730835765-review-of-s16-receipt-run-id",
+  "reviewed_base_sha": "a099ee9b15cdb377111d276574fc5d4ff2251e93",
+  "reviewed_head_sha": "a83dd422f4dc9eaa5e60354bcd23646c184e668c",
+  "reviewed_run_id": "r-20260925T203411617863-s16-receipt-run-id",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-09-25T21:22:37.185955+00:00",
+  "total": 96
+}

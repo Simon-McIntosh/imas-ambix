@@ -1,0 +1,56 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T15:51:37.344Z",
+  "dispatched_at": "2026-10-06T15:45:14Z",
+  "findings": [
+    {
+      "anchor": "scripts/figures_jt60sa_signals.py:1",
+      "id": "reuse_search-1",
+      "reason": "\u00a71 must name figures_jt60sa_signals.py as the existing JT-60SA signal-read site it follows (or differs from), and \u00a74 must correct \"the one ... driver\" to name both drivers so the animation's placement is chosen against the real census rather than a miscounted one.",
+      "text": "a second JT-60SA imas-ink driver already exists beside the geometry driver the plan treats as the only one: it opens the packaged JT-60SA signal maps through VirtualZarrView (line 46, 174-196) and reads each channel's time base with eddb.read_channel, i.e. the very signal-and-time idiom \u00a71's mint reimplements, and \u00a74's claim that figures_jt60sa_geometry.py is \"the one JT-60SA imas-ink driver\" is false",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/eddb.py:280",
+      "id": "duplicate_owner-1",
+      "reason": "naming read_channel as the time-base owner (and stating that only the value comes from the signal map) removes a duplicate cache/path reader before the first implementation node builds one.",
+      "text": "\u00a71 says the samples come from the compiled signal map through VirtualZarrView.for_target but never names the owner of the time base, and eddb.read_channel is explicitly documented as that owner (\"VirtualZarrView return canonical values with no time base, so the caller that needs the time base reads it here\"), so a mint that resolves cache paths or reads time itself forks the cache reader machine_map's layouts already address",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-pulse-ids.html:220",
+      "id": "duplicate_owner-2",
+      "reason": "the decision's option set must include the named ambix owners (or state in-text why they are excluded), otherwise the owner the section says \"serves as it is\" can never be the one chosen.",
+      "text": "the topology-source decision offers only \"Bound from the EQDB record\" and \"Computed by nova from the mapped psi\", while \u00a72's prose (docs/plans/jt60sa-pulse-ids.html:149-159) names two ambix owners that already compute topology from psi \u2014 imas_ambix/latent/topology.py:784 read_topology and imas_ambix/worldmodel/camera_topology_targets.py:258 _strike_points \u2014 so the decision cannot select either ambix owner, and resolving it as written forces a new finder or a cross-module reach into a private helper rather than an extension of an existing owner",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "5b6194e75f04f2fd034ff464630b34cb56bbf8724cad61ee61bce8d94e82be1e",
+  "plan_slug": "jt60sa-pulse-ids",
+  "plan_version": 7,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T154507808979-plan-review-of-jt60sa-pulse-ids",
+  "reviewed_blob_sha": "1f831046fe45b053dbab9ed1bf4009b0920d2483",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 imas_ambix/data/pulse_mint.py mint_pulse hides the description read, the compiled signal-map application, the time-base/homogeneous_time rule, the validate-then-put write and the receipt behind one function, which is deeper than the behaviour it conceals.",
+    "duplicate_owner": "two findings \u2014 \u00a71 sources each signal's time vector without naming imas_ambix/data/eddb.py read_channel, the documented owner of the cache time base; and \u00a72's topology-source decision omits the two ambix finder owners its own prose names.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a71 adds one function and one command and states it retires nothing because no data command writes an IDS, and \u00a74 adds one script option and states the script takes none today.",
+    "reuse_search": "a finding \u2014 the plan searched imas-ambix and nova thoroughly and cites the mechanisms it extends, but its census of the code it would extend missed scripts/figures_jt60sa_signals.py, the second JT-60SA imas-ink driver that already reads this exact pulse's signals through VirtualZarrView.",
+    "thin_wrapper": "pass \u2014 the data CLI `mint` command is a thin entry over mint_pulse and \u00a74 extends scripts/figures_jt60sa_geometry.py rather than adding a parallel script; each states its justification in its own text."
+  },
+  "section_digests": {
+    "_document": "0dea75f200142acf3751ee07356619f8292696f39d847499fc323a132fc3e353",
+    "s1": "b0d49f8a285d2652558e99ef297d8e98af973490ca157b6a0fe1e1d73dae7b7d",
+    "s2": "a4777f322652085b6d61eccea7dd2f4462c81ae78cccb432fb91f46643014969",
+    "s3": "e0c752d72775115b7987ba7db0722d7fe24721ae7a504604a237ca7050f3775d",
+    "s4": "31b9aee589157614cb1c697ee13cd16d23f8f142d3b93cc52c15c3a3adb70fef"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T16:03:45.633551+00:00"
+}

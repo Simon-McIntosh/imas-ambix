@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T21:00:51.881Z",
+  "dispatched_at": "2026-10-06T20:54:51Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/spine_bench/shots.py:60 (+ imas_ambix/spine_bench/parity.py:537)",
+      "id": "duplicate_owner-1",
+      "reason": "the section must name `resolve_shotset_version` and the `SHOTSET_VERSION` guard as the owner to extend (keyed by machine) or the JT-60SA baseline cannot be stamped under its own label or run through the comparability guard.",
+      "text": "\u00a77 adds \"a second named set in that module with its own version label\" for the JT-60SA baseline, but `resolve_shotset_version` compares only against the single `FROZEN_SHOTSET` (shots.py:74-77) and returns the single `SHOTSET_VERSION` constant, and `parity.py:537` rejects any stamp whose `shotset_version` is not that one constant; a JT-60SA set therefore resolves to `AD_HOC_SHOTSET_VERSION` and its stamp carries neither its own label nor a passing parity comparison, contradicting \u00a77's done-when that the JT-60SA stamp is labelled by its set and that `resolve_shotset_version` already \"compares (machine, shot_id, role)\"",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "c13ff6b450041659a4c1ca22f729882d1edac195a789ede35c39e08ca6c7f818",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 242,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-06T21:02:01.377287+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T21:02:01.377287+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v242.json",
+  "review_run_id": "r-20261006T205442596930-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "8af09b992c566e49c4b243151d75217231b164cc",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the substantial new behaviour lands behind the modules that already own it: the EQDB request/record/refusal types and the grid record writer extend `imas_ambix/data/eddb_remote.py` (`RemoteEddbExtractor`, `encode_batch`/`decode_batch`) and `imas_ambix/data/eddb.py` (`write_channel`'s token/overwrite invariants) instead of a parallel store, and the pin table hides machine selection behind the existing `resolve_machine_description` \u2014 no family of shallow wrappers over one mechanism.",
+    "duplicate_owner": "a finding \u2014 the plan adds a second frozen shot set beside MAST's without naming that the resolver and the parity guard that turn a set into its label are single-valued.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0 (read 2026-10-06T20:54:42Z); each section that adds public surface names, in its own text, what it retires/merges or why nothing can be, and each such statement checked against the tree: \u00a72 adds one public resolver and retires the exporter's `_cocos_transformation`; \u00a76 adds the EQDB request/record/refusal types and `read_signal_map_observation` (retiring `read_catalogue_observation`) and states it adds no refusal family because a transport fault stays `EddbRemoteError`; \u00a77 retires the three `PINNED_*` constants and their `machine_artifact_arm` re-export behind one machine-keyed table.",
+    "reuse_search": "pass \u2014 the plan names and extends the existing owner for every mechanism it adds: the exporter's private COCOS resolver (`imas_ambix/data/tokamap_export.py:147`) is retired in favour of the transform engine's (`imas_ambix/data/transform_engine.py:411`); the \u00a76/\u00a77 SELENE chain reuses `build_geometry_from_arrays` (`imas_ambix/worldmodel/equilibrium_labels.py:465`) through the existing `read_efit_geometry(..., loader=)` seam (`imas_ambix/eval/efit_referee.py:120`) rather than reading SELENE twice; and a grep for `eqdb` across `imas_ambix/` returns nothing, confirming the plan's claim that no equilibrium-database reader exists to reuse.",
+    "thin_wrapper": "pass \u2014 no proposed layer wraps existing machinery without justification: the SELENE reference loader and the FAME loader are adapters over the typed `EfitLabels` record (`imas_ambix/challenge/loader.py`), and the plan argues each reuse against a parallel path rather than adding one."
+  },
+  "section_digests": {
+    "_document": "62723cd7583dc5b18a64491724a048c3d8c8b0e2245109da9998ff5051244217",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "5253ff07c75d9c1a3bb2cd1ff91a6278d3535fee40f693bc99f54d076b185860",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "f864f26e7d1817088ff1bcd4d0264f602393beb3cf945e0dd67e5e5f62044a1f",
+    "s7": "109c81721e032ecd3e79868e5dd9e43e95ab3104daea488fb8f3e581b91f60be",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T21:01:45.635145+00:00"
+}

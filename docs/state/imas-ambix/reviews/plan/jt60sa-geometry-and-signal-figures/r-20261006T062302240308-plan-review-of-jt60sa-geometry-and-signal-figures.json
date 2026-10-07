@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T06:27:51.564Z",
+  "dispatched_at": "2026-10-06T06:23:08Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-geometry-and-signal-figures.html:228",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a71b claims to fold in the durability finding but does not, so the plan must resolve the validator through its owner (or vendor it, per the repository's \"vendors a copy and loads it by path\" rule) before \u00a71b's done-when is portable, and leaving \u00a71b silent presents a dropped finding as an addressed one.",
+      "text": "\u00a71b was the section the prior review's \"machine-local validator path\" finding was folded into (plan comment `c-run-r-20261006T055534611978`, durability 8), but \u00a71b's text and done-when say nothing about it: the landed script still hardcodes `VALIDATOR = Path(\"/home/ITER/mcintos/.cache/dataviz/validate_palette.js\")` at `scripts/figures_jt60sa_geometry.py:95`, so the `ALL CHECKS PASS` guard \u00a71b's done-when depends on cannot run on any other machine or in CI, and the owner of that validator is the dataviz skill (its `validate_palette.js`), not this script.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-geometry-and-signal-figures.html:169",
+      "id": "thin_wrapper-1",
+      "reason": "the plan must say why the engine cannot be extended (its binding-based `read` needs a `ChannelBinding`, which a raw EDDB dname read does not have) or route the read through it; without that line \u00a73 contradicts the owner module's own stated contract and the reviewer cannot tell whether the new reader is warranted.",
+      "text": "\u00a73 adds a cache-specific `read_channel` to `imas_ambix/data/eddb.py` and justifies skipping only `VirtualZarrView` (no packaged compiled signal map for JT-60SA); it never addresses `ZarrTransformEngine`, which the cache's own docstring (`eddb.py:22-25`) names as reading this store \"with no new engine and no cache-specific reader\", and whose `open`/`read` pair (`transform_engine.py:348`) is the existing read machinery over the same `{int(shot)}.zarr` layout.",
+      "type": "thin_wrapper",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "c17096c97503eeaf257b189e6a8531bb49bfc8f78b567b05e9f4d566728356df",
+  "plan_slug": "jt60sa-geometry-and-signal-figures",
+  "plan_version": 20,
+  "project": "imas-ambix",
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v21 \u00a71b locates the dataviz-owned validator through PALETTE_VALIDATOR with the workstation copy as default and stops with a named message when node or the file is missing",
+      "when": "2026-10-06T06:28:48.148732+00:00"
+    },
+    "thin_wrapper-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 1caa45fb",
+      "reason": "plan v21 \u00a73 states ZarrTransformEngine.read needs a ChannelBinding from a packaged signal map (none for JT-60SA) and returns a bare array without time base or unit, and corrects eddb.py's docstring to name read_channel",
+      "when": "2026-10-06T06:28:48.150740+00:00"
+    }
+  },
+  "review_run_id": "r-20261006T062302240308-plan-review-of-jt60sa-geometry-and-signal-figures",
+  "reviewed_blob_sha": "2f8a7b3e10ad280632ade59c4d6a5dd9bf7e6742",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 `imas_ambix/plot_style.py` hides the sheet application, the role palette and the direct-label helper behind a small named-role API, and each figure script concentrates its reading behind one `read_*` function and one draw function.",
+    "duplicate_owner": "a finding \u2014 the palette check resolves its validator by a machine-local absolute literal rather than through the dataviz skill that owns it, and \u00a71b, the section the prior review's durability finding was folded into, does not address it.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the only two sections that add surface account for it in their own text \u2014 \u00a71 names its public surface (roles, `apply_data_ink`, the direct-label helper) and states it is the first and retires nothing, and \u00a73 names `read_channel` as the one public name it adds and states it retires nothing.",
+    "reuse_search": "pass \u2014 the plan searched `imas_ambix/data/`, `imas_ambix/gs/` and `scripts/` and cites the concrete owner for each mechanism (paths, eddb addressing, catalogue, `NetCDFTransformEngine.open`, the four `artifact_geometry` struct readers), and every cited symbol was found in the tree.",
+    "thin_wrapper": "a finding \u2014 \u00a73 adds `read_channel` to `imas_ambix/data/eddb.py` without reconciling the module's own claim (`eddb.py:22-25`) that the cache is read by the existing engines \"with no new engine and no cache-specific reader\"."
+  },
+  "section_digests": {
+    "_document": "d608f2360eef134e400abf9b7d123c3dd66ad748bc83882079b1f12c05272af6",
+    "s1": "aaf047afbd6570c22021ee3aeff220ba37be04745a8af13fb227db5f2252ce25",
+    "s1b": "e9826f2a52b4f87b3a304d6bdbdeba3a17c943c1cfa13987ef7d6168614b1d05",
+    "s2": "b391ea9d406a4719464d8a231cfcece8ad1fa20156ea57d91f78655b36962d48",
+    "s3": "6fd2a070f66acfd0c0ef41ac9dbd539a40426515fbf82ed8e551944eda8cadb5"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T06:28:47.302495+00:00"
+}

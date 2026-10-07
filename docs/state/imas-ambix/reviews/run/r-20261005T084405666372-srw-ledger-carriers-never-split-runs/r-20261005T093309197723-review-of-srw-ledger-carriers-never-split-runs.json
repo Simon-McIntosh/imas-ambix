@@ -1,0 +1,82 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "The reviewed run was dispatched unarmed: its manifest names neither baseline_suite nor after_suite (classification.json records manifest.data.baseline_suite null and manifest.data.after_suite null), so its own arms cannot supply the delta. This review therefore measured the reviewed node's declared two-file gate in two scratch trees built from the reviewed commit's own object store (both extracted with git archive into $TMPDIR/arms, no git worktree created; the reviewed object store is not writable by this node and neither is its worktree). The commit adds both test files, so each arm carries the head test files: the base arm overlays the two head test files onto the base tree at 53e200991da706a0e9648c934ccb690ab76d8cdf (its telemetry_index.py confirmed byte-identical to `git show 53e20099:imas_ambix/agent/telemetry_index.py`), and the head arm is the head tree at 0957a37e2879e0228cbe21ed53bb115aecf379f5. Base arm review-base-arm.log: 5 failed, EXIT=1. Head arm review-head-arm.log: 5 passed, EXIT=0. Head failing ids ([]) minus base failing ids (5) is 0 added failures. The reviewed run's own logs agree: tests_head.log 5 passed EXIT=0 and test2_base.log 1 failed EXIT=1.",
+  "after_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_ledger_additive_identity.py tests/test_ingest_carrier_overlap.py",
+    "completed": true,
+    "exit_status": 0,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T093309197723-review-of-srw-ledger-carriers-never-split-runs/logs/review-head-arm.log",
+    "revision": "0957a37e2879e0228cbe21ed53bb115aecf379f5"
+  },
+  "baseline_suite": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider -q tests/test_ledger_additive_identity.py tests/test_ingest_carrier_overlap.py",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 5,
+    "failure_ids": [
+      "tests/test_ledger_additive_identity.py::test_a_day_of_one_jobs_raw_and_minute_rows_sums_to_its_hours[engine.prompt_tokens]",
+      "tests/test_ledger_additive_identity.py::test_a_day_of_one_jobs_raw_and_minute_rows_sums_to_its_hours[engine.generation_tokens]",
+      "tests/test_ledger_additive_identity.py::test_a_day_of_one_jobs_raw_and_minute_rows_sums_to_its_hours[engine.cached_prompt_tokens.device]",
+      "tests/test_ledger_additive_identity.py::test_a_day_of_one_jobs_raw_and_minute_rows_sums_to_its_hours[engine.cached_prompt_tokens.external]",
+      "tests/test_ingest_carrier_overlap.py::test_the_ledger_stays_additive_after_every_commit_of_an_overlapping_ingest"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261005T093309197723-review-of-srw-ledger-carriers-never-split-runs/logs/review-base-arm.log",
+    "revision": "53e200991da706a0e9648c934ccb690ab76d8cdf"
+  },
+  "completed_at": "2026-10-05T09:41:06.213Z",
+  "dispatched_at": "2026-10-05T09:33:17Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-ledger-carriers-never-split-runs.html",
+      "line": "n/a",
+      "severity": "follow-on",
+      "text": "follow-on: The node's own FENCE-EVIDENCE names the evidence fragment as a deliverable: 'the evidence fragment states which guarantee the fix gives and whether the live index takes it only after the ingest service restarts, citing logs under the node's report directory'. That fragment was granted in the node's write paths and is not present at the reviewed head (test -f returns false; the fragment set under docs/evidence/fragments/serving-record-warehouse/ lists no srw-ledger-carriers-never-split-runs.html), and the commit changes only imas_ambix/agent/telemetry_index.py, tests/test_ledger_additive_identity.py and tests/test_ingest_carrier_overlap.py. Reproduced: `git show --stat 0957a37e` lists exactly those three files, +365/-7. The content the fragment owed -- which guarantee the fix gives, and that the live index takes it only once the ingest and publisher services are restarted -- is stated in the manifest 'landing:' line, but the durable, reviewable, per-node artifact the plan's fragment set expects is missing. This is one of the four clauses of the node's done-when; the other three are met."
+    }
+  ],
+  "follow_ons": [
+    {
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-ledger-carriers-never-split-runs.html",
+      "line": "n/a",
+      "severity": "follow-on",
+      "text": "The missing fragment (see findings) should be authored from the manifest landing line and the node's own logs before this run's evidence set is read as complete; a later node or the coordinator owns it."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "1579",
+      "severity": "follow-on",
+      "text": "The fix corrects the run-boundary predicate (counter_run_continues -> _same_run), which both the query path (partitioned_total -> _counter_runs) and the compactor share, so no index state can inflate a total once the running services load the new code. The live index therefore takes the fix only once the ingest and publisher services are restarted, which is out of this node's scope and correctly recorded in the reviewed manifest."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "the one run-boundary predicate counter_run_continues is called by _counter_runs (line 775), which partitioned_total uses; the compactor shares it. No stale key-equality comparison of the run key remains in the query path.",
+    "diff": "read commit 0957a37e against base 53e20099; three files changed, +365/-7, all inside the declared write paths: imas_ambix/agent/telemetry_index.py (+43/-7 by stat), tests/test_ledger_additive_identity.py (+161), tests/test_ingest_carrier_overlap.py (+168). No other file touched.",
+    "done_when": "Read the node's measure: a test under tests/ (test_ledger_additive_identity.py, 4 parametrised cases, fails at base passes at head, negative control reddens it); a second test driving the head ingest (test_ingest_carrier_overlap.py, 1 case, asserts the identity after every committed batch); the fragment states which guarantee the fix gives and whether the live index takes it only after restart, citing logs. The first two hold; the fragment clause does not (no fragment file at head).",
+    "goal": "13 (fixing node) asks for a test that builds the raw-null-boot / minute-real-boot overlap from fixtures and asserts a day equals the sum of its 24 hours for prompt tokens, generation tokens and each cached tier, red at base and green at head; a second test that drives the head ingest over fixture raw, minute and hour files in small batches and asserts the same identity at a publisher-style read after every commit; an evidence fragment naming which guarantee the fix gives and whether the live index takes it only after an ingest restart; and ruff exit 0 plus the serving-interpreter parse guard passing. Four of five are delivered and independently reproduced; the evidence fragment is not written.",
+    "implementation": "counter_run_continues now calls _same_run(previous[0], current[0]); _same_run requires host and job equal and treats an empty boot marker as compatible with any boot, ending the run only when two keys both declare a boot and disagree. This is the mechanism 13 located: the raw file's null boot and the tier's real boot no longer split the run at every alternation, so a tier row no longer re-adds its stride through its declared opening.",
+    "manifest": "read; status complete; names changed_paths telemetry_index.py + the two test files; negative_control_log logs/negative_control.log; test_logs tests_head.log, telemetry_suites.log, test2_base.log; declares baseline_suite and after_suite neither, so the arms are this review's own.",
+    "write_paths": "read the manifest's declared paths (7 granted); the diff touches 3 of them. The two test files and telemetry_index.py are written as declared. The evidence fragment and the figures dir are granted and unwritten -- the fragment is a required deliverable (recorded as a finding), the figures dir is not named by the done-when and its absence is not a defect."
+  },
+  "justifications": "Independent review of run r-20261005T084405666372-srw-ledger-carriers-never-split-runs, reviewed_run_id, base 53e200991da706a0e9648c934ccb690ab76d8cdf, head 0957a37e2879e0228cbe21ed53bb115aecf379f5, stored as a parsed record scoring all five dimensions in 0..20 -- goal_fidelity 16, evidence 17, scope_discipline 19, durability 16, fit 17 -- total 85, added_failure_count 0 with added_failure_ids [] derived from this review's own two arms of the reviewed node's declared gate (the reviewed run was dispatched unarmed, so its own baseline_suite and after_suite are null): base arm logs/review-base-arm.log (scratch tree $TMPDIR/arms/base, revision 53e20099, head test files overlaid: 5 failed, EXIT=1) and head arm logs/review-head-arm.log (scratch tree $TMPDIR/arms/head, revision 0957a37e: 5 passed, EXIT=0). The fix is at the mechanism, not a clamp: counter_run_continues now defers the run boundary to _same_run, which holds host and job fixed and lets the empty boot marker (a raw row) continue the same run while two declared, differing boots end it; the same predicate serves partitioned_total's _counter_runs and the compactor. Both tests measure the additive identity the plan names -- a day equals the sum of its 24 hours for prompt tokens, generation tokens and each cached tier -- the first from fixture raw rows (null boot) beside minute-tier rows (real boot) read together, the second by driving the real ingest over hour, minute and raw files in small batches and reading the index after every commit. The negative control was reproduced independently rather than accepted: re-applying the defect on the head tree (restoring `previous[0] != current[0]` as the run test in a scratch copy) reddens all five cases (5 failed, EXIT=1, logs/review-negative-control.log), a stronger red than the reviewed run's own control (4 failed, 1 passed). ruff check imas_ambix tests exits 0 (logs/review-ruff.log) and the serving-interpreter parse guard passes, 2 passed 7 deselected (logs/review-parse-guard.log). One finding: the node's done-when names an evidence fragment stating which guarantee the fix gives and whether the live index takes it only after restart, and no such fragment exists at head -- the content lives only in the manifest landing line. That clause is unmet; the other three done-when clauses hold, and the fix itself is verified sound.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261005T093309197723-review-of-srw-ledger-carriers-never-split-runs",
+  "reviewed_base_sha": "53e200991da706a0e9648c934ccb690ab76d8cdf",
+  "reviewed_head_sha": "0957a37e2879e0228cbe21ed53bb115aecf379f5",
+  "reviewed_run_id": "r-20261005T084405666372-srw-ledger-carriers-never-split-runs",
+  "reviewer": "review-of-srw-ledger-carriers-never-split-runs",
+  "scores": {
+    "durability": 16,
+    "evidence": 17,
+    "fit": 17,
+    "goal_fidelity": 16,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-05T09:40:00+00:00",
+  "total": 85
+}

@@ -1,0 +1,79 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "Derived from the reviewed run's own arms: its manifest recorded after_suite (revision 16382295, gate.log, 56 passed, EXIT=0, failure_count 0, failure_ids []) and baseline_suite null, so on its own record the added-failure set is empty (head has zero failures). This review additionally ran both arms itself against git-archive exports of the reviewed repository. Head arm 12986e9d (tree $TMPDIR/review-gate/head-tree, five files) reproduced the reviewed result exactly: 56 passed, EXIT=0, failure_ids []. Base arm 1e44c348 (tree $TMPDIR/review-gate/base-tree, same five files) is red (3 failed, 51 passed, EXIT=1) but its three failures are NOT a pre-existing baseline: the shared store at /work/projects/imas_gpu/jt60sa/machine_description was re-converted by this node, so the base catalogue's trailing-slash placeholders ('.../element-0/') no longer name the store's emitted elements and imas_ambix/data/geometry_adapter.py raises GeometryAdapterError \"assembly identifier 'jt60sa-op1-pf-active-cs1/element-0/' does not name emitted element 'CS1_1'\". Those three (test_each_phase_emits_and_adapts_through_one_code_path[OP1-101173], [OP2-101174], test_both_phases_share_the_pf_and_magnetics_geometry) are the store-vs-stale-catalogue mismatch that this change repairs; the head arm clears them. So the base run is not a clean baseline and the honest added-failure count is 0, ids [], consistent with the reviewed run's own after_suite.",
+  "after_suite": {
+    "command": "TMPDIR=/tmp UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/a663ef24-6dba-4bb9-9ea5-3f1597c64253/jtmm-coil-element-names command uv run --no-sync pytest -p no:cacheprovider -n 8 tests/data/test_selene_deck.py tests/data/test_jt60sa_machine_map.py tests/data/test_description_reader.py tests/data/test_description_identity.py tests/data/test_transform_engine.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T054914831371-jtmm-coil-element-names/gate.log",
+    "revision": "1638229526085a285adc36a45a1bbe0d865e9273"
+  },
+  "base_log_revision": "1e44c3488e12f4e8c04fab0dd5d04f75ac736dc3",
+  "baseline_suite": null,
+  "completed_at": "2026-10-06T07:29:56.856Z",
+  "dispatched_at": "2026-10-06T07:19:25Z",
+  "findings": [
+    {
+      "category": "evidence",
+      "file": "imas_ambix/data/machine_maps/jt-60sa.json",
+      "line": "2244",
+      "severity": "follow-on",
+      "text": "The reviewed run recorded no baseline_suite arm in its manifest (head-only gate), so its record alone cannot show the change added no failures. This review supplied the base arm against a git-archive export of 1e44c348 and found the scratch base arm red for a reason that is not a pre-existing baseline: the shared store under /work/projects/imas_gpu/jt60sa/machine_description was re-converted by the node, so the base catalogue's placeholders no longer name its emitted elements. The head arm is green (56 passed, EXIT=0). Recorded so the next arm-required implement node emits both arms, not as a defect of the change."
+    },
+    {
+      "category": "scope",
+      "file": "imas_ambix/data/selene_deck.py",
+      "line": "544",
+      "severity": "follow-on",
+      "text": "The SPEC's done-when requires a test asserting that no element identifier in jt-60sa.json ends in a slash, which is catalogue-wide, so satisfying it also required naming the pf_passive vessel filaments (VV1_1..VV1_63, VV2_1..VV2_57, OP2 VV1_1..VV1_98) in build_pf_passive, one line beyond the pf_active goal. The node discloses this in evidence_inputs/follow_ons. It is a required consequence of the spec's global test rather than unrequested creep, and the catalogue now carries real names for all three vessel loops; recorded so a coordinator can confirm the extension is wanted."
+    }
+  ],
+  "follow_ons": [
+    "The reviewed run's manifest carries no baseline_suite arm; a coordinator wanting an arm-derived added-failure figure for an implement node should have the node record both arms.",
+    "The pf_passive vessel-filament naming (VV1_*/VV2_*) extends beyond the pf_active goal to satisfy the catalogue-wide no-trailing-slash test; if unwanted, the catalogue test would need scoping to pf_active assemblies and the store re-converted.",
+    "The section 4 probe-angle binding item (magnetics/b_field_pol_probe/poloidal_angle) remains untouched and open, as the node states."
+  ],
+  "gate_logs": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T071918591096-review-of-jtmm-coil-element-names/head-gate.log",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T071918591096-review-of-jtmm-coil-element-names/base-gate.log"
+  ],
+  "head_log_revision": "12986e9dfdb63bf7fcbd83799c76fbc7701cb7d9",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "test_selene_deck.py imports the module as `from imas_ambix.data import selene_deck as sd` and reaches builders through the module attribute, so the __all__ addition does not break its access; no module under imas_ambix or scripts imports a name from selene_deck (grep of imas_ambix, scripts, tests). The catalogue is consumed by load_packaged_machine_map and the geometry adapter, whose element-identifier matching enforces that each identifier's last segment names an emitted store element (the base-arm GeometryAdapterError demonstrates it).",
+    "diff": "Read all three commits. 81998115 adds the naming lines in build_pf_active/build_pf_passive and the __all__ declaration; the new coil-element test is one struct-array level below the existing every-entry sweep. 16382295 is a pure line-by-line identifier replacement in the catalogue JSON (1290/1290, 563 hunks, every changed line an identifier line). 12986e9d adds the evidence fragment. No engine code, no public signature and no machine-name branch is added.",
+    "done_when": "Three-part measure. (1) build_pf_active names each element {coil}_{position}; the existing every-entry-is-named test is extended by test_every_pf_active_coil_element_is_named_by_coil_and_position (tests/data/test_selene_deck.py), which requires every element named, in deck order, and unique within the coil. (2) OP1/OP2 re-converted atomically (temp + os.replace) from the sha256-verified source/ copies; each receipt names converter commit 81998115 at DD 4.1.1 (read directly). (3) every pf_active structure assembly's element_identifiers carry the store names; the file was edited line by line (1290 lines replaced each way, 563 hunks, every changed line an identifier line; no re-serialisation) and a new test asserts no identifier ends in a slash. Gate: head arm 56 passed, EXIT=0; ruff exits 0 per the manifest.",
+    "goal": "The goal (prompt.txt line 30) is to name every JT-60SA pf_active coil filament and carry the real identifiers into the catalogue. Commit 81998115 adds `out.name = f\"{coil.name}_{j + 1}\"` in build_pf_active (ima_ambix/data/selene_deck.py:544) and the parallel line in build_pf_passive (:584), and declares __all__ = [\"write_phase_description\"]. Commit 16382295 replaces the placeholder element identifiers in imas_ambix/data/machine_maps/jt-60sa.json. Read-only store check: both OP1 and OP2 pf_active carry 12 coils and 268 elements, all named (CS1_1..CS1_40, EF1_1..EF1_16, FPPC_UP_1..6), 0 unnamed.",
+    "manifest": "The reviewed manifest reads status complete and reconciles with the artefacts: commits 81998115, 16382295, 12986e9d; changed_paths the five files above; tests/test_logs name gate.log, negative_control.log and reconvert.log; negative_control_log exists and shows the removed name assignment reddening the coil-element test with EXIT=1. It records no baseline_suite arm (null), so this review supplied the base arm (see added_failures_basis).",
+    "write_paths": "git diff --stat 1e44c348..12986e9d touches exactly five files, all inside the node's grants: imas_ambix/data/selene_deck.py (+6), tests/data/test_selene_deck.py (+25), imas_ambix/data/machine_maps/jt-60sa.json (1290/1290), tests/data/test_jt60sa_machine_map.py (+30), docs/evidence/fragments/jt60sa-machine-map/jtmm-coil-element-names.html (+121); 1472 insertions, 1290 deletions. No plan file and no figure is written; the reviewed worktree is clean at 12986e9d."
+  },
+  "justifications": "Independent review of run r-20261006T054914831371-jtmm-coil-element-names (plan imas-ambix:jt60sa-machine-map section 4), reviewed_base_sha 1e44c3488e12f4e8c04fab0dd5d04f75ac736dc3, reviewed_head_sha 12986e9dfdb63bf7fcbd83799c76fbc7701cb7d9, stored as a parsed record scoring all six dimensions in 0..20 -- goal_fidelity 20, evidence 19, scope_discipline 20, durability 19, fit 20, reuse 20 -- total 118 in the 0..120 sum. Goal fidelity is full: build_pf_active names every coil element {coil}_{position} and the catalogue carries the store's real names; I read both phases' pf_active.nc read-only at DD 4.1.1 and found 12 coils, 268 elements, 0 unnamed (CS1_1..CS1_40, EF1_1..EF1_16, FPPC_UP_1..6), matching the store receipts that name converter commit 81998115. Evidence is strong but not full: the reviewed run's head gate reproduces exactly (56 passed, EXIT=0) and the declared negative control reproduces (removing the build_pf_active name assignment reddens the coil-element test, EXIT=1), but the reviewed manifest recorded no baseline_suite arm, so its record alone cannot show the change added no failures; my scratch base arm is red only because the shared store had moved with the head (the placeholders no longer name emitted elements), not from a pre-existing baseline. Scope is full: the diff is exactly the five granted files (1472/1290) with no plan or figure edit and a clean worktree; the catalogue edit is line-by-line (563 hunks, all identifier lines), not a re-serialisation. Durability is strong: the new test asserts names in deck order and uniqueness within the coil, the negative control shows it fires, and the geometry adapter enforces identifier-to-element agreement end to end. Fit is full: the change is one naming line per builder, an __all__ declaration and a data-file identifier replacement, adding no engine code and no machine-name branch. Reuse is full: it extends the existing converter and catalogue rather than reimplementing anything. Two follow-on findings are recorded (the absent baseline arm, and the pf_passive vessel-filament naming that the spec's global no-trailing-slash test required beyond the pf_active goal); neither blocks landing.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_notes": "Contract checks: (a) element identifiers were parsed from both revisions directly -- 1290 placeholder lines in the base catalogue become real names at head, with 0 'element-N/' remaining and only four trailing-slash strings left, all source_location URLs; (b) the store was read read-only via imas.DBEntry at DD 4.1.1 (no write, no server contact); (c) the negative control was reproduced independently by removing the build_pf_active element name assignment in a scratch copy of the head tree and running the single test (EXIT=1); (d) the head gate reproduces the reviewed result exactly (56 passed, EXIT=0). The dispatch contract names six scoreable dimensions, matching the reckon review schema; the record scores all six.",
+  "review_run_id": "r-20261006T071918591096-review-of-jtmm-coil-element-names",
+  "reviewed_base_sha": "1e44c3488e12f4e8c04fab0dd5d04f75ac736dc3",
+  "reviewed_head_sha": "12986e9dfdb63bf7fcbd83799c76fbc7701cb7d9",
+  "reviewed_run_id": "r-20261006T054914831371-jtmm-coil-element-names",
+  "reviewer": "review-of-jtmm-coil-element-names",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T07:28:29+00:00",
+  "total": 118,
+  "verification_logs": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T071918591096-review-of-jtmm-coil-element-names/nc-gate.log"
+  ]
+}

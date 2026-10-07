@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T15:42:21.050Z",
+  "dispatched_at": "2026-10-06T15:36:34Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/spine_bench/shots.py:42",
+      "id": "interface_budget-1",
+      "reason": "the same rule \u00a77 already applies to every other addition it makes needs one clause here naming that the second shot set retires or merges nothing (it is a new test-set identity, not a replacement), which the author can add without changing the design.",
+      "text": "\u00a77 adds \"a second named set in that module with its own version label\" (a JT-60SA FROZEN_SHOTSET sibling and its SHOTSET_VERSION, beside the existing FROZEN_SHOTSET at shots.py:42), which is a public definition added to a family the brief reports at 0, yet the section states no retirement or merge for it, unlike the pin table three constants retired and the two record fields it explicitly accounts for",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "3d71b6479235f449de513cb09c8283ae6bec5711fbd780c98d0f26fc77dfe49d",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 159,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "interface_budget-1",
+      "reason": "",
+      "when": "2026-10-06T15:43:08.153265+00:00"
+    }
+  ],
+  "responses": {
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-06T15:43:08.153265+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v159.json",
+  "review_run_id": "r-20261006T153627356026-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "f8006fbba09f9d5a0218df7e1efbc32ac4920e17",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a76 hides the catalogue read and the equilibrium join behind read_catalogue_observation returning the existing ShotSignObservation, hides the sign tests plus the Grad\u2013Shafranov integral behind measure_convention returning the existing ConventionReceipt, and extracts the store's token/overwrite invariants into private helpers in eddb.py so one implementation serves both writers.",
+    "duplicate_owner": "pass \u2014 every new mechanism names the owner it extends (cocos_convention.py for scoring, eddb.py for the store, artifact_resolution.py for the pins, machine_identity.default_registry for the channel registry, spine_bench/shots.py for the shot set), and \u00a77 argues in its own text why the machine-map registry cannot own the shot\u2192machine route.",
+    "interface_budget": "public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0 \u2014 a finding: \u00a76 accounts for each public definition it adds (read_catalogue_observation, measure_convention, the two EQDB types, the grid writer) and \u00a77 accounts for the pin table and the two record fields, but \u00a77's JT-60SA frozen shot set is added to spine_bench/shots.py without naming what it retires or merges.",
+    "reuse_search": "pass \u2014 every mechanism the executable sections propose names the existing owner it extends, and the citations verify against the tree: SignalRule has unit_factor/channel_factor and no validation_state (imas_ambix/data/signal_map.py:83-96), read_level2_observation is the sole ShotSignObservation store reader (imas_ambix/data/cocos_convention.py:490), mast_angle_to_canonical's only caller is its own test (imas_ambix/cocos.py:100; tests/test_cocos.py:76), gs/geometry.load_tables has no caller anywhere, _apply_cocos_convention resolves the DD label and calls canonical_factor (imas_ambix/data/transform_engine.py:425-441), __all__ exports only MINIMUM_AUDIT_SHOTS of the three thresholds (imas_ambix/challenge/convention.py:320), ForwardOperator.vacuum_prediction is the shared vacuum forward model \u00a76 reuses (imas_ambix/gs/operator.py:578), default_registry is MAST-only today (imas_ambix/gs/machine_identity.py:145), and ArtifactMachineSelector._read calls read_acquisition_channels with its default machine and builds MachineArtifactGeometryReader without one (imas_ambix/gs/machine_selection.py:186-206; artifact_geometry.py:758).",
+    "thin_wrapper": "pass \u2014 the EQDB request/record types and the grid record writer extend their named owners rather than forking them, carrying the required justification that ChannelRequest/ChannelRecord cannot be widened because an equilibrium record is psi on a 2-D grid, not a (channel, time) array."
+  },
+  "section_digests": {
+    "_document": "8e40dfcd847d0cd47a734d972ceeb5d32d8fa3a99a8dc3a72ef8114767d48088",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "d370dba0585daef4e982b38941a361b9626e444c18ab1844a106ae88ed2efd00",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "0e95ce9e5fe16bf2fc91efb14b507599ae7bd4fa1ba88874646985904558979c",
+    "s6": "0158eaaca719ec64e089a038d03febc817a42cf3c247eb066c09fc78ecc761da",
+    "s7": "d910fce07a94c256b2ebff95f978ef104c8f939bbca4441da02ecad309971248",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-06T15:42:55.838672+00:00"
+}
