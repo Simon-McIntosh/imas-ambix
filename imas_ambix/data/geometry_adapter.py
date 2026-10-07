@@ -104,6 +104,7 @@ _ROLE_SUFFIXES: Mapping[str, tuple[str, ...]] = {
     "width": ("-width",),
     "height": ("-height",),
     "name": ("-geometry-channel", "-coordinate-element"),
+    "indices_differential": ("-indices-differential",),
 }
 
 
@@ -211,13 +212,52 @@ def _flux_loops(
     loops: list[FluxLoop] = []
     mappings: list[SensorMapping] = []
     for family in _families(description, path_prefix="magnetics/flux_loop/"):
+        if "indices_differential" in family.arrays:
+            pairs = np.asarray(family.arrays["indices_differential"].values).reshape(-1)
+            if pairs.size != 2:
+                raise GeometryAdapterError(
+                    f"differential flux-loop family {family.stem!r} declares "
+                    f"{pairs.size} indices; a type-6 entry names exactly two loops"
+                )
+            # The store holds its type-1 entries first and in Data Dictionary
+            # order, so DD flux_loop index ``d`` is flux-loop slot ``d - 1``.
+            first = int(pairs[0]) - 1
+            second = int(pairs[1]) - 1
+            if not (0 <= first < len(loops) and 0 <= second < len(loops)):
+                raise GeometryAdapterError(
+                    f"differential flux-loop family {family.stem!r} names loops "
+                    f"{first + 1} and {second + 1}, outside the {len(loops)} "
+                    "positioned loops read so far"
+                )
+            # A type-6 entry has no position of its own, so it adds no geometry
+            # to the loop list: the mapping's pair is the whole of it, and no
+            # positioned slot may be claimed for it.
+            mappings.append(
+                SensorMapping(
+                    amb_channel=_names(family, 1)[0],
+                    kind="flux_loop",
+                    efm_index=-1,
+                    r=float("nan"),
+                    z=float("nan"),
+                    angle_deg=None,
+                    residual_m=0.0,
+                    flag=(
+                        "differential flux loop: predicted as its second loop "
+                        "minus its first"
+                    ),
+                    indices_differential=(first, second),
+                )
+            )
+            continue
         roles = ("r", "z")
         if not set(roles).issubset(family.arrays) or not _same_shape(family, roles):
             continue
         r = np.asarray(family.arrays["r"].values)
         z = np.asarray(family.arrays["z"].values)
-        if r.ndim != 1:
+        if r.ndim > 1 or z.ndim > 1:
             continue
+        r = r.reshape(-1)
+        z = z.reshape(-1)
         names = _names(family, r.size)
         for item in range(r.size):
             index = len(loops)
@@ -708,7 +748,15 @@ def _sensor_map_for_acquisition(
         if address in unmatched:
             continue
         mapping = by_channel.get(address.casefold())
-        if mapping is None or not np.isfinite((mapping.r, mapping.z)).all():
+        if mapping is None:
+            missing_coordinates.append(address)
+        elif (
+            mapping.indices_differential is None
+            and not np.isfinite((mapping.r, mapping.z)).all()
+        ):
+            # A positioned sensor with no finite coordinate is unmapped; a
+            # differential flux loop has no coordinate by design and is carried
+            # anyway, because its prediction is its two loops' difference.
             missing_coordinates.append(address)
         else:
             selected.append(replace(mapping, amb_channel=address))

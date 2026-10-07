@@ -293,6 +293,14 @@ def test_each_phase_emits_and_adapts_through_one_code_path(phase, shot):
     assert table.signature == direct.signature
     assert len(table.active_circuits) == 12
     assert len(table.b_probes) == 17
+    # 27 positioned loops, whatever else the store carries: a type-6
+    # differential entry names a pair instead of a position and adds no loop.
+    differential = [
+        mapping
+        for mapping in table.sensor_map
+        if mapping.indices_differential is not None
+    ]
+    assert len(differential) in (0, 26)
     assert len(table.flux_loops) == 27
     assert len(table.amc_current_channels) == 12
     # Both phases carry the vessel loop and the shared 57-filament cryostat
