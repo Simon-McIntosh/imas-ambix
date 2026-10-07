@@ -22,11 +22,11 @@
   <meta name="plan-tags" content="jt-60sa,machine-map">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <meta name="plan-after" content="jt60sa-pulse-ids">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;}">
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="32">
+<meta name="plan-version" content="33">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -95,124 +95,12 @@
       without it, they skip with the stated reason.
     </p>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-07</span>
     <h2 id="s2">§2 — imas-alambic: the slim engine as a workspace member</h2>
-<section data-reckon="section" data-id="s2" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links="nova:cocos-standalone-distribution#s1"></section>
-    <p>
-      ambix declares 33 runtime dependencies, including torch, lightning, transformers, jax and
-      torax, and none of them is needed to mint. The mint needs imas-python, numpy, the netCDF and
-      Zarr readers, and the COCOS factors, which ambix takes from nova
-      (<code>imas_ambix/cocos.py</code> <code>canonical_factor</code> delegates to
-      <code>nova.io.cocos</code>). This section makes the engine its own distribution. It is
-      <strong>imas-alambic</strong>, a uv workspace member at <code>packages/imas-alambic/</code>,
-      with import package <code>imas_alambic</code>. It declares <code>requires-python = "&gt;=3.12"</code>, because the analysis server runs
-      Python 3.12.9 while ambix requires 3.14. Its version has the root's owner:
-      <code>dynamic = ["version"]</code> with hatch-vcs reading this repository's git tags
-      (<code>raw-options</code> pointing at the repository root), never a static number.
-    </p>
-    <p>
-      The engine takes the map schema (<code>machine_maps/schema.yaml</code>),
-      <code>machine_map.py</code>, <code>signal_map.py</code>, <code>transform_engine.py</code>,
-      <code>virtual_zarr.py</code>, <code>eddb.py</code>, <code>eddb_remote.py</code> and the COCOS
-      layer in <code>imas_ambix/cocos.py</code>. Each is moved rather than copied: ambix imports it
-      from <code>imas_alambic</code>, and imas-ambix depends on imas-alambic through a workspace
-      source. The map files stay with ambix, and so do the roots that point at them.
-      <code>PACKAGED_MACHINE_MAP_ROOT</code> (<code>machine_map.py:24</code>) and
-      <code>PACKAGED_MAP_ROOT</code> (<code>signal_map.py:43</code>) are module constants inside
-      the files that move, and about ninety call sites, most of them tests, reach the maps through
-      them. So the bundle discovery below lands in the same change as the move. Giving every call
-      site a root argument now, only to take it away again, would churn the same ninety lines
-      twice. The engine carries code and schema, never map data. Its runtime dependencies are numpy,
-      imas-python, zarr, pyyaml and <code>nova-cocos</code>. The COCOS factors come from nova-cocos
-      (<a href="/nova/cocos-standalone-distribution">nova:cocos-standalone-distribution</a> §1)
-      because nova itself requires Python 3.14 and cannot install on the server, and the plan
-      allows no second factor table. Every ambix import of <code>nova.io.cocos</code> switches to
-      <code>nova_cocos</code> in the same change, which frees nova to drop the re-export.
-    </p>
-    <p>
-      <code>load_machine_map(path)</code> and <code>load_signal_map(path)</code> already accept any
-      file, so a private bundle needs no new format, only a way to be found. The by-name resolvers
-      already exist, and each refuses an unknown name: <code>load_packaged_machine_map(machine)</code>
-      (<code>machine_map.py:1623</code>), <code>load_packaged_signal_map(machine, system)</code>
-      (<code>signal_map.py:631</code>) and <code>resolve_description_store_root(name)</code>
-      (<code>machine_map.py:118</code>). This section generalises those three in place to search an
-      ordered set of bundles, rather than adding a resolver beside them. Each keeps one owner, and
-      every caller moves with it if its name changes to say what it now does.
-    </p>
-    <p>
-      A bundle is a directory holding a <code>bundle.json</code> beside the layout ambix already
-      packages: <code>machine_maps/&lt;machine&gt;.json</code>,
-      <code>maps/&lt;machine&gt;/&lt;ids&gt;.json</code> and
-      <code>machine_description/&lt;machine&gt;/</code>. <code>bundle.json</code> gives the name, the
-      version, the machines, and the bundle's named store roots, relative to the bundle. Bundles
-      are found in two ways, because there are two kinds:
-    </p>
-    <ul>
-      <li>An installed package registers its bundle under the entry-point group
-        <code>imas_alambic.bundles</code>. This is how ambix exposes its packaged maps (MAST, DIII-D,
-        and JT-60SA until §1 moves them) and the store-root names that <code>paths.py</code> owns.
-        So the engine ships no maps of its own, and <code>paths.py</code> stays the owner of ambix's
-        on-disk layout.</li>
-      <li>A directory that is not a Python package, such as the bundle relayed from GHCR, is named
-        in <code>IMAS_ALAMBIC_MAP_PATH</code>.</li>
-    </ul>
-    <p>
-      Those two retire the engine's own reading of the module-level packaged roots, and the
-      <code>getattr</code> lookup against ambix's <code>paths</code> module, which the engine cannot
-      import. The constants themselves move to ambix's <code>paths.py</code> as the address of
-      ambix's own bundle. The sites that read them directly keep doing so through
-      <code>paths.py</code>: <code>spine_bench/transform_geometry_source.py:31,362</code> and
-      <code>tests/data/test_jt60sa_signal_maps.py:24,38</code>. <code>LINKML_SCHEMA_PATH</code>
-      moves with the schema, so <code>tests/data/test_machine_map.py:202,1704,1724</code>, which
-      reach <code>mast.json</code> through <code>LINKML_SCHEMA_PATH.parent</code>, read it from
-      ambix's map root instead. The <code>nova.io.cocos</code> importers that stay in ambix switch
-      to <code>nova_cocos</code> in the same change: <code>data/cocos_convention.py:26</code>,
-      <code>challenge/convention.py:28</code> and <code>tests/data/test_cocos_convention.py:11</code>.
-      The repository already has one by-name description resolver,
-      <code>gs/artifact_resolution.py</code> <code>resolve_machine_description</code>, with
-      <code>AMBIX_MACHINE_ARTIFACT_CACHE</code> and <code>AMBIX_MACHINE_ARTIFACT_DIGEST</code>. It is
-      not this resolver's owner. It locates a nova-authored solver artifact addressed by manifest
-      digest and semantic pin, re-authors that artifact through nova when it is absent, and
-      imports nova, which cannot install at the facility. The bundle resolver instead locates
-      authored map files and their description store by machine name. The two stay separate, and
-      neither reads the other's variables. A machine found in two
-      bundles raises the existing <code>MachineMapError</code> naming both, rather than one
-      silently shadowing the other. The same directory reached by both routes counts as one bundle.
-      No new refusal family is added. Inside a worktree, the shared environment carries ambix's
-      entry points only as of its last sync. So the node's gate runs ambix's map tests with
-      <code>IMAS_ALAMBIC_MAP_PATH</code> naming the worktree's <code>imas_ambix/data</code>, and
-      the entry point is proved by the integration run after the merge, with the environment
-      synced and the variable unset.
-    </p>
-    <p>
-      The interface account: §2 adds no command and no refusal family, and its environment
-      variable and entry-point group are accounted for above. Its only
-      new public surface is the distribution itself, which exists because imas-ambix cannot install
-      on the facility's Python. The engine gains one console script, <code>imas-alambic</code>, and
-      it gains it only with the mint. <a href="jt60sa-pulse-ids">jt60sa-pulse-ids</a> §1 adds
-      <code>mint_pulse</code> in <code>imas_ambix/data/pulse_mint.py</code> and a
-      <code>mint</code> command in <code>imas_ambix/data/cli.py</code> as the facility's entry
-      point. That entry point works at the facility only once it lives in the engine. So the first
-      section to find both <code>pulse_mint.py</code> and imas-alambic on <code>main</code> moves
-      the function to <code>imas_alambic.pulse_mint</code> and the command to <code>imas-alambic
-      mint</code>, and retires <code>imas-ambix data mint</code>. That section is §2 if the writer
-      has landed when §2 is cut, otherwise §6. The engine's CLI is that one command plus
-      <code>--version</code>, written with click as ambix's data CLI is.
-    </p>
-    <p>
-      Done-when: <code>uv build --package imas-alambic</code> writes a pure-Python wheel whose
-      <code>Version</code> equals a root build's at the same commit. In a clean
-      <code>uv venv --python 3.12</code> environment, that wheel installs with its declared
-      dependencies (nova-cocos from its own built wheel), <code>python -c "import imas_alambic,
-      nova_cocos"</code> succeeds, and the engine's own tests, on synthetic maps, pass. When §2
-      moved the mint, <code>imas-alambic mint --help</code> also runs there. Every call site of
-      the by-name loaders changes only its import. A synthetic bundle directory on
-      <code>IMAS_ALAMBIC_MAP_PATH</code> resolves by name, and a machine present in two bundles
-      raises <code>MachineMapError</code> naming both. Ambix's tests that cover the moved modules
-      and its packaged maps add no failures against the stated base. After the merge and a sync,
-      with <code>IMAS_ALAMBIC_MAP_PATH</code> unset, the same tests resolve MAST, DIII-D and
-      JT-60SA through ambix's entry point. <code>uv run --no-sync ruff check imas_ambix tests
-      packages</code> exits 0.
-    </p>
+<section data-reckon="section" data-id="s2" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="done" data-links="nova:cocos-standalone-distribution#s1"></section></header>
+  <p class="landed-summary">Landed <strong>imas-alambic</strong> at <code>packages/imas-alambic</code> (Python &gt;=3.12, hatch-vcs version from the repository's git tags). It holds machine_map, signal_map, transform_engine, virtual_zarr, eddb, eddb_remote, pulse_mint, cocos (on <code>nova_cocos</code>) and the map schema, moved with git mv. By-name bundle discovery works through the <code>imas_alambic.bundles</code> entry point and <code>IMAS_ALAMBIC_MAP_PATH</code>, and ambix registers its maps and its <code>paths.py</code> store roots. <code>imas-alambic mint</code> replaces <code>imas-ambix data mint</code>, and all 33 ambix importers are repointed. At merged main the suites match the pre-move base, apart from one parallel-run GPFS timeout that measured 0.2% discovery cost. Merged at <code>d82ed19b</code> and <code>3d54ae6f</code>. <a href="s2">full record</a></p>
+</section>
 
     <section class="section-landed">
   <header><span class="badge badge-shipped">&#10003; landed 2026-10-07</span>
