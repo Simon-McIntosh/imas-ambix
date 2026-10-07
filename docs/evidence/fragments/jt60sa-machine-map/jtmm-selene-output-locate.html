@@ -1,0 +1,177 @@
+<section id="jtmm-selene-output-locate" data-reckon="fragment">
+<h2 id="jtmm-selene-output-locate-h">Where SELENE's plasma-shape equilibrium for E101154 lives, and the FAME socket read</h2>
+
+<p id="jtmm-selene-output-locate-scope">
+Read-only probe of <code>nakasvr26</code> (host <code>intr26-2</code>, user
+<code>d240044</code>) over <code>ssh -F ~/.ssh/config jt-60sa</code>, one connection
+at a time. Nothing was written on <code>nakasvr26</code> outside <code>/tmp</code>
+(the one reader invocation ran in <code>/tmp</code>). No repository source was changed.
+Answers the open question <code>eqdb-reader</code> §6 after
+<code>jtmm-eqdb-entry-probe</code> found E101154 lists 105 FAME slices and no SELENE
+<code>eqdbms</code> slice.
+</p>
+
+<h3 id="jtmm-selene-output-locate-location">Location of the plasma-shape equilibrium for E101154</h3>
+
+<p id="jtmm-selene-output-locate-location-p">
+Three candidate locations were tested; the equilibrium record E101154 actually holds is
+the <strong>FAME index of the equilibrium database</strong>, an EQDB index other than
+<code>eqdbms</code>. The three results, each with its command and its return:
+</p>
+
+<ul id="jtmm-selene-output-locate-location-l">
+<li id="jtmm-selene-output-locate-eqdb">
+<strong>EQDB.</strong> The index-to-database map is the <code>.eqdbms</code> config
+files under <code>/analysis/lib/JT60SAEQDB/eqdbms/</code> read by
+<code>eqdball_path_put</code>; <code>eqdb_path_put</code> prints the default root
+<code>/JT60SA... </code> as <code>/JT60SA_EQ/EQDB</code> (return 0). Listing the
+SELENE/EQDB index for the shot, <code>eqdball 1 -s 101154</code>, prints
+<code>* No DATA *</code>; <code>eqdb -s 101154</code> likewise prints
+<code>* No DATA *</code>; and a sweep of every index through the reader
+(<code>tool.GetTimeList(eqdb,101154)</code> for <code>eqdb</code> in
+<code>-3..8</code>) returns <code>0</code> slices for every index except
+<code>eqdb=0</code>, which returns <strong>105</strong> slices. So the SELENE/EQDB
+index (<code>eqdb=1</code>, <code>EQDB_PATH /JT60SA_EQ/EQDB</code>) holds no E101154
+equilibrium reachable from <code>intr26-2</code>, while <code>eqdball 0 -s 101154</code>
+lists the FAME record's <code>000500 000800 ... 011500</code> ms (<code>eqdb=0</code>
+is FAME; its <code>.eqdbms</code>/<code>echoFameDir</code> path is
+<code>/JT60SA_EQ/FAME3</code> on <code>dbsvr17p</code>). Three source lines anchor
+this: <code>eqdbget.f</code> <code>CALL ALLEQDBIO ( NEQDB1, 1, ISH, ITIME, IRET, 0 )</code>
+with <code>NEQDB1 = MOD(NEQDB,100)</code>; <code>echoFameDir</code> prints
+<code>/JT60SA_EQ/FAME3</code>; <code>eqdball</code> maps <code>eqtyp==0</code> to
+<code>/JT60SA_EQ/FAME3</code>.
+</li>
+<li id="jtmm-selene-output-locate-eddb">
+<strong>EDDB.</strong> <code>eddbreadCatTable()</code> returns the 73-category
+catalogue <code>['CAM','CO2','Cryo',...,'FAME','...','VV','VVGS']</code> (irc 0);
+there is a <code>FAME</code> category but <strong>no SELENE category</strong>. Direct
+reads of candidate categories (<code>SELENE</code>, <code>SEL</code>, <code>EQ</code>,
+<code>EQU</code>, <code>EQDB</code>, <code>FAME</code>, <code>MHD</code>,
+<code>EQL</code>) for <code>E101154</code> each return <code>irc=1022</code> (name or
+category not in the catalogue). No EDDB category carries a SELENE equilibrium.
+</li>
+<li id="jtmm-selene-output-locate-run">
+<strong>Run-directory file tree.</strong> The SELENE run directory is
+<code>/analysis/src/SAselene_v2.0_forPSRC/RUN/</code> (referenced by the lead's
+<code>~/work/efit_jt60sa/extract_jt60sa.py</code> as
+<code>eqsle_path = "/analysis/src/SAselene_v2.0_forPSRC/RUN/EQSLE.DATA"</code>). It
+holds a single stale run — <code>EFIT95.DATA</code> (293630 B, Jan 2021),
+<code>fort.95</code>, <code>EQSLE.DATA</code>, <code>fort.96</code>,
+<code>run</code>, <code>sel</code> — and <strong>no per-shot E101154 output</strong>.
+A bounded <code>find /analysis -maxdepth 5 -iname "*101154*"</code> returns nothing,
+and <code>find ~ -maxdepth 6</code> returns only
+<code>~/work/efit_jt60sa/E101154_signals.npz</code> (an EDDB signal export, not an
+equilibrium). The run scripts (<code>run</code>, <code>sel</code>) write only
+workstation intermediates (<code>fort.*</code>, <code>EFIT95.DATA</code>), not a
+shot-indexed equilibrium tree.
+</li>
+</ul>
+
+<h3 id="jtmm-selene-output-locate-reader">The reader that consumes it</h3>
+
+<p id="jtmm-selene-output-locate-reader-p">
+The equilibrium reader is the shipped <code>eqread_pac</code> Python package
+(<code>/analysis/src/edas2/v2.2.1/edas_share/eqread_pac</code>), which binds the
+prebuilt <code>/analysis/lib/libFLEDDPIC.so</code> through <code>ctypes</code> and
+exposes <code>db/FleddTool.py</code> <code>GetTimeList(eqdb,shot)</code>,
+<code>GetEqData(eqdb,shot,time)</code> and <code>GetEqItem(name)</code>; its
+<code>selene/</code> subpackage holds the SELENE record readers
+(<code>eqouta</code>, <code>eftout</code>, <code>eqbnd</code>, <code>eqgrd</code>,
+<code>flxfun</code>, ...) and <code>EQreadMain(fledd_tool).exec_(shot,time_s,eqdb,*psi_types)</code>.
+On the Fortran side the FAME reader is
+<code>/analysis/lib/JT60SAEQDB/eqdbms/eqdbget.f</code> <code>SUBROUTINE EQDBGET(ISH,TIM,NEQDB,IRET)</code>,
+which dispatches through <code>ALLEQDBIO</code>. SELENE's own front-ends are
+<code>/analysis/exec/getseldata.ex</code> (driven by <code>/analysis/bin/getseldata SHOT TIME</code>)
+and <code>/analysis/exec/SAeqread.ex</code>. For E101154 the record the reader returns is
+the FAME one (<code>eqdb=0</code>); <code>getseldata E101154 5.0</code> runs but reads
+only SELENE's EDDB inputs (e.g. <code>dname 1626 S005</code>, <code>irc 0</code>), not an
+EQDB equilibrium.
+</p>
+
+<h3 id="jtmm-selene-output-locate-fields">Record fields: psi grid, boundary, axis, profiles</h3>
+
+<p id="jtmm-selene-output-locate-fields-p">
+The record is a rectangular psi grid with a separatrix outline, an axis and 1-D profile
+arrays on a flux-surface mesh. Field names, groups and units below are read from the
+reader's own schema (<code>eqread_pac/default/Fledd.py</code> <code>NameList</code>) and
+corroborated by the Fortran COMMON blocks declared in the FAME reader
+<code>eqdbget.f</code> / <code>#AAA</code> includes (e.g.
+<code>COMMON/EQU0_BF/PSI_BF(IRZDM2_BF)</code>,
+<code>COMMON/GEO1_BF/RG_BF(IRDM_BF),ZG_BF(IZDM2_BF)</code>,
+<code>COMMON/EQU3_BF/CSU_BF(...),RSU_BF(...),ZSU_BF(...),NSU_BF</code>,
+<code>COMMON/EQU2_BF/RAXIS_BF,ZAXIS_BF,SAXIS_BF</code>). Sizes are
+<code>IRDM_BF=129</code>, <code>IZDM_BF=65</code>, <code>IZDM2_BF=2*65-1=129</code>,
+<code>IVDM_BF=51</code>; the two library variants are 129&times;129 and
+1025&times;1025.
+</p>
+
+<table id="jtmm-selene-output-locate-fields-table">
+<thead><tr><th>group</th><th>field</th><th>shape</th><th>unit</th></tr></thead>
+<tbody>
+<tr><td>grid</td><td><code>RG</code></td><td>(NSR) = 129</td><td>m</td></tr>
+<tr><td>grid</td><td><code>ZG</code></td><td>(NSZ) = 129</td><td>m</td></tr>
+<tr><td>psi grid</td><td><code>PSI</code></td><td>(NSR&times;NSZ) = 129&times;129</td><td>Wb</td></tr>
+<tr><td>axis</td><td><code>RAXIS</code>, <code>ZAXIS</code></td><td>scalar</td><td>m</td></tr>
+<tr><td>axis</td><td><code>SAXIS</code></td><td>scalar</td><td>Wb</td></tr>
+<tr><td>boundary</td><td><code>RSU</code>, <code>ZSU</code>, <code>CSU</code></td><td>(NSU) separatrix points</td><td>m, m, A/m&sup2;</td></tr>
+<tr><td>boundary</td><td><code>RSEP</code>, <code>ZSEP</code>, <code>PSEP</code></td><td>scalars (X-point)</td><td>m, m, Wb</td></tr>
+<tr><td>profiles</td><td><code>PDS</code></td><td>(NV) on SIV mesh</td><td>p&#8242; = &mu;<sub>0</sub>dP/d&psi; [T&middot;A/m / Wb]</td></tr>
+<tr><td>profiles</td><td><code>FDS</code></td><td>(NV)</td><td>FF&#8242; = F&middot;dF/d&psi;</td></tr>
+<tr><td>profiles</td><td><code>SIV</code>, <code>VLV</code>, <code>QQV</code>, <code>PRV</code>, <code>BTV</code></td><td>(NV)</td><td>&psi;, V, q, &mu;<sub>0</sub>P, F=R&middot;B<sub>T</sub></td></tr>
+<tr><td>scalars</td><td><code>EQTIM</code></td><td>scalar</td><td>ms</td></tr>
+<tr><td>scalars</td><td><code>TTCU</code> (I<sub>p</sub>)</td><td>scalar</td><td>MA</td></tr>
+</tbody>
+</table>
+
+<p id="jtmm-selene-output-locate-fields-read">
+A populated slice could <strong>not</strong> be read from <code>intr26-2</code>, so the
+shapes above are the reader's declared schema and not a values dump of E101154. The read
+attempt and its return: <code>GetEqData(eqdb=0, shot=101154, time_ms=500)</code> returned
+<strong><code>IRET = 300</code></strong> (the library printed its own line
+<code>eqtyp, code, sshot, ttime = 0 1 101154 500</code>), and every field then read back
+empty — <code>PSI</code>, <code>NSR</code>, <code>NSZ</code>, <code>RAXIS</code>,
+<code>ZAXIS</code>, <code>SAXIS</code>, <code>RSU</code>, <code>ZSU</code>,
+<code>PDS</code>, <code>FDS</code>, <code>SIV</code>, <code>NV</code> each with shape
+<code>(0,)</code>. This reproduces the predecessor's <code>IRET 300</code> finding.
+</p>
+
+<h3 id="jtmm-selene-output-locate-socket">FAME read through the EQDB socket client from intr26-2</h3>
+
+<p id="jtmm-selene-output-locate-socket-p">
+The EQDB transport carries a network client — the shared object
+<code>/analysis/lib/JT60SAEQDB/libEQDBMSPIC.so</code> defines
+<code>eqdbsockclient_connect</code>, <code>eqdbsockclient_joinlist</code>,
+<code>eqdbsockclient_joineqio</code>, <code>eqdbsockclient_joinimage</code>,
+<code>eqdbsockclient_ftp</code>, <code>eqdbsockclient_close</code> (confirmed with
+<code>nm -D</code>). It is reached from the Fortran reverse readers
+<code>client_eqdbms.EQ32.Rev1/eqdbms/EQDB/eqdb_get_rev.f</code>
+<code>call SOCKET_EQDBLIST(1, s_shot, listwk, nlistwk, errcd)</code> and
+<code>eqdbio_rev.f</code> <code>call SOCKET_EQDBIO(3, ...)</code>, whose
+<code>.eqdbms</code> server is <code>SERVER_NAME:dbsvr17p</code>.
+<strong>The FAME record for E101154 does not read through this client from
+<code>intr26-2</code>.</strong> The call <code>GetEqData(0,101154,500)</code> returns
+<strong><code>IRET = 300</code></strong> (quoted above), and its cause is that the server is
+not reachable from this host: the FAME server host
+<code>echoFameHost</code>&nbsp;=&nbsp;<code>dbsvr17p</code> has <strong>no DNS
+resolution</strong> on <code>intr26-2</code> (<code>getent hosts dbsvr17p</code> empty),
+TCP port 22 to it is closed/filtered, and its data root
+<code>echoFameDir</code>&nbsp;=&nbsp;<code>/JT60SA_EQ/FAME3</code> is not mounted
+(<code>/JT60SA_EQ</code> is absent). The FAME 105-slice <em>time list</em> is served from
+the local index (it lists), but the slice <em>data</em> is refused (<code>IRET 300</code>).
+A distinct return code from <code>eqdbsockclient_connect</code> itself could not be
+captured separately: the transport fails before a distinct socket RC is produced, because
+<code>dbsvr17p</code> is unresolvable. The socket client is therefore <em>present and
+callable</em>, but <em>not usable from <code>intr26-2</code></em> for E101154 while the
+FAME database server is unreachable.
+</p>
+
+<p id="jtmm-selene-output-locate-implication">
+Implication for the transport node: the SELENE equilibrium this section wanted to bind
+does not exist for E101154 in any form reachable from <code>intr26-2</code> (no
+<code>eqdbms</code> slice, no EDDB category, no run-tree file). The only E101154
+equilibrium record present is FAME's EQDB index (<code>eqdb=0</code>, 105 slices), and
+even that is unreadable here because its database server <code>dbsvr17p</code> is
+unmounted/unreachable. Scoping an EQDB transport to SELENE's record for E101154 needs a
+shot on which SELENE was actually run, or a mount of the FAME server.
+</p>
+</section>
