@@ -1,0 +1,39 @@
+<section id="jtmm-op1-shot-survey">
+<h2 id="jtmm-op1-shot-survey-h">JT-60SA OP1 plasma shot survey (nakasvr26, read-only)</h2>
+<p id="jtmm-op1-shot-survey-method">Starts from the 228-shot table in imas-efit <code>docs/jt60sa-shot-candidates.html</code> without re-characterising it. The survey re-read the OP1 range E100001&ndash;E101173 through the EDDB library on <code>nakasvr26</code> only to (a) establish plasma-shot membership by the table’s own rule (<code>PSRC/calIp</code> peak ≥ 50 kA) as a positive control and (b) add the one column the table lacks, peak β from the <code>FAME</code> category. The re-read reproduced <strong>exactly 228</strong> plasma shots, matching the source table. <code>calIp</code> values are amperes (the EDDB unit label <code>KA</code> is a misnomer).</p>
+<h3 id="jtmm-op1-shot-survey-tools">Catalogue tools read on nakasvr26</h3>
+<ul id="jtmm-op1-shot-survey-toollist">
+<li><strong><code>eddbreadCatTable()</code></strong> &mdash; lists all 73 EDDB categories (incl. <code>FAME</code>, <code>PSRC</code>) &mdash; command <code>e.eddbreadCatTable()</code></li>
+<li><strong><code>eddbreadTable(shot, cat)</code></strong> &mdash; per-category catalogue: every descriptor with unit, class and description (100 <code>FAME</code>, 303 <code>PSRC</code> descriptors for E101154) &mdash; command <code>e.eddbreadTable("E101154","FAME")</code></li>
+<li><strong><code>eddbreadChInfo(shot, cat)</code></strong> &mdash; per-shot channel inventory for a category &mdash; command <code>e.eddbreadChInfo("E101154","FAME")</code></li>
+<li><strong><code>eddbreadShot(start,end)</code></strong> &mdash; shot list with start/end times, disruption and kind flags &mdash; command <code>e.eddbreadShot("E100001","E101173")</code></li>
+<li><strong><code>eddbreadTime(shot, cat, dname)</code></strong> &mdash; one time series by category+descriptor (used for <code>PSRC/calIp</code>, <code>FAME/BETA</code>, <code>FAME/VOLUM</code>) &mdash; command <code>e.eddbreadTime("E100748","PSRC","calIp")</code></li>
+</ul>
+<p id="jtmm-op1-shot-survey-lib">All are methods of <code>eddbWrapper</code> in <code>/analysis/src/eddb/eddb_pwrapper.py</code> over <code>/analysis/lib/libeddb.so</code> (symbols <code>eddbreadCatTable</code>, <code>eddbreadTable</code>, <code>eddbreadChInfo</code>, <code>eddbreadShot</code>, <code>eddbreadTime</code>). Read-only; no data written to the site.</p>
+<h3 id="jtmm-op1-shot-survey-first">First JT-60SA plasma</h3>
+<p id="jtmm-op1-shot-survey-firstp"><strong>E100599</strong>, 20231020 (14:17:48 JST) &mdash; the earliest EDDB shot carrying a <code>PSRC/calIp</code> plasma current above the 50 kA threshold: peak 76.1 kA over a 0.161 s window. Evidence: <code>eddbreadTime("E100599","PSRC","calIp")</code> returns a 644-point waveform rising to 76.1 kA; no earlier shot in E100001&ndash;E101173 has a <code>calIp</code> peak ≥ 50 kA (the 2021 E100001&ndash;E100353 block returns none). The first <em>substantial</em> plasma is <strong>E100613</strong>, 2023-10-23 17:30 (145 kA).</p>
+<h3 id="jtmm-op1-shot-survey-rank">OP1 plasma shots by the three figures of merit</h3>
+<p id="jtmm-op1-shot-survey-ipcap">Peak <em>sustained</em> plasma current: the plateau level (<code>|Ip| ≥ 0.9·max) held for the longest interval, restricted to flat-tops ≥ 0.3 s. Source: <code>PSRC/calIp</code>. The 1.5&ndash;3.4 MA peaks (E100748 etc.) are transient (&lt; 0.1 s), consistent with the source table.</p>
+<table id="jtmm-op1-shot-survey-ip">
+<thead><tr><th>#</th><th>shot</th><th>plateau [MA]</th><th>flat-top [s]</th><th>date (UTC+9)</th><th>disrupt</th><th>FAME</th></tr></thead><tbody>
+<tr><td>1</td><td>E100999</td><td>1.131</td><td>1.77</td><td>20231127</td><td>D</td><td>yes</td></tr>
+<tr><td>2</td><td>E101045</td><td>0.989</td><td>1.93</td><td>20231201</td><td>N</td><td>yes</td></tr>
+<tr><td>3</td><td>E101039</td><td>0.989</td><td>1.93</td><td>20231130</td><td>N</td><td>yes</td></tr>
+<tr><td>4</td><td>E101046</td><td>0.988</td><td>1.93</td><td>20231201</td><td>N</td><td>yes</td></tr>
+<tr><td>5</td><td>E101044</td><td>0.988</td><td>1.92</td><td>20231201</td><td>N</td><td>yes</td></tr>
+</tbody></table>
+<p id="jtmm-op1-shot-survey-betacap">Peak β (toroidal, <code>FAME/BETA</code>). The raw per-slice maximum is corrupted by degenerate reconstruction slices at the ramp edges (e.g. E101154 max 0.17 versus a physical median 0.028), so the ranking uses the robust flat-top median and reports the raw max beside it.</p>
+<table id="jtmm-op1-shot-survey-beta">
+<thead><tr><th>#</th><th>shot</th><th>β flat-top med</th><th>β raw max</th><th>Ip [MA]</th><th>date</th><th>disrupt</th></tr></thead><tbody>
+<tr><td>1</td><td>E101146</td><td>0.3264</td><td>3.38</td><td>0.362</td><td>20231212</td><td>D</td></tr>
+<tr><td>2</td><td>E100981</td><td>0.08699</td><td>0.087</td><td>0.659</td><td>20231124</td><td>N</td></tr>
+<tr><td>3</td><td>E101163</td><td>0.05786</td><td>5.46</td><td>0.993</td><td>20231213</td><td>D</td></tr>
+<tr><td>4</td><td>E100983</td><td>0.0545</td><td>0.0568</td><td>0.569</td><td>20231124</td><td>N</td></tr>
+<tr><td>5</td><td>E100992</td><td>0.05057</td><td>0.0909</td><td>0.570</td><td>20231124</td><td>N</td></tr>
+</tbody></table>
+<p id="jtmm-op1-shot-survey-volcap">Peak plasma volume (<code>FAME/VOLUM</code>, m³). Presence also marks a FAME reconstruction.</p>
+<table id="jtmm-op1-shot-survey-vol">
+<thead><tr><th>#</th><th>shot</th><th>vol [m3]</th><th>Ip [MA]</th><th>date</th><th>disrupt</th><th>FAME</th></tr></thead><tbody>
+</tbody></table>
+<p id="jtmm-op1-shot-survey-selene">PSRC (SELENE-class) reconstruction present: 22 of the 22 listed shots; FAME reconstruction present: 19. The machine-readable identified OP1 shot list with a reason per entry is <a href="/imas-ambix/evidence/fragments/jt60sa-machine-map/jtmm-op1-shot-survey.json">jtmm-op1-shot-survey.json</a>.</p>
+</section>
