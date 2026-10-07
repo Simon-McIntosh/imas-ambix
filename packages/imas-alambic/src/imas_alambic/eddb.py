@@ -1,7 +1,8 @@
 """On-demand cache for JT-60SA EDDB channels.
 
 Only the channels a map binds, for the shots a run asks for, are landed, as
-``{shot}.zarr/{category}/{dname}`` under :data:`~imas_alambic.paths.JT60SA_ROOT`,
+``{shot}.zarr/{category}/{dname}`` under the ``JT60SA_ROOT`` description-store
+root that the reachable bundle carries from :mod:`imas_ambix.data.paths`,
 with the channel's EDDB time base stored as a sibling array
 (``{category}/{dname}_time``) so a cached channel carries its own time.
 

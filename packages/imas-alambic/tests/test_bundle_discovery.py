@@ -51,6 +51,7 @@ def test_a_synthetic_bundle_on_the_map_path_resolves_by_name(tmp_path, monkeypat
 def test_the_same_directory_reached_twice_is_one_bundle(tmp_path, monkeypatch):
     bundle = _bundle(tmp_path / "synth", name="synth", machines=["synth-machine"])
     monkeypatch.setenv("IMAS_ALAMBIC_MAP_PATH", f"{bundle}{os_sep()}{bundle}")
+    monkeypatch.setattr("imas_alambic.machine_map.entry_points", lambda group: [])
 
     assert len(discover_bundles()) == 1
 
