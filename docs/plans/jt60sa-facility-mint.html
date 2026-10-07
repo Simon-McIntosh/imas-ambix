@@ -22,11 +22,11 @@
   <meta name="plan-tags" content="jt-60sa,machine-map">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <meta name="plan-after" content="jt60sa-pulse-ids">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="20">
+<meta name="plan-version" content="21">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -242,44 +242,12 @@
       §6's measure.
     </p>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-07</span>
     <h2 id="s4">§4 — Editable install on the JT-60SA analysis server</h2>
-<section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-facility-mint#s2"></section>
-    <p>
-      The lead chose to install (<code>facility-install</code>), preferably by wheel, starting with
-      an editable checkout to test. The tokamap export in
-      <code>imas_ambix/data/tokamap_export.py</code> stays available but is not this route.
-      Facility facts, probed from here as <code>ssh jt-60sa</code> on 2026-10-06:
-    </p>
-    <ul>
-      <li>The host is <code>intr26-2</code>, account <code>d240044</code>.</li>
-      <li><code>module load python/3.12</code> gives Python 3.12.9 with numpy 2.4.2 and scipy, but
-        not imas-python, zarr or pyyaml. <code>python -m venv</code> works.</li>
-      <li>Outbound port 443 reaches github.com, ghcr.io and PyPI, and pip downloads from PyPI.</li>
-      <li>git and curl over https fail with <code>error setting certificate file:
-        /etc/ssl/certs/ca-certificates.crt</code>, from an inherited CA path. So every git command
-        names the RHEL bundle (<code>GIT_SSL_CAINFO=/etc/pki/tls/certs/ca-bundle.crt</code>)
-        rather than changing the account's configuration.</li>
-      <li>Port 22 to GitHub is closed, and the account has no GitHub key.</li>
-    </ul>
-    <p>
-      Set up a blob-less sparse clone (<code>--filter=blob:none --sparse</code>) of the public
-      imas-ambix, restricted to <code>packages/imas-alambic</code>, and one of nova, restricted to
-      <code>packages/nova-cocos</code>, both under <code>~/imas-alambic/src/</code>. Create a venv at
-      <code>~/imas-alambic/.venv</code> from the 3.12 module. Install nova-cocos and then
-      imas-alambic with <code>pip install -e</code>, taking dependencies from PyPI. The JT-60SA maps
-      reach the server from this machine, never from GitHub: as files copied from this checkout
-      until §1 lands, and as the GHCR bundle afterwards. Every command runs under
-      <code>nice -n 19</code>, keeping to the standing rule of light load on that server, and
-      nothing is written outside <code>~/imas-alambic/</code> except pip's own cache.
-    </p>
-    <p>
-      Done-when: on <code>intr26-2</code>, <code>importlib.metadata.version("imas-alambic")</code>
-      in <code>~/imas-alambic/.venv</code> names the checked-out commit, and that commit is the
-      <code>origin/main</code> commit that carries §2. <code>load_machine_map</code> and
-      <code>load_signal_map</code>, run on the relayed JT-60SA catalogue and on each of its signal
-      maps, report the same machine, IDS and path counts as the same calls here. The engine's own tests pass under the server's Python
-      3.12.9.
-    </p>
+<section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="done" data-links="jt60sa-facility-mint#s2"></section></header>
+  <p class="landed-summary">Landed on <code>intr26-2</code> (account d240044): a Python 3.12.9 venv at <code>~/imas-alambic/.venv</code> holds editable imas-alambic <code>0.1.dev5620+g33cad025b</code> (clone HEAD <code>33cad025</code>, which contains the engine move) and nova-cocos, both installed from blob-less sparse https clones. The relayed JT-60SA bundle at <code>~/imas-alambic/bundles/jt-60sa</code> loads by name with the same machine, IDS and path counts as this checkout, and the 16 engine tests pass on the server. Activate with <code>source ~/imas-alambic/env.sh</code>. <a href="s4">full record</a></p>
+</section>
 
     <h2 id="s5">§5 — Wheel install with the GHCR bundle</h2>
 <section data-reckon="section" data-id="s5" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-facility-mint#s1,jt60sa-facility-mint#s3,jt60sa-facility-mint#s4"></section>
@@ -405,7 +373,7 @@
     <div class="r-comment-body"><p>Restored the description store-root refusal wording in resolve_description_store_root ("no bundle declares description store root {name!r}") so tests/data/test_machine_map.py::test_machine_map_refuses_an_incomplete_or_unknown_store_declaration passes, and stubbed the imas_alambic.bundles entry-point lookup in test_the_same_directory_reached_twice_is_one_bundle so the dedup test passes in the shared env and a clean py3.12 venv; gate moved from 2 failed/43 passed (EXIT=1) at base to 45 passed (EXIT=0), ruff EXIT=0.</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261007T002846368952-review-of-jtfm-alambic-move-repair" data-who="reckon-build" data-when="2026-10-07T00:35:40.568Z">
-    <div class="r-comment-body"><p>Independent review of run r-20261007T001924023101-jtfm-alambic-move-repair stored at /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261007T001924023101-jtfm-alambic-move-repair.json: reviewed_base_sha 0aa0bd7e1cbab646519c83c497156032f8c6c407, reviewed_head_sha b9d318fd2324ac8e2162d67317d991efea6c3911, added_failure_count 0, added_failure_ids [], scores goal_fidelity 19 / evidence 18 / scope_discipline 20 / durability 19 / fit 19 / reuse 19, total 114; one follow-on on the negative-control log&#x27;s missing revision header.</p></div>
+    <div class="r-comment-body"><p>Independent review of run r-20261007T001924023101-jtfm-alambic-move-repair stored at /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261007T001924023101-jtfm-alambic-move-repair.json: reviewed_base_sha 0aa0bd7e1cbab646519c83c497156032f8c6c407, reviewed_head_sha b9d318fd2324ac8e2162d67317d991efea6c3911, added_failure_count 0, added_failure_ids [], scores goal_fidelity 19 / evidence 18 / scope_discipline 20 / durability 19 / fit 19 / reuse 19, total 114; one follow-on on the negative-control log's missing revision header.</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20261007T0137-eddb-doc" data-who="reckon-build" data-when="2026-10-06T23:37:00Z">
     <div class="r-comment-body"><p>Carry into the §3 node: the module docstring of <code>packages/imas-alambic/src/imas_alambic/eddb.py</code> points at <code>imas_alambic.paths.JT60SA_ROOT</code>, which does not exist. Store roots are owned by <code>imas_ambix.data.paths</code> and reached through the bundle. The reviewer of <code>jtfm-alambic-move</code> raised this, and it was moved out of <code>jtfm-alambic-importers</code> because <code>packages/imas-alambic</code> was still claimed by A.</p></div>

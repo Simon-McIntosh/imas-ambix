@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-facility-mint-landed">
+  <meta name="plan-title" content="JT-60SA Facility Mint: Public Engine, Private Maps — landed record">
+  <meta name="plan-summary" content="Closure synthesis for JT-60SA Facility Mint: Public Engine, Private Maps: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).">
+  <meta name="plan-evidence-for" content="jt60sa-facility-mint">
+  <meta name="plan-verdict" content="qualified">
+  <title>JT-60SA Facility Mint: Public Engine, Private Maps — landed record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+ <main class="plan-doc">
+  <h1>JT-60SA Facility Mint: Public Engine, Private Maps — landed record</h1>
+  <p>Closure synthesis for JT-60SA Facility Mint: Public Engine, Private Maps: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).</p>
+
+
+   <section id="s4">
+    <h2>§4 — editable install on the JT-60SA analysis server</h2>
+    <p>Node <code>jtfm-facility-editable</code> (fragment commit <code>dd17dc9b</code>, merged at <code>0e1ee983</code>). On <code>intr26-2</code>, under <code>nice -n 19</code>:</p><ul><li>Blob-less sparse https clones of imas-ambix (<code>packages/imas-alambic</code>) and nova (<code>packages/nova-cocos</code>) under <code>~/imas-alambic/src</code>, with <code>GIT_SSL_CAINFO=/etc/pki/tls/certs/ca-bundle.crt</code> set per command; the account's git config is unchanged.</li><li><code>pip install -e</code> of nova-cocos <code>0.11.0.post10062+g5c2bcf7f</code>, then imas-alambic <code>0.1.dev5620+g33cad025b</code>, with dependencies taken from PyPI.</li><li>The JT-60SA catalogue and signal maps were relayed from this checkout into <code>~/imas-alambic/bundles/jt-60sa</code>. With <code>IMAS_ALAMBIC_MAP_PATH</code> set there, the catalogue reports IDSs magnetics, pf_active, pf_passive, tf and wall, with 25 paths, 170 bindings and 2 maps. The signal maps report magnetics 45/57/3, pf_active 10/10/1 and tf 1/1/1, all equal to this checkout.</li><li><code>packages/imas-alambic/tests</code>: 16 passed under Python 3.12.9.</li></ul><p>A coordinator probe afterwards confirmed the editable installs and the contents of <code>env.sh</code>, with 144 MB under <code>~/imas-alambic</code>. Nothing was written outside <code>~/imas-alambic</code> except pip's cache and the shell history. The independent review scored goal 20, evidence 18, scope 19, durability 12, fit 18 and reuse 20.</p>
+  </section>
+
+</main>
+</body>
+</html>
