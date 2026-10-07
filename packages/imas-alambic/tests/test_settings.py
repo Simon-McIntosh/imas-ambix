@@ -210,6 +210,32 @@ def test_several_reachable_machines_leaves_the_machine_unset_naming_the_flag(
     assert "alpha" in settings.machine.source and "beta" in settings.machine.source
 
 
+def test_every_setting_is_reported_when_no_bundle_is_reachable(tmp_path, monkeypatch):
+    _no_entry_points(monkeypatch)
+    home = tmp_path / "IMASDB"
+    home.mkdir()
+    # The home-derived map search path names maps/current, which does not exist
+    # yet, so the search-path entry carries no descriptor and bundle discovery
+    # refuses.  Config must still report every setting.
+    settings = resolve_settings(SettingsFlags(), {ENV_HOME: str(home)})
+
+    assert settings.home.value == home
+    assert settings.maps.value == home / "maps" / "current"
+    assert settings.ids_root.value == home / "ids"
+    assert settings.ids_root.source == f"{ENV_HOME}/ids"
+
+    # The machine and the cache search the bundle, so each carries the refusal
+    # as its source with no value rather than raising out of resolve_settings.
+    assert settings.machine.value is None
+    assert "cannot read bundle descriptor" in settings.machine.source
+    assert settings.cache.value is None
+    assert "cannot read bundle descriptor" in settings.cache.source
+
+    # A command that needs the machine still refuses while it is unresolved.
+    with pytest.raises(MachineMapError):
+        require_setting("machine", settings.machine, "--machine")
+
+
 def test_require_setting_names_the_variable_that_sets_it(monkeypatch):
     _no_entry_points(monkeypatch)
     settings = resolve_settings(SettingsFlags(), {})
