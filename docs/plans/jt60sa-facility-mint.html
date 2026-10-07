@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="95">
+<meta name="plan-version" content="96">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -438,11 +438,14 @@
 <div class="r-comment" data-section="s14" data-id="c-run-r-20261007T081237793083-jtfm-census-guard-owner" data-who="reckon-build" data-when="2026-10-07T09:01:37.611Z">
     <div class="r-comment-body"><p>JT-60SA census bundle presence now has one owner (tests/jt60sa_bundle.py) deciding from discover_bundles() alone, and the EDDB stand-in wrapper has one definition (packages/imas-alambic/tests/eddb_standin.py) reached by the ambix test through its test directory on sys.path; head 107 passed vs base 107 passed (0 added failures), empty-dir 36 passed/71 skipped with the stated reason, both negative controls refuse with 7 collection errors each.</p></div>
 </div>
+<div class="r-comment" data-section="s14" data-id="c-run-r-20261007T093815607203-jtfm-census-guard-repair" data-who="reckon-build" data-when="2026-10-07T10:19:46.227Z">
+    <div class="r-comment-body"><p>jtfm-census-guard-repair brings the merged census guard and EDDB stand-in to §14: machine_map gains bundles_carrying(machine) as the one owner (bundle_for_machine resolves through it), the guard skips only on an empty result and delegates the two-bundle refusal, an empty IMAS_ALAMBIC_MAP_PATH now fails collection with the descriptor refusal, the MAST guards key on &quot;mast&quot;, and eddb_standin.py is the single EDDB stand-in loaded by file path; census arm 107 passed base and head with no added failures, ruff whole-tree exits 0</p></div>
+</div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261007T081209804162-jtfm-imasdb-install" data-who="reckon-build" data-when="2026-10-07T10:10:06.857Z">
     <div class="r-comment-body"><p>packages/imas-alambic/install/imasdb.sh installs imas-alambic into the shared IMASDB folder on intr26-2 in one command; the full FENCE—EVIDENCE measure is green in the run log and tied to the live install.</p></div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261007T101057764390-review-of-jtfm-imasdb-install" data-who="reckon-build" data-when="2026-10-07T10:31:48.544Z">
-    <div class="r-comment-body"><p>review of r-20261007T081209804162-jtfm-imasdb-install: 3 findings, all follow-on (the gate log&#x27;s header stamps the stale revision b24db7ec and carries no EXIT= line; the installer spells maps/current once in its seed; the fence literal &#x27;find IMASDB -perm -o+w prints nothing&#x27; is unsatisfiable because a symlink&#x27;s mode is 0777); total 101 of 120, below the 108 acceptance floor.</p></div>
+    <div class="r-comment-body"><p>review of r-20261007T081209804162-jtfm-imasdb-install: 3 findings, all follow-on (the gate log's header stamps the stale revision b24db7ec and carries no EXIT= line; the installer spells maps/current once in its seed; the fence literal 'find IMASDB -perm -o+w prints nothing' is unsatisfiable because a symlink's mode is 0777); total 101 of 120, below the 108 acceptance floor.</p></div>
 </div>
 </section>
 </main>
