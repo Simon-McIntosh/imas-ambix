@@ -22,11 +22,11 @@
   <meta name="plan-tags" content="jt-60sa,machine-map">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <meta name="plan-after" content="jt60sa-pulse-ids">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;deferred&quot;,&quot;s11&quot;:&quot;done&quot;,&quot;s12&quot;:&quot;implementable&quot;,&quot;s13&quot;:&quot;done&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;deferred&quot;,&quot;s11&quot;:&quot;done&quot;,&quot;s12&quot;:&quot;implementable&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;implementable&quot;}">
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="83">
+<meta name="plan-version" content="85">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -48,141 +48,12 @@
       </p>
     </header>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-07</span>
     <h2 id="s1">§1 — Move the JT-60SA maps into a private bundle</h2>
-<section data-reckon="section" data-id="s1" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-facility-mint#s9"></section>
-    <p>
-      The data-load code is in <code>imas_ambix/data/</code>. <code>eddb_remote.py</code> sends a batch
-      of EDDB channel requests down one ssh session to the analysis server, whose remote half runs
-      on the server's Python 3.12 with only the standard library, numpy and
-      <code>eddb_pwrapper</code>. <code>eddb.py</code> owns the cache under
-      <code>/work/projects/imas_gpu/jt60sa/{shot}.zarr</code>. <code>signal_map.py</code> and
-      <code>virtual_zarr.py</code> apply the pulse maps over that cache, and
-      <code>transform_engine.py</code> with <code>machine_map.py</code> serves the machine description
-      through the catalogue. The maps are package data beside that code:
-      <code>imas_ambix/data/machine_maps/jt-60sa.json</code> and
-      <code>imas_ambix/data/maps/jt-60sa/{pf_active,tf,magnetics}.json</code>, found through
-      <code>PACKAGED_MACHINE_MAP_ROOT</code> and <code>PACKAGED_MAP_ROOT</code>. Both GitHub remotes of
-      this repository, the <code>origin</code> fork and <code>upstream</code>, are public, and the
-      JT-60SA maps and their evidence fragments are pushed to <code>origin</code>. The description
-      store and the SELENE deck copies it is built from live only under
-      <code>/work/projects/imas_gpu/jt60sa/</code>, never in git.
-    </p>
-    <p>
-      The lead chose a private bundle protected by GHCR alone, with no private git repository
-      (<code>map-privacy</code>, <code>map-source</code>, <code>public-history</code>,
-      <code>bundle-layout</code>). The JT-60SA catalogue, its unit table, its signal maps and the
-      description store (827 kB under <code>/work/projects/imas_gpu/jt60sa/machine_description/</code>)
-      become one flat single-machine bundle (§9), whose catalogue's <code>description_store_root</code> becomes the role name <code>description</code>, edited in place under
-      <code>/work/projects/imas_gpu/jt60sa/maps/</code>. It holds <code>bundle.json</code>,
-      <code>machine_map.json</code>, <code>maps/&lt;ids&gt;.json</code> and
-      <code>machine_description/&lt;phase&gt;/&lt;ids&gt;.nc</code>, and names the machine once, in
-      <code>bundle.json</code>. Each released version is pushed with <code>oras</code> as an OCI
-      artifact to the private package <code>ghcr.io/simon-mcintosh/imas-alambic-jt60sa</code>, tagged
-      with its version. GHCR's immutable, digest-addressed tags are the maps' history. Afterwards
-      the public tree carries no JT-60SA map: ambix's <code>bundle.json</code> drops
-      <code>jt-60sa</code>, and the JT-60SA map files leave <code>imas_ambix/data/</code>. The 12
-      earlier commits on <code>origin</code> that carry the maps stay as they are, because the lead
-      chose not to rewrite history; <code>upstream</code> never had them. The evidence fragments
-      and figures under <code>docs/</code> are outside this move, and the open decision
-      <code>evidence-privacy</code> covers them.
-    </p>
-    <p>
-      Tests follow the maps. The engine's own tests use synthetic bundles. Every test that reads
-      the real JT-60SA maps or the <code>/work</code> store resolves them through the bundle
-      (<code>IMAS_ALAMBIC_MAP_PATH</code> naming the <code>/work</code> bundle) or through
-      <code>imas_ambix.data.paths</code>. It skips with a stated reason when the bundle is absent,
-      which is what public CI sees. The census is a command, so the node re-runs it rather than
-      trusting a list: <code>git grep -l -E "jt-60sa|JT60SA_ROOT|JT60SA_DESCRIPTION_DIR|/work/projects/imas_gpu/jt60sa"
-      -- imas_ambix scripts tests packages ':!*.json'</code>. At <code>106c1104</code>, after §8 merged, it had 20 hits:
-    </p>
-    <ul>
-      <li>Engine: <code>eddb_remote.py</code>. §8 took <code>cli.py</code>, <code>eddb.py</code>
-        and <code>pulse_writer.py</code> off the list.</li>
-      <li>Ambix: <code>imas_ambix/data/bundle.py</code>, and <code>imas_ambix/data/paths.py</code>,
-        the owner of the <code>/work</code> layout.</li>
-      <li>Scripts: <code>figures_jt60sa_geometry.py</code>, <code>figures_jt60sa_signals.py</code>
-        and <code>vacuum_loop_adjudication.py</code>.</li>
-      <li>Engine tests: <code>packages/imas-alambic/tests/test_cli.py</code>,
-        <code>test_eddb_local_transport.py</code>, <code>test_flat_bundle.py</code> and
-        <code>test_settings.py</code>. These use synthetic bundles or name <code>jt-60sa</code>
-        only as a label, except <code>test_eddb_local_transport.py</code>, whose E101154 test
-        reads the real <code>/work</code> cache.</li>
-      <li>Ambix tests: <code>tests/data/test_cocos_convention.py</code>, <code>test_eddb_cache.py</code>,
-        <code>test_jt60sa_machine_map.py</code>, <code>test_jt60sa_signal_maps.py</code>,
-        <code>test_jt60sa_unit_audit.py</code>, <code>test_pulse_writer.py</code>, <code>test_selene_deck.py</code>,
-        <code>test_transform_engine.py</code>, <code>tests/gs/test_operator.py</code> and
-        <code>tests/scripts/test_vacuum_loop_adjudication.py</code>.</li>
-    </ul>
-    <p>
-      Two production modules need no edit. <code>imas_ambix/data/description_reader.py:237</code>
-      takes the machine as an argument and resolves it through the bundle.
-      <code>imas_ambix/data/selene_deck.py</code> writes the description store into an output
-      directory its caller names, so it does no map or store lookup of its own. One script reaches
-      the maps by a path relative to its own file:
-      <code>scripts/vacuum_loop_adjudication.py:1088</code> builds
-      <code>imas_ambix/data/maps/jt-60sa/pf_active.json</code> from <code>__file__</code>. It moves to
-      the bundle resolver, <code>load_packaged_signal_map</code>. Two small edits ride with the move. <code>cli.py</code>'s <code>--machine</code> help drops its <code>jt-60sa</code> example. Two machine-named roles leave <code>imas_ambix/data/bundle.py</code>. <code>JT60SA_ROOT</code> goes because §8's <code>eddb_cache</code> role now names that path and nothing looks the old one up. <code>JT60SA_DESCRIPTION_DIR</code> goes because the JT-60SA catalogue, the only one that names it, leaves the tree. Ambix's bundle then serves two machines through <code>LEVEL2_DIR</code>. <code>paths.py</code> keeps both constants as the owner of the <code>/work</code> layout. <code>eddb_cache</code> stays, valued from <code>paths.JT60SA_ROOT</code>, because it is how the writer finds this checkout's development cache. Each reader in a census hit must end in one of the five states below, and one file can hold readers
-      in different states. A test guards an absence by skipping with a stated reason. A script
-      guards it by stopping with a message that names the variable or path that would supply it.
-    </p>
-    <ul>
-      <li>It is <code>paths.py</code> or that file's self-check at
-        <code>tests/data/test_eddb_cache.py:721</code>. Or it reads the <code>/work</code> data
-        store, naming it only through <code>paths.py</code>'s constants and guarding its absence.
-        Such readers read EDDB data, not maps, as
-        <code>scripts/vacuum_loop_adjudication.py:1186</code> and <code>:1217</code>
-        (<code>read_channel(JT60SA_ROOT, …)</code>) do.</li>
-      <li>It is a script that resolves the maps through the bundle and guards the bundle's
-        absence. There are two. <code>vacuum_loop_adjudication.py</code> holds a map reader at
-        <code>:1088</code>, which moves to <code>load_packaged_signal_map</code>.
-        <code>scripts/figures_jt60sa_geometry.py:145</code> already loads the catalogue by name
-        through <code>load_packaged_machine_map</code>. When no bundle serves jt-60sa, each stops
-        with the resolver's refusal. §12 makes that refusal name
-        <code>IMAS_ALAMBIC_MAP_PATH</code>, the variable that would supply the bundle.</li>
-      <li>It is owned elsewhere. <code>scripts/figures_jt60sa_signals.py:35</code> opens
-        <code>pulse_path(JT60SA_ROOT / "ids", …)</code> without a guard.
-        <a href="jt60sa-signal-figures-from-ids">jt60sa-signal-figures-from-ids</a> §3 owns that
-        script and moves it onto <code>resolve_settings</code> and <code>pulse_path</code>, so
-        §1 does not edit it. It is the only hit in this state.</li>
-      <li>It is a test that resolves the maps through the bundle and skips with a stated reason
-        when the bundle is absent. Hard-coded <code>/work</code> literals, such as
-        <code>test_transform_engine.py:39</code>, <code>test_selene_deck.py:908</code>
-        (<code>_FACILITY_SOURCE</code>) and <code>test_eddb_local_transport.py:37</code>, are
-        replaced by <code>paths.py</code> names. The E101154 local-transport test moves to the
-        ambix side, leaving the engine's tests synthetic.</li>
-      <li>In the engine, it is the EDDB reader, which is JT-60SA's data system and may name it.
-        Nothing else in the engine names the machine.</li>
-    </ul>
-    <p>
-      The move needs §9's flat bundle layout. It also changes where the
-      <a href="jt60sa-machine-map">jt60sa-machine-map</a> plan edits the maps. So it lands only
-      when that plan has no run in flight on the map files, and that plan's later sections edit
-      the <code>/work</code> copy instead. Done-when: <code>git ls-files imas_ambix | grep -i -E
-      'jt-60sa|jt60sa'</code> lists no catalogue, unit table or signal map on <code>main</code>,
-      and ambix's <code>bundle.json</code> names no <code>jt-60sa</code>. The <code>/work</code>
-      bundle loads by name with <code>IMAS_ALAMBIC_MAP_PATH</code> naming it.
-      <code>oras manifest fetch ghcr.io/simon-mcintosh/imas-alambic-jt60sa:&lt;version&gt;</code>
-      succeeds with the gh token and is refused without one. With the bundle on the search path,
-      the census tests add no failures against the stated base; without it, they skip with the
-      stated reason. Re-running the census, every reader is in one of the five states above, and
-      <code>git grep -n /work/projects/imas_gpu/jt60sa -- packages imas_ambix tests scripts</code>
-      finds the literal only in <code>imas_ambix/data/paths.py</code> and in
-      <code>tests/data/test_eddb_cache.py</code>'s check of it. <code>git grep -n -E
-      'data/maps/jt-60sa|machine_maps/jt-60sa' -- packages imas_ambix tests scripts</code> finds no
-      reader that builds the old in-repo path. <code>git grep -n -E "PACKAGED_(MACHINE_)?MAP_ROOT"
-      -- packages imas_ambix tests scripts</code> finds no read of a jt-60sa file either, which
-      catches paths composed from the constant. The one such reader,
-      <code>tests/data/test_jt60sa_signal_maps.py:38</code>, which reads the unit table, moves to
-      the bundle and skips with a stated reason when it is absent. The remaining readers are
-      mast-only. <code>tests/gs/test_operator.py</code>'s JT-60SA vacuum test loads the maps by
-      name behind a guard on the EDDB cache only, so it gains a guard on the bundle too. That
-      file is under edit by jt60sa-machine-map's operator node, so this section dispatches after
-      that node merges. With <code>IMAS_ALAMBIC_MAP_PATH</code> naming an
-      empty directory, every census test module either passes or skips with the stated reason,
-      and none fails. After the move, ambix's own bundle no longer carries JT-60SA, so this run
-      shows that every reader, including those that reach the store through
-      <code>JT60SA_ROOT</code>, is guarded.
-    </p>
+<section data-reckon="section" data-id="s1" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="done" data-links="jt60sa-facility-mint#s9"></section></header>
+  <p class="landed-summary">Landed: the JT-60SA catalogue, unit table and signal maps left <code>imas_ambix/data</code>. They now live only in the flat bundle at <code>/work/projects/imas_gpu/jt60sa/maps</code>, released as private GHCR artifacts. Ambix's bundle serves mast and diii-d and drops the <code>JT60SA_ROOT</code> and <code>JT60SA_DESCRIPTION_DIR</code> roles, keeping <code>eddb_cache</code>. With the bundle on the map path the census tests give 189 passed. Without it they give 118 passed, 71 skipped and none failed. Review: 0 added failures, with reuse 5 and durability 12 for two test-quality defects, which §14 owns. Merged at <code>df3480f2</code>. <a href="s1">full record</a></p>
+</section>
 
     <section class="section-landed">
   <header><span class="badge badge-shipped">&#10003; landed 2026-10-07</span>
@@ -260,6 +131,10 @@
 <section data-reckon="section" data-id="s13" data-effort-hours="0.75" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="done" data-links="jt60sa-facility-mint#s8"></section></header>
   <p class="landed-summary">Landed <code>_run_file_destination</code> in <code>pulse_writer.py</code>, a module-private context manager beside <code>pulse_path</code>. <code>write_pulse</code> writes each run file to a dot-prefixed <code>.&lt;pulse&gt;_&lt;run&gt;.&lt;random&gt;.partial.nc</code> in the output directory and gives it mode 0644. Only after <code>imas.DBEntry</code> has closed it is it replaced onto <code>pulse_path</code>, and any failure unlinks it. The engine tests go from 1 failed and 42 passed at base, the failure being the partial-file defect, to 43 passed at head. The independent review scored 18 to 20 of 20 with no added failures. Merged at <code>ffb728e3</code>. <a href="s13">full record</a></p>
 </section>
+
+    <h2 id="s14">§14 — One owner for the JT-60SA bundle guard and the EDDB stand-in</h2>
+<section data-reckon="section" data-id="s14" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links="jt60sa-facility-mint#s1"></section>
+<p>§1's review found two duplications in the tests it left behind. First, nine census guards catch every <code>MachineMapError</code> and skip, at <code>tests/data/test_eddb_local_transport.py:104</code>, <code>test_jt60sa_machine_map.py:34</code>, <code>test_jt60sa_signal_maps.py:32</code>, <code>test_jt60sa_unit_audit.py:34</code>, <code>test_pulse_writer.py:50</code>, <code>test_transform_engine.py:46</code>, <code>tests/gs/test_operator.py:535</code> and <code>:755</code>, and <code>tests/scripts/test_vacuum_loop_adjudication.py:63</code>. So a duplicated or malformed bundle reads as absent: if jt-60sa reappeared in ambix's public bundle beside the private one, every guarded test would skip rather than fail. Second, <code>tests/data/test_eddb_local_transport.py</code> copies the 1.8 kB EDDB stand-in wrapper and local-extractor helpers that <code>packages/imas-alambic/tests/test_eddb_local_transport.py</code> still owns.</p><p>The guard gets one owner in the test package, <code>tests/jt60sa_bundle.py</code>. It decides absence from <code>discover_bundles()</code> alone: the guarded tests skip, with a stated reason, only when no reachable bundle carries jt-60sa. Every other <code>MachineMapError</code>, including a machine carried by two bundles, fails the test. The stand-in gets one owner too. The engine's tests must keep running in a clean venv from the wheels and pytest alone, so they cannot import ambix's <code>tests</code> package. The owner therefore sits on the engine side, and the ambix test reaches it through a mechanism pytest supports. The worker chooses that mechanism and records why.</p><p>Write paths: <code>tests/jt60sa_bundle.py</code>, the eight test files named above, <code>packages/imas-alambic/tests/test_eddb_local_transport.py</code>, any new engine-side test-support file under <code>packages/imas-alambic/tests/</code>, and the node's evidence fragment.</p><p>Done-when:</p><ul><li><code>git grep -n -E "except .*MachineMapError" -- tests</code> finds no module-level skip guard outside <code>tests/jt60sa_bundle.py</code>.</li><li>With <code>IMAS_ALAMBIC_MAP_PATH</code> naming the <code>/work</code> bundle, the census tests add no failures against the stated base. With it naming an empty directory, every guarded module passes or skips with the stated reason.</li><li>Negative control: with jt-60sa added to a scratch copy of ambix's bundle descriptor beside the <code>/work</code> bundle, the guarded tests fail with the two-bundle refusal and do not skip.</li><li>The stand-in wrapper and helpers are defined once. <code>packages/imas-alambic/tests</code> passes in a clean <code>uv venv --python 3.12</code> holding only the two wheels and pytest. <code>uv run --no-sync ruff check imas_ambix tests packages</code> exits 0.</li></ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -412,10 +287,16 @@
     <pre class="r-fu-prompt">/reckon-build jt60sa-facility-mint §11</pre>
     <p class="r-fu-outcome">§11 dispatched as r-20261007T061614681780-jtfm-engine-packaging; §1 waits for jt60sa-machine-map's operator node to release tests/gs/test_operator.py.</p>
     </article>
-<article class="r-fu" data-id="f-jtfm-005" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-build" data-written-at="2026-10-07T06:22:00Z" data-recommends-skill="/reckon-build jt60sa-facility-mint §1" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jtfm-005" data-status="resolved" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-build" data-written-at="2026-10-07T06:22:00Z" data-recommends-skill="/reckon-build jt60sa-facility-mint §1" data-resolved-at="2026-10-07T07:44:21+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Move the maps out, then the IDS-root default and the facility install</h4>
     <div class="r-fu-body"><p>§11 is running. §1 dispatches once jt60sa-machine-map's operator node merges and releases <code>tests/gs/test_operator.py</code>. §13 can run now. §12 follows §1, which also writes <code>bundle.py</code>. §5 waits for §1, §11 and §13, and §6 waits for §5.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-facility-mint §1</pre>
+    <p class="r-fu-outcome">§1 merged at df3480f2, §11 at a7cd64ef and §13 at ffb728e3, all promoted. §1's review follow-ons became §14.</p>
+    </article>
+<article class="r-fu" data-id="f-jtfm-006" data-status="open" data-capability-version="1.0" data-capability-class="orchestrator" data-written-by="reckon-build" data-written-at="2026-10-07T07:50:00Z" data-recommends-skill="/reckon-build jt60sa-facility-mint §5" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Install at the facility, add the IDS-root default, consolidate the census guards</h4>
+    <div class="r-fu-body"><p>§5, §12 and §14 can run now in parallel, because their write paths do not overlap. §5 has all of §1, §8, §11 and §13 behind it. §6 waits for §5.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-facility-mint §5</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -487,6 +368,9 @@
 </div>
 <div class="r-comment" data-section="s1" data-id="c-run-r-20261007T073408002131-review-of-jtfm-maps-out" data-who="reckon-build" data-when="2026-10-07T07:42:13Z">
     <div class="r-comment-body"><p>Reviewed r-20261007T065600622395-jtfm-maps-out at c255d3c3445884b72da66e74249c4eb2ca82cdb6..a78e3a362944fc73bd6b12810f0ed8f7c249011e; six scores total 90/120, zero added failure IDs, three follow-on findings.</p></div>
+</div>
+<div class="r-comment" data-section="s1" data-id="c-20261007T0748" data-who="reckon-build" data-when="2026-10-07T07:48:00Z">
+    <div class="r-comment-body">census 189 passed with the bundle, 118+71 skipped without; review 0 added (reuse 5, durability 12 -&gt; s14); merged df3480f2; section done</div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261007T013805488822-jtfm-verb-write" data-who="reckon-build" data-when="2026-10-07T01:52:45.674Z">
     <div class="r-comment-body"><p>Renamed the engine's one command mint to write in cli.py; moved pulse_mint.py to pulse_writer.py (mint_pulse/write_pulse, MintReceipt/WriteReceipt, MintedLeaf/WrittenLeaf, PulseMintError/PulseWriteError); rewrote the module docstring, README, both pyproject.toml files and the engine-import list; moved test_pulse_mint.py to test_pulse_writer.py and added test_cli.py. Measure: grep -rniwE 'mint|minted|minting|pulse_mint|mint_pulse' packages imas_ambix tests scripts pyproject.toml prints nothing.</p></div>
