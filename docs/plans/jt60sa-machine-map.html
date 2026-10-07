@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.74">
-<meta name="plan-version" content="272">
+<meta name="plan-version" content="273">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -211,7 +211,7 @@
       recomputes the expected scale from <code>canonical_factor</code> and never asks the engine, so
       the two resolvers can drift with every test still green. The node <code>jtmm-tokamap-jt60sa</code>
       splits <code>scale</code> along its two owners. The COCOS half comes from the engine.
-      <code>imas_ambix/data/transform_engine.py</code> gains one public resolver, promoting its private
+      <code>packages/imas-alambic/src/imas_alambic/transform_engine.py</code> gains one public resolver, promoting its private
       <code>_target_cocos_transformation</code>, which returns a DD path's COCOS transformation
       class. The exporter calls it, and <code>_cocos_transformation</code> retires, because an
       importer must not reach into a private symbol and must not fork it either. The unit half stays
@@ -228,7 +228,7 @@
     <section class="section-landed">
   <header><span class="badge badge-shipped">&#10003; landed 2026-10-06</span>
     <h2 id="s3">§3 — Access path: EDDB over ssh, an on-demand cache, a lazy view</h2></header>
-  <p class="landed-summary">Landed 2026-10-05/06. The remote EDDB extractor (<code>imas_ambix/data/eddb_remote.py</code>, one ssh process per batch, remote side under <code>nice -n 19</code>) and its zarr cache writer (<code>imas_ambix/data/eddb.py</code>, under <code>JT60SA_ROOT</code>) are merged, and one session returns the channels it served with each refused channel's EDDB return code read from <code>data['irc']</code> (bdcce624). PSRC holds the plasma-shape reconstruction's processed channels only for shots it ran on (E101154 yes, E101173 irc 1015), and MDAC holds the raw <code>magFlxLp*</code> flux loops on both. The first cold fetch (E101173, C060033) served the 22 MMSYS coil and TF currents and 4 MDAC Rogowski coils; the second (63df11f5) served all 119 first-pass channels on E101154, including PSRC <code>magFluxLp1..34</code> and <code>magPbTC1..23</code>, and the 34 raw MDAC <code>magFlxLp*</code> on E101154 and E101173, with no refusal; cold wall time about 105 to 111 s per shot, warm reads make no transport call. Which raw loop is which processed loop is a §5 census question. The access path adds two public modules, <code>eddb_remote.py</code> (<code>RemoteEddbExtractor</code>, <code>SshTransport</code>, <code>Transport</code>, <code>ChannelRequest</code>, <code>ChannelRecord</code>, <code>ChannelRefusal</code>, <code>BatchResult</code>) and <code>eddb.py</code> (<code>fetch_channels</code>, <code>write_channel</code>, <code>is_cached</code>, <code>channel_path</code>), and two refusal families, <code>EddbRemoteError</code> and <code>EddbCacheError</code>. They retire nothing, because ambix had no remote reader, and merge into nothing, because the FAIR-MAST mirror (<code>imas_ambix/data/manifest.py</code>, <code>imas_ambix/data/cli.py</code>) downloads from an object store rather than running a process on a facility host. <a href="s3">full record</a></p>
+  <p class="landed-summary">Landed 2026-10-05/06. The remote EDDB extractor (<code>packages/imas-alambic/src/imas_alambic/eddb_remote.py</code>, one ssh process per batch, remote side under <code>nice -n 19</code>) and its zarr cache writer (<code>packages/imas-alambic/src/imas_alambic/eddb.py</code>, under <code>JT60SA_ROOT</code>) are merged, and one session returns the channels it served with each refused channel's EDDB return code read from <code>data['irc']</code> (bdcce624). PSRC holds the plasma-shape reconstruction's processed channels only for shots it ran on (E101154 yes, E101173 irc 1015), and MDAC holds the raw <code>magFlxLp*</code> flux loops on both. The first cold fetch (E101173, C060033) served the 22 MMSYS coil and TF currents and 4 MDAC Rogowski coils; the second (63df11f5) served all 119 first-pass channels on E101154, including PSRC <code>magFluxLp1..34</code> and <code>magPbTC1..23</code>, and the 34 raw MDAC <code>magFlxLp*</code> on E101154 and E101173, with no refusal; cold wall time about 105 to 111 s per shot, warm reads make no transport call. Which raw loop is which processed loop is a §5 census question. The access path adds two public modules, <code>eddb_remote.py</code> (<code>RemoteEddbExtractor</code>, <code>SshTransport</code>, <code>Transport</code>, <code>ChannelRequest</code>, <code>ChannelRecord</code>, <code>ChannelRefusal</code>, <code>BatchResult</code>) and <code>eddb.py</code> (<code>fetch_channels</code>, <code>write_channel</code>, <code>is_cached</code>, <code>channel_path</code>), and two refusal families, <code>EddbRemoteError</code> and <code>EddbCacheError</code>. They retire nothing, because ambix had no remote reader, and merge into nothing, because the FAIR-MAST mirror (<code>imas_ambix/data/manifest.py</code>, <code>imas_ambix/data/cli.py</code>) downloads from an object store rather than running a process on a facility host. <a href="s3">full record</a></p>
 </section>
 
     <section class="section-landed">
@@ -272,8 +272,8 @@
       source qualification, be bound. That binding needs three changes, all in ambix, and §6 owns all three;
       nova is not touched. First, the transform engine's COCOS step. DD 4.1.1 labels
       <code>magnetics/b_field_pol_probe/poloidal_angle</code> <code>pol_angle_like</code>, and
-      <code>imas_ambix/data/transform_engine.py</code> <code>_apply_cocos_convention</code> resolves
-      that label and asks <code>imas_ambix/cocos.py</code> <code>canonical_factor</code>, which
+      <code>packages/imas-alambic/src/imas_alambic/transform_engine.py</code> <code>_apply_cocos_convention</code> resolves
+      that label and asks <code>packages/imas-alambic/src/imas_alambic/cocos.py</code> <code>canonical_factor</code>, which
       delegates to nova's <code>TRANSFORMATIONS</code>, for a factor, so the binding is refused
       today. Nova declines that class on purpose: <code>nova/io/cocos.py</code> states that a
       sensitive-axis orientation is a statement about installed hardware, authored from the
@@ -290,7 +290,7 @@
       polarity: reversing the sense along an axis is θ to θ+π, which a sign on the angle cannot
       express, so a polarity the vacuum shots measure lands on the pulse rule's
       <code>channel_factor</code>. The authored declaration is that statement. Ambix holds two directed-angle helpers in
-      <code>imas_ambix/cocos.py</code>. <code>project_poloidal_field</code> is in use (the
+      <code>packages/imas-alambic/src/imas_alambic/cocos.py</code>. <code>project_poloidal_field</code> is in use (the
       forward operator, <code>imas_ambix/gs/operator.py</code>, projects predicted fields with
       it), so the vacuum prediction reuses it unchanged. <code>mast_angle_to_canonical</code>
       has no production caller (its only caller is its own test in
@@ -406,14 +406,14 @@
       Landed: <code>jtmm-observation-time-alignment</code> (merge 22bb8c39) moved
       <code>read_signal_map_observation</code>'s raw read onto the view that already owns a rule's
       resolution to its source array. The rest of this paragraph records what it did.
-      <code>imas_ambix/data/virtual_zarr.py</code> <code>VirtualZarrView</code> gains one untransformed
+      <code>packages/imas-alambic/src/imas_alambic/virtual_zarr.py</code> <code>VirtualZarrView</code> gains one untransformed
       accessor, which returns a rule's source values and that channel's own time base with no
       compiled transform applied. The reader then reads each series through it, rather than
       resolving <code>source_group</code> and <code>source_array</code> itself. It interpolates every
       flux loop onto the plasma-current time base and refuses a loop whose time span does not cover
       it. The node adds one accessor to the view and retires nothing. It moves this plan's reader
       onto the view, but not every reader that resolves a rule itself. The pulse mint,
-      <code>imas_ambix/data/pulse_mint.py</code> <code>_served_entries</code>, does the same through
+      <code>packages/imas-alambic/src/imas_alambic/pulse_mint.py</code> <code>_served_entries</code>, does the same through
       <code>read_channel</code>, and it belongs to the plan <code>jt60sa-pulse-ids</code>. That plan
       owns its migration onto the accessor once the accessor lands, and this plan hands it over as a
       foreign-owner followup rather than editing another plan's module. The two readers need different
@@ -709,15 +709,16 @@
       loader reads them through that map. None is a <code>profiles_2d</code> binding, so the gate's
       measure is untouched. The second is SELENE's offline equilibria. The server holds the SELENE
       sources, the equilibrium database client (<code>client_eqdbms</code>) and the FAME reader
-      (<code>eqdbget</code>), and the Code TWiki documents the equilibrium codes. The SELENE loader
+      (<code>eqdbget</code>), and the Code TWiki documents the equilibrium codes. The FAME loader
       needs a reader for the EQDB record (psi on its grid, boundary, p′ and FF′ or their
       profiles) wrapped in the same remote-extractor contract, and §6 builds and owns that
-      transport. The EQDB read extends the §3 extractor rather than sitting beside it, but its
+      transport. SELENE's own reconstruction is read from the EDDB <code>PSRC</code> category
+      instead, as the locate result below records. The EQDB read extends the §3 extractor rather than sitting beside it, but its
       request and record are not channels. <code>ChannelRequest</code> names
       <code>(shot, category, dname)</code> and the batch carries <code>(channel, time)</code> arrays,
       while an EQDB request names a shot and an equilibrium record, and its answer is psi on a
       two-dimensional grid with its boundary and profiles. So
-      <code>imas_ambix/data/eddb_remote.py</code> gains one request type and one record type for
+      <code>packages/imas-alambic/src/imas_alambic/eddb_remote.py</code> gains one request type and one record type for
       EQDB beside <code>ChannelRequest</code> and <code>ChannelRecord</code>, rather than widening the
       channel types. <code>RemoteEddbExtractor</code> dispatches on the request type and keeps what
       is not channel-shaped: the per-request refusal contract, and the niced, module-loaded remote
@@ -733,7 +734,7 @@
       stays an <code>EddbRemoteError</code>, so no refusal family is added. §6's added interface is
       therefore the three public types (request, record and refusal) and the two
       <code>BatchResult</code> fields. They retire nothing, because no equilibrium-database request
-      type exists, and the channel fields keep their meaning. Its records land in the same store, owned by <code>imas_ambix/data/eddb.py</code>:
+      type exists, and the channel fields keep their meaning. Its records land in the same store, owned by <code>packages/imas-alambic/src/imas_alambic/eddb.py</code>:
       <code>write_channel</code> writes only a <code>(channel, time)</code> array with a sibling
       time vector, and an EQDB record is psi on a two-dimensional grid with its boundary and
       profiles, so <code>eddb.py</code> gains a grid record writer beside <code>write_channel</code>
@@ -774,8 +775,40 @@
       <code>eqdbms</code>, or a file tree under the run directory. It also names the reader that
       consumes it, and tests whether a FAME record reads through the socket client
       (<code>eqdbsockclient_connect</code>) from intr26-2. It writes one evidence fragment and no
-      source. The transport node follows it, then the SELENE and FAME loaders, then the JT-60SA
+      source. The locate node landed 2026-10-07 (merge c049bf80, review 95/120). It found no SELENE record in
+      <code>eqdbms</code>, in any EDDB category it searched or in the run tree, and found the FAME
+      record unreadable from intr26-2, because its database server <code>dbsvr17p</code> does not
+      resolve. Its search missed where SELENE does write. SELENE runs by default inside the
+      plasma-shape reconstruction, whose run tree is <code>SAselene_v2.0_forPSRC</code>, and writes its
+      reconstruction into the EDDB <code>PSRC</code> category beside the calibrated magnetics it
+      reads. imas-efit's curated E101154 SELENE reference
+      (<code>tests/data/imas/JT60SA/E101154/validation/selene/equilibrium.h5</code>, five slices at 4
+      to 8 s) was built from 286 <code>data_psrc_*</code> arrays by
+      <code>scripts/build_selene_validation_ids.py</code> and
+      <code>data/jt60sa/extract_psrc_arrays.py</code>, among them the closed boundary above the
+      X-point, <code>data_psrc_surfABVxp</code>. So the SELENE loader reads PSRC through the existing
+      channel extractor and needs no EQDB transport. The EQDB transport now serves FAME alone, and it
+      waits until <code>dbsvr17p</code> is reachable from intr26-2, which only the JT-60SA side can
+      grant.
+      <code>jtmm-psrc-selene-inventory</code> is read-only and comes first. It reads E101154's PSRC
+      category through <code>fetch_channels</code> and names each array that carries an equilibrium
+      quantity (boundary, X-point, magnetic axis, plasma current, β and l<sub>i</sub>, any flux grid)
+      with its shape, unit and time base. It states which arrays are seeds rather than results:
+      imas-efit found <code>data_psrc_calbetap</code> and <code>data_psrc_calli</code> constant at 0.1
+      and 0.8. It compares one slice with imas-efit's curated reference and writes one fragment. The
+      SELENE loader follows it, then the FAME loader once the server is reachable, then the JT-60SA
       cohort and the sign report.
+      The cohort and the maps need more than three plasma shots.
+      <code>jtmm-op1-shot-survey</code> is read-only on nakasvr26. It finds the JT-60SA shot database
+      and the catalogue tools the site provides beside <code>eddbreadCatTable</code>, and ranks the
+      OP1 plasma shots by peak plasma current, peak β and plasma volume, marking which carry a PSRC
+      (SELENE) reconstruction. It also identifies the first JT-60SA plasma. Its deliverable is the
+      identified OP1 shot list: the first plasma and the high-value shots from those three rankings,
+      each with its date, peak values, PSRC presence and the reason it was chosen. The maps, and the
+      IDSs ambix produces from them, are tested against that list.
+      <code>jtmm-op1-shot-fetch</code> then caches every listed shot through
+      <code>fetch_channels</code>, one ssh connection per shot, including PSRC where it exists, and
+      refetches nothing already cached.
     </p>
     <p>
       Done-when: a sign report over at least three vacuum shots and three plasma shots,
@@ -1732,7 +1765,7 @@
     <div class="r-comment-body"><p>landed docs/evidence/fragments/jt60sa-machine-map/jtmm-selene-output-locate.html (commit 3155a7e4); SELENE's plasma-shape equilibrium for E101154 is absent from the SELENE eqdbms index (eqdb=1 lists nothing), from any EDDB category (no SELENE category in the 73-category catalogue), and from the SELENE run tree (one stale 2021 run, no per-shot output); the only reachable E101154 equilibrium record is FAME's EQDB index (eqdb=0, 105 slices, an EQDB index other than eqdbms), consumed by eqread_pac over libFLEDDPIC.so (eqdbget.f on the Fortran side); a populated slice could not be read from intr26-2 — GetEqData(0,101154,500) returns IRET 300 because its database server dbsvr17p is unresolvable and /JT60SA_EQ is not mounted; measure is the committed fragment at HEAD.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261007T003414894432-review-of-jtmm-selene-output-locate" data-who="reckon-build" data-when="2026-10-07T00:43:09.075Z">
-    <div class="r-comment-body"><p>stored a parsed review record for run r-20261006T181604616939-jtmm-selene-output-locate (base d2bb8d08 head 3155a7e4) at the two granted review paths, all six dimensions scored 0..20 (goal_fidelity 15, evidence 15, scope_discipline 20, durability 13, fit 15, reuse 17; total 95/120), with added_failure_count 0 and added_failure_ids [] derived from the reviewed run&#x27;s null baseline_suite/after_suite arms; the node found no SELENE equilibrium for E101154 but named the FAME eqdb=0 record and its reader, tested the socket client (IRET 300, server dbrev17p unreachable), and its reviewed fragment has four follow-on accuracy defects (socket call misquoted, efitout typo, unit column conflated, slice-read clause unmet).</p></div>
+    <div class="r-comment-body"><p>stored a parsed review record for run r-20261006T181604616939-jtmm-selene-output-locate (base d2bb8d08 head 3155a7e4) at the two granted review paths, all six dimensions scored 0..20 (goal_fidelity 15, evidence 15, scope_discipline 20, durability 13, fit 15, reuse 17; total 95/120), with added_failure_count 0 and added_failure_ids [] derived from the reviewed run's null baseline_suite/after_suite arms; the node found no SELENE equilibrium for E101154 but named the FAME eqdb=0 record and its reader, tested the socket client (IRET 300, server dbrev17p unreachable), and its reviewed fragment has four follow-on accuracy defects (socket call misquoted, efitout typo, unit column conflated, slice-read clause unmet).</p></div>
 </div>
 <div class="r-comment" data-section="_top" data-id="c-20261007T0000-jtfm-move" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-06T23:00:00Z">
     <div class="r-comment-body"><p><strong>Coordination, lead-approved 2026-10-06:</strong> <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §2 is now moving the mint engine into the workspace member <code>packages/imas-alambic/</code>. Moving: <code>imas_ambix/data/{machine_map,signal_map,transform_engine,virtual_zarr,eddb,eddb_remote,pulse_mint}.py</code>, <code>imas_ambix/cocos.py</code> and <code>machine_maps/schema.yaml</code>. Imports become <code>imas_alambic.&lt;module&gt;</code>, and <code>nova.io.cocos</code> becomes <code>nova_cocos</code>. <strong>Map JSON is not moving</strong>: <code>machine_maps/*.json</code> and <code>maps/&lt;machine&gt;/*.json</code> stay where they are, and the by-name loaders keep their names, so map-authoring nodes are unaffected. Please avoid dispatching nodes that edit the moving Python modules until the move merges. A node already in flight that touches them will need its imports rebased after the merge, and the facility-mint coordinator will do that rebase.</p></div>
