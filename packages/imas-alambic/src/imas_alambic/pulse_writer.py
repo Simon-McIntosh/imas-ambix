@@ -30,6 +30,9 @@ own time vector.  An IDS the map serves nothing into is written unchanged.
 
 from __future__ import annotations
 
+import os
+import tempfile
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
@@ -52,7 +55,7 @@ from imas_alambic.signal_map import SignalMap, load_signal_map
 from imas_alambic.virtual_zarr import VirtualZarrView
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Iterator, Mapping, Sequence
 
     from imas_alambic.signal_map import SignalRule
 
@@ -300,6 +303,25 @@ def pulse_path(out_root: Path | str, pulse: object, run: int = 0) -> Path:
     return Path(out_root) / f"{normalised_shot(pulse)}_{int(run)}.nc"
 
 
+@contextmanager
+def _run_file_destination(path: Path) -> Iterator[Path]:
+    """Publish a complete netCDF run file from a sibling temporary path."""
+
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=path.parent, prefix=f".{path.stem}.", suffix=".partial.nc"
+    )
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            os.fchmod(handle.fileno(), 0o644)
+        yield temporary
+        os.replace(temporary, path)
+    except BaseException:
+        with suppress(OSError):
+            temporary.unlink()
+        raise
+
+
 def write_pulse(
     machine: str,
     shot: object,
@@ -355,7 +377,10 @@ def write_pulse(
     leaves: list[WrittenLeaf] = []
     excluded: list[ExcludedSignal] = []
 
-    with imas.DBEntry(path, "w", dd_version=catalog.dd_version) as entry:
+    with (
+        _run_file_destination(path) as temporary,
+        imas.DBEntry(temporary, "w", dd_version=catalog.dd_version) as entry,
+    ):
         for ids_name in IDS_NAMES:
             description = _read_description(
                 description_root / f"{ids_name}.nc", ids_name, catalog.dd_version
