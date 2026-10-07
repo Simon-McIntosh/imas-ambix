@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.79">
-<meta name="plan-version" content="311">
+<meta name="plan-version" content="312">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -830,6 +830,33 @@
       other than the two servers. It reads no user's home other than <code>/home/d240034</code>,
       which the lead named, and never reads or copies keys, credentials or shell history. It uses one
       ssh connection at a time and writes one fragment.
+      The host survey found no FAME store on any path named in site configuration. Of the 85 hosts in
+      the site registry, only <code>anastr01</code> and <code>nakasvr26</code> resolve from intr26-2,
+      and <code>nakasvr23</code> refused ssh at the key exchange. The lead judged the FAME hunt a
+      distraction: equilibria are a core product of the site's data pipeline, so they must be stored
+      somewhere. The imas-codex graph of JT-60SA sources, searched 2026-10-07, names wider leads.
+      The EDDB <code>FAME</code> category (code 1850) is served today and carries signed q scalars
+      (<code>QAXIS</code>, <code>Q95</code>, <code>QSURF</code>, <code>QEFF</code> and the FBI variants
+      <code>QSURFFBI</code> and <code>QEFFFBI</code>), with plasma current (<code>TTCU</code>), internal
+      inductance and stored energy. The sign of q on axis and at the edge is what the q-handedness
+      product needs, so that product may not need a flux grid at all. The site's data handbook lists
+      an equilibrium database <code>EQDB</code> separate from FAME, a <code>LOCALDB</code> equilibrium
+      format that eGIS plots, and two analysis databases, <code>LCDB</code> and <code>MBDB</code>, that
+      hold eSLICE profile results. It also documents an Experiment Database Web API, whose English
+      manual is <code>/var/www/html/twiki/pub/Main/DataAnalysis/実験DBWebAPI説明書_EN.pdf</code>. The
+      FBEQU system runs FBI and then SELENE, and SELENE's <code>efitout.f</code> writes a G-EQDSK;
+      the MECS linkage names SELENE offline, TOPICS and TOSCA equilibrium outputs.
+      <code>jtmm-equilibrium-source-leads</code> is read-only on <code>nakasvr26</code> and follows
+      these leads. For each one it reports what the source carries (psi on a grid, a q profile, q
+      scalars with their sign), which OP1 shots on the identified list it holds, and how intr26-2 reaches
+      it, with one E101154 or other OP1 read attempted and its exact call and result. It reads the Web
+      API manual on the server to learn which host serves the API and whether it serves EQDB or FAME
+      records. It reads the EDDB <code>FAME</code> q scalars for E101154 through
+      <code>fetch_channels</code> and states their sign alongside plasma current and toroidal field.
+      It lists EQDB indices by shot for the identified OP1 list, not only E101154. It runs no port
+      scans and attempts no login beyond <code>nakasvr26</code>. It reads no user's home other than
+      <code>/home/d240034</code>, and never reads or copies keys, credentials or shell history. It uses
+      one ssh connection at a time and writes one fragment.
       The cohort and the maps need more than three plasma shots. An OP1 sweep already exists:
       imas-efit's <code>docs/jt60sa-shot-candidates.html</code> read all 1167 E-series shots through
       the EDDB library, found 228 with a <code>PSRC/calIp</code> peak of at least 50 kA, and ranked them
@@ -1901,7 +1928,7 @@
     <div class="r-comment-body">When jtmm-operator-differential-loops merges, send one line to the imas-ambix-76 session. jt60sa-facility-mint §1 waits on tests/gs/test_operator.py, which that node writes, so that §1 can add a bundle skip guard to the JT-60SA vacuum test on top of the merged version.</div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261007T055734760420-jtmm-operator-differential-loops" data-who="reckon-build" data-when="2026-10-07T06:24:33.423Z">
-    <div class="r-comment-body"><p>blocked before implementation — carrying a type-6 flux_loop entry as loop(second) minus loop(first) needs a two-index carrier on SensorMapping (imas_ambix/gs/geometry.py) which is outside this node&#x27;s write scope; the plan assigns the carrier to the not-yet-dispatched sibling jtmm-differential-loop-adapter, and reading the staged 53-loop store through read_geometry_table currently yields zero flux-loop rows because the ragged position struct array drops the family.</p></div>
+    <div class="r-comment-body"><p>blocked before implementation — carrying a type-6 flux_loop entry as loop(second) minus loop(first) needs a two-index carrier on SensorMapping (imas_ambix/gs/geometry.py) which is outside this node's write scope; the plan assigns the carrier to the not-yet-dispatched sibling jtmm-differential-loop-adapter, and reading the staged 53-loop store through read_geometry_table currently yields zero flux-loop rows because the ragged position struct array drops the family.</p></div>
 </div>
 <div class="r-comment" data-section="_top" data-id="c-20261007T0000-jtfm-move" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-06T23:00:00Z">
     <div class="r-comment-body"><p><strong>Coordination, lead-approved 2026-10-06:</strong> <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §2 is now moving the mint engine into the workspace member <code>packages/imas-alambic/</code>. Moving: <code>imas_ambix/data/{machine_map,signal_map,transform_engine,virtual_zarr,eddb,eddb_remote,pulse_mint}.py</code>, <code>imas_ambix/cocos.py</code> and <code>machine_maps/schema.yaml</code>. Imports become <code>imas_alambic.&lt;module&gt;</code>, and <code>nova.io.cocos</code> becomes <code>nova_cocos</code>. <strong>Map JSON is not moving</strong>: <code>machine_maps/*.json</code> and <code>maps/&lt;machine&gt;/*.json</code> stay where they are, and the by-name loaders keep their names, so map-authoring nodes are unaffected. Please avoid dispatching nodes that edit the moving Python modules until the move merges. A node already in flight that touches them will need its imports rebased after the merge, and the facility-mint coordinator will do that rebase.</p></div>
