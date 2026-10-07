@@ -76,7 +76,7 @@ prebuilt <code>/analysis/lib/libFLEDDPIC.so</code> through <code>ctypes</code> a
 exposes <code>db/FleddTool.py</code> <code>GetTimeList(eqdb,shot)</code>,
 <code>GetEqData(eqdb,shot,time)</code> and <code>GetEqItem(name)</code>; its
 <code>selene/</code> subpackage holds the SELENE record readers
-(<code>eqouta</code>, <code>eftout</code>, <code>eqbnd</code>, <code>eqgrd</code>,
+(<code>eqouta</code>, <code>efitout</code>, <code>eqbnd</code>, <code>eqgrd</code>,
 <code>flxfun</code>, ...) and <code>EQreadMain(fledd_tool).exec_(shot,time_s,eqdb,*psi_types)</code>.
 On the Fortran side the FAME reader is
 <code>/analysis/lib/JT60SAEQDB/eqdbms/eqdbget.f</code> <code>SUBROUTINE EQDBGET(ISH,TIM,NEQDB,IRET)</code>,
@@ -113,11 +113,11 @@ corroborated by the Fortran COMMON blocks declared in the FAME reader
 <tr><td>psi grid</td><td><code>PSI</code></td><td>(NSR&times;NSZ) = 129&times;129</td><td>Wb</td></tr>
 <tr><td>axis</td><td><code>RAXIS</code>, <code>ZAXIS</code></td><td>scalar</td><td>m</td></tr>
 <tr><td>axis</td><td><code>SAXIS</code></td><td>scalar</td><td>Wb</td></tr>
-<tr><td>boundary</td><td><code>RSU</code>, <code>ZSU</code>, <code>CSU</code></td><td>(NSU) separatrix points</td><td>m, m, A/m&sup2;</td></tr>
+<tr><td>boundary</td><td><code>RSU</code>, <code>ZSU</code>, <code>CSU</code></td><td>(NSU) separatrix points</td><td>m, m, not stated in the source</td></tr>
 <tr><td>boundary</td><td><code>RSEP</code>, <code>ZSEP</code>, <code>PSEP</code></td><td>scalars (X-point)</td><td>m, m, Wb</td></tr>
 <tr><td>profiles</td><td><code>PDS</code></td><td>(NV) on SIV mesh</td><td>p&#8242; = &mu;<sub>0</sub>dP/d&psi; [T&middot;A/m / Wb]</td></tr>
 <tr><td>profiles</td><td><code>FDS</code></td><td>(NV)</td><td>FF&#8242; = F&middot;dF/d&psi;</td></tr>
-<tr><td>profiles</td><td><code>SIV</code>, <code>VLV</code>, <code>QQV</code>, <code>PRV</code>, <code>BTV</code></td><td>(NV)</td><td>&psi;, V, q, &mu;<sub>0</sub>P, F=R&middot;B<sub>T</sub></td></tr>
+<tr><td>profiles</td><td><code>SIV</code> (&psi;), <code>VLV</code> (volume), <code>QQV</code> (q), <code>PRV</code> (&mu;<sub>0</sub>P), <code>BTV</code> (F=R&middot;B<sub>T</sub>)</td><td>(NV)</td><td>not stated in the source</td></tr>
 <tr><td>scalars</td><td><code>EQTIM</code></td><td>scalar</td><td>ms</td></tr>
 <tr><td>scalars</td><td><code>TTCU</code> (I<sub>p</sub>)</td><td>scalar</td><td>MA</td></tr>
 </tbody>
@@ -146,7 +146,7 @@ The EQDB transport carries a network client — the shared object
 <code>nm -D</code>). It is reached from the Fortran reverse readers
 <code>client_eqdbms.EQ32.Rev1/eqdbms/EQDB/eqdb_get_rev.f</code>
 <code>call SOCKET_EQDBLIST(1, s_shot, listwk, nlistwk, errcd)</code> and
-<code>eqdbio_rev.f</code> <code>call SOCKET_EQDBIO(3, ...)</code>, whose
+<code>eqdbio_rev.f</code> <code>call SOCKET_EQDBIO(eqtyp, code, sshot, ttime, irev, ...)</code> (lines 125, 184, 211 and 218), whose
 <code>.eqdbms</code> server is <code>SERVER_NAME:dbsvr17p</code>.
 <strong>The FAME record for E101154 does not read through this client from
 <code>intr26-2</code>.</strong> The call <code>GetEqData(0,101154,500)</code> returns
