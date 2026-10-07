@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.79">
-<meta name="plan-version" content="314">
+<meta name="plan-version" content="315">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -690,7 +690,7 @@
       <code>EfitLabels</code>, so it has no JT-60SA source yet.
       The sign report carries the raw-side products (plasma current against the sign of flux change,
       and toroidal-field polarity), and the q-handedness product stays unmeasured until
-      <code>jtmm-jt60sa-host-survey</code> finds a source of psi and q. §7's reference loader passes
+      <code>jtmm-equilibrium-source-leads</code> finds a source of signed q, or of psi and q. §7's reference loader passes
       the same boundary record to that builder rather than reading SELENE a second time, so there is
       one fetch and one reader. The
       entry point also hard-codes DIII-D eligibility, <code>MINIMUM_PLASMA_CURRENT_KA</code>,
@@ -747,8 +747,8 @@
       <code>BatchResult</code> fields, and no grid record writer or reader in <code>eddb.py</code>.
       SELENE's own reconstruction is read from the EDDB <code>PSRC</code> category through the
       existing channel extractor, as the locate result below records, so the store keeps one reader.
-      If <code>jtmm-jt60sa-host-survey</code> finds where FAME's records went, a transport is scoped
-      again against that source.
+      If <code>jtmm-equilibrium-source-leads</code> finds a reachable store of full equilibrium records,
+      a transport is scoped again against that source.
     </p>
     <p>
       The transport's array layout waits on the open question <code>eqdb-reader</code>, which
@@ -842,7 +842,9 @@
       product needs, so that product may not need a flux grid at all. The site's data handbook lists
       an equilibrium database <code>EQDB</code> separate from FAME, a <code>LOCALDB</code> equilibrium
       format that eGIS plots, and two analysis databases, <code>LCDB</code> and <code>MBDB</code>, that
-      hold eSLICE profile results. It also documents an Experiment Database Web API, whose English
+      hold eSLICE profile results. The site's SLICE page also names two equilibrium databases
+      reconstructed with motional Stark effect data, <code>EQRV</code> and <code>EQEFIT</code>; it
+      calls <code>EQRV</code> public and more accurate than <code>EQDB</code>. It also documents an Experiment Database Web API, whose English
       manual is <code>/var/www/html/twiki/pub/Main/DataAnalysis/実験DBWebAPI説明書_EN.pdf</code>. The
       FBEQU system runs FBI and then SELENE, and SELENE's <code>efitout.f</code> writes a G-EQDSK;
       the MECS linkage names SELENE offline, TOPICS and TOSCA equilibrium outputs.
@@ -890,9 +892,9 @@
       sign unvalidated, and SELENE's boundary reconstruction read from the EDDB <code>PSRC</code>
       category through the existing channel extractor. PSRC carries no flux grid and no q, so the
       SELENE <code>profiles_2d</code> psi bindings below, and the reference loader's psi and
-      magnetic-axis reduction, have no source yet. Until <code>jtmm-jt60sa-host-survey</code> finds a
-      source of psi and q, §7 can use only PSRC's boundary, X-point, plasma centre and plasma current,
-      and the section is re-scoped once that survey lands. §7 writes the SELENE map bindings into
+      magnetic-axis reduction, have no source yet. Until <code>jtmm-equilibrium-source-leads</code> finds
+      a source of psi and q, §7 can use only PSRC's boundary, X-point, plasma centre and plasma current,
+      and the section is re-scoped once that node lands. §7 writes the SELENE map bindings into
       <code>equilibrium/time_slice/profiles_2d</code>, beginning with <code>psi</code>, once §6's
       sign report names the source COCOS, and adds no second reader of either source. The
       section's interface change is the pin table below, which retires three public constants and
@@ -1058,7 +1060,7 @@
       the builder behind <code>load_equilibrium_geometry</code>, the seam's default loader, and is
       not re-derived. The loader passes the boundary, axis and X-point arrays, which are the inputs that
       builder takes, from §6's PSRC boundary record. Whether PSRC's plasma centre may stand for the
-      axis is settled when §7 is re-scoped after the host survey. Through the builder, the X-point
+      axis is settled when §7 is re-scoped after <code>jtmm-equilibrium-source-leads</code>. Through the builder, the X-point
       handling, the boundary resampling at fixed poloidal angles and the
       frame projection are the ones every other reference shares. So no second, ungated read of a reference equilibrium is added, and no
       second reader of SELENE either. <code>GeometryVerdict</code> scores axis, X-point and boundary RMS only. The
@@ -1934,7 +1936,7 @@
     <div class="r-comment-body"><p>landed docs/evidence/fragments/jt60sa-machine-map/jtmm-jt60sa-host-survey.html (commits 63416167, 54368aaf) — passive-source host registry on nakasvr26 (endian_info 85 names) with per-host resolution from intr26-2 (only anastr01 and nakasvr26 resolve), no FAME3 store present on any named path, no TCP port named in site config, and one OP1 slice read (E101011 psi 129x129, q 129); nakasvr23 closed SSH at the key exchange so the survey is one-server.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261007T063605774742-review-of-jtmm-jt60sa-host-survey" data-who="reckon-build" data-when="2026-10-07T06:55:34.503Z">
-    <div class="r-comment-body"><p>independent review attached to r-20261007T055648630317-jtmm-jt60sa-host-survey: parsed record scoring goal_fidelity 18, evidence 18, scope_discipline 20, durability 17, fit 18, reuse 18 (total 109/120); reviewed_base_sha 2e3e3f685621b4e628315d6e5369abcf63bae59f, reviewed_head_sha 54368aafccddb1cac6673d9f0c105bc37a563d1c; the fragment (85-name host registry, per-host resolution, no FAME3 store, one OP1 slice read E101011) reconciles with the run&#x27;s collection logs and the load-bearing claims were independently reproduced over the same read-only ssh path (negative control dbsvr17p no-resolve, FAME3 paths absent, endian_info 85 names, echoFameHost, E101011 header 129 129); added_failure_count 0 and added_failure_ids [] derived from the reviewed run&#x27;s baseline_suite=null and after_suite=null</p></div>
+    <div class="r-comment-body"><p>independent review attached to r-20261007T055648630317-jtmm-jt60sa-host-survey: parsed record scoring goal_fidelity 18, evidence 18, scope_discipline 20, durability 17, fit 18, reuse 18 (total 109/120); reviewed_base_sha 2e3e3f685621b4e628315d6e5369abcf63bae59f, reviewed_head_sha 54368aafccddb1cac6673d9f0c105bc37a563d1c; the fragment (85-name host registry, per-host resolution, no FAME3 store, one OP1 slice read E101011) reconciles with the run's collection logs and the load-bearing claims were independently reproduced over the same read-only ssh path (negative control dbsvr17p no-resolve, FAME3 paths absent, endian_info 85 names, echoFameHost, E101011 header 129 129); added_failure_count 0 and added_failure_ids [] derived from the reviewed run's baseline_suite=null and after_suite=null</p></div>
 </div>
 <div class="r-comment" data-section="_top" data-id="c-20261007T0000-jtfm-move" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-06T23:00:00Z">
     <div class="r-comment-body"><p><strong>Coordination, lead-approved 2026-10-06:</strong> <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §2 is now moving the mint engine into the workspace member <code>packages/imas-alambic/</code>. Moving: <code>imas_ambix/data/{machine_map,signal_map,transform_engine,virtual_zarr,eddb,eddb_remote,pulse_mint}.py</code>, <code>imas_ambix/cocos.py</code> and <code>machine_maps/schema.yaml</code>. Imports become <code>imas_alambic.&lt;module&gt;</code>, and <code>nova.io.cocos</code> becomes <code>nova_cocos</code>. <strong>Map JSON is not moving</strong>: <code>machine_maps/*.json</code> and <code>maps/&lt;machine&gt;/*.json</code> stay where they are, and the by-name loaders keep their names, so map-authoring nodes are unaffected. Please avoid dispatching nodes that edit the moving Python modules until the move merges. A node already in flight that touches them will need its imports rebased after the merge, and the facility-mint coordinator will do that rebase.</p></div>
