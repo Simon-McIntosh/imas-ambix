@@ -25,9 +25,9 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="25">
+<meta name="plan-version" content="28">
 <meta name="plan-modified" content="2026-10-07">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;done&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -58,25 +58,31 @@
   <p class="landed-summary">E101154 drawn from its pulse IDS (merge <code>23fa1812</code>). <code>scripts/figures_jt60sa_signals.py</code> opens <code>pf_active</code> and <code>magnetics</code> with <code>imas.DBEntry</code> and passes them to imas-ink's <code>extract_signal_traces</code>. It builds no arrays and passes no label or unit. The flux-loop and C060033 figures are deleted, and the shipped plan's records that embedded them are repaired. Review scored 108/120.<br><img src="/imas-ambix/figures/jt60sa-signals/jt60sa-E101154-pf-coil-currents.svg" alt="E101154 PF coil currents and plasma current, drawn from its pulse IDS" style="max-width:100%"><br>E101154: the ten <code>pf_active/coil/current</code> traces CS1–EF6 and <code>magnetics/ip</code>, all in A, read with their names and units from the pulse IDS at <code>/work/projects/imas_gpu/jt60sa/ids/101154/</code>. <a href="s1">full record</a></p>
 </section>
 
-    <h2 id="s2">§2 — Flux loops and probes, once the rewritten E101154 carries them</h2>
-    <section data-reckon="section" data-id="s2" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="deferred" data-links=""></section>
+    <h2 id="s2">§2 — Flux loops and probes, drawn as measured</h2>
+    <section data-reckon="section" data-id="s2" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
     <p>
-      The on-disk E101154 predates the magnetics bindings: its 27 flux loops and 17 poloidal-field probes are empty.
-      The magnetics map now binds them, and its coordinator, imas-ambix-5b, is moving 26 loop rules to type-6
-      differential entries relative to loop 7. The pulse-mint coordinator, imas-ambix-0d, will rewrite E101154
-      after that, giving each loop and probe its own time vector (homogeneous time 0).
+      The run files <code>/work/projects/imas_gpu/jt60sa/ids/101154_0.nc</code> and <code>101031_0.nc</code> carry
+      all 27 flux loops (FL1–FL27) and all 17 poloidal-field probes in <code>magnetics</code>, each on its own time
+      base (homogeneous time 0). Loop 7 is absolute. Loops 1–6 and 8–27 are measured as differences relative to
+      loop 7, and the files store those differences as measured. The lead ruled on 2026-10-07 that this is how the
+      signals are measured and that they are plotted as such. So the figures draw the stored values unchanged, and
+      each flux-loop caption states that every loop except FL7 is a difference relative to FL7.
     </p>
     <p>
-      Both coordinators have agreed to signal this session. When they do, this section draws
-      <code>extract_signal_traces(magnetics, "flux_loop/flux")</code> and the probe field the same way §1 draws the
-      coil currents. It updates <code>_read_pulse_ids</code> to the per-run file layout if the rewrite uses it.
-      Deferred until the rewrite exists. Status on 2026-10-07: jt60sa-pulse-ids §6 rewrote E101154 and wrote
-      E101031 at 05:50–05:51 with all 27 loops and 17 probes filled, each on its own time base. The
-      machine-map coordinator reports, however, that loops 1–6 and 8–27 in those files are raw differences
-      relative to loop 7, stored as if absolute; only loop 7 is absolute. The fix is the type-6 sequence of
-      jt60sa-machine-map §6: the differential-loop adapter, the live store regeneration, and the retarget of
-      the 26 rules to type-6 [7, L]. It has no firm ETA, so this section stays deferred until those rules land
-      and the pulses are written again, either directly or by jt60sa-facility-mint §8's run-file write.
+      The section adds two more figure calls per pulse through the existing <code>_pulse_figure</code>: one with the
+      pair <code>("magnetics", "flux_loop/flux")</code>, one with <code>("magnetics", "b_field_pol_probe/field")</code>.
+      They write <code>jt60sa-E101154-flux-loops.svg</code>, <code>jt60sa-E101154-pf-probes.svg</code> and the same
+      two for E101031 into <code>docs/figures/jt60sa-signals/</code>, one panel per loop or probe. Names and units
+      come from the IDS through <code>extract_signal_traces</code>; the script passes no label, unit or array of its
+      own, and does not rescale or re-sign a signal. The two coil-current SVGs stay byte-identical.
+    </p>
+    <p>
+      The machine-map decision <code>jt60sa-differential-flux-loops</code> will later move loops 1–6 and 8–27 to
+      type-6 entries with <code>indices_differential</code> [7, L], storing the DD differential flux ψ<sub>L</sub> −
+      ψ<sub>7</sub>. That flips the sign of loops 12–27 relative to today's files and leaves their type-1 entries
+      without flux. Its coordinator, imas-ambix-5b, reports on 2026-10-07 that the adapter, the store regeneration
+      and the retarget have not started and are several hours away. When the pulses are written under those rules,
+      the flux-loop figures are redrawn from the type-6 entries; 5b will signal.
     </p>
 
     <section class="section-landed">
@@ -100,6 +106,11 @@
     <pre class="r-fu-prompt">/reckon-build jt60sa-signal-figures-from-ids §3</pre>
     <p class="r-fu-outcome">§3 landed at 6345ce6e. §2 (flux loops and probes) stays a deferred section until jt60sa-machine-map's type-6 loop rules land; its figures then become further calls to _pulse_figure.</p>
     </article>
+<article class="r-fu" data-id="f-jsfi-003" data-status="open" data-written-by="reckon-build" data-written-at="2026-10-07" data-recommends-skill="/reckon-build jt60sa-signal-figures-from-ids §2" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Draw the flux loops and probes as measured for E101154 and E101031</h4>
+    <div class="r-fu-body"><p>The lead ruled on 2026-10-07 that the differential flux-loop signals are plotted as measured, so §2 no longer waits for the type-6 retarget.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-signal-figures-from-ids §2</pre>
+    </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s1" data-id="c-run-r-20261007T023139516859-jtfig-ids-redraw" data-who="reckon-build" data-when="2026-10-07T02:38:21.024Z">
@@ -116,6 +127,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261007T070640974916-review-of-jtfig-e101031-signals" data-who="reckon-build" data-when="2026-10-07T07:13:20Z">
     <div class="r-comment-body"><p>Independent review of f5f94791fefec7f3b48233719c79c2633a4bdd18..bfbad03ebb2a3bc2e88fdad321cb24e2bcce7d0d scored 110/120 across six dimensions; suite added-failure count is unmeasured because the source manifest records no baseline_suite or after_suite.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-20261007-jsfi-s2-released" data-who="reckon-build" data-when="2026-10-07T08:05:00Z">
+    <div class="r-comment-body"><p>§2 released from deferred: the lead ruled that the raw differences relative to loop 7 are how the flux loops are measured and are plotted as such. Both run files were read on the fleet node: 27 flux loops and 17 probes filled in each, DD 4.1.1, homogeneous time 0.</p></div>
 </div>
 </section>
 </main>
