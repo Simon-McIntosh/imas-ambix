@@ -1,0 +1,50 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T07:13:20Z",
+  "dispatched_at": "2026-10-07T07:07:05Z",
+  "findings": [],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "I read 30b08565b04fb6b4f16a841d1a79904c435b6b1b, 23c512c2ba892c8d9bd8c0e6883abb76ce3ab34a, and bfbad03ebb2a3bc2e88fdad321cb24e2bcce7d0d against f5f94791fefec7f3b48233719c79c2633a4bdd18; they clean stale path comments, add the shared pulse figure path and E101031 SVG, and embed both figures, while the E101154 SVG has no diff.",
+    "done_when": "the source prompt's gate names two IDS-backed SVGs, E101154 identity, retired fixed-pulse constants, ruff, and two fragment embeds; baseline-render.log, final-render.log, figure-check.log, and ruff.log all end EXIT=0, and the committed E101031 SVG independently has eleven axes, eleven clipped paths, and the expected eleven labels in A.",
+    "goal": "the source prompt asks scripts/figures_jt60sa_signals.py to draw E101154 and E101031 through one pulse-taking function with an interim JT60SA_IDS_DIR root; scripts/figures_jt60sa_signals.py:41-68 and imas_ambix/data/paths.py:46 do so.",
+    "manifest": "the source manifest reports three local commits, two rendered SVGs, ruff and figure checks, and a clean tree; its baseline_suite and after_suite are absent, so the added suite-failure count is unmeasured rather than zero.",
+    "write_paths": "the source prompt grants scripts/figures_jt60sa_signals.py, imas_ambix/data/paths.py, docs/figures/jt60sa-signals, and its evidence fragment; git diff --name-only f5f94791fefec7f3b48233719c79c2633a4bdd18 bfbad03ebb2a3bc2e88fdad321cb24e2bcce7d0d lists four files, all inside those grants."
+  },
+  "justifications": {
+    "durability": "scripts/figures_jt60sa_signals.py:41-68 adds no committed test or assertion that would fail if a future edit dropped E101031, changed the IDS root, or supplied labels; figure-check.log is a one-time run log.",
+    "evidence": "figure-check.log records both run files and eleven paths and labels per SVG, ruff.log and final-render.log end EXIT=0, and the committed E101031 SVG independently carries all eleven labels in A; no baseline_suite or after_suite was recorded.",
+    "fit": "scripts/figures_jt60sa_signals.py:34-68 keeps the existing script-local IDS reader and delegates extraction and rendering to imas-ink, while the interim root comment at line 63 states why the fallback exists.",
+    "goal_fidelity": "scripts/figures_jt60sa_signals.py:41-68 uses pulse_path, imas.DBEntry, extract_signal_traces, time_trace_figure_mpl, and render_to_bytes for both pulses with the root from settings or imas_ambix/data/paths.py:46.",
+    "reuse": "scripts/figures_jt60sa_signals.py:49 calls the existing pulse_path owner at packages/imas-alambic/src/imas_alambic/pulse_writer.py:292 and lines 53-57 use imas-ink's trace extraction and plotting rather than duplicating them.",
+    "scope_discipline": "the four paths in the f5f94791..bfbad03e diff are all within the source prompt's exclusive write grants, and the E101154 SVG remains byte-identical."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the source prompt asks scripts/figures_jt60sa_signals.py to draw E101154 and E101031 through one pulse-taking function with an interim JT60SA_IDS_DIR root; scripts/figures_jt60sa_signals.py:41-68 and imas_ambix/data/paths.py:46 do so.\nVERDICT done_when: the source prompt's gate names two IDS-backed SVGs, E101154 identity, retired fixed-pulse constants, ruff, and two fragment embeds; baseline-render.log, final-render.log, figure-check.log, and ruff.log all end EXIT=0, and the committed E101031 SVG independently has eleven axes, eleven clipped paths, and the expected eleven labels in A.\nVERDICT write_paths: the source prompt grants scripts/figures_jt60sa_signals.py, imas_ambix/data/paths.py, docs/figures/jt60sa-signals, and its evidence fragment; git diff --name-only f5f94791fefec7f3b48233719c79c2633a4bdd18 bfbad03ebb2a3bc2e88fdad321cb24e2bcce7d0d lists four files, all inside those grants.\nVERDICT manifest: the source manifest reports three local commits, two rendered SVGs, ruff and figure checks, and a clean tree; its baseline_suite and after_suite are absent, so the added suite-failure count is unmeasured rather than zero.\nVERDICT diff: I read 30b08565b04fb6b4f16a841d1a79904c435b6b1b, 23c512c2ba892c8d9bd8c0e6883abb76ce3ab34a, and bfbad03ebb2a3bc2e88fdad321cb24e2bcce7d0d against f5f94791fefec7f3b48233719c79c2633a4bdd18; they clean stale path comments, add the shared pulse figure path and E101031 SVG, and embed both figures, while the E101154 SVG has no diff.\nCALL_SITES: none\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: scripts/figures_jt60sa_signals.py:41-68 uses pulse_path, imas.DBEntry, extract_signal_traces, time_trace_figure_mpl, and render_to_bytes for both pulses with the root from settings or imas_ambix/data/paths.py:46.\nSCORE evidence: 19\nJUSTIFICATION evidence: figure-check.log records both run files and eleven paths and labels per SVG, ruff.log and final-render.log end EXIT=0, and the committed E101031 SVG independently carries all eleven labels in A; no baseline_suite or after_suite was recorded.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the four paths in the f5f94791..bfbad03e diff are all within the source prompt's exclusive write grants, and the E101154 SVG remains byte-identical.\nSCORE durability: 12\nJUSTIFICATION durability: scripts/figures_jt60sa_signals.py:41-68 adds no committed test or assertion that would fail if a future edit dropped E101031, changed the IDS root, or supplied labels; figure-check.log is a one-time run log.\nSCORE fit: 19\nJUSTIFICATION fit: scripts/figures_jt60sa_signals.py:34-68 keeps the existing script-local IDS reader and delegates extraction and rendering to imas-ink, while the interim root comment at line 63 states why the fallback exists.\nSCORE reuse: 20\nJUSTIFICATION reuse: scripts/figures_jt60sa_signals.py:49 calls the existing pulse_path owner at packages/imas-alambic/src/imas_alambic/pulse_writer.py:292 and lines 53-57 use imas-ink's trace extraction and plotting rather than duplicating them.\n",
+  "review_run_id": "r-20261007T070640974916-review-of-jtfig-e101031-signals",
+  "reviewed_base_sha": "f5f94791fefec7f3b48233719c79c2633a4bdd18",
+  "reviewed_head_sha": "bfbad03ebb2a3bc2e88fdad321cb24e2bcce7d0d",
+  "reviewed_run_id": "r-20261007T065509465296-jtfig-e101031-signals",
+  "rubric": "code",
+  "scores": {
+    "durability": 12,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T07:11:24.701474+00:00",
+  "total": 110
+}
