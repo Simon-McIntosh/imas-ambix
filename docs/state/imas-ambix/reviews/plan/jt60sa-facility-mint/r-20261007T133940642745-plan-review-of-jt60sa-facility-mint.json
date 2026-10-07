@@ -1,0 +1,68 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T13:46:02.693Z",
+  "dispatched_at": "2026-10-07T13:39:54Z",
+  "findings": [
+    {
+      "anchor": "packages/imas-alambic/install/imasdb.sh:169",
+      "id": "duplicate_owner-1",
+      "reason": "as written \u00a75 is unsatisfiable without extending an owner it does not name, and the forced workaround re-introduces exactly the layout-name duplication \u00a75 says it avoids; the plan must either extend `discover_bundles`/`settings._maps` to tolerate a bundle-less search path (owner: `packages/imas-alambic/src/imas_alambic/machine_map.py:234` and `settings.py:135`) and add it to \u00a75's write paths, or own the one `maps/current` literal explicitly in the installer.",
+      "text": "\u00a75's done-when requires \"`imas-alambic config` reports every setting even when no bundle is reachable\" so that \"the installer reads the layout names from config ... and never writes `maps/current` itself\", but that premise is false against the current owner: `resolve_settings` calls `_machine` \u2192 `_bundles` \u2192 `discover_bundles` (machine_map.py:234) which calls `load_bundle_descriptor` (machine_map.py:276) on every map-search-path entry, so a default map path of `IMAS_ALAMBIC_HOME/maps/current` (settings.py:135) that does not yet exist raises `MachineMapError` before `config` prints anything. The only way the installer gets an answer is to seed a bundle at the default path first, which spells the `maps/current` layout name the plan declares has one owner (settings.py:135) \u2014 the landed install did exactly this at imasdb.sh:169 (`ln -sfn \"$STAGE/bundle\" \"$IMASDB/maps/current\"`), a second owner of that name beside settings.py:135. The fork is a census of one: I grepped the whole tree for `maps/current` and the only non-test, non-doc sites are settings.py:135 and imasdb.sh:169, and no other installed script spells the layout.",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "3a127ca0ed93fd2afb0326449b2053facbd10cf1829ae2ccc1b14e8fe7316eb5",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 104,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "declined",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "finding": "duplicate_owner-1",
+      "reason": "the finding reads the code before the running s5 repair (r-20261007T131907016379-jtfm-imasdb-repair), whose write scope holds settings.py and whose done-when makes config report the discovery refusal as the machine and cache source instead of raising, pinned by a test; the installer then drops the maps/current seed. The section states the behaviour the repair delivers, not today's.",
+      "when": "2026-10-07T13:46:47.808681+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "reason": "the finding reads the code before the running s5 repair (r-20261007T131907016379-jtfm-imasdb-repair), whose write scope holds settings.py and whose done-when makes config report the discovery refusal as the machine and cache source instead of raising, pinned by a test; the installer then drops the maps/current seed. The section states the behaviour the repair delivers, not today's.",
+      "when": "2026-10-07T13:46:47.808681+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-facility-mint.v104.json",
+  "review_run_id": "r-20261007T133940642745-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "d356a94c1af9d6ae7fc8ad7320475a86e01c1a5e",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the remaining design adds no new module; \u00a715 hides fetch-on-write behind `write_pulse` and one `eddb_host` setting, with no proliferation of wrappers over the same machinery.",
+    "duplicate_owner": "a finding \u2014 \u00a75 presumes `config` answers with no bundle so the installer never spells the layout, but discovery raises on a bundle-less search path, and the fallback forks the `maps/current` name that settings.py owns.",
+    "interface_budget": "pass \u2014 supplied figures are public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a715 accounts for its new `--eddb-host` flag and `IMAS_ALAMBIC_EDDB_HOST` variable by stating nothing is retired and why, and \u00a75 names what it replaces (\u00a74's `~/imas-alambic/.venv` and `env.sh`).",
+    "reuse_search": "pass \u2014 \u00a715 names and reuses the existing `fetch_channels` (eddb.py:336), `RemoteEddbExtractor` (eddb_remote.py:296) and the \u00a73 empty-`ssh_command` local route (eddb_remote.py:335); \u00a75 reads its layout names from `imas-alambic config` rather than re-deriving them.",
+    "thin_wrapper": "pass \u2014 \u00a715 extends the existing route (`eddb_remote.py` keeps ssh spelling and gains one composing function) instead of adding a parallel transport, and states \"Nothing is retired: the extractor's `ssh_command` parameter stays\"."
+  },
+  "section_digests": {
+    "_document": "b5ec579265c6e37a1bb1103d372cfd96dc77b2fe0bbc34b298341665089df000",
+    "s1": "9c7f16d6433487c622ba43b590d60de6ac6689995d01dfbcf8d4ab1d1d24f6c3",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "40878323aab9328585648d85591fd96dc6fcd4f5beedd01abbe2f0b3b1e8e508",
+    "s12": "7dd2ae47a38480f8a23a4bd518d5e1b9f6772d559fde8fe9885a2c7095f8ea50",
+    "s13": "2741a581fa4af709b92ea8db4a8330d65807a7a8665bbbfd9b84a09145be00ba",
+    "s14": "00628004df0e643b97e5a73b8e6ec838a6a572c206b20aff261081968fae4bb6",
+    "s15": "b0f8cab1d746c3170e6f09d694b69ad3ea16e76044e16e0ca32db246e05665be",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "d7f7ef068cc6bed034ac78b8e07d74753291b5f216952f52c9749892b65b5d6d",
+    "s6": "7b533574155a35c34654282717b0f43d32a0d83ffbcee998af17739315a58a71",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "0d934ec479471ff9f711bc6e58ec9f2d0f07d4722593ff98c53426b2b509ecda",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T13:46:44.984179+00:00"
+}

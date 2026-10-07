@@ -1,0 +1,68 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T13:38:36.588Z",
+  "dispatched_at": "2026-10-07T13:33:01Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-facility-mint.html:147",
+      "id": "reuse_search-1",
+      "reason": "as written the facility fetch at \u00a715 would run the reader under an interpreter without numpy and \u00a76 would stop on its first step, so the section must name who supplies the local reader's interpreter (`sys.executable`, or the tool-env python) when `eddb_host=local`.",
+      "text": "\u00a715 writes that `eddb_host=local` \"gives the local transport from \u00a73\", but it derives only `ssh_command` from the setting; the local branch of the route runs the reader as `remote_python -c REMOTE_SCRIPT` (eddb_remote.py:335-343), and `remote_python` defaults to `\"python\"` (eddb_remote.py:303), the analysis server's system interpreter that lacks numpy and is the very reason \u00a73 exists (eddb_remote.py:16-20, :52). Every existing construction of the local route supplies that interpreter explicitly \u2014 `eddb_standin.local_extractor` sets `remote_python=sys.executable` (packages/imas-alambic/tests/eddb_standin.py:145), and both transport tests pass `remote_python=\"/venv/bin/python\"` (packages/imas-alambic/tests/test_eddb_local_transport.py:35 and tests/data/test_eddb_local_transport.py:35); the production wiring \u00a715 proposes is the sole instance that does not, and the facility's interpreter is in fact known at `$TOOLS/imas-alambic/bin/python` (packages/imas-alambic/install/imasdb.sh:222). The same omission reaches \u00a76, whose `imas-alambic write 101154` reads \"EDDB through the local transport (\u00a73)\" (docs/plans/jt60sa-facility-mint.html:90), and the launcher \u00a715 has `install/imasdb.sh` write exports `IMAS_ALAMBIC_EDDB_HOST=local` without any interpreter for that route.",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "c106ae00e5669307b81aa1ada79badc5489eb66675c7cd7f20ab64d11f58c113",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 103,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "finding": "reuse_search-1",
+      "reason": "",
+      "when": "2026-10-07T13:39:23.193132+00:00"
+    }
+  ],
+  "responses": {
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "reason": "",
+      "when": "2026-10-07T13:39:23.193132+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-facility-mint.v103.json",
+  "review_run_id": "r-20261007T133247108743-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "74f34f3312679d5a705bfea4b145c5850271ddd5",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a715 adds no module; every change is a small addition inside an existing owner (settings.py, cli.py, pulse_writer.py, eddb_remote.py) rather than a spread of wrappers over one mechanism.",
+    "duplicate_owner": "pass \u2014 \u00a715 names `eddb_remote.py` as the sole owner of how the ssh route is spelled and explicitly leaves `imasdb.sh`'s `SSH_HOST` (imasdb.sh:42) as \"a different job\" that stays; the earlier duplicate finding on `eddb_host` was answered.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a715 adds one flag (`--eddb-host`) with its variable and states in its own text that it retires nothing because the extractor's `ssh_command` parameter stays, which the item permits.",
+    "reuse_search": "a finding \u2014 \u00a715 cites \u00a73's local transport but derives only `ssh_command` from `eddb_host`, while every existing construction of that route supplies a numpy-bearing interpreter explicitly (`eddb_standin.local_extractor` at eddb_standin.py:145 selects `remote_python=sys.executable`, both transport tests pass `/venv/bin/python`), so the plan omits the parameter \u00a73's local route requires.",
+    "thin_wrapper": "pass \u2014 the new function that composes the ssh command replaces the `DEFAULT_SSH_COMMAND` literal and \u00a715 states the extractor's `ssh_command` parameter stays and exactly what is passed to it, so this is an extension of eddb_remote.py's owner (eddb_remote.py:49), not a parallel layer."
+  },
+  "section_digests": {
+    "_document": "b5ec579265c6e37a1bb1103d372cfd96dc77b2fe0bbc34b298341665089df000",
+    "s1": "9c7f16d6433487c622ba43b590d60de6ac6689995d01dfbcf8d4ab1d1d24f6c3",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "40878323aab9328585648d85591fd96dc6fcd4f5beedd01abbe2f0b3b1e8e508",
+    "s12": "7dd2ae47a38480f8a23a4bd518d5e1b9f6772d559fde8fe9885a2c7095f8ea50",
+    "s13": "2741a581fa4af709b92ea8db4a8330d65807a7a8665bbbfd9b84a09145be00ba",
+    "s14": "00628004df0e643b97e5a73b8e6ec838a6a572c206b20aff261081968fae4bb6",
+    "s15": "cf62e7cf71cd0ceedcaf6f55b8b269a94369544ef2d7259b1e44c3605f8a35fd",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "d7f7ef068cc6bed034ac78b8e07d74753291b5f216952f52c9749892b65b5d6d",
+    "s6": "7b533574155a35c34654282717b0f43d32a0d83ffbcee998af17739315a58a71",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "0d934ec479471ff9f711bc6e58ec9f2d0f07d4722593ff98c53426b2b509ecda",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T13:39:20.155879+00:00"
+}
