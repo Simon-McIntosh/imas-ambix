@@ -25,7 +25,7 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="7">
 <meta name="plan-modified" content="2026-10-07">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
@@ -91,13 +91,25 @@
       at 0.6984&nbsp;MA.
     </p>
     <p>
-      This section draws E101031's coil currents and ip exactly as §1 draws E101154's, through
-      <code>extract_signal_traces</code>. It reads the pulse through <code>pulse_writer.pulse_path</code>, which
-      jt60sa-facility-mint §8 introduces with its run files and migrates <code>_read_pulse_ids</code> onto, so it
-      runs after §8 merges and never names a path itself. Its flux loops and probes follow §2's terms.
-      Done-when: an SVG of E101031's ten coil currents and ip exists beside E101154's, drawn by
-      <code>scripts/figures_jt60sa_signals.py</code> from the written IDS alone, with no array built and no label
-      or unit passed by the script.
+      This section draws E101031's coil currents and ip through <code>extract_signal_traces</code>, as §1 does
+      for E101154, without copying §1's body. <code>scripts/figures_jt60sa_signals.py</code> fixes its pulse and
+      figure name in module constants (<code>SHOT</code>, <code>FIGURE</code>, <code>PULSE_DIR</code>), and its
+      <code>_main()</code> takes no pulse. So this section moves the open → <code>extract_signal_traces</code> →
+      <code>time_trace_figure_mpl</code> → <code>render_to_bytes</code> path into one function that takes the pulse
+      and returns its figure, and both E101154 and E101031 become calls to it. The constants fixed to E101154
+      are retired, and E101154's figure is unchanged.
+    </p>
+    <p>
+      The function reaches a pulse through the owners jt60sa-facility-mint §8 introduces, so it runs after §8
+      merges and never names a path. The root comes from <code>imas_alambic/settings.py</code>
+      <code>resolve_settings</code> (<code>IMAS_ALAMBIC_IDS_ROOT</code>), and the file name from
+      <code>pulse_writer.pulse_path</code>, which §8 migrates <code>_read_pulse_ids</code> onto.
+      <code>imas_ambix/data/paths.py</code> <code>JT60SA_ROOT</code> is no longer read for the pulse. Its flux loops
+      and probes follow §2's terms.
+      Done-when: an SVG of E101031's ten coil currents and ip exists beside E101154's, drawn by one function in
+      <code>scripts/figures_jt60sa_signals.py</code> that takes the pulse, from the written IDS alone, with no array
+      built and no label or unit passed by the script. E101154's SVG, redrawn through the same function, matches
+      its committed predecessor in traces, labels and units.
     </p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
