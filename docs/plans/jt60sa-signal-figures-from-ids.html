@@ -25,9 +25,9 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="12">
+<meta name="plan-version" content="14">
 <meta name="plan-modified" content="2026-10-07">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;deferred&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -80,7 +80,7 @@
     </p>
 
     <h2 id="s3">§3 — E101031, the second pulse</h2>
-    <section data-reckon="section" data-id="s3" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="deferred" data-links=""></section>
+    <section data-reckon="section" data-id="s3" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
     <p>
       On 2026-10-07 the lead chose E101031 as the second written pulse, in place of C060033. C060033 falls in no
       catalogue phase, drives the TF coil alone with the PF chain at the noise floor, and has no PSRC, so no ip.
@@ -105,8 +105,12 @@
       <code>resolve_settings</code> (<code>IMAS_ALAMBIC_IDS_ROOT</code>), and the file name from
       <code>pulse_writer.pulse_path</code>, which §8 migrates <code>_read_pulse_ids</code> onto.
       <code>imas_ambix/data/paths.py</code> <code>JT60SA_ROOT</code> is no longer read for the pulse. Its flux loops
-      and probes follow §2's terms. Neither owner exists on <code>main</code> yet: both arrive with §8, so this
-      section is deferred until §8 merges and is re-declared implementable then. The geometry driver's
+      and probes follow §2's terms. Both owners landed with §8 (merge <code>106c1104</code>, 2026-10-07):
+      <code>imas_alambic/settings.py</code> <code>resolve_settings</code> and <code>pulse_writer.pulse_path</code>. The
+      script already opens E101154 through <code>pulse_path</code>, but still takes its root from
+      <code>JT60SA_ROOT</code>. The run files <code>101154_0.nc</code> and <code>101031_0.nc</code> are written by
+      jt60sa-facility-mint's coordinator under §8's done-when, and this section's node dispatches once both
+      exist. The geometry driver's
       <code>scripts/figures_jt60sa_geometry.py</code> <code>_read_ids</code> is not a second copy of this reader. It
       opens the phase description store, whose one-file-per-IDS layout the catalogue's
       <code>static-over-map</code> store owns. After §8, a written pulse is a single run file reached through
