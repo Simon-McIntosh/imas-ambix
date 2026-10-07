@@ -1,0 +1,72 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "Derived from the reviewed run's own manifest arms, then corroborated by independent execution. The manifest's baseline_suite (base-suite.log, revision f1f0a5b0, --collect-only) and after_suite (head-suite.log, revision bd366e30, --collect-only) both report '202 tests collected' with no FAILED/ERROR lines, so the head-minus-base set difference over pytest node ids is empty: added_failure_count 0, added_failure_ids []. The reviewed run's own wider execution arm, after-suite.log (revision bd366e30) and exec-subset.log (revision 3785b216), recorded 6 failures in tests/data/test_transform_engine.py (MachineMapError: no bundle declares store root 'LEVEL2_DIR', EXIT=1); those did NOT reproduce under this review's independent run of the identical five-file subset at the same head 3785b216, which passed 71 passed / EXIT=0 (independent-exec-subset.log). The divergence is environmental, not a head defect: imas_alambic.machine_map.resolve_description_store_root resolves LEVEL2_DIR through the imas_alambic.bundles entry point, which imas_ambix.data.bundle.load_bundle attaches from imas_ambix.data.paths; when that installed entry point is unregistered the only reachable bundle is the store_roots-less IMAS_ALAMBIC_MAP_PATH bundle.json, so no bundle declares LEVEL2_DIR and the six tests fail. Head adds no failures by either reading.",
+  "after_suite": {
+    "command": "uv run --no-sync -p /home/ITER/mcintos/Code/imas-ambix/.venv pytest -p no:cacheprovider --collect-only -q tests/challenge/test_convention.py tests/challenge/test_loader.py tests/gs/test_operator.py tests/latent/test_current_diffusion.py tests/latent/test_gs_solve.py tests/latent/test_harmonic_gauge.py tests/data/test_cocos_convention.py tests/data/test_description_identity.py tests/data/test_jt60sa_machine_map.py tests/data/test_jt60sa_signal_maps.py tests/data/test_jt60sa_unit_audit.py tests/data/test_tokamap_export.py tests/data/test_machine_map.py tests/data/test_transform_engine.py tests/test_cocos.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T233544444467-jtfm-alambic-importers/head-suite.log",
+    "revision": "bd366e30b3f5cd7a1b5923dc4280d5f62b95a01f"
+  },
+  "baseline_suite": {
+    "command": "uv run --no-sync -p /home/ITER/mcintos/Code/imas-ambix/.venv pytest -p no:cacheprovider --collect-only -q tests/challenge/test_convention.py tests/challenge/test_loader.py tests/gs/test_operator.py tests/latent/test_current_diffusion.py tests/latent/test_gs_solve.py tests/latent/test_harmonic_gauge.py tests/data/test_cocos_convention.py tests/data/test_description_identity.py tests/data/test_jt60sa_machine_map.py tests/data/test_jt60sa_signal_maps.py tests/data/test_jt60sa_unit_audit.py tests/data/test_tokamap_export.py tests/data/test_machine_map.py tests/data/test_transform_engine.py tests/test_cocos.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T233544444467-jtfm-alambic-importers/base-suite.log",
+    "revision": "f1f0a5b04dca29155dbf3ee359c927ae60bee10e"
+  },
+  "completed_at": "2026-10-07T00:07:57.008Z",
+  "dispatched_at": "2026-10-06T23:53:52Z",
+  "findings": [
+    {
+      "file": "tests/data/test_transform_engine.py",
+      "line": "287,430,480,652,693,709",
+      "severity": "follow-on",
+      "text": "follow-on: the reviewed run's own execution arm recorded six red tests at this head that do not reproduce. exec-subset.log (revision 3785b216) reports '6 failed, 65 passed ... EXIT=1' on the five-file subset tests/test_cocos.py tests/data/test_transform_engine.py tests/latent/test_gs_solve.py tests/latent/test_harmonic_gauge.py tests/latent/test_current_diffusion.py, every failure raising imas_alambic.machine_map.MachineMapError: no bundle declares store root 'LEVEL2_DIR'. This review re-ran the identical subset at the identical head (3785b216) with the same PYTHONPATH and IMAS_ALAMBIC_MAP_PATH and got '71 passed ... EXIT=0' (independent-exec-subset.log). The difference is the shared environment: resolve_description_store_root (packages/imas-alambic/src/imas_alambic/machine_map.py:244) resolves LEVEL2_DIR through the imas_alambic.bundles entry point, and imas_ambix.data.bundle.load_bundle attaches it from imas_ambix.data.paths; the IMAS_ALAMBIC_MAP_PATH bundle (imas_ambix/data/bundle.json) declares no store_roots, so when the installed entry point is absent the six tests fail. The failures are therefore an environment-sensitivity of the bundle-discovery path, outside this node's scope (bundle.json and the entry point belong to the mint-move and unlock nodes), and the node's own manifest recorded them conservatively in artifacts and follow_ons. No repair is requested of this node; recorded so a reader does not take the stale red log for a head defect. The landing conclusion is unaffected."
+    }
+  ],
+  "follow_ons": [
+    {
+      "file": "packages/imas-alambic/src/imas_alambic/machine_map.py",
+      "line": "244",
+      "severity": "follow-on",
+      "text": "The reviewed node's suite arms in the manifest are '--collect-only' runs (baseline_suite base-suite.log, after_suite head-suite.log), which establish that every import resolves but cannot themselves evidence the done-when's 'add no failures against base f1f0a5b0'. The relevant execution arm exists only in the run directory (exec-subset.log, after-suite.log) and under artifacts/follow_ons, not in the two suite fields a promotion's delta check reads. Independent execution of the five-file subset at head passes (71 passed, EXIT=0), so the conclusion holds; but the mint-move/unlock nodes should own the store-root/entry-point wiring that makes that execution arm stable, and a later node should re-run the full focused execution at the merged head.",
+      "text_note": "not blocking"
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 0 production call site(s) of the moved module paths remain",
+    "diff": "Read commit range f78cad45..3785b216; the change is a mechanical import repointing (from imas_ambix.data.<module> to imas_alambic.<module>, imas_ambix.cocos to imas_alambic.cocos, nova.io.cocos to nova_cocos) plus two direct-constant imports moved to imas_ambix.data.paths, one docstring module path updated, and a 27-line evidence fragment. No behavioural edit; the only non-import lines are the docstring references and the fragment.",
+    "done_when": "Read from the node's dispatch: grep finds no import of the moved modules except the recorded result file and the eddb.py docstring; the direct-constant sites read PACKAGED_MACHINE_MAP_ROOT from imas_ambix.data.paths; the three collection-broken modules collect; the touched modules add no failures against base f1f0a5b0; ruff check imas_ambix tests packages exits 0; uv.lock untouched. The commit delivers the grep cleanliness, the direct-constant move, the ruff pass and the uv.lock exclusion. The 'add no failures' half is evidenced only at collection granularity by the recorded suite arms, and by an execution arm the node ran but recorded outside baseline_suite/after_suite; this review's independent execution of the five-file subset at head passes (71/71, EXIT=0).",
+    "goal": "The node's goal is to point every remaining ambix, test and script import of the moved modules at imas_alambic and nova_cocos. It does: a residual grep over imas_ambix, tests and scripts for imas_ambix.data.{machine_map,signal_map,transform_engine,virtual_zarr,eddb,eddb_remote,pulse_mint}, imas_ambix.cocos or nova.io.cocos returns only the untouched recorded result file imas_ambix/spine_bench/results/physics-spine-v0-mast-heldout-6-68452048dc-98dci4-clu-3141-level2-transform-signal-identity-873cd355bd4c.yaml (a data artifact, out of scope); the two direct PACKAGED_MACHINE_MAP_ROOT readers now take it from imas_ambix.data.paths (spine_bench/transform_geometry_source.py:31, tests/data/test_jt60sa_signal_maps.py:24); nova.io.cocos imports move to nova_cocos; and three test modules that error at collection at base f78cad45 (tests/data/test_machine_map.py, tests/data/test_transform_engine.py, tests/test_cocos.py) collect at head because their transitive imports (imas_ambix.data.geometry_adapter, imas_ambix.gs.geometry, imas_ambix.data.cocos_convention) are repointed. Verified independently: with the reviewed tree on PYTHONPATH, all previously-broken engine imports resolve and imas_ambix.data.signal_map no longer exists.",
+    "manifest": "Read; it states status complete, three commits (d9163826, bd366e30, 3785b216), a 33-site repointing, the grep/collection/ruff gates, and a negative control red at f78cad45. Its baseline_suite and after_suite are --collect-only runs; its changed_paths match the diff; its follow_ons disclose that the full execution is outstanding and that the eddb.py docstring residual is a later node's. Its evidence_inputs claims 'the eddb.py docstring reference lives inside packages/imas-alambic/src/imas_alambic/eddb.py', but a grep of that tree for imas_ambix returns nothing at this head, so the docstring residual appears already absent rather than outstanding.",
+    "write_paths": "The diff f78cad45..3785b216 touches 34 files (98 insertions, 73 deletions); every one is inside the node's declared write paths (imas_ambix/gs, imas_ambix/latent, imas_ambix/challenge, tests/gs, tests/latent, tests/challenge, the named imas_ambix/data modules, scripts/*, the named tests/data modules, and docs/evidence/fragments/jt60sa-facility-mint/jtfm-alambic-importers.html). It does not touch the concurrent nodes' paths (uv.lock, packages/imas-alambic, imas_ambix/data/paths.py, machine_map.py etc.) and does not edit the plan meta lines. The declared docs/figures/... write path is unwritten and the done-when names no artifact, so no figure was owed."
+  },
+  "justifications": "goal_fidelity 18/20: the node repoints all 33 residual import sites to imas_alambic/nova_cocos and moves the two direct PACKAGED_MACHINE_MAP_ROOT readers onto imas_ambix.data.paths, verified by an independent residual grep (only the recorded results yaml remains, out of scope) and an independent import-resolution run at head. evidence 16/20: two gate arms with proper headers and revisions (base f1f0a5b0 202 collected, head bd366e30 202 collected, each EXIT=0), a red negative control at f78cad45 (3 collection errors, EXIT=2) and a clean ruff run; against that, the recorded baseline_suite/after_suite are --collect-only, so the arms prove import resolution rather than the 'no added failures' the done-when names, and the node's execution arm recorded six failures that this review's independent run does not reproduce (71 passed, EXIT=0). scope_discipline 19/20: all 34 changed files are inside the declared write paths; no concurrent node's file, no uv.lock, no plan meta. durability 17/20: three conventional commits with bodies, the evidence fragment committed, and gate logs on disk with revision/tree/module headers; the suite fields, however, record collection arms that a promotion delta reads as 0 while the only execution evidence sits in artifacts. fit 18/20: matches plan s2's 'every ambix import ... switches in the same change' and the direct-constant sites the plan names. reuse 19/20: the change reuses the imas_alambic engine and nova_cocos rather than re-implementing, and adds no new refusal family or resolver. Independently reproduced at head 3785b216: engine imports resolve from the reviewed tree, imas_ambix.data.signal_map is gone, PACKAGED_MACHINE_MAP_ROOT imports from imas_ambix.data.paths, and the five-file execution subset passes 71/71 EXIT=0.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261006T235343894875-review-of-jtfm-alambic-importers",
+  "reviewed_base_sha": "f78cad45dc37eff71bd98fba59361afd89b82560",
+  "reviewed_head_sha": "3785b216031697377d7b1fbba3b718a1e63ea024",
+  "reviewed_run_id": "r-20261006T233544444467-jtfm-alambic-importers",
+  "reviewer": "review-of-jtfm-alambic-importers",
+  "scores": {
+    "durability": 17,
+    "evidence": 16,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "reuse": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-07T00:06:00+00:00",
+  "total": 107
+}
