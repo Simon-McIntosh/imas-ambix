@@ -447,9 +447,12 @@ class SensorMapping:
     angle_deg: float | None  # None for flux loops
     residual_m: float  # nearest-neighbour distance amb-desc(R,Z) → efm
     flag: str  # "" if confidently mapped, else a reason
-    # A type-6 differential flux loop carries no position; it is predicted as the
-    # prediction of its ``second`` loop minus that of its ``first``, both indices
-    # into the geometry table's flux loops.  ``None`` for every positioned sensor.
+    # A type-6 differential flux loop carries no position of its own: it is
+    # predicted as its ``second`` loop minus its ``first``, both indices into
+    # the geometry table's loops.  Its ``efm_index`` is then a sentinel with no
+    # positioned slot behind it, so every consumer that indexes or matches by
+    # ``efm_index`` refuses or skips a mapping whose ``indices_differential`` is
+    # set.  ``indices_differential`` is None for every positioned sensor.
     indices_differential: tuple[int, int] | None = None
 
 
@@ -810,7 +813,14 @@ def map_amb_sensors(
     for i, claims in fl_claims.items():
         if len(claims) > 1:
             for m_idx, m in enumerate(mappings):
-                if m.kind == "flux_loop" and m.efm_index == i:
+                # Skip differential loops: they carry no positioned slot, so a
+                # None efm_index can never equal a silop index and the rebuild
+                # below must keep their pair intact.
+                if (
+                    m.kind == "flux_loop"
+                    and m.indices_differential is None
+                    and m.efm_index == i
+                ):
                     mappings[m_idx] = SensorMapping(
                         amb_channel=m.amb_channel,
                         kind=m.kind,

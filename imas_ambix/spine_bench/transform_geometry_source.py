@@ -167,6 +167,7 @@ def _bind_flux_loop_identities(
         mapping.amb_channel
         for mapping in table.sensor_map
         if mapping.kind == "flux_loop"
+        and getattr(mapping, "indices_differential", None) is None
     )
     matched_channels = tuple(item.channel for item in matches)
     if len(channels) != len(set(channels)):
@@ -184,7 +185,12 @@ def _bind_flux_loop_identities(
     corrected = []
     rebound_count = 0
     for mapping in table.sensor_map:
-        if mapping.kind != "flux_loop":
+        if mapping.kind != "flux_loop" or (
+            getattr(mapping, "indices_differential", None) is not None
+        ):
+            # A differential flux loop has no EFM column of its own to rebind;
+            # its identity is the pair of loops it names, which the loop
+            # identities below already carry.
             corrected.append(mapping)
             continue
         match = by_channel[mapping.amb_channel]
@@ -434,7 +440,10 @@ class IdentityBoundCampaignGeometrySource:
                 f"campaign geometry is unavailable for shot {self.evidence_shot}"
             )
         channels = tuple(
-            item.amb_channel for item in table.sensor_map if item.kind == "flux_loop"
+            item.amb_channel
+            for item in table.sensor_map
+            if item.kind == "flux_loop"
+            and getattr(item, "indices_differential", None) is None
         )
         self._matches = _signal_identity_matches(self.evidence_shot, channels)
         corrected, self._rebound_count = _bind_flux_loop_identities(
