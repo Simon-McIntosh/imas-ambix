@@ -1,0 +1,121 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-settings-run-file-landing">
+  <header>
+    <h3>Settings, the write command and the run file</h3>
+    <p class="meta">
+      Node <code>jtfm-settings-run-file</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;8 &middot;
+      base <code>9b440888</code>
+    </p>
+  </header>
+
+  <p>
+    One new module, <code>packages/imas-alambic/src/imas_alambic/settings.py</code>,
+    owns resolution.  <code>resolve_settings(flags)</code> is the only reader of
+    <code>IMAS_ALAMBIC_HOME</code>, <code>IMAS_ALAMBIC_MAP_PATH</code>,
+    <code>IMAS_ALAMBIC_IDS_ROOT</code> and <code>IMAS_ALAMBIC_CACHE</code>, and
+    resolves each setting at the highest precedence that names it: a flag, then
+    the variable, then a default derived from <code>IMAS_ALAMBIC_HOME</code>
+    (<code>maps/current</code> and <code>ids</code>).  Every setting is a
+    <code>Setting</code> carrying its value and the source it came from, so
+    <code>imas-alambic config</code> prints each value beside its origin.  The
+    cache falls back, past the variable, to the bundle's <code>eddb_cache</code>
+    store role and then to <code>~/.cache/imas-alambic</code>.  The machine is
+    never a variable: it is inferred when exactly one machine is reachable
+    through the bundles, and left unset naming <code>--machine</code> when
+    several are.
+  </p>
+
+  <p>
+    <code>machine_map.discover_bundles</code> no longer reads the environment:
+    it takes the resolved map search path as a parameter, asks
+    <code>resolve_settings</code> when none is passed, and the
+    <code>_BUNDLE_ENV_VAR</code> constant moved to <code>settings.py</code>.
+    The store-root owner <code>resolve_description_store_root</code> is renamed
+    <code>resolve_store_root</code>; it gains <code>kind</code> (the refusal
+    still says &ldquo;description store root&rdquo;) and an optional form that
+    returns nothing for an undeclared role, which the cache lookup uses.  Its
+    callers moved: <code>machine_map.py</code>'s
+    <code>description_store_root_path</code> and catalogue load, and
+    <code>imas_ambix/data/description_reader.py</code>.
+    <code>imas_ambix/data/bundle.py</code>'s <code>_STORE_ROOTS</code> gains
+    <code>eddb_cache</code> from <code>paths.JT60SA_ROOT</code>, so the
+    development cache stays where it was.
+  </p>
+
+  <p>
+    <code>pulse_writer.py</code> gains the public
+    <code>pulse_path(out_root, pulse, run)</code> returning
+    <code>&lt;out_root&gt;/&lt;pulse&gt;_&lt;run&gt;.nc</code> (e.g.
+    <code>101154_0.nc</code>), and <code>write_pulse</code> writes one
+    <code>imas.DBEntry</code> netCDF file per pulse and run holding every
+    description IDS of the shot's phase, refusing an existing file without
+    <code>--overwrite</code> through <code>PulseWriteError</code>.  Its
+    hard-coded <code>resolve_description_store_root("JT60SA_ROOT")</code> lookup
+    retires in favour of the resolved cache setting, and
+    <code>scripts/figures_jt60sa_signals.py</code>'s <code>_read_pulse_ids</code>
+    reads through <code>pulse_path</code>.  <code>imas-alambic write</code>
+    takes positional pulses with <code>--run</code>, <code>--machine</code>,
+    <code>--maps</code>, <code>--out</code>, <code>--cache</code> and
+    <code>--overwrite</code>, and <code>imas-alambic config</code> prints the
+    resolved settings.
+  </p>
+
+  <p id="jtfm-settings-run-file-gates">
+    <strong>Gates.</strong>  In this worktree
+    (<code>packages/imas-alambic/src</code> on <code>PYTHONPATH</code>),
+    <code>pytest -q packages/imas-alambic/tests tests/data/test_pulse_writer.py</code>
+    is 41 passed / 0 failed at the head against 34 passed / 0 failed for the
+    same command against a <code>git archive</code> of base
+    <code>9b440888</code>, so the change adds no failures.  A resolved-settings
+    write, <code>write_pulse('jt-60sa', 'E101154', &lt;scratch&gt;)</code>,
+    writes <code>101154_0.nc</code> whose five IDSs
+    (<code>pf_active</code>, <code>pf_passive</code>, <code>wall</code>,
+    <code>magnetics</code>, <code>tf</code>) are each equal by imas-python
+    <code>idsdiffgen</code> to the per-IDS writer's output captured at the base;
+    a second write is refused with <code>PulseWriteError</code> naming
+    <code>--overwrite</code>, and succeeds with it.  The negative control —
+    <code>_home</code> ignoring <code>IMAS_ALAMBIC_HOME</code> — fails
+    <code>test_home_derives_maps_and_ids_and_infers_the_machine</code> with
+    <code>EXIT=1</code>, an id the head arm does not fail.  The plan's
+    <code>git grep</code> checks hold: the run-file name is built only in
+    <code>pulse_path</code>, no store-root lookup by a literal key remains in
+    the engine's source, and the <code>IMAS_ALAMBIC_*</code> variables are read
+    only in <code>settings.py</code>.  <code>ruff check imas_ambix tests packages</code>
+    exits 0.
+  </p>
+
+  <p id="jtfm-settings-run-file-cleanvenv">
+    <strong>Clean-venv gate.</strong>  In a fresh
+    <code>uv venv --python 3.12</code> holding only the
+    <code>imas-alambic</code> wheel built here, the <code>nova-cocos</code>
+    wheel and <code>pytest</code>, with <code>PYTHONPATH</code> unset,
+    <code>packages/imas-alambic/tests</code> is 32 passed / 0 failed.  With
+    <code>IMAS_ALAMBIC_HOME</code> set to a synthetic folder holding one
+    synthetic flat bundle and no other <code>IMAS_ALAMBIC_*</code> variable,
+    <code>imas-alambic config</code> reports the maps as
+    <code>HOME/maps/current</code>, the IDS root as <code>HOME/ids</code>, the
+    cache as the bundle's <code>eddb_cache</code> role, and the machine as
+    <code>synth</code> inferred from the single reachable bundle, each with its
+    source; <code>imas-alambic write 900001</code> writes
+    <code>ids/900001_0.nc</code> whose IDS set equals its phase description's
+    (<code>pf_active</code>, <code>pf_passive</code>, <code>wall</code>,
+    <code>magnetics</code>, <code>tf</code>).
+  </p>
+
+  <p id="jtfm-settings-run-file-findings">
+    <strong>Two defects the gate exposed.</strong>  First, this node's earlier
+    <code>ruff format</code>, at the repository's <code>py314</code> target,
+    rewrote two <code>except (KeyError, ValueError, OSError):</code> clauses in
+    <code>eddb.py</code> into PEP 758 form, a SyntaxError on the Python 3.12 the
+    engine declares (the wheel then failed to import <code>virtual_zarr</code>,
+    <code>eddb</code> and <code>pulse_writer</code> in the clean venv while a
+    3.14 run hides it); the parentheses are restored and the whole engine
+    parses under 3.12.  The repository guards this class of defect for
+    <code>imas_ambix/agent/*.py</code> but not for the engine.  Second,
+    <code>imas-alambic</code> declares <code>imas-python</code> without a
+    netCDF backend, so a clean install cannot write netCDF; the demonstration
+    therefore additionally installed <code>netCDF4</code>, and the packaging
+    gap is recorded as a follow-on.
+  </p>
+</section>

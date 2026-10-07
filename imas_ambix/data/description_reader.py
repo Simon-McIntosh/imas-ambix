@@ -21,7 +21,7 @@ import numpy as np
 
 from imas_alambic.machine_map import (
     load_packaged_machine_map,
-    resolve_description_store_root,
+    resolve_store_root,
 )
 from imas_alambic.transform_engine import transform_machine_description
 from imas_ambix.data.geometry_adapter import geometry_table_from_description
@@ -29,6 +29,7 @@ from imas_ambix.data.geometry_adapter import geometry_table_from_description
 if TYPE_CHECKING:
     from collections.abc import Iterable
     from pathlib import Path
+
 
 class DescriptionReadError(RuntimeError):
     """Raised when a declared description cannot produce a geometry table."""
@@ -110,9 +111,7 @@ def _supply_emitted_probe_angles(description: Any, table: Any) -> Any:
     """
 
     angle_arrays = tuple(
-        array
-        for array in description.arrays
-        if array.dd_path == _PROBE_ANGLE_DD_PATH
+        array for array in description.arrays if array.dd_path == _PROBE_ANGLE_DD_PATH
     )
     if not angle_arrays:
         return table
@@ -132,9 +131,7 @@ def _supply_emitted_probe_angles(description: Any, table: Any) -> Any:
     angles = np.asarray(converter(values), dtype=np.float64).reshape(-1)
 
     name_arrays = tuple(
-        array
-        for array in description.arrays
-        if array.dd_path == _PROBE_NAME_DD_PATH
+        array for array in description.arrays if array.dd_path == _PROBE_NAME_DD_PATH
     )
     if len(name_arrays) != 1:
         raise DescriptionReadError(
@@ -142,9 +139,7 @@ def _supply_emitted_probe_angles(description: Any, table: Any) -> Any:
             f"{_PROBE_NAME_DD_PATH} array to join {_PROBE_ANGLE_DD_PATH} "
             f"angles to mapped probes; found {len(name_arrays)}"
         )
-    names = tuple(
-        str(value) for value in np.asarray(name_arrays[0].values).reshape(-1)
-    )
+    names = tuple(str(value) for value in np.asarray(name_arrays[0].values).reshape(-1))
     if len(names) != angles.size:
         raise DescriptionReadError(
             f"the emitted {_PROBE_NAME_DD_PATH} array holds {len(names)} names "
@@ -215,7 +210,9 @@ def _resolve_store_addressing(
                 f"machine {machine!r} declares no description store; supply an "
                 "explicit store_format and store_root to read one"
             )
-        store_root = resolve_description_store_root(catalog.description_store_root)
+        store_root = resolve_store_root(
+            catalog.description_store_root, kind="description store"
+        )
     return store_format, store_root
 
 

@@ -24,7 +24,10 @@ import yaml
 LINKML_SCHEMA_PATH = Path(__file__).with_name("machine_maps") / "schema.yaml"
 
 _BUNDLE_ENTRY_POINT_GROUP = "imas_alambic.bundles"
-_BUNDLE_ENV_VAR = "IMAS_ALAMBIC_MAP_PATH"
+
+#: The kind label the description-store refusal carries, so a missing
+#: description root is named as such rather than as a generic store root.
+_DESCRIPTION_STORE_KIND = "description store"
 
 _SIGN_CONVENTIONS = {
     "identity",
@@ -208,16 +211,40 @@ def load_bundle_descriptor(root: Path | str) -> MapBundle:
     )
 
 
-def discover_bundles() -> tuple[MapBundle, ...]:
+def _search_roots(search_path: object) -> list[str]:
+    """Return the map-path directory entries named by ``search_path``.
+
+    ``None`` asks :func:`imas_alambic.settings.resolve_settings` for the resolved
+    map search path, which is the one reader of ``IMAS_ALAMBIC_MAP_PATH``.  A
+    string is split on ``os.pathsep``; a sequence is taken as directories; an
+    empty result names no directory and only entry-point bundles are found.
+    """
+
+    if search_path is None:
+        from imas_alambic.settings import resolve_settings
+
+        search_path = resolve_settings().maps.value
+    if search_path is None:
+        return []
+    if isinstance(search_path, (str, Path)):
+        return [entry for entry in str(search_path).split(os.pathsep) if entry]
+    return [str(entry) for entry in search_path if str(entry)]
+
+
+def discover_bundles(search_path: object = None) -> tuple[MapBundle, ...]:
     """Return every reachable bundle, once each, in resolution order.
 
     Installed packages register a bundle under the ``imas_alambic.bundles``
     entry-point group; the target may be a directory, or a :class:`MapBundle`
     the package builds itself so its store roots come from one owner rather than
     a second copy in ``bundle.json``.  Directories that are not Python packages
-    are named in ``IMAS_ALAMBIC_MAP_PATH``.  The same directory reached by both
-    routes is one bundle, because bundles are de-duplicated by their resolved
-    directory.
+    are named by the resolved map search path, passed as ``search_path``: a
+    ``os.pathsep``-joined string or a sequence of directories.  The same
+    directory reached by both routes is one bundle, because bundles are
+    de-duplicated by their resolved directory.
+
+    ``search_path`` is resolved by :func:`imas_alambic.settings.resolve_settings`
+    when it is ``None``, so this function reads no environment variable itself.
     """
 
     declared: list[MapBundle] = []
@@ -230,9 +257,8 @@ def discover_bundles() -> tuple[MapBundle, ...]:
             declared.append(target)
         else:
             roots.append(Path(target))
-    for entry in os.environ.get(_BUNDLE_ENV_VAR, "").split(os.pathsep):
-        if entry:
-            roots.append(Path(entry))
+    for entry in _search_roots(search_path):
+        roots.append(Path(entry))
 
     bundles: list[MapBundle] = []
     seen: set[Path] = set()
@@ -251,15 +277,19 @@ def discover_bundles() -> tuple[MapBundle, ...]:
     return tuple(bundles)
 
 
-def bundle_for_machine(machine: str) -> MapBundle:
+def bundle_for_machine(machine: str, search_path: object = None) -> MapBundle:
     """Return the single bundle declaring ``machine``, or refuse.
 
     A machine the bundles do not carry is refused; a machine two distinct
     bundles carry is refused naming both, rather than one silently shadowing the
-    other.
+    other.  ``search_path`` is the resolved map search path; ``None`` asks for
+    it, so a caller that has already resolved settings passes it to keep one
+    resolution.
     """
 
-    matches = [bundle for bundle in discover_bundles() if machine in bundle.machines]
+    matches = [
+        bundle for bundle in discover_bundles(search_path) if machine in bundle.machines
+    ]
     if not matches:
         raise MachineMapError(f"no bundle carries machine {machine!r}")
     if len(matches) > 1:
@@ -270,26 +300,37 @@ def bundle_for_machine(machine: str) -> MapBundle:
     return matches[0]
 
 
-def resolve_description_store_root(name: str) -> Path:
+def resolve_store_root(
+    name: str,
+    *,
+    kind: str = "store",
+    optional: bool = False,
+    search_path: object = None,
+) -> Path | None:
     """Resolve a declared store-root name through the reachable bundles.
 
     A bundle names its store roots symbolically so the on-disk layout stays
-    owned by the package that ships the bundle, not by the engine.  A name no
-    bundle declares, or a name two bundles declare to different paths, is
-    refused rather than guessed.
+    owned by the package that ships the bundle, not by the engine.  ``kind``
+    labels the root in the refusal, so a description lookup still says
+    "description store root".  With ``optional`` a name no bundle declares
+    returns ``None``, which the cache lookup uses for the ``eddb_cache`` role.
+    A name two bundles declare to different paths is refused rather than
+    guessed.
     """
 
     matches = [
         bundle.store_roots[name]
-        for bundle in discover_bundles()
+        for bundle in discover_bundles(search_path)
         if name in bundle.store_roots
     ]
     if not matches:
-        raise MachineMapError(f"no bundle declares description store root {name!r}")
+        if optional:
+            return None
+        raise MachineMapError(f"no bundle declares {kind} root {name!r}")
     distinct = {path.resolve() for path in matches}
     if len(distinct) > 1:
         raise MachineMapError(
-            f"store root {name!r} is declared by more than one bundle at different "
+            f"{kind} root {name!r} is declared by more than one bundle at different "
             f"paths: {sorted(str(p) for p in distinct)}"
         )
     return matches[0]
@@ -1165,7 +1206,9 @@ class MachineMapCatalog:
         """Return the on-disk store root named by this catalog."""
         if self.description_store_root is None:
             raise MachineMapError("catalog declares no description store root")
-        return resolve_description_store_root(self.description_store_root)
+        return resolve_store_root(
+            self.description_store_root, kind=_DESCRIPTION_STORE_KIND
+        )
 
     def cocos_for_binding(self, binding: ChannelBinding | None = None) -> int | None:
         """Resolve a binding override before the machine-level declaration."""
@@ -1337,7 +1380,7 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
                 f"{sorted(_DESCRIPTION_STORE_FORMATS)}"
             )
         description_store_root = _text(description_store_root, "description_store_root")
-        resolve_description_store_root(description_store_root)
+        resolve_store_root(description_store_root, kind=_DESCRIPTION_STORE_KIND)
         description_store_layout = _text(
             description_store_layout, "description_store_layout"
         )
@@ -1776,12 +1819,16 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
     return catalog
 
 
-def load_packaged_machine_map(machine: str) -> MachineMapCatalog:
+def load_packaged_machine_map(
+    machine: str, search_path: object = None
+) -> MachineMapCatalog:
     """Load the reviewed catalog for ``machine`` from the reachable bundles."""
+
     component = _text(machine, "machine")
     if not component.replace("-", "").isalnum():
         raise MachineMapError("machine must contain only letters, digits, or hyphens")
-    return load_machine_map(bundle_for_machine(component).machine_map_path(component))
+    bundle = bundle_for_machine(component, search_path)
+    return load_machine_map(bundle.machine_map_path(component))
 
 
 def map_for_shot(catalog: MachineMapCatalog, shot: int) -> MachineMap:
