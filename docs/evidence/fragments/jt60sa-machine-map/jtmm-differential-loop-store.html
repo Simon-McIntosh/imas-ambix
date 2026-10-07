@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <section id="jtmm-differential-loop-store-landing">
+      <p><code>build_magnetics</code> in
+      <code>imas_ambix/data/selene_deck.py</code> now writes the 27 physical
+      JT-60SA flux loops as type-1 entries (name and position) followed by 26
+      type-6 (differential) entries, one per loop L other than the reference
+      loop 7, each naming loop 7 then loop L in
+      <code>indices_differential</code> and carrying no position or area.
+      Both phase description stores are regenerated and read back through
+      <code>imas</code> with 53 flux loops.</p>
+    </section>
+
+    <section id="jtmm-differential-loop-store-convention">
+      <h3>The index convention and where it is stated</h3>
+      <p>DD 4.1.1 documents <code>magnetics/flux_loop/indices_differential</code>
+      as: <em>&ldquo;Indices (from the flux_loop array of structures) of the two
+      loops used to build a differential measurement: loop(second index) &minus;
+      loop(first index). Use only if ../type/index = 6, leave empty
+      otherwise.&rdquo;</em> The entry therefore names the two loops
+      <code>[first, second]</code> and the value is
+      <code>loop(second) &minus; loop(first)</code>. The indices address the
+      <code>flux_loop</code> array of structures, whose own index runs
+      <code>1...N</code> in the DD (<code>path_doc</code>
+      <code>flux_loop(i1)/indices_differential(:)</code>), so the values are
+      1-based loop numbers. Naming the reference loop 7 first makes each entry
+      loop L minus the reference, matching the raw channel's measured
+      difference. <code>flux_loop/type/index</code> = 1 is
+      <code>poloidal_flux</code> and 6 is <code>differential</code>
+      (<code>magnetics_flux_loop_type_identifier</code>).</p>
+    </section>
+
+    <section id="jtmm-differential-loop-store-stores">
+      <h3>Regenerated stores and the superseded copies</h3>
+      <p>Written through <code>write_phase_description</code> after verifying
+      each source deck's sha256 against the value its receipt records:</p>
+      <ul>
+        <li><code>/work/projects/imas_gpu/jt60sa/machine_description/OP1</code>
+        (receipt <code>OP1/receipt.json</code>, converter commit
+        <code>82d10032</code>) and
+        <code>/work/projects/imas_gpu/jt60sa/machine_description/OP2</code>
+        (<code>OP2/receipt.json</code>).</li>
+        <li>Superseded (pre-differential) copies kept at
+        <code>machine_description/superseded/pre-differential-loops/OP1</code>
+        and <code>.../OP2</code>; the earlier
+        <code>superseded/OP1</code> and <code>superseded/OP2</code> remain
+        untouched.</li>
+      </ul>
+      <p>Read back through <code>imas</code> at DD 4.1.1, each store carries 53
+      <code>flux_loop</code> entries: 27 with <code>type/index</code> = 1 and a
+      position, then 26 with <code>type/index</code> = 6, empty position and
+      area, and <code>indices_differential</code> running
+      <code>[7,1] ... [7,2]</code> through <code>[7,27]</code> for every loop
+      other than 7.</p>
+    </section>
+
+    <section id="jtmm-differential-loop-store-measure">
+      <h3>Measure</h3>
+      <p><code>uv run --no-sync pytest tests/data/test_selene_deck.py</code> &mdash;
+      32 passed, <code>EXIT=0</code>
+      (<code>gate_test_selene_deck.log</code>); the new
+      <code>test_differential_flux_loops_follow_the_physical_loops</code> reads
+      the real 27-loop <code>geo.in</code>. The declared mutation (swapping the
+      two <code>indices_differential</code> entries in a scratch copy of
+      <code>build_magnetics</code>) turns that test red
+      (<code>negative_control_indices_swap.log</code>, <code>EXIT=1</code>).
+      Store regeneration <code>EXIT=0</code>
+      (<code>regenerate_jt60sa_store.log</code>). This node only changed the
+      converter and regenerated the store; verifying the merged result belongs
+      to a separately dispatched test node.</p>
+    </section>
+
+  </main>
+</body>
+</html>

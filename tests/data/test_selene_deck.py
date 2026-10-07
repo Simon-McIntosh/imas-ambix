@@ -392,6 +392,42 @@ def test_stored_probe_axes_lie_along_the_vessel_inner_skin():
     assert _axis_difference_deg(stored_deg[0], 90.0) <= 1.0
 
 
+def test_differential_flux_loops_follow_the_physical_loops():
+    """build_magnetics appends one differential entry per non-reference loop.
+
+    Each of the 27 geo.in flux loops keeps a type-1 entry carrying its
+    position, and after the 27 come 26 type-6 (differential) entries, one for
+    every loop L other than the reference loop 7.  Each type-6 entry's
+    ``indices_differential`` names the reference then L, which the DD
+    documents as ``loop(second index) - loop(first index)`` over the 1-based
+    ``flux_loop`` array of structures, and carries no position or area of its
+    own.
+    """
+    if not (REAL_DECK_SOURCE.is_dir() and REAL_GEO.exists()):
+        pytest.skip(f"project deck store absent: {REAL_DECK_SOURCE}")
+    geo = sd.parse_geo_in(REAL_GEO)
+    assert len(geo.flux_loops) == 27
+    magnetics = sd.build_magnetics(imas.IDSFactory(sd.DD_VERSION), geo)
+
+    loops = list(magnetics.flux_loop)
+    assert len(loops) == 53
+    physical, differential = loops[:27], loops[27:]
+    assert [int(f.type.index) for f in physical] == [1] * 27
+    assert [int(f.type.index) for f in differential] == [6] * 26
+    for i, f in enumerate(physical):
+        assert float(f.position[0].r) == pytest.approx(geo.flux_loops[i].r)
+        assert float(f.position[0].z) == pytest.approx(geo.flux_loops[i].z)
+    expected = [[7, L] for L in range(1, 28) if L != 7]
+    stored = [
+        [int(v) for v in np.asarray(f.indices_differential)]
+        for f in differential
+    ]
+    assert stored == expected
+    for f in differential:
+        assert len(f.position) == 0
+        assert not f.area.has_value
+
+
 def test_receipt_names_sources_and_converter_commit(decks, tmp_path: Path):
     eqsle, geo, coil_vv = decks
     receipt = sd.write_phase_description(

@@ -61,6 +61,19 @@ _RESISTIVITY_REL_TOL = 1e-9
 # tf/coil/conductor/elements/types: line segment, circular arc.
 LINE_ELEMENT_TYPE = 1
 ARC_ELEMENT_TYPE = 2
+# flux_loop/type/index values of the magnetics_flux_loop_type_identifier: a
+# loop whose own channel carries its absolute flux, and a loop whose channel
+# carries the difference between two loops.
+FLUX_LOOP_TYPE_POLOIDAL_FLUX = 1
+FLUX_LOOP_TYPE_DIFFERENTIAL = 6
+# The raw JT-60SA flux loops other than the seventh measure their flux
+# difference from the seventh, whose own channel is the one that tracks its
+# absolute vacuum prediction; the seventh is therefore the reference.  A
+# differential against loop L is written as the DD's loop(second) - loop(first)
+# pair naming the reference first, so the type-6 entry is loop L minus the
+# reference.  A source carrying fewer loops than the reference can form no
+# difference from a reference it does not hold.
+FLUX_LOOP_DIFFERENTIAL_REFERENCE = 7
 # Angular step at which a deck arc is discretised into wall-outline points.
 ARC_ANGULAR_STEP_DEG = 1.0
 # The run labels a coil_vv contour block recognises.  Every counted row of the
@@ -925,13 +938,29 @@ def build_magnetics(factory, geo: GeoIn):
             # at the outboard midplane); the direction along the axis is a
             # declared convention, not a measurement.
             out.poloidal_angle = float(np.deg2rad((90.0 - probe.angle) % 360.0))
-    ids.flux_loop.resize(len(geo.flux_loops))
+    n_loops = len(geo.flux_loops)
+    reference = FLUX_LOOP_DIFFERENTIAL_REFERENCE
+    have_reference = 1 <= reference <= n_loops
+    differential_loops = (
+        [n for n in range(1, n_loops + 1) if n != reference] if have_reference else []
+    )
+    ids.flux_loop.resize(n_loops + len(differential_loops))
     for i, loop in enumerate(geo.flux_loops):
         out = ids.flux_loop[i]
         out.name = f"FL{i + 1}"
+        out.type.index = FLUX_LOOP_TYPE_POLOIDAL_FLUX
         out.position.resize(1)
         out.position[0].r = float(loop.r)
         out.position[0].z = float(loop.z)
+    for k, loop_no in enumerate(differential_loops):
+        out = ids.flux_loop[n_loops + k]
+        out.name = f"FL{reference}-FL{loop_no}"
+        out.type.index = FLUX_LOOP_TYPE_DIFFERENTIAL
+        # The DD carries the two loop indices as loop(second) - loop(first);
+        # naming the reference first makes this entry the loop minus the
+        # reference, matching the raw channel's measured difference.  A
+        # differential entry describes no loop position or area of its own.
+        out.indices_differential = np.array([reference, loop_no], dtype=np.int32)
     return ids
 
 
