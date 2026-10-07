@@ -1,0 +1,65 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "3d54ae6f8df642543164cbe02034299e8c9e6dd4",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T00:50:45.801Z",
+  "dispatched_at": "2026-10-07T00:46:27Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T003100292697-jtmm-vacuum-verdicts-author/manifest.md",
+      "line": "15",
+      "severity": "follow-on",
+      "text": "follow-on: the manifest's tests field quotes '37 passed in 7.29s' while the gate.log it cites records '37 passed in 19.04s'; the pass count and EXIT agree, so the record reconciles except for the duration, which should be quoted from the log's own summary line."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T003100292697-jtmm-vacuum-verdicts-author/baseline-arm.log",
+      "line": "5",
+      "severity": "follow-on",
+      "text": "follow-on: the base arm's header module-probe raised TypeError (os.path.dirname of None from imas_ambix.data.maps.__file__), so baseline-arm.log carries no module_under_test line; the revision, tree and cwd are named and the manifest's measurement_module supplies the path, so the arm is otherwise readable."
+    }
+  ],
+  "head_log_revision": "755c4b090e22bc60388640fdf61d0f96b420d70a",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "adjudication_fidelity": "every authored verdict reproduces the receipt (identity 16, negate 1, undecided 27) with the receipt's median slope, median |r| and reason; the guards read the receipt rather than hard-coding its numbers.",
+    "diff": "magnetics.json rewrites the 44 adjudicated rules' evidence and flips loop 7 to factor -1.0 and corpus-validated plus the 16 probes' state; the test adds two guards, relaxes two strict assertions and repurposes one; the fragment records landing and convention.",
+    "done_when": "17 corpus-validated (16 probes +1, loop 7 -1), 28 source-only at factor 1; jt-60sa.json untouched; the named gate 37 passed EXIT=0; all clauses of the plan met.",
+    "goal": "the node writes the adjudication's measured signs into the map and nothing it did not measure; the diff matches the plan paragraph exactly and a 44-channel cross-check against the receipt found 0 mismatches.",
+    "manifest": "records commit 755c4b09, both arms, the negative control and no blockers; the two arms agree with the logs they cite; blemishes are a duration mismatch (7.29s vs 19.04s) and a base-arm header probe TypeError.",
+    "write_paths": "git show --name-only 755c4b09 touches only magnetics.json, the test file and the fragment, all inside the fence; no figure or plan file."
+  },
+  "justifications": {
+    "durability": "two guards added and the negative control proves one fires; the other new refusals have no separate negative control.",
+    "evidence": "gate.log 37 passed EXIT=0 at 755c4b09 and baseline-arm.log 35 passed EXIT=0 at 3d54ae6f bracket the change; negative-control.log fails the declared id with EXIT=1; manifest duration mismatch and base-arm header TypeError are the blemishes.",
+    "fit": "schema, vocabulary and channel_factor carrier preserved; conventional commit with mechanism body; fragment follows the evidence conventions.",
+    "goal_fidelity": "the plan paragraph names exactly this authoring; the map carries all of it (0 mismatches vs the receipt) and adds no FluxLoopPositionDeclaration.",
+    "reuse": "no new abstraction; guards read the receipt; verdicts land in the existing rules.",
+    "scope_discipline": "only the three declared paths are touched; no figure, plan, sprint or index file; changed_paths match the diff."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is to write the vacuum adjudication's measured sign verdicts into imas_ambix/data/maps/jt-60sa/magnetics.json without writing any rule the adjudication did not measure; the diff does exactly that. The 16 median-rule identity probes (magPbTC1..16) take channel_factor +1 and flux loop 7 takes -1, all moved to validation_state corpus-validated with evidence citing the median slope, the median |r| and the three shots; the 27 undecided channels (loops 1-27 bar 7, plus magPbTC17) stay source-only at channel_factor 1 with the adjudication's own reason verbatim; the Ip rule (magnetics/ip/data) and jt-60sa.json are untouched. A programmatic cross-check of every authored verdict against docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.json found 0 mismatches (factor, state, cited slope/|r|, shots, reason).\nVERDICT done_when: the plan names writing the measured verdicts, keeping the sign on the pulse rule's channel_factor (every rule one_like with no source COCOS), moving each adjudicated rule's validation_state, and not adding a FluxLoopPositionDeclaration to jt-60sa.json. The map shows 45 rules: 17 corpus-validated (16 probes +1, magFlxLp7 -1) and 28 source-only; the commit touches only the three declared paths, so jt-60sa.json gains no declaration. The named gate passes 37 passed EXIT=0.\nVERDICT write_paths: the fence lists imas_ambix/data/maps/jt-60sa/magnetics.json, tests/data/test_jt60sa_signal_maps.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-verdicts-author.html and a figures dir; git show --name-only 755c4b09 touches only the first three, so the diff is inside the declared scope and no figure is written.\nVERDICT manifest: read; it records commit 755c4b09, both arms and the negative control with log paths, the receipt it copies from, and no blockers. Its baseline_suite/after_suite JSON agree with the cited logs (35 passed and 37 passed, 0 failures each). Two blemishes: its tests field quotes '37 passed in 7.29s' where gate.log records '37 passed in 19.04s' (count and EXIT agree, duration disagrees), and baseline-arm.log's header module-probe raised TypeError so that log carries no module_under_test line.\nVERDICT diff: read against base 3d54ae6f (git rev-list base..head count 1). magnetics.json rewrites the evidence of the 44 adjudicated rules and flips loop 7's channel_factor to -1.0 and its validation_state to corpus-validated (plus the 16 probes' state); loops 1-27 bar 7 and probe 17 keep channel_factor 1.0 and carry the adjudication reason; the Ip rule is unchanged. test_jt60sa_signal_maps.py adds two guards (test_magnetics_authors_the_vacuum_sign_verdicts pins the 17 measured and requires slope/|r|/shots; test_magnetics_leaves_the_undecided_channels_source_only requires the receipt's reason verbatim), relaxes two strict source-only assertions to the known vocabulary, and repurposes the all-source-only test. The fragment records the landing and the target convention (COCOS 17, DD 4.1.1).\nVERDICT adjudication_fidelity: every authored verdict reproduces the receipt it cites -- the receipt gives verdict_counts identity 16, negate 1, undecided 27 over shots 100579/100595/100642, and the map's 44 adjudicated rules carry exactly those verdicts with the receipt's median slope, median |r| and reason string; the test reads the receipt at docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.json rather than hard-coding numbers, so a future divergence fails the guard.\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: the plan's jtmm-vacuum-verdicts-author paragraph names exactly this authoring: +1 for identity, -1 for loop 7's negate, corpus-validated with evidence citing median slope/|r|/shots, and the 27 undecided channels source-only at 1 with the adjudication reason; the map carries all of it (0 mismatches against the receipt) and correctly adds no FluxLoopPositionDeclaration to jt-60sa.json.\nSCORE evidence: 18\nJUSTIFICATION evidence: gate.log (37 passed, EXIT=0, revision 755c4b09, tree, module_under_test) and baseline-arm.log (35 passed, EXIT=0, revision 3d54ae6f, tree, cwd) bracket the change with named ids and revisions; negative-control.log shows the declared mutation (loop 7 channel_factor -> 1) failing test_magnetics_authors_the_vacuum_sign_verdicts at 'assert 1.0 == -1.0' with EXIT=1, an id the head arm does not fail. Two blemishes keep it below full: the manifest's tests field quotes a run duration (7.29s) that disagrees with the gate.log it cites (19.04s), and baseline-arm.log's header probe raised a TypeError so the base arm names no module_under_test path.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git show --name-only 755c4b09 lists only magnetics.json, test_jt60sa_signal_maps.py and the evidence fragment, all inside the fence; no figure directory, no plan, sprint or index file is touched; the manifest's changed_paths match the diff exactly.\nSCORE durability: 18\nJUSTIFICATION durability: two guards are added and the negative control proves one of them fires -- setting loop 7's channel_factor back to 1 fails test_magnetics_authors_the_vacuum_sign_verdicts, which passes at head. The evidence-citation guard and the undecided-reason guard have no separate refusal demonstrated, so only one of the three new refusals is shown to fire.\nSCORE fit: 19\nJUSTIFICATION fit: the change keeps the existing SignalRule schema and the validation_state vocabulary, leaves the sign on channel_factor as the plan's signal-rule carrier, writes the evidence in the surrounding style, and the commit carries a conventional subject and a mechanism body; the evidence fragment follows the plan-evidence fragment conventions.\nSCORE reuse: 19\nJUSTIFICATION reuse: no new abstraction or module is added; the new guards read the adjudication receipt directly rather than restating its numbers, the verdicts are copied into the existing rules rather than a parallel store, and the 45-rule map's shape is unchanged.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T003100292697-jtmm-vacuum-verdicts-author/manifest.md:15 follow-on: the manifest's tests field quotes '37 passed in 7.29s' while the gate.log it cites records '37 passed in 19.04s'; the pass count and EXIT agree, so the record reconciles except for the duration, which should be quoted from the log's own summary line.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T003100292697-jtmm-vacuum-verdicts-author/baseline-arm.log:5 follow-on: the base arm's header module-probe raised TypeError (os.path.dirname of None from imas_ambix.data.maps.__file__), so baseline-arm.log carries no module_under_test line; the revision, tree and cwd are named and the manifest's measurement_module supplies the path, so the arm is otherwise readable.\n",
+  "review_run_id": "r-20261007T004607807030-review-of-jtmm-vacuum-verdicts-author",
+  "reviewed_base_sha": "3d54ae6f8df642543164cbe02034299e8c9e6dd4",
+  "reviewed_head_sha": "755c4b090e22bc60388640fdf61d0f96b420d70a",
+  "reviewed_run_id": "r-20261007T003100292697-jtmm-vacuum-verdicts-author",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "reviewer_run_id": "r-20261007T004607807030-review-of-jtmm-vacuum-verdicts-author",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-07T00:52:51.526175+00:00",
+  "total": 114
+}
