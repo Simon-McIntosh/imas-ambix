@@ -25,9 +25,9 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="22">
+<meta name="plan-version" content="23">
 <meta name="plan-modified" content="2026-10-07">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;done&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -79,74 +79,12 @@
       and the pulses are written again, either directly or by jt60sa-facility-mint §8's run-file write.
     </p>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-07</span>
     <h2 id="s3">§3 — E101031, the second pulse</h2>
-    <section data-reckon="section" data-id="s3" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
-    <p>
-      On 2026-10-07 the lead chose E101031 as the second written pulse, in place of C060033. C060033 falls in no
-      catalogue phase, drives the TF coil alone with the PF chain at the noise floor, and has no PSRC, so no ip.
-      E101031 is an OP1 plasma pulse: ip holds 0.7&nbsp;MA for 5.4&nbsp;s without disruption, and the PF coils
-      are driven. jt60sa-pulse-ids §6 wrote it on 2026-10-07 at 05:51 to
-      <code>/work/projects/imas_gpu/jt60sa/ids/101031/</code> (run <code>r-20261007T034516340463</code>):
-      <code>pf_active</code> carries the ten coil currents CS1–EF6, and <code>magnetics</code> carries ip, peaking
-      at 0.6984&nbsp;MA.
-    </p>
-    <p>
-      This section draws E101031's coil currents and ip through <code>extract_signal_traces</code>, as §1 does
-      for E101154, without copying §1's body. <code>scripts/figures_jt60sa_signals.py</code> fixes its pulse and
-      figure name in module constants (<code>SHOT</code>, <code>FIGURE</code>, <code>PULSE_FILE</code>), and its
-      <code>_main()</code> takes no pulse. So this section moves the open → <code>extract_signal_traces</code> →
-      <code>time_trace_figure_mpl</code> path into one function that takes the run file's root, the pulse, the run number
-      and the series to draw as (IDS name, path) pairs, and returns the matplotlib figure. It renders and writes
-      nothing. The script's entry point passes each returned figure to <code>render_to_bytes</code> and writes the SVG. E101154 and
-      E101031 become calls to it with <code>("pf_active", "coil/current")</code> and <code>("magnetics", "ip")</code>,
-      and §2's flux loops and probes become further calls rather than a second path. The constants fixed to E101154
-      are retired, and E101154's figure is unchanged.
-    </p>
-    <p>
-      The function reaches a pulse through the owners jt60sa-facility-mint §8 introduces, so it runs after §8
-      merges and never names a path. The file name comes from <code>pulse_writer.pulse_path</code>, which §8 migrates
-      <code>_read_pulse_ids</code> onto. The root is resolved once, in the entry point. Its owner is
-      <code>imas_alambic/settings.py</code> <code>resolve_settings</code>: <code>ids_root</code>, from
-      <code>IMAS_ALAMBIC_IDS_ROOT</code>. The entry point calls
-      <code>resolve_settings(SettingsFlags(machine="jt-60sa"))</code>. <code>ids_root</code> itself does not depend on the
-      machine, but naming it keeps machine inference from refusing in this development checkout, where ambix's
-      bundle serves diii-d and mast as well, before and after jt60sa-facility-mint §1. The entry point reads
-      <code>settings.ids_root.value</code> rather than <code>require_setting</code>, whose refusal on a missing value
-      would preclude the interim fallback below. The bundle <code>ids_root</code> default it will fall back to is
-      jt60sa-facility-mint §12. <code>_read_pulse_ids</code> stays script-local, because this script is its only
-      caller. When jt60sa-pulse-ids §4 needs to read a written pulse, that section adds a public reader beside
-      <code>pulse_path</code> in <code>imas_alambic/pulse_writer.py</code>, and this script moves onto it, so the run-file
-      layout keeps one reader owner. Nothing in this repository sets that variable, and settings
-      have no development default yet. jt60sa-facility-mint's coordinator is adding one in a section that lands after
-      that plan's §1: a bundle store role, <code>ids_root</code>, that ambix's bundle declares and that
-      <code>resolve_settings</code> falls back to after <code>--out</code>, <code>IMAS_ALAMBIC_IDS_ROOT</code> and
-      <code>IMAS_ALAMBIC_HOME/ids</code>. Until it lands, the entry point falls back to a new constant this section adds to the
-      layout's owner, <code>imas_ambix/data/paths.py</code> <code>JT60SA_IDS_DIR = JT60SA_ROOT / "ids"</code>, where
-      <code>jtfm-write-dev-pulses</code> wrote both files. The script holds no path component of its own, and
-      jt60sa-facility-mint §12 can declare its <code>ids_root</code> role from the same constant. <code>paths.py</code> stays the owner of the <code>/work</code> layout through that plan's
-      §1, which removes <code>JT60SA_ROOT</code> from ambix's bundle, so a bundle-root fallback would break when §1
-      lands. The fallback is marked interim in the code. It retires when settings carry the <code>ids_root</code>
-      default, after which the entry point uses <code>settings.ids_root.value</code> with <code>pulse_path</code> and
-      nothing else. Its flux loops
-      and probes follow §2's terms. Both owners landed with §8 (merge <code>106c1104</code>, 2026-10-07):
-      <code>imas_alambic/settings.py</code> <code>resolve_settings</code> and <code>pulse_writer.pulse_path</code>. The
-      script already opens E101154 through <code>pulse_path</code>, but still takes its root from
-      <code>JT60SA_ROOT</code>. The run files <code>101154_0.nc</code> and <code>101031_0.nc</code> were written at 07:53 on 2026-10-07 by the node
-      <code>jtfm-write-dev-pulses</code>, run by jt60sa-facility-mint's coordinator under §8's done-when, under
-      <code>/work/projects/imas_gpu/jt60sa/ids/</code>. The geometry driver's
-      <code>scripts/figures_jt60sa_geometry.py</code> <code>_read_ids</code> is not a second copy of this reader. It
-      opens the phase description store, whose one-file-per-IDS layout the catalogue's
-      <code>static-over-map</code> store owns. After §8, a written pulse is a single run file reached through
-      <code>pulse_path</code>. The two read different products with different owners, and they stay distinct.
-      The figures stay in <code>docs/figures/jt60sa-signals/</code>, where the lead reviews them. On 2026-10-07 the
-      lead ruled that the figures can still go in the docs folders: the plans want the feedback the figures give.
-      The entry point writes both SVGs there, and the evidence fragment embeds them as any other plan's does.
-      Done-when: an SVG of E101031's ten coil currents and ip exists beside E101154's in
-      <code>docs/figures/jt60sa-signals/</code>. Both are drawn by one function in
-      <code>scripts/figures_jt60sa_signals.py</code> that takes the pulse, from the written IDS alone, with no array
-      built and no label or unit passed by the script. E101154's SVG, redrawn through the same function, matches
-      its committed predecessor in traces, labels and units.
-    </p>
+<section data-reckon="section" data-id="s3" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">E101031's ten coil currents and ip drawn beside E101154's in <code>docs/figures/jt60sa-signals/</code> through one pulse-taking function; root from settings, else the interim <code>paths.JT60SA_IDS_DIR</code>. Merged <code>6345ce6e</code>, review 110/120. <a href="s3">full record</a></p>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
@@ -156,10 +94,11 @@
     <pre class="r-fu-prompt">/reckon-build jt60sa-signal-figures-from-ids §1</pre>
     <p class="r-fu-outcome">§1 landed (merge 23fa1812). §2 (flux loops and probes) stays deferred until imas-ambix-5b retargets the loop rules and imas-ambix-0d rewrites E101154; both will signal this session. §3 (C060033) stays deferred until a commissioning machine map exists and the pulse is minted.</p>
     </article>
-<article class="r-fu" data-id="f-jsfi-002" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-07" data-recommends-skill="/reckon-build jt60sa-signal-figures-from-ids §3" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jsfi-002" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-07" data-recommends-skill="/reckon-build jt60sa-signal-figures-from-ids §3" data-resolved-at="2026-10-07T07:12:32+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Draw E101031&#x27;s coil currents and ip once facility-mint §8 merges</h4>
     <div class="r-fu-body"><p>§3 waits on jt60sa-facility-mint §8, which adds <code>pulse_path</code>, writes run files and migrates <code>_read_pulse_ids</code>. §2's flux loops and probes wait on jt60sa-machine-map's type-6 loop rules.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-signal-figures-from-ids §3</pre>
+    <p class="r-fu-outcome">§3 landed at 6345ce6e. §2 (flux loops and probes) stays a deferred section until jt60sa-machine-map's type-6 loop rules land; its figures then become further calls to _pulse_figure.</p>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
