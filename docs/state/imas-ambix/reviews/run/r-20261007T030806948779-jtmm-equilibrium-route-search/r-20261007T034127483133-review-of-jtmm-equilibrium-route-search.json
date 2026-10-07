@@ -1,0 +1,72 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "not applicable: the reviewed run is a read-only docs/evidence node; its manifest records baseline_suite=null and after_suite=null (the reviewed run's own gate logs), so no base-arm/head-arm added-failure count exists to take. added_failure_count set to 0 and added_failure_ids to [] on that basis.",
+  "base_log_revision": "d442dbe92d9b7ccc501b3a0a1701e886782386ee",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T03:50:18.258Z",
+  "dispatched_at": "2026-10-07T03:41:43Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-equilibrium-route-search.html",
+      "line": "r1",
+      "severity": "defect",
+      "text": "Route 1 states the FAME EQDB slice list as '105 slices (500 .. 11500 ms)', but 12-eqdb-read.log records only 'GetTimeList(eqdb=0, shot=101154) -> 105 slices'; the 11500 ms upper bound appears in no probe log, so it is asserted beyond the logged evidence."
+    },
+    {
+      "file": "manifest.md",
+      "line": "negative_control_log",
+      "severity": "defect",
+      "text": "manifest negative_control_log (and test_logs) names probe/22-eqdb-read.log, which is absent at review time; the probe dir holds 22-selene-route.log and the EQDB read is in 12-eqdb-read.log, so the declared reproduction pointer names an unopenable file."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-equilibrium-route-search.html",
+      "line": "answer",
+      "severity": "follow-on",
+      "text": "the headline answer is E101154-scoped while the plan goal names 'an OP1 equilibrium'; the reachable on-disk EQDSK for shot 101011 (inside the plan's OP1 range 100001..101173) does carry psi grid + q profile, so the answer should stay qualified to E101154."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": null,
+  "item_verdicts": {
+    "diff": "commit 8b5728f2 against base d442dbe9 adds 230 lines to exactly one path, docs/evidence/fragments.../jtmm-equilibrium-route-search.html; nothing else changes.",
+    "goal": "the node looks for a reachable source of an OP1 equilibrium's psi grid and q profile; the fragment enumerates seven routes, gives one E101154 slice read per route, and concludes none reachable reaches E101154's psi grid and q profile.",
+    "manifest": "read; it records the gate command and, in probe/, the E101154 IRET 300 reproduction, but its negative_control_log and one test_logs entry name probe/22-eqdb-read.log which does not exist.",
+    "write_paths": "git show --stat 8b5728f2 lists exactly docs/evidence/fragments/jt60sa-machine-map/jtmm-equilibrium-route-search.html, the manifest's declared changed_path, within the node's declared write scope."
+  },
+  "justifications": {
+    "durability": "The record is a static HTML fragment whose every factual claim is recoverable from the committed fragment text and the run's probe logs, so a reader can re-check the E101154 IRET 300 reproduction and the reader positive control without the live host. Deduction: the manifest's negative_control_log names /home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T030806948779-jtmm-equilibrium-route-search/probe/22-eqdb-read.log, which does not exist on disk at review time \u2014 the probe directory holds 22-selene-route.log, and the actual EQDB read log is 12-eqdb-read.log \u2014 so the declared negative-control pointer is unopenable; test_logs repeats the same missing name. The node's dispatch states this node's write paths reach no test path and no red log is required, so this is a record defect rather than a promotion refusal, but the missing reproduction pointer weakens the durable record.",
+    "evidence": "Every route claim traces to a probe log with the exact call and its return, all present under the run's probe/ directory: 12-eqdb-read.log records GetTimeList(0,101154)->105 slices and GetEqData(0,101154,500)->IRET=300 with GetEqItem(PSI) shape (0,); 13-eddb-fame.log records eddbreadCatTable desclist entry 'Fast Analyzer for Magnetohydrodynamic Equilibrium (FAM...' and FAME count/read; 22-selene-route.log records the RUN EFIT95 header shot 63632; 18-eqdsk-route.log records the positive control (fbequ EFIT95 shot 101011, psi (129,129), q (129,), Ip 0.4927 MA, qmax 42.62) and the absent 101154, and 23-psrc-read.log records PSRC count 303 and the three named channel shapes. A positive control on the reader is included, so the empty E101154 result is shown to be an absence. Deductions: fragment Route 1 states the 105 slices span '500 .. 11500 ms', but no probe log records the upper bound (the logs record only '105 slices'); and the manifest's negative_control_log references a file that does not exist.",
+    "fit": "Every element id begins with the node id jtmm-equilibrium-route-search (44 ids, zero outside the prefix, no duplicates), so sibling fragments composed into one record cannot collide on an anchor. The fragment parses as HTML (html.parser accepts it; 44 ids, 0 duplicates). Names and prose describe mechanism and the JT-60SA route, with no version, plan, sprint, ticket or issue identifier and no author attribution.",
+    "goal_fidelity": "The fragment answers the plan's \u00a76 node question honestly: it enumerates every candidate route found read-only on nakasvr26 beginning in /home/d240034 (FAME EQDB eqdb=0, EDDB FAME scalar bank, SELENE efitout.f / RUN EFIT95.DATA, FBEQU outputs, LOCALDB EQDSK, EDDB PSRC, and the hosts/mounts/socket endpoints the code names), gives one E101154 slice read per route, quotes the site's own expansion of FAME, and names the best route. Deduction: the headline answer scopes to E101154 while the plan goal named \"an OP1 equilibrium\", and the reachable on-disk EQDSK for shot 101011 (inside the plan's own OP1 pulse range 100001..101173) does carry psi grid + q profile \u2014 surfaced in Route 4 and best-route (3), but the headline 'none reaches a psi grid and q profile' reads broader than the E101154-scoped evidence.",
+    "reuse": "The node builds on the existing readers and on its predecessor fragments rather than re-deriving them: it reuses the EQDB reader's own schema (FleddTool, eqdbget.f) and the local EQDSK parser (prova/eqdsk.py), and it corroborates Route 6 against jtmm-psrc-selene-inventory's PSRC finding (none of the 303 names 86 examined there is a q profile or flux grid) rather than repeating the scan. Deduction: it restates the PSRC inventory conclusion at length where a reference would have sufficed.",
+    "scope_discipline": "git diff --stat d442dbe9..8b5728f2 and git show --stat 8b5728f2 list exactly one changed file, docs/evidence/fragments/jt60sa-machine-map/jtmm-equilibrium-route-search.html (230 insertions), which is the manifest's declared changed_path and within the node's declared write scope; no product source and no test is touched, matching the plan's 'one fragment and no source'. git merge-base --is-ancestor confirms 8b5728f2 is the reviewed head on the node branch, not an ancestor of this worktree's HEAD."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the fragment enumerates seven candidate routes read-only from intr26-2 and answers the node question; see goal_fidelity justification.\nVERDICT evidence: all route claims trace to probe logs with exact call and return; see evidence justification.\nVERDICT scope_discipline: one file changed, exactly the declared write path; see scope_discipline justification.\nVERDICT manifest: read; it records the gate command and result, test_logs and a negative_control_log, but the latter two reference probe/22-eqdb-read.log, absent on disk.\nVERDICT diff: commit 8b5728f2 against base d442dbe9 adds 230 lines to one fragment path and nothing else.\nSCORE goal_fidelity: 18\nSCORE evidence: 17\nSCORE scope_discipline: 20\nSCORE durability: 16\nSCORE fit: 20\nSCORE reuse: 19\nJUSTIFICATION goal_fidelity: The fragment answers the plan's \u00a76 node question honestly: it enumerates every candidate route found read-only on nakasvr26 beginning in /home/d240034 (FAME EQDB eqdb=0, EDDB FAME scalar bank, SELENE efitout.f / RUN EFIT95.DATA, FBEQU outputs, LOCALDB EQDSK, EDDB PSRC, and the hosts/mounts/socket endpoints the code names), gives one E101154 slice read per route, quotes the site's own expansion of FAME, and names the best route. Deduction: the headline answer scopes to E101154 while the plan goal named \"an OP1 equilibrium\", and the reachable on-disk EQDSK for shot 101011 (inside the plan's own OP1 pulse range 100001..101173) does carry psi grid + q profile \u2014 surfaced in Route 4 and best-route (3), but the headline 'none reaches a psi grid and q profile' reads broader than the E101154-scoped evidence.\nJUSTIFICATION evidence: Every route claim traces to a probe log with the exact call and its return, all present under the run's probe/ directory: 12-eqdb-read.log records GetTimeList(0,101154)->105 slices and GetEqData(0,101154,500)->IRET=300 with GetEqItem(PSI) shape (0,); 13-eddb-fame.log records eddbreadCatTable desclist entry 'Fast Analyzer for Magnetohydrodynamic Equilibrium (FAM...' and FAME count/read; 22-selene-route.log records the RUN EFIT95 header shot 63632; 18-eqdsk-route.log records the positive control (fbequ EFIT95 shot 101011, psi (129,129), q (129,), Ip 0.4927 MA, qmax 42.62) and the absent 101154, and 23-psrc-read.log records PSRC count 303 and the three named channel shapes. A positive control on the reader is included, so the empty E101154 result is shown to be an absence. Deductions: fragment Route 1 states the 105 slices span '500 .. 11500 ms', but no probe log records the upper bound (the logs record only '105 slices'); and the manifest's negative_control_log references a file that does not exist.\nJUSTIFICATION scope_discipline: git diff --stat d442dbe9..8b5728f2 and git show --stat 8b5728f2 list exactly one changed file, docs/evidence/fragments/jt60sa-machine-map/jtmm-equilibrium-route-search.html (230 insertions), which is the manifest's declared changed_path and within the node's declared write scope; no product source and no test is touched, matching the plan's 'one fragment and no source'. git merge-base --is-ancestor confirms 8b5728f2 is the reviewed head on the node branch, not an ancestor of this worktree's HEAD.\nJUSTIFICATION durability: The record is a static HTML fragment whose every factual claim is recoverable from the committed fragment text and the run's probe logs, so a reader can re-check the E101154 IRET 300 reproduction and the reader positive control without the live host. Deduction: the manifest's negative_control_log names /home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T030806948779-jtmm-equilibrium-route-search/probe/22-eqdb-read.log, which does not exist on disk at review time \u2014 the probe directory holds 22-selene-route.log, and the actual EQDB read log is 12-eqdb-read.log \u2014 so the declared negative-control pointer is unopenable; test_logs repeats the same missing name. The node's dispatch states this node's write paths reach no test path and no red log is required, so this is a record defect rather than a promotion refusal, but the missing reproduction pointer weakens the durable record.\nJUSTIFICATION fit: Every element id begins with the node id jtmm-equilibrium-route-search (44 ids, zero outside the prefix, no duplicates), so sibling fragments composed into one record cannot collide on an anchor. The fragment parses as HTML (html.parser accepts it; 44 ids, 0 duplicates). Names and prose describe mechanism and the JT-60SA route, with no version, plan, sprint, ticket or issue identifier and no author attribution.\nJUSTIFICATION reuse: The node builds on the existing readers and on its predecessor fragments rather than re-deriving them: it reuses the EQDB reader's own schema (FleddTool, eqdbget.f) and the local EQDSK parser (prova/eqdsk.py), and it corroborates Route 6 against jtmm-psrc-selene-inventory's PSRC finding (none of the 303 names 86 examined there is a q profile or flux grid) rather than repeating the scan. Deduction: it restates the PSRC inventory conclusion at length where a reference would have sufficed.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-equilibrium-route-search.html r1 defect: Route 1 records the FAME EQDB slice list as '105 slices (500 .. 11500 ms)' but no probe log carries the '11500 ms' upper bound \u2014 12-eqdb-read.log records only 'GetTimeList(eqdb=0, shot=101154) -> 105 slices'; the range's upper term is asserted beyond the logged evidence.\nFINDING manifest.md negative_control_log defect: it names probe/22-eqdb-read.log, which is absent; the EQDB read (and the declared negative-control reproduction, GetEqData(0,101154,500)->IRET 300) is recorded in probe/12-eqdb-read.log, so the declared pointer names a file no reader can open.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-equilibrium-route-search.html answer follow-on: the headline 'no route reachable from intr26-2 reaches E101154's psi grid and q profile' is E101154-scoped, but the plan goal names 'an OP1 equilibrium'; /home/d240034/fbequ/EFIT95.DATA (shot 101011, inside the plan's OP1 pulse range 100001..101173) is reachable and its psi grid + q profile are shown readable by the node's own positive control, so 'no reachable source' should stay qualified as 'no reachable source for E101154'.",
+  "review_run_id": "r-20261007T034127483133-review-of-jtmm-equilibrium-route-search",
+  "reviewed_base_sha": "d442dbe92d9b7ccc501b3a0a1701e886782386ee",
+  "reviewed_head_sha": "8b5728f258f6a1fec0aaa32c975bae3fb13a72f0",
+  "reviewed_run_id": "r-20261007T030806948779-jtmm-equilibrium-route-search",
+  "reviewer": {
+    "backend": "clive",
+    "effort": "high",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 16,
+    "evidence": 17,
+    "fit": 20,
+    "goal_fidelity": 18,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T03:48:52.377595+00:00",
+  "total": 110
+}
