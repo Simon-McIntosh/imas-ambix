@@ -1,0 +1,211 @@
+<section id="jtmm-equilibrium-source-leads" data-reckon="fragment">
+<h2 id="jtmm-equilibrium-source-leads-h">Equilibrium source leads: what each store holds for OP1, and what is reachable</h2>
+
+<p id="jtmm-equilibrium-source-leads-scope">
+Read-only on <code>nakasvr26</code> over <code>ssh -F ~/.ssh/config jt-60sa</code>
+(hostname <code>intr26-2</code>, user <code>d240044</code>), one ssh connection at a
+time. No write was made on the server outside <code>/tmp</code> and nothing was
+copied out; no port scan and no login beyond <code>nakasvr26</code> was
+attempted; the only user home read was <code>/home/d240034</code> (the lead's),
+and no key, credential or shell history was read. No repository source was
+changed. This answers the §6 node <code>jtmm-equilibrium-source-leads</code>.
+</p>
+
+<h3 id="jtmm-equilibrium-source-leads-fame-h">EDDB <code>FAME</code> q scalars, read through <code>fetch_channels</code></h3>
+
+<p id="jtmm-equilibrium-source-leads-fame-p">
+The <code>FAME</code> category (EDDB code 1850) holds 100 scalar channels,
+<code>/FAME/APAVE</code> &hellip; <code>/FAME/ZZLI</code>, enumerated with
+<code>eddbreadTable(shot="E101154", cat="FAME")</code>. It carries <strong>signed q
+scalars but no grid</strong>: <code>QAXIS</code>, <code>Q95</code>,
+<code>QSURF</code>, <code>QEFF</code> and the FBI variants <code>QSURFFBI</code>
+and <code>QEFFFBI</code>, beside <code>TTCU</code> (plasma current) and
+<code>BTV</code> (<em>F</em>=<code>R</code>&middot;<code>B<sub>T</sub></code>,
+the only <em>B<sub>T</sub></em>-bearing scalar in the bank). Read for
+<code>E101154</code> through the ambix extractor, one batch, one ssh session:
+</p>
+<pre id="jtmm-equilibrium-source-leads-fame-call"><code>from imas_alambic.eddb_remote import RemoteEddbExtractor</code></pre>
+<pre id="jtmm-equilibrium-source-leads-fame-call2"><code>fetch_channels(RemoteEddbExtractor(), cache_root,
+  [ChannelRequest("E101154","FAME",n) for n in
+   ("QAXIS","Q95","QSURF","QEFF","QSURFFBI","QEFFFBI","TTCU","BTV")])
+  -> SERVED 8   REFUSED 0   (each channel ntime 1018, nch 1)</code></pre>
+
+<table id="jtmm-equilibrium-source-leads-fame-table">
+<thead><tr><th>channel</th><th>unit</th><th>first t</th><th>last t</th><th>min</th><th>max</th><th>sign</th></tr></thead>
+<tbody>
+<tr><td>QAXIS</td><td>-</td><td>+0.9989</td><td>+0.9982</td><td>+0.8788</td><td>+1.0564</td><td>+</td></tr>
+<tr><td>Q95</td><td>-</td><td>+28.32</td><td>+7.287</td><td>+7.287</td><td>+32.39</td><td>+</td></tr>
+<tr><td>QSURF</td><td>-</td><td>+33.65</td><td>+8.684</td><td>+8.604</td><td>+97.62</td><td>+</td></tr>
+<tr><td>QEFF</td><td>-</td><td>+29.73</td><td>+8.641</td><td>+6.255</td><td>+50.35</td><td>+</td></tr>
+<tr><td>QSURFFBI</td><td>-</td><td>0</td><td>0</td><td>0</td><td>0</td><td>unpopulated</td></tr>
+<tr><td>QEFFFBI</td><td>-</td><td>0</td><td>0</td><td>0</td><td>0</td><td>unpopulated</td></tr>
+<tr><td colspan="7"></td></tr>
+<tr><td>TTCU (I<sub>p</sub>)</td><td>A</td><td>+353524</td><td>+361801</td><td>+286006</td><td>+998016</td><td>+</td></tr>
+<tr><td>BTV (F=R&middot;B<sub>T</sub>)</td><td>T&middot;m</td><td>+6.0161</td><td>+6.0119</td><td>+5.9851</td><td>+6.0230</td><td>+</td></tr>
+</tbody>
+</table>
+
+<p id="jtmm-equilibrium-source-leads-fame-src">
+Every number above is the read's own summary of the 1018-sample series
+(<code>min</code>, <code>max</code>, <code>first</code>, <code>last</code>),
+rounded to five significant figures: e.g. <code>Q95</code>
+min&nbsp;7.28663, max&nbsp;32.3899, first&nbsp;28.3207, last&nbsp;7.28663;
+<code>TTCU</code> min&nbsp;286006, max&nbsp;998016, first&nbsp;353524,
+last&nbsp;361801.
+</p>
+
+<p id="jtmm-equilibrium-source-leads-fame-sign">
+<strong>Sign.</strong> For <code>E101154</code> every q scalar is
+<em>positive</em> at every sampled time (axis +0.88 to +1.06, edge +8.6 to +97.6);
+the plasma current is positive (<code>TTCU</code> +0.29 to +1.00 MA, always
+positive in sign) and <code>BTV</code> is positive (+6.0 T&middot;m). So the
+q-handedness sign, the I<sub>p</sub> sign and the F&middot;B<sub>T</sub> sign
+agree in the same (positive) sense on this shot. <code>QSURFFBI</code> and
+<code>QEFFFBI</code> are exactly zero across all 1018 samples &mdash; an
+unpopulated FBI bank, not a signed-zero result.
+</p>
+
+<h3 id="jtmm-equilibrium-source-leads-eqdb-h">EQDB indices by OP1 shot, and the decommissioned route</h3>
+
+<p id="jtmm-equilibrium-source-leads-eqdb-p">
+The equilibrium record carries a 129&times;129 <code>PSI</code> grid and
+<code>QQV</code> (q) plus boundary, axis and profiles. The reader
+(<code>eqread_pac</code> over the prebuilt
+<code>/analysis/lib/libFLEDDPIC.so</code>, no Fortran build) lists the slices a
+database holds by shot with <code>GetTimeList(eqdb, shot)</code>. Called for
+every shot on the identified OP1 list
+(<code>docs/evidence/fragments/jt60sa-machine-map/jtmm-op1-shot-survey.json</code>),
+<code>eqdb=0</code>&hellip;<code>5</code>, it returned:
+</p>
+<pre id="jtmm-equilibrium-source-leads-eqdb-call"><code>tool = FleddTool("/analysis/lib/libFLEDDPIC.so")
+tool.GetTimeList(eqdb, shot)   # eqdb=0 is FAME; eqdb 1..5 are the other EQDBs</code></pre>
+<table id="jtmm-equilibrium-source-leads-eqdb-table">
+<thead><tr><th>shot</th><th>eqdb=0 (FAME)</th><th>eqdb 1..4</th><th>eqdb=5</th></tr></thead>
+<tbody>
+<tr><td>E100599</td><td>0</td><td>0 0 0 0</td><td>0</td></tr>
+<tr><td>E100999</td><td>63</td><td>1 1 1 1</td><td>0</td></tr>
+<tr><td>E101017</td><td>55</td><td>0 0 0 0</td><td>0</td></tr>
+<tr><td>E101025</td><td>81</td><td>0 0 0 0</td><td>0</td></tr>
+<tr><td>E101026</td><td>92</td><td>0 0 0 0</td><td>0</td></tr>
+<tr><td>E101029</td><td>94</td><td>2 2 2 2</td><td>0</td></tr>
+<tr><td>E101031</td><td>86</td><td>0 0 0 0</td><td>0</td></tr>
+<tr><td>E101033</td><td>55</td><td>0 0 0 0</td><td>0</td></tr>
+<tr><td>E101039</td><td>94</td><td>0 0 0 0</td><td>0</td></tr>
+<tr><td>E101044</td><td>95</td><td>0 0 0 0</td><td>0</td></tr>
+<tr><td>E101045</td><td>92</td><td>0 0 0 0</td><td>0</td></tr>
+<tr><td>E101046</td><td>96</td><td>0 0 0 0</td><td>0</td></tr>
+<tr><td>E101153</td><td>38</td><td>0 0 0 0</td><td>0</td></tr>
+<tr><td>E101156</td><td>46</td><td>0 0 0 0</td><td>0</td></tr>
+<tr><td>E101162</td><td>126</td><td>9 9 9 9</td><td>0</td></tr>
+<tr><td colspan="4"></td></tr>
+<tr><td>E101163</td><td>48</td><td>4 4 4 4</td><td>0</td></tr>
+<tr><td>E101154</td><td>105</td><td>0 0 0 0</td><td>0</td></tr>
+<tr><td>E101011</td><td>64</td><td>0 0 0 0</td><td>0</td></tr>
+<tr><td>E100658</td><td>0</td><td>0 0 0 0</td><td>0</td></tr>
+<tr><td>E101173</td><td>0</td><td>0 0 0 0</td><td>0</td></tr>
+</tbody>
+</table>
+<p id="jtmm-equilibrium-source-leads-eqdb-read">
+<strong>Every indexed record is unreadable from intr26-2.</strong> The
+FAME EQDB (<code>eqdb=0</code>) names server <code>dbsvr17p</code> and data root
+<code>/JT60SA_EQ/FAME3</code> (<code>echoFameHost</code>, <code>echoFameDir</code>);
+<code>defaults.eqdbms</code> names <code>dbsvr17p</code> and
+<code>/JT60SA_EQ/EQDB</code>. Neither host nor mount exists on
+<code>intr26-2</code>, so a populated read returns the transport's refusal:
+</p>
+<pre id="jtmm-equilibrium-source-leads-eqdb-neg"><code>tool.GetTimeList(0, 101154)      -> 105 slices
+tool.GetEqData(0, 101154, 500)  -> IRET = 300   ; PSI / QQV / RG / ZG all empty
+tool.GetEqData(0, 100658, 500)  -> IRET = 300   ; PSI empty</code></pre>
+<p id="jtmm-equilibrium-source-leads-eqdb-neg-p">
+This is the node's declared negative control, reproduced: a read of the
+decommissioned FAME EQDB route (<code>eqdb=0</code> through
+<code>GetEqData</code>) still fails from <code>intr26-2</code> with
+<code>IRET 300</code>. The index resolves locally so the slice <em>times</em>
+list, but no field comes back.
+</p>
+
+<h3 id="jtmm-equilibrium-source-leads-leads-h">The named leads: what each carries and how intr26-2 reaches it</h3>
+
+<table id="jtmm-equilibrium-source-leads-leads-table">
+<thead><tr><th>lead</th><th>carries</th><th>OP1 shots</th><th>reach from intr26-2</th></tr></thead>
+<tbody>
+<tr>
+ <td><code>FAME</code> EDDB bank</td>
+ <td>signed q scalars (QAXIS, Q95, QSURF, QEFF; FBI variants empty), TTCU, BTV; no grid, no profile</td>
+ <td>every shot with an <code>eqdb=0</code> index (see table)</td>
+ <td>yes &mdash; local <code>/analysis/lib/libeddb.so</code>, one ssh per batch</td>
+</tr>
+<tr>
+ <td><code>EQDB</code></td>
+ <td>psi on a 129&times;129 grid, boundary, axis, p&prime;, FF&prime;, q (<code>QQV</code>)</td>
+ <td>the <code>eqdb=0</code> list</td>
+ <td>no &mdash; <code>SERVER_NAME:dbsvr17p</code>, <code>/JT60SA_EQ</code> unmounted; <code>GetEqData</code> IRET 300</td>
+</tr>
+<tr>
+ <td><code>EQRV</code> (eq. DB w/ MSE)</td>
+ <td>MSE-constrained equilibrium (&rho; mesh, q, <code>QAXIMSE</code> per <code>#MSEDB</code>)</td>
+ <td>none indexed</td>
+ <td>no &mdash; config <code>reverse.eqdbms</code> / <code>eqdbrv to EQDB_RV</code> on <code>eqdbrv_path_put</code>, <code>SERVER_NAME:dbsvr17p</code></td>
+</tr>
+<tr>
+ <td><code>EQEFIT</code> (eq. DB w/ MSE)</td>
+ <td>EFIT/MSE equilibrium records</td>
+ <td>none indexed</td>
+ <td>no &mdash; config <code>efitrv.eqdbms</code> <code>EQDB_EFIT</code>, <code>SERVER_NAME:dbsvr17p</code></td>
+</tr>
+<tr>
+ <td><code>LOCALDB</code></td>
+ <td>EAGLE EQDSK: psi grid + q</td>
+ <td>shot <code>101011</code> only (<code>EQDSK/10/101011/004000</code>, <code>004500</code>)</td>
+ <td>yes &mdash; local <code>/home/d240034/LOCALDB</code></td>
+</tr>
+<tr>
+ <td><code>LCDB</code>, <code>MBDB</code></td>
+ <td>none indexed</td>
+ <td>profile (distribution) DBs from eSlice, not an equilibrium psi/q store</td>
+ <td><code>MBDB</code>/<code>EDASDB</code> under <code>/analysis_DB</code>; no <code>LCDB</code> root found</td>
+</tr>
+<tr>
+ <td>Experiment Database Web API</td>
+ <td>discharge and plant time series only</td>
+ <td>n/a &mdash; not an equilibrium store</td>
+ <td>host <code>rmssnd23.naka.qst.go.jp</code> (157.111.196.190) port 50000 over SSL-VPN; not attempted (no login beyond nakasvr26)</td>
+</tr>
+<tr>
+ <td>FBEQU (FBI+SELENE)</td>
+ <td>one G-EQDSK set: <code>EFIT95.DATA</code> psi 129&times;129 + q 129</td>
+ <td>header shot <code>101011</code>, 4.000 s (LOCALDB-equivalent), no per-shot run for E101154</td>
+ <td>yes &mdash; local <code>/home/d240034/fbequ</code></td>
+</tr>
+<tr>
+ <td>SELENE offline</td>
+ <td><code>efitout.f</code> writes a G-EQDSK per run (psi + q)</td>
+ <td>none &mdash; the public <code>SAselene_v2.0_forPSRC/RUN/EFIT95.DATA</code> is a stale 2021 run (shot 63632)</td>
+ <td>yes, but computes rather than reads</td>
+</tr>
+<tr>
+ <td>TOPICS / TOSCA</td>
+ <td>predictive transport / equilibrium codes; SLICE emits their input data</td>
+ <td>no stored equilibrium psi/q for the list</td>
+ <td>n/a &mdash; no psi/q store found</td>
+</tr>
+</tbody>
+</table>
+
+<h3 id="jtmm-equilibrium-source-leads-answer-h">Answer: the reachable OP1 equilibrium carrying both psi and q is a single shot</h3>
+
+<p id="jtmm-equilibrium-source-leads-answer-p">
+No store reachable from <code>intr26-2</code> holds an OP1 equilibrium that
+explains the identified list's psi <em>and</em> q together. The pair exists on
+disk for exactly one OP1 shot &mdash; <code>101011</code>, in
+<code>/home/d240034/fbequ/EFIT95.DATA</code> and
+<code>LOCALDB/EQDSK/10/101011</code> &mdash; and for the whole list only in the
+decommissioned <code>dbsvr17p</code> EQDB (and its EQRV/EQEFIT siblings),
+whose <code>eqdb=0</code> index resolves but whose fields return
+<code>IRET 300</code>. What <em>is</em> reachable for every listed shot with an
+<code>eqdb=0</code> index, E101154 included, is the <code>FAME</code> EDDB bank's
+signed q scalars &mdash; enough for the q-handedness product, but not a flux
+grid or a q profile. The Web API serves discharge time series, not EQDB
+records, and is a separate SSL-VPN host.
+</p>
+</section>
