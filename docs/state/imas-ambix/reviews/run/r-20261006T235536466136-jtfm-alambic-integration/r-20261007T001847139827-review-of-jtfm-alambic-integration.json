@@ -1,0 +1,124 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 3,
+  "added_failure_ids": [
+    "packages/imas-alambic/tests/test_bundle_discovery.py::test_the_same_directory_reached_twice_is_one_bundle",
+    "tests/data/test_machine_map.py::test_machine_map_refuses_an_incomplete_or_unknown_store_declaration",
+    "tests/data/test_machine_map.py::test_every_mast_map_range_is_one_geometry_transition"
+  ],
+  "added_failures_basis": "Derived from the reviewed run's own baseline_suite and after_suite gate logs, then corroborated by independent execution. The reviewed run's baseline_suite (base-f1f0a5b.log, revision f1f0a5b04dca2) records failure_ids [test_jt60sa_unit_audit.py::{test_audit_reports_the_declared_unit_pair_inventory, test_every_declared_pair_has_one_hand_factor_and_it_derives}, test_pulse_mint.py::test_mint_writes_every_description_ids, test_tokamap_export.py::test_export_passes_validator_for_every_bound_ids_group, tests/gs/test_artifact_resolution.py::test_re_authoring_reproduces_the_identity_the_package_pins] (5 failed, 1165 passed, 3 skipped, EXIT=1). The after_suite (head-d82ed19b.log, revision d82ed19bc407) records eight failure_ids: those same five plus [packages/imas-alambic/tests/test_bundle_discovery.py::test_the_same_directory_reached_twice_is_one_bundle, tests/data/test_machine_map.py::test_machine_map_refuses_an_incomplete_or_unknown_store_declaration, tests/data/test_machine_map.py::test_every_mast_map_range_is_one_geometry_transition] (8 failed, 1185 passed, 3 skipped, EXIT=1). The head-minus-base set difference over pytest node ids is exactly those three ids: added_failure_count 3. This review re-read both logs directly (FAILED lines and summary lines match the manifest byte for byte) and independently re-ran two of the three added failures at the same file content head (worktree HEAD 0aa0bd7e, which no commit after d82ed19b touched for these files): test_machine_map_refuses_an_incomplete_or_unknown_store_declaration and test_the_same_directory_reached_twice_is_one_bundle both fail ('2 failed ... EXIT=1', independent-repro-head.log), reproducing the reviewed run's finding. The third added failure is a -n 8 timeout on a heavy inventory read that the reviewed run showed passes standalone at head (108.44 s) and was absent from the base FAILED set.",
+  "after_suite": {
+    "command": "IMAS_ALAMBIC_MAP_PATH= PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/fa77649b-bcc4-4cb6-b999-0d55d8d30042/jtfm-alambic-integration:/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/fa77649b-bcc4-4cb6-b999-0d55d8d30042/jtfm-alambic-integration/packages/imas-alambic/src /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -n 8 --timeout=300 tests/data tests/test_cocos.py tests/gs tests/latent tests/spine_bench tests/scripts packages/imas-alambic/tests",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 8,
+    "failure_ids": [
+      "packages/imas-alambic/tests/test_bundle_discovery.py::test_the_same_directory_reached_twice_is_one_bundle",
+      "tests/data/test_jt60sa_unit_audit.py::test_audit_reports_the_declared_unit_pair_inventory",
+      "tests/data/test_jt60sa_unit_audit.py::test_every_declared_pair_has_one_hand_factor_and_it_derives",
+      "tests/data/test_machine_map.py::test_every_mast_map_range_is_one_geometry_transition",
+      "tests/data/test_machine_map.py::test_machine_map_refuses_an_incomplete_or_unknown_store_declaration",
+      "tests/data/test_pulse_mint.py::test_mint_writes_every_description_ids",
+      "tests/data/test_tokamap_export.py::test_export_passes_validator_for_every_bound_ids_group",
+      "tests/gs/test_artifact_resolution.py::test_re_authoring_reproduces_the_identity_the_package_pins"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T235536466136-jtfm-alambic-integration/head-d82ed19b.log",
+    "revision": "d82ed19bc407016f6390b8d3d96a0cfc8b81cd23"
+  },
+  "baseline_suite": {
+    "command": "IMAS_ALAMBIC_MAP_PATH= PYTHONPATH=/tmp/reckon-crew-scratch/r-20261006T235536466136-jtfm-alambic-integration/base-f1f0a5b04dca29155dbf3ee359c927ae60bee10e /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -n 8 --timeout=300 tests/data tests/test_cocos.py tests/gs tests/latent tests/spine_bench tests/scripts",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 5,
+    "failure_ids": [
+      "tests/data/test_jt60sa_unit_audit.py::test_audit_reports_the_declared_unit_pair_inventory",
+      "tests/data/test_jt60sa_unit_audit.py::test_every_declared_pair_has_one_hand_factor_and_it_derives",
+      "tests/data/test_pulse_mint.py::test_mint_writes_every_description_ids",
+      "tests/data/test_tokamap_export.py::test_export_passes_validator_for_every_bound_ids_group",
+      "tests/gs/test_artifact_resolution.py::test_re_authoring_reproduces_the_identity_the_package_pins"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261006T235536466136-jtfm-alambic-integration/base-f1f0a5b.log",
+    "revision": "f1f0a5b04dca29155dbf3ee359c927ae60bee10e"
+  },
+  "completed_at": "2026-10-07T00:24:21.721Z",
+  "dispatched_at": "2026-10-07T00:18:55Z",
+  "findings": [
+    {
+      "file": "tests/data/test_machine_map.py",
+      "line": "361,392",
+      "severity": "follow-on",
+      "text": "follow-on: at the reviewed head the refusal message and its test disagree. packages/imas-alambic/src/imas_alambic/machine_map.py:259 raises MachineMapError(f\"no bundle declares store root {name!r}\") while tests/data/test_machine_map.py:391-392 still matches the pre-move wording 'description store root'. The head log quotes 'Expected regex: description store root' / 'Actual message: \"no bundle declares store root \\'NO_SUCH_STORE_ROOT\\'\"', and this review reproduced the same mismatch at the same file content (independent-repro-head.log, 2 failed EXIT=1). This is a genuine move-induced test/message mismatch, not an environment artefact; it sits in the jtfm-alambic-move write scope (test file not updated by the move), not in this measurement node's. No repair is requested of the reviewed node; recorded so the added_failure_count of 3 is not mistaken for a node defect."
+    },
+    {
+      "file": "packages/imas-alambic/tests/test_bundle_discovery.py",
+      "line": "51,55",
+      "severity": "follow-on",
+      "text": "follow-on: test_the_same_directory_reached_twice_is_one_bundle is environment-fragile. discover_bundles() always adds the installed imas_alambic.bundles entry point, and in the ambix environment exactly one is registered (MapBundle(name='ambix', version='1.0.0', machines=('mast','diii-d','jt-60sa'))), so the synthetic-map test sees 2 bundles where it asserts 1 ('assert 2 == 1'). The de-duplication of the doubled IMAS_ALAMBIC_MAP_PATH entry itself works (one 'synth' bundle is returned). Reproduced independently (independent-repro-head.log). The test's assumption (no installed entry point) fails inside ambix's own environment; it belongs to the move/unlock nodes, not this measurement node."
+    },
+    {
+      "file": "tests/data/test_machine_map.py",
+      "line": "1607",
+      "severity": "follow-on",
+      "text": "follow-on: test_every_mast_map_range_is_one_geometry_transition is added to the head delta only as a -n 8 flake. The head log shows 'Failed: Timeout (>300.0s) from pytest-timeout' for it, and the reviewed run's head-mast-rerun.log shows it PASSES standalone at the same head in 108.44 s (EXIT=0). It was absent from the base FAILED set. The classification as a GPFS-contention flake rather than a head regression is sound; a per-test timeout above 300 s or a serial marker on the heavy description-inventory read would stabilise the gate so a future delta is not inflated by it."
+    }
+  ],
+  "follow_ons": [
+    {
+      "file": "tests/data/test_machine_map.py",
+      "line": "391",
+      "severity": "follow-on",
+      "text": "Reconcile the store-root refusal message with its test in the jtfm-alambic-move write scope: either the test matches the new 'no bundle declares store root' wording or machine_map.py keeps 'description store root'. Raised by the reviewed run under follow_ons (a) and (b); this review confirms it reproduces at the same file content.",
+      "text_note": "not blocking for this measurement node"
+    },
+    {
+      "file": "packages/imas-alambic/tests/test_bundle_discovery.py",
+      "line": "55",
+      "severity": "follow-on",
+      "text": "The synthetic-map dedup test must not assume an empty entry-point group; in ambix's synced environment the installed 'ambix' bundle makes discover_bundles() return 2. The move/unlock nodes own the entry-point wiring; the test should tolerate (or mock) the installed bundle. Not this node's scope.",
+      "text_note": "not blocking for this measurement node"
+    },
+    {
+      "file": "tests/data/test_machine_map.py",
+      "line": "1607",
+      "severity": "follow-on",
+      "text": "Stabilise the heavy MAST description-inventory read: raise the per-test timeout above 300 s or mark it serial so the -n 8 gate does not time it out under GPFS contention. Recorded by the reviewed run under follow_ons (c).",
+      "text_note": "not blocking"
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-facility-mint/jtfm-alambic-integration.html",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "The gate command as drafted cannot run at the base revision because it names the head-only path packages/imas-alambic/tests; a missing path argument aborts pytest (base-f1f0a5b-literal.log: 'no tests ran', EXIT=5). The reviewed run derived the base arm by dropping that head-only directory, which is correct and documented; a future base arm should derive its path list from the base tree rather than the head. Recorded by the reviewed run under follow_ons (d).",
+      "text_note": "not blocking"
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "Read commit 2b6abca4 against its parent d82ed19b: a single new file, the 60-line evidence fragment, whose prose records both arms' figures, the base-arm design (no packages/ dir at base, so the head-only engine test path is dropped), and the three attributed added failures with traceback heads. No behavioural change, no source edit.",
+    "done_when": "Read from the node's dispatch: both arms run to completion with EXIT= and the pytest summary line; the head adds no failure ids over the base, OR every added failure is listed with its traceback head and attributed to a cause; the manifest records both commands verbatim with absolute paths; no source file is edited. All five hold. Both arms completed (EXIT=1 each with summary); the head adds exactly three failures, each attributed in the fragment (a refusal-message/test mismatch, an entry-point bundle double-count, a -n 8 timeout that passes standalone); the manifest records both commands verbatim with absolute paths in tests and the suite fields; and the only tree change is the evidence fragment (git diff --stat d82ed19b 2b6abca4 = 1 file, 60 insertions, the fragment).",
+    "goal": "The node's goal is to measure the merged imas-alambic move against the pre-move base by executing the suites it touches. It does: two whole-tree gate arms ran to their summary lines with IMAS_ALAMBIC_MAP_PATH unset against the shared environment as synced at d82ed19b, the head arm at d82ed19b (8 failed, 1185 passed, 3 skipped, EXIT=1) and the base arm at a detached copy of f1f0a5b (5 failed, 1165 passed, 3 skipped, EXIT=1), and the head-minus-base failure delta (3 ids) is derived and attributed. Verified independently: both log headers carry revision, tree, command and (for the base scratch tree) module.__file__ and resolved cwd; the FAILED lines and summary lines match the manifest; and two of the three added failures reproduce at the same file content head.",
+    "manifest": "Read; it states status complete, one commit (2b6abca4), a fragment-only changed_paths, four gate logs, and a negative_control_log of 'none: node writes no test file and declares no negative control'. Its baseline_suite and after_suite are full execution arms (not --collect-only) with completed true, exit_status 1, and the exact failure_ids; the head arm's command is verbatim the manifest 'tests' command. measurement_module and measurement_cwd point at the base scratch tree, matching the base log header. failure_attribution is {} which is correct: no failure reached scaffolding, all three added failures are in code under test or an environment condition. Its follow_ons (a)-(d) match this review's findings.",
+    "suite_delta": "added_failure_count 3, added_failure_ids [packages/imas-alambic/tests/test_bundle_discovery.py::test_the_same_directory_reached_twice_is_one_bundle, tests/data/test_machine_map.py::test_machine_map_refuses_an_incomplete_or_unknown_store_declaration, tests/data/test_machine_map.py::test_every_mast_map_range_is_one_geometry_transition] - the exact head-minus-base set difference over the reviewed run's own baseline_suite and after_suite failure_ids.",
+    "write_paths": "The reviewed run's declared write paths are docs/evidence/fragments/jt60sa-facility-mint/jtfm-alambic-integration.html and docs/figures/jt60sa-facility-mint/jtfm-alambic-integration. The commit 2b6abca4 (parent d82ed19b) changes exactly one file: docs/evidence/fragments/jt60sa-facility-mint/jtfm-alambic-integration.html (+60). No source, test, lock or plan file is touched, and the figures path is unwritten (the done-when names no figure, so none was owed). No concurrent node's path is approached."
+  },
+  "justifications": "goal_fidelity 19/20: the measurement node executed the suites it was chartered to measure at both the merged head and a detached pre-move base, derived the head-minus-base delta and attributed every added failure; the fragment and the manifest agree with the logs and with an independent re-read. evidence 18/20: two full execution arms with complete headers (revision, tree, command; the base scratch arm additionally records module.__file__ and resolved cwd), summaries and EXIT values; a base-literal arm recording the EXIT=5 abort that justifies the base-arm design; a standalone rerun isolating the mast flake; and this review's independent reproduction of two of the three added failures at the same file content. No point lost for the absent negative control (the node writes no test file, so none is owed). scope_discipline 20/20: the only tree change is the declared evidence fragment; git diff d82ed19b..2b6abca4 is one file, +60 lines; no source, lock, plan or concurrent-node path touched. durability 19/20: one conventional commit with a substantive body, the fragment committed, four gate logs on disk each headed with revision/tree/command, and machine-readable suite fields whose commands are the literal commands that ran. fit 19/20: the node is exactly \u00a72's post-merge integration run ('the entry point is proved by the integration run after the merge, with the environment synced and the variable unset'), and it satisfies its own done-when in full. reuse 19/20: it adds no production code and no new resolver or refusal family; it reuses the existing pytest gate and the recorded logs. Total 114/120. No blocking finding: the three added failures are the measurement's result and are the move/unlock nodes' to repair, correctly reported by the reviewed node under its own follow_ons.",
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261007T001847139827-review-of-jtfm-alambic-integration",
+  "reviewed_base_sha": "d82ed19bc407016f6390b8d3d96a0cfc8b81cd23",
+  "reviewed_head_sha": "2b6abca4e95b4d6f44f44b5d93f09813c9acdd68",
+  "reviewed_run_id": "r-20261006T235536466136-jtfm-alambic-integration",
+  "reviewer": "review-of-jtfm-alambic-integration",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-07T00:22:50+00:00",
+  "total": 114
+}
