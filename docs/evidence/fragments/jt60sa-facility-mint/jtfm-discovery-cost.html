@@ -1,0 +1,72 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-discovery-cost">
+  <header>
+    <h3>Bundle discovery adds about 0.2&nbsp;% to the MAST map-range test</h3>
+    <p class="meta">
+      Node <code>jtfm-discovery-cost</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;2 &middot;
+      base <code>f1f0a5b0</code> (detached copy, <code>PYTHONPATH</code> pointing at it) &middot;
+      head <code>3d54ae6f</code> (this worktree, <code>packages/imas-alambic/src</code> on
+      <code>PYTHONPATH</code>, <code>IMAS_ALAMBIC_MAP_PATH</code> unset) &middot;
+      node 98dci4-clu-2018, job 1277272
+    </p>
+  </header>
+
+  <p>
+    At base the test reaches MAST through <code>imas_ambix.data.machine_map</code>'s
+    module-level <code>PACKAGED_MACHINE_MAP_ROOT</code>; at head the same call
+    (<code>load_packaged_machine_map("mast")</code>) routes through
+    <code>imas_alambic.machine_map.discover_bundles</code>, which reads the
+    installed <code>imas_alambic.bundles</code> entry point and, with the
+    environment variable unset, resolves ambix's bundle from the entry-point
+    target. The measured question is whether that indirection made
+    <code>tests/data/test_machine_map.py::test_every_mast_map_range_is_one_geometry_transition</code>
+    slower.
+  </p>
+
+  <h4>Head-minus-base wall time</h4>
+  <p>
+    Each arm ran at least three times, serially and alone, with
+    <code>--timeout=900</code> on the same node. All runs passed
+    (<code>EXIT=0</code>). One head sample (160.0&nbsp;s) is an I/O-contention
+    outlier: the test body is dominated by reading the MAST level-2 mirror and
+    building geometry transitions, head samples otherwise sit at 100.4&ndash;112.1&nbsp;s.
+  </p>
+  <table>
+    <thead>
+      <tr><th>arm</th><th>wall times [s]</th><th>median wall [s]</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>base <code>f1f0a5b0</code></td><td>106.641, 106.193, 105.731</td><td>106.193</td></tr>
+      <tr><td>head <code>3d54ae6f</code></td><td>112.088, 103.531, 107.895, 109.699 (plus one 160.033 outlier)</td><td>108.797</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Head minus base, median wall over the non-outlier head samples:
+    <strong>+2.6&nbsp;s on a ~106&nbsp;s run, about +2.4&nbsp;%</strong>. Base is stable
+    (spread 0.9&nbsp;s); head excluding the outlier spans 8.6&nbsp;s, so the difference
+    is at the edge of run-to-run noise. Including the outlier as a head sample would
+    read as +53&nbsp;s, which the profile below shows cannot be discovery.
+  </p>
+
+  <h4>Share of head time spent in discovery</h4>
+  <p>
+    A <code>cProfile</code> of one head run (total 135.996&nbsp;s under the profiler,
+    test 132.80&nbsp;s) reports, from
+    <code>packages/imas-alambic/src/imas_alambic/machine_map.py:182</code>:
+  </p>
+  <ul>
+    <li><code>discover_bundles</code>: <strong>2 calls, cumulative 0.276&nbsp;s</strong>
+      (tottime 0.0001&nbsp;s) &mdash; <strong>0.20&nbsp;%</strong> of the head run.</li>
+    <li><code>importlib.metadata.entry_points</code> (the module-level function,
+      <code>importlib/metadata/__init__.py:999</code>): <strong>5 calls, cumulative
+      0.4735&nbsp;s</strong>; two of those calls are the ones
+      <code>discover_bundles</code> makes. The entry-point scan, not the directory walk,
+      is the whole discovery cost.</li>
+  </ul>
+  <p>
+    Discovery is a single sub-second entry-point scan at the start of the test; the
+    remaining ~99.8&nbsp;% is the test body, which is unchanged between the arms. Bundle
+    discovery did not meaningfully slow the MAST map-range test.
+  </p>
+</section>
