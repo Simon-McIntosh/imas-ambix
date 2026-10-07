@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="jt60sa-signal-figures-from-ids">
+  <meta name="plan-title" content="JT-60SA Signal Figures From IDS">
+  <meta name="plan-summary" content="Redraw the JT-60SA pulse signal figures from the minted pulse IDS through imas-ink, and withdraw the figures that were drawn from raw cache arrays">
+  <meta name="plan-status" content="draft">
+  <meta name="plan-roi" content="mid">
+  <meta name="plan-effort-hours" content="1.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-reasoning" content="standard">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="low">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-sprint" content="S20">
+  <meta name="plan-tags" content="jt-60sa,figures">
+  <meta name="plan-depends-on" content="imas-ink:ids-signal-traces">
+  <meta name="plan-informs" content="jt60sa-machine-map">
+  <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <header>
+      <p class="eyebrow">Pulse signals drawn from their IDS</p>
+      <h1>JT-60SA Signal Figures From IDS</h1>
+      <p class="lead">
+        The signal figures that <code>jt60sa-geometry-and-signal-figures</code> §3 landed on 2026-10-06 were not
+        drawn from IDS. <code>scripts/figures_jt60sa_signals.py</code> built imas-ink <code>TimeSeries</code> from
+        bare arrays: PF coil currents and Ip came from the signal map's <code>VirtualZarrView</code>, the flux loops
+        were raw PSRC and MDAC EDDB channels read through <code>read_channel</code>, and the caller supplied every
+        label and unit string. The lead ruled on 2026-10-07 that imas-ink draws only from IDS inputs, or from
+        signals carrying standard-name metadata.
+      </p>
+      <p class="lead">
+        The pulse mint has since written E101154 as IDS, at
+        <code>/work/projects/imas_gpu/jt60sa/ids/101154/</code> (run <code>r-20261006T164055420259</code>):
+        <code>pf_active</code> carries the ten coil currents CS1–EF6 and <code>magnetics</code> carries Ip. This plan
+        redraws from those IDS through imas-ink's <code>extract_signal_traces</code>, added by the imas-ink plan
+        <code>ids-signal-traces</code>, and withdraws everything that has no IDS behind it.
+      </p>
+    </header>
+
+    <h2 id="s1">§1 — Redraw E101154's coil currents and plasma current from its IDS</h2>
+    <section data-reckon="section" data-id="s1" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+    <p>
+      <code>scripts/figures_jt60sa_signals.py</code> is rewritten as a thin imas-ink caller:
+    </p>
+    <ul>
+      <li>One function, <code>_read_pulse_ids(pulse_dir, ids_name)</code>, opens one IDS with
+        <code>imas.DBEntry</code> and <code>get(..., autoconvert=False)</code>, from
+        <code>JT60SA_ROOT / "ids" / "101154"</code>, where <code>JT60SA_ROOT</code> comes from
+        <code>imas_ambix.data.paths</code>. The pulse-mint coordinator has announced a move to one netCDF per run,
+        so the file layout is known in this one place and that move is a one-function change.</li>
+      <li>It calls <code>extract_signal_traces(pf_active, "coil/current")</code> and
+        <code>extract_signal_traces(magnetics, "ip")</code>, and draws the series, one panel each, in one figure
+        through <code>time_trace_figure_mpl</code>.</li>
+      <li>It writes that figure through <code>render_to_bytes(format="svg")</code> to
+        <code>docs/figures/jt60sa-signals/jt60sa-E101154-pf-coil-currents.svg</code>, replacing the file of that
+        name.</li>
+    </ul>
+    <p>
+      The script constructs no <code>TimeSeries</code>, passes no label or unit string, and imports nothing from
+      <code>virtual_zarr</code>, <code>signal_map</code>, <code>eddb</code> or <code>zarr</code>. Every name and unit
+      on the figure comes from the IDS through imas-ink.
+    </p>
+    <p>
+      The same node deletes the two figures with no IDS behind them:
+    </p>
+    <ul>
+      <li><code>jt60sa-E101154-flux-loops.svg</code>, the raw PSRC-against-MDAC comparison. The lead withdrew it on
+        2026-10-07.</li>
+      <li><code>jt60sa-C060033-pf-coil-currents.svg</code>, for which no IDS exists.</li>
+    </ul>
+    <p>
+      Done-when: the script opens only the two IDS files and writes exactly one SVG, with no PNG twin. It prints
+      each series' y-label and unit, which must be the ten coil names in <code>A</code> and <code>ip</code> in
+      <code>A</code>. <code>grep -cE 'VirtualZarrView|read_channel|signal_map|TimeSeries\(' scripts/figures_jt60sa_signals.py</code>
+      returns 0. <code>docs/figures/jt60sa-signals/</code> holds exactly one file. The SVG is rendered on a compute
+      node because it reads GPFS; open it and confirm it has no legend and one time label. The evidence fragment
+      embeds it with a project-absolute <code>src</code> and a caption naming the shot, the IDS paths and the
+      units. <code>uv run --no-sync ruff check imas_ambix tests scripts/figures_jt60sa_signals.py</code> passes.
+    </p>
+
+    <h2 id="s2">§2 — Flux loops and probes, once the rewritten E101154 carries them</h2>
+    <section data-reckon="section" data-id="s2" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="deferred" data-links=""></section>
+    <p>
+      The on-disk E101154 predates the magnetics bindings: its 27 flux loops and 17 poloidal-field probes are empty.
+      The magnetics map now binds them, and its coordinator, imas-ambix-5b, is moving 26 loop rules to type-6
+      differential entries relative to loop 7. The pulse-mint coordinator, imas-ambix-0d, will rewrite E101154
+      after that, giving each loop and probe its own time vector (homogeneous time 0).
+    </p>
+    <p>
+      Both coordinators have agreed to signal this session. When they do, this section draws
+      <code>extract_signal_traces(magnetics, "flux_loop/flux")</code> and the probe field the same way §1 draws the
+      coil currents. It updates <code>_read_pulse_ids</code> to the per-run file layout if the rewrite uses it.
+      Deferred until the rewrite exists.
+    </p>
+
+    <h2 id="s3">§3 — C060033, once it has IDS</h2>
+    <section data-reckon="section" data-id="s3" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="deferred" data-links=""></section>
+    <p>
+      C060033 cannot be minted today, for two reasons:
+    </p>
+    <ul>
+      <li>No machine map covers the C-series commissioning shots: <code>map_for_shot</code> resolves 60033 to zero
+        maps.</li>
+      <li>Its cache holds only MDAC and MMSYS. With no PSRC, <code>magnetics/ip</code> has no source.</li>
+    </ul>
+    <p>
+      The machine-map census also found that the C-series shots drive the TF coil alone, so PF panels for C060033
+      would show only noise floor. The pulse-mint coordinator has raised both blockers with the lead and will
+      signal if C060033 is written. This section then decides from the written IDS whether any of its signals is
+      worth a figure. Deferred until then.
+    </p>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-jsfi-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-07" data-recommends-skill="/reckon-build jt60sa-signal-figures-from-ids §1" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Redraw E101154 from its IDS and withdraw the raw-signal figures</h4>
+    <div class="r-fu-body"><p>Runs after imas-ink's ids-signal-traces lands. §2 and §3 wait on signals from the machine-map and pulse-mint coordinators.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-signal-figures-from-ids §1</pre>
+    </article>
+</section>
+  </main>
+</body>
+</html>
