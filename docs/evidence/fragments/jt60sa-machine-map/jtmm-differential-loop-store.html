@@ -43,6 +43,7 @@
 
     <section id="jtmm-differential-loop-store-stores">
       <h3>Regenerated stores and the superseded copies</h3>
+      <p><strong>Landing note, 2026-10-07.</strong> The regenerated 53-loop stores turned seven consumer tests red: six in <code>tests/data/test_jt60sa_machine_map.py</code>, whose flux-loop position bindings expect a position on every entry, and the operator's loop-7 vacuum fit. The coordinator moved them to <code>machine_description/superseded/differential-loops-staged/OP1</code> and <code>OP2</code> and copied <code>superseded/pre-differential-loops/OP1</code> and <code>OP2</code> back as the live stores. The live stores therefore still carry 27 type-1 loops. They are regenerated from this converter once the machine-map adapter and the operator handle type-6 entries.</p>
       <p>Written through <code>write_phase_description</code> after verifying
       each source deck's sha256 against the value its receipt records:</p>
       <ul>
@@ -61,7 +62,7 @@
       <code>flux_loop</code> entries: 27 with <code>type/index</code> = 1 and a
       position, then 26 with <code>type/index</code> = 6, empty position and
       area, and <code>indices_differential</code> running
-      <code>[7,1] ... [7,2]</code> through <code>[7,27]</code> for every loop
+      <code>[7,1]</code> through <code>[7,27]</code>, skipping <code>[7,7]</code>, for every loop
       other than 7.</p>
     </section>
 
