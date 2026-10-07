@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="104">
+<meta name="plan-version" content="105">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -459,6 +459,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261007T101057764390-review-of-jtfm-imasdb-install" data-who="reckon-build" data-when="2026-10-07T10:31:48.544Z">
     <div class="r-comment-body"><p>review of r-20261007T081209804162-jtfm-imasdb-install: 3 findings, all follow-on (the gate log's header stamps the stale revision b24db7ec and carries no EXIT= line; the installer spells maps/current once in its seed; the fence literal 'find IMASDB -perm -o+w prints nothing' is unsatisfiable because a symlink's mode is 0777); total 101 of 120, below the 108 acceptance floor.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261007T131907016379-jtfm-imasdb-repair" data-who="reckon-build" data-when="2026-10-07T13:57:18.024Z">
+    <div class="r-comment-body"><p>packages/imas-alambic/src/imas_alambic/settings.py now reports the machine and the cache/IDS-root store lookups as source-with-no-value when bundle discovery refuses, so imas-alambic config prints every setting with no reachable bundle (pinned by a new test in packages/imas-alambic/tests/test_settings.py); packages/imas-alambic/install/imasdb.sh no longer seeds maps/current, reads the IMASDB layout from config before the bundle exists, runs uv python install with --no-bin, and opens executables to others r-x (chmod -R o=rX); measure: config before the bundle on intr26-2 prints maps IMASDB/maps/current, ids_root IMASDB/ids, machine and cache carrying the descriptor refusal, the installer EXIT=0 with launcher and managed python3.12 at 755 and no python3.12 shim under ~/.local/bin, settings tests 11 passed at head against 10 at base, ruff whole-tree exits 0.</p></div>
 </div>
 </section>
 </main>
