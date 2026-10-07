@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="88">
+<meta name="plan-version" content="89">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -425,6 +425,9 @@
 </div>
 <div class="r-comment" data-section="s12" data-id="c-20261007T0921" data-who="reckon-build" data-when="2026-10-07T09:21:00Z">
     <div class="r-comment-body">gate pytest passed (40 vs 33); review 18-20/20, 0 added; merged b90a7941; section done</div>
+</div>
+<div class="r-comment" data-section="s12" data-id="c-run-r-20261007T083907268753-jtfm-ids-root-default" data-who="reckon-build" data-when="2026-10-07T09:06:39.028Z">
+    <div class="r-comment-body"><p>§12 landed: resolve_settings resolves the IDS root in the order --out, IMAS_ALAMBIC_IDS_ROOT, IMAS_ALAMBIC_HOME/ids, the reachable bundle&#x27;s ids_root role, otherwise unset, through a shared _store_root_from_bundle(role, kind, maps); imas_ambix/data/bundle.py declares the ids_root role from paths.JT60SA_IDS_DIR; scripts/figures_jt60sa_signals.py drops its JT60SA_IDS_DIR fallback and asks resolve_settings alone; bundle_for_machine&#x27;s unknown-machine refusal now names IMAS_ALAMBIC_MAP_PATH. Measure: with no IMAS_ALAMBIC_* variable set, uv run imas-alambic config reports ids_root /work/projects/imas_gpu/jt60sa/ids [bundle ids_root role] at the head against (unset) at base; packages/imas-alambic/tests is 40 passed/0 failed at head against 33 passed/0 failed at base; ruff exits 0.</p></div>
 </div>
 </section>
 </main>
