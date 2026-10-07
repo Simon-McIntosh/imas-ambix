@@ -1,0 +1,58 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T14:16:28.312Z",
+  "dispatched_at": "2026-10-05T14:10:27Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/request_receipts.py:111",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a74 and \u00a77 sequence the caller node first and base its 7.0 h on a launcher-plus-recording build; extending the existing header owner reduces it to setting two headers the receipts already parse.",
+      "text": "\u00a74 (\"The channel already exists, and it already carries a constant\") proposes making the launcher stamp a declared identity into `ANTHROPIC_AUTH_TOKEN`, a new transport for caller identity; but `identity_from_headers` at :111 already reads two dedicated headers, `x-reckon-run-id` and `x-reckon-session`, into `RequestReceipt.run_id` and `coordinator_session`, and \u00a79-rewired already consumes `run_id` from that channel (97% of recent rows). \u00a74 also still lists \"No request receipt has ever been written\" as a blocker, which \u00a79-rewired's 2026-09-26 relay restart supersedes.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/telemetry_retention.py:111",
+      "id": "duplicate_owner-2",
+      "reason": "an unbounded second fork of the same call is a second owner for job liveness whose distinguishing failure is silent.",
+      "text": "the retention liveness probe forks its own `squeue` subprocess with no timeout and cannot tell an absent `squeue` from one that refused, duplicating the bounded owner `run_capture` (`node_probe.py:186`) and `read_jobs` (`node_probe.py:667`); already recorded at `c-20261005T1005-s8-plan-review` \u2014 extend that owner rather than the probe.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/telemetry_store.py:596",
+      "id": "duplicate_owner-3",
+      "reason": "two aggregates over one window are two owners of one figure and can disagree.",
+      "text": "f-srw-020's proposed hourly rollup re-derives a per-window aggregate that `compact_rows` (`telemetry_store.py:596`) already writes as the hour tier; already recorded at `c-20261005T1005-s5-plan-review` \u2014 the node must extend the hour tier, or state in the followup why the tier cannot answer a long window.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html:567",
+      "id": "interface_budget-1",
+      "reason": "the section adds CLI surface (\u00a711 names its retirements; \u00a78 does not) and the budget rule requires the section to name one or state why none exists.",
+      "text": "\u00a78 rule 4 adds a retention command and a second run with an explicit apply flag without naming, in the section's own text, what it retires or merges, or why nothing can be; the interface counts read `cli_options` 0, so a new option family must say what it replaces.",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "679d3354ffa7d21e37ca8ca58d863818d70b169d38843942463550a419f79772",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 225,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T141020240778-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "ee673eb7be6c124401bbff703cba3064c326437b",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the store has one read path that selects exactly one tier per job (\u00a78 rule 1), and \u00a76's query surface is answered from that rather than reimplemented per consumer; no section hides the work behind a shallower module.",
+    "duplicate_owner": "finding \u2014 \u00a74 builds a second caller-identity transport where one already exists (first finding below); two further records remain open against owners in `telemetry_retention.py` and `telemetry_store.py`.",
+    "interface_budget": "finding \u2014 \u00a78's retention command adds a CLI surface without naming what it retires or merges; \u00a711, by contrast, states its retirements in its own text, which is the pattern \u00a78 needs.",
+    "reuse_search": "pass \u2014 every design section is grounded in cited code (the request-receipt fields in \u00a74, the shared run predicate `telemetry_index.py:694` in \u00a78, `telemetry_store.py:596` in \u00a75, `node_probe` in \u00a78), so prior art was searched rather than assumed absent; the one existing owner the search did not surface is recorded under duplicate_owner.",
+    "thin_wrapper": "pass \u2014 \u00a711's `live_panel.py` computes the per-stream rate, the null-window rule and document staleness in the module itself and is explicitly not a passthrough; the `lane` block copies the router's own fields by design, which is the correct depth for a value another component already owns."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.937029+00:00"
+}

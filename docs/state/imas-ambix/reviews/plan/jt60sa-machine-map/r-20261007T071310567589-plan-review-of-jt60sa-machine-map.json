@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T07:27:52.547Z",
+  "dispatched_at": "2026-10-07T07:13:50Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:1356",
+      "id": "duplicate_owner-1",
+      "reason": "the same repoint the changed unit applies at :693 must also be applied to :1356 and :1398 (or they must record that `jtmm-equilibrium-source-leads` supersedes `jtmm-jt60sa-host-survey`), otherwise the census the prior duplicate_owner finding began is left half-done: the first instance was repaired in \u00a76 and the remaining instances of the same defect type are found later, one review at a time.",
+      "text": "the decision `jt60sa-psi-q-source`'s rationale at :1356 still states \"jtmm-jt60sa-host-survey now searches nakasvr26 and nakasvr23 for where FAME's records went and for any other equilibrium archive with psi and q\", and the resolved followup `f-jtmm-006`'s outcome at :1398 still states \"The search for another source of psi and q continues as jtmm-jt60sa-host-survey in section 6\", while the changed \u00a76 (:693, :750, the node at :851) and \u00a77 (:895) now attribute that search to `jtmm-equilibrium-source-leads`; a session reading the decision or the resolved followup is pointed at a node that has already landed and found no store, so the ownership the change moved inside \u00a76 is still split across the two records",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "e65f386a686d85540170345c88fdabf8f6893067e88bd2cdf0c59e4383844414",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 315,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "Both records are dated history, not live ownership. The decision rationale records the state on 2026-10-07 when the FAME server was found decommissioned, and f-jtmm-006 is a resolved followup whose outcome is its closing record; neither seeds work. Section 6 is the live statement and names jtmm-equilibrium-source-leads as the one owner of the search. The decision rationale will be brought up to date right after this dispatch, so the next wave's review covers it.",
+      "when": "2026-10-07T07:28:35.476881+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "Both records are dated history, not live ownership. The decision rationale records the state on 2026-10-07 when the FAME server was found decommissioned, and f-jtmm-006 is a resolved followup whose outcome is its closing record; neither seeds work. Section 6 is the live statement and names jtmm-equilibrium-source-leads as the one owner of the search. The decision rationale will be brought up to date right after this dispatch, so the next wave's review covers it.",
+      "when": "2026-10-07T07:28:35.476881+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v315.json",
+  "review_run_id": "r-20261007T071310567589-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "1146a2a9eeaadacecf6b4b1c4fd6efa64b59211d",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the changed unit introduces no module; it routes a read-only reconnaissance node (`jtmm-equilibrium-source-leads`) at leads that already exist, so nothing is hidden behind a spread of wrappers.",
+    "duplicate_owner": "a finding \u2014 the change repoints \u00a76's psi/q-search ownership to `jtmm-equilibrium-source-leads` but leaves two records outside \u00a76 naming `jtmm-jt60sa-host-survey` as the continuing owner.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the changed unit adds no public definition, CLI option, MCP view or refusal family, so it has nothing to retire or merge.",
+    "reuse_search": "pass \u2014 the changed lead list now names every equilibrium database the codex SLICE page documents (FAME, EQDB, EQRV, EQEFIT), and I verified the added clause against that page (imas-cx SLICE page: \"EQRV\uff08\u516c\u958b\uff09\u306fMSE\u30c7\u30fc\u30bf\u3092\u7528\u3044\u305f\u3088\u308a\u6b63\u78ba\u306aMHD\u5e73\u8861\u30c7\u30fc\u30bf\u30d9\u30fc\u30b9\", EQEFIT \"MSE\u30c7\u30fc\u30bf\u3092\u7528\u3044\u3066EFIT\u30b3\u30fc\u30c9\u3067\u6c42\u3081\u305f\"), so the census the prior reuse_search finding found incomplete is complete and no new machinery is proposed.",
+    "thin_wrapper": "pass \u2014 the changed unit adds no wrapper over existing machinery; the node reads its data through the existing `fetch_channels` extractor (packages/imas-alambic/src/imas_alambic/eddb.py) rather than a new reader."
+  },
+  "section_digests": {
+    "_document": "b36d56f06d61633d010f251c3d548d508612369b90ced40d900bc45f896bc45f",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "824e58d2b6abf9da2a22c287553ebe151baa606e57893466fcace2573c2c8f80",
+    "s7": "2de5c52218ed83a082fbf5bd0de48a191cde9123f71c912a4785ca0648bcc329",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T07:28:32.965172+00:00"
+}

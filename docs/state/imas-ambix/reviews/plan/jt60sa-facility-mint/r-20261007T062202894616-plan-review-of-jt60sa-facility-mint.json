@@ -1,0 +1,87 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T06:28:45.021Z",
+  "dispatched_at": "2026-10-07T06:22:16Z",
+  "findings": [
+    {
+      "anchor": "packages/imas-alambic/src/imas_alambic/pulse_writer.py:292",
+      "id": "duplicate_owner-1",
+      "reason": "s13 must name the temp's folder-visible convention (or how a reader excludes it) or the shared-folder guarantee \u00a75 states is unenforced.",
+      "text": "s13 adds a temporary sibling ending in .nc inside <out_root>, a second naming convention for a file in the shared IMASDB/ids folder beside pulse_path, which the module docstring names as \"the one rule that owns the run file's name\", and the section does not say how a reader that scans that folder tells the temp from a run file, so \u00a75's done-when (\"never leave a partial run file in the shared folder\") is not enforced against a reader that globs *.nc",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/watch_publish.py:88",
+      "id": "duplicate_owner-2",
+      "reason": "the plan must name the mechanism's owner, state why a fork is unavoidable given the engine may not import imas_ambix (ambix imports imas_alambic, never the reverse, verified: no imas_ambix import under packages/imas-alambic/src), and pin the published file's mode.",
+      "text": "s13's atomic write (a same-directory temporary renamed with os.replace) reimplements, in what would be a tenth place, a pattern already present at imas_ambix/agent/watch_publish.py:88 (_write_atomic, the fullest owner), registry.py:174 and :381, provider_prices.py:141, lane.py:613 and :1021, agent/cli.py:1861 and :3555, camdyn/train.py:728 and closure/current_diffusion.py:644; watch_publish.py:82-88 already records the trap that mkstemp creates the temporary at mode 0600 and the rename carries that onto the published file, which under \u00a75's \"every file grants them r--\" would leave the run file unreadable to other facility users, and s13 cites no owner",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "2190f9baf11a71106415149edf293648787bede95f45cb1d2f2348ea29bccd78",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 71,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-07T06:34:00.076023+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "finding": "duplicate_owner-2",
+      "reason": "",
+      "when": "2026-10-07T06:34:03.169857+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "reason": "",
+      "when": "2026-10-07T06:34:00.076023+00:00"
+    },
+    "duplicate_owner-2": {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "reason": "",
+      "when": "2026-10-07T06:34:03.169857+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-facility-mint.v71.json",
+  "review_run_id": "r-20261007T062202894616-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "18fb2ac7ecc08b24493817670b650fd7ad419315",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 no changed unit introduces a new module; s12 extends settings.py and s13 extends pulse_writer.py, and s1 is a move, so there is no new interface to weigh against hidden behaviour.",
+    "duplicate_owner": "a finding \u2014 s13 adds a second naming convention for a file in the shared ids folder and a tenth copy of the sibling-temp-plus-os.replace pattern whose fullest owner is imas_ambix/agent/watch_publish.py:88.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the changed sections add no exported definition, CLI option, MCP view or refusal family (s1 retires the JT60SA_ROOT and JT60SA_DESCRIPTION_DIR store roles and drops cli --machine's jt-60sa example, and s12's ids_root role reuses resolve_store_root's existing surface).",
+    "reuse_search": "pass \u2014 s1's census command reproduces its stated 20 hits at this head and every line anchor checks (vacuum_loop_adjudication.py:1088/:1186/:1217, test_eddb_cache.py:721, figures_jt60sa_signals.py:35), and the sections extend existing owners (load_packaged_signal_map, resolve_store_root, pulse_path) rather than adding a parallel mechanism.",
+    "thin_wrapper": "pass \u2014 s12's ids_root role reuses the existing bundle store-root path (resolve_store_root, the eddb_cache role) instead of wrapping it, and s5's installer derives the layout from settings.py rather than re-spelling it."
+  },
+  "section_digests": {
+    "_document": "269971cee88062b7ebfee1d132427207e7e8be21fe5df0242342bb14ae8f0df9",
+    "s1": "c0c591531428a21bffbe7600053554f0ac3d9055bc6fe9d355e9479d482f7c94",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "a3c4932d3af93ca70d79873f1cb3a24e84b739d0cef522ae648a2d3c5bda7bfd",
+    "s12": "06607d7b9a11f1e5015879199c87dad21eb813749bc4ee63c781e6a0ca331f1e",
+    "s13": "33a4dbc616a4dacb08a89c9cfcf5a134eb1e8709829b15d4eef3641a8ec9a42e",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "9ead79358bde61d9a2190b2c445b3f52e8225b211933e5df910e67d47b940cd3",
+    "s6": "1ccc061c74e3a3eab0fbd07825bc5bf11d8207248d01b1a9aecba35a37e20560",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "0d934ec479471ff9f711bc6e58ec9f2d0f07d4722593ff98c53426b2b509ecda",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T06:33:58.074030+00:00"
+}

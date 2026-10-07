@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T05:54:04.748Z",
+  "dispatched_at": "2026-10-05T05:47:48Z",
+  "findings": [
+    {
+      "anchor": "plan.html:258",
+      "id": "reuse_search-1",
+      "reason": "the section must name the mechanism it extends, or the author cannot tell whether the adapter is a genuine gap or a fork.",
+      "text": "the `f-sem-scorer-pin` followup proposes a new evaluator-only Consistency li adapter without naming the existing mechanisms it would sit on: imas_ambix/eval/efit_referee.py (the evaluator-only firewall over EFIT reconstruction outputs), imas_ambix/statespace/mse_eval.py and imas_ambix/eval/metrics.py (the metric harness), and imas_ambix/gs/force_balance.py which already carries li inside `betap_li2`. The reviewer had to open the tree to learn whether prior art exists; the plan gives no reuse map for the one place the plan adds machinery.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/eval/efit_referee.py:66",
+      "id": "duplicate_owner-1",
+      "reason": "the section should name efit_referee.py as the owner to extend (or state why the referee arithmetic cannot be reached through it), so the entry does not grow two evaluator-only gates that drift.",
+      "text": "the plan's new \"evaluator-only\" Consistency li adapter duplicates the evaluator-only firewall contract that imas_ambix/eval/efit_referee.py already owns and enforces (`FirewallViolation`, `evaluator_context`, tested at tests/eval/test_efit_referee.py), and it re-derives an li quantity already represented in imas_ambix/challenge/loader.py (`efit_li`) and used in imas_ambix/gs/force_balance.py. A second evaluator-only surface beside the owned one is the recurring duplicate this item names.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html:258",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the added interface surface in its own text, since every count it would touch starts at zero and the addition is a net new public family.",
+      "text": "`f-sem-scorer-pin` adds an evaluator-only Consistency li adapter to the public surface (a new public definition and a new refusal family, the evaluator-only access guard) against a week whose supplied counts are public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0) without naming anything it retires or merges, or stating why nothing can be.",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "6cf55440662f7b844a56578c1c8bd6f64a6df7120a5d8e5504a339070c19900a",
+  "plan_slug": "sophelio-entry-master",
+  "plan_version": 9,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T054743612224-plan-review-of-sophelio-entry-master",
+  "reviewed_blob_sha": "a025651982d2d19b9ae487df972d6902d71d9bdc",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the plan adds no module; \u00a73 names the owning plan for every item and \u00a71 composes live status through the existing roadmap tool, so there is no new interface hiding no behaviour.",
+    "duplicate_owner": "a finding \u2014 the `f-sem-scorer-pin` section adds an ambix-side Consistency li adapter beside nova's already-banked referee-matched inductance instrument and beside imas-ambix's own li machinery, rather than extending a named owner.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the `f-sem-scorer-pin` section adds an evaluator-only adapter (new public surface) without naming what it retires or merges, or why nothing can be.",
+    "reuse_search": "a finding \u2014 the plan body cites its constituent plans and the mechanisms it extends, but its one new-machinery section (the `f-sem-scorer-pin` followup) proposes a new \"evaluator-only Consistency li adapter\" without citing imas-ambix's own evaluator-only referee or metric harness already in the tree.",
+    "thin_wrapper": "pass \u2014 the only wrapper the plan proposes (an evaluator-only adapter over the challenge referee's own arithmetic) states its reason in the section itself (\"scored against the referee's own arithmetic rather than a reimplementation\"), which is the extend-not-fork justification this item requires."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.982928+00:00"
+}

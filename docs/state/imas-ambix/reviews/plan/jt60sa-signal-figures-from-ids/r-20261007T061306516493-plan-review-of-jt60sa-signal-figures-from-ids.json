@@ -1,0 +1,39 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T06:23:48.630Z",
+  "dispatched_at": "2026-10-07T06:13:16Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-signal-figures-from-ids.html:123",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a73 must name `_read_pulse_ids` as the shared opener it preserves (and correct the geometry-driver comparison from `_read_ids` to the pulse-ids \u00a74 reader), or jt60sa-pulse-ids \u00a74's stated reuse silently breaks when \u00a73 lands.",
+      "text": "\u00a73 claims the geometry driver holds no second copy of \"this reader\", but names `_read_ids` (the phase-description-store opener, a different product) and thereby answers the wrong comparison: `jt60sa-pulse-ids` \u00a74 records that the geometry driver reads the written pulse through the same rule and \"cites `_read_pulse_ids` as the existing reader it shares\", so `_read_pulse_ids` is shared infrastructure owned by this script, and \u00a73's refactor at line 98 (\"moves the open \u2192 extract_signal_traces \u2192 time_trace_figure_mpl path into one function\") does not say that shared opener keeps its `(pulse_file, ids_name)` shape \u2014 folding the open into the new function and deleting `_read_pulse_ids` would break \u00a74's reuse while \u00a73's own text still calls that driver distinct",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "e8ad600fe2e276053d0afb80247f6d42bde22334f6c274a25724931f32e58541",
+  "plan_slug": "jt60sa-signal-figures-from-ids",
+  "plan_version": 18,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261007T061306516493-plan-review-of-jt60sa-signal-figures-from-ids",
+  "reviewed_blob_sha": "06f1c09180c0bf52edcbe935cda0bc8855712da0",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 one function hides the whole pulse_path construction \u2192 `imas.DBEntry` open \u2192 per-pair `extract_signal_traces` \u2192 combine \u2192 `time_trace_figure_mpl` chain behind four arguments (root, pulse, run, series pairs) and returns the figure, rendering nothing; that is one deep module, not a spread of wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a73's distinctness paragraph compares the wrong symbol in the geometry driver: it argues `figures_jt60sa_geometry.py::_read_ids` is not this reader, but the geometry driver's *written-pulse* reader is `jt60sa-pulse-ids` \u00a74, which reuses this script's `_read_pulse_ids` as its shared opener, so \u00a73 must state that `_read_pulse_ids`'s `(pulse_file, ids_name)` shape survives its refactor.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 adds nothing to any of the four families (its change is a script-local function on a driver that already existed) and it names the interface it retires \u2014 \"The constants fixed to E101154 are retired\" (SHOT, FIGURE, PULSE_FILE).",
+    "reuse_search": "pass \u2014 \u00a73 cites the mechanism it extends for every step: `imas_ink.extract_signal_traces` and `imas_ink.figures.time_trace_figure_mpl` (both present: `imas-ink/imas_ink/extract.py:815`, `imas-ink/imas_ink/figures.py:52`), the writer's `pulse_path` (`packages/imas-alambic/src/imas_alambic/pulse_writer.py:292`), and the two existing openers `_read_pulse_ids` (`scripts/figures_jt60sa_signals.py:38`) and `_read_ids` (`scripts/figures_jt60sa_geometry.py:45`); a search of imas-ink finds no existing IDS+path\u2192figure helper, so the composition is genuinely new.",
+    "thin_wrapper": "pass \u2014 the retained `_read_pulse_ids` is a three-line library call with a script-local justification already accepted in review, and the new function composes imas-ink calls rather than wrapping a single existing call; no wrapper is added without a stated reason."
+  },
+  "section_digests": {
+    "_document": "fef92cd446c002fb68543297d0aec84441c7616741d8eca7dc0589dce5f9a8fd",
+    "s1": "8cc1fc171352c18ac739b983fe55145c39f922e6a6e144dd81cf938653d2845d",
+    "s2": "5cd2e220fa19dd9a8a1baa6ff8250efe43b933bb5494443641b226a63799b420",
+    "s3": "b45f0a50fd0a7a65b9358624d8b43027da222ba5517d8c5ad008efa01af0c5f4"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T10:03:40.178351+00:00"
+}

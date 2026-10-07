@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T09:37:28.653Z",
+  "dispatched_at": "2026-10-06T09:20:03Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/clive.py",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a71 makes the launcher deliberately dependency-free, so a shared reader is impossible; the duplication is a consequence of that locked design, not a fork the author should undo.",
+      "text": "the generated launcher parses and validates the published endpoint document (its embedded Python reads `document_path` and checks each card's `ambix` metadata, clive.py:141-320) as a second reader of the schema owned by `imas_ambix/agent/registry.py:407 read_endpoint_document` / `PublishedEndpoint`, so the two can drift; the standalone launcher cannot import the owner because there is no repository or virtualenv on the consumer",
+      "type": "duplicate_owner",
+      "would_change": false
+    },
+    {
+      "anchor": "clive-launch-modes#s2",
+      "id": "interface_budget-1",
+      "reason": "the section must state in its own text what the new axis retires or why nothing can be, which is a one-sentence addition to \u00a72.",
+      "text": "\u00a72 adds the `--mode` CLI option (clive.py:117-123) and never names what existing surface it retires or merges, nor states why nothing can be; it only accounts for **why `--claude`/`--anthropic` were rejected as names**, which is a naming argument, not a surface-accounting one",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "a597d1c5a1f786a529525788c4c192f804ee4217193e3de0a53f414c18bb8526",
+  "plan_slug": "clive-launch-modes",
+  "plan_version": 24,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T091952002740-plan-review-of-clive-launch-modes",
+  "reviewed_blob_sha": "7af6a78e0154322c903423e7ee7c4db27f9dffa0",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the design adds no module; every mechanism lands in the one existing `generate_clive_script` surface, which already hides catalog fetch, release selection, alias mapping, picker settings and dispatch guidance behind that single entry point.",
+    "duplicate_owner": "a finding \u2014 the generated launcher re-reads and re-validates the endpoint document in its embedded Python (clive.py, the `document_path`\u2192JSON\u2192per-release extraction and `validate_catalog_item` path, clive.py:141-320), duplicating the schema owner `imas_ambix/agent/registry.py:407 read_endpoint_document`; but the duplication is forced by \u00a71's standalone-launcher constraint, so it does not change the plan.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a72 adds the `--mode` CLI option to the launcher and does not name what it retires or merges, or state why nothing can be.",
+    "reuse_search": "pass \u2014 the plan extends the existing generated-launcher module (`imas_ambix/agent/clive.py:44 generate_clive_script`) and reuses named harness mechanisms rather than building new ones: the alias-slot `ANTHROPIC_DEFAULT_<ALIAS>_MODEL` env vars for dispatch (clive.py:968-983), the harness picker-rows settings key via `--settings` (clive.py:608-647), and the session-scoped settings precedent via `--append-system-prompt` (clive.py:990/1056); \u00a73 measures both mechanisms against the live engine and cites the invalid-slot control as its evidence, and \u00a74 states routing \"already works, by \u00a73\".",
+    "thin_wrapper": "pass \u2014 the only layer the plan adds is the \u00a74 dispatch statement, and \u00a74 gives the justification the item asks for: the launcher is \"the only component that knows the mapping it just created\", so the statement belongs in the generator rather than in a second mechanism; it is injected through the harness's own `--append-system-prompt` (clive.py:990/1056) rather than through new machinery."
+  },
+  "section_digests": {
+    "_document": "3eac01d3a2d66a3465eede4030643fe3bf8af10d636cfe85676aff37aa7c472a",
+    "s1": "071c926115d25c46e09740c4ec678326684c32f3f9d87bbd9a70b59849d280c2",
+    "s2": "69a5f94267ef42817a8f3d421a7b36d6fe3dd687357b882cff21a08a59211cf0",
+    "s3": "36f2a33a8a2814b7e1d00935964adf4857f88779d6bbd43749d855a279f4601e",
+    "s4": "1f98d488d4709a7fb6d24d8413aab1c0da5c4674cd37fe618889c5e95c699bad",
+    "s5": "97d8807add5c118d97e364ea94558b96df64520835d5cd1e1a72d4644b8efef3",
+    "s6": "a66ceefb46f26bfd4a83f7b54526764f10ffea93c067af560310957477292c6d"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.845128+00:00"
+}

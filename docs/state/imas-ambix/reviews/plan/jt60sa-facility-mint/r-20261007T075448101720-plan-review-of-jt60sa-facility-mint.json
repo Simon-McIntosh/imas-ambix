@@ -1,0 +1,88 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T08:11:14.947Z",
+  "dispatched_at": "2026-10-07T07:55:01Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html#s14",
+      "id": "deep_module-1",
+      "reason": "the plan must state that a raise from `discover_bundles` fails the test while an empty match skips, and the negative control must include a malformed descriptor, or the guard silently reproduces the defect it fixes.",
+      "text": "\u00a714 specifies the guard helper \"decides absence from `discover_bundles()` alone: the guarded tests skip ... only when no reachable bundle carries jt-60sa\", but `discover_bundles` calls `load_bundle_descriptor` (packages/imas-alambic/src/imas_alambic/machine_map.py:276) and raises `MachineMapError` on a malformed descriptor, so a malformed bundle is a third outcome the rule does not name; read literally, a raise leaves the helper unable to report \"a reachable bundle carries jt-60sa\", which is the exact \"a duplicated or malformed bundle reads as absent\" defect \u00a714 exists to remove, and the \u00a714 negative control exercises only the two-bundle case (which `discover_bundles` returns normally, without a raise) so it cannot see this half",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html#s12",
+      "id": "duplicate_owner-1",
+      "reason": "the plan should say the refusal reads the name through the existing local-import of settings or drop the name from the message, so the variable keeps one owner.",
+      "text": "\u00a712's edit to amend `bundle_for_machine`'s refusal to \"also name `IMAS_ALAMBIC_MAP_PATH`\" (packages/imas-alambic/src/imas_alambic/machine_map.py:294) spells the variable name a second time, while the name's sole owner is `ENV_MAP_PATH` (packages/imas-alambic/src/imas_alambic/settings.py:42); machine_map cannot top-level import settings (settings imports machine_map), but it already uses a function-local import of settings at machine_map.py:224, so the owner can be reused there rather than the literal copied \u2014 this is the same class of finding this plan's own history recorded and acted on (`_BUNDLE_ENV_VAR` moved to settings.py) and the two spellings will drift",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "7893644fe63cc2001bdc0bf039e686729524d992d045b9d9798e15fe466c5b70",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 85,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "finding": "deep_module-1",
+      "reason": "",
+      "when": "2026-10-07T08:12:02.024536+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-07T08:12:05.662039+00:00"
+    }
+  ],
+  "responses": {
+    "deep_module-1": {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "reason": "",
+      "when": "2026-10-07T08:12:02.024536+00:00"
+    },
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "reason": "",
+      "when": "2026-10-07T08:12:05.662039+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-facility-mint.v85.json",
+  "review_run_id": "r-20261007T075448101720-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "9bcabf831c1e5e3288a662d70da3bc2eb27b322b",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 the guard helper `tests/jt60sa_bundle.py` is specified to \"decide absence from discover_bundles' result alone\", but that result is not the only outcome: `discover_bundles` can itself raise.",
+    "duplicate_owner": "a finding \u2014 \u00a712 puts the `IMAS_ALAMBIC_MAP_PATH` name into `machine_map.py`'s refusal, a second owner of the name that `settings.py` already owns.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a712 changes the wording of an existing refusal and extends the store-role set, adds no public definition, CLI option, MCP view or refusal family, and names what it retires (the `figures_jt60sa_signals.py` interim `JT60SA_IDS_DIR` fallback).",
+    "reuse_search": "pass \u2014 \u00a712 extends the existing bundle-role lookup `_cache_root_from_bundle` (packages/imas-alambic/src/imas_alambic/settings.py:153) and values the new `ids_root` role from the already-landed `paths.JT60SA_IDS_DIR` (imas_ambix/data/paths.py:46, added by 23c512c2), and \u00a714 cites the engine's `packages/imas-alambic/tests/test_eddb_local_transport.py` as the stand-in's existing home rather than inventing one.",
+    "thin_wrapper": "pass \u2014 \u00a712 extends the one store-role helper rather than adding a parallel lookup, and \u00a714 removes two duplicate test helpers rather than wrapping them."
+  },
+  "section_digests": {
+    "_document": "a7c012f690ba75ae8f24f139c45a5ffec81cddc345b42901fb0b88a90a1ed72d",
+    "s1": "9c7f16d6433487c622ba43b590d60de6ac6689995d01dfbcf8d4ab1d1d24f6c3",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "40878323aab9328585648d85591fd96dc6fcd4f5beedd01abbe2f0b3b1e8e508",
+    "s12": "2e5782abec91f68fbb9e5ee8f2a4697404c7100ed1a76221763eea28fe9272e2",
+    "s13": "2741a581fa4af709b92ea8db4a8330d65807a7a8665bbbfd9b84a09145be00ba",
+    "s14": "b885bf169e286d7441d935952c5cd5f2cbb5af76663e8d64f012e1149b961344",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "9ead79358bde61d9a2190b2c445b3f52e8225b211933e5df910e67d47b940cd3",
+    "s6": "1ccc061c74e3a3eab0fbd07825bc5bf11d8207248d01b1a9aecba35a37e20560",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "0d934ec479471ff9f711bc6e58ec9f2d0f07d4722593ff98c53426b2b509ecda",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T08:11:59.955899+00:00"
+}

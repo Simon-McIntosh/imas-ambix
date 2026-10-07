@@ -1,0 +1,34 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T05:55:17.864Z",
+  "dispatched_at": "2026-10-05T05:47:06Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/cli.py:2037",
+      "id": "interface_budget-1",
+      "reason": "the section must state whether the generator flag and the runtime flag are one interface or two, and name what (if anything) is retired or merged, since a plan adding CLI/refusal surface under a 0 budget must account for it in its own text.",
+      "text": "\u00a72 names one `--mode` surface (the launcher's) but the mode axis also adds `--mode` to the `agent clive` generator command at cli.py:2036-2044, a second CLI option of the same name that the plan text never mentions, so the added interface surface is larger than the section accounts for",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "2d7f94fae2fa519cde88152575bdc365ffce6805b64ed6a4c119dc17390bd82b",
+  "plan_slug": "clive-launch-modes",
+  "plan_version": 24,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T054702172375-plan-review-of-clive-launch-modes",
+  "reviewed_blob_sha": "7af6a78e0154322c903423e7ee7c4db27f9dffa0",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 one `--mode` axis (clive.py:47-58) hides substantial behaviour behind a two-value interface: alias-to-model mapping, curated picker-row generation, per-slot capability declarations, session guidance injection, and the hybrid proxy install all switch on that one argument, so the interface is smaller than what it hides.",
+    "duplicate_owner": "pass \u2014 no second owner of the mechanisms the plan touches exists in imas_ambix: a repo-wide search for `SUPPORTED_CAPABILITIES`/`modelPicker`/`behavesAs` outside clive.py returns only its own tests, and endpoint-document reading is owned by imas_ambix/agent/registry.py on the publisher side while the launcher consumes it as an external HTTP client, which is a distinct role rather than a fork.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0 (supplied 2026-10-05T05:47:02Z); \u00a72 adds a `--mode` CLI option and an unrecognised-value refusal family and names no existing surface it retires or merges, and it does not account for the companion `--mode` that the generator command `imas-ambix agent clive` gains at cli.py:2036-2044.",
+    "reuse_search": "pass \u2014 \u00a73 measures and cites the two mechanisms it extends (the harness alias slots `ANTHROPIC_DEFAULT_<ALIAS>_MODEL` and the curated-options settings key with `replaceBuiltInOptions`), and \u00a74 cites the coordinator skill's existing local-backend dispatch path and reuses it rather than rebuilding routing; the launcher already fetches the catalog the rows derive from (clive.py:238, clive.py:507), so no existing mechanism is re-created.",
+    "thin_wrapper": "pass \u2014 \u00a74 justifies injecting the dispatch statement into the launcher rather than a parallel carrier (\"the only component that knows the mapping it just created\") and reuses the existing `--worker-profile` settings/`--append-system-prompt` precedent (clive.py:764-774, clive.py:990) instead of adding a second session-settings mechanism."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.850115+00:00"
+}

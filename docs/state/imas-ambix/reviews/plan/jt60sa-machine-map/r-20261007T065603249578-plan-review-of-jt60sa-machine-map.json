@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T07:10:32.835Z",
+  "dispatched_at": "2026-10-07T06:56:39Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:843",
+      "id": "reuse_search-1",
+      "reason": "the node must add EQRV and EQEFIT to the leads it follows, or state why neither can carry psi and q.",
+      "text": "the equilibrium-source lead list names EQDB, LOCALDB, LCDB, MBDB (:843-844) and FBEQU/SELENE-offline/TOPICS/TOSCA (:847-848) but omits EQRV and EQEFIT, the two MSE-based MHD equilibrium databases the same codex evidence (the site's SLICE page) names alongside FAME DB and EQDB, describing EQRV as public and more accurate than EQDB; for a node whose whole purpose is to find a reachable OP1 equilibrium carrying psi and q, omitting two of the site's four named equilibrium databases \u2014 including the public one \u2014 leaves the census incomplete",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:849",
+      "id": "duplicate_owner-1",
+      "reason": "the section should name the one node that now owns the equilibrium-source search and update the :693 cross-reference to it.",
+      "text": "the changed text makes `jtmm-equilibrium-source-leads` the node that searches for a source of psi and q, while :693 still states \"the q-handedness product stays unmeasured until `jtmm-jt60sa-host-survey` finds a source of psi and q\", so ownership of unblocking the q-handedness product is split across two nodes, one of which has already landed without finding a source",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "3ce921dc0cdcf038c32328c326d87bfb0b5b3cb1a43944fdc1548490d6bdea84",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 314,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-1",
+      "reason": "",
+      "when": "2026-10-07T07:12:11.092783+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-07T07:12:41.358562+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T07:12:41.358562+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T07:12:11.092783+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v314.json",
+  "review_run_id": "r-20261007T065603249578-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "21c999275a8ac31f6ddd73da3a9bfdb02b262b0f",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the changed unit is a read-only reconnaissance node that writes one evidence fragment and adds no module, so nothing is hidden behind a spread of wrappers here.",
+    "duplicate_owner": "a finding \u2014 the q-handedness unblock is attributed to two different nodes: `jtmm-jt60sa-host-survey` at :693 and `jtmm-equilibrium-source-leads` at :849.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the changed unit adds no public definition, CLI option, MCP view or refusal family, so it has nothing to retire or merge.",
+    "reuse_search": "a finding \u2014 \u00a76's new `jtmm-equilibrium-source-leads` node enumerates the equilibrium leads \"the codex graph names\" (:843-848) but omits the site's MSE-based equilibrium databases EQRV and EQEFIT, which the same codex evidence names.",
+    "thin_wrapper": "pass \u2014 the node wraps no existing machinery; it reads the FAME q scalars through the existing `fetch_channels` extractor (packages/imas-alambic/src/imas_alambic/eddb.py:336) rather than a new reader."
+  },
+  "section_digests": {
+    "_document": "b36d56f06d61633d010f251c3d548d508612369b90ced40d900bc45f896bc45f",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "fed2d10f575ee92e122e155a9d627de61bed12ca0a570a4ed423a0312c1ea372",
+    "s7": "4573c34405fedda5131f5fc665abd5a81c8e668baf4ea9941f0f9c2bd2df9f7c",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T07:11:43.921447+00:00"
+}

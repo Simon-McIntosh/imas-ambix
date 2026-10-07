@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T08:30:56.357Z",
+  "dispatched_at": "2026-10-05T08:24:54Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/live_panel.py:395",
+      "id": "duplicate_owner-1",
+      "reason": "both passages that define the live window's run must defer to the owner's key verbatim, or a future edit to `counter_run_continues` silently desyncs the panel from the store a third time.",
+      "text": "the `live` block decides \"one run\" as a contract distinct from the store's: it checks the job-id set and per-counter monotonicity (`_monotonic`, live_panel.py:243) but never the host or boot, while the owner `counter_run_continues` (telemetry_index.py:694) ends a run on any change to the key `(host, boot_id, job_id)`. The plan makes this worse rather than better: \u00a711's design paragraph (plan.html:675) says \"the same job, and no counter below its predecessor\", and \u00a712's read-back addendum (plan.html:729) restates `counter_run_continues` itself as \"a run continues while its job is unchanged and no counter falls\" \u2014 both of which drop the host and boot the named function actually keys. A serve that rolls to another host or reboots within the 45 s window therefore reads as one run in the live panel and as two in the index, which is exactly the drift \u00a78 (\"a run is defined twice \u2026 free to drift\") was repaired to prevent.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/lane.py:1 (\u00a714 of the plan)",
+      "id": "interface_budget-1",
+      "reason": "the addition is a single derived percentage, it merges cleanly into the lane document's existing published fields, and it is already landed, so accounting for it changes no further node.",
+      "text": "the section introduces `lane.availability_percent` as a new public definition and publishes it top-level in `lane.json`, but its own text names neither a definition this retires or merges nor a reason nothing can be, against the one-rule requirement for any section adding surface.",
+      "type": "interface_budget",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "9d01e3a2fb2f543c999b45d1887aa0a3804badffb4adbd96db3221fdb0fbab65",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 208,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T082448555254-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "e5087641540b000ee861a8ed349a91e38a768196",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a711's `live_panel.py` hides the lane-document digest and the receipt-tail differencing behind `lane_block` (live_panel.py:430), `live_block` (live_panel.py:347) and `live_panel` (live_panel.py:503), and \u00a712's `provider_prices.py` hides fetch, age, atomic write and one-time migration behind one module; both are smaller interfaces than what they hide.",
+    "duplicate_owner": "a finding \u2014 the live window's run boundary is implemented a second time in `live_panel.py` instead of importing its owner, `counter_run_continues` in `imas_ambix/agent/telemetry_index.py:694`.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a711 accounts for its added `--live` option and its two published blocks (it states why nothing retires \u2014 the readers it replaces live in the dotfiles repo \u2014 and why `--live` cannot merge into `--json`), but \u00a714 lands `lane.availability_percent`, a new PUBLIC definition, without naming what it retires or merges or stating why nothing can be.",
+    "reuse_search": "pass \u2014 the plan cites the mechanism it extends at each proposal (counter_span, _prefix_hit_rate, ledger_cost/match_price/price_at, SiteConfig, lane.py, serving_receipts.tier_paths, telemetry_index.counter_run_continues, telemetry_retention.compare_tiers), and the outstanding sections name the index mechanism (\u00a713) and the panel's own pct() helper (\u00a715) they build on rather than proposing new machinery.",
+    "thin_wrapper": "pass \u2014 the only wrapper the plan adds is \u00a79's single estimate-record reader in `watch.py`, which carries validation (`estimated_cost` refuses an unpriceable rate) and is justified in-text as the one reader gpu-watch will inherit through (`\u00a79`: \"never a constant repeated inside two tools\"), so it is not a pass-through over machinery that could simply be extended."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.951246+00:00"
+}

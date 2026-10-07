@@ -1,0 +1,62 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T11:13:48.375Z",
+  "dispatched_at": "2026-10-07T11:05:33Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:640",
+      "id": "anchors_resolve-1",
+      "reason": "it is a stale path of exactly the class v328 repaired elsewhere (\u00a71 at line 77, \u00a76 at line 754); correcting it to the bundle's maps/<system>.json removes a contradiction a later reader would otherwise trust, and every node that touches the map is already routed through the bundle's staged copies.",
+      "text": "\u00a76 says JT-60SA's pulse channels \"are the \u00a75 signal-map rules under `imas_ambix/data/maps/jt-60sa/`\", but that directory does not exist (imas_ambix/data/maps holds only `mast/`; the maps live only in the /work bundle at /work/projects/imas_gpu/jt60sa/maps since jt60sa-facility-mint \u00a71, which \u00a76 records at plan.html:585-588), and the same section's earlier sentences state the maps moved to that bundle (plan.html:569-588) \u2014 so this sentence contradicts the plan's own migration statement and a node authoring or reading the rules against the stated repository path would look where nothing is.",
+      "type": "anchors_resolve",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "5b2a58c145e087d373de97ca07505b83c4ff4ba3443c663d97ceb111d05a7d8f",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 328,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "anchors_resolve-1",
+      "reason": "deferred to the next authored batch, the last stale authored path in the plan (a census found no other); the FAME nodes dispatched now name the staged bundle copy in their done-when, so neither reads this sentence for a location",
+      "when": "2026-10-07T11:14:23.329387+00:00"
+    }
+  ],
+  "responses": {
+    "anchors_resolve-1": {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "deferred to the next authored batch, the last stale authored path in the plan (a census found no other); the FAME nodes dispatched now name the staged bundle copy in their done-when, so neither reads this sentence for a location",
+      "when": "2026-10-07T11:14:23.329387+00:00"
+    }
+  },
+  "review_run_id": "r-20261007T110454880710-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "e4f2a77ddd7116c90d4635bb9b0728dc51223e6f",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 plan.html:640 names a signal-map directory that does not exist and that \u00a76's own migration text retires.",
+    "done_when": "pass \u2014 \u00a76's done-when (plan.html:930-937) is a sign report that must name every channel left unvalidated with its reason, so it can fail, and the unit audit asserts each derived factor against one hand-computed value per unit pair, an independent control; the adjudication rule's synthetic-channel and dI/dt-exclusion tests give the per-node controls.",
+    "evidence_paths": "pass \u2014 s6's fragments resolve under docs/evidence/fragments/jt60sa-machine-map/*.html and the staged map copies under the reports directory; nothing writes a gate log to a session scratchpad or node-local temp.",
+    "naming": "pass \u2014 no plan label, stage name, ticket number or version tag reaches a cited symbol or path; node ids stay in the narrative.",
+    "reasoning": "pass \u2014 the stated root cause matches the cited numbers (loop 7's slope of \u221214 is the 13.725 missing turn factor, plan.html:481; the free per-coil fits at r 0.98-1.00 are the evidence that the defect is in the operator's response, not the sensors), each mechanism produces its measure on the real path (scripts/vacuum_loop_adjudication.py, which is present and drives read_geometry_table and assemble_pf_currents that exist at imas_ambix/data/selene_deck.py:922, imas_ambix/data/description_reader.py:219 and imas_ambix/gs/operator.py:594), and the callers the plan relies on are named (read_signal_map_observation at imas_ambix/data/cocos_convention.py:804, and its signature matches plan.html:644, floors 50/10 kA inclusive).",
+    "single_goal": "pass \u2014 \u00a76 carries one section goal (prove the conventions). Within s6 every following node names one deliverable (one census, one RCA, one rule-application, one author, one store).",
+    "wiring": "pass \u2014 the \u00a76 sign report is gated by conventions-before-equilibrium (plan.html:1277, gated-sections s7) and every decision s6 cites (vacuum-verdict-rule, jt60sa-differential-flux-loops, jt60sa-psi-q-source, signal-rule-validation-state) carries data-sections s6; no depends-on is missing or mispointed."
+  },
+  "section_digests": {
+    "_document": "8729894fdb582f89b2fd2b176be2e7795ca1a63df99af3f9377105f653509ec9",
+    "s1": "52731ac311aa8ac6ed57dc5f58a5868e5f9e2e34b4e132f297830fa912abbc0f",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "2f62887f0484c956181d281f10c59e905919a77b24e12787919d8dbfe13dc588",
+    "s7": "2a54c3f8179c9119cfaec1d903100bfe7d9248bfd2988667997914b1c789dde9",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:14:23.288543+00:00"
+}

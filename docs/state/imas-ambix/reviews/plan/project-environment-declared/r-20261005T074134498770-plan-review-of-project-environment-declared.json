@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T07:46:03.656Z",
+  "dispatched_at": "2026-10-05T07:41:39Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/project-environment-declared.html:85",
+      "id": "reuse_search-1",
+      "reason": "the section must name where the scanner lives and be committed (extending the `scripts/` audit pattern, and citing `tests/physics/test_dependency_contract.py` as the existing declaration-check owner), so the census is reproducible rather than a one-off.",
+      "text": "the \u00a72 census is a substantial static-import scanner (AST walk over `imas_ambix/`/`tests/`/`scripts/`, module\u2192distribution mapping via `importlib.metadata.packages_distributions`, per-distribution classification) that proposes to \"change no other file\", yet the repository already carries the precedent for such a scanner \u2014 `scripts/circular_assertion_audit.py` walks every `.py` under a tree, parses with `ast`, resolves imports, and ships a companion `.toml` config \u2014 and its own done-when declares the artifact durable (an evidence fragment) while the tool that produced it is uncommitted and its home unnamed. A measurement nothing can re-run leaves the census unreviewable and \u00a74's \"compare this sync's removal list with the census\" resting on a process that no longer exists",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/project-environment-declared.html:76",
+      "id": "duplicate_owner-1",
+      "reason": "the \"default\" definition must be aligned with the mandated-tooling owner (or \u00a73 must name `pytest-timeout`/`pytest-xdist` in the dev group explicitly), otherwise a plain `uv sync` still does not yield the working stack.",
+      "text": "\u00a72 defines \"default\" to include the test runner \"and its plugins named in the pytest configuration\"; inspected, `[tool.pytest.ini_options]` in `pyproject.toml` names no plugins (`addopts = \"-ra --strict-markers\"` only), and no module under `imas_ambix/` or `tests/` imports `pytest_timeout` or `pytest_xdist`, while the workstation's binding environment rules (`~/.agents/AGENTS.md`, Test Execution Protocol) require a per-test bound and prefer `pytest-xdist`. Under \u00a72's own rule both plugins classify as *unused*, so the plan would relock the project and still leave the fleet's mandated test tooling undeclared \u2014 re-creating the exact debt \u00a71 retires. The environment-policy owner is the document that names what tooling default sessions require; the census rule should extend that owner rather than invent a parallel one from the intrinsic pytest config alone",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "4ca09e4b93614db4530a270abb724d22afa62d1a73e0bcaf4a24a32dd627bed9",
+  "plan_slug": "project-environment-declared",
+  "plan_version": 1,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T074134498770-plan-review-of-project-environment-declared",
+  "reviewed_blob_sha": "25b7db819167e0dd1182cc4d6bfa3745f60051ec",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the plan adds no module and abstracts nothing; it edits `pyproject.toml` and relocks, which is correctly thin for a declaration change.",
+    "duplicate_owner": "a finding \u2014 \u00a72's \"default library\" definition duplicates the environment-policy owner and diverges from it: the rule counts only \"pytest and its plugins named in the pytest configuration\", which names none, so the toolkit the fleet's own rules mandate (`pytest-timeout`, `pytest-xdist`) classifies as unused.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the plan adds no public definition, CLI option, MCP view or refusal family (one evidence HTML is not a definition family), so nothing needs retiring or merging.",
+    "reuse_search": "a finding \u2014 \u00a72 proposes a new static import-census scanner without citing the repository's existing AST source-scanning audit (`scripts/circular_assertion_audit.py`) or its existing declaration-contract test (`tests/physics/test_dependency_contract.py`), and leaves the scanner's home undefined.",
+    "thin_wrapper": "pass \u2014 no wrapper over existing machinery is proposed; \u00a73 edits the owner of the declaration (`pyproject.toml`) directly rather than layering beside it."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.928417+00:00"
+}

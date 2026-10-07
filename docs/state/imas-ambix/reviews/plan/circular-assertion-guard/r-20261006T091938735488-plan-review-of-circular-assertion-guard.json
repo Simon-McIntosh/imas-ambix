@@ -1,0 +1,48 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T09:34:54.747Z",
+  "dispatched_at": "2026-10-06T09:19:47Z",
+  "findings": [
+    {
+      "anchor": "tests/test_declared_dependencies.py:230",
+      "id": "duplicate_owner-1",
+      "reason": "the honest change is to extract the shared test-tree scanner the way `tests/distribution_sources.py` was already extracted for two consumers, and extend it, rather than add a parallel copy that will drift from the census tests.",
+      "text": "the \u00a72 guard adds a sixth repo-wide test-tree AST scanner where one is already owned: `_imported_names` (scripts/circular_assertion_audit.py:160) and the `rglob(\"*.py\")`+`ast.parse` loop (scripts/circular_assertion_audit.py:330-339) duplicate `iter_imports()` (tests/test_declared_dependencies.py:230) and `local_top_level_names()` (:213), which already resolve `Import`/`ImportFrom` across the scanned trees; `_target_names` (scripts/circular_assertion_audit.py:176-185) is a byte-for-byte copy of `_target_names` at tests/test_agent_bench_shared_reader.py:133-142; and the same `rglob(\"*.py\")`+`ast.parse` census recurs at tests/test_agent_bench_shared_reader.py:233, tests/data/test_description_reader.py:66-71, tests/test_serving_interpreter_parse.py:51-52 and tests/test_agent_serve_registry.py:38-39. The plan cites `declared_dependencies`/`iter_imports` 0 times.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/circular-assertion-guard.html#s2",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the added CLI/definition surface in its text, and the natural accounting is that the two options and the module should fold into the one shared test-tree scanner rather than a second script.",
+      "text": "\u00a72 introduces a new `python -m scripts.circular_assertion_audit` entry point, the CLI options `--root` and `--allowlist` (scripts/circular_assertion_audit.py:364-382) and public definitions `Finding`, `AllowlistEntry`, `scan`, `load_allowlist`, and `AuditError`, without stating what it retires or merges or why nothing can be; the section's own text speaks only of the AST pass and the allowlist.",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "abcae9ebf23b3b2f675f92c9549135e810d415df3acdd334b292fd6732b42f10",
+  "plan_slug": "circular-assertion-guard",
+  "plan_version": 7,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T091938735488-plan-review-of-circular-assertion-guard",
+  "reviewed_blob_sha": "2dca5f27a45024d1301a82f1aa1d3af3b70c499a",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 `scripts/circular_assertion_audit.py` hides the equality-chain classification, the local-binding/anchored-name resolution and the allowlist schema behind `scan()`/`load_allowlist()`/`main()`, a three-entry surface over ~12 private helpers.",
+    "duplicate_owner": "a finding \u2014 the plan re-implements the repository's existing Python test-tree scanner and its name-binding helpers instead of extending the owner `tests/test_declared_dependencies.py` (`iter_imports`, `local_top_level_names`), which already walks `rglob(\"*.py\")` + `ast.parse` + `Import`/`ImportFrom`.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a72 adds a new module entry point, the CLI options `--root`/`--allowlist`, and five public definitions, and its text names neither what it retires or merges nor why nothing can be.",
+    "reuse_search": "pass \u2014 the plan carries a reuse map for \u00a72 (`c-run-r-20260923T131758378540-cag-reuse-map`) that names import resolution and the passed-root scan as reusable and the comparator walk as new; the search was done, though its \"reusable\" verdict was not acted on (see duplicate_owner).",
+    "thin_wrapper": "pass \u2014 the plan adds new classification behaviour (the comparator walk is genuinely new); it is not a thin layer over existing machinery whose extension it should have justified."
+  },
+  "section_digests": {
+    "_document": "2e04ad837bf79a0213fe4bcb6e8d3f9c0d40102432de1fee8a2f89a1bcb81aa1",
+    "s1": "7d718f7d8c16fd1ef9d4be7f3f56c939cc9798dc13a6fd974f59b8d874b48c2f",
+    "s2": "a461afb708a92f35032218c0913e25fa18cb0aba000dca1f37b6401fc1cddf81",
+    "s3": "79a2130cd06eeaae64b9ef1ac83ae136383e1dd9623f2d2700e7f7e7ce1fded6",
+    "s4": "0d82ecae3446f67e7d616a860df80123d3287264522361707abc51607406f1fc"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.836153+00:00"
+}

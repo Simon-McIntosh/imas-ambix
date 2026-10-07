@@ -1,0 +1,32 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T10:22:23.916Z",
+  "dispatched_at": "2026-10-07T10:04:56Z",
+  "findings": [],
+  "plan_fingerprint": "2d88b61b2b6a35a25a1756760200c5a18fa7ce8337fee47d78cdb0439be33e82",
+  "plan_slug": "jt60sa-signal-figures-from-ids",
+  "plan_version": 30,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261007T100445310527-plan-review-of-jt60sa-signal-figures-from-ids",
+  "reviewed_blob_sha": "5084b0dc0c72a0d9de364bd05d33c8e95be2f37d",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `scripts/figures_jt60sa_signals.py`, `_pulse_figure`, `require_setting(\"ids_root\", \u2026)`, `extract_signal_traces`, `time_trace_figure_mpl` all exist; the cited run files `/work/projects/imas_gpu/jt60sa/ids/101154_0.nc` and `101031_0.nc` both exist (verified on disk); DD `magnetics/flux_loop/indices_differential` (INT_1D) resolves; decision `jt60sa-differential-flux-loops` resolves in `jt60sa-machine-map.html` and its text supports \u00a72's [7, L] / \u03c8_L \u2212 \u03c8_7 and the loops 12\u201327 sign-flip claim. The earlier reasoning-1 finding (caption inside the SVG) is answered by moving the caption to the evidence fragment HTML.",
+    "done_when": "pass \u2014 \u00a72 names a measurable done-when (four new SVGs; 27 panels FL1\u2013FL27; 17 panels MP1\u2013MP17; units as the IDS states; both coil-current SVGs byte-identical; an element-for-element equality check on FL1/FL7/MP1 of E101154; ruff) and a negative control that can fail (negating FL1's trace makes the equality check fail on FL1). The earlier done_when-1 finding is answered.",
+    "evidence_paths": "pass \u2014 the durable artifacts are named on durable paths (`docs/figures/jt60sa-signals/*.svg`, the node's evidence fragment under `docs/evidence/fragments/jt60sa-signal-figures-from-ids/`); the gate and negative-control logs inherit the run directory the dispatch contract fixes, not a scratchpad.",
+    "naming": "pass \u2014 no plan labels, stage names or ticket numbers appear in the new symbols; `FL1`\u2013`FL27`/`MP1`\u2013`MP17` are physics IDs verified present as `magnetics` element names, and `indices_differential`/type-6 are data-dictionary terms.",
+    "reasoning": "pass \u2014 the stated facts match the evidence (verified `magnetics` of `101154_0.nc`: `homogeneous_time` 0, 27 filled flux loops named FL1\u2013FL27, 17 filled probes named MP1\u2013MP17, units Wb and T), the machine-map RCA (\"the raw loops other than loop 7 are differences\") supports the caption claim, the mechanism (two more `_pulse_figure` calls in the script's `_main`) produces the done-when, and the guarded code path is the script's entry point with `_pulse_figure` as the named caller.",
+    "single_goal": "pass \u2014 \u00a72 carries one deliverable: the flux-loop and probe figures for E101154 and E101031, drawn as measured.",
+    "wiring": "pass \u2014 plan-depends-on `imas-ink:ids-signal-traces` resolves and its cited section anchor `#s1` exists; plan-informs `jt60sa-machine-map` resolves; the \u00a72 forward-redraw dependency on the machine-map decision is a named plan relationship, and \u00a72 no longer waits on it (lead ruled plotted as measured), so no missing dependency."
+  },
+  "section_digests": {
+    "_document": "fef92cd446c002fb68543297d0aec84441c7616741d8eca7dc0589dce5f9a8fd",
+    "s1": "8cc1fc171352c18ac739b983fe55145c39f922e6a6e144dd81cf938653d2845d",
+    "s2": "e1109230875743f286ae18271caba1378500e034967f52c11ef28939239ec1d2",
+    "s3": "d094bd911e0ef5845f9b6fa508f0370125201199f3a3f5078285339b7bd30a8a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T10:23:44.803553+00:00"
+}

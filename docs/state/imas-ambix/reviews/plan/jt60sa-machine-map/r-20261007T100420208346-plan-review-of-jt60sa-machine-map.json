@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T10:24:36.668Z",
+  "dispatched_at": "2026-10-07T10:04:58Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:911",
+      "id": "reuse_search-1",
+      "reason": "the plan must name the reader it reuses or extends (or state that a new G-EQDSK reader with a conversion receipt is the addition, and account its surface), exactly as \u00a76 does for the SELENE deck conversion.",
+      "text": "\u00a77 names E101011's G-EQDSK (`/home/d240034/fbequ/EFIT95.DATA`, plan lines 911\u2013916 and decision `jt60sa-psi-q-source` at 1375) as the section's one psi grid and q profile, but names no reader or converter for a G-EQDSK anywhere: every other source in the plan has one (PSRC and the FAME scalars through `fetch_channels`/the existing channel extractor, the raw/equilibrium halves through `read_signal_map_observation`, MAST through `load_shot`), and no codebase named by the plan carries a reusable reader \u2014 `imas_ambix` and `packages/imas-alambic` hold none, and imas-efit's only G-EQDSK reader is the plotting-class method `utilities/plot/efitData.py:398 _read_eqdsk`, gated on the optional `pyEquilibrium` package, which the plan neither cites nor declines. The psi binding into `equilibrium/time_slice/profiles_2d` and the benchmark reference loader's psi reduction both depend on this source, so the section's headline deliverable rests on an unowned read",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:918",
+      "id": "interface_budget-1",
+      "reason": "the section claims a single interface change while its one new source implies a second, and the budget line cannot be reconciled until the reader is named and accounted.",
+      "text": "\u00a77 states \"The section's interface change is the pin table below, which retires three public constants and their re-export\", and separately accounts the frozen-shot-set table (\"the one public addition in this section\", line 993) and the two record fields (line 1092), but the psi/q reference at lines 911\u2013916 requires a G-EQDSK reader that the section does not name \u2014 so a public definition is added (or required) with no retirement, merge, or statement of why nothing can be, against a week whose public_definitions is 0; the honest accounting is either that the reader is the section's addition and it retires something, or that it extends an existing reader",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "d1037c486e7c12319b99633ab346326de13686f4b7a4e91fa518d3e7afb2bf4a",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 320,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-1",
+      "reason": "",
+      "when": "2026-10-07T10:26:28.349429+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "interface_budget-1",
+      "reason": "",
+      "when": "2026-10-07T10:26:56.530808+00:00"
+    }
+  ],
+  "responses": {
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T10:26:56.530808+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T10:26:28.349429+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v320.json",
+  "review_run_id": "r-20261007T100420208346-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "1282749e579fa9dcfdd8a5deebc893fe695654a5",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a76 splits the convention computation into a private kernel behind the two existing readers, and \u00a77 extends the `efit_referee` seam and `build_geometry_from_arrays` rather than adding a comparator, so complexity sits behind interfaces smaller than what they hide.",
+    "duplicate_owner": "pass \u2014 each shared mechanism the changed units touch names its owner and is extended in place: the pin table in `imas_ambix/gs/artifact_resolution.py`, the registry in `imas_ambix/gs/machine_identity.py` `default_registry`, the frozen shot set in `imas_ambix/spine_bench/shots.py`, the boundary reduction in `imas_ambix/worldmodel/equilibrium_labels.py` `build_geometry_from_arrays`, and the one SELENE read in \u00a76's loader.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a77 declares \"the section's interface change is the pin table\" while its psi/q reference requires a G-EQDSK reader, a new public definition the section neither retires, merges, nor explains.",
+    "reuse_search": "a finding \u2014 \u00a77's one psi/q source (E101011's G-EQDSK) names no reader or converter, while every other source names its owner; no prior-art search for a G-EQDSK reader is cited.",
+    "thin_wrapper": "pass \u2014 the one adapter \u00a77 adds (the SELENE reference loader) forwards to `build_geometry_from_arrays` and \u00a76's SELENE loader with a stated reason it cannot read SELENE itself, so it is a justified seam-extension, not a bare forwarding layer over its own machinery."
+  },
+  "section_digests": {
+    "_document": "4860703ca060fdf3aa2d75572a7102a402f63d722038524b9aad5ade664dc6ed",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "87c194aa95ec57a7796f4ab8c2d5620698d1c31e041c86534e34ef0655376c56",
+    "s7": "34ee679a21339070f5e1c0c9902953e7ae7a43993f93936b3e95f7082e679d0c",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T10:26:01.247420+00:00"
+}

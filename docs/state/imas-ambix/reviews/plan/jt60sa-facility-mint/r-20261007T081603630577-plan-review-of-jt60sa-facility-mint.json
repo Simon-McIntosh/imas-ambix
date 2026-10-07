@@ -1,0 +1,109 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T08:30:17.085Z",
+  "dispatched_at": "2026-10-07T08:16:16Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html#s14",
+      "id": "deep_module-1",
+      "reason": "",
+      "text": "\u2014 the helper's rule (\"the guarded tests skip ... only when no reachable bundle carries jt-60sa. Every other outcome fails the test\") is exercised in the done-when with `IMAS_ALAMBIC_MAP_PATH` naming an empty directory, but an empty directory holds no `bundle.json`, so `discover_bundles()` raises `cannot read bundle descriptor .../bundle.json` \u2014 the same descriptor refusal \u00a714's own negative control expects to FAIL on. The absent state the helper's skip arm relies on therefore cannot be produced by the fixture the section names, and \u00a712's done-when #4 has the identical defect, expecting `load_packaged_machine_map(\"jt-60sa\")` to raise the machine refusal (naming `IMAS_ALAMBIC_MAP_PATH`) from the same empty-directory fixture. Reproduced: `IMAS_ALAMBIC_MAP_PATH=<empty tmpdir> python -c \"from imas_alambic.machine_map import discover_bundles; discover_bundles()\"` raises `MachineMapError: cannot read bundle descriptor /tmp/.../bundle.json: [Errno 2] No such file or directory`, and `bundle_for_machine(\"jt-60sa\")` under the same variable raises the same descriptor refusal, never `no bundle carries machine 'jt-60sa'`. WOULD_CHANGE_THE_PLAN: yes \u2014 REASON: \u00a712 done-when 4 and \u00a714 done-when 2 and its negative control must produce absence with a valid descriptor that carries no jt-60sa machine (or `discover_bundles` must skip a directory that is not a bundle), because as written the skip arm and the fail arm observe the same event.",
+      "type": "deep_module",
+      "would_change": null
+    },
+    {
+      "anchor": "tests/data/test_transform_engine.py:46",
+      "id": "deep_module-2",
+      "reason": "",
+      "text": "\u2014 \u00a714 lists nine guards as one defect, but two of them do not guard jt-60sa: `needs_bundle_discovery` (test_transform_engine.py:44-51, decorating MAST and synthetic-catalog tests at :296, :425, :441, :489, :662, :704, :721) and `_skip_no_tables` (tests/gs/test_operator.py:533-545, guarding the MAST campaign-table tests at :578, :594, :614, :632, :704) fire on whether ANY bundle is discoverable, not on whether jt-60sa is carried. Replacing them with the section's jt-60sa-specific helper (\"skip only when no reachable bundle carries jt-60sa\") makes those MAST tests SKIP whenever the private jt-60sa bundle is absent \u2014 which is every run in this checkout and CI (ambix's registered bundle carries only mast and diii-d). WOULD_CHANGE_THE_PLAN: yes \u2014 REASON: the helper must take the machine as a parameter (or these two sites must keep a machine-agnostic \"some bundle is discoverable\" guard), otherwise a working MAST test is silently disabled rather than the malformed-bundle defect being closed.",
+      "type": "deep_module",
+      "would_change": null
+    },
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html#s14",
+      "id": "reuse_search-1",
+      "reason": "",
+      "text": "\u2014 the section consolidates the EDDB stand-in onto the engine side and says only that \"the ambix test reaches it through a mechanism pytest supports. The worker chooses that mechanism and records why\", citing no existing mechanism and settling none; the repo has no such path today (no `pytest_plugins` anywhere, `packages/imas-alambic/tests` is not an importable package, and the engine's wheel builds only `src/imas_alambic`). WOULD_CHANGE_THE_PLAN: yes \u2014 REASON: naming the mechanism changes the plan, and the choice is not free \u2014 a pytest-plugin entry point in imas-alambic's packaging (a common fix) would put test support into the slim public wheel that \u00a72 and \u00a711 keep free of everything but the engine.",
+      "type": "reuse_search",
+      "would_change": null
+    }
+  ],
+  "plan_fingerprint": "bb56292096ffb023fd05dad0dfe0ee5e7478754061c19a48290ecdde5424ee19",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 86,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "finding": "deep_module-1",
+      "reason": "",
+      "when": "2026-10-07T08:31:27.947712+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "finding": "deep_module-2",
+      "reason": "",
+      "when": "2026-10-07T08:31:31.243366+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "finding": "reuse_search-1",
+      "reason": "",
+      "when": "2026-10-07T08:31:34.342081+00:00"
+    }
+  ],
+  "responses": {
+    "deep_module-1": {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "reason": "",
+      "when": "2026-10-07T08:31:27.947712+00:00"
+    },
+    "deep_module-2": {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "reason": "",
+      "when": "2026-10-07T08:31:31.243366+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "reason": "",
+      "when": "2026-10-07T08:31:34.342081+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-facility-mint.v86.json",
+  "review_run_id": "r-20261007T081603630577-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "2cf50139fbefaca50f738ff4e51ac73a9561a649",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 \u00a714's single guard helper carries a jt-60sa-specific decision to two guards that check only that any bundle is discoverable, and its absent-vs-malformed boundary is exercised in the done-when with a fixture (an empty directory) that raises the same descriptor refusal as the malformed case.",
+    "duplicate_owner": "pass \u2014 the plan names the owner to extend at each site (engine-side `packages/imas-alambic/tests/test_eddb_local_transport.py` for the EDDB stand-in, `tests/jt60sa_bundle.py` as the single guard owner). A census of the repo agrees with the plan's counts: exactly two `STANDIN_WRAPPER` definitions and ten `except .*MachineMapError` sites.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a712 adds no public name (it generalizes a private helper and amends an existing refusal) and \u00a714 adds only test support, and each section names what it retires or merges (the figures-script fallback; the nine guards and the copied stand-in).",
+    "reuse_search": "a finding \u2014 \u00a714 consolidates the EDDB stand-in on the engine side and leaves the cross-tree sharing mechanism to the worker, without citing any existing mechanism to reuse; the repo has none between tests/ and packages/imas-alambic/tests/.",
+    "thin_wrapper": "pass \u2014 \u00a712 extends the existing `_cache_root_from_bundle` helper and both settings call it, and \u00a714 consolidates owners (nine guards, a copied stand-in) rather than adding a parallel forwarding layer."
+  },
+  "section_digests": {
+    "_document": "a7c012f690ba75ae8f24f139c45a5ffec81cddc345b42901fb0b88a90a1ed72d",
+    "s1": "9c7f16d6433487c622ba43b590d60de6ac6689995d01dfbcf8d4ab1d1d24f6c3",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "40878323aab9328585648d85591fd96dc6fcd4f5beedd01abbe2f0b3b1e8e508",
+    "s12": "d36a11ea6942f7c10cbd711b9ba9c54351449625bd9a008d3cd8e8952f565c85",
+    "s13": "2741a581fa4af709b92ea8db4a8330d65807a7a8665bbbfd9b84a09145be00ba",
+    "s14": "22ab9e1b7b3264e5f61b97b9801d10b9a67b5a8a05e71561a46056dd9d24f8ce",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "9ead79358bde61d9a2190b2c445b3f52e8225b211933e5df910e67d47b940cd3",
+    "s6": "1ccc061c74e3a3eab0fbd07825bc5bf11d8207248d01b1a9aecba35a37e20560",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "0d934ec479471ff9f711bc6e58ec9f2d0f07d4722593ff98c53426b2b509ecda",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T08:31:25.308268+00:00"
+}

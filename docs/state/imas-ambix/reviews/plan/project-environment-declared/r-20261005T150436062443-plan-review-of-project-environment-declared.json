@@ -1,0 +1,34 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T15:09:25.845Z",
+  "dispatched_at": "2026-10-05T15:04:42Z",
+  "findings": [
+    {
+      "anchor": "tests/test_declared_dependencies.py:187",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a74's spec must name the module\u2192distribution map (an extended owner interface, e.g. exposed from `build_census`/`module_distribution_map`) in its scratch hand-off, otherwise its stated acceptance rule is unimplementable without duplicating `module_distribution_map()`, which is exactly the fork the scratch channel exists to prevent.",
+      "text": "\u00a74 says it writes \"its optional set\" to the run's scratch and reads it in the fresh environment, but its acceptance rule is that an optional module \"fails with ModuleNotFoundError naming a distribution the census classed optional\"; that decision needs the census's module\u2192distribution mapping, which `module_distribution_map()` builds from the shared environment's installed distributions via `importlib.metadata.packages_distributions()` \u2014 the very distributions that are absent in the fresh environment the walk runs in, so the mapping cannot be rebuilt there and the driver must either fork it or the scratch interface must carry it. Nothing in the `Census` dataclass (rows keyed by distribution, with no module\u2192distribution field) carries it either.",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "6484bf5bae14cb3f4564314873b1c9d1cdbdd781a3352f3329ba18988b8b1b9f",
+  "plan_slug": "project-environment-declared",
+  "plan_version": 28,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T150436062443-plan-review-of-project-environment-declared",
+  "reviewed_blob_sha": "b1554aaedeb22ce23c2953e9120a18a1550bb4cd",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 no new repository module is proposed (the \u00a74 driver is deliberately a run artifact), and the one substantial module the plan did add, `tests/test_declared_dependencies.py`, hides the import walk, distribution mapping and transitive closure behind the single `build_census()` entry point rather than spreading them across shallow wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a74's scratch interface carries only the census's optional distribution set, but its acceptance rule needs the module\u2192distribution mapping owned by `tests/test_declared_dependencies.py` (`module_distribution_map`).",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a74 states it adds no public surface (the driver is a run artifact, the fragment is the only file it adds) and \u00a75 adds only per-test pytest marks, so no section adds to any of the four families and none is required to name a retirement or merge.",
+    "reuse_search": "pass \u2014 the plan cites the machinery it extends (`tests/test_declared_dependencies.py` for `OPTIONAL_SUBSYSTEM_ROOTS` and the census; `imas_ambix/gs/artifact_resolution.py:149` `staging_cache_root()` for the node-local `TMPDIR` convention), and a search of the tree (`.github/workflows/` absent, no `Makefile`/`taskfile`, no `scripts/` env builder, no existing module-import walker) finds no fresh-environment or import-walk machinery the plan is rebuilding.",
+    "thin_wrapper": "pass \u2014 nothing is wrapped. \u00a74 consumes the census owner through a documented scratch hand-off rather than layering over it, and \u00a75 uses pytest-timeout's own per-test `@pytest.mark.timeout(N)` mark rather than a parallel mechanism."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.912895+00:00"
+}

@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T17:42:07.256Z",
+  "dispatched_at": "2026-10-05T17:39:15Z",
+  "findings": [
+    {
+      "anchor": "tests/conftest.py:1",
+      "id": "reuse_search-1",
+      "reason": "the plan must declare `threadpoolctl` (e.g. in the `[dependency-groups] dev` group) or drop the direct import, and naming the declaration is exactly the thesis \u00a73 landed.",
+      "text": "\u00a75 proposes importing `threadpoolctl` directly in the conftest cap, but `threadpoolctl` is only a transitive dependency (scikit-learn \u2192 threadpoolctl) and is declared nowhere in `pyproject.toml`; the census module \u00a76 landed scans `tests/` and marks any `tests/` import `default` (`makes_default` returns True for `tests/`), so `tests/test_declared_dependencies.py::test_every_directly_imported_distribution_is_declared` \u2014 which asserts `not census.failures` \u2014 fails the moment the cap lands",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/statespace/oracle_probe.py:55",
+      "id": "duplicate_owner-1",
+      "reason": "the plan should extract one owner (a helper that oracle_probe, the engine and the conftest cap all call) or state why the cap must stay forked, so the pinned variables and the torch call cannot drift between the sites the plan measures against.",
+      "text": "\u00a75 re-inlines the same `setdefault(OMP/OPENBLAS/MKL_NUM_THREADS)` + `torch.set_num_threads` pool cap that `oracle_probe.py` already owns (and `engine.py:747`/`:927` also drive) at a fourteenth site instead of extracting a shared owner",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "d5de1c183228a08981d689627efe93b5a8de81211c531e254b93299700f3d8f7",
+  "plan_slug": "project-environment-declared",
+  "plan_version": 38,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T173908850319-plan-review-of-project-environment-declared",
+  "reviewed_blob_sha": "ba41e18a67edff8e0373416cf7f7f561d9d79692",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the \u00a75 cap is a single small fixture in `tests/conftest.py`, and \u00a76's landed census hides its AST walk, distribution map and fragment rendering behind `build_census()`.",
+    "duplicate_owner": "a finding \u2014 the thread-pool pin is a mechanism whose current owner is `imas_ambix/statespace/oracle_probe.py:55`, and \u00a75 adds a further inline fork of it rather than extracting one owner.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a75 adds only a test-suite fixture and pytest marks, so it adds to none of the four families and has nothing it must retire or merge.",
+    "reuse_search": "a finding \u2014 \u00a75 cites the existing pin at `imas_ambix/statespace/oracle_probe.py:55` and reuses `threadpoolctl`, but relies on `threadpoolctl` as a transitive distribution that the plan's own census would require declared.",
+    "thin_wrapper": "pass \u2014 \u00a75 states why a conftest-level cap is needed rather than the existing in-module pin alone (pytest plugins may import numpy before the module's `setdefault` runs), which is the justification this item asks for."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.897821+00:00"
+}

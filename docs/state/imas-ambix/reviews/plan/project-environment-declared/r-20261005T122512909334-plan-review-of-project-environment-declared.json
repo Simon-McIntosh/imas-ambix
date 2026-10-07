@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T12:29:30.058Z",
+  "dispatched_at": "2026-10-05T12:25:19Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/project-environment-declared.html:97",
+      "id": "reuse_search-1",
+      "reason": "the proof must take the optional-distribution set from a census run in the full shared environment (or from the declared extras), not from `build_census()` re-run inside the very environment it is proving; as written the proof's pass condition is unreachable for every optional subsystem import.",
+      "text": "the plan says the proof \"imports `OPTIONAL_SUBSYSTEM_ROOTS` and `build_census()` ... so the proof and the census share one definition of optional\", but `build_census()` (`tests/test_declared_dependencies.py:288`) classifies from the running interpreter's installed distributions: `module_distribution_map` (`:187`) builds its map from `packages_distributions()` and `distributions()`, and any imported module absent from that map lands in `unmapped` (`:316-319`) rather than in a `Row`; so in the fresh environment a plain sync has omitted (the plan's own \u00a71 measured 61 extra-declared packages dropped), every optional distribution is uninstalled and therefore never classed \"optional\" \u2014 the proof cannot accept a `ModuleNotFoundError` \"naming a distribution the census classed optional\", which is its stated acceptance rule",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/project-environment-declared.html:91",
+      "id": "duplicate_owner-1",
+      "reason": "the writer should route the fresh environment through the existing scratch resolver (or `$TMPDIR`) so the path follows the node's scratch rather than a hardcoded location that the owner already exists to abstract.",
+      "text": "\u00a74 fixes node-local scratch as the literal `/tmp/ped-fresh-<run>`, bypassing the repository's scratch-placement owner `imas_ambix/gs/artifact_resolution.py:149` (`staging_cache_root()`), whose docstring and test (`tests/gs/test_artifact_resolution.py:249` \"A SLURM node's own scratch is reached through `TMPDIR`, not `/tmp`\") make `TMPDIR` the node-local root with `/tmp` only the fallback; the dispatch contract for this repo ('a temporary tree ... goes under `$TMPDIR`, never a bare `/tmp` path, so it dies with the run's scratch') states the same rule",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/project-environment-declared.html:88",
+      "id": "interface_budget-1",
+      "reason": "the section must either fold the proof into the existing census module (`tests/test_declared_dependencies.py`, which already owns the optional definition and ships a callable entry point) so no new surface is added, or state in its own text what the added surface replaces.",
+      "text": "\u00a74 stands up a fresh-environment proof (build the environment, walk and import every module, run the console script, collect the suite, run ruff) as a new entry point, adding to a week whose supplied budget is public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0, yet the section names nothing it retires or merges and does not say why nothing can be",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "8ddbd9f3b004ea63d42da5b159fdfa65745253741cdb932ce1326f72fb069c83",
+  "plan_slug": "project-environment-declared",
+  "plan_version": 15,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T122512909334-plan-review-of-project-environment-declared",
+  "reviewed_blob_sha": "4d7ed8e3a9a231e020daf99e47b8b78167509299",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the census hides import walking, distribution mapping, classification, transitive closure, rendering and the assertion behind the one `build_census()` entry point, and \u00a74/\u00a75 add no competing module.",
+    "duplicate_owner": "a finding \u2014 \u00a74 hardcodes node-local scratch as a bare `/tmp` path, forking the repository's scratch-placement owner instead of extending it.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a74 introduces a fresh-environment proof entry point (a new module plus its callable/console surface) without naming anything it retires or merges, or stating why nothing can be.",
+    "reuse_search": "a finding \u2014 the plan cites `tests/test_declared_dependencies.py` for the optional definition, but `build_census()` is environment-dependent and does not deliver the shared \"classed optional\" set inside the fresh environment.",
+    "thin_wrapper": "pass \u2014 \u00a74 adds a proof over the existing census entry point rather than a layer that forwards to it, and \u00a75 adds pytest marks to existing tests; neither introduces a thin parallel mechanism needing justification."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.916331+00:00"
+}

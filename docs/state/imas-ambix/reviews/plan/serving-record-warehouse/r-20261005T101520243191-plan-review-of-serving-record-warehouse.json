@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T10:20:43.091Z",
+  "dispatched_at": "2026-10-05T10:15:26Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/slurm.py:1141",
+      "id": "duplicate_owner-1",
+      "reason": "the plan should name one scheduler-query owner (and the retention node extend it), rather than add another independent `squeue` reader that drifts from the four others.",
+      "text": "\u00a78's \"not running\" rule has the retention command call `squeue` directly (as implemented at `imas_ambix/agent/telemetry_retention.py:112`) instead of extending a query owner, so a fifth spelling of the account-liveness read joins the four already in `cli.py:1087`, `:1244`, `:1983`, `:2306`; `slurm.py` owns submission but publishes no query, which is the file to extend",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/serving-record-warehouse.html#s9",
+      "id": "interface_budget-1",
+      "reason": "the section explicitly states the consolidation belongs to another node, so the deferral is accounted for and a naming sentence would not move the design.",
+      "text": "\u00a79 adds a new public reader function in `imas_ambix/agent/watch.py` and a published `third-party-cache-rate.json` record while the week's budget is cli_options 0, mcp_views 0, public_definitions 0, refusal_families 0, and the section names nothing it retires or merges in this repository \u2014 it defers the only consolidation (gpu-watch's copy) to a separate followup",
+      "type": "interface_budget",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "6be332f0fab99ea190ddccbc240318f75ebdbde16652a02cecdddbcc67726dbf",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 224,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T101520243191-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "e5718a3977360389a09e9cc18056f841e27deeb8",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a711's `imas_ambix/agent/live_panel.py` (526 lines) and \u00a712's `provider_prices.py` each hide their whole concern (lane copy, receipt differencing, run-boundary logic; fetch, atomic write, path resolution) behind a handful of functions rather than spreading wrappers over the same machinery.",
+    "duplicate_owner": "a finding \u2014 \u00a78's retention liveness rule (\"the job id appears in no squeue state\") is a scheduler query with no owner to extend; `squeue` is already invoked independently at `imas_ambix/agent/cli.py:1087`, `:1244`, `:1983` and `:2306`, and `imas_ambix/agent/slurm.py` owns every other SLURM interaction but exposes no query.",
+    "interface_budget": "pass \u2014 the one section that adds CLI surface (\u00a711, `--live`) and the one that adds a module (\u00a712) each name what they retire or why nothing can merge: \u00a711 states `--live` cannot merge into `--json` and that the readers it replaces live in the dotfiles repository, and \u00a712 retires `DEFAULT_PRICE_PATH`.",
+    "reuse_search": "pass \u2014 the plan cites the mechanism it extends at each proposal: the existing index key `(host, boot_id, inode, offset)` (\u00a72), `counter_span` and `_prefix_hit_rate` (\u00a73), one shared run predicate between compactor and query (\u00a78), `ledger_cost`/`match_price`/`price_at` (\u00a79), `counter_run_continues` and `lane.availability_percent` (\u00a711), and `SiteConfig` for the price path (\u00a712).",
+    "thin_wrapper": "pass \u2014 no section adds an unjustified forwarding layer: \u00a710 is a net deletion of gpu-watch's private ledger and price code, and \u00a712 states the migration path (`SiteConfig`) rather than adding a parallel owner."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.940538+00:00"
+}

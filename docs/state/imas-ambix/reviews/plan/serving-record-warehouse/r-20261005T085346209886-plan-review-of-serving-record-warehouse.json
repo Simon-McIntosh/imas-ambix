@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T08:59:29.412Z",
+  "dispatched_at": "2026-10-05T08:53:52Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/live_panel.py:501",
+      "id": "duplicate_owner-1",
+      "reason": "the \u00a711 build node's done-when would name the shared resolver in `lane.py` (owner of `write_lane_document`) as the path source instead of adding a fifth derivation.",
+      "text": "\u00a711 resolves the lane document with `SiteConfig.from_env().endpoint_document.with_name(LANE_FILENAME)`, the fifth inline spelling of the same derivation (`cli.py:1679,3433,3515,3571` already carry it four times); the section should extend one resolver so a lane document that moves is spelled in one place",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/live_panel.py:257",
+      "id": "duplicate_owner-2",
+      "reason": "the \u00a711 build node should read the histogram through `engine_metrics`'s owner (or add the advance/median there) so the schema has one definition and a change to `as_dict` cannot silently break the live block.",
+      "text": "\u00a711 computes the median time to first token from the recorded `engine.histograms` dict, re-deriving the serialized histogram shape (`buckets`/`count`/`sum`) that `imas_ambix/agent/engine_metrics.py:455` `Histogram`/`as_dict` already owns; two modules now know one schema with no shared definition",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/cli.py:2956",
+      "id": "interface_budget-1",
+      "reason": "with cli_options at 0 this section must say in its own text what the new command retires, or that it retires nothing and why that is unavoidable.",
+      "text": "\u00a78's retention rules introduce `agent retire-raw` with an `--apply` flag (cli.py:2956,2977) and the section text neither names anything it retires or merges nor states why nothing can be, while \u00a75 (removes the SLURM generator's `--submit`/`--dry-run`) and \u00a711 (states why `--live` cannot merge) both account for their surface",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "994134529a722f47be89f7d217d074c69ab9f47f050306437bc349b3c87604d4",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 215,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T085346209886-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "624226d75a840e9a6e474b6aa19bfcc6e722179b",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a711's `imas_ambix/agent/live_panel.py` is one module (526 lines) hiding lane-document copy and receipt-tail differencing behind `lane_block`/`live_block`/`live_panel`; it is not a spread of wrappers over one machinery, and its \"never opens the index\" property is stated and testable.",
+    "duplicate_owner": "two findings \u2014 \u00a711 adds a fifth inline spelling of the lane-document path rather than naming one resolver, and `live_panel` re-derives the serialized engine-histogram schema that `engine_metrics.Histogram` owns.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a78 adds a CLI command and option without naming what it retires or merges, or why nothing can be, while \u00a75 and \u00a711 both account for their additions.",
+    "reuse_search": "pass \u2014 the sections name the mechanisms they extend and I confirmed them in code: `counter_run_continues` shared by compactor and query (\u00a78), `availability_percent`/`classify_reading` imported from `imas_ambix/agent/lane.py` by `live_panel.py` (\u00a711, \u00a714), `tier_paths` from `serving_receipts`, and the single price owner `provider_prices.table_path` resolved through `SiteConfig` with `watch.DEFAULT_PRICE_PATH` gone (\u00a712).",
+    "thin_wrapper": "pass \u2014 the two wrappers present are each justified in text: \u00a711's `--live` states why it cannot merge into `--json` (it must skip the index), and \u00a710's JSON-document consumption states why gpu-watch must not import the package (it is a standalone dotfiles script)."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.947645+00:00"
+}

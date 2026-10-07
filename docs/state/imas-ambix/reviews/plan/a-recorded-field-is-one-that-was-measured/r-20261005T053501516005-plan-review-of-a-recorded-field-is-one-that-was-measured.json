@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T05:47:41.938Z",
+  "dispatched_at": "2026-10-05T05:35:07Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/a-recorded-field-is-one-that-was-measured.html#s3",
+      "id": "reuse_search-1",
+      "reason": "naming both consumers and the fixture precedent in the done-when stops the worker committing a single-use fixture and repeating the very defect \u00a73 exists to close.",
+      "text": "the fixture \u00a73 asks for is a vLLM analogue of `tests/data/sglang_metrics_sample.txt`, and the tree already has a parameterised both-families pattern to reuse (`tests/test_agent_lane_sglang.py`), yet \u00a73 scopes the recorded body to one assertion and does not name the second synthetic-vLLM consumer at `tests/test_agent_lane_sglang.py`:48 \u2014 a single recorded fixture should feed both, or the second test keeps asserting against a body it shares an author with",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/a-recorded-field-is-one-that-was-measured.html#s3",
+      "id": "reuse_search-2",
+      "reason": "the plan must either name the authority/route to obtain a real scrape or record that the plaintext vLLM exposition format is stable and a fixture recorded from a public vLLM example is acceptable, else the node rediscovers the same blocker.",
+      "text": "\u00a73's done-when requires \"a recorded exposition from a real vLLM serve\", but the plan names no route to one, and the s2 comment records that no vLLM serve exists on this workstation and the two prior \u00a73 nodes stalled on exactly that (\"standing one up spends cards, which needs the lead's authority\") \u2014 a done-when whose precondition is outside the plan's authority is unachievable as written",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "bdf9dc031c8319c8acc111ff52b90c916439f4059c807861fb50cd17deb1d63a",
+  "plan_slug": "a-recorded-field-is-one-that-was-measured",
+  "plan_version": 8,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T053501516005-plan-review-of-a-recorded-field-is-one-that-was-measured",
+  "reviewed_blob_sha": "47f5b9945497fa0ed6feb18dcaa5edf6235204cd",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a73 adds a fixture and an assertion against the existing `engine_metrics.py`, which already hides exposition parsing, per-family series mappings and rank/reason selection behind `read_metrics`/`row_section`/`eligible_samples`; no new module surface is proposed.",
+    "duplicate_owner": "pass \u2014 the mechanisms the plan touches already have single owners it extends: `node_probe.py` owns the `cards[].name` parse (:362 `parse_cards`) and the job-table `unread` marker (:218 `UNREAD_KEY`), and `engine_metrics.py` owns the exposition parser (bench.py:25 now imports `engine_metrics`, so the parser is not forked).",
+    "interface_budget": "pass \u2014 supplied this week public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 adds one fixture and a test and \u00a72/\u00a74 add a docstring line and a private constituent of `parse_cards`, so no section adds to any of the four families and nothing needs retiring.",
+    "reuse_search": "a finding \u2014 the plan proposes a recorded vLLM fixture but scopes it to \u00a73's single assertion and cites neither the existing fixture precedent (`tests/data/sglang_metrics_sample.txt`, used by `tests/test_engine_metrics.py` and `tests/test_agent_lane_sglang.py`) nor the second test that already synthesises a vLLM body (`tests/test_agent_lane_sglang.py`:48).",
+    "thin_wrapper": "pass \u2014 no wrapper is proposed; \u00a73 extends the existing reader's test surface and \u00a72/\u00a74 extend `node_probe.py`'s own card/job-table owners rather than layering over them."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.821694+00:00"
+}

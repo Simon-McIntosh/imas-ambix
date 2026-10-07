@@ -1,0 +1,68 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T09:37:49.434Z",
+  "dispatched_at": "2026-10-06T09:20:39Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/router.py:2161",
+      "id": "duplicate_owner-1",
+      "reason": "the author should name one owner for lane.json (extend the refresher to carry the admission block, or make the router the single publisher and retire the refresher) and fold the duplicated counter-document arithmetic into one helper rather than keeping two, and the \u00a721 deploy precondition is a fragile substitute for that.",
+      "text": "the lane document has two writers that \u00a721 resolves only by an operational precondition rather than by naming one owner: the router's own lane loop calls `write_lane_document` and then `_publish_gate_snapshot` (`router.py:2161`, `router.py:2172`), while a standing lane-refresher job (`generate_lane_refresher_script`, `slurm.py:896`, invoked in `cli.py:3461` and `cli.py:3489`) writes the same document on its own loop; \u00a721's fix is \"confirm that no lane-refresher job is running\" (plan \u00a721, \"One publisher\"), which is the same operational-check class that leaked in \u00a711's follower-sweep incident. A second instance of the same defect type is the generation-token rate arithmetic, implemented for the width controller at `router.py:995` (`_step_controller`) and again at `lane.py:371` (`LaneWindow.throughput`), whose own docstring names the duplication \u2014 \"That is the same arithmetic the width controller applies to the same counter\" (`lane.py:377`). A third instance: \u00a721 unifies the occupancy-target duplication (`lane.py:43` vs the old router rule) but leaves the headroom computation forked across `lane.py:190`, `lane.py:366`, `lane.py:704`/`lane.py:725` and the router's admission headroom.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "plan \u00a721, \u00a722, \u00a711/\u00a718",
+      "id": "interface_budget-1",
+      "reason": "each section must account in its own text for the interface surface it adds against the supplied zero counts, by naming a retirement/merge or stating why nothing can be, or the surface accumulates unfenced \u2014 note `lane.worker_slots.worker_slots` already nests an object and its member under one name, a shape that would not survive a retirement review.",
+      "text": "public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the sections add interface surface without naming a retirement or merge: \u00a721 adds the `worker_slots` object and five admission members read by `agent watch`/gpu-watch (`live_panel.py:66-104`), \u00a722 adds five more admission fields (`active_sessions`, `fair_share`, `borrow_reserve`, `new_session_worker_slots`, `sessions`), \u00a721/\u00a717 add the `agent bench --concurrency-levels` and `agent restart --dspark-block-size` options, \u00a715 adds `--gate-file` and `agent width <n|auto>`) and \u00a711/\u00a718 add `agent pause --reason`, `--cut` and `--cut-form`, while \u00a711/\u00a720/\u00a724 add refusal and verdict families (the 529 `overloaded_error`, the `close`/`error` cut forms, and the `open`/`congested`/`full`/`paused` verdicts) with no section stating which prior field, option or family is retired or merged, or why none can be.",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "7a999c0a685aab219cc0e776c32711f673860bcd47d79413e7ff96cd4de398e1",
+  "plan_slug": "local-lane-admission-control",
+  "plan_version": 182,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T092026978667-plan-review-of-local-lane-admission-control",
+  "reviewed_blob_sha": "0b1fd6ab09981584c657ea82f5dd91222c050145",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the added behaviour (FIFO admission, pause, cut, width controller, per-session fair share) is concentrated behind `_GenerationGate.acquire`/`snapshot`/`admission_document` plus `_AdmissionLedger.snapshot` in one module (`router.py:294`, `router.py:641`), not spread across shallow wrappers.",
+    "duplicate_owner": "a finding \u2014 the lane document has two independent writers, and the generation-token rate arithmetic is implemented twice.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; several sections add CLI options and refusal/verdict families without naming what they retire or merge, or why nothing can be.",
+    "reuse_search": "pass \u2014 \u00a714 carries an explicit reuse map (plan \u00a714, \"Reuse map, 2026-09-25\") and its claims check out in code: the router's memory rule binds lane.py's constant object (`router.py:162 DEFAULT_AUTO_OCCUPANCY_TARGET = LaneCapacity.OCCUPANCY_TARGET`, `lane.py:43`), and the controller reuses `LaneCapacity`/`engine_metrics.COUNTER_SERIES` instead of adding a second metrics reader.",
+    "thin_wrapper": "pass \u2014 no new module wraps existing machinery without extending it: \u00a715 makes the CLI and the router share one resolver (`resolve_gate_path`, `router.py:591`) rather than wrapping the old derivation, and `agent watch --json --live` copies the admission block (`live_panel.py:66-104`) rather than re-deriving it."
+  },
+  "section_digests": {
+    "_document": "16d77560fb353384275ccb1bfbd145ad704af80caded21971f46a06a90f04a22",
+    "s1": "1b1d1b4500b53c57897447c9a177dece179e88e753686121fc2b84b09e1c760c",
+    "s10": "e458403d24604404f8f0b0d532c7ab2ed558456be0e6eb0b0a8c9eb89cc84b7c",
+    "s11": "0e0c45e067609b58693c36afc6a9d2cbaf3fe5a14c434241dc15c77c058680e4",
+    "s12": "eb93b318f4f4d1cda5651527a949745199b1bf2b5ab0a0983d88259cd206fa36",
+    "s13": "f2fdec5caaa675f5cc049e44561c6c919f0686083509e568cfe1b7f76f348235",
+    "s14": "003d2055d94b7d42122b5ea822c0278e4d20d24fdaef92a0f28710625210a25e",
+    "s15": "4268180cd95ebb2d676fb7f65f75d8111042ab3937c9814dbd2d30214f10f8ea",
+    "s16": "a84afe91c80937fe01f5f5bacf7f4ec231c01ed155d54299f6fb0b0f009b8573",
+    "s17": "38d113a1441a6259b71f33dbfe2ef408a48e7972d188a9704df834066421da39",
+    "s18": "0a8c9f9402c222f13e020bf34faeb9c742726ccba504ab9541cefb04dbb3f2f7",
+    "s19": "ec9128e383534b85c1b86d3e36018d19f6cf34b5fca068a5d6ca21446eb65ce8",
+    "s2": "d9c810c33b810d6ff8b74cadde08242bd6060fbe49bf942a04eb1562e846a941",
+    "s20": "31ae010e68bd00cded83689b140d051c9319dae7e5aa5bc63279634bbed94ff0",
+    "s21": "c7c4d31f97836375364a72929628e0c326b7ae6a94d5fed37c9fa45c9a832909",
+    "s22": "152a8709b3717d309769a09b46355a4b29072424d968cedd493306ea7c0ad5cd",
+    "s23": "2ab2549ef0bf50eb6f108886db1d720a0860b4a9281902bbec968c1eeefd74d4",
+    "s24": "cab191e2f792e15924162d475c033e6c40469d9cf818a3ddf256ff8407419c0c",
+    "s3": "564dc8bf433bd514e5844908120075b7971e91522576425e376c55cc5364aa95",
+    "s4": "c39d3c5235419d0e7d55b9a2815cac98ee3df28cb9d93f392d232b3ed324f0ed",
+    "s5": "9470b9366625e7be8e7b66eac5505aecf8ecfbf7cbd24d62136af5e308784a00",
+    "s6": "0234e45f5118a54e635718d640af5ffe33e9bcc1cd6ad8990469320f2f9365df",
+    "s7": "2cd5b5f631eb986e90526fb5dcd8ab69ddb24d1715c8a384e465db5f7b607cab",
+    "s8": "76158fd44f36a4ab25033c54573c6f38645750c3d460b4994f3a3c1b6b012c9b",
+    "s9": "62fa9c6e7189e9a66ec92c0c3fe0506ed147f89b172415959b846ca83f8fe212"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.868550+00:00"
+}

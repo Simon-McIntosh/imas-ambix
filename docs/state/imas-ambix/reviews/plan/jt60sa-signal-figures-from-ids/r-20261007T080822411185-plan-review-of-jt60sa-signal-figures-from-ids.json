@@ -1,0 +1,79 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T08:18:43.454Z",
+  "dispatched_at": "2026-10-07T08:08:30Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-signal-figures-from-ids.html#s2",
+      "id": "reasoning-1",
+      "reason": "the caption is a required artifact with no mechanism to carry it, so \u00a72 cannot be implemented as written without a decision the plan does not settle.",
+      "text": "\u00a72 requires \"each flux-loop caption states that every loop except FL7 is a difference relative to FL7\", but the mechanism it names passes no text of its own: imas-ink's time_trace_figure_mpl(traces, style, figsize) and render_to_bytes(fig, dpi, format, style) expose no caption/title parameter, and \u00a72 states \"the script passes no label, unit or array of its own\". No caller or facility is named for the caption, so the implementing node must invent one or omit the required statement.",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-signal-figures-from-ids.html#s2",
+      "id": "done_when-1",
+      "reason": "a node dispatched on \u00a72 has no declared measure for its own output (figure count, panel identity, or a failing arm), so its completion cannot be scored on one verdict.",
+      "text": "\u00a72 names no measured done-when for the new flux-loop and probe figures and no negative control that could show the guard fires; its only stated measure is that the coil-current SVGs stay byte-identical.",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "76e1efd33afdf524b9432c706f2d026807d3338371cc5831dcdef3fa196997aa",
+  "plan_slug": "jt60sa-signal-figures-from-ids",
+  "plan_version": 28,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "9fd87e71-22d3-40c8-8630-1b1d5afe0282",
+      "finding": "reasoning-1",
+      "reason": "",
+      "when": "2026-10-07T10:03:52.749888+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "9fd87e71-22d3-40c8-8630-1b1d5afe0282",
+      "finding": "done_when-1",
+      "reason": "",
+      "when": "2026-10-07T10:03:56.221093+00:00"
+    }
+  ],
+  "responses": {
+    "done_when-1": {
+      "action": "acted",
+      "by": "9fd87e71-22d3-40c8-8630-1b1d5afe0282",
+      "reason": "",
+      "when": "2026-10-07T10:03:56.221093+00:00"
+    },
+    "reasoning-1": {
+      "action": "acted",
+      "by": "9fd87e71-22d3-40c8-8630-1b1d5afe0282",
+      "reason": "",
+      "when": "2026-10-07T10:03:52.749888+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-signal-figures-from-ids.v28.json",
+  "review_run_id": "r-20261007T080822411185-plan-review-of-jt60sa-signal-figures-from-ids",
+  "reviewed_blob_sha": "53af94b2e3024b0857d769c21638644c0a6ca1de",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 the two cited merges resolve (23fa1812 \"Merge the JT-60SA signal figure redrawn from pulse IDS\", 6345ce6e \"Merge the two-pulse JT-60SA signal figures\"); the embedded figure src resolves to docs/figures/jt60sa-signals/jt60sa-E101154-pf-coil-currents.svg (402315 bytes, present); the intra-page hrefs s1/s3 resolve to section ids that exist; and the deleted-figure claim checks out \u2014 23fa1812 deletes jt60sa-C060033-pf-coil-currents.svg and jt60sa-E101154-flux-loops.svg.",
+    "done_when": "a finding \u2014 \u00a72 is the one implementable section and declares no explicit done-when for the new figures; its only stated measure is the invariant that the two coil-current SVGs stay byte-identical, and no negative control is named for the flux-loop or probe figures.",
+    "evidence_paths": "pass \u2014 the figures land under docs/figures/jt60sa-signals/ in-repo, the merges are in git history, and the cited run files exist: /work/projects/imas_gpu/jt60sa/ids/101154_0.nc and 101031_0.nc (28.5 MB and 29.3 MB, present 2026-10-07).",
+    "naming": "pass \u2014 scripts/figures_jt60sa_signals.py and its docstring carry no plan labels, ticket numbers or version tags; the section text uses DD terminology (type 6, indices_differential) rather than stage names.",
+    "reasoning": "a finding \u2014 the mechanism \u00a72 names cannot produce the caption the same section requires.",
+    "single_goal": "pass \u2014 each section names one deliverable (s1 the E101154 redraw, s2 the flux-loop and probe figures, s3 the E101031 second pulse).",
+    "wiring": "pass \u2014 plan-depends-on imas-ink:ids-signal-traces resolves (imas-ink/docs/plans/ids-signal-traces.html exists, shipped), plan-informs jt60sa-machine-map resolves (docs/plans/jt60sa-machine-map.html), and the section dependency s1 -> imas-ink:ids-signal-traces#s1 resolves to an existing s1 in that plan."
+  },
+  "section_digests": {
+    "_document": "fef92cd446c002fb68543297d0aec84441c7616741d8eca7dc0589dce5f9a8fd",
+    "s1": "8cc1fc171352c18ac739b983fe55145c39f922e6a6e144dd81cf938653d2845d",
+    "s2": "6ea30eb71266f5536582e431048ea70e67117d81648dba3e87ff833e50585cf5",
+    "s3": "d094bd911e0ef5845f9b6fa508f0370125201199f3a3f5078285339b7bd30a8a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T10:03:40.168127+00:00"
+}
