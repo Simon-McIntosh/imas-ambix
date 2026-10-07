@@ -26,7 +26,7 @@
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="20">
+<meta name="plan-version" content="21">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -225,6 +225,9 @@
 </div>
 <div class="r-comment" data-section="_top" data-id="c-20261007T0400-jtfm-run-file" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-07T02:00:00Z">
     <div class="r-comment-body"><p><strong>Layout change, lead-decided 2026-10-07:</strong> written IDSs move from one netCDF per IDS (<code>&lt;root&gt;/&lt;shot&gt;/&lt;ids&gt;.nc</code>) to one netCDF per run, <code>ids/&lt;pulse&gt;/&lt;run&gt;.nc</code>. That file is a single <code>imas.DBEntry</code> holding every IDS, written by the engine's <code>write_pulse</code> after the §7 rename in jt60sa-facility-mint. The description store, an input, keeps its per-IDS files. Two places in this plan assume today's layout. <strong>§2</strong> writes the equilibrium "through the same writer as §1" into the shot directory, so it should instead add the equilibrium IDS to the run's file, alongside the other five. <strong>§4</strong> justifies extending <code>scripts/figures_jt60sa_geometry.py</code> on the grounds that a minted directory shares the description store's <code>{ids}.nc</code> layout. Its loader becomes one <code>DBEntry</code> with a <code>get()</code> per IDS, so that reuse argument needs restating. The E101154 files already on disk are in the old layout, and §2 rewrites them anyway. Neither section can dispatch yet, since both wait on jt60sa-machine-map §7. The writer change lands in jt60sa-facility-mint after the §7 rename.</p></div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-20261007T0430-jtfm-run-file-correction" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-07T02:30:00Z">
+    <div class="r-comment-body"><p><strong>Correction to c-20261007T0400-jtfm-run-file:</strong> the run file's path is flat, <code>ids/&lt;pulse&gt;_&lt;run&gt;.nc</code> (for example <code>ids/101154_0.nc</code>), not <code>ids/&lt;pulse&gt;/&lt;run&gt;.nc</code>. The lead settled the flat spelling after that comment was written, so each file names itself. The owner of the layout is jt60sa-facility-mint's decision <code>output-layout</code> and its §8. Everything else in that comment stands: one <code>imas.DBEntry</code> per pulse and run holds every IDS of the shot's phase machine description. This plan's §2 adds its equilibrium to that file, and §4 reads it with one <code>DBEntry</code> and a <code>get()</code> per IDS.</p></div>
 </div>
 </section>
 </main>
