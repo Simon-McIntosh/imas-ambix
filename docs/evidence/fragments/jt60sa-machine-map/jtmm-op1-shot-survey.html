@@ -1,20 +1,20 @@
-<section id="jtmm-op1-shot-survey">
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-op1-shot-survey">
 <h2 id="jtmm-op1-shot-survey-h">JT-60SA OP1 plasma shot survey (nakasvr26, read-only)</h2>
-<p id="jtmm-op1-shot-survey-method">Starts from the 228-shot table in imas-efit <code>docs/jt60sa-shot-candidates.html</code> without re-characterising it. The OP1 range E100001&ndash;E101173 was re-read through the EDDB library on <code>nakasvr26</code> only to (a) establish plasma-shot membership by the table’s own rule (<code>PSRC/calIp</code> peak ≥ 50 kA) as a positive control and (b) add the one column the table lacks, peak β from the <code>FAME</code> category. The re-read reproduced <strong>exactly 228</strong> plasma shots, matching the source table. <code>calIp</code> values are amperes (the EDDB unit label <code>KA</code> is a misnomer); dates are UTC+9.</p>
+<p id="jtmm-op1-shot-survey-method">Starts from the 228-shot table in imas-efit <code>docs/jt60sa-shot-candidates.html</code> without re-characterising it. The OP1 range E100001&ndash;E101173 was re-read through the EDDB library on <code>nakasvr26</code> only to (a) establish plasma-shot membership by the table’s own rule (<code>calIp</code> peak ≥ 50 kA) as a positive control and (b) add the one column the table lacks, peak β from the <code>FAME</code> category. The re-read reproduced <strong>exactly 228</strong> plasma shots, matching the source table. <code>calIp</code> values are amperes (the EDDB unit label <code>KA</code> is a misnomer); dates are UTC+9.</p>
 <h3 id="jtmm-op1-shot-survey-tools">Catalogue tools read on nakasvr26</h3>
 <ul id="jtmm-op1-shot-survey-toollist">
 <li><strong><code>eddbreadCatTable()</code></strong> &mdash; lists all 73 EDDB categories (incl. <code>FAME</code>, <code>PSRC</code>) &mdash; command <code>e.eddbreadCatTable()</code></li>
 <li><strong><code>eddbreadTable(shot, cat)</code></strong> &mdash; per-category catalogue: every descriptor with unit, class and description (100 <code>FAME</code>, 303 <code>PSRC</code> descriptors for E101154) &mdash; command <code>e.eddbreadTable("E101154","FAME")</code></li>
 <li><strong><code>eddbreadChInfo(shot, cat)</code></strong> &mdash; per-shot channel inventory for a category &mdash; command <code>e.eddbreadChInfo("E101154","FAME")</code></li>
 <li><strong><code>eddbreadShot(start, end)</code></strong> &mdash; shot list with start/end times, disruption and kind flags &mdash; command <code>e.eddbreadShot("E100001","E101173")</code></li>
-<li><strong><code>eddbreadTime(shot, cat, dname)</code></strong> &mdash; one time series by category+descriptor (used for <code>PSRC/calIp</code>, <code>FAME/BETA</code>, <code>FAME/VOLUM</code>) &mdash; command <code>e.eddbreadTime("E100748","PSRC","calIp")</code></li>
+<li><strong><code>eddbreadTime(shot, cat, dname)</code></strong> &mdash; one time series by category+descriptor (used for <code>PSRC/calIp</code>, <code>FAME/BETA</code>, <code>FAME/VOLUM</code> &mdash; command <code>e.eddbreadTime("E100748","PSRC","calIp")</code></li>
 </ul>
-<p id="jtmm-op1-shot-survey-lib">All are methods of <code>eddbWrapper</code> in <code>/analysis/src/eddb/eddb_pwrapper.py</code> over <code>/analysis/lib/libeddb.so</code> (symbols <code>eddbreadCatTable</code>, <code>eddbreadTable</code>, <code>eddbreadChInfo</code>, <code>eddbreadShot</code>, <code>eddbreadTime</code>). Read-only; nothing was written to the site.</p>
+<p id="jtmm-op1-shot-survey-lib">All are methods of <code>eddbWrapper</code> in <code>/analysis/src/eddb/eddb_pwrapper.py</code> over <code>/analysis/lib/libeddb.so</code>. Read-only; nothing was written to the site.</p>
 <h3 id="jtmm-op1-shot-survey-first">First JT-60SA plasma</h3>
 <p id="jtmm-op1-shot-survey-firstp"><strong>E100599</strong>, 2023-10-20 14:17:48 &mdash; the earliest EDDB shot carrying a <code>PSRC/calIp</code> plasma current above the 50 kA threshold: peak 76.1 kA over a 0.161 s window. Evidence: <code>eddbreadTime("E100599","PSRC","calIp")</code> returns a 644-point waveform rising to 76.1 kA, and no earlier shot in the range reaches 50 kA (the 2021 E100001&ndash;E100353 block returns none). The first <em>substantial</em> plasma is <strong>E100613</strong>, 2023-10-23 17:30, peak 144.6 kA.</p>
 <h3 id="jtmm-op1-shot-survey-rank">OP1 plasma shots by the three figures of merit</h3>
-<p id="jtmm-op1-shot-survey-psrcnote">Every ranked shot carries a <code>PSRC</code> reconstruction &mdash; a <code>PSRC/calIp</code> peak ≥ 50 kA is the membership criterion &mdash; so PSRC presence is universal in the tables below; the FAME column marks an additional <code>FAME</code> offline reconstruction.</p>
-<p id="jtmm-op1-shot-survey-ipcap"><strong>Peak sustained plasma current</strong> (source <code>PSRC/calIp</code>, A): the plateau level (median of <code>|Ip| ≥ 0.9·max</code>) held for the longest interval, restricted to flat-tops ≥ 0.3 s. The 1.5–3.0 MA peaks (E100748 at 3.37 MA) are transient (&lt; 0.1 s), consistent with the source table.</p>
+<p id="jtmm-op1-shot-survey-psrcnote">Every ranked shot carries a <code>PSRC</code> reconstruction &mdash; a <code>calIp</code> peak ≥ 50 kA is the membership criterion &mdash; so PSRC presence is universal in the tables below; the FAME column marks an additional <code>FAME</code> offline reconstruction.</p>
+<p id="jtmm-op1-shot-survey-ipcap"><strong>Peak sustained plasma current</strong> (source <code>PSRC/calIp</code>, values shown in MA): the plateau level (median of <code>|Ip| ≥ 0.9&middot;max</code>) held for the longest interval, restricted to flat-tops ≥ 0.3 s. The 1.5&ndash;3.4 MA peaks (E100748 at 3.37 MA) are transient (&lt; 0.1 s), consistent with the source table.</p>
 <table id="jtmm-op1-shot-survey-ip">
 <thead><tr><th>#</th><th>shot</th><th>plateau [MA]</th><th>flat-top [s]</th><th>date (UTC+9)</th><th>disrupt</th><th>FAME</th></tr></thead><tbody>
 <tr><td>1</td><td>E100999</td><td>1.131</td><td>1.77</td><td>2023-11-27</td><td>D</td><td>yes</td></tr>
@@ -23,14 +23,23 @@
 <tr><td>4</td><td>E101046</td><td>0.988</td><td>1.93</td><td>2023-12-01</td><td>N</td><td>yes</td></tr>
 <tr><td>5</td><td>E101044</td><td>0.988</td><td>1.92</td><td>2023-12-01</td><td>N</td><td>yes</td></tr>
 </tbody></table>
-<p id="jtmm-op1-shot-survey-betacap"><strong>Peak β</strong> (toroidal, <code>FAME/BETA</code>, dimensionless). The raw per-slice maximum is corrupted by degenerate reconstruction slices at the current ramp edges (E101154 raw max 0.17 against a physical median 0.028; E101163 raw max 5.5 against flat-top median 0.058), so the ranking uses the robust flat-top median and reports the raw maximum beside it. E101146 is disrupted and its flat-top window is short, so its 0.326 is quoted with that caveat.</p>
+<p id="jtmm-op1-shot-survey-betacap"><strong>Peak β</strong> (toroidal, <code>FAME/BETA</code>, dimensionless). <strong>Ranking rule: a shot ranks only if its plasma flat-top window is at least 1.0 s.</strong> The raw per-slice maximum is corrupted by degenerate reconstruction slices at the current ramp edges, and a short flat-top makes the flat-top median itself an artifact, so only sustained plasmas are ranked. Ranking is by the flat-top median; the raw maximum is reported beside it.</p>
 <table id="jtmm-op1-shot-survey-beta">
-<thead><tr><th>#</th><th>shot</th><th>β flat-top med</th><th>β raw max</th><th>Ip [MA]</th><th>date (UTC+9)</th><th>disrupt</th></tr></thead><tbody>
-<tr><td>1</td><td>E101146</td><td>0.3264</td><td>3.38</td><td>0.362</td><td>2023-12-12</td><td>D</td></tr>
-<tr><td>2</td><td>E100981</td><td>0.08699</td><td>0.087</td><td>0.659</td><td>2023-11-24</td><td>N</td></tr>
-<tr><td>3</td><td>E101163</td><td>0.05786</td><td>5.46</td><td>0.993</td><td>2023-12-13</td><td>D</td></tr>
-<tr><td>4</td><td>E100983</td><td>0.0545</td><td>0.0568</td><td>0.569</td><td>2023-11-24</td><td>N</td></tr>
-<tr><td>5</td><td>E100992</td><td>0.05057</td><td>0.0909</td><td>0.570</td><td>2023-11-24</td><td>N</td></tr>
+<thead><tr><th>#</th><th>shot</th><th>β flat-top med</th><th>β raw max</th><th>flat-top [s]</th><th>Ip [MA]</th><th>date (UTC+9)</th><th>disrupt</th></tr></thead><tbody>
+<tr><td>1</td><td>E101163</td><td>0.05786</td><td>5.46</td><td>1.44</td><td>0.993</td><td>2023-12-13</td><td>D</td></tr>
+<tr><td>2</td><td>E101029</td><td>0.04679</td><td>0.129</td><td>1.52</td><td>0.998</td><td>2023-11-30</td><td>D</td></tr>
+<tr><td>3</td><td>E101033</td><td>0.04537</td><td>0.105</td><td>3.48</td><td>0.700</td><td>2023-11-30</td><td>N</td></tr>
+<tr><td>4</td><td>E101025</td><td>0.04503</td><td>0.0587</td><td>1.28</td><td>1.004</td><td>2023-11-30</td><td>D</td></tr>
+<tr><td>5</td><td>E101026</td><td>0.04066</td><td>0.135</td><td>1.22</td><td>0.959</td><td>2023-11-30</td><td>D</td></tr>
+</tbody></table>
+<p id="jtmm-op1-shot-survey-betaexcl">Shots the 1.0 s window rule excludes, each of which would otherwise rank above the fifth accepted shot (flat-top median 0.04066):</p>
+<table id="jtmm-op1-shot-survey-betaexcl">
+<thead><tr><th>shot</th><th>flat-top [s]</th><th>β flat-top med</th><th>β whole-shot med</th><th>disrupt</th></tr></thead><tbody>
+<tr><td>E101146</td><td>0.41</td><td>0.3264</td><td>0.03868</td><td>D</td></tr>
+<tr><td>E100981</td><td>0.01</td><td>0.08699</td><td>0.0325</td><td>N</td></tr>
+<tr><td>E100983</td><td>0.21</td><td>0.0545</td><td>0.03194</td><td>N</td></tr>
+<tr><td>E100992</td><td>0.13</td><td>0.05057</td><td>0.02979</td><td>N</td></tr>
+<tr><td>E101032</td><td>0.30</td><td>0.04306</td><td>0.03698</td><td>D</td></tr>
 </tbody></table>
 <p id="jtmm-op1-shot-survey-volcap"><strong>Peak plasma volume</strong> (source <code>FAME/VOLUM</code>, m³); its presence also marks a <code>FAME</code> offline reconstruction.</p>
 <table id="jtmm-op1-shot-survey-vol">
@@ -41,5 +50,5 @@
 <tr><td>4</td><td>E101153</td><td>163.89</td><td>0.518</td><td>2023-12-13</td><td>D</td><td>yes</td></tr>
 <tr><td>5</td><td>E101031</td><td>163.67</td><td>0.711</td><td>2023-11-30</td><td>N</td><td>yes</td></tr>
 </tbody></table>
-<p id="jtmm-op1-shot-survey-selene">PSRC reconstruction: 22 of the 22 listed shots; FAME reconstruction: 19. The machine-readable identified OP1 shot list with a reason per entry is <a href="/imas-ambix/evidence/fragments/jt60sa-machine-map/jtmm-op1-shot-survey.json">jtmm-op1-shot-survey.json</a>.</p>
+<p id="jtmm-op1-shot-survey-selene">PSRC reconstruction: 16 of the 16 listed shots; FAME reconstruction: 15. The machine-readable identified OP1 shot list, one entry per shot named in these rankings plus the first plasma, each with a reason, is <a href="/imas-ambix/evidence/fragments/jt60sa-machine-map/jtmm-op1-shot-survey.json">jtmm-op1-shot-survey.json</a>.</p>
 </section>
