@@ -24,8 +24,8 @@
   <title>JT-60SA Geometry and Signal Figures | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="51">
-<meta name="plan-modified" content="2026-10-06">
+<meta name="plan-version" content="52">
+<meta name="plan-modified" content="2026-10-07">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s1b&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s2b&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="369a705d,b36a5d93,bd84e83d,438c4d16,c35e1783,6f251699">
 </head>
@@ -153,6 +153,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261006T135637570260-review-of-jtfig-signal-figures" data-who="reckon-build" data-when="2026-10-06T14:04:54.507Z">
     <div class="r-comment-body"><p>review of r-20261006T122814917961-jtfig-signal-figures at 8da01d86 over base 2aecdec7 stored as a parsed record scoring all six dimensions in 0..20 (goal_fidelity 20, evidence 19, scope_discipline 18, durability 18, fit 18, reuse 17; total 110) with three follow-on findings, none blocking; the gained commits drop the legend, label each panel by its EDDB channel so ylabels fit, render through render_to_bytes at display resolution, and add a tested half-written guard.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20261007-ids-only" data-who="reckon-build" data-when="2026-10-07T02:05:00Z">
+    <div class="r-comment-body"><p>Superseded on 2026-10-07. These signal figures were not drawn from IDS. The script built imas-ink <code>TimeSeries</code> from <code>VirtualZarrView</code> values and raw EDDB channels, with caller-chosen labels and units. The lead ruled that imas-ink draws only from IDS inputs, or from signals carrying standard-name metadata.</p><p>The plan <code>jt60sa-signal-figures-from-ids</code> redraws E101154 from the minted pulse IDS through imas-ink's <code>extract_signal_traces</code>. It deletes the flux-loop figure, which the lead withdrew, and the C060033 figure, which has no IDS. The images above stop resolving when that plan's §1 lands.</p></div>
 </div>
 <div class="r-comment" data-section="§2b" data-id="c-run-r-20261006T130231484043-jtfig-geometry-guard-test" data-who="reckon-build" data-when="2026-10-06T13:05:52.579Z">
     <div class="r-comment-body"><p>test(figures): tests/scripts/test_figures_jt60sa_geometry.py imports _report by file path and asserts it returns for equal store/drawn counts and raises a SystemExit naming 'probes' when the drawn probe count differs from the store's; gate 'uv run --no-sync pytest -p no:cacheprovider tests/scripts/test_figures_jt60sa_geometry.py' -&gt; 2 passed, and 'uv run --no-sync ruff check imas_ambix tests' -&gt; All checks passed (exit 0).</p></div>
