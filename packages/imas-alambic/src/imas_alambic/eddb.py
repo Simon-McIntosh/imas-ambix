@@ -140,7 +140,7 @@ def read_eddb_token(cache_root: Path | str, shot: object) -> str | None:
         return None
     try:
         group = zarr.open_group(path, mode="r")
-    except KeyError, ValueError, OSError:
+    except (KeyError, ValueError, OSError):
         return None
     token = group.attrs.get(EDDB_TOKEN_ATTR)
     return None if token is None else str(token)
@@ -156,7 +156,7 @@ def _node_length(path: Path) -> int | None:
 
     try:
         array = zarr.open_array(path, mode="r")
-    except KeyError, ValueError, OSError:
+    except (KeyError, ValueError, OSError):
         return None
     shape = array.shape
     return int(shape[-1]) if shape else 0
