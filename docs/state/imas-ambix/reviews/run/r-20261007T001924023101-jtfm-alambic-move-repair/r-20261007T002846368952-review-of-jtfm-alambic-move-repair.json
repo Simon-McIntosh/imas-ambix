@@ -1,0 +1,64 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "0aa0bd7e1cbab646519c83c497156032f8c6c407",
+  "call_site_count": 4,
+  "call_sites": [
+    "packages/imas-alambic/src/imas_alambic/machine_map.py:1319",
+    "packages/imas-alambic/src/imas_alambic/machine_map.py:1145",
+    "packages/imas-alambic/src/imas_alambic/pulse_mint.py:300",
+    "imas_ambix/data/description_reader.py:218"
+  ],
+  "completed_at": "2026-10-07T00:35:40.568Z",
+  "dispatched_at": "2026-10-07T00:28:54Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T001924023101-jtfm-alambic-move-repair/negative-control-base-red.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the negative-control red log carries no revision, tree or module.__file__ header (unlike base-arm.log and after-arm.log, which both name the revision and imported module), so a reader must infer from the traceback path which tree produced the red; the log is otherwise admissible on the facts it records (one failing id and a trailing EXIT=1)."
+    }
+  ],
+  "head_log_revision": "b9d318fd2324ac8e2162d67317d991efea6c3911",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 4 production call site(s)",
+    "diff": "read commit by commit against 0aa0bd7e; the change restores the refusal phrase in resolve_description_store_root (machine_map.py:259, 'store root' -> 'description store root'), stubs the imas_alambic.bundles entry-point lookup in test_the_same_directory_reached_twice_is_one_bundle (test_bundle_discovery.py:54), rewrites the eddb.py module docstring to name the JT60SA_ROOT store root reached through the bundle from imas_ambix.data.paths, and adds a 10-line evidence fragment.",
+    "done_when": "the fence names four things: the refusal carrying 'description store root' so tests/data/test_machine_map.py::test_machine_map_refuses_an_incomplete_or_unknown_store_declaration passes unchanged; the dedup test stubbing the entry-point lookup so it passes in the shared env and a clean py3.12 venv; the eddb docstring naming imas_ambix.data.paths through the bundle; and zero added failures plus ruff EXIT=0. after-arm.log records 45 passed EXIT=0 (base-arm.log 2 failed/43 passed EXIT=1, those two ids removed, none added), clean-venv-bundle.log records 7 passed EXIT=0, ruff.log reads All checks passed EXIT=0 -- every clause met.",
+    "goal": "the node goal is to restore the store-root refusal wording and isolate the bundle-dedup test from installed entry points; the diff does exactly that, plus the eddb docstring correction the done-when also names.",
+    "manifest": "read; it records commit b9d318fd, both gate arms with log paths, the ruff and clean-venv logs, and states no blockers; its baseline_suite/after_suite JSON agree with the logs it cites and its after-arm command is reproducible from the worktree, though its after_suite revision string describes the tree ('working tree ... plus node edits, committed b9d318fd') rather than the bare sha.",
+    "write_paths": "the fence lists machine_map.py, eddb.py, test_bundle_discovery.py and the evidence fragment (plus a figures dir); `git show --stat b9d318fd` touches only those four files, so the diff is inside the declared scope."
+  },
+  "justifications": {
+    "durability": "the refusal is guarded by tests/data/test_machine_map.py::test_machine_map_refuses_an_incomplete_or_unknown_store_declaration, whose negative control (negative-control-base-red.log) shows it firing on the pre-fix wording with 'no bundle declares store root', and the dedup stub is proved in both the shared env and a clean py3.12 venv (clean-venv-bundle.log, 7 passed).",
+    "evidence": "base-arm.log (2 failed/43 passed, EXIT=1, revision 0aa0bd7e, module.__file__ under /tmp/jtfm-base.ZIhowh) and after-arm.log (45 passed, EXIT=0, module.__file__ under the worktree) bracket the change with named id and revision; the negative-control red log and ruff.log (EXIT=0) and clean-venv-bundle.log (EXIT=0) complete the set, but the negative-control log carries no header naming its tree.",
+    "fit": "the refusal now matches the humanised phrase the surrounding test family expects, the docstring cross-reference resolves to a module that exists (imas_ambix/data/paths.py:45 defines JT60SA_ROOT and imas_ambix/data/bundle.py:21 registers it as a bundle store root), and the commit carries a conventional subject and a mechanism body.",
+    "goal_fidelity": "machine_map.py:259 refuses an undeclared name with 'no bundle declares description store root {name!r}', restoring the phrase the pre-move module carried at machine_map.py:128 ('description store root {name!r} is not a path defined in ...') that the move dropped, and test_bundle_discovery.py:54 stubs entry_points to [] so the dedup test is isolated from installed entry points.",
+    "reuse": "no new abstraction is added: the refusal keeps its existing single owner resolve_description_store_root, the dedup test reuses the existing IMAS_ALAMBIC_MAP_PATH route and only masks the environmental entry point, and the both-routes dedup guarantee stays covered by the test_a_declared_bundle_wins_over_the_same_directory_on_the_map_path sibling rather than by a new test.",
+    "scope_discipline": "every path in `git show --stat b9d318fd` is inside the fence of prompt.txt, no figure directory is written (the done-when names no artifact), and no plan, sprint or index file is touched."
+  },
+  "project": "imas-ambix",
+  "raw_text": "\nVERDICT goal: the node goal is to restore the store-root refusal wording and isolate the bundle-dedup test from installed entry points; the diff does exactly that, plus the eddb docstring correction the done-when also names.\nVERDICT done_when: the fence names four things: the refusal carrying 'description store root' so tests/data/test_machine_map.py::test_machine_map_refuses_an_incomplete_or_unknown_store_declaration passes unchanged; the dedup test stubbing the entry-point lookup so it passes in the shared env and a clean py3.12 venv; the eddb docstring naming imas_ambix.data.paths through the bundle; and zero added failures plus ruff EXIT=0. after-arm.log records 45 passed EXIT=0 (base-arm.log 2 failed/43 passed EXIT=1, those two ids removed, none added), clean-venv-bundle.log records 7 passed EXIT=0, ruff.log reads All checks passed EXIT=0 -- every clause met.\nVERDICT write_paths: the fence lists machine_map.py, eddb.py, test_bundle_discovery.py and the evidence fragment (plus a figures dir); `git show --stat b9d318fd` touches only those four files, so the diff is inside the declared scope.\nVERDICT manifest: read; it records commit b9d318fd, both gate arms with log paths, the ruff and clean-venv logs, and states no blockers; its baseline_suite/after_suite JSON agree with the logs it cites and its after-arm command is reproducible from the worktree, though its after_suite revision string describes the tree ('working tree ... plus node edits, committed b9d318fd') rather than the bare sha.\nVERDICT diff: read commit by commit against 0aa0bd7e; the change restores the refusal phrase in resolve_description_store_root (machine_map.py:259, 'store root' -> 'description store root'), stubs the imas_alambic.bundles entry-point lookup in test_the_same_directory_reached_twice_is_one_bundle (test_bundle_discovery.py:54), rewrites the eddb.py module docstring to name the JT60SA_ROOT store root reached through the bundle from imas_ambix.data.paths, and adds a 10-line evidence fragment.\nCALL_SITES: packages/imas-alambic/src/imas_alambic/machine_map.py:1319, packages/imas-alambic/src/imas_alambic/machine_map.py:1145, packages/imas-alambic/src/imas_alambic/pulse_mint.py:300, imas_ambix/data/description_reader.py:218\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: machine_map.py:259 refuses an undeclared name with 'no bundle declares description store root {name!r}', restoring the phrase the pre-move module carried at machine_map.py:128 ('description store root {name!r} is not a path defined in ...') that the move dropped, and test_bundle_discovery.py:54 stubs entry_points to [] so the dedup test is isolated from installed entry points.\nSCORE evidence: 18\nJUSTIFICATION evidence: base-arm.log (2 failed/43 passed, EXIT=1, revision 0aa0bd7e, module.__file__ under /tmp/jtfm-base.ZIhowh) and after-arm.log (45 passed, EXIT=0, module.__file__ under the worktree) bracket the change with named id and revision; the negative-control red log and ruff.log (EXIT=0) and clean-venv-bundle.log (EXIT=0) complete the set, but the negative-control log carries no header naming its tree.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: every path in `git show --stat b9d318fd` is inside the fence of prompt.txt, no figure directory is written (the done-when names no artifact), and no plan, sprint or index file is touched.\nSCORE durability: 19\nJUSTIFICATION durability: the refusal is guarded by tests/data/test_machine_map.py::test_machine_map_refuses_an_incomplete_or_unknown_store_declaration, whose negative control (negative-control-base-red.log) shows it firing on the pre-fix wording with 'no bundle declares store root', and the dedup stub is proved in both the shared env and a clean py3.12 venv (clean-venv-bundle.log, 7 passed).\nSCORE fit: 19\nJUSTIFICATION fit: the refusal now matches the humanised phrase the surrounding test family expects, the docstring cross-reference resolves to a module that exists (imas_ambix/data/paths.py:45 defines JT60SA_ROOT and imas_ambix/data/bundle.py:21 registers it as a bundle store root), and the commit carries a conventional subject and a mechanism body.\nSCORE reuse: 19\nJUSTIFICATION reuse: no new abstraction is added: the refusal keeps its existing single owner resolve_description_store_root, the dedup test reuses the existing IMAS_ALAMBIC_MAP_PATH route and only masks the environmental entry point, and the both-routes dedup guarantee stays covered by the test_a_declared_bundle_wins_over_the_same_directory_on_the_map_path sibling rather than by a new test.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T001924023101-jtfm-alambic-move-repair/negative-control-base-red.log:1 follow-on: the negative-control red log carries no revision, tree or module.__file__ header (unlike base-arm.log and after-arm.log, which both name the revision and imported module), so a reader must infer from the traceback path which tree produced the red; the log is otherwise admissible on the facts it records (one failing id and a trailing EXIT=1).\n",
+  "review_run_id": "r-20261007T002846368952-review-of-jtfm-alambic-move-repair",
+  "reviewed_base_sha": "0aa0bd7e1cbab646519c83c497156032f8c6c407",
+  "reviewed_head_sha": "b9d318fd2324ac8e2162d67317d991efea6c3911",
+  "reviewed_run_id": "r-20261007T001924023101-jtfm-alambic-move-repair",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "reviewer_run_id": "r-20261007T002846368952-review-of-jtfm-alambic-move-repair",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-07T00:36:01.321961+00:00",
+  "total": 114
+}

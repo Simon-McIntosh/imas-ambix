@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="19">
+<meta name="plan-version" content="20">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -402,7 +402,10 @@
     <div class="r-comment-body"><p>review of r-20261006T235536466136-jtfm-alambic-integration — parsed record scoring all six dimensions in 0..20 (goal_fidelity 19, evidence 18, scope_discipline 20, durability 19, fit 19, reuse 19; total 114) against base d82ed19b and head 2b6abca4, added_failure_count 3 with added_failure_ids [test_bundle_discovery.py::test_the_same_directory_reached_twice_is_one_bundle, tests/data/test_machine_map.py::test_machine_map_refuses_an_incomplete_or_unknown_store_declaration, tests/data/test_machine_map.py::test_every_mast_map_range_is_one_geometry_transition] derived from the reviewed run's own baseline_suite (f1f0a5b, 5 failed) and after_suite (d82ed19b, 8 failed); the fragment-only diff and both gate logs verified, and two of the three added failures reproduced independently at the same file content.</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261007T001924023101-jtfm-alambic-move-repair" data-who="reckon-build" data-when="2026-10-07T00:28:30.739Z">
-    <div class="r-comment-body"><p>Restored the description store-root refusal wording in resolve_description_store_root (&quot;no bundle declares description store root {name!r}&quot;) so tests/data/test_machine_map.py::test_machine_map_refuses_an_incomplete_or_unknown_store_declaration passes, and stubbed the imas_alambic.bundles entry-point lookup in test_the_same_directory_reached_twice_is_one_bundle so the dedup test passes in the shared env and a clean py3.12 venv; gate moved from 2 failed/43 passed (EXIT=1) at base to 45 passed (EXIT=0), ruff EXIT=0.</p></div>
+    <div class="r-comment-body"><p>Restored the description store-root refusal wording in resolve_description_store_root ("no bundle declares description store root {name!r}") so tests/data/test_machine_map.py::test_machine_map_refuses_an_incomplete_or_unknown_store_declaration passes, and stubbed the imas_alambic.bundles entry-point lookup in test_the_same_directory_reached_twice_is_one_bundle so the dedup test passes in the shared env and a clean py3.12 venv; gate moved from 2 failed/43 passed (EXIT=1) at base to 45 passed (EXIT=0), ruff EXIT=0.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20261007T002846368952-review-of-jtfm-alambic-move-repair" data-who="reckon-build" data-when="2026-10-07T00:35:40.568Z">
+    <div class="r-comment-body"><p>Independent review of run r-20261007T001924023101-jtfm-alambic-move-repair stored at /home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261007T001924023101-jtfm-alambic-move-repair.json: reviewed_base_sha 0aa0bd7e1cbab646519c83c497156032f8c6c407, reviewed_head_sha b9d318fd2324ac8e2162d67317d991efea6c3911, added_failure_count 0, added_failure_ids [], scores goal_fidelity 19 / evidence 18 / scope_discipline 20 / durability 19 / fit 19 / reuse 19, total 114; one follow-on on the negative-control log&#x27;s missing revision header.</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-20261007T0137-eddb-doc" data-who="reckon-build" data-when="2026-10-06T23:37:00Z">
     <div class="r-comment-body"><p>Carry into the §3 node: the module docstring of <code>packages/imas-alambic/src/imas_alambic/eddb.py</code> points at <code>imas_alambic.paths.JT60SA_ROOT</code>, which does not exist. Store roots are owned by <code>imas_ambix.data.paths</code> and reached through the bundle. The reviewer of <code>jtfm-alambic-move</code> raised this, and it was moved out of <code>jtfm-alambic-importers</code> because <code>packages/imas-alambic</code> was still claimed by A.</p></div>
