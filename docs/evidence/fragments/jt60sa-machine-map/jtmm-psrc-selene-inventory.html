@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-psrc-selene-inventory-landing" data-reckon="evidence">
+      <h3>E101154 PSRC category: the equilibrium arrays, read through the on-demand cache</h3>
+      <p id="jtmm-psrc-selene-inventory-method">Read 2026-10-07 from the compute allocation. The single-channel arrays were read through <code>fetch_channels</code> with one <code>RemoteEddbExtractor</code> batch (one <code>ssh jt-60sa</code> session), writing into the shared cache <code>/work/projects/imas_gpu/jt60sa/101154.zarr/PSRC</code>; 78 channels were fetched and none refused. The 143 candidate data names come from the curated E101154 SELENE reference's <code>data_psrc_*</code> keys (imas-efit <code>E101154_psrc_validation.npz</code>). Of those, 86 are served by the PSRC category and 57 are absent.</p>
+      <p id="jtmm-psrc-selene-inventory-refused-names">The 57 absent names are <code>FL1</code>&ndash;<code>FL34</code> and <code>TC1</code>&ndash;<code>TC23</code>, every one returning EDDB return code <code>1022</code> (name not in the catalogue). These are the curated NPZ's loop/probe labels, not PSRC data names: PSRC serves the same quantities as <code>magFluxLp1</code>&ndash;<code>magFluxLp34</code> and <code>magPbTC1</code>&ndash;<code>magPbTC23</code>, both already cached and bound by the &sect;5 pulse map. The inventory below is therefore indexed by the real PSRC names.</p>
+    </section>
+
+    <section id="jtmm-psrc-selene-inventory-equilibrium-arrays" data-reckon="evidence">
+      <h3>Equilibrium quantities, with shape, unit and time base</h3>
+      <p id="jtmm-psrc-selene-inventory-timebase">Every single-channel reconstruction array shares one time base: 46078 samples over 0.000000&ndash;11.519250&nbsp;s (<code>calIp_time</code>, also cached). The multi-channel flux grids carry their own base, 11520 samples over 0.000000&ndash;11.519&nbsp;s, except <code>ishape</code> (46079 samples) and <code>calMMS</code> (71519 samples over 0&ndash;71.518&nbsp;s).</p>
+      <table>
+        <thead><tr><th>quantity</th><th>PSRC array</th><th>shape</th><th>unit</th><th>time base</th></tr></thead>
+        <tbody>
+          <tr><td>plasma current</td><td><code>calIp</code></td><td>(46078,)</td><td>A</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>plasma current (raw)</td><td><code>Ip</code></td><td>(46078,)</td><td>A</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>plasma current (reference)</td><td><code>refIP</code></td><td>(46078,)</td><td>A</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>magnetic axis R</td><td><code>calRp0</code></td><td>(46078,)</td><td>m</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>magnetic axis Z</td><td><code>calZp0</code></td><td>(46078,)</td><td>m</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>axis candidates</td><td><code>comRP1..10</code>, <code>comZP1..10</code></td><td>(46078,) each</td><td>m</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>X-point R, Z</td><td><code>calRX</code>, <code>calZX</code></td><td>(46078,)</td><td>m</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>X-point flux</td><td><code>calFX</code></td><td>(46078,)</td><td>Wb</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>beta<sub>p</sub></td><td><code>calbetap</code></td><td>(46078,)</td><td>&ndash;</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>l<sub>i</sub></td><td><code>calli</code></td><td>(46078,)</td><td>&ndash;</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>elongation</td><td><code>calkappa</code>, <code>calkappaL</code>, <code>calkappaU</code></td><td>(46078,)</td><td>&ndash;</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>triangularity</td><td><code>calDelta</code>, <code>calDeltaL</code>, <code>calDeltaU</code></td><td>(46078,)</td><td>&ndash;</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>boundary inner/outer R</td><td><code>calRin</code>, <code>calRout</code></td><td>(46078,)</td><td>m</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>plasma area</td><td><code>calAp</code></td><td>(46078,)</td><td>m</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>diamagnetic energy</td><td><code>calWdia</code></td><td>(46078,)</td><td>J</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>geometric centre, elongation</td><td><code>calCCSRc</code>, <code>calCCSZc</code>, <code>calCCSMaj</code>, <code>calCCSMin</code></td><td>(46078,)</td><td>m</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>shape moments</td><td><code>calS1</code>, <code>calS2</code></td><td>(46078,)</td><td>&ndash;</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>divertor leg R</td><td><code>calLDIVLin</code>, <code>calLDIVLout</code></td><td>(46078,)</td><td>m</td><td>46078 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>boundary summary</td><td><code>surfp</code></td><td>(8, 11520)</td><td>m</td><td>11520 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>boundary above X-point</td><td><code>surfABVxp</code></td><td>(604, 11520)</td><td>mm</td><td>11520 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+          <tr><td>boundary below X-point</td><td><code>surfBLWxp</code></td><td>(204, 11520)</td><td>mm</td><td>11520 &middot; 0&ndash;11.519&nbsp;s</td></tr>
+        </tbody>
+      </table>
+      <p id="jtmm-psrc-selene-inventory-seeds">Seeds, not results. <code>calbetap</code> is 0.1 and <code>calli</code> is 0.8, uniform across all 46078 samples (min = max), so both are declared placeholders rather than reconstruction outputs, as imas-efit reported. The remaining served arrays are modelling inputs or auxiliary fields, not equilibrium quantities: the coil and FPPC currents <code>curCS1..4</code>, <code>curEF1..6coil</code>, <code>curUpFPC</code>, <code>curLowFPC</code> (kA, 46078), the calibrated flux-probe and field values <code>calFP1..10</code> (Wb), <code>calBr2/3/4</code>, <code>calBz2/4</code> (T), the eddy-current and shape fields <code>calIteddy</code> (A), <code>calRteddy</code> (&ndash;), <code>calNt</code>, <code>calNts</code>, <code>calNDmag</code> (&ndash;), and the multi-channel <code>ieddy</code> (203&times;11520, A), <code>ishape</code> (2&times;46079, &ndash;) and <code>calMMS</code> (310&times;71519, &ndash;).</p>
+    </section>
+
+    <section id="jtmm-psrc-selene-inventory-compare" data-reckon="evidence">
+      <h3>One slice at 6.0&nbsp;s against imas-efit's curated reference</h3>
+      <p id="jtmm-psrc-selene-inventory-compare-note">Reference: <code>imas-efit/tests/data/imas/JT60SA/E101154/validation/selene/equilibrium.h5</code> (150 slices over 1.547&ndash;9.936&nbsp;s; nearest slice to 6.0&nbsp;s is index 79 = 5.9947&nbsp;s; its <code>boundary/outline</code> holds 288 real vertices and two fill-padded entries). PSRC values are at t = 6.0000&nbsp;s. Differences are PSRC minus reference.</p>
+      <table>
+        <thead><tr><th>quantity</th><th>PSRC</th><th>reference</th><th>difference</th></tr></thead>
+        <tbody>
+          <tr><td>plasma current <code>calIp</code> vs <code>ip</code></td><td>980154.9&nbsp;A</td><td>980331.3&nbsp;A</td><td>&minus;176.4&nbsp;A</td></tr>
+          <tr><td>magnetic axis R <code>calRp0</code></td><td>3.1030688&nbsp;m</td><td>3.103034&nbsp;m</td><td>+0.000035&nbsp;m</td></tr>
+          <tr><td>magnetic axis Z <code>calZp0</code></td><td>0.2354537&nbsp;m</td><td>0.235985&nbsp;m</td><td>&minus;0.00053&nbsp;m</td></tr>
+          <tr><td>boundary inner R <code>calRin</code> vs outline R<sub>min</sub></td><td>1.79811&nbsp;m</td><td>1.79800&nbsp;m</td><td>+0.0001&nbsp;m</td></tr>
+          <tr><td>boundary outer R <code>calRout</code> vs outline R<sub>max</sub></td><td>4.40802&nbsp;m</td><td>4.40700&nbsp;m</td><td>+0.0010&nbsp;m</td></tr>
+          <tr><td>boundary Z range <code>surfp[6]</code> vs outline Z<sub>min</sub></td><td>&minus;1.38907&nbsp;m</td><td>&minus;1.38800&nbsp;m</td><td>&minus;0.0011&nbsp;m</td></tr>
+          <tr><td>boundary Z range <code>surfp[7]</code> vs outline Z<sub>max</sub></td><td>2.39889&nbsp;m</td><td>2.39800&nbsp;m</td><td>+0.0009&nbsp;m</td></tr>
+        </tbody>
+      </table>
+      <p id="jtmm-psrc-selene-inventory-negctrl">Negative control (declared mutation): comparing the curated 6.0&nbsp;s reference against the PSRC slice 1.0&nbsp;s away (t = 5.000&nbsp;s) gives <code>calRout</code> = 4.40490&nbsp;m, a boundary outer-R difference of &minus;0.0021&nbsp;m &mdash; twice the matched slice's +0.0010&nbsp;m, so the matched-slice agreement is a real alignment and not an artefact of a flat boundary.</p>
+    </section>
+
+    <section id="jtmm-psrc-selene-inventory-refusal" data-reckon="evidence">
+      <h3>What the sanctioned reader cannot reach</h3>
+      <p id="jtmm-psrc-selene-inventory-refusal-finding">Six served arrays are multi-channel and their EDDB record carries a per-channel unit list; <code>fetch_channels</code> refuses a multi-entry unit list outright (<code>eddb_remote.normalise_unit</code>), so the batch aborted before writing any channel until the six were excluded. The unit lists are uniform in every case &mdash; <code>surfABVxp</code> 604&times;<code>mm</code>, <code>surfBLWxp</code> 204&times;<code>mm</code>, <code>surfp</code> 8&times;<code>m</code>, <code>ieddy</code> 203&times;<code>A</code>, <code>ishape</code> 2&times;<code>&ndash;</code>, <code>calMMS</code> 310&times;<code>&ndash;</code> &mdash; so the refusal is not a genuine unit ambiguity for these arrays. They were read instead by a direct <code>eddb_pwrapper</code> probe on the analysis server: the wrapper returns a multi-channel record flattened time-major, reshaped here as <code>(n_time, nch)</code> to take the 6.0&nbsp;s row. The boundary grids are in <strong>mm</strong> (<code>surfABVxp</code>, <code>surfBLWxp</code>) while the boundary summary <code>surfp</code> and every scalar boundary quantity are in m, so a reader of the flux grids must divide by 1000.</p>
+    </section>
+  </main>
+</body>
+</html>
