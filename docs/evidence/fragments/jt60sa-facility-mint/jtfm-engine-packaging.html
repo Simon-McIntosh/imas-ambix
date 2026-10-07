@@ -1,0 +1,35 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-engine-packaging-landing">
+  <header>
+    <h3>The engine declares its netCDF backend and a py312 ruff target</h3>
+    <p class="meta">
+      Node <code>jtfm-engine-packaging</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;11
+    </p>
+  </header>
+
+  <p>
+    <code>packages/imas-alambic/pyproject.toml</code> declares
+    <code>imas-python[netcdf]&gt;=2.3.0</code>, and the root
+    <code>[tool.ruff.per-file-target-version]</code> pins
+    <code>"packages/imas-alambic/**/*.py"</code> to <code>py312</code> so the
+    py314 formatter cannot strip the parentheses PEP 758 lets it drop.
+    <code>uv.lock</code> regenerated with <code>uv lock</code> (9 lines, only
+    the imas-alambic and imas-python entries), and
+    <code>tests/test_serving_interpreter_parse.py</code> now parses
+    <code>packages/imas-alambic/src</code> alongside <code>imas_ambix</code>.
+  </p>
+
+  <p>
+    Measure: a fresh <code>uv venv --python 3.12</code> holding only the
+    imas-alambic and nova-cocos wheels imports <code>netCDF4</code> 1.7.4 with
+    no hand install, and <code>imas-alambic write 900001</code> against a
+    synthetic flat bundle writes <code>ids/900001_0.nc</code>;
+    <code>ruff check imas_ambix tests packages</code> exits 0. The py312 pin is
+    shown by <code>ruff format --check packages/imas-alambic</code> flagging
+    <code>eddb.py</code> under the base py314 config but not under the head pin.
+    The plan's literal format-check-exit-0 clause is unmet on three
+    pre-existing, target-independent format drifts outside this node's write
+    scope (a follow-on).
+  </p>
+</section>

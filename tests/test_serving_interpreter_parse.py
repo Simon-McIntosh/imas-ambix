@@ -10,7 +10,10 @@ import pytest
 from imas_ambix.agent.profile import SiteConfig
 
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-_PACKAGE_ROOT = _REPOSITORY_ROOT / "imas_ambix"
+_PACKAGE_ROOTS = (
+    _REPOSITORY_ROOT / "imas_ambix",
+    _REPOSITORY_ROOT / "packages" / "imas-alambic" / "src",
+)
 _PARSER = """\
 import ast
 from pathlib import Path
@@ -49,7 +52,13 @@ def _parse_with_serving_python(*paths: Path) -> subprocess.CompletedProcess[str]
 
 
 def test_serving_interpreter_parses_every_module() -> None:
-    module_paths = tuple(sorted(_PACKAGE_ROOT.rglob("*.py")))
+    module_paths = tuple(
+        sorted(path for root in _PACKAGE_ROOTS for path in root.rglob("*.py"))
+    )
+    engine_root = _PACKAGE_ROOTS[-1]
+    assert any(engine_root in path.parents for path in module_paths), (
+        f"no engine modules discovered under {engine_root}"
+    )
 
     result = _parse_with_serving_python(*module_paths)
 
