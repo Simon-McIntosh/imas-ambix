@@ -1,0 +1,47 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T04:21:27.739Z",
+  "dispatched_at": "2026-10-07T04:11:38Z",
+  "findings": [
+    {
+      "anchor": "scripts/figures_jt60sa_signals.py:32",
+      "id": "deep_module-1",
+      "reason": "the plan should specify one function taking the pulse (and figure name), so \u00a73 adds a call rather than a per-pulse copy of the whole body, which is exactly the surface-without-depth shape this item exists to catch.",
+      "text": "\u00a73 draws E101031 \"exactly as \u00a71 draws E101154's\" by editing the same script whose module constants `SHOT`/`FIGURE` (`:32-33`) and `PULSE_DIR`/`_read_pulse_ids` (`:34-41`) are fixed to E101154 and whose `_main()` takes no pulse, yet the design names no shared parameterized entry point, so the second figure duplicates the open\u2192`extract_signal_traces`\u2192`time_trace_figure_mpl`\u2192`render_to_bytes` path rather than hiding it behind one call taking a pulse",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "scripts/figures_jt60sa_signals.py:34",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a73 must name `resolve_settings` as the source of `pulse_path`'s `out_root` argument, or the script re-forks the path resolution the sibling plan exists to consolidate, and \u00a73's own claim to \"never name a path itself\" is unmet.",
+      "text": "\u00a73 routes the pulse-file name to `pulse_path` but never names the owner of the pulse root: the landed script resolves it from `imas_ambix/data/paths.py:45` (`JT60SA_ROOT`), while facility-mint \u00a78 introduces `imas_alambic/settings.py` `resolve_settings` (`IMAS_ALAMBIC_IDS_ROOT`, `docs/plans/jt60sa-facility-mint.html:201`) as the sole root resolver and retires the machine-named store-root key \u2014 so \u00a73 as written risks a second root reader beside the settings owner",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "357f5f2d7d9948d8603b54762fad14de56aa3767770a369f1a76f249e9c2fd04",
+  "plan_slug": "jt60sa-signal-figures-from-ids",
+  "plan_version": 6,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261007T041123302503-plan-review-of-jt60sa-signal-figures-from-ids",
+  "reviewed_blob_sha": "340a9b9fcc747751a7cc71eb2f70484d4e969e84",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 \u00a73 adds a second pulse by editing the one script whose pulse, figure name and directory are fixed to E101154 and whose entry point takes no pulse, without naming a shared parameterized drawing path; the read\u2192extract\u2192render step is at risk of being copied per pulse instead of hidden behind one call.",
+    "duplicate_owner": "a finding \u2014 the plan routes the pulse-file *name* to `pulse_path` but leaves the pulse *root's* resolution unnamed, so \u00a73 risks a second reader of the root beside the settings owner the sibling plan introduces.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0 (read 2026-10-07T04:11:23Z); the plan adds no public definition, CLI option, MCP view or refusal family. \u00a73's only named new mechanism, `pulse_path`, is owned and counted by jt60sa-facility-mint \u00a78, and this plan reuses it rather than adding it.",
+    "reuse_search": "pass \u2014 the plan cites the mechanisms it extends and they exist: imas-ink's `extract_signal_traces` (`imas_ink/extract.py:815`) for both \u00a71's `coil/current` + `ip` and \u00a72's `flux_loop/flux`, and facility-mint \u00a78's `pulse_path` (`docs/plans/jt60sa-facility-mint.html:243`) as the layout owner; geometry-and-signal-figures \u00a73 is recorded as superseded rather than paralleled. It proposes no new drawing machinery.",
+    "thin_wrapper": "pass \u2014 the script is a driver over imas-ink's public API in a separate package (`extract_signal_traces`, `time_trace_figure_mpl`, `render_to_bytes`); it re-implements nothing imas-ink owns, and its one non-delegated responsibility (opening the pulse IDS) is being routed to `pulse_path`."
+  },
+  "section_digests": {
+    "_document": "fef92cd446c002fb68543297d0aec84441c7616741d8eca7dc0589dce5f9a8fd",
+    "s1": "8cc1fc171352c18ac739b983fe55145c39f922e6a6e144dd81cf938653d2845d",
+    "s2": "5cd2e220fa19dd9a8a1baa6ff8250efe43b933bb5494443641b226a63799b420",
+    "s3": "607a5ff54c210bbe2fe0806410cc4c78355ff1b7065bc5659d2c4c9cf5f20358"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T10:03:40.187234+00:00"
+}

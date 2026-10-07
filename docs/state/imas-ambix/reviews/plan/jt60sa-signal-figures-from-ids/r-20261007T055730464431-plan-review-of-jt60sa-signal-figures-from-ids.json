@@ -1,0 +1,47 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T06:11:40.103Z",
+  "dispatched_at": "2026-10-07T05:57:45Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-signal-figures-from-ids.html:111",
+      "id": "duplicate_owner-1",
+      "reason": "the author should extend the owner \u2014 declare an `ids` store role in `imas_ambix/data/bundle.py` (or give `_ids_root` the same bundle fallback `_cache` has) \u2014 so the writer's `out_root` and the reader's root resolve from one place instead of the script holding the layout the writer's caller set by hand.",
+      "text": "\u00a73 says \"The root is resolved once, in the entry point. It takes `imas_alambic/settings.py` `resolve_settings` (`IMAS_ALAMBIC_IDS_ROOT`) when that yields a root. Otherwise it takes ambix's own development store root, `imas_ambix/data/paths.py` `JT60SA_ROOT / \"ids\"`\", which places the IDS-root layout in the figure script rather than in the owner that resolves store roots by name. The owner is `imas_alambic.machine_map.resolve_store_root` (packages/imas-alambic/src/imas_alambic/machine_map.py:303), whose declared roots live in ambix's bundle registrar `imas_ambix/data/bundle.py:19-24` and is already used exactly this way for the sibling `eddb_cache` role by `imas_alambic.settings._cache` (packages/imas-alambic/src/imas_alambic/settings.py:162-171); the ids root has its own owner `imas_alambic.settings._ids_root` (settings.py:134-144) but, unlike `_cache`, it has no bundle-role fallback, which is why `resolve_settings` alone yields nothing here. Census of every site that constructs the JT-60SA IDS root: `scripts/figures_jt60sa_signals.py:35` (`pulse_path(Path(JT60SA_ROOT) / \"ids\", SHOT, RUN)` \u2014 the sole such site, and the one \u00a73 would rewrite into the entry-point fallback); `packages/imas-alambic/src/imas_alambic/cli.py:87` is the only other reader of the ids root and goes through the owner correctly. No other module constructs it, so \u00a73 would become the first hardcoder of the dev store root outside the owner.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-signal-figures-from-ids.html:98",
+      "id": "deep_module-1",
+      "reason": "an exact-spec worker cannot implement a function whose boundary is stated two ways; the plan must pin whether the function returns a matplotlib figure (entry point renders) or SVG bytes (function renders), and say which call the entry point makes.",
+      "text": "\u00a73 says the function \"moves the open \u2192 `extract_signal_traces` \u2192 `time_trace_figure_mpl` \u2192 `render_to_bytes` path into one function that takes the run file's root, the pulse, the run number and the series to draw as (IDS name, path) pairs, and returns the figure\", then in the next sentence says \"It writes nothing; the script's entry point renders each returned figure to SVG and writes it\". `render_to_bytes` therefore sits inside the function (which would make it return SVG bytes, not the figure it is stated to return) or in the entry point (which would make it not part of the moved path) \u2014 the two statements cannot both hold, and the node's SPEC is exact, so the return type and where the render step lives are undecided.",
+      "type": "deep_module",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "7e6c779bc8c209ce59e92e7572e87941b325c3bdbfd23d37e47c3f19ebd59a23",
+  "plan_slug": "jt60sa-signal-figures-from-ids",
+  "plan_version": 17,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261007T055730464431-plan-review-of-jt60sa-signal-figures-from-ids",
+  "reviewed_blob_sha": "a4a464608089b2bd8ddff880f84b933096d440dd",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 the refactored function's boundary is stated two ways, so the depth it hides is not defined; see FINDING below.",
+    "duplicate_owner": "a finding \u2014 \u00a73 resolves the run-file root inline in the figure script instead of extending the owner that resolves store roots; see FINDING below.",
+    "interface_budget": "pass \u2014 with public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0, \u00a73 adds no CLI option, MCP view or refusal family and adds no public API; the module-level function it introduces is script-local, and the section names the E101154-framework constants it retires, satisfying the retire-or-justify rule.",
+    "reuse_search": "pass \u2014 \u00a73 proposes no new subsystem; it composes the owners that already exist \u2014 `imas_alambic.pulse_writer.pulse_path` (pulse_writer.py:292), `imas_alambic.settings.resolve_settings` (settings.py:191), `imas_ambix.data.paths.JT60SA_ROOT` (paths.py:45) and imas-ink's `extract_signal_traces` (imas_ink/extract.py:815) \u2014 and cites each, so the reuse map is stated rather than assumed.",
+    "thin_wrapper": "pass \u2014 the change removes \u00a71's copied body by routing both pulses and (later) \u00a72's loops through one function, so it composes existing machinery rather than wrapping a single mechanism, and it names what it retires (\"The constants fixed to E101154 are retired\"). The script-local `_read_pulse_ids` opener is unchanged existing code and was already answered on reuse_search-2, so it is not re-raised."
+  },
+  "section_digests": {
+    "_document": "fef92cd446c002fb68543297d0aec84441c7616741d8eca7dc0589dce5f9a8fd",
+    "s1": "8cc1fc171352c18ac739b983fe55145c39f922e6a6e144dd81cf938653d2845d",
+    "s2": "5cd2e220fa19dd9a8a1baa6ff8250efe43b933bb5494443641b226a63799b420",
+    "s3": "6e3d8cb570359348025f1349a64f756e439aa50292833581c504fa8772a79a08"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T10:03:40.180167+00:00"
+}

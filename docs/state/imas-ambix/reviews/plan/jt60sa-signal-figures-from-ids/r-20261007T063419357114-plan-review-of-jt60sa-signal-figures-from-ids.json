@@ -1,0 +1,76 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T06:47:26.841Z",
+  "dispatched_at": "2026-10-07T06:34:30Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-signal-figures-from-ids.html:107",
+      "id": "reuse_search-1",
+      "reason": "without naming `require_setting` and the `SettingsFlags(machine=\u2026)` shape, the builder either dereferences a possibly-None `Setting` or invents a second setting-read path beside the owner's.",
+      "text": "\u00a73's \"the entry point calls `resolve_settings().ids_root` with `pulse_path` and nothing else\" describes reading `.ids_root` directly, but `ResolvedSettings.ids_root` is a `Setting` whose `.value` may be `None`, and the owner already carries the refusal helper for it (`require_setting(\"ids_root\", settings.ids_root, \u2026)`, `imas_alambic/cli.py:87`); the same sentence says the call is made \"with `machine=\\\"jt-60sa\\\"`\", but `resolve_settings` takes a `SettingsFlags`, and `ids_root` does not depend on the machine setting at all, so the stated reason (\"ambix's bundle serves diii-d and mast as well\") does not apply to the resolution \u00a73 needs",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-signal-figures-from-ids.html:113",
+      "id": "duplicate_owner-1",
+      "reason": "the section fixes `_read_pulse_ids`'s location and shape, so leaving it script-local while calling it shared locks in the duplication instead of retiring it.",
+      "text": "\u00a73 keeps `_read_pulse_ids` inside `scripts/figures_jt60sa_signals.py` and justifies it by saying jt60sa-pulse-ids \u00a74 \"shares it as the written-pulse reader\", but a script is not an importable owner, so \u00a74 must either import from a script path or re-implement the read \u2014 the third copy of the run-file layout that the pulse-ids review (`docs/plans/jt60sa-pulse-ids.html`: \"the writer's output layout known in two places \u2026 with \u00a74 about to add a third\") set out to avoid; the owner to extend is the module that already owns the run-file name, `packages/imas-alambic/src/imas_alambic/pulse_writer.py` (`pulse_path`, line 292), which should carry the paired reader",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "44930b8f9e410a7af2cf6e2398c49061a14c4d94c52f475a372ce07263fa21f6",
+  "plan_slug": "jt60sa-signal-figures-from-ids",
+  "plan_version": 21,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "9fd87e71-22d3-40c8-8630-1b1d5afe0282",
+      "finding": "reuse_search-1",
+      "reason": "v22 named SettingsFlags(machine=...) and the settings read; jt60sa-facility-mint section 12 (merge b90a7941) moved the script to require_setting('ids_root', settings.ids_root, ENV_IDS_ROOT), so a None root refuses instead of being dereferenced",
+      "when": "2026-10-07T10:24:35.675736+00:00"
+    },
+    {
+      "action": "declined",
+      "by": "9fd87e71-22d3-40c8-8630-1b1d5afe0282",
+      "finding": "duplicate_owner-1",
+      "reason": "the reader is one imas.DBEntry get over pulse_path, so the run-file layout lives only in pulse_path; jt60sa-pulse-ids section 4 is to be re-specified against pulse_path and owns any shared reader on pulse_writer, not this figure plan",
+      "when": "2026-10-07T10:24:35.678700+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "declined",
+      "by": "9fd87e71-22d3-40c8-8630-1b1d5afe0282",
+      "reason": "the reader is one imas.DBEntry get over pulse_path, so the run-file layout lives only in pulse_path; jt60sa-pulse-ids section 4 is to be re-specified against pulse_path and owns any shared reader on pulse_writer, not this figure plan",
+      "when": "2026-10-07T10:24:35.678700+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "9fd87e71-22d3-40c8-8630-1b1d5afe0282",
+      "reason": "v22 named SettingsFlags(machine=...) and the settings read; jt60sa-facility-mint section 12 (merge b90a7941) moved the script to require_setting('ids_root', settings.ids_root, ENV_IDS_ROOT), so a None root refuses instead of being dereferenced",
+      "when": "2026-10-07T10:24:35.675736+00:00"
+    }
+  },
+  "review_run_id": "r-20261007T063419357114-plan-review-of-jt60sa-signal-figures-from-ids",
+  "reviewed_blob_sha": "a8995d71b9f5185cc20c531cf0e3a94278888f7a",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a73 moves open \u2192 `extract_signal_traces` \u2192 `time_trace_figure_mpl` behind one function taking `(root, pulse, run, series)`, so both pulses and \u00a72's loops are calls to it rather than parallel bodies.",
+    "duplicate_owner": "a finding \u2014 \u00a73 keeps `_read_pulse_ids` script-local while asserting jt60sa-pulse-ids \u00a74 \"shares it as the written-pulse reader\"; the owner that already owns the run-file name (`imas_alambic/pulse_writer.py`, `pulse_path`) is where a shared reader belongs, and a script-local \"shared\" reader is exactly the third layout copy the pulse-ids design review warned against.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 adds one public constant, `JT60SA_IDS_DIR`, and its own text names its retirement (\"marked interim \u2026 retires when settings carry the `ids_root` default\"), satisfying the account rule without adding CLI, MCP or refusal surface.",
+    "reuse_search": "a finding \u2014 \u00a73 resolves the IDS root through `resolve_settings().ids_root` but does not cite `require_setting` (`imas_alambic/settings.py`), the owner's established extraction of that setting and its missing-value refusal (`imas_alambic/cli.py:87`), and it describes the call as taking `machine=\"jt-60sa\"` when `resolve_settings` takes a `SettingsFlags` and `ids_root` does not depend on the machine.",
+    "thin_wrapper": "pass \u2014 the section is a consolidation of \u00a71's own body, not a new layer over imas-ink; the only new thin surface (`JT60SA_IDS_DIR`) is justified by a named retirement."
+  },
+  "section_digests": {
+    "_document": "fef92cd446c002fb68543297d0aec84441c7616741d8eca7dc0589dce5f9a8fd",
+    "s1": "8cc1fc171352c18ac739b983fe55145c39f922e6a6e144dd81cf938653d2845d",
+    "s2": "5cd2e220fa19dd9a8a1baa6ff8250efe43b933bb5494443641b226a63799b420",
+    "s3": "474ce2f1ceb63ec9f0c03413697a9b001cff247a806d700e829664cb8ec2781e"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T10:03:40.175591+00:00"
+}

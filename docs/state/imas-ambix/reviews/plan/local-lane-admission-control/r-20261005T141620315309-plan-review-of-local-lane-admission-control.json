@@ -1,0 +1,34 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T14:21:05.619Z",
+  "dispatched_at": "2026-10-05T14:16:27Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/local-lane-admission-control.html#s24 (against tests/test_agent_router_worker_slots.py:164, :214, :245)",
+      "id": "interface_budget-1",
+      "reason": "the node's done-when must name the three tests Rule 2 retires and the \u00a721 \"requests_per_run and worker_slots are null, never guessed\" text it supersedes, otherwise implementation proceeds against a suite the section believes is green and is not.",
+      "text": "\u00a724 Rule 2 makes `_AdmissionLedger.snapshot` assume one request per run where it currently withholds, so `worker_slots` becomes numeric instead of null; three tests in the very file the section names pin the old contract (`test_two_live_runs_publish_null_even_while_congested` asserts `worker_slots is None`; `test_ratio_rounding_to_zero_withholds_both_derived_figures` asserts both figures withheld; `test_fresh_ledger_withholds_derived_figures_until_history_elapses` asserts the null-before-history rule from \u00a721 \"never guessed\"), yet \u00a724 claims \"the existing router, lane and live-panel tests pass\" and \"Nothing is retired\"",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "8c3c557b23280b84cdedcffaae2747dbe85e2976b546ebf7c4b0ba35ab125435",
+  "plan_slug": "local-lane-admission-control",
+  "plan_version": 178,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T141620315309-plan-review-of-local-lane-admission-control",
+  "reviewed_blob_sha": "731e18cd2af31410b94a1c1550a9a78348bebecc",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a724 Rule 1 hides the whole headroom composition \u2014 the engine figure (usable published headroom, else the numeric `withheld.headroom` estimate), then the gate's `admission.headroom` \u2014 behind one function in imas_ambix/agent/lane.py used by both the router and live_panel, so no reader re-derives the rule.",
+    "duplicate_owner": "pass \u2014 the headroom selection is placed in imas_ambix/agent/lane.py, the module that already declares itself the lane-document schema owner (lane.py:665), and the worker-slot fallback stays inside its owner `_AdmissionLedger.snapshot` (router.py:343), so no shared mechanism is forked.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a724 states \"One published field, worker_slots_basis, is added. Nothing is retired\", but Rule 2 retires the null-when-thin worker-slot contract and inverts tests that pin it, and the section does not name them.",
+    "reuse_search": "pass \u2014 the plan cites and reuses the mechanisms it extends rather than adding a parallel subsystem: the router generation gate and its `_AdmissionLedger` (imas_ambix/agent/router.py:289), `availability_percent` and the lane-document schema it owns (imas_ambix/agent/lane.py:651), and `classify_reading`/`lane_block` (imas_ambix/agent/live_panel.py:479), each by file and mechanism.",
+    "thin_wrapper": "pass \u2014 the assumed-rate path of \u00a724 Rule 2 reuses the `_AdmissionLedger` capacity formula (`capacity = floor(width / ratio)`, `worker_slots = max(0, capacity - live_runs)`) with ratio 1 rather than wrapping it, and the live_panel derivation branch is an extension of the pattern already justified at imas_ambix/agent/live_panel.py:475, so nothing is a wrapper over an extendable owner."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.876380+00:00"
+}

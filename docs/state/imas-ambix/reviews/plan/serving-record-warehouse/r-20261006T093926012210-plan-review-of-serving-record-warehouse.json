@@ -1,0 +1,84 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T09:54:55.856Z",
+  "dispatched_at": "2026-10-06T09:39:39Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/telemetry_retention.py:111",
+      "id": "duplicate_owner-1",
+      "reason": "the plan should name node_probe as the owner the retention liveness probe extends, so a second un-timed scheduler query is not left beside the timed one.",
+      "text": "the \u00a78 retention design (\"the job id appears in no squeue state for the account\", plan lines 571/579) is built as a second, unbounded scheduler query \u2014 subprocess.run([\"squeue\",\"-h\",\"-o\",\"%i\",\"-u\",...]) with no timeout and only a FileNotFoundError guard (default_running_job_ids, called at :733 and :877) \u2014 while node_probe.run_capture (imas_ambix/agent/node_probe.py:186, timeout_s=10.0) and node_probe.read_jobs (imas_ambix/agent/node_probe.py:667) already bound the call and tell a squeue that refused from a node that has none; a hung squeue here blocks the whole retire-raw listing; also registered against this section at c-20261005T1005-s8-plan-review and not answered in \u00a78's text",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/provider_prices.py:131",
+      "id": "duplicate_owner-2",
+      "reason": "the publisher and the \u00a79 estimate writer should call one shared atomic-write owner rather than each carrying its own, which is the same duplicate the plan set out to remove from gpu-watch.",
+      "text": "the plan names provider_prices the owner of the price table and \u00a712 fixes its atomic scratch-rename (write_atomic), yet the plan's \u00a710 publisher adds a second atomic writer (imas_ambix/agent/watch_publish.py:74 _write_atomic) and two more scratch-renames already exist at imas_ambix/agent/lane.py:615, imas_ambix/agent/lane.py:1023 and imas_ambix/agent/cli.py:3557; the plan names no shared owner for atomic writes",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/watch_publish.py:47",
+      "id": "duplicate_owner-3",
+      "reason": "name SiteConfig as the resolver for the published document so a relocation of the endpoint directory cannot split the two files apart.",
+      "text": "the plan's \u00a710 revision fixes the published document at the literal ~/public/imas-ambix/watch.json (plan line 661) while the lane document it must sit beside is resolved through SiteConfig.endpoint_document.with_name(\"lane.json\") (imas_ambix/agent/live_panel.py:529, profile.py:620 endpoint_document); the plan says \"beside lane.json\" but names no resolution owner",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/serving-record-warehouse.html \u00a78 (lines 557-580)",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the added CLI surface in its own text, since cli_options is 0 this week.",
+      "text": "the retention section adds agent retire-raw and its --apply flag, and the frozen-manifest apply flow, without stating in its text what it retires or merges or why nothing can be, unlike \u00a75 (removes --submit/--dry-run), \u00a711 (accounts for --live). Prior review c-20261005T1005-s8-plan-review raised exactly this against this section and the text does not answer it",
+      "type": "interface_budget",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/serving-record-warehouse.html \u00a710 (line 661, f-srw-019)",
+      "id": "interface_budget-2",
+      "reason": "the same accounting \u00a711 gives for --live is owed for the publisher command it now depends on.",
+      "text": "the \u00a710 revision renders gpu-watch's period ledger from a document published by a new command, agent publish-watch, adding a CLI command and a second published document (watch.json) whose interface surface is accounted for by no section's text; \u00a710 names the document source but not what the new command retires or merges",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "243a4415a6afcb5da6c7a80ebc81a3f2dd3135d688bbf0d7c1c8b5a48292b6df",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 225,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T093926012210-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "ee673eb7be6c124401bbff703cba3064c326437b",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a711 hides the lane copy, the receipt tail and the two block shapes behind live_panel()/lane_block()/live_block() over about thirty private helpers (imas_ambix/agent/live_panel.py:434-533), and \u00a72's TelemetryIndex hides ingest/rebuild/query behind one class; both are one module with a small interface over substantial behaviour.",
+    "duplicate_owner": "a finding \u2014 the plan introduces three duplicates of shared infrastructure (a second scheduler query, a second atomic-write, and a second resolution of the published-document path) rather than extending the owners that already exist.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; two sections add CLI surface (retire-raw/--apply; publish-watch) whose text names neither what it retires or merges nor why nothing can be.",
+    "reuse_search": "pass \u2014 the plan cites the machinery it extends and each citation was opened: counter_span and _prefix_hit_rate (\u00a73), partitioned_total vs compact_rows (\u00a78, imas_ambix/agent/telemetry_index.py:1464 rebuild, telemetry_store.compact_file), the lane document and its lane.py derivations (\u00a711/\u00a714, imas_ambix/agent/lane.py:651 availability_percent, :725 lane_headroom), and provider_prices (\u00a712, imas_ambix/agent/provider_prices.py). \u00a72's rebuild-equals-append requirement is already a test (tests/test_telemetry_index.py:355, :388). The two mechanisms it rebuilds without citing are reported under duplicate_owner.",
+    "thin_wrapper": "pass \u2014 the two thin layers the plan adds each state why the existing machinery cannot absorb it: \u00a711 says --live cannot merge into --json because its purpose is to skip the index, and \u00a710 says gpu-watch consumes the JSON document rather than importing the package to stay a standalone script."
+  },
+  "section_digests": {
+    "_document": "c87fabfbb5d1618bf10d3252a8c5867fbe8d63ab306c61946abc94d3e7581ae8",
+    "s1": "f0e6a1c8acb9f607124dc4f3def1f738e2a0bc52c579a2c0849a33c6fa1156fb",
+    "s10": "1509fe50d6cbdb1159da0bac7826bf9df43f73f13dc81d4b4a3c3c0d3926d315",
+    "s11": "f02a2d9d5ac0a9537cbc0c7c1127234686c6b35ebe9d5f28f2eb1dc890ba8349",
+    "s12": "c993e8c7a97750818ddad0ac8e3797052442f5dd3357a9b1336cd024ff90f8d3",
+    "s13": "0a80350dd120a399e1c304a1eed64f149a7e5f5f1ef41302cad6223dc985910e",
+    "s14": "65bc34f5b6d081374d8287c3a7e14dfa77b21b6ef0390d5e95961d81ded7114d",
+    "s15": "1d02ca1576af9e3b58c011e3b4c84ffb63870a92698492bd45a0bbfe48660ea0",
+    "s16": "59a48fb3793215455ca353b8188b5d155dec253814be9a4eea8d2f4eeb412fe1",
+    "s2": "dd85bfd277fcf3eff4974460f080158cafc4ff9e584ca8799bbdf19223a0067f",
+    "s3": "dd2996924d4d122532e4de97c38a9cae83173c64b6409cc2135177861f392578",
+    "s4": "59f727a99fef92f80127586b2833279df3aa59154895e05a2590e648232abfeb",
+    "s5": "07d984217f6f4d05e582e4d403dff88fd7c0627b3a2cceb36a0123131813e899",
+    "s6": "19d3648895b8aeee8beac762cb2ddb63ba248dec6485eb393625e0c9fd840c32",
+    "s7": "8de1f36a2db5f192d8a078c96c91f29a1d456c95b742332e6fb3854ee451cb78",
+    "s8": "6fa176e0365af868497abc3e4cb9e224032b3de82c337015be11061591c407c2",
+    "s9": "a29439d3d5c1417e8d6fdc357f0ab636deb86ddef8cdd6865c541773247886ef"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.932868+00:00"
+}

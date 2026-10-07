@@ -1,0 +1,83 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T11:02:23.491Z",
+  "dispatched_at": "2026-10-07T10:58:32Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:77",
+      "id": "anchors_resolve-1",
+      "reason": "\u00a71 is the first content a node reads and it names a persistence location that was superseded, so a map-writing node follows \u00a71 to a path the repository does not carry instead of the bundle the decision names.",
+      "text": "\u00a71 states the locked decision persists the maps at `imas_ambix/data/machine_maps/jt-60sa.json` and `imas_ambix/data/maps/jt-60sa/<system>.json`, but neither path exists in the tree (the machine_maps dir holds only mast.json and diii-d.json, and data/maps holds only `mast`), and the locked `map-persistence-location` decision at plan.html:1291 plus the \u00a75 landed summary at plan.html:248 say the maps now live only in the `/work/projects/imas_gpu/jt60sa/maps` bundle",
+      "type": "anchors_resolve",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:754",
+      "id": "anchors_resolve-2",
+      "reason": "the node that authors the equilibrium map cannot tell from \u00a76 whether to write into the repository (refused, path absent) or into the staged bundle copy that \u00a76:918 and the \u00a75 summary describe, so it would either block or write to a path the plan has retired.",
+      "text": "\u00a76 says the FAME equilibrium signal map is written \"under `imas_ambix/data/maps/jt-60sa/`\", but that directory does not exist and \u00a76's own later paragraph at plan.html:918 says `jtmm-fame-equilibrium-map` adds `maps/equilibrium.json` to a staged bundle copy, so the changed \u00a76 unit carries two different destinations for the same file",
+      "type": "anchors_resolve",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "78d6c41c7e95fcb36c69288dad37f74f6d6e1ec009c1726d099264fd77285cb0",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 327,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "anchors_resolve-1",
+      "reason": "plan v328: names the /work bundle and its staged-copy route in place of the retired repository path",
+      "when": "2026-10-07T11:03:06.804780+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "anchors_resolve-2",
+      "reason": "plan v328: names the /work bundle and its staged-copy route in place of the retired repository path",
+      "when": "2026-10-07T11:03:06.806553+00:00"
+    }
+  ],
+  "responses": {
+    "anchors_resolve-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "plan v328: names the /work bundle and its staged-copy route in place of the retired repository path",
+      "when": "2026-10-07T11:03:06.804780+00:00"
+    },
+    "anchors_resolve-2": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "plan v328: names the /work bundle and its staged-copy route in place of the retired repository path",
+      "when": "2026-10-07T11:03:06.806553+00:00"
+    }
+  },
+  "review_run_id": "r-20261007T105756926193-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "01bf24506e6d86667a41a14323895923bbde42e2",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 \u00a71 names the packaged ambix paths as the locked map-persistence location, and \u00a76 names the equilibrium signal map under the in-repo path, but neither resolves and both disagree with the locked `map-persistence-location` decision.",
+    "done_when": "pass \u2014 \u00a77's done-when now carries a measurable floor (every shot's boundary RMS against SELENE under 0.10 m) and a declared must-fail control (the same run with loop 7's `channel_factor` flipped to +1 stamps a larger whitened magnetics residual on every shot), and \u00a76's names a hand-computed factor per unit pair, so both gates can fail.",
+    "evidence_paths": "pass \u2014 the staged map copies land under `~/.config/reckon/crew/reports/imas-ambix/maps-staging/<node>` and the live bundle under `/work/projects/imas_gpu/jt60sa/maps`, both durable, with no node-local temporary path named as an evidence store.",
+    "naming": "pass \u2014 no ticket numbers, stage names or version tags reach the symbols or comments; the `jtmm-*` identifiers are the plan's own node vocabulary and the physics shorthand (OP1/OP2, E101154, PSRC) names the machine, not a plan item.",
+    "reasoning": "pass \u2014 I applied all three checks: the \u00a76 root-cause chain (one-turn prediction, then the double-counted filament factor) matches its own cited measurements (fragment `jtmm-vacuum-mismatch-rca`, merge 8a873b69) and the corrected slope \u221214 \u2192 \u22120.40; each section's stated mechanism (the vacuum operator, the sign kernel, the machine-keyed pin table) is capable of producing its done-when; and the mechanisms name their real callers (`ForwardOperator.assemble_pf_currents` reached by `build_operator`, `ArtifactMachineSelector` as the sole production constructor), so no mechanism runs unreached.",
+    "single_goal": "pass \u2014 each named node carries one deliverable (for example `jtmm-fame-equilibrium-map` authors one map, `jtmm-sign-cohort` makes one reader argument optional), so each closes on one verdict.",
+    "wiring": "pass \u2014 the s6\u2192s7 dependency and the `conventions-before-equilibrium` gate that holds \u00a77 on \u00a76's sign report resolve; \u00a77's gate names `data-section=\"s7\" data-gated-sections=\"s7\"` and no declared relationship points at the wrong node."
+  },
+  "section_digests": {
+    "_document": "8729894fdb582f89b2fd2b176be2e7795ca1a63df99af3f9377105f653509ec9",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "820d268bb9d9e4e793b6821959ba661ca1d7fa72301eb40d58735876cbd10c5d",
+    "s7": "2a54c3f8179c9119cfaec1d903100bfe7d9248bfd2988667997914b1c789dde9",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:03:06.769858+00:00"
+}

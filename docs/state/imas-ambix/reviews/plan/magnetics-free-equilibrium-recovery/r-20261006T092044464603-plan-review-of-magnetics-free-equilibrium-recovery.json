@@ -1,0 +1,101 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T09:35:28.290Z",
+  "dispatched_at": "2026-10-06T09:20:54Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/magnetics-free-equilibrium-recovery.html:165",
+      "id": "reuse_search-1",
+      "reason": "if an ensemble smoother already exists, \u00a75 should extend it rather than stand up a parallel \"windowed iterated ensemble smoother\", and the author cannot make that call without the citation.",
+      "text": "\u00a75\u2013\u00a77 propose new estimation machinery without citing the existing data-assimilation stack already in the tree, so the plan cannot show whether it rebuilds it: `imas_ambix/statespace/nova_ensemble_estimator.py:1` is literally \"Nova-propagated ensemble conditioning with causal and smoothed products\" (fixed-lag and full-sequence smoothing), `imas_ambix/statespace/sequential_da.py:1` is a sequential current-profile DA substrate, and `imas_ambix/statespace/enkf_baseline.py:1` is an EnKF baseline; none is named anywhere in \u00a75.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/magnetics-free-equilibrium-recovery.html:193",
+      "id": "reuse_search-2",
+      "reason": "a reuse claim with no file is the exact failure this rubric exists to catch; citing the encoder turns an assertion into a checkable extension target.",
+      "text": "\u00a77 asserts the amortizer is \"an extension of the absolute-geometry-token-substrate encoder \u2026 never a parallel module family\" but names no code path, so the claim is unverifiable and the reuse it promises cannot be checked; the substrate lives in code at `imas_ambix/worldmodel/spacetime_relational_encoder.py` and `imas_ambix/tokenizer/patch_transformer.py` (per `docs/absolute-geometry-token-substrate.html`), and neither is cited.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/magnetics-free-equilibrium-recovery.html:152",
+      "id": "reuse_search-3",
+      "reason": "either the plan should drive the existing in-tree solver or state the owner boundary that makes nova's the correct one; as written the plan waits on a capability it may already hold, which is a schedule decision the author would revisit.",
+      "text": "\u00a74's dose-when and \u00a75 both predicate the FF\u2032 half on \"the same nova free-boundary capability\", yet the plan never reconciles that with the free-boundary Grad-Shafranov solver already in this repo, `imas_ambix/latent/gs_solve.py:1` (\"Free-boundary Grad-Shafranov equilibrium solver \u2014 the force-balanced \u03c8 decoder\", free-boundary Picard with Green's-function boundary conditions from measured coil currents).",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/latent/temporal_operator.py:551",
+      "id": "duplicate_owner-1",
+      "reason": "the eigenmodes are the mechanism \u00a75 wants to estimate; the plan should extend `latent/temporal_operator.py` (the named owner) rather than introduce a second placeholder.",
+      "text": "\u00a75's \"2\u20134 vessel-current eigenmodes\" duplicate infrastructure that exists: `temporal_operator.py:551` is the \"L/R eigenmode reduction of the passive set \u2014 pure geometry, per campaign\", `temporal_operator.py:326` provides `predict_vessel_currents`, and `imas_ambix/latent/passive_resistance.py:1` calibrates the passive L/R system from vacuum intervals; the plan names none of them.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/latent/current_diffusion.py:1",
+      "id": "duplicate_owner-2",
+      "reason": "\u00a76 has a named owner to extend, and forking a second reduced model risks two current-diffusion owners drifting apart.",
+      "text": "\u00a76's reduced traversal model (\"passive circuits + current diffusion, no full free-boundary solve\") re-implements machinery already owned by `imas_ambix/latent/current_diffusion.py:1` (1D flux-surface-averaged resistive current diffusion \u2014 the temporal prior, torch/fp64 implicit \u03b8-scheme) and `imas_ambix/latent/transport.py:1` (learned flux-diffusion transport prior); `imas_ambix/physics/circuit.py` also exists for circuit dynamics.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/magnetics-free-equilibrium-recovery.html:166",
+      "id": "thin_wrapper-1",
+      "reason": "a new fitting layer with no justification is exactly a thin wrapper; the honest change is an extension of `imas_ambix/calibration/` unless the plan states why not.",
+      "text": "\u00a75's campaign tier (\"machine-description corrections \u2026 fitted hierarchically across the labeled corpus and frozen\") proposes a new hierarchical fitting layer without saying why the existing calibration machinery cannot host it: `imas_ambix/calibration/` already carries a corpus-compute / persistence / signals harness (`calibration/corpus_compute.py`, `calibration/persistence.py`).",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/magnetics-free-equilibrium-recovery.html:165",
+      "id": "deep_module-1",
+      "reason": "the plan should name the single module that will hide the smoother, so the design can be judged deep or shallow before implementation.",
+      "text": "\u00a75 defines substantial behaviour (two-tier estimation, 12\u201316 parameters per window, innovation classification across typed error sources, NK-convergence admission) but names no module or interface to hide it behind, so the design's depth is unstated and unverifiable; the only concrete artifact the section produced is `imas_ambix/closure/` (`closure/current_diffusion.py`, `closure/pressure.py`), which are two thin calibration wrappers rather than the deep estimator \u00a75 describes.",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/magnetics-free-equilibrium-recovery.html:283",
+      "id": "interface_budget-1",
+      "reason": "the section must account for added interface surface in its own text under a zero-budget week, so the author would either name retirement or record the justification.",
+      "text": "with the supplied figures public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0, the plan adds public definitions in four places \u2014 `challenge/convention.py` (\u00a72), the `thomson/` package (\u00a73), the `closure/` package (\u00a74) and the \u00a77 amortizer \u2014 and no section names anything it retires or merges, or states why nothing can be; \u00a72's own record (f-mfer-003) does claim the convention authority supersedes nova's `identify_source_cocos.py`, which is a retirement picked up on the nova side, but the ambix-side surfaces are unaccounted.",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "32ed5a4506633137757bcaf235306f3dcbdfe6ea98d5ebbcd09ea0865d8a54b6",
+  "plan_slug": "magnetics-free-equilibrium-recovery",
+  "plan_version": 16,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T092044464603-plan-review-of-magnetics-free-equilibrium-recovery",
+  "reviewed_blob_sha": "dfcdc54e4fc6c65b33c1cad58299d79e04706669",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 \u00a75 names no module boundary at all: it specifies a two-tier estimator (campaign tier + shot tier, 12\u201316 parameters per window) purely in prose, so no interface is stated for the substantial behaviour it hides and `imas_ambix/closure/` (two thin calibration modules) is the only concrete artifact the section produced.",
+    "duplicate_owner": "a finding \u2014 \u00a75's windowed iterated ensemble smoother, \u00a75's vessel-current eigenmodes and \u00a76's passive-circuit + current-diffusion traversal each re-implement an owner that already exists (`statespace/nova_ensemble_estimator.py`, `latent/temporal_operator.py`, `latent/current_diffusion.py`); the plan also predicates \u00a74/\u00a75 on a nova free-boundary capability while `latent/gs_solve.py` already carries a free-boundary GS solver in-tree.",
+    "interface_budget": "a finding \u2014 supplied counts public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a72 (`challenge/convention.py`), \u00a73 (`thomson/`), \u00a74 (`closure/`) and \u00a77 (amortizer) each add public definitions, and no section names anything it retires or merges, or states why nothing can be.",
+    "reuse_search": "a finding \u2014 \u00a72/\u00a73 cite the machinery they extend (`challenge/convention.py` builds on `imas_ambix/cocos.py`; \u00a75 mentions \"the contract's integral-constraint policy\", i.e. `fluxstate/`), but \u00a75\u2013\u00a77 propose a smoother, a traversal model and an amortizer without naming the existing `statespace/` and `latent/` modules that already do those jobs.",
+    "thin_wrapper": "a finding \u2014 \u00a75's campaign tier and \u00a76's reduced traversal model are described as new layers over fitting and current-diffusion machinery that already exists (`imas_ambix/calibration/`, `latent/current_diffusion.py`) with no statement of why those cannot be extended."
+  },
+  "section_digests": {
+    "_document": "36773fa371e648daab069d9fb0d96c3a623ecfea6cceb1a001c09c12ebcee008",
+    "s1": "47c7902a1d711df3dc1bf0d2abba1154669289df97b7d7202c50007c9482bc97",
+    "s2": "4d8447be5c9ab8e8e10e452cd3363a0e5ee4f52c52e1e74cc4bab737bbf07ab7",
+    "s3": "c464d643be7bda0db790852fcbd67bf63e30700aadafadf1125be333a8bde6e3",
+    "s4": "4782c17d5815254dab8edd3c13933914962e1b107240b01a68a4d77bfe3e440a",
+    "s5": "a8873c3f1fd3ef0c34b3231b813d8392281c3e084b99a3b49e47d4c94e26d99d",
+    "s6": "88db1d6b7fc72416e1a7a5069b6838a7f996466acc14d70ce66abc2a8d89e9c7",
+    "s7": "00dfb9f5c07fee9a4afcdd0c826c84abe390c3039aece5fe769fc0226eac5b6a",
+    "s8": "b48c6523f004218af9e9e348e41759b584129c1223a1b6a8e807aa2d012ec9e5",
+    "s9": "da7c268cc7276b19e84e1b90fffe0d702340e6bc6098cee078ed7408e3aaf320"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.884838+00:00"
+}

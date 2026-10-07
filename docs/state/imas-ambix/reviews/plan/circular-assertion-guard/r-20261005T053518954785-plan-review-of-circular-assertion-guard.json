@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T05:53:51.627Z",
+  "dispatched_at": "2026-10-05T05:35:22Z",
+  "findings": [
+    {
+      "anchor": "scripts/circular_assertion_audit.py:188",
+      "id": "reuse_search-1",
+      "reason": "the repair node must re-derive scope membership by hand where `symtable` already models it, so the change is to delegate to `symtable` instead of rebuilding the part already proven wrong.",
+      "text": "`_bound_literals` pools literal bindings across every scope in a module with a single `ast.walk`, so a literal bound in one test function anchors a same-named chain in another; the plan's own repair followup f-cag-002 names exactly this as confirmed defect #2, and stdlib `symtable` already yields per-scope symbol tables (verified: a name assigned in `f` reads as an unassigned global in its sibling `g`)",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "scripts/circular_assertion_audit.toml:1",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a73's instruction is unexecutable for two of its three stated outcomes since those shapes never become findings, so \u00a73 must be narrowed to wiring sites or the guard extended so the other shapes are reachable.",
+      "text": "the allowlist's `shape` vocabulary is `(wiring, pinned-once, written-out-literal)`, but `_bound_literals` and `_pinned_references` already keep pinned-once and written-out-literal sites out of `scan()`'s output (the module docstring's \"silent without needing an allowlist entry\"; tests `test_pinned_once_is_silent` and `test_written_out_literal_is_silent`), yet \u00a73 disposes every site with \"keep it and add an allowlist entry naming which of the three sound shapes it is\"",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "b03a5c7624f48f8d694f24c131421bdd929418a02e4bb873c3279ecb1217af15",
+  "plan_slug": "circular-assertion-guard",
+  "plan_version": 7,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T053518954785-plan-review-of-circular-assertion-guard",
+  "reviewed_blob_sha": "2dca5f27a45024d1301a82f1aa1d3af3b70c499a",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 `scan()` and `load_allowlist()` hide parsing, import resolution, chain classification and the mandatory-reason refusal behind two functions plus a thin CLI; `Finding` and `AllowlistEntry` are data records, not wrappers.",
+    "duplicate_owner": "a finding \u2014 the allowlist's `shape` vocabulary duplicates a soundness decision the guard's own auto-silence already owns, and \u00a73 instructs disposing sites by an entry two of those shapes can never reach.",
+    "interface_budget": "pass \u2014 supplied counts public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 and \u00a74 add allowlist data and one deferred decision, no new definition, option, view or refusal family.",
+    "reuse_search": "a finding \u2014 the guard hand-rolls per-scope binding resolution (scripts/circular_assertion_audit.py:188) where Python's stdlib `symtable` already provides per-scope symbol tables, and the plan's reuse map (plan.html:234) cites no mechanism for the \"import resolution ... reusable\" claim.",
+    "thin_wrapper": "pass \u2014 the check is not a layer over an existing linter; \u00a72 states the AST pass is required because telling a written-out literal apart from a circular reference needs the test module's own bindings, and neither ruff nor any repository mechanism can express the classification."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.840598+00:00"
+}

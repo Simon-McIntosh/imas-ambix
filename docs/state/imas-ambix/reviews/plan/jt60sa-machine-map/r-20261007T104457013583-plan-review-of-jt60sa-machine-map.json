@@ -1,0 +1,181 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T10:51:56.155Z",
+  "dispatched_at": "2026-10-07T10:45:06Z",
+  "findings": [
+    {
+      "anchor": "plan.html:1110",
+      "id": "done_when-1",
+      "reason": "an unfalsifiable gate lets a wrong reconstruction stamp clean, and every later map correction is then judged against an unvalidated baseline rather than a measured one.",
+      "text": "\u00a77's done-when asserts a stamped spine-benchmark record and then says \"The first stamp is a baseline, not a pass mark: the number it reports is what later map corrections are judged against\", declaring no tolerance and no must-fail control, so the gate holds however the reconstruction behaves",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html:1422",
+      "id": "anchors_resolve-1",
+      "reason": "the node handed this foreign-owner followup looks for a module that is not there, so it either targets the wrong file or stalls before doing the migration.",
+      "text": "followup f-jtmm-005 names `imas_ambix/data/pulse_mint.py` and \u00a76 (plan.html:421) names `packages/imas-alambic/src/imas_alambic/pulse_mint.py`, but no `pulse_mint.py` exists anywhere in the tree; the `_served_entries` function the followup defers to is in `packages/imas-alambic/src/imas_alambic/pulse_writer.py`",
+      "type": "anchors_resolve",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html:1349",
+      "id": "anchors_resolve-2",
+      "reason": "the decision's substance (a required `validation_state` field on `SignalRule`) is unaffected and the class is reachable at its real path, so only the citation is stale.",
+      "text": "the `signal-rule-validation-state` decision cites `SignalRule (imas_ambix/data/signal_map.py)`, but `SignalRule` is defined in `packages/imas-alambic/src/imas_alambic/signal_map.py` and no `imas_ambix/data/signal_map.py` exists",
+      "type": "anchors_resolve",
+      "would_change": false
+    },
+    {
+      "anchor": "plan.html:236",
+      "id": "anchors_resolve-3",
+      "reason": "these are dangling references a reader must reconstruct by hand, but no work item or claim depends on them, so the repair is a link reset with no change of substance.",
+      "text": "the landed \u00a73/\u00a74/\u00a75 summaries link \"full record\" with `href=\"s3\"`, `href=\"s4\"`, `href=\"s5\"`, which the docs surface resolves to `s3.html`/`s4.html`/`s5.html` and no such files exist, and the s5 gate's evidence href (plan.html:1248) is evidence prose placed in the href attribute rather than a URL",
+      "type": "anchors_resolve",
+      "would_change": false
+    },
+    {
+      "anchor": "plan.html:1254",
+      "id": "reasoning-1",
+      "reason": "a node authoring or editing the map follows the decision to an empty repository path and either writes a second, ignored copy or stalls, when the plan elsewhere requires the bundle to be edited through a staged copy under the reports directory.",
+      "text": "the locked decision `map-persistence-location` (and the \u00a74 landed summary at plan.html:242 and \u00a75 at plan.html:248) place the JT-60SA map at `imas_ambix/data/machine_maps/jt-60sa.json` and `imas_ambix/data/maps/jt-60sa/<system>.json`, but neither path exists in the repository and a later \u00a76 paragraph (plan.html:583) states the map lives only in the `/work` bundle (`/work/projects/imas_gpu/jt60sa/maps`, a bundle named `imas-alambic-jt60sa` holding `machine_map.json` and `maps/`)",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "34df99cf21f6e46faa0c8e2da15ca6d05953e79ad9a772c14f299211ffb0af64",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 325,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "done_when-1",
+      "reason": "deferred to the next authored batch (the section 6 sign-cohort revision, reviewed before its own dispatch): section 7 gains a tolerance and a must-fail control there; section 7 is not dispatched before that batch",
+      "when": "2026-10-07T10:52:57.384488+00:00"
+    },
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "anchors_resolve-1",
+      "reason": "deferred to the next authored batch: f-jtmm-005 and section 6 will cite packages/imas-alambic/src/imas_alambic/pulse_writer.py; the consumers node dispatched now does not read either",
+      "when": "2026-10-07T10:52:57.392129+00:00"
+    },
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "anchors_resolve-2",
+      "reason": "deferred to the next authored batch: the signal-rule-validation-state citation moves to packages/imas-alambic/src/imas_alambic/signal_map.py; substance unchanged",
+      "when": "2026-10-07T10:52:57.393544+00:00"
+    },
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "anchors_resolve-3",
+      "reason": "deferred to the next authored batch: the landed-summary full-record links and the s5 gate evidence href are reset there; no work item depends on them",
+      "when": "2026-10-07T10:52:57.394819+00:00"
+    },
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reasoning-1",
+      "reason": "deferred to the next authored batch: map-persistence-location and the section 4/5 landed summaries are restated against the /work bundle; the consumers node done-when names the staged bundle copy explicitly, so it does not follow the stale paths",
+      "when": "2026-10-07T10:52:57.396055+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "done_when-1",
+      "reason": "plan v327: section 7 done-when gains a 0.10 m boundary floor and a flipped-loop-7 must-fail control",
+      "when": "2026-10-07T10:57:51.198155+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "anchors_resolve-1",
+      "reason": "plan v327: section 6 and f-jtmm-005 cite packages/imas-alambic/src/imas_alambic/pulse_writer.py",
+      "when": "2026-10-07T10:57:51.200848+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "anchors_resolve-2",
+      "reason": "plan v327: the decision cites packages/imas-alambic/src/imas_alambic/signal_map.py",
+      "when": "2026-10-07T10:57:51.202648+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "anchors_resolve-3",
+      "reason": "plan v327: the section 3/4/5 full-record links point at the landed evidence record; the gate evidence href is how reckon renders gate evidence (reckon/_plan_html.py), so the plan cannot carry another shape there",
+      "when": "2026-10-07T10:57:51.204602+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reasoning-1",
+      "reason": "plan v327: map-persistence-location and the section 4/5 summaries state the maps now live in the /work bundle",
+      "when": "2026-10-07T10:57:51.207177+00:00"
+    }
+  ],
+  "responses": {
+    "anchors_resolve-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "plan v327: section 6 and f-jtmm-005 cite packages/imas-alambic/src/imas_alambic/pulse_writer.py",
+      "when": "2026-10-07T10:57:51.200848+00:00"
+    },
+    "anchors_resolve-2": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "plan v327: the decision cites packages/imas-alambic/src/imas_alambic/signal_map.py",
+      "when": "2026-10-07T10:57:51.202648+00:00"
+    },
+    "anchors_resolve-3": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "plan v327: the section 3/4/5 full-record links point at the landed evidence record; the gate evidence href is how reckon renders gate evidence (reckon/_plan_html.py), so the plan cannot carry another shape there",
+      "when": "2026-10-07T10:57:51.204602+00:00"
+    },
+    "done_when-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "plan v327: section 7 done-when gains a 0.10 m boundary floor and a flipped-loop-7 must-fail control",
+      "when": "2026-10-07T10:57:51.198155+00:00"
+    },
+    "reasoning-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "plan v327: map-persistence-location and the section 4/5 summaries state the maps now live in the /work bundle",
+      "when": "2026-10-07T10:57:51.207177+00:00"
+    }
+  },
+  "review_run_id": "r-20261007T104457013583-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "7b0b49c4aa2f1f4838681630ab50ae4872ae5bec",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "findings \u2014 two cited module paths name files that do not exist in the tree, and the landed summaries' \"full record\" hrefs and the s5 gate's evidence href do not resolve.",
+    "done_when": "a finding \u2014 \u00a77's done-when is a baseline declared to have no pass mark and names no negative control, so the gate cannot fail.",
+    "evidence_paths": "pass \u2014 fragments land under `docs/evidence/fragments/`, run logs under the reckon reports directory, and \u00a78 names the heavy gates (census, vacuum adjudication, spine stamp) for SLURM compute rather than the login node.",
+    "naming": "pass \u2014 the code symbols the plan names are mechanism-named (`assemble_pf_currents`, `build_magnetics`, `read_geometry_table`, `SignalRule) and the `jtmm-*`/`f-jtmm-*` identifiers are work-item names, not names it asks code to adopt.",
+    "reasoning": "a finding \u2014 the plan's locked map-persistence decision and two landed summaries place the JT-60SA map at repository paths that do not exist, contradicted by a later \u00a76 paragraph that says the map lives only in the `/work` bundle.",
+    "single_goal": "pass \u2014 each section and each named `jtmm-*` work item carries one deliverable; where two things are deliberately landed together (`jtmm-differential-loop-consumers`) the plan states the reason (carrier and consumer must land as one), so it is coupling, not an unclosed second goal.",
+    "wiring": "pass \u2014 both in-plan gates resolve to the sections they gate (`conventions-before-equilibrium` \u2192 s7, `g-jt60sa-machine-map-1` \u2192 s5), and the cross-plan dependency the handoff names (`imas-codex:jt60sa-discovery-completion \u00a72`) is carried by the s5 gate that is closed on it."
+  },
+  "section_digests": {
+    "_document": "4860703ca060fdf3aa2d75572a7102a402f63d722038524b9aad5ade664dc6ed",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "0741d822433df92ebb23580fba3a48a540b55369ff25c1b0d65cba761dd0fae6",
+    "s7": "d892304ee5f2a7b7d33dc63f6bbcebc40f954bd527d5f32be6c9fdff078d6230",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T10:52:48.743924+00:00"
+}

@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T08:08:33.399Z",
+  "dispatched_at": "2026-10-05T07:57:45Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/watch_publish.py:74",
+      "id": "reuse_search-1",
+      "reason": "the plan must say whether it extends the existing document publisher or why a second one is required, because the two now overlap in directory, atomicity and loop shape.",
+      "text": "\u00a710 adds `watch_publish.py` as a new standing publisher with its own atomic write (`_write_atomic`), its own cadence loop and its own single-line log, and never mentions `lane.write_lane_document`/`router._publish_lane`, which already publish an atomically-replaced JSON document to the same `~/public/imas-ambix/` directory; a second independent publisher is how the two documents' write semantics (stamp, mode, failure-leaves-previous) drift apart",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/cache_estimate.py:71",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a74 should extend the existing receipt identity (`run_id`) and state why it cannot carry the serve-side per-caller attribution, rather than introducing a second identity channel and leaving \u00a74's stale premise in the plan text.",
+      "text": "\u00a74 is built on the premise that \"no request receipt has ever been written\" and that `caller_hint` is the only candidate identity, yet the plan's own \u00a79 \"Rewired 2026-09-29\" records the relay restarted 2026-09-26 and the router's `requests.jsonl` now carrying `run_id`/`coordinator_session`, and `cache_estimate.caller_of` already owns the precedence rule (run_id, else coordinator_session); \u00a74 therefore adds a launcher-stamped header as a parallel identity beside one that exists and is already consumed",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "5dfabdeaf15c57fc41e42b0eaa49a0590f3a6bb1feb291dd3e9d3f0a74e51750",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 202,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T075739416390-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "ccac98d039fa1999f919ac5e313a0e00855a4dcd",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 `imas_ambix/agent/live_panel.py` hides the receipt-tail differencing, the cumulative-histogram median, the run-boundary check and the lane-field copy behind `live_panel()`/`live_document()`, and imports `lane.classify_reading` and `serving_receipts.tier_paths` rather than re-implementing them.",
+    "duplicate_owner": "a finding \u2014 \u00a74 proposes a launcher-stamped declared header as a caller identity while the request receipt already carries `run_id`/`coordinator_session`, read through `imas_ambix/agent/cache_estimate.py:71` `caller_of`.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a711 adds `--live` and two published blocks but names the readers it retires in dotfiles and states why `--live` cannot merge into `--json`, and \u00a714 adds one published field and states why nothing can be retired.",
+    "reuse_search": "a finding \u2014 \u00a710 introduces a second standing document publisher (`imas_ambix/agent/watch_publish.py`) writing to `~/public/imas-ambix/` without citing the existing lane-document publisher (`imas_ambix/agent/lane.py:650` `write_lane_document`, looped by `imas_ambix/agent/router.py:2045` `_publish_lane`), which already writes an atomically-replaced JSON document in that same directory from the fleet.",
+    "thin_wrapper": "pass \u2014 the layers the plan adds carry their justification, not bare forwards: \u00a711's `--live` exists to skip the index, and \u00a79's single estimate-record accessor replaces a constant that would otherwise be repeated inside two tools."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.954958+00:00"
+}

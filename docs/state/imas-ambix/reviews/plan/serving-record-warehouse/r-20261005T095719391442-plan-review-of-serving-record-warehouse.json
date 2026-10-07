@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T10:01:36.478Z",
+  "dispatched_at": "2026-10-05T09:57:26Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/telemetry_retention.py:112",
+      "id": "duplicate_owner-1",
+      "reason": "the \u00a78 node should call the existing scheduler-query helper (or its account-wide sibling) instead of forking `squeue`, so the plan names the owner to extend rather than a second query to maintain.",
+      "text": "the retention liveness probe runs its own `subprocess.run([\"squeue\", \u2026])` with no timeout, duplicating the scheduler-query owner `node_probe.run_capture`/`read_jobs` (imas_ambix/agent/node_probe.py:186, :667), which already distinguishes an absent `squeue` from one that refused and bounds the call by a timeout; an unbounded query in the standing ingest loop's path can hang on a busy scheduler, and the retention path silently loses the absent-vs-refused distinction the owner was built to keep",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/telemetry_store.py:596",
+      "id": "duplicate_owner-2",
+      "reason": "the node must say why the hour tier cannot answer a long window or extend the query's tier selection, or it builds a parallel aggregate the tier system already owns and both must then be kept in step.",
+      "text": "f-srw-020's hourly rollup (\"the counter difference within the hour's counter runs, the gauge's time integral, and the coverage seconds) re-derives exactly what the existing `hour` tier already stores per window (counter endpoint differences, time-weighted gauge integral with carried `obs` counts, folded extremes), and the plan cites the hour tier nowhere; if the index's long-window slowness is that it reads the finest tier per job (raw), the fix may be to let a long window select the hour tier rather than to add a second per-hour aggregate",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/serving-record-warehouse.html#\u00a78",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the added CLI surface in its own text, as \u00a75, \u00a711 and \u00a712 do for theirs, so the interface budget is answerable rather than silently exceeded.",
+      "text": "the retention section adds the `agent retire-raw` CLI command and its `--apply` flag (\u00a78 \"How it is deleted\") without naming in its own text what it retires or merges, or why nothing can be, at a week whose cli_options count is 0",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "772e8cc6ef0be2a1b6f682b98562c051191c5f7f20e738c88e4fe7c4ad62e538",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 220,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T095719391442-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "e13c38e15c09496cb9af72ffab9458f07c3e6d10",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a711 hides the lane block and the receipt-tail live block behind `live_panel.lane_block`/`live_block`, and \u00a712 hides fetch/write/age behind `provider_prices`; each is one module behind two or three functions, not a spread of wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a78's retention liveness rule is implemented by a forked `squeue` call in `telemetry_retention.py`, and f-srw-020's hourly rollup re-derives the aggregate `telemetry_store.py`'s hour tier already carries.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a78 adds the `agent retire-raw` command (with `--apply`) without naming in its own text what it retires or merges, or why nothing can be, while \u00a75, \u00a711 and \u00a712 each do account for their surface.",
+    "reuse_search": "pass \u2014 the plan cites the machinery it extends by name and site: `counter_span`/`partitioned_total` (\u00a73), `ledger_cost`/`match_price`/`price_at` (\u00a79, \u00a712), `TelemetryIndex` and its `(host, boot_id, inode, offset)` key (\u00a72), `SiteConfig` path resolution (\u00a712), `lane.py` and `counter_run_continues` (\u00a711), and names what \u00a75 removes and \u00a710 deletes.",
+    "thin_wrapper": "pass \u2014 the two layers the plan adds (gpu-watch consuming the published JSON in \u00a710, and `agent watch` refreshing the table through the owning module in \u00a712) each state why the existing machinery cannot be extended: gpu-watch must stay standalone and must not import the package, and only one module may write the table."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.944112+00:00"
+}

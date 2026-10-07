@@ -1,0 +1,55 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T05:44:08.724Z",
+  "dispatched_at": "2026-10-07T05:35:26Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-signal-figures-from-ids.html:111",
+      "id": "duplicate_owner-1",
+      "reason": "the author must either name the node that runs `imas-alambic write 101154 101031 --out <ids_root>` and confirm it is dispatched, or drop the run-file dependency and read the per-IDS layout the pulses actually have on disk.",
+      "text": "\u00a73 says \"The run files 101154_0.nc and 101031_0.nc are written by jt60sa-facility-mint's coordinator under \u00a78's done-when, and this section's node dispatches once both exist\", but \u00a78 (merge 106c1104) landed the writer `write_pulse`/`pulse_path` (packages/imas-alambic/src/imas_alambic/pulse_writer.py:292,303) without writing either pulse, and no `*_0.nc` exists on disk; the precondition names a mechanism whose owner is now landed but whose producing node is unassigned, so the section can wait forever on an event nobody is scheduled to raise",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-signal-figures-from-ids.html:97",
+      "id": "deep_module-1",
+      "reason": "taking the (IDS, path) series as an argument now costs nothing and is the difference between \u00a72 reusing this path and forking it.",
+      "text": "the function's interface is \"takes the pulse and returns its figure\" with the signal set hardcoded to coil currents and ip, yet \u00a72 of this same plan (:71) reads `extract_signal_traces(magnetics, \"flux_loop/flux\")` and the probe field \"the same way \u00a71 draws the coil currents\", so the signature fixed here cannot serve the next use and \u00a72 must widen it or add a second function \u2014 two implementations of one open\u2192extract\u2192figure path",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-signal-figures-from-ids.html:96",
+      "id": "reuse_search-1",
+      "reason": "a builder retiring the actual constants still lands the refactor; the stale name is a documentation defect, not a design one, and correcting the sentence does not change the work.",
+      "text": "\u00a73's account of the code it extends lists a module constant `PULSE_DIR` (\"`SHOT`, `FIGURE`, `PULSE_DIR`\"), but scripts/figures_jt60sa_signals.py defines no such symbol; the E101154-fixed constants are `SHOT` (:32), `FIGURE` (:34) and `PULSE_FILE` (:35)",
+      "type": "reuse_search",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "e0b5e1841e17338d0dd27323fd9c53dec1f5032131b42548aca2c1a02e43c09f",
+  "plan_slug": "jt60sa-signal-figures-from-ids",
+  "plan_version": 14,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261007T053514521963-plan-review-of-jt60sa-signal-figures-from-ids",
+  "reviewed_blob_sha": "84f7b804d9b8d84c7c77385ec8b9bfec806f2a67",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 the function is defined as \"takes the pulse and returns its figure\" but fixes the signal set to `pf_active \"coil/current\"` + `magnetics \"ip\"`, an interface too narrow for the reuse \u00a72 already names.",
+    "duplicate_owner": "a finding \u2014 \u00a73 gates its dispatch on two run files that no landed or assigned node produces, and names no owner for the mechanism that writes them.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 adds one script-local function and retires `SHOT`/`FIGURE`/`PULSE_FILE` (scripts/figures_jt60sa_signals.py:32-35), adding nothing to any of the four families, so it has no surface to retire or justify.",
+    "reuse_search": "pass \u2014 \u00a73 cites and extends the existing machinery (`extract_signal_traces` imas_ink/extract.py:815, `time_trace_figure_mpl`, `render_to_bytes`, and the `pulse_path`/`resolve_settings` owners at pulse_writer.py:292 / settings.py:191) and refactors the existing `scripts/figures_jt60sa_signals.py:_main` rather than proposing a parallel path.",
+    "thin_wrapper": "pass \u2014 the function replaces the body of `_main` (scripts/figures_jt60sa_signals.py:45-55) and retires its constants; it is the existing entry point parameterised, not a new layer over it."
+  },
+  "section_digests": {
+    "_document": "fef92cd446c002fb68543297d0aec84441c7616741d8eca7dc0589dce5f9a8fd",
+    "s1": "8cc1fc171352c18ac739b983fe55145c39f922e6a6e144dd81cf938653d2845d",
+    "s2": "5cd2e220fa19dd9a8a1baa6ff8250efe43b933bb5494443641b226a63799b420",
+    "s3": "761967dac2c2dae7827687dec23e79683af1c5938b1921a61df09676975f3b50"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T10:03:40.183590+00:00"
+}

@@ -1,0 +1,47 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T05:55:52.206Z",
+  "dispatched_at": "2026-10-07T05:45:20Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/jt60sa-signal-figures-from-ids/r-20261007T054508269152-plan-review-of-jt60sa-signal-figures-from-ids/plan.html:104",
+      "id": "reuse_search-1",
+      "reason": "the section must state the run-time root that connects the reader to the writer's output (e.g. export `IMAS_ALAMBIC_IDS_ROOT=/work/projects/imas_gpu/jt60sa/ids`) and reconcile the flat-file layout with the directory layout \u00a73 and \u00a72 both name.",
+      "text": "\u00a73 says the function \"reaches a pulse through the owners jt60sa-facility-mint \u00a78 introduces ... and never names a path\", taking the root from `imas_alambic/settings.py` `resolve_settings` (settings.py:134-143) and the name from `pulse_writer.pulse_path` (pulse_writer.py:292). Neither reaches the artifacts: `_ids_root` has no default and no file in the repository sets `IMAS_ALAMBIC_IDS_ROOT` or `IMAS_ALAMBIC_HOME`, so a bare run yields `ids_root = None`; the writer's root is instead the `--out` flag wired as `SettingsFlags(..., ids_root=out_dir)` (`imas-alambic/src/imas_alambic/cli.py:82-98` and `pulse_writer.write_pulse`), so reader and writer resolve from two different settings that nothing ties; and `pulse_path` builds a flat `<out_root>/<pulse>_<run>.nc`, whereas the E101154 and E101031 pulses \u00a73 names at plan.html:88-89 are per-pulse directories holding one file per IDS (`/work/projects/imas_gpu/jt60sa/ids/101031/{pf_active,magnetics,wall,pf_passive,tf}.nc`), with only `101154_0.nc` present flat at `/work/projects/imas_gpu/jt60sa/ids/` (observed 2026-10-07).",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/jt60sa-signal-figures-from-ids/r-20261007T054508269152-plan-review-of-jt60sa-signal-figures-from-ids/plan.html:97",
+      "id": "deep_module-1",
+      "reason": "the function's contract (write or return, and where run, output directory and format come from) must be settled before the node is released, or E101154, E101031 and \u00a72's loops will diverge at their call sites.",
+      "text": "\u00a73 hides the whole open \u2192 `extract_signal_traces` \u2192 `time_trace_figure_mpl` \u2192 `render_to_bytes` pipeline behind a function it describes as taking \"the pulse, the series to draw as (IDS name, path) pairs, and the figure name, and returns the figure\", yet at plan.html:123 says \"The function writes both SVGs there\". The interface declares neither the run number, the output directory, nor the render format, and the section contradicts itself on whether the function or its caller performs the write; \u00a72's \"further calls\" (plan.html:71-72, plan.html:101) use the same pulse with a different figure name, so an implementer cannot fix the signature from the plan.",
+      "type": "deep_module",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "3dda263d6028f8c3cbc22b6706d1874a8ef345ab4dca0ad3bef0876705880f2a",
+  "plan_slug": "jt60sa-signal-figures-from-ids",
+  "plan_version": 15,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261007T054508269152-plan-review-of-jt60sa-signal-figures-from-ids",
+  "reviewed_blob_sha": "b3f435d6a86cf002e32df37ddfb52d2a6cb39659",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 the figure function's stated interface (the pulse, the `(IDS name, path)` pairs, the figure name, \"returns the figure\") is under-specified against what it hides and contradicts the later \"writes both SVGs\".",
+    "duplicate_owner": "pass \u2014 \u00a73 names the geometry driver's reader (`scripts/figures_jt60sa_geometry.py:45` `_read_ids`) as a distinct product with a distinct owner (the catalogue's static-over-map store) and nothing else in the tree owns reading a written pulse run file; `imas_alambic/pulse_writer.py` holds only the private `_read_description` (line 159), which reads the description store, not a run file.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 adds no CLI option, MCP view, public library definition or refusal family, and names what it retires (the `SHOT`, `RUN`, `FIGURE`, `PULSE_FILE` module constants at `scripts/figures_jt60sa_signals.py:32-35`).",
+    "reuse_search": "a finding \u2014 \u00a73 cites `imas_alambic.settings.resolve_settings` (`IMAS_ALAMBIC_IDS_ROOT`) as the pulse root and `imas_alambic.pulse_writer.pulse_path` as the file-name owner, but neither resolves the file the section reads.",
+    "thin_wrapper": "pass \u2014 the function composes imas-ink's `extract_signal_traces`, `time_trace_figure_mpl` and `render_to_bytes`, and no imas-ink helper (`imas_ink/cli.py`, `imas_ink/figures.py`, `imas_ink/io.py`) already performs that composition, so there is no existing mechanism to extend instead."
+  },
+  "section_digests": {
+    "_document": "fef92cd446c002fb68543297d0aec84441c7616741d8eca7dc0589dce5f9a8fd",
+    "s1": "8cc1fc171352c18ac739b983fe55145c39f922e6a6e144dd81cf938653d2845d",
+    "s2": "5cd2e220fa19dd9a8a1baa6ff8250efe43b933bb5494443641b226a63799b420",
+    "s3": "2306346873d8dcf0d0a86f9f2dfcf43dcd15078c33c1fe7d2f7df8cf11fe85f7"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T10:03:40.181811+00:00"
+}

@@ -1,0 +1,55 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T09:38:22.712Z",
+  "dispatched_at": "2026-10-06T09:20:20Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/imas_ambix/agent/clive.py:773",
+      "id": "duplicate_owner-1",
+      "reason": "the plan must either extend the flight declaration to omit `CLAUDE.md` and read its harness home, or state why a second live-settings hook carrier cannot drift from reckon's.",
+      "text": "with `--setting-sources ''` the plan's profile route reads the `hooks` block from the operator's live `~/.claude/settings.json` (`USER_SETTINGS=\"${CLIVE_USER_SETTINGS:-${HOME}/.claude/settings.json}\"`, line 773) and merges it into the `--settings` file (lines 862, 898-902); this is a second implementation of the harness-home hook carry that reckon already owns and declares, in `reckon/schema/flight-defaults.yaml:42-43` (`path: settings.json`, `keys: [hooks]`) implemented at `reckon/_backends.py:2141-2144` and `reckon/_backends.py:2288`. The two carriers diverge: under the fence `CLAUDE_CONFIG_DIR` is the run's harness home, but clive reads `${HOME}/.claude/settings.json`, so the hooks the worker actually runs are the operator's mutable live set, not the per-run set the fence computed and shipped \u2014 the plan's own \u00a72 text first adopts that declaration (snapshot line 54) and then abandons it (line 56) in favour of the live read.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/clive-worker-profiles.html#s2",
+      "id": "interface_budget-1",
+      "reason": "the section must state, in its own text, what it retires or merges, or why nothing can be, before it adds this surface.",
+      "text": "\u00a72 adds to three of the four families and accounts for none: a new `--worker-profile PATH` CLI option on clive (cli_options), a new three-key public profile file contract plus the `$CLIVE_PROFILE_RECEIPT` env variable (public_definitions), and a named-refusal vocabulary for a missing file, a malformed key, a missing path and an empty `tools` list (refusal_families) \u2014 the section text names nothing it retires or merges, and gives no reason retirement is impossible.",
+      "type": "interface_budget",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/clive-worker-profiles.html#s2",
+      "id": "thin_wrapper-1",
+      "reason": "the plan's own value-add (per-file sha256, empty-`--setting-sources` route, receipt) is behaviour a plain flag list cannot supply, so the wrapper is justified even though the hook carry is not.",
+      "text": "the profile expands to flags Claude Code already accepts, and the plan rejects a generated `CLAUDE_CONFIG_DIR` but does not weigh extending reckon's existing settings carry (named under duplicate_owner) as the alternative to a new launcher flag layer.",
+      "type": "thin_wrapper",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "198f9c3c8bad5cef9bca36f1fcca43b355696a912a56ff43619f0efd5e81cc79",
+  "plan_slug": "clive-worker-profiles",
+  "plan_version": 29,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T092009195675-plan-review-of-clive-worker-profiles",
+  "reviewed_blob_sha": "91f25a6fb74fca498eb1f22ea36d2d3a847d7c2f",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the single `--worker-profile PATH` interface hides validation, file digesting, hook-merge, route selection and the receipt behind one flag and one reused settings/argv path, which is depth rather than a spread of wrappers.",
+    "duplicate_owner": "a finding \u2014 the plan re-implements the hook-carry path that reckon's flight declaration already owns.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a72 adds a CLI option (`--worker-profile`), a three-key profile file and a named-refusal vocabulary without naming what it retires or merges, or why nothing can be.",
+    "reuse_search": "pass \u2014 the plan cites the mechanisms it threads through rather than adding a parallel launcher: clive's existing `--settings`/`--append-system-prompt` argv builder in `imas_ambix/agent/clive.py` and reckon's harness-home flight declaration; the only same-package \"profile\" loader, `imas_ambix/agent/profile.py`, is model-serving configuration and a genuinely different domain, so it is not reuse the plan missed.",
+    "thin_wrapper": "a finding \u2014 the plan adds `--worker-profile` as a layer over Claude Code's own `--settings`/`--mcp-config`/`--append-system-prompt` flags, and although it justifies the flag route against a generated `CLAUDE_CONFIG_DIR`, it never says why the profile's hook-carry cannot instead extend the existing owner of \"which hooks a worker runs under\"."
+  },
+  "section_digests": {
+    "_document": "3546c7b47cb4113df629ea797d00fcd4e28d2bbfc4b1f3b753e14725fa98ac32",
+    "s1": "300326f81eb365fcc7ab90fb189cd9f54985a137d6a0ee19fa75be20277b0cf1",
+    "s2": "ecec489e6028801095d61c01470dbbab1b5620e7d96c1c962177697bcffd86e2",
+    "s3": "9b433b320a5c50a07c2c79d58d7299ff3347fa946a110c96db81e2fd24ab0aa9"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.854619+00:00"
+}

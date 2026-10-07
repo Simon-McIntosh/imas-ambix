@@ -1,0 +1,52 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T09:52:49.012Z",
+  "dispatched_at": "2026-10-06T09:39:57Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/slurm-hosted-agent-fleet.html:222",
+      "id": "duplicate_owner-1",
+      "reason": "the remaining \u00a77 node and the visible-lifetime surface have no owner in this repository, so the plan must point them at reckon's extension point and correct its artifact list, or a node rebuilds the duplicate the refactor removed.",
+      "text": "\u00a76 declares \"imas-ambix owns the node \u2026 Acquiring, holding, monitoring and releasing the allocation belongs here\", and \u00a77 step 3 (line 265) and step 6 (line 280) implement that here, but commit 6948258f (2026-09-28) removed imas_ambix/agent/fleet.py, the `agent fleet hold|place|status` commands, the four SiteConfig fleet_* settings and tests/agent/test_fleet.py, handing the owner to reckon (`reckon fleet-node hold|status|place`, reckon 15390017); both files are absent from the current tree while plan-artifacts (line 32) still lists imas_ambix/agent/fleet.py and tests/agent/test_fleet.py",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/slurm-hosted-agent-fleet.html:243",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the added surface in its own text (naming what it retires, merges, or why nothing can be), and a sampler CLI that is invisible to `imas-ambix agent` is a surface decision the plan should make explicitly rather than leave to the module.",
+      "text": "\u00a77.1 and the \u00a77 steps add new interface families against a week whose cli_options and public_definitions both read 0: the throttling sampler ships its own argparse subcommand pair (sample/interval) with three options (--directory, --directory, --seconds) at imas_ambix/agent/throttling.py:533 and ~20 module-level public definitions, and steps 3/6 previously added the `agent fleet hold|status|place` CLI commands, while no section states what these retire, merge, or why nothing can be",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "b31c7e90fa35b50313a8d79d65f6f4e1dc0930f971f18fdffc9a5a12c516712a",
+  "plan_slug": "slurm-hosted-agent-fleet",
+  "plan_version": 59,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T093945576950-plan-review-of-slurm-hosted-agent-fleet",
+  "reviewed_blob_sha": "392d13473be957a15baedceef5cca6596660e5e5",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 imas_ambix/agent/throttling.py hides cgroup v2 parsing, ceiling-vs-no-ceiling and absent-vs-genuinely-zero semantics, host/boot identity, interval differencing and the JSON payload behind a small set of functions (read_sample, throttled_share, throttled_share_over_elapsed, interval_delta), so its 593 lines are hidden by roughly eight public entry points rather than spread across parallel wrappers.",
+    "duplicate_owner": "a finding \u2014 the plan assigns fleet-allocation holding and monitoring to imas-ambix, but that machinery was removed and re-homed to reckon, and the plan still names the deleted imas-ambix files as the artifacts that own it.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the \u00a77 implementation steps add CLI surface (`python -m imas_ambix.agent.throttling sample|interval`, three options) and public definitions in throttling.py, and previously `agent fleet hold|place|status`, without naming in their own text what they retire or merge, or why nothing can be.",
+    "reuse_search": "pass \u2014 the plan ran a reuse map before proposing machinery (comment c-run-r-20260921T064359747219-fleet-reuse-map reports 103 resolved citations, establishing that sbatch generation/submission/registration/liveness already exist, that no cgroup cpu.stat reader exists anywhere in the checkout, and that reckon's reservation path exists but is unarmed); searches of the current tree corroborate it: throttling.py is the only cpu.stat reader (imas_ambix/agent/throttling.py, shared with imas_ambix/agent/telemetry_index.py), and the plan extended the existing squeue query in imas_ambix/agent/slurm.py rather than adding a second one.",
+    "thin_wrapper": "pass \u2014 the one thin wrapper the plan added, `fleet place` over `srun --overlap --jobid`, carried an explicit justification for not extending reckon's reservation path (the second-allocation/one-node-whole conflict at comment c-20260922-placement-resolves-by-token), so it is a wrapper with the required reason rather than a finding."
+  },
+  "section_digests": {
+    "_document": "38de1df4bb7ed11f3008fa624c71c82453d176b598c8742f0793e717de821a52",
+    "s1": "81fe704906fe9d6c8328ac2da2d48f8ebe2048ff5dc745b335612f82480ca802",
+    "s2": "a57ef4a12cc43825303ed999da15679aa12ed4629463c4ae0eee21d6ff54c1f2",
+    "s3": "09a013b5b2caaa63fc3b3a3f777bd0a9527cfe71b399e94a0de31f898b1208fa",
+    "s4": "4474b7ce4a26db825315bbfada3b8e0984210f0e9d2e08ee9f73cc25a0152966",
+    "s5": "2d264e4c67da4446c2c8410ec7c34cfcda2b49f483edc711c7bb4897be905c27",
+    "s6": "c9651eca7d46072e31dcf233742af681315f2a92daf99ad1d278d269478eb945",
+    "s7": "f0e4e554f83ccb1a12c401ab202a3a6ee52ab71363872d2b455f8dc12aff60c7",
+    "s8": "e86dd92051d3852fc409596ee273cff9ebcc3ac80fc9b0312a4f0014e7d3502e"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.967883+00:00"
+}

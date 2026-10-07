@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T05:54:31.139Z",
+  "dispatched_at": "2026-10-05T05:47:23Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/magnetics-free-equilibrium-recovery.html#s5",
+      "id": "reuse_search-1",
+      "reason": "without the reuse map the \u00a75/\u00a76 nodes will rebuild DA and reduced-model machinery that already exists, which is the reuse failure this review exists to catch.",
+      "text": "\u00a75 specifies \"a windowed iterated ensemble smoother\" and \u00a76 \"a reduced model (passive circuits + current diffusion, no full free-boundary solve)\" as new work but cites no prior-art search; the codebase already holds a windowed ensemble-smoother and DA-cycle substrate and a reduced current-diffusion/passive-circuit model under imas_ambix/statespace/ and imas_ambix/latent/, none named",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/statespace/sequential_da.py:1",
+      "id": "duplicate_owner-1",
+      "reason": "a forked smoother path diverges from the sealed-rehearsal pipeline and duplicates its per-window interface instead of widening the existing one.",
+      "text": "\u00a75's \"windows-as-DA-cycles\" smoother duplicates the psi(rho)-state data-assimilation substrate that `statespace/sequential_da.py` already owns (TORAX once-per-shot prior, reduced-observable `H_psi` update, localised analysis), and its Zeff / vessel-eigenmode / actuator-nuisance parameter set overlaps `enkf_baseline.py`'s theta; the owners are `statespace/sequential_da.py` and `statespace/enkf_baseline.py`, which \u00a75 should extend",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/latent/current_diffusion.py:1",
+      "id": "duplicate_owner-2",
+      "reason": "\u00a76 should extend the existing diffusion and passive-circuit modules rather than stand up a second reduced model, and naming the owner is what makes that an extension rather than a fork.",
+      "text": "\u00a76's reduced model \"passive circuits + current diffusion\" duplicates `latent/current_diffusion.py` (flux-surface-averaged resistive diffusion temporal prior) and `latent/passive_resistance.py` (passive L/R calibration from coil-only intervals), neither of which \u00a76 names",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "3fd6548ddbb19100c48018f8fd8c488c7dcb19d453d7f6b764fc833e387d2374",
+  "plan_slug": "magnetics-free-equilibrium-recovery",
+  "plan_version": 16,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T054718686415-plan-review-of-magnetics-free-equilibrium-recovery",
+  "reviewed_blob_sha": "dfcdc54e4fc6c65b33c1cad58299d79e04706669",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the plan proposes no module family spread across shallow wrappers; \u00a77 explicitly extends one existing encoder rather than adding a parallel one.",
+    "duplicate_owner": "a finding \u2014 \u00a75 re-implements the psi(rho)-state DA-cycle substrate that `imas_ambix/statespace/sequential_da.py` already owns, and \u00a76's reduced model duplicates `imas_ambix/latent/current_diffusion.py` + `imas_ambix/latent/passive_resistance.py`.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0 (read 2026-10-05T05:47:18Z); no section adds to any of these families, so nothing needs to name what it retires or merges.",
+    "reuse_search": "a finding \u2014 \u00a75 and \u00a76 propose a windowed iterated ensemble smoother and a reduced passive-circuit/current-diffusion model without citing the existing ensemble-smoother and reduced-model machinery they most resemble (`imas_ambix/statespace/enkf_baseline.py`, `imas_ambix/statespace/sequential_da.py`, `imas_ambix/latent/current_diffusion.py`, `imas_ambix/latent/passive_resistance.py`).",
+    "thin_wrapper": "pass \u2014 the only layer the plan adds over existing machinery (\u00a78 rung-1 referee-convention projection) carries a stated justification (quarantine at emission, in-house EFIT++ conventions), and no existing convention-projection module is displaced."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.889163+00:00"
+}

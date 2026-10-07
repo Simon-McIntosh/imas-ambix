@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T17:37:42.522Z",
+  "dispatched_at": "2026-10-05T17:35:13Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/statespace/oracle_probe.py:55",
+      "id": "reuse_search-1",
+      "reason": "naming the existing pin forces \u00a75 to state the hook point (env before test-module imports, torch after) and its verification, which the current text leaves open and which decides whether the cap works at all.",
+      "text": "\u00a75 proposes a conftest cap setting `OMP_NUM_THREADS`, `OPENBLAS_NUM_THREADS` and `MKL_NUM_THREADS` and calling `torch.set_num_threads`, but the plan cites no prior art; the repository already has exactly this pin at module scope here, with a comment that pins the load-bearing constraint the \u00a75 design omits \u2014 the env vars must be set BEFORE numpy/sklearn/torch are imported or the OpenMP pool is already sized (a single fit went 0.2 s pinned to >200 s unpinned). \u00a75 says only that `tests/conftest.py` \"caps\" the pools \"read from PYTEST_XDIST_WORKER_COUNT and the CPUs available\", without stating the hook point; an autouse function-scoped fixture runs after collection has imported torch, so an env-var cap placed there is silently a no-op while the torch call still works, and the split behaviour would not be visible in the \"cap set under xdist / absent without it\" test the done-when asks for. The same mechanism also exists per-test (`tests/worldmodel/test_worldmodel_train_corpus.py:77`, `tests/latent/test_structure_synthetic_truth.py:30`) and at two production call sites (`imas_ambix/statespace/engine.py:747`, `imas_ambix/worldmodel/camera_topology_labeller.py:462`).",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "tests/test_declared_dependencies.py:457",
+      "id": "duplicate_owner-1",
+      "reason": "the honest change is to extend `render_fragment`/`parse_timeouts` with the outcome field and regenerate, which the plan should state so the triage table and the census table stay one mechanism rather than two that can disagree.",
+      "text": "\u00a75's done-when asks for \"a table in the section's evidence fragment\" giving each of the 37 tests its measured duration and its outcome (marked N, wait fixed, or left failing with the owning plan named). The plan already owns and renders this table: `render_fragment` (line 457) emits a \"Tests that aborted at the per-test timeout (measured)\" table with columns Test/Phase/Duration, fed by `parse_timeouts` (line 401) reading the whole-suite log, and \u00a75 names that very fragment (`docs/evidence/fragments/project-environment-declared/ped-declare-relock.html`) as where the 37-test list lives. \u00a75 does not say whether it extends that renderer or writes a second one; a second renderer forks the owner, and the outcome column the section needs is a fourth field on the existing `timeouts` tuple `(test_id, phase, seconds)` rather than a new table.",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "4663cb973c56b0e768d9d6d13e00509bb80f200e636c0d28d23ed7aac8131b25",
+  "plan_slug": "project-environment-declared",
+  "plan_version": 36,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T173506858435-plan-review-of-project-environment-declared",
+  "reviewed_blob_sha": "0bba0e2d90853562666325a75972aaee9dece3fa",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the cap is one hook (an autouse conftest fixture) that hides the whole per-worker-share computation \u2014 xdist worker count, process CPU affinity, and the four thread pools \u2014 behind that single interface; no spread of wrappers.",
+    "duplicate_owner": "a finding \u2014 \u00a75's triage table (\"each of the 37 tests its measured duration and its outcome\") duplicates the evidence table already owned and rendered by `render_fragment`/`parse_timeouts` in `tests/test_declared_dependencies.py`, the same mechanism that produced the \u00a73 fragment's \"Tests that aborted at the per-test timeout (measured)\" table the plan cites.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a75 adds a conftest fixture, a use of the existing `pytest-timeout` marker, and a docs fragment, none of which is in any of the four families, so there is no added surface to retire or merge.",
+    "reuse_search": "a finding \u2014 \u00a75 adds a new suite-wide thread cap without citing the closest existing mechanism, the BLAS/OpenMP env pin in `imas_ambix/statespace/oracle_probe.py:55`, nor the per-test `torch.set_num_threads` calls it would sit above, and does not carry that mechanism's before-import ordering constraint into the design.",
+    "thin_wrapper": "pass \u2014 \u00a75 wraps no existing reader or launcher: it sets env vars plus one torch call and uses the existing pytest-timeout marker (`@pytest.mark.timeout(N)`) rather than a parallel timeout mechanism."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.901641+00:00"
+}

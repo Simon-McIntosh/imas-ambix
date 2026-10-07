@@ -1,0 +1,87 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T06:52:19.158Z",
+  "dispatched_at": "2026-10-07T06:35:38Z",
+  "findings": [
+    {
+      "anchor": "packages/imas-alambic/src/imas_alambic/settings.py:153",
+      "id": "duplicate_owner-1",
+      "reason": "naming settings.py:153 as the owner to extend is one line of plan text and keeps the two role lookups from drifting.",
+      "text": "\u00a712 resolves the IDS root through the bundle with a second copy of the role lookup that `_cache_root_from_bundle` (settings.py:153-159) already performs for `eddb_cache`: the same `resolve_store_root(role, kind=..., optional=True, search_path=maps.value)` call, which \u00a712 would re-spell inside `_ids_root` (settings.py:134); the section should extend the existing helper to take a role and kind rather than add a parallel one. The one direct composer of the IDS root beside settings.py in the tree is `scripts/figures_jt60sa_signals.py:35`, which \u00a712 correctly defers to jt60sa-signal-figures-from-ids \u00a73",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html#s13",
+      "id": "interface_budget-1",
+      "reason": "it forces the section to state the export boundary (module-private, or a new public definition that must be accounted for).",
+      "text": "the section adds a context manager to `packages/imas-alambic/src/imas_alambic/pulse_writer.py` beside `pulse_path`, a public name in that module's `__all__` (pulse_writer.py:388-396), without saying whether the new context manager joins the public surface and, if it does, nothing \u00a713 retires or merges is named",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "e8fd32d1bc2549ab2bd466f504cd82f3c37f8b8af2e8a0c15c3a647d22fa300c",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 72,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-07T06:53:06.390243+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "finding": "interface_budget-1",
+      "reason": "",
+      "when": "2026-10-07T06:53:09.193715+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "reason": "",
+      "when": "2026-10-07T06:53:06.390243+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "reason": "",
+      "when": "2026-10-07T06:53:09.193715+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-facility-mint.v72.json",
+  "review_run_id": "r-20261007T063524864249-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "16abcfab5b3c2b3628f9e03c5e13d3e0b6a54746",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a712 adds one precedence step to `_ids_root` (settings.py:134) in place, and \u00a713's single context manager hides create-in-target-directory, mode 0644, unlink-on-failure and rename behind a one-name yield.",
+    "duplicate_owner": "a finding \u2014 \u00a712 re-spells, inside `_ids_root`, the bundle-role-to-root lookup that `settings.py:153` `_cache_root_from_bundle` already performs for `eddb_cache`, instead of extending that helper to take a role.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a713 adds a new definition to `pulse_writer.py` without stating whether it joins that module's public `__all__` and, if so, what it retires or merges.",
+    "reuse_search": "pass \u2014 both changed sections cite the mechanism they extend: \u00a712 mirrors the existing `eddb_cache` bundle store role resolved through `resolve_store_root` (settings.py:153, machine_map.py:303), and \u00a713 names `imas_ambix/agent/watch_publish.py:74` `_write_atomic` as the fullest of the ~12 existing atomic-write owners, with the engine's wheel boundary given as the reason it emits a fresh one.",
+    "thin_wrapper": "pass \u2014 \u00a713's context manager is the smallest adaptation of the existing pattern to a wheel that imas-python opens by path (the engine cannot import imas_ambix), and \u00a712 calls the shared `resolve_store_root` rather than wrapping it."
+  },
+  "section_digests": {
+    "_document": "269971cee88062b7ebfee1d132427207e7e8be21fe5df0242342bb14ae8f0df9",
+    "s1": "c0c591531428a21bffbe7600053554f0ac3d9055bc6fe9d355e9479d482f7c94",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "a3c4932d3af93ca70d79873f1cb3a24e84b739d0cef522ae648a2d3c5bda7bfd",
+    "s12": "7010cd7d2892c1cbaf95176b2b848e8b7ace272fa03bc61d55b6b7aba36cbed0",
+    "s13": "05c040615b2c1e20563f82884a00ddf4af13606b08c84a3519dbf73b0474bdf9",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "9ead79358bde61d9a2190b2c445b3f52e8225b211933e5df910e67d47b940cd3",
+    "s6": "1ccc061c74e3a3eab0fbd07825bc5bf11d8207248d01b1a9aecba35a37e20560",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "0d934ec479471ff9f711bc6e58ec9f2d0f07d4722593ff98c53426b2b509ecda",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T06:53:04.305789+00:00"
+}
