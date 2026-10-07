@@ -123,7 +123,7 @@ say "installing a uv-managed CPython 3.12 into the folder"
 # The interpreter has to live under the folder, so a 3.12 that happens to be
 # reachable elsewhere must not be reused: it would tie the install to a path
 # outside the shared folder that the next session or the node does not carry.
-nice -n 19 uv python install --reinstall --no-cache 3.12
+nice -n 19 uv python install --reinstall --no-cache --no-bin 3.12
 PY312_BIN=$(ls -d "$TOOLS"/python/cpython-3.12.*/bin/python3.12 2>/dev/null | head -1)
 if [ -z "$PY312_BIN" ]; then
   echo "imasdb.sh: no uv-managed CPython 3.12 under $TOOLS/python" >&2
@@ -158,17 +158,12 @@ LAUNCHER
 chmod 0755 "$BINDIR/imas-alambic"
 LAUNCHER=$BINDIR/imas-alambic
 
-say "seeding the map search path so config can answer"
-# `config` reads the machine and the writer's cache through the map search path
-# and refuses with MachineMapError until a bundle is reachable there, so it
-# cannot report the layout names before the layout exists.  Place the staged
-# bundle at the engine's default map path to seed the search path; config then
-# reports the names it derives from IMAS_ALAMBIC_HOME, and the bundle is moved
-# to its version directory just below.
-mkdir -p "$IMASDB/maps"
-ln -sfn "$STAGE/bundle" "$IMASDB/maps/current"
-
 say "reading the layout names from imas-alambic config"
+# `config` derives the map search path and the IDS root from IMAS_ALAMBIC_HOME,
+# and reports every setting even when no bundle is reachable: an entry on the
+# search path with no descriptor becomes the machine's and the cache's source
+# rather than raising, so the layout names are readable before the layout
+# exists.  The bundle is placed under its version directory just below.
 CONF=$(env -u PYTHONPATH "$LAUNCHER" config)
 printf '%s\n' "$CONF"
 MAPS=$(printf '%s\n' "$CONF" | awk '/^maps:/{print $2}')
@@ -188,11 +183,15 @@ cp -a "$STAGE/bundle/." "$DEST/"
 ln -sfn "$VERSION" "$IMASDB/$MAPS_DIR/$CURRENT"
 
 say "opening the folder to other users"
-# Others read, never write.  Directories get r-x so the tree is walkable and
-# files get r-- exactly; other facility users execute the launcher through its
-# group bits, which uv sets, not through the others bits.
+# Others read, never write, and execute only what the owner may execute -- this
+# is `chmod -R o=rX`.  Directories get others r-x so the tree is walkable;
+# executable files, the launcher and the managed interpreter among them, get
+# others r-x so a user outside the account's group can run the tool; every other
+# file gets others r-- exactly.  Spelled with find so a symlink is left alone:
+# its own mode is 0777 and carries no permissions, the target's govern.
 find "$IMASDB" -type d -exec chmod o=rx {} +
-find "$IMASDB" -type f -exec chmod o=r {} +
+find "$IMASDB" -type f -perm -u+x -exec chmod o=rx {} +
+find "$IMASDB" -type f ! -perm -u+x -exec chmod o=r {} +
 
 say "checks"
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -208,6 +207,13 @@ find "$IMASDB" -type d ! -perm -o+rx -print
 echo "-- files under IMASDB lacking others r (want none)"
 find "$IMASDB" -type f ! -perm -o+r -print
 [ -z "$(find "$IMASDB" -type f ! -perm -o+r -print -quit)" ] || fail "a file lacks others r"
+
+echo "-- executable files under IMASDB lacking others r-x (want none)"
+find "$IMASDB" -type f -perm -u+x ! -perm -o+rx -print
+[ -z "$(find "$IMASDB" -type f -perm -u+x ! -perm -o+rx -print -quit)" ] \
+  || fail "an executable lacks others r-x"
+echo "-- the launcher and the managed interpreter (want others r-x)"
+stat -c '%A %a %n' "$BINDIR/imas-alambic" "$PY312_BIN"
 
 echo "-- files and directories under IMASDB granting others write (want none)"
 # A symlink's own mode is always 0777 and carries no permissions; the target's

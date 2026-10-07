@@ -22,7 +22,10 @@ Every setting carries the source it came from, so ``imas-alambic config`` can
 print each value beside where it was read.  The machine is never a variable: it
 is inferred when exactly one machine is reachable through the bundles, and a
 command that needs one and finds several is refused unless ``--machine`` names
-it.  No function here mutates the environment.
+it.  A bundle-discovery refusal -- a search-path entry with no descriptor, or a
+descriptor two bundles disagree on -- is likewise reported as the machine's and
+the store roots' source rather than raised, so the layout names are readable
+before any bundle exists.  No function here mutates the environment.
 """
 
 from __future__ import annotations
@@ -150,7 +153,9 @@ def _ids_root(
         return Setting(raw, ENV_IDS_ROOT)
     if home.value is not None:
         return Setting(Path(home.value) / "ids", f"{ENV_HOME}/ids")
-    declared = _store_root_from_bundle(_IDS_ROOT_ROLE, "IDS", maps)
+    declared, refusal = _store_root_from_bundle(_IDS_ROOT_ROLE, "IDS", maps)
+    if refusal is not None:
+        return Setting(None, refusal)
     if declared is not None:
         return Setting(declared, f"bundle {_IDS_ROOT_ROLE} role")
     return Setting(None, f"{ENV_HOME} (unset)")
@@ -162,13 +167,28 @@ def _bundles(search_path: object):
     return discover_bundles(() if search_path is None else search_path)
 
 
-def _store_root_from_bundle(role: str, kind: str, maps: Setting) -> Path | None:
-    return resolve_store_root(
-        role,
-        kind=kind,
-        optional=True,
-        search_path=() if maps.value is None else maps.value,
-    )
+def _store_root_from_bundle(
+    role: str, kind: str, maps: Setting
+) -> tuple[Path | None, str | None]:
+    """Resolve a declared store root, or report the bundle-discovery refusal.
+
+    Returns ``(path, refusal)``: the declared path when a reachable bundle names
+    the role, ``(None, None)`` when none declares it, and ``(None, text)`` when
+    discovery itself refuses -- a search-path entry with no descriptor, or a
+    descriptor two bundles disagree on -- so ``config`` reports the refusal
+    instead of raising.
+    """
+
+    try:
+        declared = resolve_store_root(
+            role,
+            kind=kind,
+            optional=True,
+            search_path=() if maps.value is None else maps.value,
+        )
+    except MachineMapError as refusal:
+        return None, str(refusal)
+    return declared, None
 
 
 def _cache(flags: SettingsFlags, environ: Mapping[str, str], maps: Setting) -> Setting:
@@ -177,7 +197,9 @@ def _cache(flags: SettingsFlags, environ: Mapping[str, str], maps: Setting) -> S
     raw = environ.get(ENV_CACHE)
     if raw:
         return Setting(raw, ENV_CACHE)
-    declared = _store_root_from_bundle(_CACHE_ROLE, "cache", maps)
+    declared, refusal = _store_root_from_bundle(_CACHE_ROLE, "cache", maps)
+    if refusal is not None:
+        return Setting(None, refusal)
     if declared is not None:
         return Setting(declared, f"bundle {_CACHE_ROLE} role")
     return Setting(_CACHE_FALLBACK.expanduser(), f"default {_CACHE_FALLBACK}")
@@ -186,9 +208,12 @@ def _cache(flags: SettingsFlags, environ: Mapping[str, str], maps: Setting) -> S
 def _machine(flags: SettingsFlags, maps: Setting) -> Setting:
     if flags.machine is not None:
         return Setting(flags.machine, "--machine")
-    reachable = sorted(
-        {machine for bundle in _bundles(maps.value) for machine in bundle.machines}
-    )
+    try:
+        reachable = sorted(
+            {machine for bundle in _bundles(maps.value) for machine in bundle.machines}
+        )
+    except MachineMapError as refusal:
+        return Setting(None, str(refusal))
     if len(reachable) == 1:
         return Setting(reachable[0], "inferred from the single reachable bundle")
     if not reachable:
