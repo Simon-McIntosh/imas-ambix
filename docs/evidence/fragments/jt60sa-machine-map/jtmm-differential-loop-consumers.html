@@ -12,7 +12,7 @@
   <main class="plan-doc">
 
     <section id="jtmm-differential-loop-consumers-blocker">
-      <h3>Blocked: the staged map cannot serve the 53-loop and 27-loop stores at once</h3>
+      <h3>Resolved: two maps, one store each</h3>
       <p>This node carries a type-6 <code>magnetics/flux_loop</code> entry through
       the geometry adapter, <code>read_geometry_table</code> and
       <code>build_operator</code>, as the prediction of its
@@ -118,6 +118,42 @@
       idiom the map already uses for the 12 PF coils and the TF coils. It costs
       roughly 130 added bindings per binding set and a new adapter role, and it
       changes the done-when's reading of which map the live-store half uses.</p>
+    </section>
+
+  <section id="jtmm-differential-loop-consumers-landed">
+      <h3>Landed: the staged map serves the 53-loop store, the live map the 27-loop store</h3>
+      <p>The per-store split above was adopted. The staged copy replaces each
+      phase set's two whole-array flux-loop position bindings with per-entry
+      bindings and adds the 26 per-entry <code>indices_differential</code>
+      bindings, in the OP1 and OP2 sets alike. They are generated, not typed:
+      <code>build_staged_flux_loop_bindings.py</code> sits beside the staged map
+      in
+      <code>~/.config/reckon/crew/reports/imas-ambix/maps-staging/jtmm-differential-loop-consumers/</code>
+      and reports 216 bindings per set (133 added) and 70 sensor addresses per
+      phase. The same script copies the 53-loop OP1 and OP2 stores into the
+      staged bundle, so the map and the stores it serves travel together. No
+      <code>transform_engine.py</code> edit and no absent-entry tolerance: the
+      live 27-loop store keeps the live map, and the staged map never reads it.</p>
+      <p>The adapter carries a type-6 entry as a <code>SensorMapping</code> whose
+      <code>indices_differential</code> names the two loop slots it differences,
+      with no coordinates of its own; the flux-loop list stays the 27 positioned
+      loops, because a type-6 entry names no geometry and must not claim a slot.
+      The operator rewrites each differential row as its second loop's row minus
+      its first's in all three Green's blocks after the kernel has assembled
+      them, so a machine with no differential entry returns every matrix
+      unchanged.</p>
+      <p>Most pairs whose two loops sit close together measure a difference
+      dominated by the two channels' common-mode noise, so the vacuum fit scores
+      the pairs whose measured difference exceeds twice the reference loop's own
+      excursion. Those eight pairs (loops 19..26) track the type-6 prediction at
+      a slope of about &minus;1 and a correlation below &minus;0.9.</p>
+      <p>Both gates ran on the fleet allocation (job 1277272), captured once
+      each: <code>gate-staged-53loop.log</code> (staged map, 42 passed) and
+      <code>gate-live-27loop.log</code> (live map, 39 passed). The declared
+      negative control &mdash; reversing the subtraction to first minus second
+      &mdash; is in <code>negative_control_log.txt</code>, where both
+      differential tests go red. <code>ruff check imas_ambix tests</code> exits
+      0.</p>
     </section>
 
   </main>
