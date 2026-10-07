@@ -1,0 +1,85 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 7,
+  "added_failure_ids": [
+    "tests/data/test_jt60sa_machine_map.py::test_each_phase_emits_and_adapts_through_one_code_path[OP1-101173]",
+    "tests/data/test_jt60sa_machine_map.py::test_each_phase_emits_and_adapts_through_one_code_path[OP2-101174]",
+    "tests/data/test_jt60sa_machine_map.py::test_both_phases_share_the_pf_and_magnetics_geometry",
+    "tests/data/test_jt60sa_machine_map.py::test_each_phase_carries_the_twelve_pf_coils_with_their_element_counts",
+    "tests/data/test_jt60sa_machine_map.py::test_phase_identity_is_deterministic_and_partitions_the_range",
+    "tests/data/test_jt60sa_machine_map.py::test_phase_boundary_changes_only_the_vessel_and_wall",
+    "tests/gs/test_operator.py::test_turn_corrected_vacuum_fit_of_loop_7_is_within_20_percent_of_minus_one"
+  ],
+  "base_log_revision": "b99d85467ac3672683f1178b5e922c3f13987b13",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T01:41:47.616Z",
+  "dispatched_at": "2026-10-07T01:20:31Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T005713704559-jtmm-differential-loop-store/manifest.md",
+      "line": "20",
+      "severity": "follow-on",
+      "text": "follow-on: follow_ons attributes 8 newly-red consumer tests to the store now carrying position-less type-6 flux_loop entries, but only 7 are so caused. Running the same probe against the pre-change store (machine_description/superseded/pre-differential-loops) leaves test_artifact_resolution.py::test_re_authoring_reproduces_the_identity_the_package_pins red (1 failed, 370 passed), so that MAST artifact test is pre-existing and not attributable to this change (7 failed, plus that same 1 pre-existing, gives the head arm's 8)."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T005713704559-jtmm-differential-loop-store/gate_test_selene_deck.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the gate log's header records revision b99d85467ac3672683f1178b5e922c3f13987b13, the base, though the run is post-change: 32 tests were collected and the new test_differential_flux_loops_follow_the_physical_loops exists only in the change commit (base collects 31), so the header does not name the tree's actual revision (compare regenerate_jt60sa_store.log, whose header records 82d10032)."
+    },
+    {
+      "file": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-differential-loop-store/docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store.html",
+      "line": "63",
+      "severity": "follow-on",
+      "text": "follow-on: the store section writes that indices_differential runs \"[7,1] ... [7,2] through [7,27]\", which reads as three bounds where there are two; the values are [7,1] through [7,27] skipping [7,7], as the read-back confirms."
+    },
+    {
+      "file": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-differential-loop-store/docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store.html",
+      "line": "17",
+      "severity": "follow-on",
+      "text": "follow-on: the regenerated store reds 7 consumer tests (six ids in tests/data/test_jt60sa_machine_map.py plus tests/gs/test_operator.py::test_turn_corrected_vacuum_fit_of_loop_7_is_within_20_percent_of_minus_one); the node discloses them and the plan sequences three downstream nodes (rules, operator) after this one, so this node's own gate is green while the consumers are expected-red until those land."
+    }
+  ],
+  "head_log_revision": "b7806803c2a02410883d503e4b254cd3fc477a74",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "one converter function gains a bounded, well-named addition (module constants FLUX_LOOP_TYPE_POLOIDAL_FLUX/DIFFERENTIAL and FLUX_LOOP_DIFFERENTIAL_REFERENCE), one 36-line test reads the real 27-loop geo.in, and an 86-line evidence fragment; conventional subjects with mechanism bodies.",
+    "done_when": "the node's declared measure is the selene_deck gate; tests/data/test_selene_deck.py ran 32 passed EXIT=0, and I re-read the regenerated stores through imas at DD 4.1.1 (OP1 and OP2 both 53 flux loops, 27 type-1 with position, 26 type-6 with empty position and [7,1]..[7,27]).",
+    "goal": "the clause asks build_magnetics to append the 26 type-6 entries after the 27 type-1 entries, follow the DD's indices_differential convention and cite where it is stated, and regenerate OP1/OP2 keeping superseded copies. The diff appends exactly 26 type-6 entries ([7,L] for each L!=7), names the reference first so the DD reads loop(second)-loop(first) = loop L minus loop 7 (the raw channel's measured difference per jtmm-loop-reference-rca), leaves position and area empty, and guards a source shorter than the reference. The fragment quotes DD 4.1.1 verbatim, and both stores are regenerated with pre-differential copies under superseded/. Every clause element is present and independently reproduced.",
+    "manifest": "records both commits, the tests command with its 32-passed result and log paths, the DD evidence, the regenerated stores with superseded copies, the negative control and its scratch measurement paths, and no blockers; the only blemish is the follow_ons over-attribution of the pre-existing MAST artifact test.",
+    "verification": "I read both stores through imas DBEntry at DD 4.1.1 (53 flux loops; types 27x1 + 26x6; indices_differential first [7,1] last [7,27]; type-6 position count 0; names FL1..FL27 then FL7-FL1..FL7-FL27). I reproduced the declared mutation by reversing each type-6 indices_differential in a plugin and the new test fails (EXIT=1), showing the guard fires. I ran the node's consumer probe against the pre-change store (superseded/pre-differential-loops, redirected by plugin) giving 1 failed 370 passed, versus the node's head probe 8 failed 363 passed, so 7 failures are added and 1 is pre-existing.",
+    "write_paths": "the reviewed commits touch imas_ambix/data/selene_deck.py, tests/data/test_selene_deck.py and docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store.html, exactly the manifest's changed_paths and the declared fence; the regenerated stores live under the node's named machine_description path and no plan, sprint or index file is modified."
+  },
+  "justifications": {
+    "durability": "the change adds a real guard: test_differential_flux_loops_follow_the_physical_loops asserts the 27/26 split, the [7,L] indices and the empty position/area, and a reversed-index mutation turns it red, which I reproduced independently; it is held below full only because the store it pins is a generated artifact read from a fixed path, so drift in the store is caught only where a test reads that path.",
+    "evidence": "the DD convention is quoted at the point of use, the stores are read back and match, and the gate, negative control and regeneration logs are all present; the record is held below full because follow_ons attributes 8 consumer failures to this change when only 7 are so caused (the MAST artifact test is pre-existing) and because the gate log header names the base revision rather than the tree it ran.",
+    "fit": "the fragment follows the evidence conventions (docs-project, reckon-type evidence, plan-slug meta, data-reckon=evidence sections) and the commits carry conventional subjects with mechanism bodies; the store section's malformed index range is a small blemish.",
+    "goal_fidelity": "the node does exactly its clause: build_magnetics appends 26 type-6 entries after the 27 type-1, names the reference first so the DD's loop(second)-loop(first) equals the raw measured difference, leaves position/area empty, guards the short-source case, quotes DD 4.1.1, and regenerates both stores keeping superseded copies; I reproduced every element from the store and the diff.",
+    "reuse": "no new reader, abstraction or module is added; the converter reuses its existing write path and existing identifier literals are named constants; the node adds no parallel path and retires nothing it should not.",
+    "scope_discipline": "the two commits touch only the three declared paths, no figure directory or plan/index file is modified, and the regenerated stores sit under the node's named machine_description path with the superseded copies preserved; the manifest's changed_paths equal the diff."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the clause asks build_magnetics to append the 26 type-6 entries after the 27 type-1 entries, follow the DD's indices_differential convention and cite where it is stated, and regenerate OP1/OP2 keeping superseded copies. The diff appends exactly 26 type-6 entries ([7,L] for each L!=7), names the reference first so the DD reads loop(second)-loop(first) = loop L minus loop 7 (the raw channel's measured difference per jtmm-loop-reference-rca), leaves position and area empty, and guards a source shorter than the reference. The fragment quotes DD 4.1.1 verbatim, and both stores are regenerated with pre-differential copies under superseded/. Every clause element is present and independently reproduced.\nVERDICT done_when: the node's declared measure is the selene_deck gate; tests/data/test_selene_deck.py ran 32 passed EXIT=0, and I re-read the regenerated stores through imas at DD 4.1.1 (OP1 and OP2 both 53 flux loops, 27 type-1 with position, 26 type-6 with empty position and [7,1]..[7,27]).\nVERDICT write_paths: the reviewed commits touch imas_ambix/data/selene_deck.py, tests/data/test_selene_deck.py and docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store.html, exactly the manifest's changed_paths and the declared fence; the regenerated stores live under the node's named machine_description path and no plan, sprint or index file is modified.\nVERDICT manifest: records both commits, the tests command with its 32-passed result and log paths, the DD evidence, the regenerated stores with superseded copies, the negative control and its scratch measurement paths, and no blockers; the only blemish is the follow_ons over-attribution of the pre-existing MAST artifact test.\nVERDICT diff: one converter function gains a bounded, well-named addition (module constants FLUX_LOOP_TYPE_POLOIDAL_FLUX/DIFFERENTIAL and FLUX_LOOP_DIFFERENTIAL_REFERENCE), one 36-line test reads the real 27-loop geo.in, and an 86-line evidence fragment; conventional subjects with mechanism bodies.\nVERDICT verification: I read both stores through imas DBEntry at DD 4.1.1 (53 flux loops; types 27x1 + 26x6; indices_differential first [7,1] last [7,27]; type-6 position count 0; names FL1..FL27 then FL7-FL1..FL7-FL27). I reproduced the declared mutation by reversing each type-6 indices_differential in a plugin and the new test fails (EXIT=1), showing the guard fires. I ran the node's consumer probe against the pre-change store (superseded/pre-differential-loops, redirected by plugin) giving 1 failed 370 passed, versus the node's head probe 8 failed 363 passed, so 7 failures are added and 1 is pre-existing.\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: the node does exactly its clause: build_magnetics appends 26 type-6 entries after the 27 type-1, names the reference first so the DD's loop(second)-loop(first) equals the raw measured difference, leaves position/area empty, guards the short-source case, quotes DD 4.1.1, and regenerates both stores keeping superseded copies; I reproduced every element from the store and the diff.\nSCORE evidence: 17\nJUSTIFICATION evidence: the DD convention is quoted at the point of use, the stores are read back and match, and the gate, negative control and regeneration logs are all present; the record is held below full because follow_ons attributes 8 consumer failures to this change when only 7 are so caused (the MAST artifact test is pre-existing) and because the gate log header names the base revision rather than the tree it ran.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the two commits touch only the three declared paths, no figure directory or plan/index file is modified, and the regenerated stores sit under the node's named machine_description path with the superseded copies preserved; the manifest's changed_paths equal the diff.\nSCORE durability: 19\nJUSTIFICATION durability: the change adds a real guard: test_differential_flux_loops_follow_the_physical_loops asserts the 27/26 split, the [7,L] indices and the empty position/area, and a reversed-index mutation turns it red, which I reproduced independently; it is held below full only because the store it pins is a generated artifact read from a fixed path, so drift in the store is caught only where a test reads that path.\nSCORE fit: 19\nJUSTIFICATION fit: the fragment follows the evidence conventions (docs-project, reckon-type evidence, plan-slug meta, data-reckon=evidence sections) and the commits carry conventional subjects with mechanism bodies; the store section's malformed index range is a small blemish.\nSCORE reuse: 20\nJUSTIFICATION reuse: no new reader, abstraction or module is added; the converter reuses its existing write path and existing identifier literals are named constants; the node adds no parallel path and retires nothing it should not.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T005713704559-jtmm-differential-loop-store/manifest.md:20 minor: follow_ons attributes 8 newly-red consumer tests to the store now carrying position-less type-6 flux_loop entries, but only 7 are so caused. Running the same probe against the pre-change store (machine_description/superseded/pre-differential-loops) leaves test_artifact_resolution.py::test_re_authoring_reproduces_the_identity_the_package_pins red (1 failed, 370 passed), so that MAST artifact test is pre-existing and not attributable to this change (7 failed, plus that same 1 pre-existing, gives the head arm's 8).\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T005713704559-jtmm-differential-loop-store/gate_test_selene_deck.log:1 minor: the gate log's header records revision b99d85467ac3672683f1178b5e922c3f13987b13, the base, though the run is post-change: 32 tests were collected and the new test_differential_flux_loops_follow_the_physical_loops exists only in the change commit (base collects 31), so the header does not name the tree's actual revision (compare regenerate_jt60sa_store.log, whose header records 82d10032).\nFINDING /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-differential-loop-store/docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store.html:63 low: the store section writes that indices_differential runs \"[7,1] ... [7,2] through [7,27]\", which reads as three bounds where there are two; the values are [7,1] through [7,27] skipping [7,7], as the read-back confirms.\nFINDING /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-differential-loop-store/docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store.html:17 follow-on: the regenerated store reds 7 consumer tests (six ids in tests/data/test_jt60sa_machine_map.py plus tests/gs/test_operator.py::test_turn_corrected_vacuum_fit_of_loop_7_is_within_20_percent_of_minus_one); the node discloses them and the plan sequences three downstream nodes (rules, operator) after this one, so this node's own gate is green while the consumers are expected-red until those land.\n",
+  "review_run_id": "r-20261007T012020988083-review-of-jtmm-differential-loop-store",
+  "reviewed_base_sha": "b99d85467ac3672683f1178b5e922c3f13987b13",
+  "reviewed_head_sha": "b7806803c2a02410883d503e4b254cd3fc477a74",
+  "reviewed_run_id": "r-20261007T005713704559-jtmm-differential-loop-store",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "reviewer_run_id": "r-20261007T012020988083-review-of-jtmm-differential-loop-store",
+  "scores": {
+    "durability": 19,
+    "evidence": 17,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-07T01:45:32.773038+00:00",
+  "total": 115
+}
