@@ -713,6 +713,41 @@ class ForwardOperator:
 # --- Building G from a campaign geometry table ------------------------
 
 
+def _apply_differential_rows(
+    geometry: OperatorGeometry | Any,
+    matrices: tuple[np.ndarray, ...],
+) -> tuple[np.ndarray, ...]:
+    """Replace each type-6 sensor row by its second loop's row minus its first's.
+
+    A type-6 differential flux loop carries no position of its own, so it has no
+    Green's row of its own: its row in every matrix is the difference of the two
+    positioned loop rows its ``indices_differential`` names.  A machine whose
+    loops are all position-carrying (MAST) declares no differential sensor and
+    every matrix is returned unchanged.
+    """
+    row_of_loop: dict[int, int] = {}
+    for row, mapping in enumerate(geometry.sensor_map):
+        if (
+            mapping.kind == "flux_loop"
+            and getattr(mapping, "indices_differential", None) is None
+        ):
+            row_of_loop.setdefault(mapping.efm_index, row)
+    differential = [
+        (row, indices)
+        for row, mapping in enumerate(geometry.sensor_map)
+        if (indices := getattr(mapping, "indices_differential", None)) is not None
+    ]
+    if not differential:
+        return matrices
+    updated = [matrix.copy() for matrix in matrices]
+    for row, (first, second) in differential:
+        first_row = row_of_loop[first]
+        second_row = row_of_loop[second]
+        for matrix in updated:
+            matrix[row, :] = matrix[second_row, :] - matrix[first_row, :]
+    return tuple(updated)
+
+
 def _sensor_rows(
     geometry: OperatorGeometry | Any,
 ) -> tuple[
@@ -1004,6 +1039,10 @@ def build_operator(
         np.column_stack(plasma_cols)
         if plasma_cols
         else np.zeros((srz_r.size, 0), dtype=np.float64)
+    )
+
+    g_pf, g_plasma, g_passive = _apply_differential_rows(
+        geometry, (g_pf, g_plasma, g_passive)
     )
 
     return ForwardOperator(

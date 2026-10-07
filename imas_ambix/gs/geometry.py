@@ -447,6 +447,10 @@ class SensorMapping:
     angle_deg: float | None  # None for flux loops
     residual_m: float  # nearest-neighbour distance amb-desc(R,Z) → efm
     flag: str  # "" if confidently mapped, else a reason
+    # A type-6 differential flux loop carries no position; it is predicted as the
+    # prediction of its ``second`` loop minus that of its ``first``, both indices
+    # into the geometry table's flux loops.  ``None`` for every positioned sensor.
+    indices_differential: tuple[int, int] | None = None
 
 
 # --- Setup signature --------------------------------------------------
