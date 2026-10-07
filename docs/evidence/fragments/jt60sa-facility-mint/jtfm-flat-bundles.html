@@ -1,0 +1,53 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-flat-bundles-landing">
+  <header>
+    <h3>Flat single-machine bundles: one machine named in bundle.json</h3>
+    <p class="meta">
+      Node <code>jtfm-flat-bundles</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;9
+    </p>
+  </header>
+
+  <p>
+    A bundle may now name its one machine with the singular
+    <code>"machine"</code> key in <code>bundle.json</code> instead of the
+    <code>"machines"</code> list.  Which key is present selects the addressing:
+    a flat bundle holds <code>machine_map.json</code> and
+    <code>maps/&lt;ids&gt;.json</code> directly under the bundle, while a
+    multi-machine bundle keeps <code>machine_maps/&lt;machine&gt;.json</code>
+    and <code>maps/&lt;machine&gt;/&lt;ids&gt;.json</code>.  In
+    <code>packages/imas-alambic/src/imas_alambic/machine_map.py</code>,
+    <code>MapBundle</code> gains a <code>single_machine</code> flag that
+    <code>load_bundle_descriptor</code> sets from the key present;
+    <code>machine_map_path</code> and <code>signal_map_path</code> branch on it.
+    A descriptor naming its machines both ways or neither way is refused with
+    the existing <code>MachineMapError</code>, naming the bundle.  Store roots
+    stay declared under role names and resolve relative to the bundle, so
+    <code>resolve_description_store_root</code> is unchanged.
+  </p>
+
+  <p>
+    The multi-machine addressing ambix ships is untouched: the ambix
+    <code>bundle.json</code> declares <code>machines</code>
+    (<code>mast</code>, <code>diii-d</code>, <code>jt-60sa</code>) and resolves
+    exactly as before.
+  </p>
+
+  <p>
+    Tests in <code>packages/imas-alambic/tests/test_flat_bundle.py</code> pin
+    both addressings, the two refusals, resolution of a synthetic flat bundle's
+    catalogue, every signal map and its description store by machine name, and
+    the cross-layout duplicate-machine refusal.  The whole
+    <code>packages/imas-alambic/tests</code> package passes in a clean
+    <code>uv venv --python 3.12</code> built from the
+    <code>imas-alambic</code> and <code>nova-cocos</code> wheels alone, with no
+    <code>imas_ambix</code> importable (25 passed).
+  </p>
+
+  <p>
+    Negative control: making <code>signal_map_path</code> ignore the
+    <code>single_machine</code> key and always return the multi-machine
+    <code>maps/&lt;machine&gt;/&lt;ids&gt;.json</code> path turns two flat-bundle
+    signal-map tests red, proving the address branch is what the tests rest on.
+  </p>
+</section>
