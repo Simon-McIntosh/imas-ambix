@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.79">
-<meta name="plan-version" content="304">
+<meta name="plan-version" content="305">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -679,9 +679,9 @@
       than the parquet read <code>convention.py</code> does today, and the SELENE and FAME
       loaders each return an <code>EfitLabels</code>. The kernel is reused rather than rewritten,
       and one equilibrium has one shape. That SELENE loader is the only reader of a SELENE
-      equilibrium in the plan, and its source is the EQDB record: the EQDB transport this section
-      builds, described below, fetches and caches the record, and this loader turns the cached record into
-      an <code>EfitLabels</code>. §7's reference loader adapts that <code>EfitLabels</code>
+      equilibrium in the plan, and its source is the EDDB <code>PSRC</code> category, which the existing
+      channel extractor fetches and caches. The loader turns the cached PSRC arrays into an
+      <code>EfitLabels</code>. §7's reference loader adapts that <code>EfitLabels</code>
       into an <code>EquilibriumGeometry</code> rather than reading SELENE a second time, so the
       chain is one fetch, one reader and two adapters, and the sign scorer and the geometry
       referee cannot drift in COCOS or axis handling. The
@@ -731,54 +731,16 @@
       loader reads them through that map. None is a <code>profiles_2d</code> binding, so the gate's
       measure is untouched. The second is SELENE's offline equilibria. The server holds the SELENE
       sources, the equilibrium database client (<code>client_eqdbms</code>) and the FAME reader
-      (<code>eqdbget</code>), and the Code TWiki documents the equilibrium codes. The FAME loader
-      needs a reader for the EQDB record (psi on its grid, boundary, p′ and FF′ or their
-      profiles) wrapped in the same remote-extractor contract, and §6 builds and owns that
-      transport. SELENE's own reconstruction is read from the EDDB <code>PSRC</code> category
-      instead, as the locate result below records. The EQDB read extends the §3 extractor rather than sitting beside it, but its
-      request and record are not channels. <code>ChannelRequest</code> names
-      <code>(shot, category, dname)</code> and the batch carries <code>(channel, time)</code> arrays,
-      while an EQDB request names a shot and an equilibrium record, and its answer is psi on a
-      two-dimensional grid with its boundary and profiles. So
-      <code>packages/imas-alambic/src/imas_alambic/eddb_remote.py</code> gains one request type and one record type for
-      EQDB beside <code>ChannelRequest</code> and <code>ChannelRecord</code>, rather than widening the
-      channel types. <code>RemoteEddbExtractor</code> dispatches on the request type and keeps what
-      is not channel-shaped: the per-request refusal contract, and the niced, module-loaded remote
-      command over <code>SshTransport</code>. <code>encode_batch</code> and <code>decode_batch</code>
-      gain the EQDB record's framing beside the channel framing, and the remote side calls the EQDB
-      entry the probe below names rather than <code>eddb_pwrapper</code>. A refused EQDB request
-      cannot be a <code>ChannelRefusal</code>, which is keyed <code>(shot, category, dname)</code>. So
-      it is a third record type keyed <code>(shot, record)</code>. <code>BatchResult</code> today is
-      exactly <code>records</code> and <code>refusals</code>, which partition the channel requests, so
-      it gains two fields, <code>eqdb_records</code> and <code>eqdb_refusals</code>, and the four
-      together partition the requests the remote answered. <code>encode_batch</code> and
-      <code>decode_batch</code> gain one envelope section for each of the two. A transport failure
-      stays an <code>EddbRemoteError</code>, so no refusal family is added. §6's added interface is
-      therefore the three public types (request, record and refusal) and the two
-      <code>BatchResult</code> fields. They retire nothing, because no equilibrium-database request
-      type exists, and the channel fields keep their meaning. Its records land in the same store, owned by <code>packages/imas-alambic/src/imas_alambic/eddb.py</code>:
-      <code>write_channel</code> writes only a <code>(channel, time)</code> array with a sibling
-      time vector, and an EQDB record is psi on a two-dimensional grid with its boundary and
-      profiles, so <code>eddb.py</code> gains a grid record writer beside <code>write_channel</code>
-      under the same <code>{shot}.zarr/{category}/{name}</code> layout and the same
-      refuse-to-overwrite rule, rather than a second store over <code>JT60SA_ROOT</code>. That layout
-      already has an owner, <code>channel_path</code>, so the grid writer resolves every path it
-      writes through <code>channel_path</code>, with the record's category and name, and builds no
-      path of its own. The layout then stays single, which is what lets the two writers share one
-      store. The two
-      writers must share the store's invariants, and today two of them are inline statements in
-      <code>write_channel</code>'s body, not code a second writer could call: the pulse group's
-      <code>EDDB_TOKEN_ATTR</code> token match and the overwrite refusal. So the node that adds the
-      grid writer first extracts them from <code>write_channel</code> into private helpers in
-      <code>eddb.py</code>: one that opens a pulse group and enforces its EDDB token, and one that
-      refuses an existing record. <code>write_channel</code> then calls them, with its tests
-      unchanged, and the grid writer calls the same helpers with <code>_channel_present</code>, so
-      the token and overwrite contract has one implementation and cannot drift between the two
-      writers. The read side is symmetric. <code>eddb.py</code> gains a grid record reader beside
-      <code>read_channel</code>, which resolves its path through <code>channel_path</code> in the
-      same way, and the SELENE loader reads the cached record only through that reader. So no
-      caller opens a zarr path in the store itself, and the store has one owner for both writing and
-      reading. It retires nothing, because no equilibrium-database reader exists in ambix.
+      (<code>eqdbget</code>), and the Code TWiki documents the equilibrium codes. FAME's full records
+      (psi on its grid, boundary, p′, FF′ and the profiles) sat in an equilibrium database (EQDB) on
+      the server <code>dbsvr17p</code>, and the lead reported on 2026-10-07 that this server has been
+      decommissioned. So the EQDB transport this paragraph once specified is withdrawn and adds
+      nothing: no request, record or refusal types in <code>eddb_remote.py</code>, no
+      <code>BatchResult</code> fields, and no grid record writer or reader in <code>eddb.py</code>.
+      SELENE's own reconstruction is read from the EDDB <code>PSRC</code> category through the
+      existing channel extractor, as the locate result below records, so the store keeps one reader.
+      If <code>jtmm-jt60sa-host-survey</code> finds where FAME's records went, a transport is scoped
+      again against that source.
     </p>
     <p>
       The transport's array layout waits on the open question <code>eqdb-reader</code>, which
@@ -809,12 +771,8 @@
       <code>scripts/build_selene_validation_ids.py</code> and
       <code>data/jt60sa/extract_psrc_arrays.py</code>, among them the closed boundary above the
       X-point, <code>data_psrc_surfABVxp</code>. So the SELENE loader reads PSRC through the existing
-      channel extractor and needs no EQDB transport. The EQDB transport now serves FAME alone, and it
-      waits until <code>dbsvr17p</code> is reachable from intr26-2, which only the JT-60SA side can
-      grant. Until then it is deferred and adds no surface. The three EQDB types, the two
-      <code>BatchResult</code> fields, the envelope sections and the grid writer and reader described
-      above are built only when a FAME slice can be read. So §6 adds no transport interface now, and
-      the account above applies when the transport is built.
+      channel extractor and needs no EQDB transport. The EQDB transport served FAME alone, and with
+      <code>dbsvr17p</code> decommissioned it is withdrawn, so §6 adds no transport interface.
       <code>jtmm-psrc-selene-inventory</code> is read-only and comes first. It reads E101154's PSRC
       category through <code>fetch_channels</code> and names each array that carries an equilibrium
       quantity (boundary, X-point, magnetic axis, plasma current, β and l<sub>i</sub>, any flux grid)
