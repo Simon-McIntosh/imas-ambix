@@ -1,0 +1,42 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-census-guard-owner-landing" data-head-passed="107" data-added-failures="0" data-empty-passed="36" data-empty-skipped="71">
+  <header>
+    <h3>one owner decides JT-60SA bundle presence, and the EDDB stand-in has one definition</h3>
+    <p class="meta">
+      Node <code>jtfm-census-guard-owner</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;14 &middot;
+      node <code>98dci4-clu-2018</code> job <code>1277272</code>
+    </p>
+  </header>
+  <p>
+    Eight census test modules re-made the same decision by catching every
+    <code>MachineMapError</code> and skipping, which read a <em>broken</em>
+    bundle as absent, so a malformed descriptor or a machine carried by two
+    bundles let the census pass quietly.  <code>tests/jt60sa_bundle.py</code>
+    now owns that decision once, from <code>discover_bundles()</code> alone: a
+    search-path entry with no <code>bundle.json</code> contributes no bundle and
+    the honest skip applies, while a descriptor that exists but cannot be read
+    and a machine carried by more than one bundle each raise
+    <code>MachineMapError</code> while the module is imported, so the importing
+    module fails to collect rather than skipping.  The EDDB stand-in wrapper and
+    its two helpers likewise has one owner,
+    <code>packages/imas-alambic/tests/eddb_standin.py</code>, which the ambix
+    test reaches by placing the engine test directory on <code>sys.path</code>
+    and importing it inside the test body.
+  </p>
+  <p>
+    Gates, all run in place on the fleet allocation: with
+    <code>IMAS_ALAMBIC_MAP_PATH</code> pointing at the JT-60SA maps the head
+    tree passes 107 (<code>EXIT=0</code>) against a base tree at
+    <code>49c9fab</code> that also passes 107 (<code>EXIT=0</code>) &mdash; zero
+    added failures; with the variable naming an empty directory 36 pass and 71
+    skip with the stated reason (<code>EXIT=0</code>); negative controls refuse
+    &mdash; a duplicate bundle carrying jt-60sa raises the two-bundle refusal and
+    a malformed descriptor raises the descriptor refusal, 7 collection errors
+    each, <code>EXIT=2</code>; the engine test package passes in a clean
+    <code>uv venv --python 3.12</code> holding only the imas-alambic wheel,
+    nova-cocos and pytest, with <code>imas_ambix</code> unimportable (33 passed,
+    <code>EXIT=0</code>); and <code>ruff check imas_ambix tests packages</code>
+    exits 0.
+  </p>
+</section>

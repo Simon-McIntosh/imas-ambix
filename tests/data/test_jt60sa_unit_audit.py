@@ -22,21 +22,11 @@ from typing import Any
 import pytest
 from imas.dd_zip import dd_etree
 
-from imas_alambic.machine_map import (
-    MachineMapError,
-    bundle_for_machine,
-    load_packaged_machine_map,
-)
+from imas_alambic.machine_map import load_packaged_machine_map
 from imas_alambic.signal_map import load_packaged_signal_map
+from tests.jt60sa_bundle import BUNDLE, SKIP_REASON
 
-try:
-    BUNDLE = bundle_for_machine("jt-60sa")
-except MachineMapError:
-    BUNDLE = None
-pytestmark = pytest.mark.skipif(
-    BUNDLE is None,
-    reason="JT-60SA map bundle is unavailable; set IMAS_ALAMBIC_MAP_PATH",
-)
+pytestmark = pytest.mark.skipif(BUNDLE is None, reason=SKIP_REASON)
 
 MACHINE = "jt-60sa"
 SYSTEMS = ("magnetics", "pf_active", "tf")

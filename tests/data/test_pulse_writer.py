@@ -27,7 +27,6 @@ from imas.ids_struct_array import IDSStructArray
 from imas.util import idsdiffgen
 
 from imas_alambic.eddb import read_channel
-from imas_alambic.machine_map import MachineMapError, bundle_for_machine
 from imas_alambic.pulse_writer import (
     IDS_NAMES,
     PulseWriteError,
@@ -36,6 +35,7 @@ from imas_alambic.pulse_writer import (
 )
 from imas_alambic.signal_map import load_packaged_signal_map
 from imas_ambix.data.paths import JT60SA_ROOT
+from tests.jt60sa_bundle import BUNDLE
 
 SHOT_TOKEN = "E101154"
 SHOT_INT = 101154
@@ -45,10 +45,6 @@ MACHINE = "jt-60sa"
 PF_COILS = ("CS1", "CS2", "CS3", "CS4", "EF1", "EF2", "EF3", "EF4", "EF5", "EF6")
 FPPC_COIL_INDICES = (10, 11)
 
-try:
-    BUNDLE = bundle_for_machine(MACHINE)
-except MachineMapError:
-    BUNDLE = None
 DESCRIPTION_ROOT = BUNDLE.store_roots["description"] / "OP1" if BUNDLE else None
 _cache_missing = not (JT60SA_ROOT / f"{SHOT_INT}.zarr").is_dir()
 _store_missing = (
