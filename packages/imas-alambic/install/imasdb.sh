@@ -136,7 +136,7 @@ say "installing the tool environment"
 IMAS_WHL=$(ls "$STAGE"/imas_alambic-*.whl)
 COCOS_WHL=$(ls "$STAGE"/nova_cocos-*.whl)
 rm -rf "$TOOLS/imas-alambic"
-nice -n 19 uv tool install --python "$PY312_BIN" --no-cache "$IMAS_WHL" --with "$COCOS_WHL"
+nice -n 19 uv tool install --force --python "$PY312_BIN" --no-cache "$IMAS_WHL" --with "$COCOS_WHL"
 
 say "writing the launcher"
 mkdir -p "$BINDIR"
