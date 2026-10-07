@@ -1,0 +1,77 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-06T09:36:10.744Z",
+  "dispatched_at": "2026-10-06T09:19:34Z",
+  "findings": [
+    {
+      "anchor": "plan.html#s6",
+      "id": "reuse_search-1",
+      "reason": "\u00a76 should state whether the supervisor spawn extends `placement.py`'s placement path (routing its `srun` client into the batch step) or replaces it, which is the first decision its implementation node will face.",
+      "text": "\u00a76 routes worker launch through a new supervisor `spawn` request and never cites `reckon/crew/placement.py`, whose `placement_argv` (placement.py:326), `step_prefix` (placement.py:231) and `reservation_step_argv` (placement.py:840) already place a worker as an overlapping step of the held allocation; a plan that adds a launch path without naming the existing one risks a second placement seam beside the owner the followup f-aslf-010 is already trying to retire into",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "reckon/crew/placement.py:86",
+      "id": "duplicate_owner-1",
+      "reason": "without naming the surviving owner (reckon's `placement.py`, whose `_adopt_live_fleet_allocation` at placement.py:488 already bridges to `fleet_node.recorded_job_id()`) an implementation node keeps both records and the duplicate lock, the exact drift \u00a76 exists to close.",
+      "text": "the one fleet allocation carries two records and two locks that cannot serialise it: `placement.py:reservation_path()` publishes `crew_home()/placement/reservation.json` guarded by `_reservation_hold_lock` (placement.py:115, on `reservation.lock`) while `fleet_node.publish_record()` (fleet_node.py:305) writes `~/.local/state/fleet/record.json` and `dotfiles/bin/cx:fleet_ensure` (bin/cx:237-244) takes its own `flock` on `~/.local/state/fleet/hold.lock` with a third `submitted` state file; \u00a72 (plan.html#s2) resolves the fleet from the fleet-node record and \u00a76 (plan.html#s6) says \"Both must move to the supervisor-running allocation\" without naming which of the two record/lock owners survives",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "reckon/crew/fleet_node.py:164",
+      "id": "duplicate_owner-2",
+      "reason": "the plan's stated outcome (\"Both must move to the supervisor-running allocation\") is unsatisfiable until it names the `salloc` path as the one retired, since a plan that leaves both live holds two allocations.",
+      "text": "two mechanisms hold the same allocation: `ensure_reservation` submits with `RESERVATION_SCHEDULER=\"salloc\"` + `--no-shell` (placement.py:52,417), which has no batch step, while `fleet_node.submit`/`generate_hold_script` (fleet_node.py:164,123) submits with `sbatch` so the batch step runs `fleet-supervisor`; \u00a76 (plan.html#s6) acknowledges \"reckon's re-hold path creates an allocation with salloc --no-shell, which has no batch step at all\" but does not name which mechanism is retired",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "dotfiles/bin/cx:237",
+      "id": "thin_wrapper-1",
+      "reason": "\u00a72 should delegate the whole hold to `reckon fleet-node hold`/`placement.ensure_reservation` and keep only the viewer in `cx`, or state why a login-side lock is needed beside the allocation-wide one.",
+      "text": "the plan places the idempotent hold in `cx`, which re-implements the resolve/confirm/wait loop (`bin/cx:239` `flock -w 900` on its own lock, a 180-iteration `squeue` poll at bin/cx:258, its own `submitted` file) directly over the same scheduler query the owner `ensure_reservation` (placement.py:417) performs, with no justification in \u00a72 for why the owner cannot carry the one guarantee; a login-side copy of the owner's lock is what `placement.py`'s `_reservation_hold_lock` docstring exists to prevent",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html#s2",
+      "id": "interface_budget-1",
+      "reason": "the sections must account for the added surface in their own text: retire the `srun` viewer (keeping only the ssh route \u00a78 proved stable) and state what `fleet-sessions`/`CX_FLEET_VIA` retires or why nothing can be.",
+      "text": "with public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0, \u00a72 adds the `~/.config/cx/fleet-sessions` interface and the `CX_FLEET_VIA` switch, and \u00a74 (plan.html#s4) adds the `Host fleet` ssh alias plus the `fleet-shell` RemoteCommand, while \u00a72 keeps the superseded `srun` viewer alive (\"CX_FLEET_VIA=srun keeps the step viewer for comparison\"); neither section names anything it retires or merges, and the `srun` viewer is the one surface \u00a78 already settled against",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "771143b4ffa4441602c429d062b9ece684f737c6f3f6fbadbf900615d23cc537",
+  "plan_slug": "agent-sessions-live-on-the-fleet-node",
+  "plan_version": 20,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261006T091924894858-plan-review-of-agent-sessions-live-on-the-fleet-node",
+  "reviewed_blob_sha": "6ca95e0d0c78deb9aa4dd34609bd2b572566ce1a",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the fleet behaviour is one deep module (`reckon/crew/fleet_supervisor.py`, 1355 lines) hiding session start, tab sizing, service supervision, reload and session-copy behind a small request protocol (`parse_request`/`handle_line`, `reckon/crew/fleet_supervisor.py:1166,1221`); the plan adds no parallel family of wrappers over it.",
+    "duplicate_owner": "a finding \u2014 the plan leaves the one fleet allocation with two records, two locks and two hold mechanisms (reckon's `placement.py` vs the fleet node's `fleet_node.py`/`cx`), and \u00a76 names the unification action without naming which owner survives.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a72 (plan.html#s2) adds `~/.config/cx/fleet-sessions` and `CX_FLEET_VIA` and keeps both the ssh and the superseded `srun` viewer live (\"CX_FLEET_VIA=srun keeps the step viewer for comparison\") without naming what it retires or merges, or why nothing can be.",
+    "reuse_search": "a finding \u2014 \u00a76 (plan.html#s6, \"Workers must be launched through the supervisor (reckon) \u2026 which needs a spawn request\") proposes a new `spawn` request on the supervisor without citing reckon's existing worker-placement owner, `reckon/crew/placement.py`, which already places workers as `srun --overlap --jobid=<id>` steps inside this same allocation.",
+    "thin_wrapper": "a finding \u2014 the login-side hold/resolve loop the plan places in `cx` (\u00a72 \"Holds one only if none runs\") is a second, thin re-implementation of the ensure/one-allocation guarantee that reckon's `ensure_reservation` already owns, with no statement of why that owner cannot be extended."
+  },
+  "section_digests": {
+    "_document": "92d9501ad28e7cd1b1dc4246efa71dcb79d08eafc5b538d6590f89e93ce0922e",
+    "s1": "47243f928b3383a556872e40c30a6de8b1fe9841c04f9dd9e0fea6e8d2227090",
+    "s2": "ef4aee22ff1b5f1dd5b6a65c3df8e2e76e9326d003372f8105668e8b8a039024",
+    "s3": "8cb5c187a108dd31d367ba830d7ad5e090181935e27cdc8e6b17cabdfb3534b3",
+    "s4": "f07e779d6e5ecfc8eb8845a2e9bd0e2260b6c28198f32680dfd44e0dd4abb617",
+    "s5": "cbc4e69cd13127c0d10a47e7575e77bb3ed62bb403a2111fdc8c210458c9e535",
+    "s6": "e3eeed61c3e3c9f830af4ee20e923aa7b66c7c8728d9ae8d20b80b99c39db4c2",
+    "s7": "f52a4bf2a5b9e43f5e34b2ccc16f7e260224786f1976ff361d78aad17c697300",
+    "s8": "dbf869de80dcc66496722e5d359e35480c59f11d54067e525cd1dcd803e23209",
+    "s9": "23e4f21ce74bbf9487088c73d14653df9db60e2bd653bea47ba86adc45ee61fe"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.826228+00:00"
+}

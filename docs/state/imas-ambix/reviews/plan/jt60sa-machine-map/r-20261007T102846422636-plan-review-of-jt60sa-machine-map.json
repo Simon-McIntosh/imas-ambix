@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T10:36:45.406Z",
+  "dispatched_at": "2026-10-07T10:29:22Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:917",
+      "id": "reuse_search-1",
+      "reason": "the plan must state that the G-EQDSK is delivered to the reader under a supported suffix (a `.geqdsk`-named copy on reachable storage, which the plan's \"nothing runs on the JT-60SA server\" already forces) or name the content-sniffing path, otherwise the implementation node meets a confusing format error on the plan's own named input.",
+      "text": "the changed unit says E101011's G-EQDSK \"is read through the `eqdsk` package's `EQDSKInterface`\", but that class's public entry point `EQDSKInterface.from_file` selects its parser by the file's suffix and accepts only `.eqdsk`, `.eqdsk_out`, `.geqdsk` or `.json` (`eqdsk/file.py` `EQDSK_EXTENSIONS`); the file \u00a77 names is `/home/d240034/fbequ/EFIT95.DATA`, whose `.DATA` suffix makes `from_file` raise `ValueError: Unrecognised file format '.DATA'`. The only extension-agnostic reader in the package is the private `eqdsk.file._read_eqdsk`, and `convert_eqdsk` takes an already-parsed object rather than a path, so no public path reads the named file as written. This is the census for its type: \u00a77 is the plan's only citation of an eqdsk reader (grep over the snapshot finds `EQDSKInterface` at :917 alone), and no ambix module reads a G-EQDSK today (grep of `imas_ambix/`, `packages/`, `tests/`, `scripts/` for `eqdsk|geqdsk|EQDSKInterface` returns nothing), so this is the single site of the defect.",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "ae7e056a611d1b7ca3182a9ebdb67d7dd51b31051c6c79a92722fbedc1a78c3d",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 323,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-1",
+      "reason": "",
+      "when": "2026-10-07T10:41:59.094851+00:00"
+    }
+  ],
+  "responses": {
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T10:41:59.094851+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v323.json",
+  "review_run_id": "r-20261007T102846422636-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "50a2d1042cbba75d26e046c34544cf830cac48ca",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the change adds no ambix module; the format read is delegated to the external `eqdsk` package and injected through the existing `read_efit_geometry(loader=...)` seam, which is an interface smaller than what it hides.",
+    "duplicate_owner": "pass \u2014 no second G-EQDSK reader exists in ambix (`imas_ambix/`, `packages/`, `tests/`, `scripts/` carry zero EQDSK readers), and the `eqdsk` package's file-COCOS handling is not the same concern as the DD-path COCOS resolver (`_target_cocos_transformation`) the plan already owns in `packages/imas-alambic/src/imas_alambic/transform_engine.py`.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the changed unit adds to none of the four families, and its own text states what it adds no public definition for (\"writes no G-EQDSK reader of its own\u2026 the reader adds no public definition to ambix\") and why it adds nothing beyond a `pyproject.toml` direct-dependency declaration.",
+    "reuse_search": "a finding \u2014 \u00a77 cites the `eqdsk` package's `EQDSKInterface` as the reader for E101011's G-EQDSK, but that reader dispatches on file extension and rejects the plan's named file `EFIT95.DATA`.",
+    "thin_wrapper": "pass \u2014 \u00a77 writes no G-EQDSK reader of its own and no wrapper over one; it reuses the package's `EQDSKInterface` and the seam's existing `loader` argument, and says so."
+  },
+  "section_digests": {
+    "_document": "4860703ca060fdf3aa2d75572a7102a402f63d722038524b9aad5ade664dc6ed",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "87c194aa95ec57a7796f4ab8c2d5620698d1c31e041c86534e34ef0655376c56",
+    "s7": "9149c445306b26986724c8395cf082d4bf9687b974459460ed9401964694c78f",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T10:41:31.846647+00:00"
+}

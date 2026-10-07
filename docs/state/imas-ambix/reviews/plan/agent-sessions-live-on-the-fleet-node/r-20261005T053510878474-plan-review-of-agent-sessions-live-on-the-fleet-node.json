@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T05:51:45.400Z",
+  "dispatched_at": "2026-10-05T05:35:15Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/agent-sessions-live-on-the-fleet-node.html:177",
+      "id": "reuse_search-1",
+      "reason": "\u00a76 should cite the landed mechanism and narrow itself to whichever part is genuinely still missing, instead of claiming a prerequisite the code already satisfies.",
+      "text": "\u00a76 states \"dispatch must ask the supervisor to launch it from the batch step, which needs a `spawn` request\" and \"Until it lands, full RESUME must not dispatch from fleet sessions\", but the spawn verb is already implemented (reckon/crew/fleet_supervisor.py:1243 dispatches `spawn <run-id> <spec>`, spawn_supervisor at :1114) and dispatch already routes both worker and watcher-producer launch through it (reckon/crew/dispatch.py:9841 `_start_supervisor` -> `_spawn_through_fleet` at :9762, and :1177 for producers)",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/reckon/bin/fleet-shell:11",
+      "id": "thin_wrapper-1",
+      "reason": "the plan should extend the placement owner or name why a separate wrapper is required, rather than adopting a parallel placement path as the laptop's entry point.",
+      "text": "\u00a74 proposes the fixed `Host fleet` alias with `RemoteCommand ~/.local/bin/fleet-shell`, but that 20-line script re-implements placement (hand-parses record.json with `sed` for `job_id` at :12 and `runtime_dir` at :18, then builds its own `srun --overlap --pty`) while reckon already owns a placement entry point (fleet_node.placement_argv and the `reckon fleet-node place` command at reckon/cli.py:638); the plan does not say why fleet-shell cannot call that owner",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/reckon/reckon/crew/fleet_node.py:299",
+      "id": "duplicate_owner-1",
+      "reason": "a reader that re-derives rather than reading the record drifts from the value the supervisor published (fleet-attach's default versus the record's runtime_dir), so the design should route every resolution through fleet_node.recorded_job_id() and the record's runtime_dir \u2014 though \u00a72's step 3 safe-discovery rule (find by name, cancel by id) is the right instinct and should keep the record as the single source.",
+      "text": "`recorded_job_id()` is the owner of reading the fleet record, yet the design resolves the same file independently in three places: dotfiles/bin/cx:227 (`sed` parse of `job_id`), reckon/bin/fleet-shell:12 and :18, and reckon/bin/fleet-attach:12 which instead re-derives the runtime dir as `${FLEET_RUNTIME_DIR:-/tmp/$(id -u)-fleet}` without reading the record's own `runtime_dir`; cx already depends on reckon for the hold (`reckon fleet-node hold`, reckon/cli.py:567)",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "51440bd9c064d4302b06cabeafc7bde2fcc22e09db87beb92d5385ec2dd57351",
+  "plan_slug": "agent-sessions-live-on-the-fleet-node",
+  "plan_version": 20,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T053510878474-plan-review-of-agent-sessions-live-on-the-fleet-node",
+  "reviewed_blob_sha": "6ca95e0d0c78deb9aa4dd34609bd2b572566ce1a",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the plan adopts the batch-step supervisor (reckon/crew/fleet_supervisor.py, 1355 lines behind a 1-line exec launcher) as one deep module that hides zellij lifecycle, runtime-dir creation, standing services and the request FIFO behind a one-request-per-line interface.",
+    "duplicate_owner": "a finding \u2014 the design reads ~/.local/state/fleet/record.json in three hand-written places (cx, fleet-shell, fleet-attach) while reckon/crew/fleet_node.py owns it.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the design adds no new public definition, CLI option, MCP view or refusal family (the `spawn` verb it calls for already exists in fleet_supervisor.py, and CX_FLEET_VIA / ~/.config/cx/fleet-sessions are shell/dotfiles surfaces outside these four families).",
+    "reuse_search": "a finding \u2014 the plan's \u00a76 presents the supervisor `spawn` request and launching dispatch workers from the batch step as outstanding work, but both already exist in reckon.",
+    "thin_wrapper": "a finding \u2014 \u00a74 adopts reckon/bin/fleet-shell as the `Host fleet` RemoteCommand; the 20-line wrapper re-derives the fleet's job and runtime directory by hand-parsing the record rather than extending the module that owns it."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.831547+00:00"
+}

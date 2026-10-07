@@ -1,0 +1,47 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T04:27:59.866Z",
+  "dispatched_at": "2026-10-07T04:23:01Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-signal-figures-from-ids.html (snapshot plan.html:106-107)",
+      "id": "reuse_search-1",
+      "reason": "the section's own premise (it \"runs after \u00a78 merges\") contradicts its `implementable` status; the author must either declare the facility-mint \u00a78/\u00a77 dependency in the meta and re-status \u00a73, or name the resolved root/file by the mechanism that exists today, so the node does not start against owners that are absent.",
+      "text": "\u00a73 states the root \"comes from `imas_alambic/settings.py` `resolve_settings`\" and the file name \"from `pulse_writer.pulse_path`\", presented as owners it reuses; opening the tree shows neither exists \u2014 there is no `packages/imas-alambic/src/imas_alambic/settings.py`, `resolve_settings` and `IMAS_ALAMBIC_IDS_ROOT` appear nowhere in the repo, and `pulse_writer.py` defines no `pulse_path` (its leaf names are `write_pulse`/`IDS_NAMES`). Both are introduced by `jt60sa-facility-mint` \u00a78 (`docs/plans/jt60sa-facility-mint.html:199-201`), which itself \"waits for \u00a77's rename to merge\". \u00a73 is nonetheless marked `data-status=\"implementable\"` (plan.html:83) and this plan's `plan-section-depends-on` meta names only `imas-ink:ids-signal-traces#s1` (plan.html:23) \u2014 the \u00a78 and \u00a77 dependency is undeclared. So either \u00a73 is not implementable as scoped, or \u00a73 will re-implement the path resolution it claims to reuse.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "scripts/figures_jt60sa_signals.py:37",
+      "id": "duplicate_owner-1",
+      "reason": "the plan should name the one owner the reader lives on (extend `pulse_writer` to a read counterpart of `pulse_path`, or state that the two scripts' readers are deliberately distinct), so \u00a73's restructure of one copy does not silently leave a divergent second one.",
+      "text": "`_read_pulse_ids(pulse_dir, ids_name)` opens `pulse_dir/{ids_name}.nc` through `imas.DBEntry`; the same mechanism is a second, independent copy at `scripts/figures_jt60sa_geometry.py:45` `_read_ids(store_path, ids_name, dd_version)`. \u00a73 reworks the signals copy (migrating it onto `pulse_path`) but the plan never names a single owner for \"open one IDS from a per-IDS netCDF file\", so the geometry copy stays behind and the two drift. Census of this defect type in the same pass: `scripts/figures_jt60sa_signals.py:37` (`_read_pulse_ids`) and `scripts/figures_jt60sa_geometry.py:45` (`_read_ids`); the nearest owner that could be extended is `packages/imas-alambic/src/imas_alambic/pulse_writer.py`, which owns the pulse layout but exposes only the write side (`write_pulse`).",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "c2e970836cbb89239ed7cadbf24f67878df68ced173f99d8e02f369bfbbb4c78",
+  "plan_slug": "jt60sa-signal-figures-from-ids",
+  "plan_version": 7,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261007T042245727478-plan-review-of-jt60sa-signal-figures-from-ids",
+  "reviewed_blob_sha": "2700acf235624fc5240f5da4ff0daff0b1d289f8",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a73 hides the whole open \u2192 `extract_signal_traces` \u2192 `time_trace_figure_mpl` \u2192 `render_to_bytes` chain behind one pulse-taking function returning the pulse's figure, an interface smaller than what it hides; the per-pulse output name is the only value it leaves to the caller. No spread of shallow wrappers is proposed.",
+    "duplicate_owner": "a finding \u2014 \u00a73 restructures the pulse-IDS reader in `scripts/figures_jt60sa_signals.py` without reconciling the second copy of the same \"open one IDS from a `<ids>.nc` file via `imas.DBEntry`\" mechanism already in the sibling figure script.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 adds no public definition, CLI option, MCP view or refusal family (the new function is script-private), and it names what it retires: the module constants `SHOT`/`FIGURE`/`PULSE_DIR` (`scripts/figures_jt60sa_signals.py:32-34`) and the `JT60SA_ROOT` read for the pulse.",
+    "reuse_search": "a finding \u2014 \u00a73 names `imas_alambic/settings.py resolve_settings` and `pulse_writer.pulse_path` as the owners it reuses, but neither exists at HEAD; they are added by the unmerged `jt60sa-facility-mint` \u00a78, which this plan's `plan-section-depends-on` meta does not declare.",
+    "thin_wrapper": "pass \u2014 the function's only added behaviour over imas-ink is the pulse-path open step, which imas-ink cannot own (it is ambix's placement concern); the plan extends the existing `_read_pulse_ids` site and calls `pulse_path` rather than forking a parallel reader, and it retires the E101154-fixed constants rather than layering over them."
+  },
+  "section_digests": {
+    "_document": "fef92cd446c002fb68543297d0aec84441c7616741d8eca7dc0589dce5f9a8fd",
+    "s1": "8cc1fc171352c18ac739b983fe55145c39f922e6a6e144dd81cf938653d2845d",
+    "s2": "5cd2e220fa19dd9a8a1baa6ff8250efe43b933bb5494443641b226a63799b420",
+    "s3": "8f66d82751cd43288758eed241c97bf7a143460f04f507438ac6b5481df25660"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T10:03:40.185458+00:00"
+}

@@ -1,0 +1,66 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T07:14:46.414Z",
+  "dispatched_at": "2026-10-07T07:01:36Z",
+  "findings": [
+    {
+      "anchor": "scripts/figures_jt60sa_geometry.py:145",
+      "id": "reuse_search-1",
+      "reason": "\u00a71's done-when requires every census reader to end in one of its five states, so this script must be given a state (guard the bundle absence, or name the plan that owns and edits it) or the census rule is incomplete and its node will leave the script broken against the moved bundle.",
+      "text": "\u00a71's census lists this script among its 20 hits (plan.html:103) but assigns it none of the five reader states and names no other owner, while the file resolves the packaged JT-60SA catalogue by name at :145 (load_packaged_machine_map(\"jt-60sa\"), with CATALOGUE_MACHINE = \"jt-60sa\" at :40), so once \u00a71 removes the jt-60sa catalogue from the in-repo bundle the script fails with the map-absent error instead of a stated guard or skip; re-running \u00a71's own census command at HEAD 72ab160e returns exactly the plan's 20 hits and every other hit is assigned a state, making this the one unassigned site",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "efbe97651c5934163d2a73b5e41d6b95914cbac787ca16b8aad56f3d3a586e7b",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 77,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "finding": "reuse_search-1",
+      "reason": "",
+      "when": "2026-10-07T07:15:48.647810+00:00"
+    }
+  ],
+  "responses": {
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "reason": "",
+      "when": "2026-10-07T07:15:48.647810+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-facility-mint.v77.json",
+  "review_run_id": "r-20261007T070120782031-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "f7961f253cff06b3b74ca0a0534d24b1e12cea16",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a712 extends settings.py's existing _cache_root_from_bundle helper and \u00a713 adds one module-private context manager beside pulse_path, so both sections hide their behaviour behind an interface smaller than what it hides rather than spreading it across new modules.",
+    "duplicate_owner": "pass \u2014 imas_ambix/data/paths.py stays the single owner of the /work layout, \u00a71 removes the JT60SA_ROOT and JT60SA_DESCRIPTION_DIR roles from imas_ambix/data/bundle.py, pulse_path stays the single namer of the run file, and \u00a75 reads the facility layout names from \u00a78's settings.py rather than spelling them.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; no implementable section (\u00a71, \u00a75, \u00a76, \u00a712, \u00a713) adds to any family \u2014 \u00a712 wires the pre-existing IMAS_ALAMBIC_IDS_ROOT variable and --out flag (settings.py:43, settings.py:138), \u00a75 adds no CLI option and names \u00a74's ~/imas-alambic/.venv and env.sh as what it retires, and \u00a713 states its context manager is underscore-private and not in __all__, leaving the module's public surface unchanged.",
+    "reuse_search": "a finding \u2014 the plan searched (it cites load_packaged_signal_map, _cache_root_from_bundle, watch_publish._write_atomic and runs a reader census), but \u00a71's census lists scripts/figures_jt60sa_geometry.py among its 20 hits and gives it none of the five reader states.",
+    "thin_wrapper": "pass \u2014 \u00a713 justifies why the engine cannot reuse imas_ambix/agent/watch_publish.py `_write_atomic` (the engine is a separate wheel and the existing helpers take a payload, where imas-python opens the path itself), and \u00a71 repoints scripts/vacuum_loop_adjudication.py:1088 to the existing load_packaged_signal_map rather than adding a parallel resolver."
+  },
+  "section_digests": {
+    "_document": "269971cee88062b7ebfee1d132427207e7e8be21fe5df0242342bb14ae8f0df9",
+    "s1": "c0c591531428a21bffbe7600053554f0ac3d9055bc6fe9d355e9479d482f7c94",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "40878323aab9328585648d85591fd96dc6fcd4f5beedd01abbe2f0b3b1e8e508",
+    "s12": "e246833d4e0acc02b45f2c8ee46b9d4bee47ee367785fdfae851c90b7137f76d",
+    "s13": "1412993bb594810fe98bb86bda9d825e09fc5a393dd8bfeab770963721e7a8bd",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "9ead79358bde61d9a2190b2c445b3f52e8225b211933e5df910e67d47b940cd3",
+    "s6": "1ccc061c74e3a3eab0fbd07825bc5bf11d8207248d01b1a9aecba35a37e20560",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "0d934ec479471ff9f711bc6e58ec9f2d0f07d4722593ff98c53426b2b509ecda",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T07:15:46.441310+00:00"
+}

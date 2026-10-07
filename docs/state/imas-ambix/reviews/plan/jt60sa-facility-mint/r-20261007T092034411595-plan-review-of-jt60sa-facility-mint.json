@@ -1,0 +1,88 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T09:35:41.461Z",
+  "dispatched_at": "2026-10-07T09:20:49Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html#s14",
+      "id": "thin_wrapper-1",
+      "reason": "naming the owner to extend keeps the zero/one/many policy in one place, so a later change to bundle precedence or machine declaration cannot drift the guard away from the resolution the tests actually exercise.",
+      "text": "the guard \"decides absence from `discover_bundles()` alone\" and so re-derives the membership filter (`machine in bundle.machines` over the discovered bundles) that `bundle_for_machine` already owns at packages/imas-alambic/src/imas_alambic/machine_map.py:290-292, where the same list comprehension decides the machine\u2192bundle answer; the section does not say why the owner cannot expose the presence question (e.g. the match list, or `bundles_carrying(machine)`), so the test helper becomes a second, unowned copy of the resolution policy",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "tests/data/test_eddb_cache.py:63",
+      "id": "duplicate_owner-1",
+      "reason": "the census of the duplication being consolidated is incomplete, so the author must either fold this fixture into the single owner or say in the section why this stand-in is deliberately separate, before its \"defined once\" measure can hold.",
+      "text": "\u00a714 says \"the stand-in gets one owner too\" and names only `tests/data/test_eddb_local_transport.py:38` and `packages/imas-alambic/tests/test_eddb_local_transport.py:38`, but a third stand-in of the same type survives: `FAKE_WRAPPER` at tests/data/test_eddb_cache.py:63 defines its own `class eddbWrapper` at :73 and is written as `eddb_pwrapper.py` at :221, a local stand-in module on the reader script's path exactly as the pair the section consolidates; \u00a714's done-when then reads \"the stand-in wrapper and helpers are defined once\", which the third definition makes false",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "a2abc03c41f8e919593b6fe0ce655c54bbb8dedde46337b0a38e74b75a2841f0",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 89,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "finding": "thin_wrapper-1",
+      "reason": "",
+      "when": "2026-10-07T09:36:40.457682+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-07T09:36:44.382501+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "reason": "",
+      "when": "2026-10-07T09:36:44.382501+00:00"
+    },
+    "thin_wrapper-1": {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "reason": "",
+      "when": "2026-10-07T09:36:40.457682+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-facility-mint.v89.json",
+  "review_run_id": "r-20261007T092034411595-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "dce1b673c3b3ee70cb2812dcf26389e7b4a185da",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 `tests/jt60sa_bundle.py` hides bundle discovery, the zero/one/many decision, the stated reason and the skip marker behind one machine parameter; the engine `eddb_standin.py` hides the wrapper text and the channels-table writer.",
+    "duplicate_owner": "a finding \u2014 \u00a714 consolidates the EDDB stand-in onto one owner but names only two of the three files that define a stand-in `eddbWrapper` module.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a714 adds only test-support modules (`tests/jt60sa_bundle.py`, `packages/imas-alambic/tests/eddb_standin.py`) and in its own text merges nine guards into one owner and the stand-in wrapper into one owner.",
+    "reuse_search": "pass \u2014 \u00a714 cites the mechanisms it extends (`discover_bundles`/`bundle_for_machine`), the engine-side stand-in file it consolidates onto (`packages/imas-alambic/tests/test_+eddb_local_transport.py`), and settles the load-by-path mechanism with a reason; a shared non-test helper module in `tests/` also matches the repo's own precedent (`tests/distribution_sources.py`, imported by two test modules).",
+    "thin_wrapper": "a finding \u2014 the guard is a thin layer over `discover_bundles` that re-derives the machine\u2192bundle membership predicate `bundle_for_machine` already owns, without saying why that owner cannot expose it."
+  },
+  "section_digests": {
+    "_document": "a7c012f690ba75ae8f24f139c45a5ffec81cddc345b42901fb0b88a90a1ed72d",
+    "s1": "9c7f16d6433487c622ba43b590d60de6ac6689995d01dfbcf8d4ab1d1d24f6c3",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "40878323aab9328585648d85591fd96dc6fcd4f5beedd01abbe2f0b3b1e8e508",
+    "s12": "7dd2ae47a38480f8a23a4bd518d5e1b9f6772d559fde8fe9885a2c7095f8ea50",
+    "s13": "2741a581fa4af709b92ea8db4a8330d65807a7a8665bbbfd9b84a09145be00ba",
+    "s14": "a4786a65dce1ceab1650a9b5025bf437c46e2e091bb0289a4c9fad39cfa2fb7e",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "9ead79358bde61d9a2190b2c445b3f52e8225b211933e5df910e67d47b940cd3",
+    "s6": "1ccc061c74e3a3eab0fbd07825bc5bf11d8207248d01b1a9aecba35a37e20560",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "0d934ec479471ff9f711bc6e58ec9f2d0f07d4722593ff98c53426b2b509ecda",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T09:36:37.804118+00:00"
+}

@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T09:23:38.182Z",
+  "dispatched_at": "2026-10-05T09:20:37Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/project-environment-declared.html#s3",
+      "id": "reuse_search-1",
+      "reason": "the reuse map's count decides where the helper lives and who adopts it, and a two-copy premise misplaces the merge point.",
+      "text": "the plan asserts \"That test and the census both resolve an editable install's checkout from direct_url.json, and the census's copy omits the unquote the existing one applies, so both move onto one shared helper\", treating the resolver as existing in exactly two copies; in fact four copies exist, two of them in production code under `imas_ambix/` (`fluxstate/adapters.py:51`, `statespace/nova_ensemble_estimator.py:36`) and a fourth in `tests/fluxstate/test_consumer_contract.py:40`, so the mapped prior art is wrong by three",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "tests/distribution_sources.py",
+      "id": "thin_wrapper-1",
+      "reason": "the rubric requires a wrapper to say why the existing mechanism cannot be extended, and that statement would move the helper from a parallel test module onto the existing owner.",
+      "text": "the proposed module wraps only `json.loads(dist.read_text(\"direct_url.json\"))` \u2192 scheme check \u2192 `Path(unquote(urlsplit(url).path))`, behaviour the production resolver at `imas_ambix/fluxstate/adapters.py:52` already implements, and the plan justifies consolidation only among the two test copies, never stating why the existing resolver cannot be extended to expose the shared parse",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/fluxstate/adapters.py:51",
+      "id": "duplicate_owner-1",
+      "reason": "naming the owner (a shared resolver importable by both `imas_ambix/` and `tests/`, or a documented decision to leave the production resolvers alone) changes the module's placement and its adoption list.",
+      "text": "the plan re-implements checkout resolution in a tests-only module rather than extending the mechanism that owns it; `_installed_nova_revision()` here (and its verbatim twin at `imas_ambix/statespace/nova_ensemble_estimator.py:36`) already turns `direct_url.json` into a local checkout path, and `tests/distribution_sources.py` cannot be imported by that production code, so the duplication is guaranteed to persist",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "130a866b3126fed6ffeda806083be824ce459b3a373439ba891731722f1cab37",
+  "plan_slug": "project-environment-declared",
+  "plan_version": 10,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T092030681068-plan-review-of-project-environment-declared",
+  "reviewed_blob_sha": "992e07430b59f38e5841fb755346b589c0d6cd34",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the shipped census hides the AST walk, module\u2192distribution mapping, default/optional classification and transitive closure behind one `build_census()` that both the assertion and the fragment renderer read, so no shallow-wrapper spread is being added.",
+    "duplicate_owner": "a finding \u2014 the plan forks a fifth `direct_url.json` checkout resolver into a tests-only module instead of extending the resolver owned by `imas_ambix/fluxstate/adapters.py:51` (itself already duplicated verbatim at `imas_ambix/statespace/nova_ensemble_estimator.py:36`).",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 adds no member of any counted family, names the retirement of the `dev` extra, and the `video` extra it adds sits outside all four families.",
+    "reuse_search": "a finding \u2014 the plan cites one existing `direct_url.json` checkout resolver (`tests/physics/test_dependency_contract.py:62`) but three more exist (`tests/fluxstate/test_consumer_contract.py:40`, `imas_ambix/fluxstate/adapters.py:51`, `imas_ambix/statespace/nova_ensemble_estimator.py:36`), so its reuse map is incomplete and the proposed `tests/distribution_sources.py` would be a fifth copy.",
+    "thin_wrapper": "a finding \u2014 `tests/distribution_sources.py` adds only a direct_url\u2192checkout parse that the production resolver already performs, and the plan does not say why that resolver cannot host the shared core."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.924926+00:00"
+}

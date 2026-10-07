@@ -1,0 +1,34 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T12:24:09.468Z",
+  "dispatched_at": "2026-10-05T12:21:13Z",
+  "findings": [
+    {
+      "anchor": "tests/test_declared_dependencies.py:71",
+      "id": "duplicate_owner-1",
+      "reason": "the plan should name tests/test_declared_dependencies.py as the owner and direct \u00a74 to import `OPTIONAL_SUBSYSTEM_ROOTS`/`build_census()` so the fresh-environment proof and the census share one definition of \"optional\".",
+      "text": "\u00a74 requires the worker to classify each `imas_ambix/` module as inside or outside an optional subsystem so an unimportable module can be judged expected or a failure, but that boundary is already declared as `OPTIONAL_SUBSYSTEM_ROOTS` (and, per distribution, by `build_census()`) in the census module; re-encoding the three subsystem roots in the \u00a74 proof creates a second owner of the same boundary that will drift the moment a subsystem root moves, and the two surfaces are exactly the pair the plan elsewhere insists \"cannot disagree\".",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "22edcece63566ded290ce6e5e887018ada1bcf169ebfa7fabeec2dfd5b170309",
+  "plan_slug": "project-environment-declared",
+  "plan_version": 14,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T122106374546-plan-review-of-project-environment-declared",
+  "reviewed_blob_sha": "661e676bb36593a21fbc2b335f662ce9a96c2773",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the census hides the AST walk, the module-to-distribution mapping and the classification behind one `build_census()`, read by both the guard test and the fragment renderer, so the two cannot disagree.",
+    "duplicate_owner": "a finding \u2014 \u00a74's fresh-environment import walk must decide per module whether it lies inside an optional subsystem, a boundary already owned by `OPTIONAL_SUBSYSTEM_ROOTS` in the census, and the plan does not name that owner.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; no section adds a CLI option, MCP view, refusal family or public product definition, so there is no added surface to retire or merge (the census symbols live in `tests/`, and \u00a75's change is a pytest mark on existing tests).",
+    "reuse_search": "pass \u2014 \u00a72's census reuses `editable_checkout` from `tests/distribution_sources.py`, the shared helper extracted for `tests/physics/test_dependency_contract.py`, and \u00a74 consumes the census's optional-distribution classification rather than inventing one.",
+    "thin_wrapper": "pass \u2014 \u00a75 extends pytest-timeout's existing per-test mark (the repo's default is the ini `timeout = 300`) and \u00a74 is an end-to-end fresh-environment proof, not a parallel layer over an existing reader."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.921208+00:00"
+}

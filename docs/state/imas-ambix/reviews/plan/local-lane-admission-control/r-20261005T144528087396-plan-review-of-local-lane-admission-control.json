@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-05T14:49:45.622Z",
+  "dispatched_at": "2026-10-05T14:45:35Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/reckon/reckon/crew/lane_document.py:210",
+      "id": "duplicate_owner-1",
+      "reason": "the plan must name which side owns the composition (the router publishes `admission.headroom` and the top-level bound; readers copy it) rather than leave a local recompute that the plan's own stated rule forbids, or reconcile the fallback explicitly as the owner.",
+      "text": "reckon's `_admission_reading` and `_minimum_headroom` recompute, against `lane.json`, the admission headroom, the gate-slot count and the `min(engine, admission)` rule that `imas_ambix/agent/lane.py:725` (`lane_headroom`) and `:704` (`engine_headroom`) already own; the two readers are the min-composition and slot arithmetic with two authors, and \u00a721's addendum rules that a reader \"cop[ies], never recompute[s]\"",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/imas_ambix/agent/live_panel.py:66",
+      "id": "thin_wrapper-1",
+      "reason": "the plan should state why the field lists live in a second module rather than the lane reader, or fold them into it; the nested `worker_slots.worker_slots` is the tell that the layer adds surface rather than depth.",
+      "text": "`ADMISSION_FIELDS`, `WORKER_SLOT_FIELDS` and `SESSION_SLOT_FIELDS` copy slices of the `admission` block that `imas_ambix/agent/lane.py`'s document reader already resolves, adding a third reader of the same fields and nesting the count at `lane.worker_slots.worker_slots`; \u00a721's addendum asks gpu-watch to print the figure but never says why the existing lane reader cannot expose it, which is the thin-layer-over-existing-machinery case the item exists for",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/local-lane-admission-control.html:824",
+      "id": "interface_budget-1",
+      "reason": "with the week's four families supplied as 0, the sections that add to the CLI and to the published lane contract must justify the addition against a retirement or merge, as \u00a715 does for the implicit gate path and \u00a717 does for the run-level drain.",
+      "text": "\u00a718 adds `agent pause --cut` and `--cut-form close|error` to the CLI and \u00a721/\u00a722 add five `admission` fields (`active_sessions`, `fair_share`, `borrow_reserve`, `new_session_worker_slots`, `sessions`), and neither section states what it retires or merges, or why nothing can be; the read-back definitions \u00a721/\u00a722 do compile resolve field semantics but do not account for the added surface",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "5a25410df73c14cb5e820d13855ee88fae8c815528081ca285271a904e29bba0",
+  "plan_slug": "local-lane-admission-control",
+  "plan_version": 182,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261005T144528087396-plan-review-of-local-lane-admission-control",
+  "reviewed_blob_sha": "0b1fd6ab09981584c657ea82f5dd91222c050145",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the admission control (FIFO, pause, cut, live width, occupancy rule, slot derivation) is hidden behind one gate interface (`_GenerationGate.acquire`/`release`/`snapshot` over `_AdmissionLedger`), which is substantial behaviour behind a small surface; the plan does not sprawl it across many shallow wrappers.",
+    "duplicate_owner": "a finding \u2014 the plan's own rule \"Readers copy, never recompute\" is violated by the reader it names as the owner: reckon's `lane_document.py` re-derives the same headroom composition and slot arithmetic that `imas_ambix/agent/lane.py` already implements, over the same `lane.json` block.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a718 and \u00a721/\u00a722 add a CLI option and five lane-document fields without naming what they retire or merge, or why nothing can be.",
+    "reuse_search": "pass \u2014 \u00a714 carries an explicit reuse map naming `fetch_lane_capacity`/`LaneCapacity`, `engine_metrics.COUNTER_SERIES`, `receipt_bins.py` and `bench.py`, and \u00a721/\u00a722 name `identity_from_headers`, `lane.py` and reckon's reader, so each new mechanism cites the machinery it extends or declines.",
+    "thin_wrapper": "a finding \u2014 the plan adds a copying layer (`live_panel.py`'s three admission field-list constants) over fields a reader in the same repository already resolves, without saying why that reader cannot carry them."
+  },
+  "section_digests": {},
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:52:54.872701+00:00"
+}

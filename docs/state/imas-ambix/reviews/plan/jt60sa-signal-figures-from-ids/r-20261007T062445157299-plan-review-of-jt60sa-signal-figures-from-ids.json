@@ -1,0 +1,39 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T06:33:13.887Z",
+  "dispatched_at": "2026-10-07T06:24:55Z",
+  "findings": [
+    {
+      "anchor": "scripts/figures_jt60sa_signals.py:35",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a73 names paths.py as the owner but does not add the constant, so the honest change is to publish the ids root beside JT60SA_DESCRIPTION_DIR (or let the settings default \u00a78 adds carry it) and have the entry point resolve through that one rule, rather than the figure script spelling the literal.",
+      "text": "\u00a73's interim fallback reaches the written pulses by composing `Path(JT60SA_ROOT) / \"ids\"`, but the owner \u00a73 names for the /work layout, imas_ambix/data/paths.py, publishes JT60SA_ROOT (:45) and JT60SA_DESCRIPTION_DIR (:46) and no ids root, so the \"/ids\" component is positional knowledge held in the script (this is the only in-repo spelling of the ids root; the settings rule at imas_alambic/settings.py:134 builds it as `home / \"ids\"`, which the fallback re-derives with home=JT60SA_ROOT)",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "8f080cf97c85c36287d980a9b7d1a1b8d834338388491aacaaa062a603fe4668",
+  "plan_slug": "jt60sa-signal-figures-from-ids",
+  "plan_version": 20,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261007T062445157299-plan-review-of-jt60sa-signal-figures-from-ids",
+  "reviewed_blob_sha": "ca43b717dfd12de036548b3f02c3cc80024cf9ed",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 one function takes (root, pulse, run, series pairs) and hides the IDS file open, the DD-path extraction and the multi-panel figure layout behind a single returned object; \u00a72's flux loops and \u00a73's second pulse both become calls to it rather than parallel paths.",
+    "duplicate_owner": "a finding \u2014 the interim pulse-root fallback composes the ids-root layout literal inside the figure script instead of extending the owner that publishes it.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 adds only a script-local function (no export, no CLI flag) and names what it retires, the E101154-fixed module constants SHOT/RUN/FIGURE/PULSE_FILE at scripts/figures_jt60sa_signals.py:32-35.",
+    "reuse_search": "pass \u2014 the three imas-ink primitives the design composes were verified to exist and be the right layer (extract_signal_traces at imas_ink/extract.py:815, time_trace_figure_mpl at imas_ink/figures.py:52, render_to_bytes at imas_ink/io.py:28), no existing generic \u00abopen a run file and draw DD paths\u00bb driver exists to reuse (the imas-ink CLI is demo-only; the MCP plot_time_traces at imas_ink/server/mcp.py:239 is equilibrium-hardcoded and returns base64), and \u00a73 explicitly distinguishes the geometry script's `_read_ids` as a different product.",
+    "thin_wrapper": "pass \u2014 the change parameterizes the existing inline path in scripts/figures_jt60sa_signals.py instead of adding a parallel one, and \u00a73 states why each owner is used directly rather than forked: imas-ink deliberately separates extract_signal_traces (takes an IDS object) from time_trace_figure_mpl (takes traces) and opens no files, so the file-open step is legitimately the application's."
+  },
+  "section_digests": {
+    "_document": "fef92cd446c002fb68543297d0aec84441c7616741d8eca7dc0589dce5f9a8fd",
+    "s1": "8cc1fc171352c18ac739b983fe55145c39f922e6a6e144dd81cf938653d2845d",
+    "s2": "5cd2e220fa19dd9a8a1baa6ff8250efe43b933bb5494443641b226a63799b420",
+    "s3": "bd7003752a882da865dbf6c09187f8fd67a40a0b01494f50da7d22e317820dfa"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T10:03:40.177071+00:00"
+}
