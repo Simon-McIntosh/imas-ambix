@@ -7,12 +7,14 @@ EDDB channels into canonical values in the unit, sign and convention the
 target path leaves need.  Nothing joined them before: the two halves were read
 separately and a reconstruction wanted both.
 
-This module is that join.  :func:`write_pulse` takes the machine, the shot and
-an output root, reads the phase description whole, writes into it the
-time-dependent leaves the signal maps serve, and writes one DD netCDF file per
-IDS under ``{out}/{shot}/``.  It returns a :class:`WriteReceipt` naming each IDS
-written, each time-dependent leaf filled, and each declared signal left out
-with its reason.
+This module is that join.  :func:`write_pulse` takes the machine, the shot, a
+run and an output root, reads the phase description whole, writes into it the
+time-dependent leaves the signal maps serve, and writes one DD netCDF file
+holding every description IDS at :func:`pulse_path`.  It returns a
+:class:`WriteReceipt` naming each IDS written, each time-dependent leaf filled,
+and each declared signal left out with its reason.  One public rule owns the
+layout: :func:`pulse_path` returns ``{out_root}/{pulse}_{run}.nc``, and every
+reader builds the name through it.
 
 The static content is the converter's own output, never re-derived.  Each
 signal's values come from the compiled map through
@@ -41,11 +43,12 @@ from imas_alambic.eddb import eddb_token, normalised_shot, read_channel
 from imas_alambic.machine_map import (
     MachineMap,
     MachineMapCatalog,
+    bundle_for_machine,
     load_packaged_machine_map,
     map_for_shot,
-    resolve_description_store_root,
 )
-from imas_alambic.signal_map import SignalMap, load_packaged_signal_map
+from imas_alambic.settings import SettingsFlags, resolve_settings
+from imas_alambic.signal_map import SignalMap, load_signal_map
 from imas_alambic.virtual_zarr import VirtualZarrView
 
 if TYPE_CHECKING:
@@ -98,6 +101,8 @@ class WriteReceipt:
     machine: str
     shot: str
     phase: str
+    run: int
+    path: str
     description_root: str
     out_dir: str
     ids_written: tuple[str, ...]
@@ -112,6 +117,8 @@ class WriteReceipt:
             "machine": self.machine,
             "shot": self.shot,
             "phase": self.phase,
+            "run": self.run,
+            "path": self.path,
             "description_root": self.description_root,
             "out_dir": self.out_dir,
             "ids_written": list(self.ids_written),
@@ -282,71 +289,99 @@ def _excluded_signals(ids_name: str, signal_map: SignalMap) -> list[ExcludedSign
     ]
 
 
-def write_pulse(machine: str, shot: object, out_root: Path | str) -> WriteReceipt:
+def pulse_path(out_root: Path | str, pulse: object, run: int = 0) -> Path:
+    """Return the run file's path: ``<out_root>/<pulse>_<run>.nc``.
+
+    The pulse is the bare integer the cache names it by and the run is
+    unpadded, so ``pulse 101154`` at run 0 is ``101154_0.nc``.  This is the one
+    rule that owns the run file's name; every reader builds the name through it.
+    """
+
+    return Path(out_root) / f"{normalised_shot(pulse)}_{int(run)}.nc"
+
+
+def write_pulse(
+    machine: str,
+    shot: object,
+    out_root: Path | str,
+    *,
+    run: int = 0,
+    overwrite: bool = False,
+    maps: str | None = None,
+    cache: str | None = None,
+) -> WriteReceipt:
     """Write one shot's description IDSs with the signals the maps serve.
 
     Reads the phase description whole from the catalogue's store and the
-    dynamic values from the shot's EDDB cache, writes one DD netCDF file per
-    IDS under ``{out_root}/{shot}/``, and returns a :class:`WriteReceipt`.
-    Refuses a shot with no cached pulse rather than writing empty signals.
+    dynamic values from the shot's EDDB cache, writes one DD netCDF file
+    holding every description IDS at :func:`pulse_path`, and returns a
+    :class:`WriteReceipt`.  The cache root is the resolved ``eddb_cache``
+    setting.  Refuses a shot with no cached pulse rather than writing empty
+    signals, and refuses an existing run file unless ``overwrite`` is set.
     """
 
-    catalog = load_packaged_machine_map(machine)
+    settings = resolve_settings(SettingsFlags(maps=maps, cache=cache))
+    catalog = load_packaged_machine_map(machine, search_path=settings.maps.value)
     shot_int = int(normalised_shot(shot))
     shot_token = eddb_token(shot)
     phase_map = map_for_shot(catalog, shot_int)
     description_root = _phase_directory(catalog, phase_map)
 
-    cache_root = resolve_description_store_root("JT60SA_ROOT")
+    cache_root = Path(str(settings.cache.value))
     cache_dir = cache_root / f"{shot_int}.zarr"
     if not cache_dir.is_dir():
         raise PulseWriteError(
             f"shot {shot_token} has no EDDB cache; {cache_dir} is absent"
         )
 
-    out_dir = Path(out_root) / str(shot_int)
+    out_dir = Path(out_root)
+    path = pulse_path(out_dir, shot_int, run)
+    if path.exists() and not overwrite:
+        raise PulseWriteError(
+            f"run file {path} already exists; pass --overwrite to replace it"
+        )
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    maps = {
-        ids_name: load_packaged_signal_map(machine, system)
+    bundle = bundle_for_machine(machine, search_path=settings.maps.value)
+    maps_by_ids = {
+        ids_name: load_signal_map(bundle.signal_map_path(machine, system))
         for ids_name, system in _SYSTEM_FOR_IDS.items()
     }
     views = {
         ids_name: VirtualZarrView.open(str(cache_dir), signal_map, shot=shot_int)
-        for ids_name, signal_map in maps.items()
+        for ids_name, signal_map in maps_by_ids.items()
     }
 
     leaves: list[WrittenLeaf] = []
     excluded: list[ExcludedSignal] = []
-    files: dict[str, str] = {}
 
-    for ids_name in IDS_NAMES:
-        description = _read_description(
-            description_root / f"{ids_name}.nc", ids_name, catalog.dd_version
-        )
-        signal_map = maps.get(ids_name)
-        if signal_map is not None:
-            entries = _served_entries(
-                signal_map, views[ids_name], cache_root, shot_token
+    with imas.DBEntry(path, "w", dd_version=catalog.dd_version) as entry:
+        for ids_name in IDS_NAMES:
+            description = _read_description(
+                description_root / f"{ids_name}.nc", ids_name, catalog.dd_version
             )
-            leaves.extend(_write_one_ids(ids_name, description, entries))
-            excluded.extend(_excluded_signals(ids_name, signal_map))
-        description.validate()
-        path = out_dir / f"{ids_name}.nc"
-        with imas.DBEntry(path, "w", dd_version=catalog.dd_version) as entry:
+            signal_map = maps_by_ids.get(ids_name)
+            if signal_map is not None:
+                entries = _served_entries(
+                    signal_map, views[ids_name], cache_root, shot_token
+                )
+                leaves.extend(_write_one_ids(ids_name, description, entries))
+                excluded.extend(_excluded_signals(ids_name, signal_map))
+            description.validate()
             entry.put(description)
-        files[ids_name] = str(path)
 
     return WriteReceipt(
         machine=machine,
         shot=shot_token,
         phase=phase_map.name,
+        run=int(run),
+        path=str(path),
         description_root=str(description_root),
         out_dir=str(out_dir),
         ids_written=tuple(IDS_NAMES),
         leaves=tuple(sorted(leaves)),
         excluded=tuple(sorted(excluded)),
-        files=MappingProxyType(files),
+        files=MappingProxyType({ids_name: str(path) for ids_name in IDS_NAMES}),
     )
 
 
@@ -356,5 +391,6 @@ __all__ = [
     "WriteReceipt",
     "WrittenLeaf",
     "PulseWriteError",
+    "pulse_path",
     "write_pulse",
 ]

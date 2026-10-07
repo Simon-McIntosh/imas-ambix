@@ -1,8 +1,9 @@
 """On-demand cache for JT-60SA EDDB channels.
 
 Only the channels a map binds, for the shots a run asks for, are landed, as
-``{shot}.zarr/{category}/{dname}`` under the ``JT60SA_ROOT`` description-store
-root that the reachable bundle carries from :mod:`imas_ambix.data.paths`,
+``{shot}.zarr/{category}/{dname}`` under the writer's cache setting: the
+``eddb_cache`` store role a reachable bundle declares, or ``~/.cache/imas-alambic``
+when no bundle names one.  :mod:`imas_alambic.settings` owns that resolution,
 with the channel's EDDB time base stored as a sibling array
 (``{category}/{dname}_time``) so a cached channel carries its own time.
 
@@ -123,8 +124,11 @@ def channel_time_path(
 ) -> Path:
     """Return the sibling array path holding a channel's EDDB time base."""
 
-    return Path(cache_root) / f"{normalised_shot(shot)}.zarr" / category / (
-        time_array_name(dname)
+    return (
+        Path(cache_root)
+        / f"{normalised_shot(shot)}.zarr"
+        / category
+        / (time_array_name(dname))
     )
 
 
@@ -136,7 +140,7 @@ def read_eddb_token(cache_root: Path | str, shot: object) -> str | None:
         return None
     try:
         group = zarr.open_group(path, mode="r")
-    except (KeyError, ValueError, OSError):
+    except KeyError, ValueError, OSError:
         return None
     token = group.attrs.get(EDDB_TOKEN_ATTR)
     return None if token is None else str(token)
@@ -152,7 +156,7 @@ def _node_length(path: Path) -> int | None:
 
     try:
         array = zarr.open_array(path, mode="r")
-    except (KeyError, ValueError, OSError):
+    except KeyError, ValueError, OSError:
         return None
     shape = array.shape
     return int(shape[-1]) if shape else 0

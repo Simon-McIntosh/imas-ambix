@@ -1,4 +1,10 @@
-"""The imas-alambic command line: one command, ``write``, plus ``--version``."""
+"""The imas-alambic command line: ``write`` and ``config``, plus ``--version``.
+
+``write`` resolves its settings from the flags on the command line and the
+environment, so at the facility the only argument it needs is the pulse.
+``config`` prints each resolved setting with the source it came from, which is
+the only view of the precedence without reading the code.
+"""
 
 from __future__ import annotations
 
@@ -14,35 +20,109 @@ def main() -> None:
 
 
 @main.command(name="write")
-@click.option("--machine", required=True, help="Machine catalogue name, e.g. jt-60sa.")
+@click.argument("pulses", nargs=-1, required=True)
 @click.option(
-    "--shot",
-    required=True,
-    help="EDDB shot token, e.g. E101154 or 101154.",
+    "--run",
+    "run",
+    type=int,
+    default=0,
+    show_default=True,
+    help="Run number, unpadded; defaults to 0.",
+)
+@click.option(
+    "--machine",
+    default=None,
+    help="Machine name; inferred when exactly one machine is reachable.",
+)
+@click.option(
+    "--maps",
+    type=click.Path(),
+    default=None,
+    help="Map search path; the flag form of IMAS_ALAMBIC_MAP_PATH.",
 )
 @click.option(
     "--out",
     "out_dir",
-    required=True,
     type=click.Path(),
-    help="Output root; one directory per shot is written under it.",
+    default=None,
+    help="IDS root; the flag form of IMAS_ALAMBIC_IDS_ROOT.",
 )
-def write_cmd(machine: str, shot: str, out_dir: str) -> None:
-    """Write a pulse's description IDSs with the signals the maps serve."""
+@click.option(
+    "--cache",
+    type=click.Path(),
+    default=None,
+    help="EDDB cache root; the flag form of IMAS_ALAMBIC_CACHE.",
+)
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    help="Replace an existing run file rather than refusing it.",
+)
+def write_cmd(
+    pulses: tuple[str, ...],
+    run: int,
+    machine: str | None,
+    maps: str | None,
+    out_dir: str | None,
+    cache: str | None,
+    overwrite: bool,
+) -> None:
+    """Write each PULSE's description IDSs with the signals the maps serve."""
 
+    from imas_alambic.machine_map import MachineMapError
     from imas_alambic.pulse_writer import PulseWriteError, write_pulse
+    from imas_alambic.settings import (
+        ENV_HOME,
+        ENV_IDS_ROOT,
+        SettingsFlags,
+        require_setting,
+        resolve_settings,
+    )
 
+    settings = resolve_settings(
+        SettingsFlags(maps=maps, ids_root=out_dir, cache=cache, machine=machine)
+    )
     try:
-        receipt = write_pulse(machine, shot, out_dir)
-    except PulseWriteError as error:
+        machine_name = require_setting("machine", settings.machine, "--machine")
+        ids_root = require_setting(
+            "ids_root", settings.ids_root, f"{ENV_IDS_ROOT} or {ENV_HOME}"
+        )
+    except MachineMapError as error:
         raise click.ClickException(str(error)) from error
 
-    click.echo(f"Wrote {receipt.shot} phase {receipt.phase} into {receipt.out_dir}")
-    for ids_name in receipt.ids_written:
-        leaves = sum(1 for leaf in receipt.leaves if leaf.ids == ids_name)
-        click.echo(f"  {ids_name}: {leaves} time-dependent leaves")
-    if receipt.excluded:
-        click.echo(f"  {len(receipt.excluded)} declared signals left out (see receipt)")
+    for pulse in pulses:
+        try:
+            receipt = write_pulse(
+                machine_name,
+                pulse,
+                ids_root,
+                run=run,
+                overwrite=overwrite,
+                maps=maps,
+                cache=cache,
+            )
+        except PulseWriteError as error:
+            raise click.ClickException(str(error)) from error
+
+        click.echo(f"Wrote {receipt.shot} run {receipt.run} into {receipt.path}")
+        for ids_name in receipt.ids_written:
+            leaves = sum(1 for leaf in receipt.leaves if leaf.ids == ids_name)
+            click.echo(f"  {ids_name}: {leaves} time-dependent leaves")
+        if receipt.excluded:
+            click.echo(
+                f"  {len(receipt.excluded)} declared signals left out (see receipt)"
+            )
+
+
+@main.command(name="config")
+def config_cmd() -> None:
+    """Print each resolved setting with the source it came from."""
+
+    from imas_alambic.settings import resolve_settings
+
+    for name, setting in resolve_settings().as_pairs():
+        value = "(unset)" if setting.value is None else str(setting.value)
+        click.echo(f"{name}: {value}  [{setting.source}]")
 
 
 if __name__ == "__main__":  # pragma: no cover - module entry point

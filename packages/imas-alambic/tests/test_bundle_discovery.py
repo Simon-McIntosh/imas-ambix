@@ -14,7 +14,7 @@ from imas_alambic.machine_map import (
     bundle_for_machine,
     discover_bundles,
     load_bundle_descriptor,
-    resolve_description_store_root,
+    resolve_store_root,
 )
 
 if TYPE_CHECKING:
@@ -85,8 +85,8 @@ def test_relative_store_roots_resolve_under_the_bundle(tmp_path, monkeypatch):
     )
     monkeypatch.setenv("IMAS_ALAMBIC_MAP_PATH", str(tmp_path / "synth"))
 
-    assert resolve_description_store_root("REL") == tmp_path / "synth" / "machines"
-    assert resolve_description_store_root("ABS") == tmp_path / "abs"
+    assert resolve_store_root("REL") == tmp_path / "synth" / "machines"
+    assert resolve_store_root("ABS") == tmp_path / "abs"
 
 
 def test_an_entry_point_may_supply_a_ready_bundle(tmp_path, monkeypatch):
@@ -96,6 +96,7 @@ def test_an_entry_point_may_supply_a_ready_bundle(tmp_path, monkeypatch):
         store_roots=MappingProxyType({"EXT": tmp_path / "ext"}),
     )
     monkeypatch.delenv("IMAS_ALAMBIC_MAP_PATH", raising=False)
+    monkeypatch.delenv("IMAS_ALAMBIC_HOME", raising=False)
     monkeypatch.setattr(
         "imas_alambic.machine_map.entry_points",
         lambda group: [_FakeEntryPoint(declared)],
@@ -104,7 +105,7 @@ def test_an_entry_point_may_supply_a_ready_bundle(tmp_path, monkeypatch):
     (bundle,) = discover_bundles()
 
     assert bundle is declared
-    assert resolve_description_store_root("EXT") == tmp_path / "ext"
+    assert resolve_store_root("EXT") == tmp_path / "ext"
 
 
 def test_a_declared_bundle_wins_over_the_same_directory_on_the_map_path(
@@ -127,7 +128,7 @@ def test_a_declared_bundle_wins_over_the_same_directory_on_the_map_path(
     )
 
     assert len(discover_bundles()) == 1
-    assert resolve_description_store_root("EXT") == tmp_path / "ext"
+    assert resolve_store_root("EXT") == tmp_path / "ext"
 
 
 class _FakeEntryPoint:

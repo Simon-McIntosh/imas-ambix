@@ -23,7 +23,7 @@ from imas_alambic.machine_map import (
     bundle_for_machine,
     load_bundle_descriptor,
     load_packaged_machine_map,
-    resolve_description_store_root,
+    resolve_store_root,
 )
 from imas_alambic.signal_map import (
     MAP_SCHEMA_VERSION,
@@ -226,7 +226,7 @@ def test_a_flat_bundle_on_the_map_path_resolves_catalogue_signals_and_store(
     catalog = load_packaged_machine_map("synth-machine")
     assert catalog.description_store_root == "description"
     assert catalog.description_store_root_path() == root / "machine_description"
-    assert resolve_description_store_root("description") == root / "machine_description"
+    assert resolve_store_root("description") == root / "machine_description"
 
     for system in _SYSTEMS:
         signal_map = load_packaged_signal_map("synth-machine", system)
