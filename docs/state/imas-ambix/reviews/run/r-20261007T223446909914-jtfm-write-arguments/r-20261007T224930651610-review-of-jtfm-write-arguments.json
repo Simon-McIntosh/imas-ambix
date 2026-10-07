@@ -1,0 +1,63 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "221f11e850f1f2cb694b7c4fb8c2f27727fe3365",
+  "call_site_count": 6,
+  "call_sites": [
+    "packages/imas-alambic/src/imas_alambic/cli.py:write_cmd",
+    "packages/imas-alambic/src/imas_alambic/pulse_writer.py:write_pulse",
+    "packages/imas-alambic/src/imas_alambic/machine_map.py:load_packaged_machine_map",
+    "packages/imas-alambic/src/imas_alambic/machine_map.py:MachineMapCatalog.description_store_root_path",
+    "packages/imas-alambic/src/imas_alambic/eddb.py:read_channel",
+    "packages/imas-alambic/src/imas_alambic/eddb.py:write_channel"
+  ],
+  "completed_at": "2026-10-07T22:55:17.832Z",
+  "dispatched_at": "2026-10-07T22:49:40Z",
+  "findings": [
+    {
+      "file": "packages/imas-alambic/tests/test_cli.py",
+      "line": "25",
+      "severity": "follow-on",
+      "text": "follow-on: the added CLI assertion checks only that the help text names E101154, so section 16's own done-when clause that `imas-alambic write 900001` exits non-zero with the full-token message is asserted at write_pulse (test_write_fetch.py:278) but never through the click command; the cli.py:128 `except (PulseWriteError, EddbCacheError)` wrapper that turns the refusal into a ClickException is therefore unguarded, and dropping EddbCacheError from that tuple would leave the suite green while a bare token surfaced as an unhandled traceback."
+    }
+  ],
+  "head_log_revision": "287029038273c903ac84874ffccdf23f4c994bce",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 6 production call site(s)",
+    "diff": "read commit by commit against the base; 83814460 refuses the series-letterless token in eddb_token",
+    "done_when": "the dispatched measure is this record stored parsed with all six dimensions; the node's own",
+    "goal": "section 16's goal is that write's pulse token and --maps reach EDDB and the bundle as given, and it",
+    "manifest": "read; it records the head arm of packages/imas-alambic/tests at 52 passed / 0 failed / EXIT=0",
+    "write_paths": "read the node's declared fence -- cli.py, pulse_writer.py, machine_map.py, eddb.py,"
+  },
+  "justifications": {
+    "durability": "tests/test_write_fetch.py:278 fails if eddb_token again returns digits alone (reproduced by the node's negative control and by the base arm running the same file) and tests/test_write_fetch.py:309 fails if the search_path threading is reverted, but no test reinstates a regression in the cli.py:128 EddbCacheError catch.",
+    "evidence": "the gate is packages/imas-alambic/tests, logged at gate-base.log (50 passed) and gate-head.log (52 passed) with EXIT=0, and each half of the done-when has a green test at head, but the done-when's CLI-level clause (write 900001 exits non-zero with that message) is proven only at write_pulse, not through the click command.",
+    "fit": "ruff check over the seven changed Python files exits 0, the three naming scans are clean, and the docstrings extend the file idiom at eddb.py:104-110 and machine_map.py:1226.",
+    "goal_fidelity": "eddb.py:101 refuses a token with no series letter and machine_map.py:1226/1337 pass search_path to resolve_store_root, which is exactly the two behaviours section 16 names, and normalised_shot keeps accepting bare digits at eddb.py:88.",
+    "reuse": "no new definition is added -- the refusal lives in eddb_token, the owner of the token grammar (eddb.py:101), and the store-root resolution already belongs to resolve_store_root (machine_map.py:322), which the change threads rather than forks.",
+    "scope_discipline": "the diff touches only the eight declared paths plus the granted tests/test_run_file_write.py extension, and carries nothing the goal does not imply."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261007T223446909914-jtfm-write-arguments (plan\nimas-ambix:jt60sa-facility-mint section 16), read at its head 287029038273c903ac84874ffccdf23f4c994bce on base\n221f11e850f1f2cb694b7c4fb8c2f27727fe3365. The node closes two places where imas-alambic write did not do\nwhat its arguments said: a bare-number pulse token reaching EDDB with the misleading late no-EDDB-cache error,\nand --maps not reaching the description store-root lookups. This review re-reads the landed diff commit by\ncommit and the two guard tests at head in the reviewer's own worktree, against the repository's shared project\nenvironment; nothing here ran a transport or a live serve.\n\nVERDICT goal: section 16's goal is that write's pulse token and --maps reach EDDB and the bundle as given, and it\nis met by the landed change -- eddb_token (packages/imas-alambic/src/imas_alambic/eddb.py:101) now raises the\nmodule's existing invalid-token error naming the full-token form for a series-letterless token, normalised_shot\nkeeps bare digits for cache directory names, and machine_map.py threads search_path into resolve_store_root at\nboth lookups that dropped it; cli.py:81-88 and the README name the full token.\nVERDICT done_when: the dispatched measure is this record stored parsed with all six dimensions; the node's own\ndone-when is asserted at write_pulse by tests/test_write_fetch.py:278 (a bare 900001 raises EddbCacheError whose\nmessage carries E900001, transport.calls == 0, no cache directory and no run file) and\ntests/test_write_fetch.py:309 (write E900001 with --maps alone and IMAS_ALAMBIC_MAP_PATH unset resolves the\ndescription store), both green at this head in my own run.\nVERDICT write_paths: read the node's declared fence -- cli.py, pulse_writer.py, machine_map.py, eddb.py,\ntest_write_fetch.py, test_cli.py, README.md and the evidence fragment -- plus the coordinator-granted extension\nto tests/test_run_file_write.py recorded in the run's resume advice; every path in the diff is inside that set.\nVERDICT manifest: read; it records the head arm of packages/imas-alambic/tests at 52 passed / 0 failed / EXIT=0\nagainst a base arm of 50 passed / EXIT=0, whole-tree ruff EXIT=0, and a negative control that makes the\nbare-number test fail with a transport call when the base behaviour is reinstated.\nVERDICT diff: read commit by commit against the base; 83814460 refuses the series-letterless token in eddb_token\nand threads search_path through machine_map.py and pulse_writer.py, 2b4d8c49 repoints three run-file write_pulse\ncalls from the bare int 900001 to \"E900001\" and adds the two guard tests, and 28702903 records the outcome in\nthe node's evidence fragment -- nine files, all inside the declared scope.\n\nCALL_SITES: packages/imas-alambic/src/imas_alambic/cli.py:write_cmd, packages/imas-alambic/src/imas_alambic/pulse_writer.py:write_pulse, packages/imas-alambic/src/imas_alambic/machine_map.py:load_packaged_machine_map, packages/imas-alambic/src/imas_alambic/machine_map.py:MachineMapCatalog.description_store_root_path, packages/imas-alambic/src/imas_alambic/eddb.py:read_channel, packages/imas-alambic/src/imas_alambic/eddb.py:write_channel\n\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: eddb.py:101 refuses a token with no series letter and machine_map.py:1226/1337 pass search_path to resolve_store_root, which is exactly the two behaviours section 16 names, and normalised_shot keeps accepting bare digits at eddb.py:88.\nSCORE evidence: 18\nJUSTIFICATION evidence: the gate is packages/imas-alambic/tests, logged at gate-base.log (50 passed) and gate-head.log (52 passed) with EXIT=0, and each half of the done-when has a green test at head, but the done-when's CLI-level clause (write 900001 exits non-zero with that message) is proven only at write_pulse, not through the click command.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff touches only the eight declared paths plus the granted tests/test_run_file_write.py extension, and carries nothing the goal does not imply.\nSCORE durability: 19\nJUSTIFICATION durability: tests/test_write_fetch.py:278 fails if eddb_token again returns digits alone (reproduced by the node's negative control and by the base arm running the same file) and tests/test_write_fetch.py:309 fails if the search_path threading is reverted, but no test reinstates a regression in the cli.py:128 EddbCacheError catch.\nSCORE fit: 20\nJUSTIFICATION fit: ruff check over the seven changed Python files exits 0, the three naming scans are clean, and the docstrings extend the file idiom at eddb.py:104-110 and machine_map.py:1226.\nSCORE reuse: 20\nJUSTIFICATION reuse: no new definition is added -- the refusal lives in eddb_token, the owner of the token grammar (eddb.py:101), and the store-root resolution already belongs to resolve_store_root (machine_map.py:322), which the change threads rather than forks.\n\nFINDING packages/imas-alambic/tests/test_cli.py:25 follow-on: the added CLI assertion checks only that the help text names E101154, so section 16's own done-when clause that `imas-alambic write 900001` exits non-zero with the full-token message is asserted at write_pulse (test_write_fetch.py:278) but never through the click command; the cli.py:128 `except (PulseWriteError, EddbCacheError)` wrapper that turns the refusal into a ClickException is therefore unguarded, and dropping EddbCacheError from that tuple would leave the suite green while a bare token surfaced as an unhandled traceback.\n",
+  "review_run_id": "r-20261007T224930651610-review-of-jtfm-write-arguments",
+  "reviewed_base_sha": "221f11e850f1f2cb694b7c4fb8c2f27727fe3365",
+  "reviewed_head_sha": "287029038273c903ac84874ffccdf23f4c994bce",
+  "reviewed_run_id": "r-20261007T223446909914-jtfm-write-arguments",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T22:54:17.495244+00:00",
+  "total": 117
+}
