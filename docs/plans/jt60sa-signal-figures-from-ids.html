@@ -25,7 +25,7 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="21">
+<meta name="plan-version" content="22">
 <meta name="plan-modified" content="2026-10-07">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
@@ -107,11 +107,16 @@
       merges and never names a path. The file name comes from <code>pulse_writer.pulse_path</code>, which §8 migrates
       <code>_read_pulse_ids</code> onto. The root is resolved once, in the entry point. Its owner is
       <code>imas_alambic/settings.py</code> <code>resolve_settings</code>: <code>ids_root</code>, from
-      <code>IMAS_ALAMBIC_IDS_ROOT</code>, always called with <code>machine="jt-60sa"</code> in this development checkout,
-      because ambix's bundle serves diii-d and mast as well, before and after jt60sa-facility-mint §1. The
-      bundle <code>ids_root</code> default it falls back to is jt60sa-facility-mint §12. The refactor keeps
-      <code>_read_pulse_ids</code>'s <code>(pulse_file, ids_name)</code> shape, because jt60sa-pulse-ids §4 shares
-      it as the written-pulse reader. Nothing in this repository sets that variable, and settings
+      <code>IMAS_ALAMBIC_IDS_ROOT</code>. The entry point calls
+      <code>resolve_settings(SettingsFlags(machine="jt-60sa"))</code>. <code>ids_root</code> itself does not depend on the
+      machine, but naming it keeps machine inference from refusing in this development checkout, where ambix's
+      bundle serves diii-d and mast as well, before and after jt60sa-facility-mint §1. The entry point reads
+      <code>settings.ids_root.value</code> rather than <code>require_setting</code>, whose refusal on a missing value
+      would preclude the interim fallback below. The bundle <code>ids_root</code> default it will fall back to is
+      jt60sa-facility-mint §12. <code>_read_pulse_ids</code> stays script-local, because this script is its only
+      caller. When jt60sa-pulse-ids §4 needs to read a written pulse, that section adds a public reader beside
+      <code>pulse_path</code> in <code>imas_alambic/pulse_writer.py</code>, and this script moves onto it, so the run-file
+      layout keeps one reader owner. Nothing in this repository sets that variable, and settings
       have no development default yet. jt60sa-facility-mint's coordinator is adding one in a section that lands after
       that plan's §1: a bundle store role, <code>ids_root</code>, that ambix's bundle declares and that
       <code>resolve_settings</code> falls back to after <code>--out</code>, <code>IMAS_ALAMBIC_IDS_ROOT</code> and
@@ -121,8 +126,8 @@
       jt60sa-facility-mint §12 can declare its <code>ids_root</code> role from the same constant. <code>paths.py</code> stays the owner of the <code>/work</code> layout through that plan's
       §1, which removes <code>JT60SA_ROOT</code> from ambix's bundle, so a bundle-root fallback would break when §1
       lands. The fallback is marked interim in the code. It retires when settings carry the <code>ids_root</code>
-      default, after which the entry point calls <code>resolve_settings().ids_root</code> with <code>pulse_path</code>
-      and nothing else. Its flux loops
+      default, after which the entry point uses <code>settings.ids_root.value</code> with <code>pulse_path</code> and
+      nothing else. Its flux loops
       and probes follow §2's terms. Both owners landed with §8 (merge <code>106c1104</code>, 2026-10-07):
       <code>imas_alambic/settings.py</code> <code>resolve_settings</code> and <code>pulse_writer.pulse_path</code>. The
       script already opens E101154 through <code>pulse_path</code>, but still takes its root from
