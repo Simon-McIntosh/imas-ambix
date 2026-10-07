@@ -25,7 +25,7 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="14">
+<meta name="plan-version" content="15">
 <meta name="plan-modified" content="2026-10-07">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
@@ -93,10 +93,12 @@
     <p>
       This section draws E101031's coil currents and ip through <code>extract_signal_traces</code>, as §1 does
       for E101154, without copying §1's body. <code>scripts/figures_jt60sa_signals.py</code> fixes its pulse and
-      figure name in module constants (<code>SHOT</code>, <code>FIGURE</code>, <code>PULSE_DIR</code>), and its
+      figure name in module constants (<code>SHOT</code>, <code>FIGURE</code>, <code>PULSE_FILE</code>), and its
       <code>_main()</code> takes no pulse. So this section moves the open → <code>extract_signal_traces</code> →
-      <code>time_trace_figure_mpl</code> → <code>render_to_bytes</code> path into one function that takes the pulse
-      and returns its figure, and both E101154 and E101031 become calls to it. The constants fixed to E101154
+      <code>time_trace_figure_mpl</code> → <code>render_to_bytes</code> path into one function that takes the pulse,
+      the series to draw as (IDS name, path) pairs, and the figure name, and returns the figure. E101154 and
+      E101031 become calls to it with <code>("pf_active", "coil/current")</code> and <code>("magnetics", "ip")</code>,
+      and §2's flux loops and probes become further calls rather than a second path. The constants fixed to E101154
       are retired, and E101154's figure is unchanged.
     </p>
     <p>
@@ -108,7 +110,8 @@
       and probes follow §2's terms. Both owners landed with §8 (merge <code>106c1104</code>, 2026-10-07):
       <code>imas_alambic/settings.py</code> <code>resolve_settings</code> and <code>pulse_writer.pulse_path</code>. The
       script already opens E101154 through <code>pulse_path</code>, but still takes its root from
-      <code>JT60SA_ROOT</code>. The run files <code>101154_0.nc</code> and <code>101031_0.nc</code> are written by
+      <code>JT60SA_ROOT</code>. The run files <code>101154_0.nc</code> and <code>101031_0.nc</code> are written by the node
+      <code>jtfm-write-dev-pulses</code>, run by
       jt60sa-facility-mint's coordinator under §8's done-when, and this section's node dispatches once both
       exist. The geometry driver's
       <code>scripts/figures_jt60sa_geometry.py</code> <code>_read_ids</code> is not a second copy of this reader. It
