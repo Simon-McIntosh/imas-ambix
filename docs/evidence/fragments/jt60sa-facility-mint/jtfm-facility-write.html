@@ -1,0 +1,105 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-facility-write-landing">
+  <header>
+    <h3>Write E101154 at the facility and show it equals the same write made here</h3>
+    <p class="meta">
+      Node <code>jtfm-facility-write</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;6 &middot;
+      base <code>e6c77243</code> &middot;
+      node <code>98dci4-clu-2018</code> job <code>1277272</code>
+    </p>
+  </header>
+
+  <p id="jtfm-facility-write-install">
+    <strong>The facility install was rerun at the base.</strong>
+    <code>bash packages/imas-alambic/install/imasdb.sh
+    /home/SharedFolder/d240044/IMASDB</code> (invoked through <code>bash</code>
+    because the worktree file is mode 0644) exited 0 and installed engine
+    <code>0.1.dev6073+ge6c77243c</code> into the shared folder. The relaid
+    launcher now exports <code>IMAS_ALAMBIC_EDDB_HOST=local</code> beside
+    <code>IMAS_ALAMBIC_HOME</code>, and <code>imas-alambic config</code> with no
+    <code>IMAS_ALAMBIC_*</code> variable set reports
+    <code>eddb_host: local</code> (source <code>IMAS_ALAMBIC_EDDB_HOST</code>), so
+    the writer reads EDDB in place on intr26-2 rather than hopping back over
+    <code>ssh</code>. Log: <code>logs/install.log</code>, last line
+    <code>EXIT=0</code>.
+  </p>
+
+  <p id="jtfm-facility-write-token">
+    <strong>The bare digit is refused by EDDB; the pulse must be named with its
+    series letter.</strong> The dispatched command
+    <code>imas-alambic write 101154</code> exits 1 with
+    <code>shot 101154 has no EDDB cache; /home/d240044/.cache/imas-alambic/101154.zarr
+    is absent</code>: the writer builds its EDDB
+    <code>ChannelRequest</code>s from <code>eddb_token(101154)</code>, which is
+    <code>'101154'</code> (no series letter), and EDDB returns
+    <code>irc=1012</code> for it. A positive control over the same route refuses
+    every bare-digit shot the cache already holds &mdash; <code>101154</code>,
+    <code>101153</code>, <code>101156</code>, <code>100999</code> all return
+    <code>1012</code> &mdash; so <code>1012</code> is not shot-specific. Naming
+    the series letter is what EDDB matches on: with the same
+    <code>fetch_channels</code> over the local transport,
+    <code>shot='101154'</code> gives <code>records=0 refusals=[1012]</code>,
+    while <code>shot='E101154'</code> gives <code>records=1 refusals=[]</code> for
+    both <code>MMSYS/curCS1LKAT</code> and <code>MDAC/magPbTC1</code>
+    (<code>logs/probe-token.log</code>). The lead ruled that a pulse is always
+    named with its EDDB series letter and that the engine will not derive it, so
+    &sect;6 is being updated to the command
+    <code>write E101154</code>. A bare <code>write E101154</code> at the
+    facility is the measured run below.
+  </p>
+
+  <p id="jtfm-facility-write-measure">
+    <code>nice -n 19 /usr/bin/time -v
+    /home/SharedFolder/d240044/IMASDB/bin/imas-alambic write E101154</code> on
+    intr26-2, with no <code>IMAS_ALAMBIC_*</code> variable set, exited 0 and
+    fetched E101154 through the local EDDB transport into the account cache,
+    writing <code>IMASDB/ids/101154_0.nc</code>. The run's figure:
+    <strong>wall clock 19.97&nbsp;s, maximum resident set size 997,684&nbsp;kB</strong>
+    (<code>logs/facility-write-E101154.log</code>, last line <code>EXIT=0</code>).
+    The file is 29,281,489&nbsp;bytes and <code>stat</code> reports mode
+    <code>644</code> (<code>-rw-r--r--</code>), so it grants others
+    <code>r--</code> like the rest of the shared folder. Both the IDS directory
+    and the account cache live under those two roots; nothing was written
+    outside <code>IMASDB</code> and <code>~/.cache/imas-alambic</code>.
+  </p>
+
+  <p id="jtfm-facility-write-compare">
+    The server file was copied back into the run directory with
+    <code>scp</code>; all three copies &mdash; the server's, the copy, and the
+    file written here &mdash; hash <code>md5
+    2b24fb93c19141ab55385efec1749253</code>. The here-side write,
+    <code>uv run --no-sync imas-alambic write E101154 --machine jt-60sa --out
+    &lt;scratch&gt;</code> (through the <code>IMAS_ALAMBIC_MAP_PATH</code>
+    env var, see below), also exited 0 and wrote a
+    29,281,489-byte file. <code>imas.util.idsdiffgen(server_ids, here_ids)</code>
+    from imas-python over the phase's IDS set &mdash;
+    <code>pf_active</code>, <code>pf_passive</code>, <code>wall</code>,
+    <code>magnetics</code>, <code>tf</code> &mdash; yields <strong>0 differences
+    for each IDS</strong>, and the harness prints
+    <code>RESULT: NO_DIFFERENCES</code> (<code>logs/compare.log</code>,
+    <code>EXIT=0</code>). The writer emits exactly those five IDSs for the phase
+    (<code>pf_active</code> 10, <code>magnetics</code> 45, <code>tf</code> 1
+    time-dependent leaves; <code>pf_passive</code> and <code>wall</code> carry
+    description only), so the server file's IDS set is E101154's phase
+    description set.
+  </p>
+
+  <p id="jtfm-facility-write-maps">
+    <strong>Follow-on (out of this node's write scope, no product change made):
+    the <code>--maps</code> flag is not honoured by store-root resolution.</strong>
+    The here-side command as dispatched &mdash; <code>--maps
+    /work/projects/imas_gpu/jt60sa/maps</code> &mdash; exits 1 with
+    <code>no bundle declares description store root 'description'</code>:
+    <code>pulse_writer.write_pulse</code> threads the flag into
+    <code>load_packaged_machine_map</code>, but <code>machine_map.load_machine_map</code>
+    later calls <code>resolve_store_root(..., search_path=None)</code>
+    (<code>machine_map.py:1404</code>), which re-resolves <code>maps</code> from
+    the environment and never sees the flag. Setting
+    <code>IMAS_ALAMBIC_MAP_PATH=/work/projects/imas_gpu/jt60sa/maps</code> makes
+    the same write succeed, which is how the here-side file above was produced
+    (<code>logs/here-write-mapenv.log</code>, <code>EXIT=0</code>). The facility
+    is unaffected because its bundle is the only one reachable, so the machine
+    and store roots are unambiguous there.
+  </p>
+</section>
