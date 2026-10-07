@@ -289,9 +289,7 @@ def bundles_carrying(machine: str, search_path: object = None) -> tuple[MapBundl
     """
 
     return tuple(
-        bundle
-        for bundle in discover_bundles(search_path)
-        if machine in bundle.machines
+        bundle for bundle in discover_bundles(search_path) if machine in bundle.machines
     )
 
 
@@ -1223,12 +1221,20 @@ class MachineMapCatalog:
         """Whether this catalog declares an addressable description store."""
         return self.description_store_format is not None
 
-    def description_store_root_path(self) -> Path:
-        """Return the on-disk store root named by this catalog."""
+    def description_store_root_path(self, search_path: object = None) -> Path:
+        """Return the on-disk store root named by this catalog.
+
+        ``search_path`` is the resolved map search path the catalog was loaded
+        through; passing it resolves the store root through the same bundle, so a
+        catalog loaded from a bundle named only on the command line finds its
+        description store without the environment naming that bundle.
+        """
         if self.description_store_root is None:
             raise MachineMapError("catalog declares no description store root")
         return resolve_store_root(
-            self.description_store_root, kind=_DESCRIPTION_STORE_KIND
+            self.description_store_root,
+            kind=_DESCRIPTION_STORE_KIND,
+            search_path=search_path,
         )
 
     def cocos_for_binding(self, binding: ChannelBinding | None = None) -> int | None:
@@ -1334,8 +1340,14 @@ def load_linkml_schema(path: Path | str = LINKML_SCHEMA_PATH) -> Mapping[str, An
     return schema
 
 
-def load_machine_map(path: Path | str) -> MachineMapCatalog:
-    """Load a JSON machine-map catalog and validate every declared slot."""
+def load_machine_map(path: Path | str, search_path: object = None) -> MachineMapCatalog:
+    """Load a JSON machine-map catalog and validate every declared slot.
+
+    ``search_path`` is the resolved map search path the catalog's bundle was
+    found on; it is passed to the load-time store-root resolution so a catalog
+    loaded from a command-line-named bundle validates its description store
+    through that bundle rather than only the environment.
+    """
     load_linkml_schema()
     try:
         raw = json.loads(Path(path).read_text())
@@ -1401,7 +1413,11 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
                 f"{sorted(_DESCRIPTION_STORE_FORMATS)}"
             )
         description_store_root = _text(description_store_root, "description_store_root")
-        resolve_store_root(description_store_root, kind=_DESCRIPTION_STORE_KIND)
+        resolve_store_root(
+            description_store_root,
+            kind=_DESCRIPTION_STORE_KIND,
+            search_path=search_path,
+        )
         description_store_layout = _text(
             description_store_layout, "description_store_layout"
         )
@@ -1849,7 +1865,7 @@ def load_packaged_machine_map(
     if not component.replace("-", "").isalnum():
         raise MachineMapError("machine must contain only letters, digits, or hyphens")
     bundle = bundle_for_machine(component, search_path)
-    return load_machine_map(bundle.machine_map_path(component))
+    return load_machine_map(bundle.machine_map_path(component), search_path)
 
 
 def map_for_shot(catalog: MachineMapCatalog, shot: int) -> MachineMap:

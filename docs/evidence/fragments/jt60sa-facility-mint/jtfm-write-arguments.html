@@ -1,0 +1,19 @@
+<section data-reckon="evidence-fragment">
+  <h2 id="jtfm-write-arguments">jtfm-write-arguments — write's pulse and --maps arguments reach EDDB and the bundle as given</h2>
+  <p id="jtfm-write-arguments-outcome">
+    <code>eddb_token</code> now refuses a pulse token with no series letter,
+    naming the full-token form (<code>E900001</code>), before any fetch;
+    <code>normalised_shot</code> still accepts bare digits for cache directory
+    names. The <code>--maps</code> value now reaches the description store root
+    through <code>MachineMapCatalog.description_store_root_path</code> and the
+    load-time resolution in <code>load_machine_map</code>, so a write addressed
+    by <code>--maps</code> alone finds the description store. CLI help and the
+    README name the full token.
+  </p>
+  <p id="jtfm-write-arguments-measure">
+    Head arm of packages/imas-alambic/tests: 52 passed, 0 failed, EXIT=0, against
+    a base arm of 50 passed, 0 failed; whole-tree ruff exit 0; the declared
+    negative control (bare number passed to the fetch, as at base) makes the
+    bare-number test fail with a transport call.
+  </p>
+</section>
