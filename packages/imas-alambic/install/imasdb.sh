@@ -119,10 +119,24 @@ say "laying down $IMASDB"
 mkdir -p "$IMASDB" "$IMASDB_PARENT"
 chmod 1755 "$IMASDB_PARENT"
 
+say "installing a uv-managed CPython 3.12 into the folder"
+# The interpreter has to live under the folder, so a 3.12 that happens to be
+# reachable elsewhere must not be reused: it would tie the install to a path
+# outside the shared folder that the next session or the node does not carry.
+nice -n 19 uv python install --reinstall --no-cache 3.12
+PY312_BIN=$(ls -d "$TOOLS"/python/cpython-3.12.*/bin/python3.12 2>/dev/null | head -1)
+if [ -z "$PY312_BIN" ]; then
+  echo "imasdb.sh: no uv-managed CPython 3.12 under $TOOLS/python" >&2
+  ls -la "$TOOLS/python" >&2 || true
+  exit 1
+fi
+echo "managed interpreter: $PY312_BIN"
+
 say "installing the tool environment"
 IMAS_WHL=$(ls "$STAGE"/imas_alambic-*.whl)
 COCOS_WHL=$(ls "$STAGE"/nova_cocos-*.whl)
-nice -n 19 uv tool install --python 3.12 --no-cache "$IMAS_WHL" --with "$COCOS_WHL"
+rm -rf "$TOOLS/imas-alambic"
+nice -n 19 uv tool install --python "$PY312_BIN" --no-cache "$IMAS_WHL" --with "$COCOS_WHL"
 
 say "writing the launcher"
 mkdir -p "$BINDIR"
@@ -144,6 +158,16 @@ LAUNCHER
 chmod 0755 "$BINDIR/imas-alambic"
 LAUNCHER=$BINDIR/imas-alambic
 
+say "seeding the map search path so config can answer"
+# `config` reads the machine and the writer's cache through the map search path
+# and refuses with MachineMapError until a bundle is reachable there, so it
+# cannot report the layout names before the layout exists.  Place the staged
+# bundle at the engine's default map path to seed the search path; config then
+# reports the names it derives from IMAS_ALAMBIC_HOME, and the bundle is moved
+# to its version directory just below.
+mkdir -p "$IMASDB/maps"
+ln -sfn "$STAGE/bundle" "$IMASDB/maps/current"
+
 say "reading the layout names from imas-alambic config"
 CONF=$(env -u PYTHONPATH "$LAUNCHER" config)
 printf '%s\n' "$CONF"
@@ -155,7 +179,7 @@ MAPS_DIR=$(dirname -- "$MAPS_REL")
 CURRENT=$(basename -- "$MAPS_REL")
 echo "layout: maps=$MAPS_REL ids=$IDS_REL current=$CURRENT"
 
-say "placing the bundle"
+say "placing the bundle under the version directory"
 mkdir -p "$IMASDB/$MAPS_DIR" "$IMASDB/$IDS_REL"
 DEST=$IMASDB/$MAPS_DIR/$VERSION
 rm -rf "$DEST"
@@ -164,10 +188,11 @@ cp -a "$STAGE/bundle/." "$DEST/"
 ln -sfn "$VERSION" "$IMASDB/$MAPS_DIR/$CURRENT"
 
 say "opening the folder to other users"
-chmod -R o-w "$IMASDB"
-find "$IMASDB" -type d -exec chmod o+rx {} +
-find "$IMASDB" -type f -exec chmod o+r {} +
-find "$IMASDB" -type f -perm -u+x -exec chmod o+x {} +
+# Others read, never write.  Directories get r-x so the tree is walkable and
+# files get r-- exactly; other facility users execute the launcher through its
+# group bits, which uv sets, not through the others bits.
+find "$IMASDB" -type d -exec chmod o=rx {} +
+find "$IMASDB" -type f -exec chmod o=r {} +
 
 say "checks"
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -184,9 +209,14 @@ echo "-- files under IMASDB lacking others r (want none)"
 find "$IMASDB" -type f ! -perm -o+r -print
 [ -z "$(find "$IMASDB" -type f ! -perm -o+r -print -quit)" ] || fail "a file lacks others r"
 
-echo "-- paths under IMASDB granting others write (want none)"
-find "$IMASDB" -perm -o+w -print
-[ -z "$(find "$IMASDB" -perm -o+w -print -quit)" ] || fail "a path grants others write"
+echo "-- files and directories under IMASDB granting others write (want none)"
+# A symlink's own mode is always 0777 and carries no permissions; the target's
+# govern.  maps/current is such a link, so the write check is over real files
+# and directories.
+WRITABLE=$(find "$IMASDB" -not -type l -perm -o+w)
+printf '%s\n' "$WRITABLE"
+[ -z "$WRITABLE" ] || fail "a path grants others write"
+echo "(maps/current is a symlink; its mode is 0777 and the target governs)"
 
 echo "-- the tool environment's imas-alambic install source (want not editable)"
 TOOL_PY=$TOOLS/imas-alambic/bin/python
@@ -207,7 +237,10 @@ echo "-- uv pip check against the tool environment"
 env -u PYTHONPATH uv pip check --python "$TOOL_PY"
 
 echo "-- imas-alambic config with no IMAS_ALAMBIC_* variable set"
+CONF=$(env -u PYTHONPATH "$LAUNCHER" config)
 printf '%s\n' "$CONF"
+MAPS=$(printf '%s\n' "$CONF" | awk '/^maps:/{print $2}')
+IDS=$(printf '%s\n' "$CONF" | awk '/^ids_root:/{print $2}')
 MACHINE=$(printf '%s\n' "$CONF" | awk '/^machine:/{print $2}')
 [ "$MACHINE" = jt-60sa ] || fail "machine is '$MACHINE', not jt-60sa"
 [ "$MAPS" = "$IMASDB/$MAPS_REL" ] || fail "maps did not resolve under IMAS_ALAMBIC_HOME"
