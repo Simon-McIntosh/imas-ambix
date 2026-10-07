@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "",
+  "dispatched_at": "2026-10-07T05:42:18Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:686",
+      "id": "reuse_search-1",
+      "reason": "the loader's declared boundary source must name both arcs (or state that `surfABVxp` alone closes the contour), or the \u00a77 builder receives half a boundary and the reference geometry is wrong away from the top of the plasma.",
+      "text": "the changed text names `surfABVxp` as \"the last closed surface\", but the plan's own PSRC inventory records the boundary as two complementary arcs \u2014 `surfABVxp` (604x11520, above the X-point) and `surfBLWxp` (204x11520, below the X-point) (docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-selene-inventory.html:44-45) \u2014 and `resample_lcfs_radii` (imas_ambix/worldmodel/equilibrium_labels.py:363-372) ray-casts a contour that must span the full [0,2pi) about the axis, so the above-X-point arc alone is an open contour and its upper rays would be read as NaN",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "b66df0fbf165ae62b85147cae4a8a439914a89e186fccf07f41f7007769cf1f3",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 309,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-1",
+      "reason": "surfABVxp is not an open arc. imas-efit's scripts/build_selene_validation_ids.py decodes each row ([3, nA, R[300], 3, nA, Z[300]], R and Z in mm) to a contour that is already closed, first point equal to last at the X-point, and writes it as the whole last closed surface in boundary.outline. surfBLWxp traces the divertor legs beyond the X-point and is excluded from the LCFS on purpose. The SELENE loader node will assert that closure (first point equals last) in its test when it is scoped.",
+      "when": "2026-10-07T05:56:00.500631+00:00"
+    }
+  ],
+  "responses": {
+    "reuse_search-1": {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "surfABVxp is not an open arc. imas-efit's scripts/build_selene_validation_ids.py decodes each row ([3, nA, R[300], 3, nA, Z[300]], R and Z in mm) to a contour that is already closed, first point equal to last at the X-point, and writes it as the whole last closed surface in boundary.outline. surfBLWxp traces the divertor legs beyond the X-point and is excluded from the LCFS on purpose. The SELENE loader node will assert that closure (first point equals last) in its test when it is scoped.",
+      "when": "2026-10-07T05:56:00.500631+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v309.json",
+  "review_run_id": "r-20261007T054145993878-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "63b70e73d32f5d85a662d3c366105d5a9c51da51",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the changed \u00a77 text routes the whole reduction through one owner, `build_geometry_from_arrays` (the builder behind `load_equilibrium_geometry`), and adds no second reader, reducer or comparator.",
+    "duplicate_owner": "pass \u2014 the loader defers to `build_geometry_from_arrays` / `load_equilibrium_geometry` and the existing convention kernel, and \u00a76 states \"one fetch and one reader\"; no second converter or comparator is added.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the changed \u00a76/\u00a77 text adds no name to any of the four families (the loader returns a record, not a new public definition, and \u00a77's only interface change is the unchanged pin-table retirement).",
+    "reuse_search": "a finding \u2014 the changed \u00a76 text reuses the existing channel extractor and the `build_geometry_from_arrays` builder, but its boundary-input citation names only `surfABVxp` where the plan's own PSRC inventory records the LCFS as two complementary arcs.",
+    "thin_wrapper": "pass \u2014 \u00a77's SELENE reference loader is the pre-existing seam's own injection point (`read_efit_geometry(shot_id, frame_times, loader=...)`, `imas_ambix/eval/efit_referee.py:120-165`), not a parallel wrapper over it."
+  },
+  "section_digests": {
+    "_document": "b36d56f06d61633d010f251c3d548d508612369b90ced40d900bc45f896bc45f",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "f3084aadbd480b4442860178008640b1ddf3114677166cdb80948cd6ce5eb7fd",
+    "s7": "4573c34405fedda5131f5fc665abd5a81c8e668baf4ea9941f0f9c2bd2df9f7c",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T05:55:58.114865+00:00"
+}

@@ -1,0 +1,71 @@
+{
+  "absent_items": [],
+  "completed_at": "",
+  "dispatched_at": "2026-10-07T05:09:44.221820+00:00",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html:44",
+      "id": "reuse_search-1",
+      "reason": "the header must be corrected to the ghcr-only account, or it misdescribes the plan's own locked decision.",
+      "text": "the lead paragraph says \"The maps are authored in a private GitHub repository and stored as private GHCR artifacts\", but decision `map-source` (plan.html:256-263, sections s1,s5) was revised on 2026-10-07 to `ghcr-only` and states in its own rationale \"there is no private git repository\", with the flat bundle edited under `/work/projects/imas_gpu/jt60sa/maps/`; \u00a71 (plan.html:70-72) repeats the corrected account, so only the document header carries the retired one \u2014 a reader who opens the plan at the top is told a repository exists that the decisions removed",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html:95",
+      "id": "reuse_search-2",
+      "reason": "\u00a71 already declares the census a re-run command rather than a trusted list, so the stale enumeration does not change what the node does; it is worth correcting because the list is the worked example a worker reads.",
+      "text": "\u00a71's census list is one file behind its own command: `git grep -l -E \"jt-60sa|JT60SA_ROOT|JT60SA_DESCRIPTION_DIR|/work/projects/imas_gpu/jt60sa\" -- imas_ambix scripts tests packages ':!*.json'` returns 21 files at head, not the stated 20, the omitted file being `packages/imas-alambic/tests/test_flat_bundle.py` (added by \u00a79 at 899957a9, after the 2026-10-07 count): it reads `resolve_description_store_root(\"description\")` at test_flat_bundle.py:229 and names jt-60sa at :220/:241, so \u00a71's \"every hit is in one of the three states\" holds only if a worker re-derives the list; the same list also mistypes its own entry as \"test_pulse_writer.py (renamed from test_pulse_writer.py by \u00a77)\"",
+      "type": "reuse_search",
+      "would_change": false
+    },
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html:201",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a78 must state which store-root keys survive \u00a71 (drop `JT60SA_DESCRIPTION_DIR` with the catalogue, or say what still resolves it) or the \u00a78 worker keeps a dangling machine-named key on a three-machine claim \u00a71 has already invalidated.",
+      "text": "\u00a78 says \"Ambix's multi-machine bundle serves three machines, so it keeps keying its own stores per machine (`LEVEL2_DIR`, `JT60SA_DESCRIPTION_DIR`), as its catalogues name them\", but \u00a71 (plan.html:81) has ambix's `bundle.json` drop `jt-60sa` and the JT-60SA catalogue `imas_ambix/data/machine_maps/jt-60sa.json` leave the tree, so ambix's bundle then serves two machines and no catalogue declares `JT60SA_DESCRIPTION_DIR` (`imas_ambix/data/bundle.py:19-23` keys it; only `jt-60sa.json:8` named it), leaving a machine-named key with no consumer in the one registry \u00a78's invariant is written to keep machine-free",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html:201",
+      "id": "interface_budget-1",
+      "reason": "the section must name `test_cli.py` as an edit site, or its own done-when is red on delivery.",
+      "text": "\u00a78 adds `imas-alambic config` and reworks `write` so \"positional pulses replace `--shot`\", but the existing `packages/imas-alambic/tests/test_cli.py:20` asserts `sorted(main.commands) == [\"write\"]` and `:24` requires `--shot` in the command's help; \u00a78's done-when says \"`packages/imas-alambic/tests` add no failures against the base\", which is unsatisfiable unless `test_cli.py` is edited to expect two commands and the new call form, and the section names no such edit while its interface account lists the added command without accounting for the public test that pins the command set",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "be7af27630c22f1ac12e898e9fc355f660cbc5761ab25b65bd9116eb23e40a57",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 60,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261007T050944221820-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "a58b90721354b367c48b3a83aaf2008f8c579dae",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a78 concentrates env reads, precedence, derived defaults and their sources behind one `imas_alambic/settings.py::resolve_settings`, and threads the resolved map path into `discover_bundle`; behaviour is hidden behind a narrower interface than the three scattered owners it replaces.",
+    "duplicate_owner": "a finding \u2014 \u00a78 states ambix's bundle \"serves three machines\" and keeps `JT60SA_DESCRIPTION_DIR` \"as its catalogues name them\", which \u00a71 contradicts when it drops jt-60sa from that bundle and removes the only catalogue that declares the key.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a78 adds the `config` command and replaces `write`'s `--shot` with positional pulses, but names no retiral against the existing test that pins the CLI to exactly one command and to `--shot`, so its own done-when (\"`packages/imas-alambic/tests` add no failures\") cannot hold without an edit the section does not list.",
+    "reuse_search": "a finding \u2014 the plan's prior-art account is stale in two places within the reviewed units: the lead paragraph names a private GitHub repository that decision map-source removed, and \u00a71's census enumerates 20 hits where its own command returns 21 at head.",
+    "thin_wrapper": "pass \u2014 \u00a78's two additions consolidate rather than wrap: `pulse_path` replaces the inline construction at `pulse_writer.py:307`/`:335` and the copy in `figures_jt60sa_signals.py`, and `resolve_store_root` is a rename of the existing owner with a stated reason, not a parallel resolver."
+  },
+  "section_digests": {
+    "_document": "12d9a4f369a2ab5f7f84d48b75041f1d03d45a4d6e73a0d7ad2472b413946d3e",
+    "s1": "523a118d6b814eea4518062388e9ec56e0b26d837588debf6ac8b4a635450a69",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "4b26c8dcf1756bafb247ad5b106b83b15936de052cfbd3bb1eda19691efa936c",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "6afdaf996c05b1e0b5937a944e9feef62655f6ad8a1cb8b394efb2f05d3f64e6",
+    "s6": "1ccc061c74e3a3eab0fbd07825bc5bf11d8207248d01b1a9aecba35a37e20560",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "97d58c8ead5fbdc5e33af83582c021d499397d8d38f51df353658d8fd505d97d",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-id",
+  "timestamp": "2026-10-07T05:34:02.393825+00:00"
+}

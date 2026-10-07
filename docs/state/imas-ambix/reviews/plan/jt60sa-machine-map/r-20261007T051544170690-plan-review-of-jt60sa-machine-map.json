@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "",
+  "dispatched_at": "2026-10-07T05:15:44.170690+00:00",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:683",
+      "id": "deep_module-1",
+      "reason": "the plan must name which loader supplies the psirz/q95 the kernel consumes (the G-EQDSK route jtmm-equilibrium-route-search found, or a FAME reader) or state that \u00a76's sign report and \u00a77's psi bindings wait on it, rather than asserting the PSRC loader serves that half.",
+      "text": "\u00a76 states \"The loader turns the cached PSRC arrays into an EfitLabels\" and that this SELENE loader serves the sign report's equilibrium half and is \"the only reader of a SELENE equilibrium in the plan\", but the same section records (lines 790-793) that \"none of PSRC's 86 arrays is a q profile or a flux grid\", and the kernel the record feeds \u2014 imas_ambix/data/cocos_convention.py:576-606 \u2014 reads equilibrium.psirz, grid_r_m, grid_z_m, scalars[\"efit_r_axis\"], scalars[\"efit_z_axis\"], scalars[\"efit_q95\"] and lcfs_r_m/lcfs_z_m, so a PSRC-derived EfitLabels cannot carry the flux grid the consumption path requires; the section names no other equilibrium loader for the sign report's equilibrium half, and \u00a77's reference loader is stated to adapt this same record, so the \"one fetch, one reader and two adapters\" chain has no psi-carrying link",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:855",
+      "id": "duplicate_owner-1",
+      "reason": "an implementer reading \u00a77's opening or \u00a78's order routes the SELENE map work to a withdrawn transport, and the section must be corrected to the PSRC channel-extractor route or the withdrawal is not reflected where the work is sequenced.",
+      "text": "\u00a77's opening states \"SELENE's offline equilibria read through the EQDB transport into the EDDB cache\" and \u00a78's order list (line 1062, \"FAME scalar bindings and the EQDB transport (\u00a76)\") and the followup body (line 1352, \"\u00a76's deferred EQDB transport, the FAME loader and the q-sign test resume\") all still name the EQDB transport as SELENE's read route, while \u00a76 (line 737, \"the EQDB transport this paragraph once specified is withdrawn and adds nothing\") and the locate result (line 773, \"the SELENE loader reads PSRC through the existing channel extractor and needs no EQDB transport\") route that read through the channel extractor that owns it \u2014 packages/imas-alambic/src/imas_alambic/eddb.py read_channel/fetch_channels; \u00a77's own body agrees with the extractor (line 1014, \"the loader does not read SELENE itself\"), so the opening and the order list contradict both \u00a76 and \u00a77's body",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "38dae89aabb68a9e20ceea2e1820b81f3d4bee4273610991f32cc23dbc4c2e66",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 305,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "deep_module-1",
+      "reason": "",
+      "when": "2026-10-07T05:28:40.352840+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-07T05:29:05.251890+00:00"
+    }
+  ],
+  "responses": {
+    "deep_module-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T05:28:40.352840+00:00"
+    },
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T05:29:05.251890+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v305.json",
+  "review_run_id": "r-20261007T051544170690-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "1b17974b3a7a4ca58a5e49e7a86c0235d0775bb5",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 the EfitLabels record the plan names as the one equilibrium shape cannot be produced from the SELENE loader's own recorded source: \u00a76 says the SELENE loader turns cached PSRC arrays \u2014 which the inventory node filed as carrying no flux grid \u2014 into an EfitLabels, while the shared kernel reads psirz, grid_r_m, grid_z_m, efit_r_axis, efit_z_axis, efit_q95 and lcfs_r_m/lcfs_z_m from it.",
+    "duplicate_owner": "a finding \u2014 the EQDB transport \u00a76 withdrew is still named as SELENE's read route by \u00a77's opening, \u00a78's order and the followup body, so the plan names two owners of the same SELENE read (the withdrawn transport and the channel extractor \u00a76 now routes it through).",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the changed \u00a76 text accounts for each change in its own words: the EQDB transport is withdrawn and \"\u00a76 adds no transport interface\" (line 775), read_signal_map_observation retires read_catalogue_observation (line 643), measure_convention \"retires nothing, because no generic convention entry exists\" (line 669), and the two reader floors become one pair of private module constants adding no public definition (lines 646-650).",
+    "reuse_search": "pass \u2014 \u00a76 names and cites the existing owners it extends (cocos_convention.score_convention and its readers, the challenge/convention kernel in imas_ambix/challenge/convention.py:283, VirtualZarrView.raw_series at packages/imas-alambic/src/imas_alambic/virtual_zarr.py:146, loader.EfitLabels, and the selene_deck converter) and states what it searched before adding a reader.",
+    "thin_wrapper": "pass \u2014 the one new reader, read_signal_map_observation, is an extension of the existing observation-reader pattern that retires read_catalogue_observation rather than a parallel path (plan lines 619-643), and the SELENE loader's justification for a new adapter (one EfitLabels shape across loaders) is stated."
+  },
+  "section_digests": {
+    "_document": "b36d56f06d61633d010f251c3d548d508612369b90ced40d900bc45f896bc45f",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "5f012fffec683ac90921ab1399a3d823a9eddce4040578ec4448f3f5e994b4ac",
+    "s7": "4c5c0d83b27b3eaa7baf45b5c334a7573ea4203de411b501a5d7d4182109d782",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-id",
+  "timestamp": "2026-10-07T05:28:15.702431+00:00"
+}

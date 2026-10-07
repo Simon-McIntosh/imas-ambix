@@ -1,0 +1,103 @@
+{
+  "absent_items": [],
+  "completed_at": "",
+  "dispatched_at": "2026-10-07T05:29:17.109253+00:00",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:684",
+      "id": "interface_budget-1",
+      "reason": "the author must specify how a PSRC-only record is represented (optional/empty psi-grid fields, or a distinct record), otherwise the SELENE loader the section designs cannot be built against the record it names.",
+      "text": "the changed text states the SELENE loader's `EfitLabels` \"has no psirz, grid or q95\" (line 687) and \"holds only what PSRC has\", but `EfitLabels` declares `psirz`, `grid_r_m` and `grid_z_m` as required dataclass fields with no defaults (imas_ambix/challenge/loader.py:56-58), so the loader cannot construct the record it is said to return, and \u00a76's account (\"gains only the last-closed-surface point arrays its boundary sample needs\") names no optionality or retirement",
+      "type": "interface_budget",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:1030",
+      "id": "deep_module-1",
+      "reason": "with \u00a76 now stating the record carries no psi or grid, this sentence must be corrected to the builder's actual inputs or the loader's reuse claim is unbuildable.",
+      "text": "\u00a77 says \"the loader passes the record's grid, psi, axis and boundary arrays to that builder\", but `build_geometry_from_arrays` (imas_ambix/worldmodel/equilibrium_labels.py:465-477) takes `lcfs_r/lcfs_z`, `axis_r/axis_z`, `lcfs_r/lcfs_z` and the X-point arrays and takes no psi and no grid, so the reuse it describes routes through a builder whose interface does not match",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:1363",
+      "id": "interface_budget-2",
+      "reason": "the followup and its parent decision now contradict \u00a76 and must be rewritten or retired so the plan does not reseed a withdrawn node.",
+      "text": "the followup body still commits \"\u00a76's deferred EQDB transport, the FAME loader and the q-sign test\" as work that resumes once access exists, but the changed \u00a76 withdraws the EQDB transport (lines 743-745), removes the FAME loader from the node sequence (line 538) and records the access request as superseded (line 1323), so the followup names machinery the plan no longer builds",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "f7f0994fd3f31e7439f028c7f18defe7f939b3a8b03d19dad4d2f246677586ba",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 306,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "interface_budget-1",
+      "reason": "",
+      "when": "2026-10-07T05:40:32.668949+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "deep_module-1",
+      "reason": "",
+      "when": "2026-10-07T05:40:58.778290+00:00"
+    },
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "interface_budget-2",
+      "reason": "f-jtmm-006 is already resolved, with its outcome recording that the access request is moot because dbsvr17p was decommissioned. Its body is the dated request text as it was written, and a resolved followup reseeds no work. The decision jt60sa-psi-q-source records the supersession in its rationale. Section 6 now names jtmm-jt60sa-host-survey as the only continuation.",
+      "when": "2026-10-07T05:41:24.805425+00:00"
+    }
+  ],
+  "responses": {
+    "deep_module-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T05:40:58.778290+00:00"
+    },
+    "interface_budget-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T05:40:32.668949+00:00"
+    },
+    "interface_budget-2": {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "f-jtmm-006 is already resolved, with its outcome recording that the access request is moot because dbsvr17p was decommissioned. Its body is the dated request text as it was written, and a resolved followup reseeds no work. The decision jt60sa-psi-q-source records the supersession in its rationale. Section 6 now names jtmm-jt60sa-host-survey as the only continuation.",
+      "when": "2026-10-07T05:41:24.805425+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v306.json",
+  "review_run_id": "r-20261007T052917109253-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "c08a09e6e05948316ae2408bf6854721811a9bee",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 \u00a77's claim about how the SELENE reference loader reuses `build_geometry_from_arrays` names inputs the builder does not take, so the described reuse cannot be implemented as written.",
+    "duplicate_owner": "pass \u2014 the changed text keeps one reader of SELENE's equilibrium and one reader of the EDDB store, and withdraws the second transport; the earlier parallel-owner findings on `eddb.py` and `eddb_remote.py` are answered by removing the grid record reader/writer and the `BatchResult` EQDB fields (plan lines 743-747).",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the changed \u00a76 alters the exported `EfitLabels` record's required shape without naming what it retires or why the new shape is compatible, and \u00a76's followup still commits a withdrawn loader/transport.",
+    "reuse_search": "pass \u2014 the changed \u00a76/\u00a77 cite the mechanisms they reuse by name and file: the existing EDDB channel extractor for PSRC, the `measure_convention` kernel and `EfitLabels` record (challenge/convention.py:283, challenge/loader.py:54), and `build_geometry_from_arrays` (worldmodel/equilibrium_labels.py:465) for the geometry reduction; the withdrawal of the parallel EQDB transport removes new machinery rather than adding it.",
+    "thin_wrapper": "pass \u2014 \u00a77's SELENE reference loader is an adapter over \u00a76's one SELENE reader and routes through the existing seam `read_efit_geometry(loader=...)` (eval/efit_referee.py:120) rather than adding a second reader; the section states why the reduction goes through the existing builder and is not re-derived."
+  },
+  "section_digests": {
+    "_document": "b36d56f06d61633d010f251c3d548d508612369b90ced40d900bc45f896bc45f",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "c0fa0a6b6a9c32ac045e848c8bfa55c2a733b9253606eafc108fdc2bb25a0e66",
+    "s7": "7a34b5bf593205402f0d3f6891ec98a9ea76453facb5ad1df7173de92846f0d2",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-id",
+  "timestamp": "2026-10-07T05:40:07.956684+00:00"
+}

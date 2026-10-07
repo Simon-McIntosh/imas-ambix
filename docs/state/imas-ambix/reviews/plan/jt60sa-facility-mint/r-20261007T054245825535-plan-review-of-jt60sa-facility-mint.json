@@ -1,0 +1,64 @@
+{
+  "absent_items": [],
+  "completed_at": "",
+  "dispatched_at": "2026-10-07T05:42:45.825535+00:00",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html#s1",
+      "id": "reuse_search-1",
+      "reason": "\u00a71's done-when requires the node to re-run the census and confirm every hit is in one of the three states, so a named hit that satisfies none of them either fails the node's gate or is exempted silently, and the fix is one line \u2014 drop the guard clause, or record each of these two paths as an owned-elsewhere exception beside the state it is asking the node to check.",
+      "text": "the changed census end-state is wrong for two of the file-level hits it names: `scripts/figures_jt60sa_signals.py:35` is placed in state 1 (\"reads the /work data store \u2026 and guarding its absence\") but the 61-line script resolves `PULSE_FILE` at import and passes it straight to `imas.DBEntry(...)` in `_main()` with no guard, so a missing store raises rather than being guarded; and `scripts/vacuum_loop_adjudication.py` is cited at `:1186`/`:1217` as a data-store reader while `:1088` (`JT60SA_COIL_MAP`) makes the same file a map reader that \u00a71 separately moves to the bundle resolver \u2014 the census command selects per file (`git grep -l`), so that file must satisfy two states at once, and its map read cannot take state 2's \"skips with a stated reason\" because it is a script, not a test",
+      "type": "reuse_search",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "e0d01662e86eee5d217e4052f5e429861a18b49d3897c88e6668c3f41092d47a",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 65,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "finding": "reuse_search-1",
+      "reason": "",
+      "when": "2026-10-07T05:58:43.479781+00:00"
+    }
+  ],
+  "responses": {
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "reason": "",
+      "when": "2026-10-07T05:58:43.479781+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-facility-mint.v65.json",
+  "review_run_id": "r-20261007T054245825535-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "2885188e82916f50b927e8d2ac2a1668e35f9ee7",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 neither unit adds a module; \u00a71 removes two store-root role names from `imas_ambix/data/bundle.py` and \u00a711 ships no new interface, so there is nothing for a deep-module test to fail on.",
+    "duplicate_owner": "pass \u2014 \u00a71 retires the machine-named role names `JT60SA_ROOT` and `JT60SA_DESCRIPTION_DIR` from `imas_ambix/data/bundle.py` `_STORE_ROOTS`, leaving `imas_ambix/data/paths.py` as the single owner of the `/work` layout and `eddb_cache` (`bundle.py:22`, valued from `paths.JT60SA_ROOT`) as the role the writer resolves.",
+    "interface_budget": "pass \u2014 supplied counts public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; both changed units retire surface (\u00a71 removes the two store-root role names) and add none (the \u00a711 netcdf extra and the py312 ruff pin are packaging and configuration, not a definition, CLI option, MCP view or refusal family), so no addition needs accounting for.",
+    "reuse_search": "a finding \u2014 the census command is reproducible (`git grep -l -E \"jt-60sa|JT60SA_ROOT|JT60SA_DESCRIPTION_DIR|/work/projects/imas_gpu/jt60sa\" -- imas_ambix scripts tests packages ':!*.json'` returns 20 files at 92813b57, matching the plan's list) but the end-state the changed text assigns two named census hits does not hold for them.",
+    "thin_wrapper": "pass \u2014 \u00a71's map read in `scripts/vacuum_loop_adjudication.py:1088` moves onto the existing by-name resolver `load_packaged_signal_map` (`packages/imas-alambic/src/imas_alambic/signal_map.py:638`), not onto a new wrapper; `SignalMap.signals` carries `source_array` and `target_index`, so the call site's ordering can be rebuilt from it."
+  },
+  "section_digests": {
+    "_document": "6618f237768f7945c5970e4664e56ab6912fbb52546c6cbed12a2af3b9bb04cc",
+    "s1": "2507113dc3fd3bf90a5a3ca28f9bff9c3877b3fbb5c485f6f7c68daecaf382ad",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "a3c4932d3af93ca70d79873f1cb3a24e84b739d0cef522ae648a2d3c5bda7bfd",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "6afdaf996c05b1e0b5937a944e9feef62655f6ad8a1cb8b394efb2f05d3f64e6",
+    "s6": "1ccc061c74e3a3eab0fbd07825bc5bf11d8207248d01b1a9aecba35a37e20560",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "0d934ec479471ff9f711bc6e58ec9f2d0f07d4722593ff98c53426b2b509ecda",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-id",
+  "timestamp": "2026-10-07T05:58:31.009606+00:00"
+}

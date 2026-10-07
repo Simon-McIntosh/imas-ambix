@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "",
+  "dispatched_at": "2026-10-07T04:47:18.253252+00:00",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:682",
+      "id": "reuse_search-1",
+      "reason": "the SELENE-loader node and \u00a77's reference loader would be built against the EQDB/grid source the plan's own locate node superseded with the existing channel extractor, so one fetch/one reader is not determined by the text.",
+      "text": "\u00a76 states \"That SELENE loader is the only reader of a SELENE equilibrium in the plan, and its source is the EQDB record: the EQDB transport this section builds ... this loader turns the cached record into an EfitLabels\", and at line 779 repeats that \"the SELENE loader reads the cached record only through that [eddb grid] reader\", while the same section at line 737 says \"SELENE's own reconstruction is read from the EDDB PSRC category instead\" and at line 811 concludes \"the SELENE loader reads PSRC through the existing channel extractor and needs no EQDB transport\"; the plan's own located result (merge c049bf80) is the later word, but two earlier paragraphs still name the new EQDB transport and the new grid reader as the SELENE source, so \u00a76 carries three incompatible statements of where the one equilibrium the sign scorer and the geometry referee share (L683-686) comes from",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "packages/imas-alambic/src/imas_alambic/eddb.py:779",
+      "id": "duplicate_owner-1",
+      "reason": "naming which owner holds the SELENE equilibrium read is what lets the \"no caller opens a zarr path in the store itself, and the store has one owner\" claim (L779) hold, and today the text gives that read two owners.",
+      "text": "\u00a76 adds \"a grid record reader beside read_channel\" and says \"the SELENE loader reads the cached record only through that reader\", but the SELENE reconstruction is read from the EDDB PSRC category (L737/L811) which the existing channel extractor already reads, so the new grid reader in packages/imas-alambic/src/imas_alambic/eddb.py becomes a second owner of the same read that the channel extractor owns (channel_path/read_channel in packages/imas-alambic/src/imas_alambic/eddb.py:106,280), and \u00a76 also carries the EQDB transport's three new types and two BatchResult fields (snapshot L753-757) with no consumer once dbsvr17p is decommissioned (L851); the consumer the plan should name is the channel extractor the PSRC path already uses, or the section should state that the grid reader serves FAME alone",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "35b3ab713e97ac0d6c22651d7b8e6d2f533bafea2ad09bd1cb2d79f98bbc6bdf",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 304,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reuse_search-1",
+      "reason": "",
+      "when": "2026-10-07T05:00:07.546607+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "duplicate_owner-1",
+      "reason": "",
+      "when": "2026-10-07T05:00:32.720420+00:00"
+    }
+  ],
+  "responses": {
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T05:00:32.720420+00:00"
+    },
+    "reuse_search-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "",
+      "when": "2026-10-07T05:00:07.546607+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v304.json",
+  "review_run_id": "r-20261007T044718253252-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "193a726d444137d3cfa42f51687cc2440acf4e97",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 every node changed since the prior review extends one existing owner (build_magnetics, read_geometry_table's probe_angle_source branch, the magnetics map, the forward operator's assemble_pf_currents) rather than spreading a new behaviour across a family of shallow wrappers.",
+    "duplicate_owner": "a finding \u2014 the EQDB grid record reader in packages/imas-alambic/src/imas_alambic/eddb.py (snapshot L779) is a second owner of the same SELENE equilibrium read that the existing channel extractor owns, so the store would gain two read paths for one equilibrium.",
+    "interface_budget": "pass \u2014 with public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0, \u00a76 names its one new public definition (measure_convention) and states it retires nothing because no generic convention entry exists, states read_catalogue_observation is retired for read_signal_map_observation, and now defers the EQDB transport's three types, two BatchResult fields and envelope sections with \"\u00a76 adds no transport interface now\".",
+    "reuse_search": "a finding \u2014 \u00a76 routes the SELENE loader through the new EQDB transport and the eddb grid reader (snapshot L682, L779) although its own landed locate result (merge c049bf80, L737/L811) makes the existing EDDB PSRC channel extractor the source, so the plan still proposes new machinery for a read the existing extractor already serves.",
+    "thin_wrapper": "pass \u2014 the changed \u00a76 additions that sit over existing machinery each state why the owner cannot simply be extended: the VirtualZarrView accessor must serve two readers needing different halves, and the generic measure_convention keeps measure_diiid_convention as the DIII-D entry rather than forking a scorer."
+  },
+  "section_digests": {
+    "_document": "b36d56f06d61633d010f251c3d548d508612369b90ced40d900bc45f896bc45f",
+    "s1": "05764e09dfd254ac9a36c083a2074dcf2cbd360308c837ea63178821d9368e9c",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "8ae1df759ff863728fa38bfc16ff45360909ed58dd469d09b9f812099c44f771",
+    "s7": "4c5c0d83b27b3eaa7baf45b5c334a7573ea4203de411b501a5d7d4182109d782",
+    "s8": "32aec066df1d4e65eb3b5fbc824f1bb081a6776c9564924b38a4bdf53c490def"
+  },
+  "status": "ready",
+  "times_source": "run-id",
+  "timestamp": "2026-10-07T04:59:43.712646+00:00"
+}
