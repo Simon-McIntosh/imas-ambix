@@ -1,0 +1,57 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtpi-write-e101154-e101031">
+  <header>
+    <h3 id="jtpi-write-e101154-e101031-h">E101154 rewritten from today's maps, E101031 written beside it</h3>
+    <p class="meta" id="jtpi-write-e101154-e101031-meta">
+      Node <code>jtpi-write-e101154-e101031</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-pulse-ids</code> &sect;6 &middot;
+      run <code>r-20261007T034516340463-jtpi-write-e101154-e101031</code> &middot;
+      base <code>1b786080</code>
+    </p>
+  </header>
+
+  <p id="jtpi-write-e101154-e101031-writes">
+    <code>imas-alambic write --machine jt-60sa --shot 101154 --out
+    /work/projects/imas_gpu/jt60sa/ids</code> and the same for
+    <code>--shot 101031</code> each exit 0, run in place on the fleet
+    allocation. Output directories:
+    <code>/work/projects/imas_gpu/jt60sa/ids/101154</code> and
+    <code>/work/projects/imas_gpu/jt60sa/ids/101031</code>, one netCDF per
+    IDS. Both write <code>pf_active</code> 10, <code>pf_passive</code> 0,
+    <code>wall</code> 0, <code>magnetics</code> 45, <code>tf</code> 1
+    time-dependent leaves; 68 declared signals left out.
+  </p>
+
+  <ul id="jtpi-write-e101154-e101031-checks">
+    <li id="jtpi-write-e101154-e101031-c1">
+      Each pulse's five description IDSs read back through
+      <code>imas.DBEntry</code> at DD 4.1.1 (per-ID
+      <code>&lt;ids&gt;.nc</code> under the shot directory).
+    </li>
+    <li id="jtpi-write-e101154-e101031-c2">
+      <code>pf_active</code> carries 10 served coil currents (CS1&ndash;CS4,
+      EF1&ndash;EF6) in both pulses; the store's <code>pf_active</code> holds
+      12 coils, FPPC_UP and FPPC_DOWN unserved.
+    </li>
+    <li id="jtpi-write-e101154-e101031-c3">
+      <code>magnetics</code> carries ip, 27 flux loops and 17 probes, each with
+      its own time vector (<code>homogeneous_time</code> 0). ip time samples:
+      46078 on 101154, 39612 on 101031; 44 served leaves per pulse have a time
+      vector as long as their data.
+    </li>
+    <li id="jtpi-write-e101154-e101031-c4">
+      Probe poloidal_angle equals the OP1 store's
+      <code>machine_description/OP1/magnetics.nc</code> (17 probes, max delta
+      0.000e+00 rad).
+    </li>
+    <li id="jtpi-write-e101154-e101031-c5">
+      ip peaks 0.9986&nbsp;MA on E101154 and 0.6984&nbsp;MA on E101031.
+    </li>
+    <li id="jtpi-write-e101154-e101031-c6">
+      Read-back gate <code>verify_readback.py</code> EXIT=0, 12 checks passed,
+      0 failures (<code>verify_readback.log</code>;
+      <code>write-101154.log</code>, <code>write-101031.log</code> in the run
+      directory).
+    </li>
+  </ul>
+</section>
