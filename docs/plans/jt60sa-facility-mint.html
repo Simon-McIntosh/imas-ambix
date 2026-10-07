@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="60">
+<meta name="plan-version" content="61">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -435,6 +435,9 @@
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20261007T032318183278-review-of-jtfm-flat-bundles" data-who="reckon-build" data-when="2026-10-07T03:41:27.084Z">
     <div class="r-comment-body"><p>Reviewed run r-20261007T023832099180-jtfm-flat-bundles (base 1926ecb6..head 22e09514) at imas-ambix:jt60sa-facility-mint section 9: parsed review stored, six dimensions scored 20/18/17/19/18/20 for total 112, added_failure_count 0 (base and head arms of tests/data/test_machine_map.py both 29 passed), two follow-on findings (folded ruff reflow, clean-venv header naming 3eb7dd05 not the head).</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20261007T034700474119-jtfm-settings-run-file" data-who="reckon-build" data-when="2026-10-07T04:58:47.002Z">
+    <div class="r-comment-body"><p>Landed §8: settings.py is the sole reader of the IMAS_ALAMBIC_* variables with flag&gt;variable&gt;home precedence and per-setting sources; discover_bundles takes the resolved map path, resolve_store_root replaces resolve_description_store_root with a labelled optional form, and eddb_cache joins ambix&#x27;s store roles; write_pulse writes one imas.DBEntry netCDF per pulse and run through the new public pulse_path and refuses an existing file without --overwrite; the CLI gains positional pulses, --run/--machine/--maps/--out/--cache/--overwrite and config. Measure: pytest packages/imas-alambic/tests + tests/data/test_pulse_writer.py is 41 passed/0 failed at head versus 34 passed/0 failed at base 9b440888; in a clean uv venv --python 3.12 from the imas-alambic and nova-cocos wheels and pytest alone, packages/imas-alambic/tests is 32 passed/0 failed, imas-alambic config derives every setting with its source from a synthetic flat bundle, and imas-alambic write 900001 writes ids/900001_0.nc holding its phase&#x27;s five description IDSs; ruff check imas_ambix tests packages exits 0.</p></div>
 </div>
 </section>
 </main>
