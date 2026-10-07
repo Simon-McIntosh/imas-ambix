@@ -20,6 +20,7 @@
   <meta name="plan-sprint" content="S20">
   <meta name="plan-tags" content="jt-60sa,figures">
   <meta name="plan-depends-on" content="imas-ink:ids-signal-traces">
+  <meta name="plan-section-depends-on" content='{"s1": ["imas-ink:ids-signal-traces#s1"]}'>
   <meta name="plan-informs" content="jt60sa-machine-map">
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -50,6 +51,12 @@
     <h2 id="s1">§1 — Redraw E101154's coil currents and plasma current from its IDS</h2>
     <section data-reckon="section" data-id="s1" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
     <p>
+      This section waits on imas-ink's <code>ids-signal-traces</code> §1, which adds <code>extract_signal_traces</code>.
+      That function does not exist until that section lands, so the dependency is declared on this section and on
+      the plan, and no builder is released before it merges to imas-ink's main branch. The ambix environment serves
+      imas-ink as an editable install, so the merged function is live here at once.
+    </p>
+    <p>
       <code>scripts/figures_jt60sa_signals.py</code> is rewritten as a thin imas-ink caller:
     </p>
     <ul>
@@ -78,6 +85,28 @@
         2026-10-07.</li>
       <li><code>jt60sa-C060033-pf-coil-currents.svg</code>, for which no IDS exists.</li>
     </ul>
+    <p>
+      Two records embed those files today and would show broken images once they are deleted. Both belong to the
+      shipped plan <code>jt60sa-geometry-and-signal-figures</code>, and the coordinator repairs them at this
+      section's landing, because a worker never edits another plan:
+    </p>
+    <ul>
+      <li><code>docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-signal-figures.html</code> embeds
+        the flux-loop and C060033 figures.</li>
+      <li>That plan's §3 landed summary embeds all three figures, with captions from the raw-array era.</li>
+    </ul>
+    <p>
+      The repair removes the two withdrawn images, re-captions the surviving figure as drawn from IDS, and points
+      to this plan. The worker's own evidence goes in a new fragment for this plan, at
+      <code>docs/evidence/fragments/jt60sa-signal-figures-from-ids/</code>.
+    </p>
+    <p>
+      The IDS opener stays local to the script. The idiom it uses, <code>imas.DBEntry(path, "r")</code> then
+      <code>get(name, autoconvert=False)</code>, recurs in <code>scripts/figures_jt60sa_geometry.py</code>
+      (<code>_read_ids</code>), <code>imas_ambix/gs/artifact_geometry.py</code> and
+      <code>imas_ambix/bench/store_arms.py</code>. Each of those reads a different on-disk layout, and none owns
+      the pulse directory, so there is no shared owner to extend.
+    </p>
     <p>
       Done-when: the script opens only the two IDS files and writes exactly one SVG, with no PNG twin. It prints
       each series' y-label and unit, which must be the ten coil names in <code>A</code> and <code>ip</code> in
