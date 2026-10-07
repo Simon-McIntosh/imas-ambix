@@ -7,10 +7,10 @@ EDDB channels into canonical values in the unit, sign and convention the
 target path leaves need.  Nothing joined them before: the two halves were read
 separately and a reconstruction wanted both.
 
-This module is that join.  :func:`mint_pulse` takes the machine, the shot and
+This module is that join.  :func:`write_pulse` takes the machine, the shot and
 an output root, reads the phase description whole, writes into it the
 time-dependent leaves the signal maps serve, and writes one DD netCDF file per
-IDS under ``{out}/{shot}/``.  It returns a :class:`MintReceipt` naming each IDS
+IDS under ``{out}/{shot}/``.  It returns a :class:`WriteReceipt` naming each IDS
 written, each time-dependent leaf filled, and each declared signal left out
 with its reason.
 
@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 
     from imas_alambic.signal_map import SignalRule
 
-#: The description IDSs a pulse is minted as, in write order.  The three the
+#: The description IDSs a pulse is written as, in write order.  The three the
 #: maps serve receive dynamic signals; the other two are written whole from the
 #: phase description with no dynamic leaf.
 IDS_NAMES = ("pf_active", "pf_passive", "wall", "magnetics", "tf")
@@ -61,18 +61,18 @@ IDS_NAMES = ("pf_active", "pf_passive", "wall", "magnetics", "tf")
 #: Which signal map system feeds which description IDS.
 _SYSTEM_FOR_IDS = {"pf_active": "pf_active", "magnetics": "magnetics", "tf": "tf"}
 
-#: The layout and format the catalogue must declare for the mint to read one
+#: The layout and format the catalogue must declare for the writer to read one
 #: netCDF file per IDS from a directory per phase.
 _STORE_LAYOUT = "static-over-map"
 _STORE_FORMAT = "netcdf"
 
 
-class PulseMintError(RuntimeError):
-    """Raised when a pulse cannot be minted from the description and cache."""
+class PulseWriteError(RuntimeError):
+    """Raised when a pulse cannot be written from the description and cache."""
 
 
 @dataclass(frozen=True, order=True)
-class MintedLeaf:
+class WrittenLeaf:
     """One time-dependent leaf filled from a signal map."""
 
     ids: str
@@ -84,7 +84,7 @@ class MintedLeaf:
 
 @dataclass(frozen=True, order=True)
 class ExcludedSignal:
-    """One declared signal left out of the mint, with its reason."""
+    """One declared signal left out of the write, with its reason."""
 
     ids: str
     signal: str
@@ -92,8 +92,8 @@ class ExcludedSignal:
 
 
 @dataclass(frozen=True)
-class MintReceipt:
-    """What one :func:`mint_pulse` call wrote and what it left out."""
+class WriteReceipt:
+    """What one :func:`write_pulse` call wrote and what it left out."""
 
     machine: str
     shot: str
@@ -101,7 +101,7 @@ class MintReceipt:
     description_root: str
     out_dir: str
     ids_written: tuple[str, ...]
-    leaves: tuple[MintedLeaf, ...]
+    leaves: tuple[WrittenLeaf, ...]
     excluded: tuple[ExcludedSignal, ...]
     files: Mapping[str, str] = field(default_factory=dict)
 
@@ -137,14 +137,14 @@ def _phase_directory(catalog: MachineMapCatalog, phase_map: MachineMap) -> Path:
     """Return the phase directory the description store declares, or refuse."""
 
     if catalog.description_store_format != _STORE_FORMAT:
-        raise PulseMintError(
+        raise PulseWriteError(
             f"machine description store format {catalog.description_store_format!r} "
-            f"is not {_STORE_FORMAT!r}; the mint reads one netCDF file per IDS"
+            f"is not {_STORE_FORMAT!r}; the writer reads one netCDF file per IDS"
         )
     if catalog.description_store_layout != _STORE_LAYOUT:
-        raise PulseMintError(
+        raise PulseWriteError(
             f"machine description store layout {catalog.description_store_layout!r} "
-            f"is not {_STORE_LAYOUT!r}; the mint addresses one directory per phase"
+            f"is not {_STORE_LAYOUT!r}; the writer addresses one directory per phase"
         )
     return catalog.description_store_root_path() / phase_map.name
 
@@ -153,12 +153,12 @@ def _read_description(path: Path, ids_name: str, dd_version: str):
     """Read one description IDS whole, refusing a missing or unreadable file."""
 
     if not path.is_file():
-        raise PulseMintError(f"description file is absent: {path}")
+        raise PulseWriteError(f"description file is absent: {path}")
     try:
         with imas.DBEntry(path, "r", dd_version=dd_version) as entry:
             return entry.get(ids_name, autoconvert=False)
     except OSError as error:
-        raise PulseMintError(f"cannot read description {path}: {error}") from error
+        raise PulseWriteError(f"cannot read description {path}: {error}") from error
 
 
 def _struct_array_index(rule: SignalRule) -> int:
@@ -208,7 +208,7 @@ def _served_entries(
         )
         time = np.asarray(record.time, dtype=float)
         if values.shape[-1] != time.shape[-1]:
-            raise PulseMintError(
+            raise PulseWriteError(
                 f"signal {rule.semantic_id!r} carries {values.shape[-1]} samples "
                 f"for a {time.shape[-1]}-sample time base from "
                 f"{rule.source_group}/{rule.source_array}"
@@ -229,11 +229,11 @@ def _shared_time_base(
     return first
 
 
-def _mint_one_ids(
+def _write_one_ids(
     ids_name: str,
     description: object,
     entries: Sequence[tuple[SignalRule, np.ndarray, np.ndarray]],
-) -> list[MintedLeaf]:
+) -> list[WrittenLeaf]:
     """Write the served signals into one description IDS and report its leaves.
 
     ``homogeneous_time`` is 1 when every served signal shares one time base, so
@@ -247,7 +247,7 @@ def _mint_one_ids(
     if homogeneous:
         description.time = np.ascontiguousarray(shared, dtype=float)
 
-    leaves: list[MintedLeaf] = []
+    leaves: list[WrittenLeaf] = []
     for rule, values, time in entries:
         components = rule.target_path.split("/")
         holder = _navigate(description, components[1:-1], _struct_array_index(rule))
@@ -258,7 +258,7 @@ def _mint_one_ids(
             holder.time = np.ascontiguousarray(time, dtype=float)
             time_path = f"{ids_name}/{'/'.join(components[1:-1])}/time"
         leaves.append(
-            MintedLeaf(
+            WrittenLeaf(
                 ids=ids_name,
                 semantic_id=rule.semantic_id,
                 target_path=rule.target_path,
@@ -282,13 +282,13 @@ def _excluded_signals(ids_name: str, signal_map: SignalMap) -> list[ExcludedSign
     ]
 
 
-def mint_pulse(machine: str, shot: object, out_root: Path | str) -> MintReceipt:
-    """Mint one shot's description IDSs with the signals the maps serve.
+def write_pulse(machine: str, shot: object, out_root: Path | str) -> WriteReceipt:
+    """Write one shot's description IDSs with the signals the maps serve.
 
     Reads the phase description whole from the catalogue's store and the
     dynamic values from the shot's EDDB cache, writes one DD netCDF file per
-    IDS under ``{out_root}/{shot}/``, and returns a :class:`MintReceipt`.
-    Refuses a shot with no cached pulse rather than minting empty signals.
+    IDS under ``{out_root}/{shot}/``, and returns a :class:`WriteReceipt`.
+    Refuses a shot with no cached pulse rather than writing empty signals.
     """
 
     catalog = load_packaged_machine_map(machine)
@@ -300,7 +300,7 @@ def mint_pulse(machine: str, shot: object, out_root: Path | str) -> MintReceipt:
     cache_root = resolve_description_store_root("JT60SA_ROOT")
     cache_dir = cache_root / f"{shot_int}.zarr"
     if not cache_dir.is_dir():
-        raise PulseMintError(
+        raise PulseWriteError(
             f"shot {shot_token} has no EDDB cache; {cache_dir} is absent"
         )
 
@@ -316,7 +316,7 @@ def mint_pulse(machine: str, shot: object, out_root: Path | str) -> MintReceipt:
         for ids_name, signal_map in maps.items()
     }
 
-    leaves: list[MintedLeaf] = []
+    leaves: list[WrittenLeaf] = []
     excluded: list[ExcludedSignal] = []
     files: dict[str, str] = {}
 
@@ -329,7 +329,7 @@ def mint_pulse(machine: str, shot: object, out_root: Path | str) -> MintReceipt:
             entries = _served_entries(
                 signal_map, views[ids_name], cache_root, shot_token
             )
-            leaves.extend(_mint_one_ids(ids_name, description, entries))
+            leaves.extend(_write_one_ids(ids_name, description, entries))
             excluded.extend(_excluded_signals(ids_name, signal_map))
         description.validate()
         path = out_dir / f"{ids_name}.nc"
@@ -337,7 +337,7 @@ def mint_pulse(machine: str, shot: object, out_root: Path | str) -> MintReceipt:
             entry.put(description)
         files[ids_name] = str(path)
 
-    return MintReceipt(
+    return WriteReceipt(
         machine=machine,
         shot=shot_token,
         phase=phase_map.name,
@@ -353,8 +353,8 @@ def mint_pulse(machine: str, shot: object, out_root: Path | str) -> MintReceipt:
 __all__ = [
     "IDS_NAMES",
     "ExcludedSignal",
-    "MintReceipt",
-    "MintedLeaf",
-    "PulseMintError",
-    "mint_pulse",
+    "WriteReceipt",
+    "WrittenLeaf",
+    "PulseWriteError",
+    "write_pulse",
 ]

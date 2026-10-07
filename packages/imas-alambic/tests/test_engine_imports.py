@@ -20,7 +20,7 @@ ENGINE_MODULES = [
     "imas_alambic.virtual_zarr",
     "imas_alambic.eddb",
     "imas_alambic.eddb_remote",
-    "imas_alambic.pulse_mint",
+    "imas_alambic.pulse_writer",
     "imas_alambic.cli",
 ]
 

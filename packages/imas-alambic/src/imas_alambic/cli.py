@@ -1,4 +1,4 @@
-"""The imas-alambic command line: one command, ``mint``, plus ``--version``."""
+"""The imas-alambic command line: one command, ``write``, plus ``--version``."""
 
 from __future__ import annotations
 
@@ -10,10 +10,10 @@ from imas_alambic import __version__
 @click.group(name="imas-alambic")
 @click.version_option(__version__, prog_name="imas-alambic")
 def main() -> None:
-    """Mint IMAS description IDSs from a facility map bundle."""
+    """Write IMAS description IDSs from a facility map bundle."""
 
 
-@main.command(name="mint")
+@main.command(name="write")
 @click.option("--machine", required=True, help="Machine catalogue name, e.g. jt-60sa.")
 @click.option(
     "--shot",
@@ -27,26 +27,22 @@ def main() -> None:
     type=click.Path(),
     help="Output root; one directory per shot is written under it.",
 )
-def mint_cmd(machine: str, shot: str, out_dir: str) -> None:
-    """Mint a pulse's description IDSs with the signals the maps serve."""
+def write_cmd(machine: str, shot: str, out_dir: str) -> None:
+    """Write a pulse's description IDSs with the signals the maps serve."""
 
-    from imas_alambic.pulse_mint import PulseMintError, mint_pulse
+    from imas_alambic.pulse_writer import PulseWriteError, write_pulse
 
     try:
-        receipt = mint_pulse(machine, shot, out_dir)
-    except PulseMintError as error:
+        receipt = write_pulse(machine, shot, out_dir)
+    except PulseWriteError as error:
         raise click.ClickException(str(error)) from error
 
-    click.echo(
-        f"Minted {receipt.shot} phase {receipt.phase} into {receipt.out_dir}"
-    )
+    click.echo(f"Wrote {receipt.shot} phase {receipt.phase} into {receipt.out_dir}")
     for ids_name in receipt.ids_written:
         leaves = sum(1 for leaf in receipt.leaves if leaf.ids == ids_name)
         click.echo(f"  {ids_name}: {leaves} time-dependent leaves")
     if receipt.excluded:
-        click.echo(
-            f"  {len(receipt.excluded)} declared signals left out (see receipt)"
-        )
+        click.echo(f"  {len(receipt.excluded)} declared signals left out (see receipt)")
 
 
 if __name__ == "__main__":  # pragma: no cover - module entry point
