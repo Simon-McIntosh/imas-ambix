@@ -1,0 +1,38 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-facility-editable-landing">
+  <header>
+    <h3>JT-60SA analysis server loads the relayed maps from an editable engine</h3>
+    <p class="meta">
+      Node <code>jtfm-facility-editable</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;4
+    </p>
+  </header>
+  <p id="jtfm-facility-editable-change">
+    On <code>intr26-2</code> (account <code>d240044</code>), a venv at
+    <code>~/imas-alambic/.venv</code> from <code>module load python/3.12</code>
+    (3.12.9) holds editable installs of <code>nova-cocos</code> and
+    <code>imas-alambic</code> from blob-less sparse
+    (<code>--filter=blob:none --sparse</code>) https clones under
+    <code>~/imas-alambic/src</code>, cloned with
+    <code>GIT_SSL_CAINFO=/etc/pki/tls/certs/ca-bundle.crt</code> exported per
+    command and never written to the account's git config
+    (<code>git config --get http.sslCAInfo</code> is empty). Every command ran
+    under <code>nice -n 19</code>, and nothing was written outside
+    <code>~/imas-alambic/</code> except <code>~/.cache</code> (pip).
+  </p>
+  <p id="jtfm-facility-editable-measure">
+    <code>importlib.metadata.version("imas-alambic")</code> is
+    <code>0.1.dev5620+g33cad025b</code>, naming the clone's HEAD
+    <code>33cad025b613a7fd95daf0030c8948b137c2a2a2</code>, which was
+    <code>origin/main</code> at clone time and contains <code>3d54ae6f</code>.
+    With <code>IMAS_ALAMBIC_MAP_PATH=~/imas-alambic/bundles/jt-60sa</code>,
+    <code>load_packaged_machine_map("jt-60sa")</code> and
+    <code>load_packaged_signal_map("jt-60sa", system)</code> for the three
+    relayed systems reproduce the same JSON summary as the same calls on the
+    development checkout: machine-map IDS
+    <code>[magnetics, pf_active, pf_passive, tf, wall]</code>, 25 paths, 170
+    bindings, 2 maps; magnetics 45 signals/57 blocked/3 paths; pf_active
+    10/10/1; tf 1/1/1. The engine's own tests pass on the server:
+    <code>16 passed</code> under Python 3.12.9.
+  </p>
+</section>
