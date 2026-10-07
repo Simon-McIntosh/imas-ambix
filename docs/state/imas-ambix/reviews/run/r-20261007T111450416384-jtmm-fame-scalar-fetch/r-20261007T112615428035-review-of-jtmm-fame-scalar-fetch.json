@@ -1,0 +1,58 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed run records baseline_suite: null and after_suite: null (a data-fetch node runs no pytest arm), so no suite-derived added failures exist; the node's own measure is the driver run whose log is fame-scalar-fetch.log.",
+  "completed_at": "2026-10-07T11:34:03.857Z",
+  "dispatched_at": "2026-10-07T11:26:28Z",
+  "findings": [
+    {
+      "anchor": "docs/evidence/fragments/jt60sa-machine-map/jtmm-fame-scalar-fetch.html#jtmm-fame-scalar-fetch-totals",
+      "id": "served-count-conflates-cache-1",
+      "reason": "The totals line and the table's status column report \"64 served, 0 refused\" and mark E101154's four channels status=served, but the run's own records disagree: fame-scalar-fetch-results.json and fame-scalar-fetch.log report served=60, refused=0, unanswered=4, with E101154 pre_cached=[QAXIS,Q95,TTCU,BTV] and transport_calls_first=0 (then answered from disk on read-back). The fragment's method and controls paragraphs disclose the pre-cache, but the headline count and the status column do not separate a channel fetched this run from one already on disk, so a reader reconciling the fragment against the results json it cites in the same sentence sees a four-channel discrepancy and an 'unanswered' label on four channels the table calls served.",
+      "text": "reword the totals to '60 fetched this run, 4 already cached (E101154), 0 refused', or give E101154's four rows status 'cached' rather than 'served', so the fragment's counts reconcile with the fame-scalar-fetch-results.json it cites. Not a physical defect: all 16 shots carry all four channels, verified on disk at review time."
+    },
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T111450416384-jtmm-fame-scalar-fetch/fame-scalar-fetch.log",
+      "id": "gate-log-no-header-1",
+      "reason": "The reviewed manifest's test_logs names fame-scalar-fetch.log, whose first line is a JSON driver record for E101154 rather than the revision, worktree and command a gate log is expected to open with. The run therefore carries no single line tying its numbers to the revision and literal command that produced them; a later reader must infer them from the manifest and the commit.",
+      "text": "prefix the run log (or write a sibling header log) naming the revision, the worktree and the literal driver command before the per-shot records. Low severity; the manifest's tests field already states the command."
+    }
+  ],
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "I read 1f589c4e against 1e19c3ce; it adds one evidence fragment of 75 lines (one table of 64 rows, a method paragraph, a totals paragraph, a controls paragraph and a measure paragraph) and changes nothing else.",
+    "done_when": "the dispatched measure for this node is the four cached scalars per shot, not the section's sign report; the run's driver made one ssh session per newly fetched shot (15 sessions) and 0 on any repeat read, all 64 requested channels are present under /work/projects/imas_gpu/jt60sa/<shot>.zarr/FAME/, and the fragment records sign/min/max/sample per channel.",
+    "goal": "plan section 6 asks jtmm-fame-scalar-fetch to cache the FAME category's QAXIS, Q95, TTCU and BTV for E101154 and the fifteen surveyed shots that carry a FAME index, through fetch_channels, one ssh connection per shot, refetching nothing cached; the run fetched exactly those four channels for the sixteen shots.",
+    "manifest": "the reviewed manifest reports one commit 1f589c4e, status complete, the fragment plus the run-dir results json, driver and log as artifacts, and a negative control (E100599). Its baseline_suite and after_suite are both null, so no suite-derived added failures exist.",
+    "write_paths": "the reviewed commit 1f589c4e touches docs/evidence/fragments/jt60sa-machine-map/jtmm-fame-scalar-fetch.html alone (+75, one path), inside the node's declared fragment path; the cached arrays land under the declared /work data destination and the driver, log and results json stay in the run directory."
+  },
+  "justifications": {
+    "durability": "the fragment's figures are re-derivable from the /work cache and the measure is reproducible, but the per-shot records it cites (fame-scalar-fetch-results.json, fame-scalar-fetch.log) live only in the run directory and are not committed, and the served/unanswered framing would travel with the fragment; no committed assertion guards the cached channel set.",
+    "evidence": "every figure the fragment prints reproduces from the cache at review time, including the mixed TTCU on E101031 (min -7.769e4 A) and E101163 (min -2.47e5 A), and the negative control holds (E100599.zarr carries no FAME group); docked for the served-count conflation and the headerless gate log reported as findings.",
+    "fit": "the fragment follows the evidence-fragment idiom (section/data-node/id, table with sign/min/max/samples, a controls paragraph), the commit is a conventional two-part docs(evidence) message, and the naming scans over the fragment are clean with no plan label, version suffix, ticket reference or attribution.",
+    "goal_fidelity": "all sixteen shots carry QAXIS, Q95, TTCU and BTV in their FAME group on disk, read back correctly at review time; the transport counts (one session per newly fetched shot, zero on any repeat read) match, and E101154's channels were already cached so it made no session, exactly as the plan's 'refetching nothing cached' requires.",
+    "reuse": "the node reuses the existing fetch_channels, read_channel and is_cached entry points and the ChannelRequest/RemoteEddbExtractor/SubprocessTransport machinery; it adds no reader, no duplicate transport and no new public definition.",
+    "scope_discipline": "the commit adds one fragment file and nothing else, the physical cache is written only under the node's declared data destination, and this reviewer wrote only the two fenced record paths with scratch under its own run directory."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Review of run r-20261007T111450416384-jtmm-fame-scalar-fetch (plan imas-ambix:jt60sa-machine-map section 6), read at its head 1f589c4ed9e4459e7fc2a894a702a2834462f1f7 on base 1e19c3ce3c0fa129055ec81cb0eb6c358e933264. The node caches the FAME category's QAXIS, Q95, TTCU and BTV for E101154 and the fifteen surveyed OP1 shots that carry a FAME index, through fetch_channels, one ssh session per shot, refetching nothing cached.\nVERDICT goal: plan section 6 asks jtmm-fame-scalar-fetch to cache the FAME category's QAXIS, Q95, TTCU and BTV for E101154 and the fifteen surveyed shots that carry a FAME index, through fetch_channels, one ssh connection per shot, refetching nothing cached; the run fetched exactly those four channels for the sixteen shots.\nVERDICT done_when: the dispatched measure for this node is the four cached scalars per shot, not the section's sign report; the run's driver made one ssh session per newly fetched shot (15 sessions) and 0 on any repeat read, all 64 requested channels are present under /work/projects/imas_gpu/jt60sa/<shot>.zarr/FAME/, and the fragment records sign/min/max/sample per channel.\nVERDICT write_paths: the reviewed commit 1f589c4e touches docs/evidence/fragments/jt60sa-machine-map/jtmm-fame-scalar-fetch.html alone (+75, one path), inside the node's declared fragment path; the cached arrays land under the declared /work data destination and the driver, log and results json stay in the run directory.\nVERDICT manifest: the reviewed manifest reports one commit 1f589c4e, status complete, the fragment plus the run-dir results json, driver and log as artifacts, and a negative control (E100599). Its baseline_suite and after_suite are both null, so no suite-derived added failures exist.\nVERDICT diff: I read 1f589c4e against 1e19c3ce; it adds one evidence fragment of 75 lines (one table of 64 rows, a method paragraph, a totals paragraph, a controls paragraph and a measure paragraph) and changes nothing else.\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: all sixteen shots carry QAXIS, Q95, TTCU and BTV in their FAME group on disk, read back correctly at review time; the transport counts (one session per newly fetched shot, zero on any repeat read) match, and E101154's channels were already cached so it made no session, exactly as the plan's 'refetching nothing cached' requires.\nSCORE evidence: 17\nJUSTIFICATION evidence: every figure the fragment prints reproduces from the cache at review time, including the mixed TTCU on E101031 (min -7.769e4 A) and E101163 (min -2.47e5 A), and the negative control holds (E100599.zarr carries no FAME group); docked for the served-count conflation and the headerless gate log reported as findings.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the commit adds one fragment file and nothing else, the physical cache is written only under the node's declared data destination, and this reviewer wrote only the two fenced record paths with scratch under its own run directory.\nSCORE durability: 16\nJUSTIFICATION durability: the fragment's figures are re-derivable from the /work cache and the measure is reproducible, but the per-shot records it cites (fame-scalar-fetch-results.json, fame-scalar-fetch.log) live only in the run directory and are not committed, and the served/unanswered framing would travel with the fragment; no committed assertion guards the cached channel set.\nSCORE fit: 19\nJUSTIFICATION fit: the fragment follows the evidence-fragment idiom (section/data-node/id, table with sign/min/max/samples, a controls paragraph), the commit is a conventional two-part docs(evidence) message, and the naming scans over the fragment are clean with no plan label, version suffix, ticket reference or attribution.\nSCORE reuse: 20\nJUSTIFICATION reuse: the node reuses the existing fetch_channels, read_channel and is_cached entry points and the ChannelRequest/RemoteEddbExtractor/SubprocessTransport machinery; it adds no reader, no duplicate transport and no new public definition.\n",
+  "review_run_id": "r-20261007T112615428035-review-of-jtmm-fame-scalar-fetch",
+  "reviewed_base_sha": "1e19c3ce3c0fa129055ec81cb0eb6c358e933264",
+  "reviewed_head_sha": "1f589c4ed9e4459e7fc2a894a702a2834462f1f7",
+  "reviewed_run_id": "r-20261007T111450416384-jtmm-fame-scalar-fetch",
+  "rubric": "code",
+  "scores": {
+    "durability": 16,
+    "evidence": 17,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T11:31:31.912969+00:00",
+  "total": 112
+}
