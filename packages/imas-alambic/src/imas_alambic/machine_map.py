@@ -125,6 +125,14 @@ class MapBundle:
     machines it carries and its named store roots.  A store root is resolved
     relative to the bundle directory unless it is already absolute, which is how
     a bundle names an on-disk layout that lives outside its own tree.
+
+    A bundle that names its one machine with the singular ``machine`` key is a
+    flat single-machine bundle: its machine map and signal maps sit directly
+    under the bundle, in ``machine_map.json`` and ``maps/<ids>.json``, with no
+    machine-name level inside the tree.  A bundle that names its machines with
+    the plural ``machines`` key keeps the multi-machine addressing, in
+    ``machine_maps/<machine>.json`` and ``maps/<machine>/<ids>.json``.  Which
+    key is present selects the addressing; ``single_machine`` records it.
     """
 
     name: str
@@ -132,13 +140,18 @@ class MapBundle:
     machines: tuple[str, ...]
     root: Path
     store_roots: Mapping[str, Path]
+    single_machine: bool = False
 
     def machine_map_path(self, machine: str) -> Path:
         """Return this bundle's machine-map document for ``machine``."""
+        if self.single_machine:
+            return self.root / "machine_map.json"
         return self.root / "machine_maps" / f"{machine}.json"
 
     def signal_map_path(self, machine: str, system: str) -> Path:
         """Return this bundle's signal-map document for ``machine``.``system``."""
+        if self.single_machine:
+            return self.root / "maps" / f"{system}.json"
         return self.root / "maps" / machine / f"{system}.json"
 
 
@@ -159,9 +172,24 @@ def load_bundle_descriptor(root: Path | str) -> MapBundle:
     version = payload.get("version")
     if version is not None and not isinstance(version, str):
         raise MachineMapError("bundle version must be text or null")
-    machines = _text_tuple(
-        payload.get("machines", []), "bundle machines", allow_empty=True
-    )
+    has_machine = "machine" in payload
+    has_machines = "machines" in payload
+    if has_machine and has_machines:
+        raise MachineMapError(
+            f"bundle {name!r} ({descriptor!s}) declares both 'machine' and "
+            "'machines'; name its machines one way"
+        )
+    if not has_machine and not has_machines:
+        raise MachineMapError(
+            f"bundle {name!r} ({descriptor!s}) declares neither 'machine' nor "
+            "'machines'; name its machines one way"
+        )
+    if has_machine:
+        machines = (_text(payload["machine"], "bundle machine"),)
+        single_machine = True
+    else:
+        machines = _text_tuple(payload["machines"], "bundle machines", allow_empty=True)
+        single_machine = False
     roots_raw = payload.get("store_roots", {})
     if not isinstance(roots_raw, Mapping):
         raise MachineMapError("bundle store_roots must be an object")
@@ -176,6 +204,7 @@ def load_bundle_descriptor(root: Path | str) -> MapBundle:
         machines=machines,
         root=root,
         store_roots=MappingProxyType(store_roots),
+        single_machine=single_machine,
     )
 
 
@@ -499,9 +528,7 @@ class SourceQualification:
             and range_last_shot is not None
             and range_last_shot < range_first_shot
         ):
-            raise MachineMapError(
-                f"{label}.range_last_shot precedes range_first_shot"
-            )
+            raise MachineMapError(f"{label}.range_last_shot precedes range_first_shot")
         return cls(
             source_shape=source_shape,
             range_first_shot=range_first_shot,
@@ -933,12 +960,8 @@ class FluxLoopPositionDeclaration:
         }
         coordinate_keys = {"declared_r", "declared_z"}
         _exact_keys(payload, required, coordinate_keys, label)
-        first_shot = _integer(
-            payload["range_first_shot"], f"{label}.range_first_shot"
-        )
-        last_shot = _integer(
-            payload["range_last_shot"], f"{label}.range_last_shot"
-        )
+        first_shot = _integer(payload["range_first_shot"], f"{label}.range_first_shot")
+        last_shot = _integer(payload["range_last_shot"], f"{label}.range_last_shot")
         if last_shot < first_shot:
             raise MachineMapError(f"{label}.range_last_shot precedes range_first_shot")
         verdict = _text(payload["position_verdict"], f"{label}.position_verdict")
@@ -1313,9 +1336,7 @@ def load_machine_map(path: Path | str) -> MachineMapCatalog:
                 "description_store_format must be one of "
                 f"{sorted(_DESCRIPTION_STORE_FORMATS)}"
             )
-        description_store_root = _text(
-            description_store_root, "description_store_root"
-        )
+        description_store_root = _text(description_store_root, "description_store_root")
         resolve_description_store_root(description_store_root)
         description_store_layout = _text(
             description_store_layout, "description_store_layout"
