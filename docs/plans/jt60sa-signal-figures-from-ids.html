@@ -20,14 +20,14 @@
   <meta name="plan-sprint" content="S20">
   <meta name="plan-tags" content="jt-60sa,figures">
   <meta name="plan-depends-on" content="imas-ink:ids-signal-traces">
-  <meta name="plan-section-depends-on" content='{"s1": ["imas-ink:ids-signal-traces#s1"]}'>
+  <meta name="plan-section-depends-on" content="{&quot;s1&quot;: [&quot;imas-ink:ids-signal-traces#s1&quot;]}">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="6">
 <meta name="plan-modified" content="2026-10-07">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -70,24 +70,34 @@
       Both coordinators have agreed to signal this session. When they do, this section draws
       <code>extract_signal_traces(magnetics, "flux_loop/flux")</code> and the probe field the same way §1 draws the
       coil currents. It updates <code>_read_pulse_ids</code> to the per-run file layout if the rewrite uses it.
-      Deferred until the rewrite exists.
+      Deferred until the rewrite exists. Status on 2026-10-07: jt60sa-pulse-ids §6 rewrote E101154 and wrote
+      E101031 at 05:50–05:51 with all 27 loops and 17 probes filled, each on its own time base. The
+      machine-map coordinator reports, however, that loops 1–6 and 8–27 in those files are raw differences
+      relative to loop 7, stored as if absolute; only loop 7 is absolute. The fix is the type-6 sequence of
+      jt60sa-machine-map §6: the differential-loop adapter, the live store regeneration, and the retarget of
+      the 26 rules to type-6 [7, L]. It has no firm ETA, so this section stays deferred until those rules land
+      and the pulses are written again, either directly or by jt60sa-facility-mint §8's run-file write.
     </p>
 
-    <h2 id="s3">§3 — C060033, once it has IDS</h2>
-    <section data-reckon="section" data-id="s3" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="deferred" data-links=""></section>
+    <h2 id="s3">§3 — E101031, the second pulse</h2>
+    <section data-reckon="section" data-id="s3" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
     <p>
-      C060033 cannot be minted today, for two reasons:
+      On 2026-10-07 the lead chose E101031 as the second written pulse, in place of C060033. C060033 falls in no
+      catalogue phase, drives the TF coil alone with the PF chain at the noise floor, and has no PSRC, so no ip.
+      E101031 is an OP1 plasma pulse: ip holds 0.7&nbsp;MA for 5.4&nbsp;s without disruption, and the PF coils
+      are driven. jt60sa-pulse-ids §6 wrote it on 2026-10-07 at 05:51 to
+      <code>/work/projects/imas_gpu/jt60sa/ids/101031/</code> (run <code>r-20261007T034516340463</code>):
+      <code>pf_active</code> carries the ten coil currents CS1–EF6, and <code>magnetics</code> carries ip, peaking
+      at 0.6984&nbsp;MA.
     </p>
-    <ul>
-      <li>No machine map covers the C-series commissioning shots: <code>map_for_shot</code> resolves 60033 to zero
-        maps.</li>
-      <li>Its cache holds only MDAC and MMSYS. With no PSRC, <code>magnetics/ip</code> has no source.</li>
-    </ul>
     <p>
-      The machine-map census also found that the C-series shots drive the TF coil alone, so PF panels for C060033
-      would show only noise floor. The pulse-mint coordinator has raised both blockers with the lead and will
-      signal if C060033 is written. This section then decides from the written IDS whether any of its signals is
-      worth a figure. Deferred until then.
+      This section draws E101031's coil currents and ip exactly as §1 draws E101154's, through
+      <code>extract_signal_traces</code>. It reads the pulse through <code>pulse_writer.pulse_path</code>, which
+      jt60sa-facility-mint §8 introduces with its run files and migrates <code>_read_pulse_ids</code> onto, so it
+      runs after §8 merges and never names a path itself. Its flux loops and probes follow §2's terms.
+      Done-when: an SVG of E101031's ten coil currents and ip exists beside E101154's, drawn by
+      <code>scripts/figures_jt60sa_signals.py</code> from the written IDS alone, with no array built and no label
+      or unit passed by the script.
     </p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
@@ -98,6 +108,11 @@
     <pre class="r-fu-prompt">/reckon-build jt60sa-signal-figures-from-ids §1</pre>
     <p class="r-fu-outcome">§1 landed (merge 23fa1812). §2 (flux loops and probes) stays deferred until imas-ambix-5b retargets the loop rules and imas-ambix-0d rewrites E101154; both will signal this session. §3 (C060033) stays deferred until a commissioning machine map exists and the pulse is minted.</p>
     </article>
+<article class="r-fu" data-id="f-jsfi-002" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-07" data-recommends-skill="/reckon-build jt60sa-signal-figures-from-ids §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Draw E101031&#x27;s coil currents and ip once facility-mint §8 merges</h4>
+    <div class="r-fu-body"><p>§3 waits on jt60sa-facility-mint §8, which adds <code>pulse_path</code>, writes run files and migrates <code>_read_pulse_ids</code>. §2's flux loops and probes wait on jt60sa-machine-map's type-6 loop rules.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-signal-figures-from-ids §3</pre>
+    </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s1" data-id="c-run-r-20261007T023139516859-jtfig-ids-redraw" data-who="reckon-build" data-when="2026-10-07T02:38:21.024Z">
@@ -105,6 +120,9 @@
 </div>
 <div class="r-comment" data-section="s1" data-id="c-run-r-20261007T023927303618-review-of-jtfig-ids-redraw" data-who="reckon-build" data-when="2026-10-07T02:46:53.756Z">
     <div class="r-comment-body"><p>§1 reviewed — run r-20261007T023139516859-jtfig-ids-redraw (142fdbd8..38a239db) scored 108/120: goal_fidelity 20, evidence 18, scope 20, durability 12, fit 18, reuse 20; one follow-on (manifest overstates figures-run.log as EXIT=0).</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-20261007-jsfi-takeover" data-who="reckon-build" data-when="2026-10-07T04:10:00Z">
+    <div class="r-comment-body"><p>Coordination of this plan moved on 2026-10-07 to session 9fd87e71 (imas-ambix-0d), at the lead's instruction to pick up work whose coordinator is down. Session 1caa45fb (imas-ambix-c3) had no live process, its messaging socket was gone, and its transcript had been quiet since 02:53 UTC. §3 is retargeted from C060033 to E101031, the lead's choice. The <code>plan-section-depends-on</code> meta is rewritten with double-quoted JSON: its single-quoted form was an error-level roadmap wiring finding.</p></div>
 </div>
 </section>
 </main>
