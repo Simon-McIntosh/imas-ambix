@@ -1,11 +1,18 @@
-"""Draw JT-60SA coil currents and plasma current from written pulse IDSs.
+"""Draw JT-60SA pulse signals from written pulse IDSs.
 
-Each figure has one panel per series: ten ``pf_active/coil/current`` traces
-CS1-EF6 and the ``magnetics/ip`` trace. Every name and unit is read from the IDS
-by imas-ink's :func:`~imas_ink.extract_signal_traces` and drawn by
+Each figure has one panel per series. The coil-current figure draws the ten
+``pf_active/coil/current`` traces CS1-EF6 and the ``magnetics/ip`` trace; the
+flux-loop figure draws the 27 ``magnetics/flux_loop/flux`` traces FL1-FL27; the
+probe figure draws the 17 ``magnetics/b_field_pol_probe/field`` traces MP1-MP17.
+Every name and unit is read from the IDS by imas-ink's
+:func:`~imas_ink.extract_signal_traces` and drawn by
 :func:`~imas_ink.figures.time_trace_figure_mpl`; the script constructs no
 :class:`~imas_ink.components.TimeSeries` and passes no label or unit string of
 its own. The figures are written through ``imas_ink.io.render_to_bytes`` as SVG.
+
+The flux loops are drawn as the files measure them: loop 7 is absolute and every
+other loop is the measured difference relative to loop 7, stored with its
+measured sign. The script draws the stored values unchanged.
 
 The IDS file is one netCDF per pulse and run under the IDS root.  Its name is
 built by the writer's :func:`~imas_alambic.pulse_writer.pulse_path`, so this
@@ -32,7 +39,12 @@ from imas_alambic.settings import (
 )
 
 FIGURES = Path(__file__).resolve().parents[1] / "docs" / "figures" / "jt60sa-signals"
-SERIES_PAIRS = (("pf_active", "coil/current"), ("magnetics", "ip"))
+PULSES = ("101154", "101031")
+FIGURE_CALLS = (
+    ("pf-coil-currents", (("pf_active", "coil/current"), ("magnetics", "ip"))),
+    ("flux-loops", (("magnetics", "flux_loop/flux"),)),
+    ("pf-probes", (("magnetics", "b_field_pol_probe/field"),)),
+)
 
 
 def _read_pulse_ids(pulse_file: Path, ids_name: str):
@@ -65,10 +77,11 @@ def _pulse_figure(
 def _main() -> None:
     settings = resolve_settings(SettingsFlags(machine="jt-60sa"))
     root = Path(require_setting("ids_root", settings.ids_root, ENV_IDS_ROOT))
-    for pulse in ("101154", "101031"):
-        figure = _pulse_figure(root, pulse, 0, SERIES_PAIRS)
-        output = FIGURES / f"jt60sa-E{pulse}-pf-coil-currents.svg"
-        output.write_bytes(render_to_bytes(figure, format="svg"))
+    for pulse in PULSES:
+        for suffix, series_pairs in FIGURE_CALLS:
+            figure = _pulse_figure(root, pulse, 0, series_pairs)
+            output = FIGURES / f"jt60sa-E{pulse}-{suffix}.svg"
+            output.write_bytes(render_to_bytes(figure, format="svg"))
 
 
 if __name__ == "__main__":

@@ -1,0 +1,63 @@
+<section id="jtfig-flux-loops-probes" data-node="jtfig-flux-loops-probes">
+  <h2 id="jtfig-flux-loops-probes-heading">Flux loops and probes of E101154 and E101031, drawn as measured</h2>
+
+  <p>
+    <code>scripts/figures_jt60sa_signals.py</code> now makes three figure calls
+    per pulse through the existing <code>_pulse_figure</code>: the coil-current
+    call, one with the pair <code>("magnetics", "flux_loop/flux")</code>, and one
+    with <code>("magnetics", "b_field_pol_probe/field")</code>. The IDS root is
+    resolved as before with <code>require_setting("ids_root", …)</code>. Every
+    panel name and unit is read from the IDS by imas-ink's
+    <code>extract_signal_traces</code>; the script passes no label, unit, caption
+    or array of its own, and it rescales and re-signs nothing. The flux loops are
+    drawn as the files measure them.
+  </p>
+
+  <figure id="jtfig-flux-loops-probes-e101154-flux-loops">
+    <img src="/imas-ambix/figures/jt60sa-signals/jt60sa-E101154-flux-loops.svg"
+         alt="E101154 flux loops FL1 to FL27, one panel per loop, drawn from the pulse IDS">
+    <figcaption>
+      Pulse E101154, run file <code>/work/projects/imas_gpu/jt60sa/ids/101154_0.nc</code>.
+      Twenty-seven panels, one per <code>magnetics/flux_loop/flux</code> trace
+      FL1–FL27, all in Wb as the IDS states. FL7 is the absolute flux; every other
+      loop is the measured difference relative to FL7 that the run file stores,
+      drawn with its measured sign. Values are plotted unchanged — no rescaling
+      and no re-signing.
+    </figcaption>
+  </figure>
+
+  <figure id="jtfig-flux-loops-probes-e101154-pf-probes">
+    <img src="/imas-ambix/figures/jt60sa-signals/jt60sa-E101154-pf-probes.svg"
+         alt="E101154 poloidal-field probes MP1 to MP17, one panel per probe, drawn from the pulse IDS">
+    <figcaption>
+      Pulse E101154, run file <code>/work/projects/imas_gpu/jt60sa/ids/101154_0.nc</code>.
+      Seventeen panels, one per <code>magnetics/b_field_pol_probe/field</code>
+      trace MP1–MP17, in T as the IDS states. The field component is the poloidal
+      field whose sign the run file stores; it is drawn unchanged.
+    </figcaption>
+  </figure>
+
+  <figure id="jtfig-flux-loops-probes-e101031-flux-loops">
+    <img src="/imas-ambix/figures/jt60sa-signals/jt60sa-E101031-flux-loops.svg"
+         alt="E101031 flux loops FL1 to FL27, one panel per loop, drawn from the pulse IDS">
+    <figcaption>
+      Pulse E101031, run file <code>/work/projects/imas_gpu/jt60sa/ids/101031_0.nc</code>.
+      Twenty-seven panels, one per <code>magnetics/flux_loop/flux</code> trace
+      FL1–FL27, all in Wb as the IDS states. FL7 is the absolute flux; every other
+      loop is the measured difference relative to FL7 that the run file stores,
+      drawn with its measured sign. Values are plotted unchanged — no rescaling
+      and no re-signing.
+    </figcaption>
+  </figure>
+
+  <figure id="jtfig-flux-loops-probes-e101031-pf-probes">
+    <img src="/imas-ambix/figures/jt60sa-signals/jt60sa-E101031-pf-probes.svg"
+         alt="E101031 poloidal-field probes MP1 to MP17, one panel per probe, drawn from the pulse IDS">
+    <figcaption>
+      Pulse E101031, run file <code>/work/projects/imas_gpu/jt60sa/ids/101031_0.nc</code>.
+      Seventeen panels, one per <code>magnetics/b_field_pol_probe/field</code>
+      trace MP1–MP17, in T as the IDS states. The field component is the poloidal
+      field whose sign the run file stores; it is drawn unchanged.
+    </figcaption>
+  </figure>
+</section>
