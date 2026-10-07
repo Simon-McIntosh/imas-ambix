@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.79">
-<meta name="plan-version" content="299">
+<meta name="plan-version" content="300">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -565,6 +565,23 @@
       carry a type-6 entry as the prediction of its second loop minus that of its first, read from
       <code>indices_differential</code>, so the vacuum adjudication and every fit score the
       differential entries directly. MAST's loops are all type 1, so MAST is unchanged.
+      The store node landed 2026-10-07 (merge 90e29fc2, review 115/120), but its regenerated 53-loop
+      stores turned seven consumer tests red: six in <code>tests/data/test_jt60sa_machine_map.py</code>,
+      whose flux-loop position bindings expect a position on every entry, and the operator's loop-7
+      vacuum fit. So the 53-loop stores are staged in
+      <code>machine_description/superseded/differential-loops-staged</code>, and the live stores keep
+      their 27 type-1 loops. Two nodes make the consumers take type-6 entries first, and each
+      builds its 53-loop test store under its own temporary directory with the merged
+      <code>build_magnetics</code>, never touching the live stores.
+      <code>jtmm-differential-loop-adapter</code> makes the machine-map adapter accept them. The
+      JT-60SA map's flux-loop position bindings expand over the type-1 entries only, and a type-6
+      entry is carried by its <code>indices_differential</code> in place of a position. The six
+      adapter tests pass against a 53-loop store as well as against today's 27-loop store.
+      <code>jtmm-operator-differential-loops</code>, as above, makes the operator's loop-7 fit pass
+      against a 53-loop store. Once both land, <code>jtmm-differential-loop-store-live</code>
+      regenerates the live OP1 and OP2 stores from the merged converter, keeping the 27-loop copies
+      as superseded, and shows the seven consumer tests green against them. Only then does
+      <code>jtmm-differential-loop-rules</code> retarget the loop rules.
     </p>
     <p>
       The COCOS of the source is then identified rather than assumed. For the raw side,
