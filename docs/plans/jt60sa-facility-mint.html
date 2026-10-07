@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="jt60sa-facility-mint">
   <meta name="plan-title" content="JT-60SA Facility Mint: Public Engine, Private Maps">
   <meta name="plan-summary" content="imas-alambic, a slim public engine, reads a private GHCR map bundle from a shared IMASDB folder at JT-60SA and writes each pulse as one IMAS netCDF file">
-  <meta name="plan-status" content="pending">
+  <meta name="plan-status" content="in-progress">
   <meta name="plan-roi" content="mid">
   <meta name="plan-effort-hours" content="15.5">
   <meta name="plan-capability-version" content="1.0">
@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="42">
+<meta name="plan-version" content="43">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -403,6 +403,9 @@
 </div>
 <div class="r-comment" data-section="s1" data-id="c-20261007T0100-jt60sa-tests" data-who="reckon-build" data-when="2026-10-07T01:00:00Z">
     <div class="r-comment-body"><p>Carry into the §1 node. <code>packages/imas-alambic/tests/test_eddb_local_transport.py::test_local_route_matches_cached_pf_active_arrays_bit_for_bit</code> hard-codes <code>/work/projects/imas_gpu/jt60sa</code> and names JT-60SA <code>pf_active</code> channels in the public engine's tests. The <code>/work</code> path is a second owner beside <code>imas_ambix.data.paths.JT60SA_ROOT</code>, and the channel names are map content that this section makes private. Move that test to the ambix side, under the same bundle-absent skip as the other JT-60SA tests, and leave the engine's tests synthetic.</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-run-r-20261007T013805488822-jtfm-verb-write" data-who="reckon-build" data-when="2026-10-07T01:52:45.674Z">
+    <div class="r-comment-body"><p>Renamed the engine&#x27;s one command mint to write in cli.py; moved pulse_mint.py to pulse_writer.py (mint_pulse/write_pulse, MintReceipt/WriteReceipt, MintedLeaf/WrittenLeaf, PulseMintError/PulseWriteError); rewrote the module docstring, README, both pyproject.toml files and the engine-import list; moved test_pulse_mint.py to test_pulse_writer.py and added test_cli.py. Measure: grep -rniwE &#x27;mint|minted|minting|pulse_mint|mint_pulse&#x27; packages imas_ambix tests scripts pyproject.toml prints nothing.</p></div>
 </div>
 </section>
 </main>
