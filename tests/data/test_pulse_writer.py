@@ -1,18 +1,18 @@
-"""Mint a JT-60SA pulse: the description IDSs carry the served signals.
+"""Write a JT-60SA pulse: the description IDSs carry the served signals.
 
-The mint reads the phase description whole from the machine-description store
+The writer reads the phase description whole from the machine-description store
 and the dynamic values from the EDDB cache, and writes one DD 4.1.1 netCDF file
-per description IDS.  This test mints E101154 into a temporary directory and
-checks the done-when of the pulse-mint step: every description IDS is written
+per description IDS.  This test writes E101154 into a temporary directory and
+checks the done-when of the pulse-write step: every description IDS is written
 and reads back through :class:`imas.DBEntry`, the ten coils the ``pf_active``
 map serves carry the compiled map applied to their cached channels sample for
 sample, both FPPC coils carry no current, the TF coil current equals the served
-TF chain, ``magnetics/ip`` peaks near 1 MA, and the minted IDSs differ from the
+TF chain, ``magnetics/ip`` peaks near 1 MA, and the written IDSs differ from the
 OP1 description in no path outside ``ids_properties`` other than the
 time-dependent leaves the receipt names.  A shot with no cache refuses and
 names the missing cache.
 
-Minting the same pulse once and re-reading is cheap; the pulse is minted once
+Writing the same pulse once and re-reading is cheap; the pulse is written once
 per module into ``tmp_path_factory``.
 """
 
@@ -24,7 +24,7 @@ import pytest
 from imas.util import idsdiffgen
 
 from imas_alambic.eddb import read_channel
-from imas_alambic.pulse_mint import IDS_NAMES, PulseMintError, mint_pulse
+from imas_alambic.pulse_writer import IDS_NAMES, PulseWriteError, write_pulse
 from imas_alambic.signal_map import load_packaged_signal_map
 from imas_ambix.data.paths import JT60SA_ROOT
 
@@ -47,8 +47,8 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture(scope="module")
 def receipt(tmp_path_factory):
-    out = tmp_path_factory.mktemp("mint")
-    return mint_pulse(MACHINE, SHOT_TOKEN, out)
+    out = tmp_path_factory.mktemp("write")
+    return write_pulse(MACHINE, SHOT_TOKEN, out)
 
 
 def _read(receipt, ids_name: str):
@@ -91,7 +91,7 @@ def _is_named(diff_path: str, leaf_paths: set[str]) -> bool:
     )
 
 
-def test_mint_writes_every_description_ids(receipt):
+def test_write_covers_every_description_ids(receipt):
     assert receipt.ids_written == IDS_NAMES
     assert receipt.phase == "OP1"
     # The three IDSs the maps serve carry the signals written into them, so
@@ -154,32 +154,32 @@ def test_magnetics_ip_peaks_near_one_ma(receipt):
 
 def test_static_content_is_the_description_unchanged(receipt):
     for ids_name in IDS_NAMES:
-        minted = _read(receipt, ids_name)
+        written = _read(receipt, ids_name)
         original = _read_description(ids_name)
         leaf_paths = _leaf_paths(receipt, ids_name)
-        for path in {entry[0] for entry in idsdiffgen(minted, original)}:
+        for path in {entry[0] for entry in idsdiffgen(written, original)}:
             if path == "ids_properties" or path.startswith("ids_properties/"):
                 continue
             assert _is_named(path, leaf_paths), (ids_name, path, sorted(leaf_paths))
 
 
 def test_shot_without_cache_refuses_and_names_the_cache(tmp_path):
-    with pytest.raises(PulseMintError) as error:
-        mint_pulse(MACHINE, 999999, tmp_path)
+    with pytest.raises(PulseWriteError) as error:
+        write_pulse(MACHINE, 999999, tmp_path)
     message = str(error.value)
     assert "999999" in message
     assert "no EDDB cache" in message
     assert str(JT60SA_ROOT / "999999.zarr") in message
 
 
-def test_mint_command_writes_the_pulse(tmp_path):
+def test_write_command_writes_the_pulse(tmp_path):
     from click.testing import CliRunner
 
     from imas_alambic.cli import main
 
     result = CliRunner().invoke(
         main,
-        ["mint", "--machine", MACHINE, "--shot", SHOT_TOKEN, "--out", str(tmp_path)],
+        ["write", "--machine", MACHINE, "--shot", SHOT_TOKEN, "--out", str(tmp_path)],
     )
     assert result.exit_code == 0, result.output
     for ids_name in IDS_NAMES:

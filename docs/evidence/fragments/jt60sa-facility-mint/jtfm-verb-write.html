@@ -1,0 +1,26 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-verb-write-landing">
+  <header>
+    <h3>the engine's one command is write, and its module and symbols say write</h3>
+    <p class="meta">
+      Node <code>jtfm-verb-write</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;7 &middot;
+      node <code>98dci4-clu-2018</code> job <code>1277272</code>
+    </p>
+  </header>
+  <p>
+    The click command is renamed <code>write</code>; <code>pulse_mint.py</code>
+    moves to <code>pulse_writer.py</code> with <code>mint_pulse</code>,
+    <code>MintReceipt</code>, <code>MintedLeaf</code> and
+    <code>PulseMintError</code> renamed <code>write_pulse</code>,
+    <code>WriteReceipt</code>, <code>WrittenLeaf</code> and
+    <code>PulseWriteError</code>; the module docstring, package docstring,
+    README, both <code>pyproject.toml</code> files, the test module and the
+    engine-import list follow.  A new <code>test_cli.py</code> asserts the
+    group registers exactly <code>write</code> and that
+    <code>write --help</code> lists <code>--machine</code>, <code>--shot</code>
+    and <code>--out</code>.  Gate: <code>grep -rniwE
+    'mint|minted|minting|pulse_mint|mint_pulse' packages imas_ambix tests
+    scripts pyproject.toml</code> prints nothing, <code>EXIT=1</code>.
+  </p>
+</section>

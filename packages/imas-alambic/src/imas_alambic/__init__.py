@@ -1,4 +1,4 @@
-"""imas-alambic — the slim IMAS mint engine.
+"""imas-alambic — the slim IMAS write engine.
 
 Machine maps, signal maps, the transform engine, the virtual Zarr view, the
 EDDB read path and the COCOS convention contract, with no dependency on the

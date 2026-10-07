@@ -1,11 +1,11 @@
 # imas-alambic
 
-The slim mint engine: machine maps, signal maps, the transform engine, the
+The slim write engine: machine maps, signal maps, the transform engine, the
 virtual Zarr view, the EDDB read path and the COCOS convention contract.
 
-This distribution exists so the mint can install where `imas-ambix` cannot: the
+This distribution exists so the writer can install where `imas-ambix` cannot: the
 JT-60SA analysis server runs Python 3.12, while the full world-model stack
-requires 3.14 and carries torch, lightning, jax and torax that minting never
+requires 3.14 and carries torch, lightning, jax and torax that writing never
 touches. The engine's runtime dependencies are `numpy`, `imas-python`, `zarr`,
 `pyyaml` and `nova-cocos`.
 
