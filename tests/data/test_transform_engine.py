@@ -33,17 +33,16 @@ from imas_ambix.data.cocos_convention import (
     MAST_TO_COCOS_17_FACTORS,
 )
 from imas_ambix.data.paths import JT60SA_DESCRIPTION_DIR
-from tests.jt60sa_bundle import reachable_bundles
+from tests.jt60sa_bundle import requires_mast
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 TRANSITION_SHOTS = (11_766, 12_417, 12_533)
 JT60SA_OP1_DESCRIPTION_ROOT = JT60SA_DESCRIPTION_DIR
 JT60SA_OP1_PF_ACTIVE = JT60SA_OP1_DESCRIPTION_ROOT / "OP1" / "pf_active.nc"
 _COIL_ELEMENT_DD_PATH = "pf_active/coil/element/geometry/rectangle/r"
-needs_bundle_discovery = pytest.mark.skipif(
-    not reachable_bundles(),
-    reason="no reachable map bundle; set IMAS_ALAMBIC_MAP_PATH",
-)
+#: These tests read the public MAST map, so they guard on a bundle carrying mast
+#: and run whether or not the private JT-60SA bundle is reachable.
+needs_bundle_discovery = requires_mast
 
 
 def _coil_element_binding(struct_array_entry=None):

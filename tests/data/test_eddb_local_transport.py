@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import importlib.util
 import logging
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -16,14 +16,28 @@ from tests.jt60sa_bundle import BUNDLE, SKIP_REASON
 
 # The engine's own test package owns the EDDB stand-in wrapper and the helpers
 # that place it: the engine tests must run in a clean environment holding only
-# the engine wheels and pytest, so that owner sits beside the engine test and is
-# not a package this suite can import by name. Reach it by the path the
-# workspace lays to it and import it where it is used.
-_ENGINE_TESTS = (
-    Path(__file__).resolve().parents[2] / "packages" / "imas-alambic" / "tests"
+# the engine wheels and pytest, so that owner is not a package this suite can
+# import by name.  Load it by file path and take the names from the loaded
+# module, so no directory is placed on ``sys.path``.
+_ENGINE_STANDIN = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "imas-alambic"
+    / "tests"
+    / "eddb_standin.py"
 )
-if str(_ENGINE_TESTS) not in sys.path:
-    sys.path.insert(0, str(_ENGINE_TESTS))
+
+
+def _load_engine_standin():
+    spec = importlib.util.spec_from_file_location("eddb_standin", _ENGINE_STANDIN)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_eddb_standin = _load_engine_standin()
+local_extractor = _eddb_standin.local_extractor
+write_standin = _eddb_standin.write_standin
 
 LOGGER = logging.getLogger("test_eddb_local_transport")
 PF_ACTIVE_ARRAYS = (
@@ -46,8 +60,6 @@ def _request(dname: str) -> ChannelRequest:
 
 
 def test_local_route_matches_cached_pf_active_arrays_bit_for_bit(tmp_path):
-    from eddb_standin import local_extractor, write_standin
-
     if BUNDLE is None:
         pytest.skip(SKIP_REASON)
     store = JT60SA_ROOT / "101154.zarr"

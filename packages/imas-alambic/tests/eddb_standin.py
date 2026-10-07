@@ -70,6 +70,56 @@ class eddbWrapper:
         }
 """
 
+#: A canned-response stand-in for the analysis server's ``eddb_pwrapper``.
+#:
+#: Unlike :data:`STANDIN_WRAPPER`, which reads a ``channels.json`` table the
+#: caller writes, this one answers a fixed shape with no table: a default
+#: two-by-two series, and four names that drive the extractor's edge paths --
+#: ``NOTIME`` answers with no time base, ``REFUSED``/``ABSENT`` answer a false
+#: return carrying an EDDB code, ``NOIRC`` a false return with no code, and
+#: ``MULTIUNIT`` a two-entry unit list.  It exists so the reader envelope's
+#: refusals and unit normalisation can be exercised without a data table.
+CANNED_WRAPPER = '''
+import numpy as np
+
+
+class eddbWrapper:
+    def __init__(self, lib_path):
+        self.lib_path = lib_path
+
+    def eddbOpen(self):
+        return True
+
+    def eddbClose(self):
+        return True
+
+    def eddbreadOne(self, *args, **kwargs):
+        return False, None
+
+    def eddbreadTime(self, shot, category, dname, t1, t2):
+        if dname == "NOTIME":
+            return True, {"data": np.arange(6.0).reshape(2, 3)}
+        if dname == "REFUSED":
+            return False, {"irc": 1015, "ircgrp": 1}
+        if dname == "ABSENT":
+            return False, {"irc": 1013, "ircgrp": 1}
+        if dname == "NOIRC":
+            return False, {}
+        if dname == "MULTIUNIT":
+            return True, {
+                "data": np.array([[1.0, 2.0, 3.0]]),
+                "time": np.array([0.0, 0.5, 1.0]),
+                "unit": ["A", "V"],
+                "seq": 1,
+            }
+        return True, {
+            "data": np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+            "time": np.array([0.0, 0.5, 1.0]),
+            "unit": ["A"],
+            "seq": 42,
+        }
+'''
+
 
 def write_standin(api_dir: Path, channels: dict) -> None:
     """Place the stand-in wrapper and the arrays it serves beside each other."""
@@ -99,9 +149,17 @@ def local_extractor(
     )
 
 
+def write_canned_wrapper(api_dir: Path) -> None:
+    """Place :data:`CANNED_WRAPPER` as ``eddb_pwrapper.py`` in ``api_dir``."""
+
+    (api_dir / "eddb_pwrapper.py").write_text(CANNED_WRAPPER)
+
+
 __all__ = [
+    "CANNED_WRAPPER",
     "STANDIN_WRAPPER",
     "ChannelRequest",
     "local_extractor",
+    "write_canned_wrapper",
     "write_standin",
 ]

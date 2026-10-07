@@ -277,6 +277,24 @@ def discover_bundles(search_path: object = None) -> tuple[MapBundle, ...]:
     return tuple(bundles)
 
 
+def bundles_carrying(machine: str, search_path: object = None) -> tuple[MapBundle, ...]:
+    """Return every reachable bundle whose ``machines`` include ``machine``.
+
+    This is the one owner of the machine-carried query: a caller that only needs
+    presence asks here and treats an empty result as absence, while a caller
+    that needs the bundle itself resolves through :func:`bundle_for_machine`,
+    which layers the zero/one/many policy on top.  ``search_path`` is the
+    resolved map search path; ``None`` asks for it, so a caller that has already
+    resolved settings passes it to keep one resolution.
+    """
+
+    return tuple(
+        bundle
+        for bundle in discover_bundles(search_path)
+        if machine in bundle.machines
+    )
+
+
 def bundle_for_machine(machine: str, search_path: object = None) -> MapBundle:
     """Return the single bundle declaring ``machine``, or refuse.
 
@@ -287,9 +305,7 @@ def bundle_for_machine(machine: str, search_path: object = None) -> MapBundle:
     resolution.
     """
 
-    matches = [
-        bundle for bundle in discover_bundles(search_path) if machine in bundle.machines
-    ]
+    matches = bundles_carrying(machine, search_path)
     if not matches:
         from imas_alambic.settings import ENV_MAP_PATH
 

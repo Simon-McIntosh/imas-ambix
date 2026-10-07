@@ -14,11 +14,13 @@ no transport call.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import subprocess
 import sys
 from dataclasses import replace
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -60,52 +62,30 @@ from imas_alambic.transform_engine import ZarrTransformEngine
 from imas_alambic.virtual_zarr import VirtualZarrView
 from imas_ambix.data.paths import JT60SA_ROOT
 
-# A stand-in for the analysis server's eddb_pwrapper.  It returns a known
-# time series for any name except NOTIME, which returns data with no time base,
-# and REFUSED, which the EDDB answers with return code 1015, so the per-channel
-# refusal path can be exercised without aborting the batch.  The served unit is
-# returned as a one-entry list, as the real EDDB wrapper does, so the extractor's
-# normalisation to the unit string is exercised end to end.
-FAKE_WRAPPER = '''
-import numpy as np
+# The engine's own test package owns both EDDB stand-in wrappers: the
+# table-driven ``STANDIN_WRAPPER`` and the canned-response ``CANNED_WRAPPER``
+# this module drives, whose named channels exercise the reader envelope's
+# refusal and unit paths.  The engine tests must run in a clean environment, so
+# that owner is not a package this suite can import by name; load it by file
+# path and take the wrapper string from the loaded module.
+_ENGINE_STANDIN = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "imas-alambic"
+    / "tests"
+    / "eddb_standin.py"
+)
 
 
-class eddbWrapper:
-    def __init__(self, lib_path):
-        self.lib_path = lib_path
+def _load_engine_standin():
+    spec = importlib.util.spec_from_file_location("eddb_standin", _ENGINE_STANDIN)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
-    def eddbOpen(self):
-        return True
 
-    def eddbClose(self):
-        return True
-
-    def eddbreadOne(self, *args, **kwargs):
-        return False, None
-
-    def eddbreadTime(self, shot, category, dname, t1, t2):
-        if dname == "NOTIME":
-            return True, {"data": np.arange(6.0).reshape(2, 3)}
-        if dname == "REFUSED":
-            return False, {"irc": 1015, "ircgrp": 1}
-        if dname == "ABSENT":
-            return False, {"irc": 1013, "ircgrp": 1}
-        if dname == "NOIRC":
-            return False, {}
-        if dname == "MULTIUNIT":
-            return True, {
-                "data": np.array([[1.0, 2.0, 3.0]]),
-                "time": np.array([0.0, 0.5, 1.0]),
-                "unit": ["A", "V"],
-                "seq": 1,
-            }
-        return True, {
-            "data": np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
-            "time": np.array([0.0, 0.5, 1.0]),
-            "unit": ["A"],
-            "seq": 42,
-        }
-'''
+_eddb_standin = _load_engine_standin()
+FAKE_WRAPPER = _eddb_standin.CANNED_WRAPPER
 
 
 def _request(shot: str, category: str, dname: str) -> ChannelRequest:
