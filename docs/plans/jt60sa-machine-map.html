@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.81">
-<meta name="plan-version" content="340">
+<meta name="plan-version" content="341">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -2050,6 +2050,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261007T170252881010-jtmm-differential-loop-index-none" data-who="reckon-build" data-when="2026-10-07T17:19:54.440Z">
     <div class="r-comment-body"><p>SensorMapping.efm_index widened to int | None and the type-6 machine-map mapping now carries None in place of the -1 sentinel (imas_ambix/gs/geometry.py, imas_ambix/data/geometry_adapter.py), so an unguarded consumer raises TypeError on the loop-list lookup; a new store-backed test in tests/gs/test_operator_differential_loops.py pins the None sentinel and the TypeError — gate 101 passed EXIT=0, negative control EXIT=1.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261007T172522690689-review-of-jtmm-differential-loop-index-none" data-who="reckon-build" data-when="2026-10-07T17:40:41.286Z">
+    <div class="r-comment-body"><p>Review of r-20261007T170252881010-jtmm-differential-loop-index-none stored at head f2aa8e1c: scores goal_fidelity 20, evidence 18, fit 19, durability 19, reuse 20, scope_discipline 20, total 116; the type-6 mapping carries efm_index=None in place of the -1 sentinel with all four efm_index consumers still guarded on indices_differential; six-file gate reproduced 101 passed EXIT=0 against base 100 passed EXIT=0 (0 added failures), ruff clean, and the sentinel-restoring mutation reproduced red (1 failed EXIT=1).</p></div>
 </div>
 <div class="r-comment" data-section="_top" data-id="c-20261007T0000-jtfm-move" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-06T23:00:00Z">
     <div class="r-comment-body"><p><strong>Coordination, lead-approved 2026-10-06:</strong> <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §2 is now moving the mint engine into the workspace member <code>packages/imas-alambic/</code>. Moving: <code>imas_ambix/data/{machine_map,signal_map,transform_engine,virtual_zarr,eddb,eddb_remote,pulse_mint}.py</code>, <code>imas_ambix/cocos.py</code> and <code>machine_maps/schema.yaml</code>. Imports become <code>imas_alambic.&lt;module&gt;</code>, and <code>nova.io.cocos</code> becomes <code>nova_cocos</code>. <strong>Map JSON is not moving</strong>: <code>machine_maps/*.json</code> and <code>maps/&lt;machine&gt;/*.json</code> stay where they are, and the by-name loaders keep their names, so map-authoring nodes are unaffected. Please avoid dispatching nodes that edit the moving Python modules until the move merges. A node already in flight that touches them will need its imports rebased after the merge, and the facility-mint coordinator will do that rebase.</p></div>

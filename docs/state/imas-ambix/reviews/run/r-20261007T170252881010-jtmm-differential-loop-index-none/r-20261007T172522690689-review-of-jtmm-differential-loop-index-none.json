@@ -1,0 +1,70 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "measured: the reviewed manifest carries baseline_suite empty (key present but null) and its gate-base.log is truncated at 72% with no summary line and no EXIT= line (the worker's process ended during its turn, exit.json ended_during=working), so the delta was not derivable from the reviewed run's own record. This review measured both arms independently in scratch extractions under $TMPDIR at the reviewed head f2aa8e1c (head.log: 101 passed in 373.83s, EXIT=0; module.__file__ under the scratch head tree) and at the reviewed base 8f7ea867 (base.log: 100 passed in 378.19s, EXIT=0). Additions between arms: 1 test (the new test_differential_entry_carries_no_slot_index); added failures: 0. The reviewed run's own after_suite (gate-after.log: 101 passed in 267.90s, EXIT=0, completed true, failure_count 0) is complete and readable and matches the head arm beaten here.",
+  "base_log_revision": "8f7ea867242969cdede25444430d0fecd9eaebb5",
+  "call_site_count": 4,
+  "call_sites": "Four sites read or index SensorMapping.efm_index, and each sits behind an indices_differential guard, so the None produced only for a type-6 entry never reaches them. imas_ambix/gs/operator.py:734 row_of_loop.setdefault(mapping.efm_index, row) guarded by `mapping.kind == \"flux_loop\" and getattr(mapping, \"indices_differential\", None) is None` (:729-733). imas_ambix/data/geometry_adapter.py:809 updated_loops[mapping.efm_index] = FluxLoop(...) guarded by `if mapping.indices_differential is not None: raise GeometryAdapterError` (:795-804). imas_ambix/gs/geometry.py:824 `m.efm_index == i` in the non-unique-claim second pass guarded by `m.indices_differential is None` (:820-824). imas_ambix/spine_bench/transform_geometry_source.py:202 rebound_count += int(mapping.efm_index != match.efm_index) guarded by the loop head `if mapping.kind != \"flux_loop\" or (getattr(mapping, \"indices_differential\", None) is not None): continue` (:186-193). Producer sites unaffected: geometry.py:782/804 and geometry_adapter.py:197/271/287 and artifact_geometry.py:914/926 all build efm_index from a positioned loop index (int). spine_bench.SignalIdentityMatch.efm_index and scripts/vacuum_loop_adjudication._CandidateSensorMapping.efm_index are separate dataclasses with their own int efm_index, not SensorMapping.",
+  "completed_at": "2026-10-07T17:40:41.286Z",
+  "dispatched_at": "2026-10-07T17:25:34Z",
+  "findings": [
+    {
+      "file": "imas_ambix/gs/geometry.py",
+      "line": "444",
+      "severity": "follow-on",
+      "text": "follow-on: widening SensorMapping.efm_index to `int | None` puts an Optional into three sites whose storage is int-typed (FluxLoop.index: int at geometry_adapter.py:810, dict[int, int] row_of_loop at operator.py:734, the rebuild comparison at geometry.py:824) and those sites are held only by the pre-existing indices_differential guards, which no test pins individually. Runtime is safe \u2014 every such site is reached only for a positioned (non-differential) mapping, verified by reading all four consumers \u2014 and the new test pins the adapter's own None output and the TypeError-on-index property, which is the falsifiable half. The residual gap is that removing one consumer's guard (say operator.py:729-733) would not be caught by the new test; the six-file gate covers it only insofar as the operator tests exercise a differential store. Non-blocking: the code is correct as written.",
+      "type": "untested-guard"
+    },
+    {
+      "file": "manifest.md",
+      "line": "n/a",
+      "severity": "follow-on",
+      "text": "follow-on (record, not code): the reviewed run left its armed-suite pair half-recorded \u2014 after_suite is complete (101 passed EXIT=0) but baseline_suite is empty and its gate-base.log ends mid-run at 72% with no summary and no EXIT= line, because the worker's process ended during its turn while the base arm was still running (exit.json ended_during=working, last_record_type=tool_progress). The change itself is unaffected and the delta (0 added failures) is now measured by this review; flagged so the coordinator knows the reviewed run's own evidence record is not self-contained.",
+      "type": "record-completeness"
+    }
+  ],
+  "head_log_revision": "f2aa8e1c7037e566c29bdc294fffefd0e82fb845",
+  "item_aggregate": 7,
+  "item_verdicts": {
+    "call_sites": "Four efm_index read/index sites, each read in full and each guarded on indices_differential (operator.py:729-734, geometry_adapter.py:795-810, geometry.py:820-824, transform_geometry_source.py:186-202). Producer sites build efm_index from a positioned loop index or from argsort, never None. Two other `efm_index` dataclasses (spine_bench.SignalIdentityMatch, scripts/vacuum_loop_adjudication._CandidateSensorMapping) are separate from SensorMapping and carry int. The manifest's claim 'no consumer reads efm_index unguarded' is TRUE.",
+    "diff": "One commit f2aa8e1c7037e566c29bdc294fffefd0e82fb845 ('refactor(gs): give a differential flux-loop mapping no slot index'), 3 files, 35 insertions / 11 deletions. imas_ambix/gs/geometry.py: SensorMapping.efm_index:int -> `int | None`, comment rewritten to state the TypeError-on-index property. imas_ambix/data/geometry_adapter.py: the type-6 mapping at :241 now carries efm_index=None (was -1) and two comments reworded; the position-declaration guard and its raise are unchanged. tests/gs/test_operator_differential_loops.py: new test_differential_entry_carries_no_slot_index plus one fixture line changed from efm_index=-1 to None. No source logic beyond the sentinel value and the type annotation changed.",
+    "done_when": "A type-6 differential flux-loop mapping carries no slot index: SensorMapping.efm_index is `int | None` and the machine-map adapter builds a type-6 mapping with None in place of the -1 sentinel, so an unguarded consumer raises TypeError on the loop-list lookup rather than silently returning the last positioned loop. The new test test_differential_entry_carries_no_slot_index rebuilds the 53-loop store from the merged deck builder, asserts every differential mapping's efm_index is None, and asserts table.flux_loops[efm_index] raises TypeError. It is green at the reviewed head (101 passed) and red under restoring the -1 sentinel (1 failed, 4 passed, EXIT=1), reproduced independently by this review.",
+    "goal": "Represent a type-6 differential flux loop's absent positioned slot explicitly as None rather than as a -1 sentinel with no position behind it, so a consumer that reads efm_index without checking indices_differential fails loudly (TypeError) instead of silently indexing the last positioned loop. This is the by-its-indices_differential-in-place-of-a-position rule the plan (jt60sa-machine-map s6) states for a type-6 entry, made exact.",
+    "manifest": "status complete; commits [f2aa8e1c]; changed_paths lists the three touched files and reconciles with the diffstat (3 files, 35 insertions / 11 deletions); tests names the six-file gate (101 passed in 267.90s, EXIT=0) and ruff (All checks passed); after_suite is complete and readable (101 passed, EXIT=0, completed true, failure_count 0); negative_control_log's last line is EXIT=1 over tests/gs/test_operator_differential_loops.py; baseline_suite is present-but-empty and gate-base.log is truncated, so the reviewed run's own added-failure count is not derivable from its record (measured here: base 100 passed EXIT=0, delta 0). No manifest claim was found to be false.",
+    "write_paths": "Reviewed manifest declared seven write paths (imas_ambix/gs/geometry.py, imas_ambix/data/geometry_adapter.py, imas_ambix/gs/operator.py, imas_ambix/spine_bench/transform_geometry_source.py, tests/gs/test_operator_differential_loops.py, a docs fragment and a figures dir). The diff touches three: geometry.py and geometry_adapter.py and the test file. operator.py and transform_geometry_source.py were read but left unchanged, which is correct \u2014 their guards already hold. No fragment and no figure were written, which the plan requires only for an evidence-bearing node."
+  },
+  "justifications": {
+    "durability": "The change is a strict improvement in falsifiability: a bad consumer of a type-6 index now raises TypeError on the list lookup instead of silently returning the last positioned loop, and the new test pins both the None sentinel and that TypeError (it reddens under restoring the -1 sentinel, reproduced independently: 1 failed, 4 passed, EXIT=1). Held short of perfect because the widening puts an Optional into three int-typed storage sites whose individual guards are pre-existing and are not each pinned by a test (see follow-on); the guard for the operator's row_of_loop map would not be caught by the new test alone.",
+    "evidence": "Independently reproduced rather than read: the six-file gate re-run in a scratch extraction at the reviewed head f2aa8e1c gives 101 passed EXIT=0 (head.log, module.__file__ under the scratch head tree, verified import path without -I); the base arm at 8f7ea867 gives 100 passed EXIT=0 (base.log); the declared negative control reproduced by this review's own mutation of the type-6 mapping back to efm_index=-1 gives 1 failed, 4 passed, EXIT=1 (negctl.log); ruff is clean on the three changed files (All checks passed). The one weakness is the reviewed run's own record, not the change: its baseline arm was left incomplete (gate-base.log truncated at 72%, baseline_suite empty), so the added-failure count is not derivable from the manifest and had to be measured here (0 added failures).",
+    "fit": "Extends SensorMapping, the machine-map adapter and the existing indices_differential guard pattern rather than adding a mechanism. The Optional expresses exactly the plan's rule that a type-6 entry carries its indices_differential in place of a position; the code and the surrounding comments are reworded to state the TypeError-on-index property as mechanism, with no plan or ticket identifiers. Consistent with the sibling repair that hardened the same guards.",
+    "goal_fidelity": "The objective \u2014 a type-6 differential flux-loop mapping carries no positioned slot \u2014 is implemented exactly: efm_index is `int | None`, the adapter's type-6 branch produces None, and every existing consumer is reached only for a positioned mapping, so the absent slot is now represented as absent rather than as a -1 that a negative-index lookup would silently resolve to the last loop. The plan's convention (type-6 leaves position/area empty and carries indices_differential) is honoured; the change is a faithful tightening of the same rule, not a new design.",
+    "reuse": "Reuses the existing per-consumer `indices_differential` guards unchanged and reuses the standard `int | None` optional; introduces no new store path, no new helper and no new dependency. The new test reuses the file's own _build_53_loop_store fixture and read_geometry_table, so it pins the adapter's real output rather than a hand-built mapping.",
+    "scope_discipline": "Three files changed, all within the reviewed node's declared write paths: imas_ambix/gs/geometry.py, imas_ambix/data/geometry_adapter.py, tests/gs/test_operator_differential_loops.py. The diffstat reconciles at 3 files, 35 insertions / 11 deletions. operator.py and transform_geometry_source.py, declared but unchanged, needed no edit; no docs fragment and no figure were written."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: a type-6 differential flux-loop mapping now carries no positioned slot \u2014 SensorMapping.efm_index is `int | None` and the machine-map adapter's type-6 branch (imas_ambix/data/geometry_adapter.py:241) builds efm_index=None in place of the -1 sentinel, so an unguarded consumer raises TypeError on the loop-list lookup instead of silently returning the last positioned loop; all four efm_index read/index sites (operator.py:734, geometry_adapter.py:809, geometry.py:824, transform_geometry_source.py:202) remain guarded on indices_differential and are reached only for a positioned mapping. EVIDENCE: six-file gate re-run 101 passed EXIT=0 at f2aa8e1c in a scratch tree under $TMPDIR; base arm at 8f7ea867 100 passed EXIT=0; declared negative control reproduced by an independent mutation (1 failed, 4 passed, EXIT=1); ruff clean on the three changed files. The reviewed run's own after_suite is complete and readable; its baseline_suite is empty and gate-base.log is truncated, so its own added-failure count is not derivable \u2014 measured here as 0 (base 100 passed, no added failures). SCOPE: three declared files, diffstat 35/11, nothing else. DURABILITY: the new test test_differential_entry_carries_no_slot_index is falsifiable and reddens under the mutation; the residual gap is that the widened Optional flows into three int-typed sites whose pre-existing guards are not each pinned by a test (follow-on). FIT/REUSE: extends SensorMapping and the existing guard pattern, no new mechanism. Record-completeness follow-on: the reviewed run left its armed-suite pair half-written because its process ended mid-turn during the base arm.",
+  "review_run_id": "r-20261007T172522690689-review-of-jtmm-differential-loop-index-none",
+  "reviewed_base_sha": "8f7ea867242969cdede25444430d0fecd9eaebb5",
+  "reviewed_head_sha": "f2aa8e1c7037e566c29bdc294fffefd0e82fb845",
+  "reviewed_run_id": "r-20261007T170252881010-jtmm-differential-loop-index-none",
+  "reviewer": {
+    "backend": "clive",
+    "effort": "high",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T17:40:00Z",
+  "total": 116
+}

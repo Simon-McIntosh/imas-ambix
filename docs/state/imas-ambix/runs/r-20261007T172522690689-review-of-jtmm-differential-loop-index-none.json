@@ -1,0 +1,618 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "read-only",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "1b1fa48c0eaafa9fe9bb121779af4d0aef6d101e",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 3019496,
+      "input_tokens_cumulative": 3019496,
+      "output_tokens": 31626,
+      "output_tokens_cumulative": 31626,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "clone_matches": {
+    "reason": "the run asserted no revision pair to compare",
+    "status": "unmeasured"
+  },
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-10-07T17:40:41.286Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-07T17:25:34Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "gate-base.log"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"import json; d=json.load(open('/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261007T170252881010-jtmm-differential-loop-index-none.json')); print(d['total'], d['status']); assert d['status']=='parsed'\"",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T172522690689-review-of-jtmm-differential-loop-index-none/gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.81,
+    "plan": "jt60sa-machine-map",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-07T17:55:23.799246+00:00",
+    "horizon_seconds": 1800,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-07T17:25:23Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 21,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 2,
+    "headroom": 14,
+    "mean_context": 120000,
+    "observed_at": "2026-10-07T17:25:02Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 21,
+      "aggregate_tokens_per_second": 283.24,
+      "detail": "",
+      "mean_tokens_per_second": 118.017,
+      "observed_at": "2026-10-07T17:25:02Z",
+      "runs": 2.4,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-07T17:40:41.286Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T172522690689-review-of-jtmm-differential-loop-index-none/manifest.md",
+  "member": "disposable-r-20261007T172522690689-review-of-jtmm-differential-loop-index-none",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "review record only; no source change",
+  "node": "review-of-jtmm-differential-loop-index-none",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 501,
+          "cached_input_tokens": 472837,
+          "input_tokens": 473340,
+          "output_tokens": 83,
+          "reasoning_output_tokens": 54,
+          "total_tokens": 473423,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "c66d1ea6-525d-4cec-8114-013919000083",
+      "session_id": "c66d1ea6-525d-4cec-8114-013919000083"
+    },
+    "done_when": "the review for r-20261007T170252881010-jtmm-differential-loop-index-none stores a parsed record scoring all 6 dimensions in the range 0..20, recording the revision it read as reviewed_base_sha and reviewed_head_sha, and carrying added_failure_count and added_failure_ids derived from the reviewed run's own baseline_suite and after_suite gate logs; the turn ends once that record is stored and the manifest reads complete",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20261007T170252881010-jtmm-differential-loop-index-none",
+    "id": "review-of-jtmm-differential-loop-index-none",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-07T17:25:23Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 21,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 2,
+      "headroom": 14,
+      "mean_context": 120000,
+      "observed_at": "2026-10-07T17:25:02Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 21,
+        "aggregate_tokens_per_second": 283.24,
+        "detail": "",
+        "mean_tokens_per_second": 118.017,
+        "observed_at": "2026-10-07T17:25:02Z",
+        "runs": 2.4,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T172522690689-review-of-jtmm-differential-loop-index-none/manifest.md",
+    "negative_control": "",
+    "plan": "jt60sa-machine-map",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§6",
+    "spec_level": "exact",
+    "time_budget": "30m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261007T170252881010-jtmm-differential-loop-index-none.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261007T170252881010-jtmm-differential-loop-index-none.at-f2aa8e1c7037e566c29bdc294fffefd0e82fb845.json"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": 1966243.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "review-of-jtmm-differential-loop-index-none",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-07T17:25:26.958039+00:00",
+    "score": 0.55,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "route",
+    "answering_model": "typesafe/jev-1.13-20260917",
+    "backend": "clive",
+    "comment": "",
+    "confidence": 0.8,
+    "decision_source": "jev",
+    "effort": "high",
+    "excluded": [
+      {
+        "availability": "not-probed",
+        "backend": "claude",
+        "budget_age_s": 1252725.965545,
+        "budget_reason": null,
+        "burn_multiple": 0.95,
+        "congestion": null,
+        "context": null,
+        "days_to_reset": 0.0,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-sonnet-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.055000000000000056,
+        "reasons": [
+          "review-excluded-backend"
+        ],
+        "resets_at": "2026-09-27T06:00:00+00:00",
+        "stale": true,
+        "utilisation_pct": 95.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "not-probed",
+        "backend": "claude-haiku",
+        "budget_age_s": 1252725.965545,
+        "budget_reason": null,
+        "burn_multiple": 0.95,
+        "congestion": null,
+        "context": null,
+        "days_to_reset": 0.0,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-haiku-4-5-20251001",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.055000000000000056,
+        "reasons": [
+          "review-excluded-backend"
+        ],
+        "resets_at": "2026-09-27T06:00:00+00:00",
+        "stale": true,
+        "utilisation_pct": 95.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "not-probed",
+        "backend": "claude-opus",
+        "budget_age_s": 1252725.965545,
+        "budget_reason": null,
+        "burn_multiple": 0.95,
+        "congestion": null,
+        "context": null,
+        "days_to_reset": 0.0,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-opus-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.055000000000000056,
+        "reasons": [
+          "review-excluded-backend"
+        ],
+        "resets_at": "2026-09-27T06:00:00+00:00",
+        "stale": true,
+        "utilisation_pct": 95.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "not-probed",
+        "backend": "codex",
+        "budget_age_s": 61.771545,
+        "budget_reason": null,
+        "burn_multiple": 1.1036294410596055,
+        "congestion": null,
+        "context": null,
+        "days_to_reset": 6.492581255266203,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-sol",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 1,
+          "passed": 1,
+          "unknown": 0
+        },
+        "pace_allowance": 0.07973690871775796,
+        "reasons": [
+          "review-excluded-backend"
+        ],
+        "resets_at": "2026-10-14T05:14:59+00:00",
+        "stale": false,
+        "utilisation_pct": 8.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "not-probed",
+        "backend": "codex-astra",
+        "budget_age_s": 61.771545,
+        "budget_reason": null,
+        "burn_multiple": 1.1036294410596055,
+        "congestion": null,
+        "context": null,
+        "days_to_reset": 6.492581255266203,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-astra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.07973690871775796,
+        "reasons": [
+          "review-excluded-backend"
+        ],
+        "resets_at": "2026-10-14T05:14:59+00:00",
+        "stale": false,
+        "utilisation_pct": 8.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "not-probed",
+        "backend": "codex-luna",
+        "budget_age_s": 61.771545,
+        "budget_reason": null,
+        "burn_multiple": 1.1036294410596055,
+        "congestion": null,
+        "context": null,
+        "days_to_reset": 6.492581255266203,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-luna",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.07973690871775796,
+        "reasons": [
+          "review-excluded-backend"
+        ],
+        "resets_at": "2026-10-14T05:14:59+00:00",
+        "stale": false,
+        "utilisation_pct": 8.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "not-probed",
+        "backend": "native",
+        "budget_age_s": null,
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "context": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "in-harness",
+        "local": false,
+        "model": null,
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "review-excluded-backend",
+          "in-harness-backend"
+        ],
+        "resets_at": null,
+        "stale": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "fallback_reason": null,
+    "family": "local",
+    "jev_latency_ms": 542.208,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 3193.125,
+    "model": "deepseek-v4.1-flash",
+    "offered": [
+      {
+        "availability": "served",
+        "backend": "clive",
+        "budget_age_s": null,
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": {
+          "admission_verdict": "open",
+          "running": 1,
+          "slots_state": "measured",
+          "stale": false,
+          "waiting": 0
+        },
+        "context": {
+          "estimated_tokens": 50392,
+          "headroom_pct": 78.1,
+          "peak_utilisation_p50_pct": 53.2,
+          "peak_utilisation_p90_pct": 75.3,
+          "peak_utilisation_runs": 562,
+          "window_tokens": 230144
+        },
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "local",
+        "local": true,
+        "model": "deepseek-v4.1-flash",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 47,
+          "passed": 417,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "stale": null,
+        "utilisation_pct": null,
+        "worker_slots": 45
+      }
+    ],
+    "probabilities": {
+      "clive": 0.9,
+      "hold": 0.1
+    },
+    "rendered_token_estimate": 442,
+    "usage": {
+      "cost": 6.6906e-05,
+      "input_tokens": 1593,
+      "output_tokens": 33
+    }
+  },
+  "plan": "jt60sa-machine-map",
+  "plan_impl_at_dispatch": 0.81,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "1b1fa48c0eaafa9fe9bb121779af4d0aef6d101e",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "id": "r-20261007T172522690689-review-of-jtmm-differential-loop-index-none",
+    "reviewed_base_sha": "8f7ea867242969cdede25444430d0fecd9eaebb5",
+    "reviewed_head_sha": "f2aa8e1c7037e566c29bdc294fffefd0e82fb845",
+    "scores": {
+      "durability": 19,
+      "evidence": 18,
+      "fit": 19,
+      "goal_fidelity": 20,
+      "reuse": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 116
+  },
+  "review_tier": "none",
+  "role": "review",
+  "route_mode": "explicit",
+  "run_id": "r-20261007T172522690689-review-of-jtmm-differential-loop-index-none",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§6",
+  "session": "c66d1ea6-525d-4cec-8114-013919000083",
+  "session_harness": "claude",
+  "session_id": "6c9d4257-c7d1-4e07-88f3-346a81bae3ae",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 3019496,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 903.244,
+    "generated_tokens": 31626,
+    "generation_seconds": 447.241,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 58.9,
+    "machine_seconds": 456.003,
+    "peak_input_tokens": 135493,
+    "tokens_per_second": 70.71,
+    "wall_tokens_per_second": 35.01
+  },
+  "time_budget": "30m",
+  "tool_steps": 37.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 907,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-07T17:40:48Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-07T17:25:38Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261007T172522690689-review-of-jtmm-differential-loop-index-none",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 6290,
+    "worker_pid": 408513
+  },
+  "worker_seconds": 886,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
