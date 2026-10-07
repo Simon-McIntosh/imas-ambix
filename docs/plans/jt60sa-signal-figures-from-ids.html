@@ -25,7 +25,7 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="20">
+<meta name="plan-version" content="21">
 <meta name="plan-modified" content="2026-10-07">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
@@ -115,9 +115,10 @@
       have no development default yet. jt60sa-facility-mint's coordinator is adding one in a section that lands after
       that plan's §1: a bundle store role, <code>ids_root</code>, that ambix's bundle declares and that
       <code>resolve_settings</code> falls back to after <code>--out</code>, <code>IMAS_ALAMBIC_IDS_ROOT</code> and
-      <code>IMAS_ALAMBIC_HOME/ids</code>. Until it lands, the entry point falls back to
-      <code>imas_ambix/data/paths.py</code> <code>JT60SA_ROOT / "ids"</code>, where <code>jtfm-write-dev-pulses</code>
-      wrote both files. <code>paths.py</code> stays the owner of the <code>/work</code> layout through that plan's
+      <code>IMAS_ALAMBIC_HOME/ids</code>. Until it lands, the entry point falls back to a new constant this section adds to the
+      layout's owner, <code>imas_ambix/data/paths.py</code> <code>JT60SA_IDS_DIR = JT60SA_ROOT / "ids"</code>, where
+      <code>jtfm-write-dev-pulses</code> wrote both files. The script holds no path component of its own, and
+      jt60sa-facility-mint §12 can declare its <code>ids_root</code> role from the same constant. <code>paths.py</code> stays the owner of the <code>/work</code> layout through that plan's
       §1, which removes <code>JT60SA_ROOT</code> from ambix's bundle, so a bundle-root fallback would break when §1
       lands. The fallback is marked interim in the code. It retires when settings carry the <code>ids_root</code>
       default, after which the entry point calls <code>resolve_settings().ids_root</code> with <code>pulse_path</code>
