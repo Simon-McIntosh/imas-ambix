@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.73">
-<meta name="plan-version" content="279">
+<meta name="plan-version" content="280">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -1798,6 +1798,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20261007T0055-landings" data-who="reckon-build" data-when="2026-10-07T00:55:00Z">
     <div class="r-comment-body">Landed: jtmm-selene-output-locate (merge c049bf80, review 95/120, three citation slips corrected in 36c3fe07) and jtmm-vacuum-verdicts-author (merge e15fad1e, review 114/120, 37 passed): the JT-60SA magnetics map carries 17 corpus-validated rules, probes 1-16 at +1 and flux loop 7 at -1. impl 52 of about 71 executable nodes (three added: PSRC inventory, OP1 shot survey, OP1 shot fetch).</div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261007T005617527267-jtmm-psrc-selene-inventory" data-who="reckon-build" data-when="2026-10-07T01:11:39.662Z">
+    <div class="r-comment-body"><p>§6 fragment docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-selene-inventory.html inventories the E101154 PSRC equilibrium arrays - 86 of 143 candidate names served (57 FL1..34/TC1..23 absent, irc 1022; real names are magFluxLp*/magPbTC*), 78 single-channel arrays fetched through fetch_channels in one ssh session, 0 refused; six multi-channel flux/aux arrays (surfABVxp 604x11520 mm, surfBLWxp 204x11520 mm, surfp 8x11520 m, ieddy 203x11520 A, ishape 2x46079 -, calMMS 310x71519 -) refused by the extractor&#x27;s unit policy and read by a direct wrapper probe; calbetap=0.1 and calli=0.8 uniform over all 46078 samples (seeds, not results); 6.0 s slice vs imas-efit equilibrium.h5 (idx 79): dIp=-176.4 A, dAxisR=+0.000035 m, dAxisZ=-0.00053 m, dBoundary_Rout=+0.0010 m, dBoundary_Zmax=+0.0009 m, dBoundary_Rin=+0.0001 m, dBoundary_Zmin=-0.0011 m.</p></div>
 </div>
 <div class="r-comment" data-section="_top" data-id="c-20261007T0000-jtfm-move" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-06T23:00:00Z">
     <div class="r-comment-body"><p><strong>Coordination, lead-approved 2026-10-06:</strong> <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §2 is now moving the mint engine into the workspace member <code>packages/imas-alambic/</code>. Moving: <code>imas_ambix/data/{machine_map,signal_map,transform_engine,virtual_zarr,eddb,eddb_remote,pulse_mint}.py</code>, <code>imas_ambix/cocos.py</code> and <code>machine_maps/schema.yaml</code>. Imports become <code>imas_alambic.&lt;module&gt;</code>, and <code>nova.io.cocos</code> becomes <code>nova_cocos</code>. <strong>Map JSON is not moving</strong>: <code>machine_maps/*.json</code> and <code>maps/&lt;machine&gt;/*.json</code> stay where they are, and the by-name loaders keep their names, so map-authoring nodes are unaffected. Please avoid dispatching nodes that edit the moving Python modules until the move merges. A node already in flight that touches them will need its imports rebased after the merge, and the facility-mint coordinator will do that rebase.</p></div>
