@@ -33,6 +33,7 @@ import zarr
 
 from imas_alambic.eddb import read_channel
 from imas_alambic.machine_map import load_packaged_machine_map
+from imas_alambic.signal_map import load_packaged_signal_map
 from imas_ambix.data.paths import JT60SA_ROOT, LEVEL1_DIR, LEVEL2_DIR
 from imas_ambix.gs.machine_geometry import MachineGeometryService
 from imas_ambix.gs.operator import COIL_MODEL_VERSION, build_operator
@@ -1084,9 +1085,6 @@ JT60SA_EVIDENCE_JSON = Path(
 JT60SA_EVIDENCE_HTML = Path(
     "docs/evidence/fragments/jt60sa-machine-map/jtmm-vacuum-adjudication.html"
 )
-JT60SA_COIL_MAP = (
-    Path(__file__).resolve().parents[1] / "imas_ambix/data/maps/jt-60sa/pf_active.json"
-)
 JT60SA_LOOP_CHANNELS: tuple[str, ...] = tuple(
     f"magFlxLp{index}" for index in range(1, 28)
 )
@@ -1105,9 +1103,9 @@ def _jt60sa_map_entry(catalog: Any, shot: int) -> Any:
 def _jt60sa_coil_channels() -> list[str]:
     """Ordered PF coil-current channels the DD map binds, by coil index."""
 
-    payload = json.loads(JT60SA_COIL_MAP.read_text())
-    rows = sorted(payload["signals"], key=lambda row: int(row["target_index"]))
-    return [str(row["source_array"]) for row in rows]
+    source_map = load_packaged_signal_map("jt-60sa", "pf_active")
+    rows = sorted(source_map.signals, key=lambda rule: int(rule.target_index))
+    return [rule.source_array for rule in rows]
 
 
 def _jt60sa_operator(shot: int, catalog: Any, channels: list[str]) -> Any:
@@ -1129,7 +1127,9 @@ def _jt60sa_operator(shot: int, catalog: Any, channels: list[str]) -> Any:
     topology = next(
         item for item in catalog.drive_topologies if item.name == entry.drive_topology
     )
-    order = list(dict.fromkeys(item.circuit_identifier for item in topology.connections))
+    order = list(
+        dict.fromkeys(item.circuit_identifier for item in topology.connections)
+    )
     per_ampere = {
         identity: float(
             sum(
@@ -1179,9 +1179,7 @@ def _jt60sa_quasi_static_mask(slew: np.ndarray, fraction: float) -> np.ndarray:
     return np.all(np.abs(slew) <= reference[None, :], axis=1)
 
 
-def _jt60sa_shot_data(
-    shot: int, catalog: Any, channels: list[str]
-) -> dict[str, Any]:
+def _jt60sa_shot_data(shot: int, catalog: Any, channels: list[str]) -> dict[str, Any]:
     operator = _jt60sa_operator(shot, catalog, channels)
     records = [read_channel(JT60SA_ROOT, shot, "MMSYS", name) for name in channels]
     time = np.asarray(records[0].time, dtype=np.float64)
@@ -1240,7 +1238,9 @@ def _jt60sa_fit(measured: np.ndarray, predicted: np.ndarray) -> dict[str, float]
     x = predicted[good] - float(np.mean(predicted[good]))
     y = measured[good] - float(np.mean(measured[good]))
     denominator = float(np.sqrt(np.sum(x * x) * np.sum(y * y)))
-    slope = float(np.sum(x * y) / np.sum(x * x)) if float(np.sum(x * x)) > 0.0 else np.nan
+    slope = (
+        float(np.sum(x * y) / np.sum(x * x)) if float(np.sum(x * x)) > 0.0 else np.nan
+    )
     correlation = float(np.sum(x * y) / denominator) if denominator > 0.0 else np.nan
     return {
         "slope": slope,
@@ -1410,7 +1410,7 @@ def _jt60sa_html(payload: dict[str, Any]) -> str:
         row = payload["channels"][channel]
         outliers = row["outliers"]
         lines.append(
-            f"      <p id=\"jtmm-vacuum-adjudication-{channel}\">{channel}: "
+            f'      <p id="jtmm-vacuum-adjudication-{channel}">{channel}: '
             f"<strong>{row['verdict']}</strong> &mdash; {row['reason']}"
             + (f" Outliers: {outliers}." if outliers else "")
             + "</p>"
@@ -1418,7 +1418,7 @@ def _jt60sa_html(payload: dict[str, Any]) -> str:
     lines.extend(
         [
             (
-                "      <p id=\"jtmm-vacuum-adjudication-negative-control\">Negative "
+                '      <p id="jtmm-vacuum-adjudication-negative-control">Negative '
                 f"control: swapping the measured channels of {payload['swap_control'][0]} "
                 f"and {payload['swap_control'][1]} changes both their verdicts "
                 f"({payload['negative_control']['control_verdicts'][payload['swap_control'][0]]['before']}"
@@ -1468,9 +1468,7 @@ def _run_jt60sa() -> int:
         if verdict == "undecided":
             undecided_reasons[channel] = reason
         slopes = [fit["slope"] for _, fit in fits if fit is not None]
-        correlations = [
-            abs(fit["pearson_r"]) for _, fit in fits if fit is not None
-        ]
+        correlations = [abs(fit["pearson_r"]) for _, fit in fits if fit is not None]
         channels_payload[channel] = {
             "verdict": verdict,
             "reason": reason,
@@ -1478,9 +1476,7 @@ def _run_jt60sa() -> int:
             "median_slope": float(np.median(slopes)) if slopes else None,
             "median_abs_r": float(np.median(correlations)) if correlations else None,
             "same_sign": len({bool(value > 0.0) for value in slopes}) == 1,
-            "shots": {
-                str(shot): fit_tables[shot][channel] for shot in JT60SA_SHOTS
-            },
+            "shots": {str(shot): fit_tables[shot][channel] for shot in JT60SA_SHOTS},
         }
     control_changed = [
         channel
