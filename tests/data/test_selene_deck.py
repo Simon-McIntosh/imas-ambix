@@ -177,9 +177,10 @@ def test_provenance_carries_path_sha256_and_line_range(decks):
     assert deck.tfc_inside[0].provenance.line_range() == [19, 19]
 
     geo_parsed = sd.parse_geo_in(geo)
-    assert geo_parsed.probes[0].provenance.sha256 == hashlib.sha256(
-        geo.read_bytes()
-    ).hexdigest()
+    assert (
+        geo_parsed.probes[0].provenance.sha256
+        == hashlib.sha256(geo.read_bytes()).hexdigest()
+    )
 
 
 def test_geo_in_parses_probes_and_flux_loops(decks):
@@ -215,9 +216,10 @@ def test_coil_vv_vessel_block_parses(decks):
     assert (r1, z1) == pytest.approx((1.7050, 1.8750))
     assert (r2, z2) == pytest.approx((1.7750, 2.0138))
     assert parsed.limiter_and_first_wall[0].provenance.line_range() == [12, 13]
-    assert parsed.vessel[0].provenance.sha256 == hashlib.sha256(
-        coil_vv.read_bytes()
-    ).hexdigest()
+    assert (
+        parsed.vessel[0].provenance.sha256
+        == hashlib.sha256(coil_vv.read_bytes()).hexdigest()
+    )
 
     # The contour block's Inner/Outer VV runs are the two vessel skins; its
     # D-probe run is a diagnostic probe and is excluded from both.
@@ -269,9 +271,9 @@ def test_writer_reads_back_at_dd_4_1_1(decks, tmp_path: Path):
     assert float(passive.loop[0].element[0].geometry.rectangle.width) == pytest.approx(
         0.036
     )
-    assert float(
-        passive.loop[0].element[0].geometry.rectangle.height
-    ) == pytest.approx(0.24969)
+    assert float(passive.loop[0].element[0].geometry.rectangle.height) == pytest.approx(
+        0.24969
+    )
     assert float(passive.loop[0].resistivity) == pytest.approx(7.20e-7)
 
     mag = read("magnetics")
@@ -419,8 +421,7 @@ def test_differential_flux_loops_follow_the_physical_loops():
         assert float(f.position[0].z) == pytest.approx(geo.flux_loops[i].z)
     expected = [[7, L] for L in range(1, 28) if L != 7]
     stored = [
-        [int(v) for v in np.asarray(f.indices_differential)]
-        for f in differential
+        [int(v) for v in np.asarray(f.indices_differential)] for f in differential
     ]
     assert stored == expected
     for f in differential:
@@ -529,18 +530,14 @@ def test_cryostat_inside_the_vessel_outer_skin_is_refused():
     # not a cryostat, so labelling the group CRYOSTAT must be refused.
     inside = [_fil(2.0, 0.0, 7.20e-7)]
     with pytest.raises(sd.CryostatEnvelopeError):
-        sd.build_pf_passive(
-            factory, vessel, inside, vessel_outer_skin=_SQUARE_SKIN
-        )
+        sd.build_pf_passive(factory, vessel, inside, vessel_outer_skin=_SQUARE_SKIN)
 
     # A filament inside the outer skin but outside the vessel filaments'
     # rectangular R-Z envelope is still refused: the containment test bounds
     # the vessel shape, not a box around its centres.
     corner = [_fil(2.5, -0.75, 7.20e-7)]
     with pytest.raises(sd.CryostatEnvelopeError):
-        sd.build_pf_passive(
-            factory, vessel, corner, vessel_outer_skin=_SQUARE_SKIN
-        )
+        sd.build_pf_passive(factory, vessel, corner, vessel_outer_skin=_SQUARE_SKIN)
 
     # A group outside the outer-skin polyline is accepted and becomes a loop.
     outside = [_fil(5.0, 0.0, 7.20e-7)]
@@ -614,7 +611,9 @@ def test_extent_columns_are_full_extents_of_a_real_element():
 
     factory = imas.IDSFactory("4.1.1")
     passive = sd.build_pf_passive(
-        factory, deck.vessel, deck.cryostat,
+        factory,
+        deck.vessel,
+        deck.cryostat,
         vessel_outer_skin=deck.vessel_skin_outer,
     )
     assert [str(loop.name) for loop in passive.loop] == ["VV", "CRYOSTAT"]
@@ -766,9 +765,12 @@ def test_both_phases_take_their_wall_from_their_own_coil_vv_deck(tmp_path: Path)
         out_r, out_z = pair(annular.outline_outer)
         return {
             "type": int(d.type.index),
-            "lim_r": lim_r, "lim_z": lim_z,
-            "in_r": in_r, "in_z": in_z,
-            "out_r": out_r, "out_z": out_z,
+            "lim_r": lim_r,
+            "lim_z": lim_z,
+            "in_r": in_r,
+            "in_z": in_z,
+            "out_r": out_r,
+            "out_z": out_z,
         }
 
     op1 = outlines("OP1", decks["OP1"])
@@ -863,7 +865,9 @@ def test_expected_names_are_assigned_in_deck_order(decks, phase_ids):
     eqsle, _, _ = decks
     deck = sd.parse_eqsle_deck(eqsle)
     passive = sd.build_pf_passive(
-        imas.IDSFactory("4.1.1"), deck.vessel, deck.cryostat,
+        imas.IDSFactory("4.1.1"),
+        deck.vessel,
+        deck.cryostat,
         vessel_outer_skin=deck.vessel_skin_outer,
     )
     assert [str(loop.name) for loop in passive.loop] == ["VV", "CRYOSTAT"]
@@ -905,7 +909,7 @@ def test_every_pf_active_coil_element_is_named_by_coil_and_position(phase_ids):
 # --------------------------------------------------------------------------
 # coil_vv contour-block hardening: the parse refuses decks it would mis-slice
 # --------------------------------------------------------------------------
-_FACILITY_SOURCE = Path("/work/projects/imas_gpu/jt60sa/machine_description/source")
+_FACILITY_SOURCE = JT60SA_DESCRIPTION_DIR / "source"
 _FACILITY_EQSLE = _FACILITY_SOURCE / "EQSLE.DATA"
 _FACILITY_COIL_VV_OP1 = _FACILITY_SOURCE / "coil_vv_OP1.dat"
 _FACILITY_COIL_VV_OP2 = _FACILITY_SOURCE / "coil_vv_OP2.dat"

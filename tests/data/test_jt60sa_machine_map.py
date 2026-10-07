@@ -1,7 +1,6 @@
-"""JT-60SA packaged machine-map catalogue over the converted per-phase store.
+"""JT-60SA bundle machine-map catalogue over the converted per-phase store.
 
-The catalogue at ``imas_ambix/data/machine_maps/jt-60sa.json`` declares the
-converted SELENE-deck description of ``JT60SA_DESCRIPTION_DIR`` as two
+The private bundle catalogue declares the converted SELENE-deck description as two
 range-scoped maps (OP1, OP2).  These tests check the declaration, that both
 phases emit and adapt through one machine-name-free code path against the real
 store, and that the phase boundary changes only the vessel.
@@ -16,6 +15,8 @@ import numpy as np
 import pytest
 
 from imas_alambic.machine_map import (
+    MachineMapError,
+    bundle_for_machine,
     load_machine_map,
     load_packaged_machine_map,
     map_for_shot,
@@ -27,9 +28,17 @@ from imas_alambic.transform_engine import (
 from imas_ambix.data.description_identity import machine_description_bytes
 from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.data.geometry_adapter import geometry_table_from_description
-from imas_ambix.data.paths import JT60SA_DESCRIPTION_DIR
 
-STORE_AVAILABLE = JT60SA_DESCRIPTION_DIR.is_dir()
+try:
+    BUNDLE = bundle_for_machine("jt-60sa")
+except MachineMapError:
+    BUNDLE = None
+pytestmark = pytest.mark.skipif(
+    BUNDLE is None,
+    reason="JT-60SA map bundle is unavailable; set IMAS_ALAMBIC_MAP_PATH",
+)
+DESCRIPTION_ROOT = BUNDLE.store_roots["description"] if BUNDLE else Path()
+STORE_AVAILABLE = BUNDLE is not None and DESCRIPTION_ROOT.is_dir()
 requires_store = pytest.mark.skipif(
     not STORE_AVAILABLE,
     reason="the JT-60SA converted description store is not mounted",
@@ -37,9 +46,18 @@ requires_store = pytest.mark.skipif(
 
 PHASE_SHOTS = {"OP1": 101173, "OP2": 101174}
 COIL_ELEMENT_COUNTS = {
-    "CS1": 40, "CS2": 40, "CS3": 40, "CS4": 40,
-    "EF1": 16, "EF2": 16, "EF3": 16, "EF4": 16, "EF5": 16, "EF6": 16,
-    "FPPC_UP": 6, "FPPC_DOWN": 6,
+    "CS1": 40,
+    "CS2": 40,
+    "CS3": 40,
+    "CS4": 40,
+    "EF1": 16,
+    "EF2": 16,
+    "EF3": 16,
+    "EF4": 16,
+    "EF5": 16,
+    "EF6": 16,
+    "FPPC_UP": 6,
+    "FPPC_DOWN": 6,
 }
 COIL_GEOMETRY_PREFIX = "pf_active/coil/element/geometry/"
 COIL_NAME_PATH = "pf_active/coil/element/name"
@@ -49,10 +67,18 @@ TURNS_PATH = "pf_active/coil/element/turns_with_sign"
 # 13.725 turns per CS coil (549), the six EF windings at 142, 154, 247, 353,
 # 152 and 180, and 23 for each FPPC coil.
 DECLARED_AMPERE_TURNS = {
-    "cs1": 549.0, "cs2": 549.0, "cs3": 549.0, "cs4": 549.0,
-    "ef1": 142.0, "ef2": 154.0, "ef3": 247.0,
-    "ef4": 353.0, "ef5": 152.0, "ef6": 180.0,
-    "fppc-up": 23.0, "fppc-down": 23.0,
+    "cs1": 549.0,
+    "cs2": 549.0,
+    "cs3": 549.0,
+    "cs4": 549.0,
+    "ef1": 142.0,
+    "ef2": 154.0,
+    "ef3": 247.0,
+    "ef4": 353.0,
+    "ef5": 152.0,
+    "ef6": 180.0,
+    "fppc-up": 23.0,
+    "fppc-down": 23.0,
 }
 
 
@@ -71,16 +97,13 @@ def _declared_ampere_turns(topology) -> dict[str, float]:
 
 
 def _bindings(catalog, binding_set):
-    return {
-        binding.name: binding
-        for binding in catalog.binding_sets[binding_set]
-    }
+    return {binding.name: binding for binding in catalog.binding_sets[binding_set]}
 
 
 def _emit(shot):
     catalog = load_packaged_machine_map("jt-60sa")
     description = transform_machine_description(
-        catalog, shot, "netcdf", JT60SA_DESCRIPTION_DIR
+        catalog, shot, "netcdf", DESCRIPTION_ROOT
     )
     assert description.status == "emitted", description.detail
     assert not description.missing_bindings
@@ -97,9 +120,8 @@ def _binding_payload(description):
     """
     payload: dict[str, tuple[str, str, tuple[int, ...], str]] = {}
     for array in description.arrays:
-        key = (
-            array.binding_name.replace("jt60sa-op1-", "jt60sa-")
-            .replace("jt60sa-op2-", "jt60sa-")
+        key = array.binding_name.replace("jt60sa-op1-", "jt60sa-").replace(
+            "jt60sa-op2-", "jt60sa-"
         )
         values = np.asarray(array.values)
         payload[key] = (
@@ -115,7 +137,7 @@ def test_catalogue_declares_the_two_phase_store_and_maps():
     catalog = load_packaged_machine_map("jt-60sa")
 
     assert catalog.description_store_format == "netcdf"
-    assert catalog.description_store_root == "JT60SA_DESCRIPTION_DIR"
+    assert catalog.description_store_root == "description"
     assert catalog.description_store_layout == "static-over-map"
     assert catalog.probe_angle_source == "description"
 
@@ -165,7 +187,7 @@ def test_drive_connection_turns_equal_the_stored_turns_with_sign():
     catalog = load_packaged_machine_map("jt-60sa")
     for phase, topology in zip(("OP1", "OP2"), catalog.drive_topologies, strict=True):
         with imas.DBEntry(
-            JT60SA_DESCRIPTION_DIR / phase / "pf_active.nc",
+            DESCRIPTION_ROOT / phase / "pf_active.nc",
             "r",
             dd_version=catalog.dd_version,
         ) as entry:
@@ -177,22 +199,21 @@ def test_drive_connection_turns_equal_the_stored_turns_with_sign():
         }
         for connection in topology.connections:
             element_name = connection.geometry_element_identifier.rsplit("/", 1)[-1]
-            assert connection.turns == pytest.approx(
-                stored[element_name], rel=1e-12
-            )
+            assert connection.turns == pytest.approx(stored[element_name], rel=1e-12)
 
 
 def test_pf_active_coils_declared_one_family_and_assembly_per_coil():
     catalog = load_packaged_machine_map("jt-60sa")
 
-    for phase, binding_set in (("OP1", "jt60sa-description-op1"),
-                               ("OP2", "jt60sa-description-op2")):
+    for phase, binding_set in (
+        ("OP1", "jt60sa-description-op1"),
+        ("OP2", "jt60sa-description-op2"),
+    ):
         bindings = _bindings(catalog, binding_set)
         for coil, count in COIL_ELEMENT_COUNTS.items():
             stem = f"jt60sa-{phase.lower()}-pf-active-{coil.lower().replace('_', '-')}"
             geometry = [
-                bindings[f"{stem}-{role}"]
-                for role in ("r", "z", "width", "height")
+                bindings[f"{stem}-{role}"] for role in ("r", "z", "width", "height")
             ]
             name_binding = bindings[f"{stem}-coordinate-element"]
             # Every coil-element binding selects this coil's struct-array entry
@@ -225,13 +246,7 @@ def test_no_element_identifier_is_a_trailing_slash_placeholder():
     converter names each element, the identifier must carry that name, so no
     identifier in the catalogue may end in a slash.
     """
-    source = (
-        Path(__file__).resolve().parents[2]
-        / "imas_ambix"
-        / "data"
-        / "machine_maps"
-        / "jt-60sa.json"
-    )
+    source = BUNDLE.machine_map_path("jt-60sa")
     payload = json.loads(source.read_text())
     offenders = [
         identifier
@@ -330,7 +345,7 @@ def test_description_route_supplies_the_stored_poloidal_angle_for_every_probe():
     shot = 100595
     catalogue = load_packaged_machine_map("jt-60sa")
     description = transform_machine_description(
-        catalogue, shot, "netcdf", JT60SA_DESCRIPTION_DIR
+        catalogue, shot, "netcdf", DESCRIPTION_ROOT
     )
     assert description.status == "emitted", description.detail
     angle_arrays = [
@@ -343,7 +358,7 @@ def test_description_route_supplies_the_stored_poloidal_angle_for_every_probe():
 
     stored_deg: dict[str, float] = {}
     with imas.DBEntry(
-        JT60SA_DESCRIPTION_DIR / "OP1" / "magnetics.nc",
+        DESCRIPTION_ROOT / "OP1" / "magnetics.nc",
         "r",
         dd_version=catalogue.dd_version,
     ) as entry:
@@ -356,9 +371,7 @@ def test_description_route_supplies_the_stored_poloidal_angle_for_every_probe():
     probes = [item for item in table.sensor_map if item.kind == "b_probe"]
     assert [item.amb_channel for item in probes] == list(stored_deg)
     for probe in probes:
-        assert probe.angle_deg == pytest.approx(
-            stored_deg[probe.amb_channel], abs=1e-9
-        )
+        assert probe.angle_deg == pytest.approx(stored_deg[probe.amb_channel], abs=1e-9)
         assert probe.flag == ""
 
 
@@ -415,9 +428,7 @@ def test_phase_boundary_changes_only_the_vessel_and_wall():
         key for key in shared if key.startswith("jt60sa-pf-passive-cryostat")
     ]
     assert cryostat_keys
-    assert all(
-        before_payload[key] == after_payload[key] for key in cryostat_keys
-    )
+    assert all(before_payload[key] == after_payload[key] for key in cryostat_keys)
 
     # The wall moves: each phase's limiter and vessel unit come from its own
     # coil_vv deck, and the first wall changed for OP2, so the shared limiter
@@ -428,9 +439,7 @@ def test_phase_boundary_changes_only_the_vessel_and_wall():
     # Both phases now carry the vessel unit (annular inner and outer outlines).
     # The vessel's contour table is the same in both decks, so those bindings
     # are byte-equal across the boundary.
-    wall_vessel_keys = [
-        key for key in shared if key.startswith("jt60sa-wall-vessel-")
-    ]
+    wall_vessel_keys = [key for key in shared if key.startswith("jt60sa-wall-vessel-")]
     assert wall_vessel_keys
     assert all(before_payload[key] == after_payload[key] for key in wall_vessel_keys)
 
@@ -449,13 +458,7 @@ def test_phase_boundary_changes_only_the_vessel_and_wall():
 
 def test_dropping_the_coil_selector_refuses_the_ragged_read(tmp_path: Path):
     """Negative control: without the coil selector the ragged read must fail."""
-    source = (
-        Path(__file__).resolve().parents[2]
-        / "imas_ambix"
-        / "data"
-        / "machine_maps"
-        / "jt-60sa.json"
-    )
+    source = BUNDLE.machine_map_path("jt-60sa")
     payload = json.loads(source.read_text())
     stripped = 0
     for binding_set in payload["binding_sets"]:
@@ -473,4 +476,4 @@ def test_dropping_the_coil_selector_refuses_the_ragged_read(tmp_path: Path):
     catalog = load_machine_map(mutated)
 
     with pytest.raises(BindingTransformError, match="ragged"):
-        transform_machine_description(catalog, 101173, "netcdf", JT60SA_DESCRIPTION_DIR)
+        transform_machine_description(catalog, 101173, "netcdf", DESCRIPTION_ROOT)
