@@ -21,6 +21,7 @@ from __future__ import annotations
 import imas
 import numpy as np
 import pytest
+from imas.ids_struct_array import IDSStructArray
 from imas.util import idsdiffgen
 
 from imas_alambic.eddb import read_channel
@@ -91,20 +92,66 @@ def _is_named(diff_path: str, leaf_paths: set[str]) -> bool:
     )
 
 
+def _leaves_of(receipt, ids_name: str):
+    return [leaf for leaf in receipt.leaves if leaf.ids == ids_name]
+
+
+def _expected_homogeneous_time(receipt, ids_name: str) -> int:
+    """The homogeneous_time the writer's own receipt implies for one IDS.
+
+    1 when every leaf the receipt names for the IDS carries its time base at
+    the IDS-level ``time`` path; 0 when the leaves carry their own time
+    vectors; 2 when the IDS has no time-dependent leaf.
+    """
+
+    leaves = _leaves_of(receipt, ids_name)
+    if not leaves:
+        return 2
+    if all(leaf.time_path == f"{ids_name}/time" for leaf in leaves):
+        return 1
+    return 0
+
+
+def _nodes_at(ids, relative: str):
+    """Every node a receipt path reaches, expanding struct arrays as it goes.
+
+    A receipt path names the struct array, not the element (``flux_loop`` and
+    not ``flux_loop[3]``), so one receipt leaf stands for every element the
+    writer filled; each element's time vector is checked against the leaf.
+    """
+
+    nodes = [ids]
+    for component in relative.split("/"):
+        children = []
+        for node in nodes:
+            child = getattr(node, component)
+            if isinstance(child, IDSStructArray):
+                children.extend(child)
+            else:
+                children.append(child)
+        nodes = children
+    return nodes
+
+
 def test_write_covers_every_description_ids(receipt):
     assert receipt.ids_written == IDS_NAMES
     assert receipt.phase == "OP1"
-    # The three IDSs the maps serve carry the signals written into them, so
-    # their time base is declared; the two with no dynamic leaf are written
-    # whole from the description and keep its unset convention.
-    served = {"pf_active", "tf", "magnetics"}
+    # The expected value comes from the receipt, not a fixed set: an IDS whose
+    # served leaves all share the IDS-level time path is homogeneous; one whose
+    # leaves carry their own time vectors is not; one the map serves nothing
+    # into is written whole from the description and keeps its unset convention.
     for ids_name in IDS_NAMES:
         assert ids_name in receipt.files
         read = _read(receipt, ids_name)
-        if ids_name in served:
-            assert read.ids_properties.homogeneous_time == 1
-        else:
-            assert read.ids_properties.homogeneous_time == 2
+        expected = _expected_homogeneous_time(receipt, ids_name)
+        assert read.ids_properties.homogeneous_time == expected, ids_name
+        if expected != 0:
+            continue
+        for leaf in _leaves_of(receipt, ids_name):
+            times = _nodes_at(read, _relative(leaf.time_path, ids_name))
+            assert times, leaf.time_path
+            for time in times:
+                assert len(time) == leaf.samples, (ids_name, leaf.target_path)
 
 
 def test_served_coil_currents_match_the_compiled_map(receipt):
