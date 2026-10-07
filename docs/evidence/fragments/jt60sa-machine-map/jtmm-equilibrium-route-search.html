@@ -59,7 +59,7 @@ every <code>.eqdbms</code>) and data root <code>/JT60SA_EQ/FAME3</code>
 (<code>echoFameDir</code>). The E101154 attempt:
 </p>
 <pre id="jtmm-equilibrium-route-search-r1-call"><code>tool = FleddTool("/analysis/lib/libFLEDDPIC.so")
-tool.GetTimeList(0, 101154)      ->  105 slices   (500 .. 11500 ms; the local index lists)
+tool.GetTimeList(0, 101154)      ->  105 slices   (the logged call reports the count only)
 tool.GetEqData(0, 101154, 500)   ->  IRET = 300   (library printed "eqtyp, code, sshot, ttime = 0 1 101154 500")
 tool.GetEqItem("PSI")            ->  shape (0,)    ; RG, ZG, QQV, SIV, TTCU all shape (0,)</code></pre>
 <p id="jtmm-equilibrium-route-search-r1-read">
@@ -202,6 +202,7 @@ the FAME EQDB: <code>prova/jt60eg.py</code> and
 
 <h3 id="jtmm-equilibrium-route-search-answer">Answer: no route reachable from intr26-2 reaches E101154's psi grid and q profile</h3>
 
+<p id="jtmm-equilibrium-route-search-answer-op1">For OP1 in general the answer is narrower: the G-EQDSK for shot 101011 in <code>/home/d240034/fbequ/EFIT95.DATA</code> is reachable and carries psi on a 129&times;129 grid and q, so one OP1 equilibrium with both is in reach; E101154 and the other shots on the identified list are not.</p>
 <p id="jtmm-equilibrium-route-search-answer-p">
 The only source keyed <em>to E101154</em> that carries both a psi grid
 (<code>PSI</code>, 129&times;129) and a q profile (<code>QQV</code>) is the FAME
