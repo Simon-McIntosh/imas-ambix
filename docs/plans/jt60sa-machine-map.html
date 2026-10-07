@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.73">
-<meta name="plan-version" content="277">
+<meta name="plan-version" content="278">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -801,11 +801,25 @@
       and 0.8. It compares one slice with imas-efit's curated reference and writes one fragment. The
       SELENE loader follows it, then the FAME loader once the server is reachable, then the JT-60SA
       cohort and the sign report.
-      The cohort and the maps need more than three plasma shots.
-      <code>jtmm-op1-shot-survey</code> is read-only on nakasvr26. It finds the JT-60SA shot database
-      and the catalogue tools the site provides beside <code>eddbreadCatTable</code>, and ranks the
-      OP1 plasma shots by peak plasma current, peak β and plasma volume, marking which carry a PSRC
-      (SELENE) reconstruction. It also identifies the first JT-60SA plasma. Its deliverable is the
+      FAME is JT-60SA's offline equilibrium reconstruction, which imas-efit's shot sweep calls the
+      operational SELENE-equivalent reference. It reaches us by two routes. Its scalar summaries, such
+      as the plasma volume <code>FAME/VOLUM</code>, sit in an EDDB <code>FAME</code> category that the
+      existing channel extractor reads today. Its full records sit in the EQDB on
+      <code>dbsvr17p</code> and hold psi on a 129&times;129 grid, the boundary, the axis, p&prime;,
+      FF&prime;, and the q, volume, pressure and F profiles. Those full records are what the deferred
+      transport would serve. They are needed only if PSRC carries no q profile or flux grid, which
+      <code>jtmm-psrc-selene-inventory</code> settles.
+      The cohort and the maps need more than three plasma shots. An OP1 sweep already exists:
+      imas-efit's <code>docs/jt60sa-shot-candidates.html</code> read all 1167 E-series shots through
+      the EDDB library, found 228 with a <code>PSRC/calIp</code> peak of at least 50 kA, and ranked them
+      by peak plasma current, flat-top duration and <code>FAME/VOLUM</code>, with disruptions taken
+      from the EDDB shot list <code>disruplist</code>. It also found that the shots above 1.5 MA are
+      transient spikes under 1 s, and that the largest sustained current is about 1.0 MA.
+      <code>jtmm-op1-shot-survey</code> is read-only on nakasvr26 and starts from that table rather
+      than sweeping again. It reads only what the table lacks: peak β from the EDDB <code>FAME</code>
+      category, and the catalogue tools the site provides beside <code>eddbreadCatTable</code>. It ranks
+      the OP1 plasma shots by peak sustained plasma current, peak β and plasma volume, marking which
+      carry a PSRC (SELENE) reconstruction. It also identifies the first JT-60SA plasma. Its deliverable is the
       identified OP1 shot list: the first plasma and the high-value shots from those three rankings,
       each with its date, peak values, PSRC presence and the reason it was chosen. The maps, and the
       IDSs ambix produces from them, are tested against that list.
