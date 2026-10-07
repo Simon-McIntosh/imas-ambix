@@ -33,6 +33,7 @@ import os
 import shlex
 import struct
 import subprocess
+import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
@@ -41,12 +42,26 @@ import numpy as np
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
-#: The ssh invocation the extractor uses by default.  It is configuration, not
-#: a constant baked into the transport: a caller with a different control-master
-#: alias or config passes its own ``ssh_command``.  ``ssh -F ~/.ssh/config``
-#: does not expand ``~`` itself, so the config path is expanded at call time in
-#: :meth:`RemoteEddbExtractor._argv`.
-DEFAULT_SSH_COMMAND: tuple[str, ...] = ("ssh", "-F", "~/.ssh/config", "jt-60sa")
+def ssh_command_for_host(host: str) -> tuple[str, ...]:
+    """Compose the ssh route to ``host``, keeping the config file.
+
+    The one spelling of the ssh route: ``ssh -F ~/.ssh/config <host>``.  The
+    config path is a literal ``~`` here, not an expansion, because ``ssh -F``
+    does not expand ``~`` itself and :meth:`RemoteEddbExtractor._argv` expands
+    it at call time into an absolute path.  The remote module-load shell is
+    applied by :meth:`RemoteEddbExtractor._remote_shell_command` on whatever
+    route the extractor is given, so this function names only the host.
+    """
+
+    return ("ssh", "-F", "~/.ssh/config", host)
+
+
+#: The ssh invocation the extractor uses by default: the ssh route to the JT-60SA
+#: analysis server.  It is configuration, not a constant baked into the
+#: transport, because a caller with a different control-master alias or config
+#: passes its own ``ssh_command`` or names a host through the ``eddb_host``
+#: setting.  It is :func:`ssh_command_for_host` applied to ``jt-60sa``.
+DEFAULT_SSH_COMMAND: tuple[str, ...] = ssh_command_for_host("jt-60sa")
 
 #: The python on the analysis server is selected through the environment
 #: modules: the system ``python3`` is 3.9 without numpy, so the remote command
@@ -386,6 +401,25 @@ class RemoteEddbExtractor:
         return result
 
 
+def extractor_for_host(eddb_host: str | None) -> RemoteEddbExtractor:
+    """Build the extractor a resolved ``eddb_host`` setting names.
+
+    This is the one owner of the setting-to-transport mapping.  ``None`` keeps
+    today's route, ssh to jt-60sa; a host name composes the ssh route to that
+    host through :func:`ssh_command_for_host`; and ``local`` runs the reader in
+    place with an empty ``ssh_command`` and the engine's own interpreter as
+    ``remote_python``, because the extractor's default ``python`` on the
+    analysis server lacks numpy.  A blank string is treated like ``None``, so an
+    empty setting does not silently select the local route.
+    """
+
+    if eddb_host == "local":
+        return RemoteEddbExtractor(ssh_command=(), remote_python=sys.executable)
+    if eddb_host is None or eddb_host == "":
+        return RemoteEddbExtractor()
+    return RemoteEddbExtractor(ssh_command=ssh_command_for_host(eddb_host))
+
+
 # The script is executed by ``python3 -c`` on the analysis server, so it can
 # only use the standard library, numpy and eddb_pwrapper.  It mirrors the
 # envelope in :func:`encode_batch`: the same magic, the same uint32 header
@@ -527,5 +561,7 @@ __all__ = [
     "Transport",
     "decode_batch",
     "encode_batch",
+    "extractor_for_host",
     "normalise_unit",
+    "ssh_command_for_host",
 ]

@@ -54,6 +54,16 @@ def main() -> None:
     help="EDDB cache root; the flag form of IMAS_ALAMBIC_CACHE.",
 )
 @click.option(
+    "--eddb-host",
+    "eddb_host",
+    default=None,
+    help=(
+        "EDDB transport: unset keeps the ssh route to jt-60sa, a host name "
+        "composes the ssh route to that host, and local reads in place; the "
+        "flag form of IMAS_ALAMBIC_EDDB_HOST."
+    ),
+)
+@click.option(
     "--overwrite",
     is_flag=True,
     help="Replace an existing run file rather than refusing it.",
@@ -65,6 +75,7 @@ def write_cmd(
     maps: str | None,
     out_dir: str | None,
     cache: str | None,
+    eddb_host: str | None,
     overwrite: bool,
 ) -> None:
     """Write each PULSE's description IDSs with the signals the maps serve."""
@@ -80,7 +91,13 @@ def write_cmd(
     )
 
     settings = resolve_settings(
-        SettingsFlags(maps=maps, ids_root=out_dir, cache=cache, machine=machine)
+        SettingsFlags(
+            maps=maps,
+            ids_root=out_dir,
+            cache=cache,
+            machine=machine,
+            eddb_host=eddb_host,
+        )
     )
     try:
         machine_name = require_setting("machine", settings.machine, "--machine")
@@ -100,6 +117,7 @@ def write_cmd(
                 overwrite=overwrite,
                 maps=maps,
                 cache=cache,
+                eddb_host=eddb_host,
             )
         except PulseWriteError as error:
             raise click.ClickException(str(error)) from error

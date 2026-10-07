@@ -153,6 +153,10 @@ home=$(dirname -- "$here")
 unset PYTHONPATH
 IMAS_ALAMBIC_HOME=$home
 export IMAS_ALAMBIC_HOME
+# EDDB is on this machine, so the writer reads it in place rather than hopping
+# back over ssh.  `local` selects the local transport in settings.py.
+IMAS_ALAMBIC_EDDB_HOST=local
+export IMAS_ALAMBIC_EDDB_HOST
 exec "$home/tools/bin/imas-alambic" "$@"
 LAUNCHER
 chmod 0755 "$BINDIR/imas-alambic"

@@ -42,7 +42,13 @@ import imas
 import numpy as np
 from imas.ids_struct_array import IDSStructArray
 
-from imas_alambic.eddb import eddb_token, normalised_shot, read_channel
+from imas_alambic.eddb import (
+    eddb_token,
+    fetch_channels,
+    normalised_shot,
+    read_channel,
+)
+from imas_alambic.eddb_remote import ChannelRefusal, ChannelRequest, extractor_for_host
 from imas_alambic.machine_map import (
     MachineMap,
     MachineMapCatalog,
@@ -111,6 +117,7 @@ class WriteReceipt:
     ids_written: tuple[str, ...]
     leaves: tuple[WrittenLeaf, ...]
     excluded: tuple[ExcludedSignal, ...]
+    refused: tuple[ChannelRefusal, ...] = ()
     files: Mapping[str, str] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
@@ -138,6 +145,15 @@ class WriteReceipt:
             "excluded": [
                 {"ids": item.ids, "signal": item.signal, "reason": item.reason}
                 for item in self.excluded
+            ],
+            "refused": [
+                {
+                    "shot": item.shot,
+                    "category": item.category,
+                    "dname": item.dname,
+                    "code": int(item.code),
+                }
+                for item in self.refused
             ],
             "files": dict(self.files),
         }
@@ -204,11 +220,19 @@ def _served_entries(
     view: VirtualZarrView,
     cache_root: Path,
     shot_token: str,
+    refused_keys: frozenset[tuple[str, str]] = frozenset(),
 ) -> list[tuple[SignalRule, np.ndarray, np.ndarray]]:
-    """Resolve every served signal to its canonical values and cache time base."""
+    """Resolve every served signal to its canonical values and cache time base.
+
+    A rule whose source channel EDDB refused is skipped rather than read: the
+    channel was not cached, so the view would refuse it, and the refusal is
+    already carried on the receipt.  The remaining signals are written.
+    """
 
     entries: list[tuple[SignalRule, np.ndarray, np.ndarray]] = []
     for rule in signal_map.signals:
+        if (rule.source_group, rule.source_array) in refused_keys:
+            continue
         array = view.for_target(rule.target_path, rule.target_index)
         values = np.asarray(array[...], dtype=float)
         if values.ndim > 1:
@@ -248,8 +272,13 @@ def _write_one_ids(
 
     ``homogeneous_time`` is 1 when every served signal shares one time base, so
     the IDS's own ``time`` node carries it and no signal carries its own;
-    otherwise it is 0 and each signal's ``time`` sibling carries its base.
+    otherwise it is 0 and each signal's ``time`` sibling carries its base.  An
+    IDS every declared signal was refused for has nothing to write and is left
+    as the description read it.
     """
+
+    if not entries:
+        return []
 
     shared = _shared_time_base(entries)
     homogeneous = shared is not None
@@ -322,6 +351,31 @@ def _run_file_destination(path: Path) -> Iterator[Path]:
         raise
 
 
+def _channel_requests(
+    shot_token: str, maps_by_ids: Mapping[str, SignalMap]
+) -> list[ChannelRequest]:
+    """Build the EDDB requests the signal maps declare, one per source channel.
+
+    Each served rule names a ``(category, dname)`` source channel, addressed by
+    the pulse's full EDDB token.  Two maps declaring one channel make one
+    request, because the cache is keyed by that pair.
+    """
+
+    requests: dict[tuple[str, str], ChannelRequest] = {}
+    for signal_map in maps_by_ids.values():
+        for rule in signal_map.signals:
+            key = (rule.source_group, rule.source_array)
+            requests.setdefault(
+                key,
+                ChannelRequest(
+                    shot=shot_token,
+                    category=rule.source_group,
+                    dname=rule.source_array,
+                ),
+            )
+    return list(requests.values())
+
+
 def write_pulse(
     machine: str,
     shot: object,
@@ -331,6 +385,7 @@ def write_pulse(
     overwrite: bool = False,
     maps: str | None = None,
     cache: str | None = None,
+    eddb_host: str | None = None,
 ) -> WriteReceipt:
     """Write one shot's description IDSs with the signals the maps serve.
 
@@ -338,11 +393,18 @@ def write_pulse(
     dynamic values from the shot's EDDB cache, writes one DD netCDF file
     holding every description IDS at :func:`pulse_path`, and returns a
     :class:`WriteReceipt`.  The cache root is the resolved ``eddb_cache``
-    setting.  Refuses a shot with no cached pulse rather than writing empty
-    signals, and refuses an existing run file unless ``overwrite`` is set.
+    setting and the transport is the resolved ``eddb_host`` setting.
+
+    Before reading, the channels the maps declare are fetched into the cache, so
+    a pulse it has not cached before is fetched rather than refused; a channel
+    already cached makes no transport call.  A pulse the maps still leave with
+    no cached channel is refused rather than written with empty signals, and an
+    existing run file is refused unless ``overwrite`` is set.
     """
 
-    settings = resolve_settings(SettingsFlags(maps=maps, cache=cache))
+    settings = resolve_settings(
+        SettingsFlags(maps=maps, cache=cache, eddb_host=eddb_host)
+    )
     catalog = load_packaged_machine_map(machine, search_path=settings.maps.value)
     shot_int = int(normalised_shot(shot))
     shot_token = eddb_token(shot)
@@ -350,25 +412,40 @@ def write_pulse(
     description_root = _phase_directory(catalog, phase_map)
 
     cache_root = Path(str(settings.cache.value))
-    cache_dir = cache_root / f"{shot_int}.zarr"
-    if not cache_dir.is_dir():
-        raise PulseWriteError(
-            f"shot {shot_token} has no EDDB cache; {cache_dir} is absent"
-        )
-
     out_dir = Path(out_root)
     path = pulse_path(out_dir, shot_int, run)
     if path.exists() and not overwrite:
         raise PulseWriteError(
             f"run file {path} already exists; pass --overwrite to replace it"
         )
-    out_dir.mkdir(parents=True, exist_ok=True)
 
     bundle = bundle_for_machine(machine, search_path=settings.maps.value)
     maps_by_ids = {
         ids_name: load_signal_map(bundle.signal_map_path(machine, system))
         for ids_name, system in _SYSTEM_FOR_IDS.items()
     }
+
+    # Fetch the mapped channels before reading them: a pulse with no cache is
+    # populated here, and a channel already cached makes no transport call.
+    eddb_host_value = (
+        None if settings.eddb_host.value is None else str(settings.eddb_host.value)
+    )
+    fetch_result = fetch_channels(
+        extractor_for_host(eddb_host_value),
+        cache_root,
+        _channel_requests(shot_token, maps_by_ids),
+    )
+    refused_keys = frozenset(
+        (refusal.category, refusal.dname) for refusal in fetch_result.refusals
+    )
+
+    cache_dir = cache_root / f"{shot_int}.zarr"
+    if not cache_dir.is_dir():
+        raise PulseWriteError(
+            f"shot {shot_token} has no EDDB cache; {cache_dir} is absent"
+        )
+    out_dir.mkdir(parents=True, exist_ok=True)
+
     views = {
         ids_name: VirtualZarrView.open(str(cache_dir), signal_map, shot=shot_int)
         for ids_name, signal_map in maps_by_ids.items()
@@ -388,7 +465,11 @@ def write_pulse(
             signal_map = maps_by_ids.get(ids_name)
             if signal_map is not None:
                 entries = _served_entries(
-                    signal_map, views[ids_name], cache_root, shot_token
+                    signal_map,
+                    views[ids_name],
+                    cache_root,
+                    shot_token,
+                    refused_keys,
                 )
                 leaves.extend(_write_one_ids(ids_name, description, entries))
                 excluded.extend(_excluded_signals(ids_name, signal_map))
@@ -406,6 +487,7 @@ def write_pulse(
         ids_written=tuple(IDS_NAMES),
         leaves=tuple(sorted(leaves)),
         excluded=tuple(sorted(excluded)),
+        refused=tuple(sorted(fetch_result.refusals, key=lambda item: item.key)),
         files=MappingProxyType({ids_name: str(path) for ids_name in IDS_NAMES}),
     )
 
