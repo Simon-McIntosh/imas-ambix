@@ -1,0 +1,73 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "f3b13ba15d03e4365559acc10da7b3149a468253",
+  "call_site_count": 3,
+  "call_sites": [
+    "packages/imas-alambic/src/imas_alambic/settings.py:_ids_root -> _store_root_from_bundle(_IDS_ROOT_ROLE, \"IDS\", maps)",
+    "packages/imas-alambic/src/imas_alambic/settings.py:_cache -> _store_root_from_bundle(_CACHE_ROLE, \"cache\", maps)",
+    "scripts/figures_jt60sa_signals.py:66-67 -> resolve_settings + require_setting(\"ids_root\", ...)"
+  ],
+  "completed_at": "2026-10-07T09:21:40.418Z",
+  "dispatched_at": "2026-10-07T09:07:34Z",
+  "findings": [
+    {
+      "file": "docs/plans/jt60sa-facility-mint.html",
+      "line": "s12 done-when, bullet 4",
+      "severity": "follow-on",
+      "text": "follow-on: the section's fourth done-when bullet names an achievable-by-none case. It asks that with IMAS_ALAMBIC_MAP_PATH naming an EMPTY directory, load_packaged_machine_map('jt-60sa') raises a refusal naming both the machine and the variable. Verified against the reviewed head that it cannot: an empty directory is refused earlier by load_bundle_descriptor with 'cannot read bundle descriptor <dir>/bundle.json: [Errno 2] No such file or directory', a message naming neither the machine nor IMAS_ALAMBIC_MAP_PATH (reproduced here both with the packaged bundles present and with entry points disabled; a named directory must hold a bundle.json to be a bundle at all). The worker correctly substituted the reachable form: a map path naming a VALID bundle that does not carry jt-60sa, which reaches bundle_for_machine's refusal naming both, and pinned it in test_a_map_path_that_does_not_carry_jt60sa_is_refused_naming_both. The substitution is sound and the refusal the plan wanted is implemented and tested; the plan's wording should be corrected to the valid-bundle-without-the-machine case.",
+      "type": "plan-premise-wrong"
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T083907268753-jtfm-ids-root-default/ruff.log",
+      "line": "header revision line",
+      "severity": "follow-on",
+      "text": "follow-on: the reviewed run's ruff.log header names revision f3b13ba1 (the base) while its tree line and command name the head worktree, so the log's stamped revision disagrees with the tree it measured. The result reproduces regardless (an independent ruff run against the head tree returns 'All checks passed!', EXIT=0), and head_suite.log and base_suite.log carry their revisions correctly; only the ruff log's stamp is stale. Low value and non-behavioural.",
+      "type": "manifest-bookkeeping"
+    }
+  ],
+  "head_log_revision": "bd5dd12ed3af05714439e4e23cef468f3f226a46",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "resolve_settings' ids_root is consumed by imas-alambic config and by scripts/figures_jt60sa_signals.py through require_setting; _store_root_from_bundle is called by _ids_root and _cache.",
+    "diff": "One commit bd5dd12e changes eight files, 235 insertions / 18 deletions: settings.py (the ids_root role and the generalised helper), machine_map.py (the refusal names the variable), bundle.py (the ids_root role), scripts/figures_jt60sa_signals.py (fallback retired), the two test files, README.md and the fragment.",
+    "done_when": "Four of five bullets met as written; the fourth (empty directory) is unachievable and was substituted with a valid-bundle-without-the-machine case, documented in the manifest and verified here; ruff exits 0 and the package tests add no failures.",
+    "goal": "The IDS root resolves from the reachable bundle's ids_root role when nothing else names it, in the order --out, IMAS_ALAMBIC_IDS_ROOT, IMAS_ALAMBIC_HOME/ids, the role, unset; verified by the reproduced config measurement at both arms.",
+    "manifest": "status complete; commits [bd5dd12e]; baseline_suite and after_suite both completed with 0 failures; negative_control_log names the red arm. One inaccuracy: ruff.log's revision stamp names the base while the tree is the head.",
+    "write_paths": "All eight changed files are within the section's declared write paths; the diffstat and the manifest's changed_paths reconcile."
+  },
+  "justifications": {
+    "durability": "The new behaviour is held by five new tests covering each step of the order and two new tests covering the refusal; the bundle-role branch is falsifiable, demonstrated both by the reviewed run's declared control and by my own independent mutation, each reddening the same single test. The other two new refusals and the four remaining order steps are pinned by named tests that the head arm runs green. Not perfect because the empty-directory case the plan named has no test (it cannot be reached), so no test would fail if that specific refusal path regressed into the descriptor error.",
+    "evidence": "Independently reproduced, not read: the head arm re-run in a scratch git-archive extraction at bd5dd12e gives 40 passed (module.__file__ under the scratch tree); the base arm at f3b13ba1 gives 33 passed; uv run ruff check imas_ambix tests packages returns 'All checks passed!', EXIT=0 at the head; and the declared negative control was reproduced by my own mutation of the head (removing the _store_root_from_bundle branch from _ids_root), which reddens exactly test_ids_root_comes_from_the_bundle_role_when_nothing_else_names_it (1 failed, 9 passed, EXIT=1). All five order steps are pinned by named tests. The one blemish is the ruff.log revision stamp, a bookkeeping error that does not change the result.",
+    "fit": "Extends the existing mechanism rather than adding one: _cache_root_from_bundle becomes _store_root_from_bundle(role, kind, maps) and both the cache and the IDS root call it, so the two settings share one resolve_store_root call; each setting still carries its source and imas-alambic config prints it. The IDS root keeps the cache's shape (role below HOME, fall-through to unset) rather than inventing a new precedence. README updated to match.",
+    "goal_fidelity": "All four substantive requirements of the section land: resolve_settings resolves the IDS root as --out, IMAS_ALAMBIC_IDS_ROOT, IMAS_ALAMBIC_HOME/ids, the reachable bundle's ids_root role, then unset, with HOME above the role; bundle.py declares the ids_root role from paths.JT60SA_IDS_DIR; the figures script drops its JT60SA_IDS_DIR fallback and asks resolve_settings alone; bundle_for_machine's refusal names IMAS_ALAMBIC_MAP_PATH beside the machine. The headline measurement reproduces exactly (no IMAS_ALAMBIC_* set: head ids_root=/work/projects/imas_gpu/jt60sa/ids [bundle ids_root role], base ids_root=(unset)). One done-when bullet's literal premise is unachievable and was substituted, correctly and with a documented reason, so goal fidelity is marked down one step rather than perfect.",
+    "reuse": "Reuses resolve_store_root, discover_bundles and the existing store-role machinery; adds no new store path, no new discovery mechanism, and one new role name in the bundle the ambix package already declares. The figures script now reuses require_setting rather than carrying its own fallback.",
+    "scope_discipline": "Eight files changed, every one inside the section's declared write paths and the node's declared write paths: settings.py, machine_map.py, bundle.py, scripts/figures_jt60sa_signals.py, test_settings.py, test_bundle_discovery.py, README.md and the node's evidence fragment. bm5dd12e's parent f3b13ba1 is the only predecessor and no file outside the set is touched."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: resolve_settings resolves the IDS root as --out, IMAS_ALAMBIC_IDS_ROOT, IMAS_ALAMBIC_HOME/ids, the reachable bundle's ids_root role, otherwise unset, with HOME above the role; bundle.py declares the ids_root role from paths.JT60SA_IDS_DIR; the figures script drops its JT60SA_IDS_DIR fallback; bundle_for_machine's refusal names IMAS_ALAMBIC_MAP_PATH. EVIDENCE: head arm independently re-run 40 passed at bd5dd12e (module under scratch), base arm 33 passed at f3b13ba1, ruff EXIT=0, config head ids_root=/work/projects/imas_gpu/jt60sa/ids [bundle ids_root role] vs base (unset), negative control reproduced by my own mutation (1 failed, 9 passed, EXIT=1). SCOPE: eight files, all within the declared write paths. DURABILITY: five order tests and two refusal tests; the bundle-role branch is falsifiable by mutation. FIT: _cache_root_from_bundle generalised to _store_root_from_bundle, shared by cache and IDS root. REUSE: reuses resolve_store_root/discover_bundles, adds no store path. FOLLOW-ON: the section's empty-directory done-when is unachievable (an empty named directory is refused by load_bundle_descriptor before bundle_for_machine) and was soundly substituted and documented; and ruff.log's header revision stamp is stale.",
+  "review_run_id": "r-20261007T090720681235-review-of-jtfm-ids-root-default",
+  "reviewed_base_sha": "f3b13ba15d03e4365559acc10da7b3149a468253",
+  "reviewed_head_sha": "bd5dd12ed3af05714439e4e23cef468f3f226a46",
+  "reviewed_run_id": "r-20261007T083907268753-jtfm-ids-root-default",
+  "reviewer": {
+    "backend": "clive",
+    "effort": "high",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 18,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T09:18:01Z",
+  "total": 114
+}
