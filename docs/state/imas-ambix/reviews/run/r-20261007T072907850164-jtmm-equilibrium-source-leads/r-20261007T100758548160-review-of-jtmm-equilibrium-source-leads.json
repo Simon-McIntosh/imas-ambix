@@ -1,0 +1,73 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "not applicable: the reviewed run is a read-only docs/evidence node. Its manifest records tests=none and carries no baseline_suite or after_suite gate fields (both null in its classification.json), so there is no base-arm/head-arm pair from which to take an added-failure count. added_failure_count set to 0 and added_failure_ids to [] on that basis.",
+  "base_log_revision": "b839dae7f93173fbf7b25c16e5a4b395c16fb800",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T10:20:13.849Z",
+  "dispatched_at": "2026-10-07T10:08:18Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-equilibrium-source-leads.html",
+      "line": "48",
+      "severity": "follow-on",
+      "text": "The provenance line added at b6dd351a (lines 48-55) states that every number is 'rounded to five significant figures', but the table's cells are not: QAXIS +0.9989 is four significant figures (read 0.99886), Q95 +28.32 is four (read 28.3207), QSURF +97.62 is four (read 97.6188), while TTCU +353524 (read 353524) is six, unrounded. The cell values themselves now agree with the read; only the stated rounding rule is inaccurate. State the rounding actually applied, or round all cells uniformly to five significant figures."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-equilibrium-source-leads.html",
+      "line": "34",
+      "severity": "follow-on",
+      "text": "The FAME table header still labels the two per-channel value columns 'first t' and 'last t', but the cells hold the first and last sample VALUES, not times (QAXIS +0.9989 / +0.9982, Q95 +28.32 / +7.287 are signed q). The read's own tool line labels the same two numbers simply 'first' and 'last'. Raised against b6a5eceb and unchanged at b6dd351a; relabel 'first'/'last' (values) or carry the sample times, so the header matches the cells."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-equilibrium-source-leads.html",
+      "line": "169",
+      "severity": "follow-on",
+      "text": "The leads table states the Experiment Database Web API 'serves discharge and plant time series only ... not an equilibrium store', while the node's brief asked whether it serves EQDB or FAME records. The manual the node retrieved (pdftotext over /home/d240044/Code/jt60sa-agent/mindsdb/pdf/WEB API/WebAPI_UserGuide(rmssnd23)_EN_20240304.pdf, grepped for eqdb|fame|equilibrium) names the host rmssnd23.naka.qst.go.jp and port 50000 and describes the API as an interface 'for downloading data', but names neither EQDB nor FAME; 'not an equilibrium store' is the node's inference from the manual's download scope rather than the manual's statement, and should be qualified as such. Raised against b6a5eceb and unchanged at b6dd351a."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": null,
+  "item_verdicts": {
+    "diff": "commit b6dd351a against b839dae7 changes exactly one path, docs/evidence/fragments/jt60sa-machine-map/jtmm-equilibrium-source-leads.html (11 insertions, 2 deletions); across b839dae7..b6dd351a the only path touched is that fragment (two commits, 202 + 11 added lines).",
+    "evidence": "every FAME table cell now matches the run's own fetch_channels read for E101154 (QAXIS 0.87879..1.05636, Q95 7.28663..32.3899, QSURF 8.60424..97.6188, QEFF 6.25539..50.3525, TTCU 286006..998016, BTV 5.98505..6.02301, both FBI banks 0), and the repair corrects Q95 max (32.65 -> 32.39) and TTCU first (353525 -> 353524) to the read; the blocking finding at b6a5eceb is resolved. Remaining deductions: the rounding claim does not hold, the 'first t'/'last t' header is unrepaired, and the Web API 'not an equilibrium store' conclusion is an inference.",
+    "goal": "the fragment answers the section 6 node question - which JT-60SA store holds OP1 equilibria with signed q or psi on a grid - by naming, for each lead named in the brief (FAME q scalars, EQDB, EQRV, EQEFIT, LOCALDB, LCDB, MBDB, the Web API, FBEQU, SELENE offline, TOPICS/TOSCA), what it carries, which OP1 shots it holds, and how intr26-2 reaches it, each with a read attempted; the EDDB FAME QAXIS/Q95/QSURF signs are stated for E101154 beside TTCU (Ip) and BTV (F=RxBT) read through fetch_channels, and the per-shot EQDB slice indices are listed for the whole identified OP1 list.",
+    "manifest": "read; status complete, two commits each with a body, changed_paths and artifacts naming the fragment, negative_control_log naming the run's negative_control.log whose lines reproduce GetEqData(0,101154,500) -> IRET 300 and eqdb=0 -> 105 slices.",
+    "write_paths": "git diff --stat of b6dd351a against b839dae7 lists exactly docs/evidence/fragments/jt60sa-machine-map/jtmm-equilibrium-source-leads.html, the manifest's declared changed_path and within the node's declared write scope; no source or test is touched."
+  },
+  "justifications": {
+    "durability": "The fragment is static HTML whose key result - the reached and unreached leads - is stated in its own text, and the run's negative_control.log is present and openable so the IRET 300 reproduction can be re-checked without the live host. The b6dd351a repair also adds a provenance line naming the read's own summary statistics, which helps a later reader re-derive the read. Deduction: the node keeps no named probe logs on disk for the FAME read, the per-shot EQDB index table, the LOCALDB listing or the Web API manual read - those live only inside the run's session transcript, so re-verifying the fragment's numbers means reading that transcript rather than a node-named log.",
+    "evidence": "Every material claim traces to a call and its result in the run's on-disk session transcript: the FAME read returns 'SERVED 8 REFUSED 0' with each channel's first/last/min/max; the per-shot GetTimeList table matches the fragment row for row (E100999 63 / 1 1 1 1, E101029 94 / 2 2 2 2, E101162 126 / 9 9 9 9, E101163 48 / 4 4 4 4, E101154 105, eqdb=5 always 0); the Web API manual names host rmssnd23.naka.qst.go.jp;157.111.196.190 port 50000; the decommissioned FAME EQDB returns IRET 300 with the index resolving (105 slices), so the empty field return is shown to be an absence rather than a dead reader. The blocking finding of the b6a5eceb review - Q95 max asserted +32.65 against a read of 32.3899 - is corrected at b6dd351a, and the fix also caught TTCU first (353525 -> 353524); every cell now agrees with the read. Deductions: the provenance line's 'five significant figures' rule does not describe the cells; the FAME header still says 'first t'/'last t' over value cells; the Web API 'not an equilibrium store' conclusion is the node's inference.",
+    "fit": "The deliverable is a data-reckon evidence fragment under docs/evidence/fragments/jt60sa-machine-map/, the form and location the machine-map plan uses for node evidence, and it opens with a scope statement naming the read-only host, the single home read (/home/d240034), and the negative control; nothing in it is out of place for the plan's evidence layer.",
+    "goal_fidelity": "The brief's done-when is met item by item: each named lead carries what it holds (a grid, a q profile or signed q scalars), which OP1 shots it holds, and how intr26-2 reaches it, each with the exact call and result; the FAME q scalars are read through fetch_channels and their sign stated for E101154 beside the Ip and F.mB_T signs; the Web API's serving host is named from the manual on nakasvr26. Deduction: the FAME header mislabels the value columns and the Web API conclusion is an inference, so two of the stated facts are looser than the source supports.",
+    "reuse": "No repository source is touched; the node reuses the existing ambix fetch_channels / RemoteEddbExtractor path and the prebuilt /analysis/lib/libFLEDDPIC.so reader rather than building a new one, and it names the existing jtmm-op1-shot-survey.json as a named evidence input, so the fragment layers onto the plan's evidence rather than duplicating it. Deduction: the same read is not captured to a durable named log a sibling node could reuse.",
+    "scope_discipline": "git diff --stat of b6dd351a against b839dae7 lists exactly one changed file, docs/evidence/fragments/jt60sa-machine-map/jtmm-equilibrium-source-leads.html, the manifest's declared changed_path and within the node's declared write scope; no source, test, plan or index is touched, the node is read-only on nakasvr26 with one ssh connection at a time, and the negative control is reproduced rather than assumed."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal_fidelity: the fragment answers the section 6 node question for every lead named in the brief, each with what it carries, its OP1 shots and how intr26-2 reaches it; the EDDB FAME q scalars are read for E101154 through fetch_channels with their sign stated beside TTCU (Ip) and BTV (F=RxBT), and the EQDB slice indices are listed by shot for the whole identified OP1 list.\nVERDICT evidence: every material claim traces to a call and its result in the run's on-disk session transcript - the FAME read returns 'SERVED 8 REFUSED 0' with each channel's first/last/min/max; the per-shot GetTimeList table matches the fragment row for row; the LOCALDB listing shows EQDSK/10/101011/{004000,004500}; the Web API manual names host rmssnd23.naka.qst.go.jp;157.111.196.190 port 50000; the disused FAME EQDB route returns IRET 300 with the index resolving. The b6a5eceb review's blocking finding (Q95 max +32.65 unbacked, read 32.3899) is corrected at b6dd351a; every FAME cell now agrees with the read. Deductions: the provenance line's 'five significant figures' rule does not hold, the FAME header labels value columns 'first t'/'last t', and the Web API 'not an equilibrium store' conclusion is an inference.\nVERDICT scope_discipline: git diff --stat of b6dd351a against b839dae7 lists exactly one changed file, the fragment, the manifest's declared changed_path and within the node's declared write scope; no source or test is touched, and the node is read-only on nakasvr26.\nVERDICT manifest: read; status complete, two commits each with a body, changed_paths and artifacts naming the fragment, negative_control_log naming the run's negative_control.log (whose lines reproduce GetEqData(0,101154,500) -> IRET 300 and eqdb=0 -> 105 slices).\nVERDICT durability: the fragment states its key result in its own text and the negative_control.log is on disk; the repair adds a provenance line naming the read's summary statistics. Deduction: no named probe logs are kept for the FAME read, the EQDB index table, the LOCALDB listing or the Web API read - re-verification needs the session transcript.\nVERDICT fit: a data-reckon evidence fragment in the machine-map evidence directory, in the form and location the plan uses for node evidence.\nVERDICT reuse: no source touched; the node reuses fetch_channels / RemoteEddbExtractor and the prebuilt FLEDDPIC reader, and names jtmm-op1-shot-survey.json as a named input. Deduction: no durable named read log for a sibling to reuse.\n",
+  "review_run_id": "r-20261007T100758548160-review-of-jtmm-equilibrium-source-leads",
+  "reviewed_base_sha": "b839dae7f93173fbf7b25c16e5a4b395c16fb800",
+  "reviewed_head_sha": "b6dd351aa6259530dbc9a39341167e7eb197e4b8",
+  "reviewed_run_id": "r-20261007T072907850164-jtmm-equilibrium-source-leads",
+  "reviewer": {
+    "backend": "clive",
+    "effort": "high",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 18,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T10:17:07.507029+00:00",
+  "total": 112
+}
