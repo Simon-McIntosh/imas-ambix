@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.79">
-<meta name="plan-version" content="317">
+<meta name="plan-version" content="319">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -573,15 +573,26 @@
       their 27 type-1 loops. Two nodes make the consumers take type-6 entries first, and each
       builds its 53-loop test store under its own temporary directory with the merged
       <code>build_magnetics</code>, never touching the live stores.
-      <code>jtmm-differential-loop-adapter</code> makes the machine-map adapter accept them. The
-      JT-60SA map's flux-loop position bindings expand over the type-1 entries only, and a type-6
-      entry is carried by its <code>indices_differential</code> in place of a position. The six
-      adapter tests pass against a 53-loop store as well as against today's 27-loop store.
-      <code>jtmm-operator-differential-loops</code>, as above, makes the operator's loop-7 fit pass
-      against a 53-loop store. Once both land, <code>jtmm-differential-loop-store-live</code>
-      regenerates the live OP1 and OP2 stores from the merged converter, keeping the 27-loop copies
-      as superseded, and shows the seven consumer tests green against them. Only then does
-      <code>jtmm-differential-loop-rules</code> retarget the loop rules.
+      The operator node blocked without a source change (promoted as malformed-node, merge
+      14e6eb21): the geometry adapter has no carrier for a type-6 entry's
+      <code>indices_differential</code>, so the carrier and its consumer must land together. They are
+      one node, <code>jtmm-differential-loop-consumers</code>. It makes the machine-map adapter carry a
+      type-6 entry by its <code>indices_differential</code> in place of a position, with the JT-60SA
+      map's flux-loop position bindings expanding over the type-1 entries only. It also makes
+      <code>read_geometry_table</code> and <code>build_operator</code> predict a type-6 entry as its
+      second loop minus its first. Since jt60sa-facility-mint §1 (merge df3480f2) the JT-60SA map
+      lives only in the <code>/work</code> bundle (<code>/work/projects/imas_gpu/jt60sa/maps</code>).
+      So the node edits a staged copy of that bundle under
+      <code>/work/projects/imas_gpu/jt60sa/maps-staging/jtmm-differential-loop-consumers</code>,
+      points its tests at the copy through <code>IMAS_ALAMBIC_MAP_PATH</code>, and never touches the
+      live bundle. Its tests build the 53-loop store under their own temporary directory with the
+      merged <code>build_magnetics</code>. The six adapter tests and the operator's loop-7 fit pass
+      against both a 53-loop store and the live 27-loop store, and MAST is unchanged. Once it lands,
+      <code>jtmm-differential-loop-store-live</code> promotes the staged map and the 53-loop OP1 and
+      OP2 stores into the live bundle together, keeping the 27-loop copies as superseded, and shows
+      the seven consumer tests green against them. Only then does
+      <code>jtmm-differential-loop-rules</code> retarget the loop rules in the bundle's
+      <code>maps/magnetics.json</code>.
     </p>
     <p>
       The COCOS of the source is then identified rather than assumed. For the raw side,
@@ -689,8 +700,11 @@
       magnetic axis unless the source says so. The sign kernel's equilibrium half reads an
       <code>EfitLabels</code>, so it has no JT-60SA source yet.
       The sign report carries the raw-side products (plasma current against the sign of flux change,
-      and toroidal-field polarity), and the q-handedness product stays unmeasured until
-      <code>jtmm-equilibrium-source-leads</code> finds a source of signed q, or of psi and q. §7's reference loader passes
+      and toroidal-field polarity), and the q-handedness product comes from the EDDB <code>FAME</code> q scalars
+      (<code>QAXIS</code>, <code>Q95</code>, <code>QSURF</code>). <code>jtmm-equilibrium-source-leads</code>
+      found them served for every listed shot that has a FAME index; on E101154 every q is positive,
+      as are <code>TTCU</code> and <code>BTV</code>. Under decision <code>jt60sa-psi-q-source</code>
+      the sign report therefore needs no flux grid. §7's reference loader passes
       the same boundary record to that builder rather than reading SELENE a second time, so there is
       one fetch and one reader. The
       entry point also hard-codes DIII-D eligibility, <code>MINIMUM_PLASMA_CURRENT_KA</code>,
@@ -892,9 +906,14 @@
       sign unvalidated, and SELENE's boundary reconstruction read from the EDDB <code>PSRC</code>
       category through the existing channel extractor. PSRC carries no flux grid and no q, so the
       SELENE <code>profiles_2d</code> psi bindings below, and the reference loader's psi and
-      magnetic-axis reduction, have no source yet. Until <code>jtmm-equilibrium-source-leads</code> finds
-      a source of psi and q, §7 can use only PSRC's boundary, X-point, plasma centre and plasma current,
-      and the section is re-scoped once that node lands. §7 writes the SELENE map bindings into
+      magnetic-axis reduction, have no source yet. <code>jtmm-equilibrium-source-leads</code> found psi on a grid
+      with a q profile reachable for one OP1 shot only. That is E101011, whose G-EQDSK (written by
+      SELENE's <code>efitout.f</code>) sits in <code>/home/d240034/fbequ/EFIT95.DATA</code> and its
+      <code>LOCALDB</code>. For the rest of the list those fields sit in the decommissioned
+      <code>dbsvr17p</code> stores. Under decision <code>jt60sa-psi-q-source</code>, §7 takes
+      E101011's G-EQDSK as its one psi and q reference, and PSRC's boundary, X-point, plasma centre
+      and plasma current for every other shot. Nothing runs on the JT-60SA server, and §7's psi
+      bindings and the reference loader's psi and axis reduction are scoped against E101011 alone. §7 writes the SELENE map bindings into
       <code>equilibrium/time_slice/profiles_2d</code>, beginning with <code>psi</code>, once §6's
       sign report names the source COCOS, and adds no second reader of either source. The
       section's interface change is the pin table below, which retires three public constants and
@@ -1344,16 +1363,16 @@
       </p>
     <p class="r-dec-rat">Lead&#x27;s choice 2026-10-07: follow the DD&#x27;s differential loops, and store on each type-1 entry for loops 1-6 and 8-27 only its geometry (name, position, area) with no flux, because their absolute flux was never measured and the DD documents flux as measured. Loop 7&#x27;s type-1 entry carries its measured absolute flux. Each measured difference is a type-6 entry naming loop 7 and loop L. A consumer that needs absolute flux adds loop 7 itself; no derived sum is stored as a measurement.</p>
     </div>
-<div class="r-dec" data-key="jt60sa-psi-q-source" data-choice="request-fame-access" data-by="Simon McIntosh" data-when="2026-10-07T03:45:00+00:00" data-sections="s6,s7">
+<div class="r-dec" data-key="jt60sa-psi-q-source" data-choice="e101011-only" data-by="Simon McIntosh" data-when="2026-10-07T10:03:39+00:00" data-sections="s6,s7">
     <p class="r-dec-q">Where do JT-60SA equilibria with a psi grid and q profile come from?</p>
     <p class="r-dec-ctx">Measured 2026-10-07. PSRC&#x27;s 86 SELENE arrays carry no psi grid or q profile (jtmm-psrc-selene-inventory, review 113/120). FAME (the site catalogue: Fast Analyzer for Magnetohydrodynamic Equilibrium) holds both in 105 slices for E101154, but its EQDB server dbsvr17p does not resolve from intr26-2 and /JT60SA_EQ is not mounted (IRET 300). jtmm-equilibrium-route-search found two other routes: an existing G-EQDSK for OP1 shot E101011 in /home/d240034/fbequ/EFIT95.DATA, and SELENE&#x27;s efitout.f, which writes psi and q to a G-EQDSK on every run.</p>
     <p class="r-dec-opts">
-      <button class="r-opt chosen" data-value="request-fame-access">ask the JT-60SA side to open dbsvr17p or mount /JT60SA_EQ/FAME3 from intr26-2, and run nothing on their server</button>
+      <button class="r-opt" data-value="request-fame-access">ask the JT-60SA side to open dbsvr17p or mount /JT60SA_EQ/FAME3 from intr26-2, and run nothing on their server</button>
       <button class="r-opt" data-value="e101011-and-selene-trial">use E101011&#x27;s EQDSK now and trial one SELENE run on E101154</button>
-      <button class="r-opt" data-value="e101011-only">use the single existing EQDSK and run nothing</button>
+      <button class="r-opt chosen" data-value="e101011-only">use the single existing EQDSK and run nothing</button>
       <button class="r-opt" data-value="selene-all-16">run SELENE for all 16 OP1 shots</button>
       </p>
-    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-07: ask JT-60SA for read access to FAME&#x27;s EQDB records, and run nothing on the JT-60SA server ourselves. Superseded the same day: the lead reported that the FAME server dbsvr17p has been decommissioned, so no access request will be made. jtmm-jt60sa-host-survey (merge f5f94791) found no FAME store on nakasvr26, and the lead judged the FAME hunt a distraction. jtmm-equilibrium-source-leads now owns the search for a JT-60SA equilibrium carrying signed q or psi on a grid, following the leads the imas-codex graph names. Running SELENE on the JT-60SA server remains unchosen.</p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-07, after jtmm-equilibrium-source-leads: use what is reachable and run nothing on the JT-60SA server. The section 6 sign report takes the q-handedness from the EDDB FAME q scalars (QAXIS, Q95, QSURF), which are served for every listed shot that has a FAME index. Section 7 takes E101011&#x27;s G-EQDSK (/home/d240034/fbequ/EFIT95.DATA) as its one psi and q reference, and PSRC&#x27;s boundary, X-point, plasma centre and plasma current for every other shot. The FAME EQDB records sat on dbsvr17p, which the lead reported decommissioned, and no other reachable store holds psi and q for the list.</p>
     </div>
 </section>
 
