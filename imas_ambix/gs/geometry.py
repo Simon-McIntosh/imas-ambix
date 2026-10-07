@@ -441,7 +441,7 @@ class SensorMapping:
 
     amb_channel: str
     kind: str  # "b_probe" | "flux_loop"
-    efm_index: int
+    efm_index: int | None
     r: float
     z: float
     angle_deg: float | None  # None for flux loops
@@ -449,10 +449,12 @@ class SensorMapping:
     flag: str  # "" if confidently mapped, else a reason
     # A type-6 differential flux loop carries no position of its own: it is
     # predicted as its ``second`` loop minus its ``first``, both indices into
-    # the geometry table's loops.  Its ``efm_index`` is then a sentinel with no
-    # positioned slot behind it, so every consumer that indexes or matches by
-    # ``efm_index`` refuses or skips a mapping whose ``indices_differential`` is
-    # set.  ``indices_differential`` is None for every positioned sensor.
+    # the geometry table's loops.  It therefore has no positioned slot, so its
+    # ``efm_index`` is None rather than an index: a consumer that reads it
+    # without checking ``indices_differential`` raises TypeError on the list
+    # lookup instead of silently returning the last positioned loop, which a
+    # negative sentinel would have delivered.  ``indices_differential`` is None
+    # for every positioned sensor, whose ``efm_index`` is always an int.
     indices_differential: tuple[int, int] | None = None
 
 

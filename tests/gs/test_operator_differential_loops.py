@@ -176,6 +176,28 @@ def test_rebuilt_store_carries_the_26_differential_entries(tmp_path):
 
 
 @requires_store
+def test_differential_entry_carries_no_slot_index(tmp_path):
+    """A type-6 mapping's ``efm_index`` is None, so indexing a loop list by it raises.
+
+    A differential flux loop has no slot in the positioned-loop list, so the
+    adapter builds its mapping with ``efm_index=None``.  A consumer that reads
+    that index without first checking ``indices_differential`` therefore raises
+    ``TypeError`` on the lookup, rather than silently wrapping to the last
+    positioned loop the way a negative sentinel would.  The 53-loop store is
+    rebuilt from the merged deck builder, so this pins the adapter's own output
+    rather than a hand-built mapping.
+    """
+    _build_53_loop_store(tmp_path)
+    table = read_geometry_table(PHASE_SHOT, machine="jt-60sa", store_root=tmp_path)
+
+    differential = [m for m in table.sensor_map if m.indices_differential is not None]
+    assert differential
+    assert all(mapping.efm_index is None for mapping in differential)
+    with pytest.raises(TypeError):
+        table.flux_loops[differential[0].efm_index]
+
+
+@requires_store
 def test_differential_operator_row_is_second_loop_minus_first(tmp_path):
     """Each type-6 row is its second loop's row minus its first's, in all blocks.
 
@@ -246,7 +268,7 @@ def test_position_declaration_naming_a_differential_loop_is_refused():
     differential = SensorMapping(
         amb_channel="FL7-FL1",
         kind="flux_loop",
-        efm_index=-1,
+        efm_index=None,
         r=float("nan"),
         z=float("nan"),
         angle_deg=None,
