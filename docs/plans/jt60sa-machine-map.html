@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.79">
-<meta name="plan-version" content="305">
+<meta name="plan-version" content="306">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -612,7 +612,8 @@
       takes the equilibrium half from the loader that owns it. The EDDB cache is a
       <code>{shot}.zarr/{category}/{dname}</code> store that the zarr engine already reads as
       <code>{source_group}/{source_array}</code>, so the §5 JT-60SA bindings serve the raw half,
-      and the SELENE loader below serves the equilibrium half. No parallel EDDB observation reader
+      and the equilibrium half needs a record carrying psi and q, which the SELENE loader below cannot
+      supply, as it says. No parallel EDDB observation reader
       is added, and it retires nothing, because no catalogue-driven observation reader exists. The
       catalogue form landed first (merges 07add818 and 149763e2) and is already gone:
       <code>jtmm-observation-signal-maps</code> (merge 5efcd915) replaced it with
@@ -676,15 +677,20 @@
       <code>efit_lcfs_n</code>. The kernel reads <code>EfitLabels</code>, which gains only the
       last-closed-surface point arrays its boundary sample needs. The DIII-D loader is
       <code>load_shot</code>, which already returns it inside <code>ChallengeShot</code>, rather
-      than the parquet read <code>convention.py</code> does today, and the SELENE and FAME
-      loaders each return an <code>EfitLabels</code>. The kernel is reused rather than rewritten,
-      and one equilibrium has one shape. That SELENE loader is the only reader of a SELENE
-      equilibrium in the plan, and its source is the EDDB <code>PSRC</code> category, which the existing
-      channel extractor fetches and caches. The loader turns the cached PSRC arrays into an
-      <code>EfitLabels</code>. §7's reference loader adapts that <code>EfitLabels</code>
-      into an <code>EquilibriumGeometry</code> rather than reading SELENE a second time, so the
-      chain is one fetch, one reader and two adapters, and the sign scorer and the geometry
-      referee cannot drift in COCOS or axis handling. The
+      than the parquet read <code>convention.py</code> does today, and the SELENE loader returns
+      an <code>EfitLabels</code>. The kernel is reused rather than rewritten, and one equilibrium has
+      one shape. That SELENE loader is the only reader of a SELENE equilibrium in the plan, and its
+      source is the EDDB <code>PSRC</code> category, which the existing channel extractor fetches and
+      caches. PSRC carries no flux grid and no q, so the loader's <code>EfitLabels</code> holds only
+      what PSRC has: plasma current, the last closed surface (<code>surfABVxp</code>, converted from
+      mm), the X-point and the plasma centre (<code>calRp0</code>, <code>calZp0</code>), which is not
+      read as the magnetic axis unless the source says so. It has no <code>psirz</code>, grid or
+      q95. The sign kernel's equilibrium half reads exactly those, so it has no JT-60SA source yet.
+      The sign report carries the raw-side products (plasma current against the sign of flux change,
+      and toroidal-field polarity), and the q-handedness product stays unmeasured until
+      <code>jtmm-jt60sa-host-survey</code> finds a source of psi and q. §7's reference loader adapts
+      the same <code>EfitLabels</code> rather than reading SELENE a second time, so there is one
+      fetch and one reader. The
       entry point also hard-codes DIII-D eligibility, <code>MINIMUM_PLASMA_CURRENT_KA</code>,
       <code>STANDARD_FIELD_BCOIL_MAXIMUM</code> and the <code>MINIMUM_AUDIT_SHOTS</code> guard, so
       those move into each loader's declaration as its corpus's eligibility, and the kernel keeps
@@ -779,8 +785,8 @@
       with its shape, unit and time base. It states which arrays are seeds rather than results:
       imas-efit found <code>data_psrc_calbetap</code> and <code>data_psrc_calli</code> constant at 0.1
       and 0.8. It compares one slice with imas-efit's curated reference and writes one fragment. The
-      SELENE loader follows it, then the FAME loader once the server is reachable, then the JT-60SA
-      cohort and the sign report.
+      SELENE loader follows it, then the JT-60SA cohort and the sign report, whose equilibrium half
+      waits on a source of psi and q.
       FAME is JT-60SA's offline equilibrium reconstruction, which imas-efit's shot sweep calls the
       operational SELENE-equivalent reference. It reaches us by two routes. Its scalar summaries, such
       as the plasma volume <code>FAME/VOLUM</code>, sit in an EDDB <code>FAME</code> category that the
@@ -852,8 +858,12 @@
     <h2 id="s7">§7 — Equilibrium: SELENE maps, then the reconstruction gate</h2>
     <p>
       §6 lays both equilibrium sources and owns their reads: the FAME scalars bound with their
-      sign unvalidated, and SELENE's offline equilibria read through the EQDB transport into the
-      EDDB cache. §7 writes the SELENE map bindings into
+      sign unvalidated, and SELENE's boundary reconstruction read from the EDDB <code>PSRC</code>
+      category through the existing channel extractor. PSRC carries no flux grid and no q, so the
+      SELENE <code>profiles_2d</code> psi bindings below, and the reference loader's psi and
+      magnetic-axis reduction, have no source yet. Until <code>jtmm-jt60sa-host-survey</code> finds a
+      source of psi and q, §7 can use only PSRC's boundary, X-point, plasma centre and plasma current,
+      and the section is re-scoped once that survey lands. §7 writes the SELENE map bindings into
       <code>equilibrium/time_slice/profiles_2d</code>, beginning with <code>psi</code>, once §6's
       sign report names the source COCOS, and adds no second reader of either source. The
       section's interface change is the pin table below, which retires three public constants and
@@ -1059,7 +1069,8 @@
       <li>Vacuum-shot adjudication and COCOS identification (§6); replace every
         <code>unknown-unvalidated</code> description sign and every <code>source-only</code>
         signal rule that the data settles.</li>
-      <li>FAME scalar bindings and the EQDB transport (§6), then the SELENE map bindings (§7).</li>
+      <li>FAME scalar bindings and the PSRC SELENE loader (§6), then the SELENE map bindings (§7)
+        once a source of psi and q exists.</li>
       <li>Stamp the reconstruction baseline on the spine with SELENE as comparator (§7);
         export tokamap and validate it (§2).</li>
     </ol>
