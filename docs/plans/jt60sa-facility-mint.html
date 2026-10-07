@@ -22,11 +22,11 @@
   <meta name="plan-tags" content="jt-60sa,machine-map">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <meta name="plan-after" content="jt60sa-pulse-ids">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;}">
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="26">
+<meta name="plan-version" content="29">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -232,9 +232,13 @@
 <section data-reckon="section" data-id="s5" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-facility-mint#s1,jt60sa-facility-mint#s3,jt60sa-facility-mint#s4"></section>
 <p>Once §1, §3 and §4 have landed, wheels replace the editable checkout. Build them here with <code>uv build --package imas-alambic</code>, and with <code>uv build --package nova-cocos</code> in nova. Copy both to the server and install them into a fresh <code>~/imas-alambic/.venv</code>, taking the other dependencies from PyPI. The bundle travels from GHCR through this machine: <code>oras pull ghcr.io/simon-mcintosh/imas-alambic-jt60sa:&lt;version&gt;</code> here, then <code>rsync</code> to <code>~/imas-alambic/bundles/jt-60sa/&lt;version&gt;/</code>, with <code>IMAS_ALAMBIC_MAP_PATH</code> set in <code>~/imas-alambic/env.sh</code>. No GitHub credential is placed on the server, and the light-load rule of §4 holds.</p><p>Done-when: <code>importlib.metadata.version("imas-alambic")</code> on the server reports the wheel's version, and <code>pip list --editable</code> in that venv is empty. The generalised by-name loaders resolve <code>jt-60sa</code> from the relayed bundle. One <code>pf_active</code> channel of E101154, read through the local transport, equals this machine's cached copy of that channel bit for bit.</p>
 
-    <h2 id="s6">§6 — Mint E101154 at the facility</h2>
+    <h2 id="s6">§6 — Write E101154 at the facility</h2>
 <section data-reckon="section" data-id="s6" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="jt60sa-pulse-ids#s1,jt60sa-facility-mint#s5"></section>
-<p>When the mint writer from <a href="jt60sa-pulse-ids">jt60sa-pulse-ids</a> §1 has landed, mint E101154 on the server with <code>imas-alambic mint</code> through the local transport, from the §5 install. If the writer and its command are still in imas-ambix, this section first moves them into the engine and retires <code>imas-ambix data mint</code>, as §2's interface account states. Compare the result with the IDSs minted here through the ssh route. Done-when: every IDS the writer emits for E101154 is equal field by field between the server and here, by imas-python's comparison. The run's wall time and peak memory on <code>intr26-2</code> are recorded.</p>
+<p>The writer from <a href="jt60sa-pulse-ids">jt60sa-pulse-ids</a> §1 is in the engine, renamed by §7. Write E101154 on the server with <code>imas-alambic write</code> through the local transport, from the §5 install, and compare the result with the IDSs written here through the ssh route. Done-when: every IDS the writer emits for E101154 is equal field by field between the server and here, by imas-python's comparison. The run's wall time and peak memory on <code>intr26-2</code> are recorded.</p>
+
+    <h2 id="s7">§7 — The engine&#x27;s verb is write, not mint</h2>
+<section data-reckon="section" data-id="s7" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p>On 2026-10-07 the lead ruled that the engine's one command is <code>imas-alambic write</code>, not <code>mint</code>. The command writes a shot's IDSs from the maps and the facility's data, and "mint" suggests creating currency or tokens. Two other verbs were considered. <code>map</code> was set aside because map is the package's core noun (<code>MachineMap</code>, <code>SignalMap</code>, map bundles, <code>IMAS_ALAMBIC_MAP_PATH</code>), so a future map-management command would collide with it. <code>convert</code> is imas-python's DD-version conversion. The rename lands before §5 publishes a wheel and before §6 has anyone running the command, so it needs no deprecated alias.</p><p>What changes. In <code>packages/imas-alambic/src/imas_alambic/cli.py</code>, the click command <code>mint</code> becomes <code>write</code>, and its function and help text follow. <code>imas_alambic/pulse_mint.py</code> moves with <code>git mv</code> to <code>imas_alambic/pulse_writer.py</code>, and its symbols are renamed: <code>mint_pulse</code> to <code>write_pulse</code>, <code>MintReceipt</code> to <code>WriteReceipt</code>, <code>MintedLeaf</code> to <code>WrittenLeaf</code>, and <code>PulseMintError</code> to <code>PulseWriteError</code>. Its docstrings describe writing. The package's self-description as the "mint engine" is rewritten in its module docstring, <code>README.md</code>, and the <code>pyproject.toml</code> description and keywords, as is the root <code>pyproject.toml</code> comment that names it. <code>tests/data/test_pulse_mint.py</code> moves to <code>tests/data/test_pulse_writer.py</code>, and the module list in <code>packages/imas-alambic/tests/test_engine_imports.py</code> follows. No behaviour changes. Plan slugs, landed sections, evidence fragments and run records keep the word, because they are records of what ran. The editable install at JT-60SA (§4) takes the new command on its next pull.</p><p>Done-when: <code>imas-alambic --help</code> lists <code>write</code> and no <code>mint</code>, and <code>imas-alambic write --help</code> lists <code>--machine</code>, <code>--shot</code> and <code>--out</code>. <code>grep -rniwE 'mint|minted|minting|pulse_mint|mint_pulse' packages imas_ambix tests scripts pyproject.toml</code> prints nothing. <code>uv run --no-sync pytest -p no:cacheprovider tests/data/test_pulse_writer.py packages/imas-alambic/tests</code> passes with the same counts the base reaches under the old names. <code>ruff check</code> and <code>ruff format --check</code> on the changed files add no finding.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -306,6 +310,15 @@
       <button class="r-opt" data-value="move-private">move-private</button>
       </p>
     <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="engine-verb" data-choice="write" data-by="Simon McIntosh" data-when="2026-10-07T01:30:02+00:00" data-sections="s6,s7">
+    <p class="r-dec-q">What is the engine&#x27;s one command called?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="write">imas-alambic write</button>
+      <button class="r-opt" data-value="mint">imas-alambic mint (as built)</button>
+      <button class="r-opt" data-value="map">imas-alambic map</button>
+      </p>
+    <p class="r-dec-rat">The lead&#x27;s ruling of 2026-10-07: the command writes a shot&#x27;s IDSs, so it is write; mint suggested currency, map is the package&#x27;s core noun, and convert is imas-python&#x27;s DD conversion.</p>
     </div>
 </section>
 
