@@ -1,0 +1,55 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-write-fetch-landing">
+  <header>
+    <h3>a write fetches the EDDB channels its signal maps declare before writing the pulse</h3>
+    <p class="meta">
+      Node <code>jtfm-write-fetch</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;15 &middot;
+      commit <code>c5d959a2</code> &middot;
+      node <code>98dci4-clu-2018</code> job <code>1277272</code>
+    </p>
+  </header>
+  <p>
+    At the facility the EDDB cache is empty, so a write of an uncached pulse had
+    no channels to read and refused. <code>write_pulse</code> now builds one
+    <code>ChannelRequest</code> per distinct <code>(category, dname)</code> the
+    signal maps declare, addressed by the pulse's full EDDB token, and passes
+    them to <code>eddb.fetch_channels</code> before it reads anything; a channel
+    already cached makes no transport call. The transport is a setting:
+    <code>settings.py</code> resolves <code>eddb_host</code> from
+    <code>--eddb-host</code>, then <code>IMAS_ALAMBIC_EDDB_HOST</code>, then
+    unset, and <code>eddb_remote.extractor_for_host</code> is the one owner of
+    the setting-to-transport mapping &mdash; unset keeps the ssh route to
+    jt-60sa, a host name composes it through
+    <code>ssh_command_for_host</code> (keeping <code>-F ~/.ssh/config</code>
+    and the remote module-load shell), and <code>local</code> gives an empty
+    <code>ssh_command</code> with the engine's own interpreter as
+    <code>remote_python</code>, because the analysis server's default python
+    lacks numpy. <code>DEFAULT_SSH_COMMAND</code> is
+    <code>ssh_command_for_host("jt-60sa")</code> and <code>imas-alambic
+    config</code> prints <code>eddb_host</code> with its source. A channel EDDB
+    refuses is skipped rather than read &mdash; the view would refuse an
+    uncached channel &mdash; and stays visible on a new
+    <code>WriteReceipt.refused</code> field, so the write proceeds and the
+    refusal is reported. The installed launcher exports
+    <code>IMAS_ALAMBIC_EDDB_HOST=local</code> beside
+    <code>IMAS_ALAMBIC_HOME</code>, so the facility reads EDDB in place rather
+    than hopping back over ssh.
+  </p>
+  <p>
+    <code>test_write_fetch.py</code> drives the write against a synthetic flat
+    bundle and <code>eddb_standin.py</code> over the local transport: a write on
+    pulse 900001 with no cache fetches its mapped channels and writes
+    <code>ids/900001_0.nc</code> (one transport call), a second write with
+    <code>overwrite</code> makes no further call, and a refused channel is
+    reported with its code while the served channel is written and the refused
+    one stays uncached. <code>test_settings.py</code> pins the flag-beats-
+    variable precedence, the unset jt-60sa ssh route, the local transport with
+    <code>sys.executable</code>, the composed ssh command keeping the config
+    file and the module shell, the <code>config</code> line and the launcher's
+    export. Gate: whole-tree ruff exit 0; <code>packages/imas-alambic/tests</code>
+    50 passed, <code>EXIT=0</code>, against a base of 42 passed; negative
+    control &mdash; a write that skips the fetch &mdash; fails the no-cache test
+    with the existing no-EDDB-cache refusal, <code>EXIT=1</code>.
+  </p>
+</section>
