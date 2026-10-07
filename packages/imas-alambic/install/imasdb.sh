@@ -123,7 +123,7 @@ say "installing a uv-managed CPython 3.12 into the folder"
 # The interpreter has to live under the folder, so a 3.12 that happens to be
 # reachable elsewhere must not be reused: it would tie the install to a path
 # outside the shared folder that the next session or the node does not carry.
-nice -n 19 uv python install --reinstall --no-cache 3.12
+nice -n 19 uv python install --reinstall --no-cache --no-bin 3.12
 PY312_BIN=$(ls -d "$TOOLS"/python/cpython-3.12.*/bin/python3.12 2>/dev/null | head -1)
 if [ -z "$PY312_BIN" ]; then
   echo "imasdb.sh: no uv-managed CPython 3.12 under $TOOLS/python" >&2
@@ -158,17 +158,12 @@ LAUNCHER
 chmod 0755 "$BINDIR/imas-alambic"
 LAUNCHER=$BINDIR/imas-alambic
 
-say "seeding the map search path so config can answer"
-# `config` reads the machine and the writer's cache through the map search path
-# and refuses with MachineMapError until a bundle is reachable there, so it
-# cannot report the layout names before the layout exists.  Place the staged
-# bundle at the engine's default map path to seed the search path; config then
-# reports the names it derives from IMAS_ALAMBIC_HOME, and the bundle is moved
-# to its version directory just below.
-mkdir -p "$IMASDB/maps"
-ln -sfn "$STAGE/bundle" "$IMASDB/maps/current"
-
 say "reading the layout names from imas-alambic config"
+# `config` derives the map search path and the IDS root from IMAS_ALAMBIC_HOME,
+# and reports every setting even when no bundle is reachable: an entry on the
+# search path with no descriptor becomes the machine's and the cache's source
+# rather than raising, so the layout names are readable before the layout
+# exists.  The bundle is placed under its version directory just below.
 CONF=$(env -u PYTHONPATH "$LAUNCHER" config)
 printf '%s\n' "$CONF"
 MAPS=$(printf '%s\n' "$CONF" | awk '/^maps:/{print $2}')
