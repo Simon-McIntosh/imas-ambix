@@ -22,11 +22,11 @@
   <meta name="plan-tags" content="jt-60sa,machine-map,equilibrium,figures">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;jt60sa-machine-map#s7&quot;], &quot;s3&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;], &quot;s4&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;, &quot;imas-ink:geometry-figure-vessel-units#s5&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;}">
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="26">
+<meta name="plan-version" content="27">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -142,9 +142,12 @@
   <p class="landed-summary"><code>tests/data/test_pulse_writer.py</code> derives each IDS's expected <code>homogeneous_time</code> from the writer's receipt (1/0/2) and checks per-leaf time vectors; merged at <code>1b786080</code>, 28 passed, review 114/120. <a href="s5">full record</a></p>
 </section>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-07</span>
     <h2 id="s6">§6 — E101154 rewritten from today&#x27;s maps, and E101031 written beside it</h2>
-<section data-reckon="section" data-id="s6" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links="jt60sa-pulse-ids#s5"></section>
-<p>There are two reasons to write pulses again. First, the E101154 on disk was written by §1 on 2026-10-06 at 18:44, before jt60sa-machine-map bound the raw flux loops and tangential probes. So its <code>magnetics</code> carries only <code>ip</code>, while the map now serves 45 magnetics signals: ip, 27 flux loops and 17 probes. The session redrawing the JT-60SA signal figures from IDS (imas-ambix-c3) draws the loops and probes once an IDS carries them. Second, those figures need a second pulse in place of C060033, and on 2026-10-07 the lead chose E101031.</p><p>C060033 cannot be written. Shot 60033 falls in no catalogue phase. As jt60sa-machine-map's vacuum census records, the C series drives only the TF coils, with the PF chain at the noise floor, and its cache holds no PSRC group, so there is no ip. E101031 is an OP1 plasma pulse: in jtmm-op1-shot-survey, ip holds 0.7&nbsp;MA for 5.4&nbsp;s without disruption, the coils are driven, and all 34 loops and 23 probes are acquired. Its cache carries all 56 channels the three signal maps serve (checked 2026-10-07), so today's writer writes it without change.</p><p>This is an operational node, run after §5 lands, that writes no source. It runs <code>imas-alambic write --machine jt-60sa --shot 101154 --out /work/projects/imas_gpu/jt60sa/ids</code>, then the same for 101031, in the writer's current layout. jt60sa-facility-mint §8 rewrites both pulses when it moves the writer to run files.</p><p>Done-when: both commands exit 0, and each pulse's five description IDSs read back through <code>imas.DBEntry</code> at DD 4.1.1. For each pulse, <code>pf_active</code> carries the 10 served coil currents. <code>magnetics</code> carries ip, 27 flux loops and 17 probes, each with its own time vector (<code>homogeneous_time</code> 0), and its probe axes equal the OP1 store's. E101031's ip peaks near 0.7&nbsp;MA and E101154's near 1.0&nbsp;MA. The evidence fragment records both output directories, the run, and each of these checks.</p>
+<section data-reckon="section" data-id="s6" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links="jt60sa-pulse-ids#s5"></section></header>
+  <p class="landed-summary">E101154 rewritten and E101031 written in <code>/work/projects/imas_gpu/jt60sa/ids/</code> (merged <code>4def5114</code>, review 113/120): 10 coil currents, ip (0.9986 / 0.6984&nbsp;MA), 27 loops and 17 probes on their own time bases. Loops other than 7 are raw differences relative to loop 7 until jt60sa-machine-map's type-6 rules land. <a href="s6">full record</a></p>
+</section>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
