@@ -116,7 +116,7 @@ def test_failure_on_third_ids_leaves_no_run_file_or_temporary(
 
     monkeypatch.setattr(pulse_writer, "_read_description", fail_on_third)
     with pytest.raises(RuntimeError, match="third IDS failed"):
-        pulse_writer.write_pulse(machine, 900001, out, cache=str(cache))
+        pulse_writer.write_pulse(machine, "E900001", out, cache=str(cache))
 
     assert seen == list(pulse_writer.IDS_NAMES[:3])
     assert list(out.iterdir()) == []
@@ -129,7 +129,7 @@ def test_complete_run_is_readable_and_refuses_a_second_write(
     out = tmp_path / "ids"
     old_umask = os.umask(0o022)
     try:
-        receipt = pulse_writer.write_pulse(machine, 900001, out, cache=str(cache))
+        receipt = pulse_writer.write_pulse(machine, "E900001", out, cache=str(cache))
     finally:
         os.umask(old_umask)
 
@@ -141,5 +141,5 @@ def test_complete_run_is_readable_and_refuses_a_second_write(
         for name in pulse_writer.IDS_NAMES:
             assert entry.get(name, autoconvert=False) is not None
     with pytest.raises(pulse_writer.PulseWriteError, match="already exists"):
-        pulse_writer.write_pulse(machine, 900001, out, cache=str(cache))
+        pulse_writer.write_pulse(machine, "E900001", out, cache=str(cache))
     assert [path.name for path in out.iterdir()] == [run_file.name]
