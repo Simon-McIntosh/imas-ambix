@@ -1,0 +1,78 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtpi-writer-test-time">
+  <header>
+    <h3 id="jtpi-writer-test-time-title">The writer's test reads homogeneous_time from the receipt</h3>
+    <p class="meta" id="jtpi-writer-test-time-meta">
+      Node <code>jtpi-writer-test-time</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-pulse-ids</code> &middot;
+      base <code>aeb336a7</code>
+    </p>
+  </header>
+
+  <p id="jtpi-writer-test-time-change">
+    <code>tests/data/test_pulse_writer.py::test_write_covers_every_description_ids</code>
+    had hard-coded <code>homogeneous_time == 1</code> for a fixed set of three
+    IDSs. That held while <code>magnetics</code> served only <code>ip</code>;
+    it is wrong now that the map serves 45 magnetics signals on more than one
+    time base, so the writer correctly writes <code>magnetics</code> with
+    <code>homogeneous_time = 0</code> and each leaf carrying its own time
+    vector. The test now derives the expected value from the writer's own
+    receipt: 1 when every leaf the receipt names for the IDS carries its base
+    at the IDS-level <code>{ids}/time</code> path, 0 when the leaves carry
+    their own time vectors, 2 when the IDS has no time-dependent leaf. For a
+    heterogeneous IDS it also resolves each leaf's <code>time_path</code> and
+    asserts each written element's time vector has as many samples as the
+    leaf's data. The receipt path names the struct array rather than the
+    element, so the resolver expands every element the writer filled.
+    No <code>imas_alambic</code> source changed.
+  </p>
+
+  <table id="jtpi-writer-test-time-expectations">
+    <caption>Receipt-derived expectation and the value read back through
+    <code>imas.DBEntry</code> at DD 4.1.1, E101154.</caption>
+    <thead>
+      <tr><th>IDS</th><th>leaves</th><th>time path</th>
+      <th>expected</th><th>read</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>pf_active</td><td>10</td><td>IDS-level</td><td>1</td><td>1</td></tr>
+      <tr><td>pf_passive</td><td>0</td><td>&mdash;</td><td>2</td><td>2</td></tr>
+      <tr><td>wall</td><td>0</td><td>&mdash;</td><td>2</td><td>2</td></tr>
+      <tr><td>magnetics</td><td>45</td><td>per-leaf</td><td>0</td><td>0</td></tr>
+      <tr><td>tf</td><td>1</td><td>IDS-level</td><td>1</td><td>1</td></tr>
+    </tbody>
+  </table>
+
+  <ul id="jtpi-writer-test-time-checks">
+    <li id="jtpi-writer-test-time-siblings">
+      The heterogeneous branch checks each written leaf's sibling time vector
+      against its data. <code>magnetics</code> holds 27 flux-loop and 17 probe
+      leaves at 286077 samples each and one <code>ip</code> leaf at 46078; the
+      resolver reaches 45 flux-loop/probe time vectors and one
+      <code>ip</code> time vector, each matching its leaf's sample count.
+    </li>
+    <li id="jtpi-writer-test-time-gate">
+      Gate:
+      <code>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv
+      PYTHONPATH=$PWD:$PWD/packages/imas-alambic/src uv run --no-sync pytest -p
+      no:cacheprovider tests/data/test_pulse_writer.py packages/imas-alambic/tests</code>,
+      run in place on the fleet allocation (job 1277272). Base arm
+      (<code>aeb336a7</code>): <code>1 failed, 27 passed</code>, the sole
+      failure <code>test_write_covers_every_description_ids</code>
+      (<code>int(0) == 1</code> for <code>magnetics</code>). After arm:
+      <code>28 passed</code>, <code>EXIT=0</code>. Logs
+      <code>base-arm.log</code> and <code>after-arm.log</code>.
+    </li>
+    <li id="jtpi-writer-test-time-negative-control">
+      Negative control: the writer patched to write
+      <code>homogeneous_time = 1</code> for <code>magnetics</code> regardless
+      makes the repaired test red: the forced value contradicts the leaves'
+      own time vectors, so <code>description.validate()</code> raises
+      <code>CoordinateError</code> and the write aborts, erroring the test
+      (<code>EXIT=1</code>, <code>1 failed, 1 passed, 6 errors</code>). The
+      co-served tests that write and read the other IDSs stay unaffected in
+      the patch, so the red isolates the repaired assertion. Log
+      <code>negative-control.log</code>.
+    </li>
+  </ul>
+</section>
