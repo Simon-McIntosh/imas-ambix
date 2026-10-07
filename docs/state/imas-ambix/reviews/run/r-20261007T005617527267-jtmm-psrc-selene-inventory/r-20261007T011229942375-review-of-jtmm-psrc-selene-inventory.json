@@ -1,0 +1,71 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "eefc8b5b9ef2853038301dc33058a4552b4dfab6",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T01:23:10.874Z",
+  "dispatched_at": "2026-10-07T01:12:41Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-psrc-selene-inventory/docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-selene-inventory.html",
+      "line": "48",
+      "severity": "follow-on",
+      "text": "follow-on: the seeds paragraph names the FPPC coil currents curUpFPC and curLowFPC, but PSRC spells them curUpFPPC and curLowFPPC (verified against the cached zarr tree and served_single.txt); a reader binding by the fragment's spelling would not resolve them."
+    },
+    {
+      "file": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-psrc-selene-inventory/docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-selene-inventory.html",
+      "line": "15",
+      "severity": "follow-on",
+      "text": "follow-on: the plan makes this node settle whether PSRC carries a q profile or flux grid, since the deferred FAME EQDB transport is needed only if it does not; the fragment inventories all 86 served arrays and none is a q profile or a psi grid (the multi-channel arrays are boundary surfaces surfp/surfABVxp/surfBLWxp plus ieddy/ishape/calMMS), so the answer is implied but never stated."
+    },
+    {
+      "file": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-psrc-selene-inventory/docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-selene-inventory.html",
+      "line": "71",
+      "severity": "follow-on",
+      "text": "follow-on: six served arrays, three of them boundary equilibrium quantities (surfp, surfABVxp, surfBLWxp), were read by a direct eddb_pwrapper probe rather than the sanctioned fetch_channels, which refuses their uniform per-channel unit list in eddb_remote.normalise_unit; disclosed in the fragment and recorded as a manifest follow-on, so the SELENE loader that follows will hit the same refusal on the boundary grids unless normalise_unit accepts an agreeing list."
+    }
+  ],
+  "head_log_revision": "890bd6e1cb8f832087217c324f563fce04df8fb5",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "one new 75-line evidence fragment; the inventory table, the seeds/auxiliary paragraph, the comparison table with the negative control, and the refusal section are all present; the commit has a conventional subject and a mechanism body.",
+    "done_when": "the plan names the node's measure as one fragment naming the equilibrium arrays with shape/unit/time base, the seeds, and one comparison slice; the fragment carries all three, and the node declared no suite (read-only docs node, no test write path), so no suite measure applies.",
+    "goal": "the plan clause asks this read-only node to read E101154's PSRC category through fetch_channels, name each array carrying an equilibrium quantity with its shape, unit and time base, state which arrays are seeds, compare one slice with imas-efit's curated reference, and settle whether PSRC carries a q profile or flux grid. The fragment delivers the inventory (86 of the 143 curated data_psrc_ names served; 57 absent as FL1..34 and TC1..23, all irc 1022; real names magFluxLp*/magPbTC*), the seed finding (calbetap 0.1 and calli 0.8, uniform min=max over 46078), and the 6.0 s comparison against the curated reference, and it names every served array. Two shortfalls keep it below full: the q-profile/flux-grid question is implied but not stated, and six arrays were read outside the named reader, three of them boundary quantities.",
+    "manifest": "records commit 890bd6e1, the tests command and its result (served=78 refused=0) with log paths, the negative control, and no blockers; the tests field and fetch.log agree, and the negative_control_note declares the matched-slice-vs-1.0s-away-slice mutation, which reproduces exactly.",
+    "verification": "an independent re-read of the cached zarr at /work/projects/imas_gpu/jt60sa/101154.zarr/PSRC and of imas-efit's curated reference reproduced every reported number: 86 served / 57 absent / 143 candidate; calbetap min=max=0.1 and calli min=max=0.8; PSRC calIp 980154.875 A, calRp0 3.1030688 m, calZp0 0.23545367 m, calRin 1.7981138, calRout 4.4080238 at t=6.0 s; reference at idx 79 (t=5.9947 s) ip 980331.25, axis R 3.1030345, Z 0.2359852, boundary Rmin 1.798, Rmax 4.407, Zmin -1.388, Zmax 2.398 over 288 real vertices (2 fill entries at -9e40); the negative control calRout at t=5.0 s is 4.4049034, diff -0.0021 m, twice the matched slice's +0.0010 m.",
+    "write_paths": "git show --name-only 890bd6e1 lists only docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-selene-inventory.html, inside the fence; no figure directory, plan, sprint or index file is touched; the manifest's changed_paths match the single-file diff exactly."
+  },
+  "justifications": {
+    "durability": "the node is read-only with no test path, so it adds no guard; the negative control is a genuine declared mutation (the same reference against the slice 1.0 s away) that could have failed and does, showing the matched-slice agreement is a real alignment rather than a flat-boundary artefact, and it reproduces independently. It is held below full because nothing here guards the fragment's numbers against drift and the one naming defect shows names were not cross-checked against the source list.",
+    "evidence": "every quantitative claim reproduces exactly against the cached zarr and the curated reference, including the seeds, the 86/57/143 split, the time bases, the 288-real-vertex boundary, and the negative control; the node's own tests command and fetch/probe/grid logs agree with the manifest. One blemish holds it below full: the seeds paragraph misnames curUpFPC/curLowFPC for the real curUpFPPC/curLowFPPC, a name a reader would bind by.",
+    "fit": "the fragment follows the evidence-fragment conventions (docs-project, reckon-type evidence, plan-slug meta; data-reckon=evidence sections), the commit carries a conventional subject and a mechanism body, and the inventory/table style matches the surrounding fragments. The file has no trailing newline, a trivial blemish.",
+    "goal_fidelity": "the plan's jtmm-psrc-selene-inventory clause names exactly this: read PSRC, inventory the equilibrium arrays with shape/unit/time base, state the seeds, and compare one slice, and the fragment carries all of it and names every served array. It is held below full because the plan also makes this node settle whether PSRC carries a q profile or flux grid (the question the deferred FAME EQDB transport turns on) and the fragment only implies that PSRC carries neither, and because three boundary quantities were read outside the named reader fetch_channels.",
+    "reuse": "no new reader, abstraction or module is committed; the single-channel arrays go through the sanctioned fetch_channels, the direct eddb_pwrapper probe was a throwaway read reported rather than committed, and the normalise_unit refusal is recorded as a follow-on to fix at the reader rather than forked around.",
+    "scope_discipline": "git show --name-only 890bd6e1 touches exactly the one fenced fragment; no figure directory is written, and no plan, sprint or index file is modified; the manifest's changed_paths equal the diff."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the plan clause for jtmm-psrc-selene-inventory asks a read-only node to read E101154's PSRC category through fetch_channels, name each array carrying an equilibrium quantity with its shape, unit and time base, state which arrays are seeds, compare one slice with imas-efit's curated reference, and settle whether PSRC carries a q profile or flux grid. The fragment delivers the inventory (86 of the 143 curated data_psrc_ names served; 57 absent as FL1..34 and TC1..23 at irc 1022; the real names are magFluxLp*/magPbTC*), the seeds, and the comparison, and it names every served array. Two shortfalls keep it below full: the q-profile/flux-grid answer is implied but unstated, and six arrays were read outside the named reader.\nVERDICT done_when: the node's measure is one fragment naming the equilibrium arrays with shape/unit/time base, the seeds, and one comparison slice; the fragment carries all three, and no suite applies because the node is read-only with no test write path.\nVERDICT write_paths: git show --name-only 890bd6e1 lists only docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-selene-inventory.html, inside the fence; no figure, plan, sprint or index file is touched, and the manifest's changed_paths match the diff.\nVERDICT manifest: read; it records commit 890bd6e1, the tests command and its result (served=78 refused=0) with log paths, the negative control and no blockers; the tests field agrees with fetch.log and the declared mutation reproduces exactly.\nVERDICT diff: one new 75-line evidence fragment carrying the inventory table, the seeds/auxiliary paragraph, the comparison table with a negative control, and the refusal section; a conventional subject and a mechanism body.\nVERDICT verification: an independent re-read of the cached zarr at /work/projects/imas_gpu/jt60sa/101154.zarr/PSRC and of imas-efit's curated reference reproduced every reported number, including calbetap min=max=0.1 and calli min=max=0.8, PSRC calIp 980154.875 A / calRp0 3.1030688 m / calZp0 0.23545367 m / calRin 1.7981138 / calRout 4.4080238 at t=6.0 s, the reference at idx 79 (t=5.9947 s) ip 980331.25 / axis R 980331.3-adjacent 3.1030345 / Z 0.2359852 / boundary extents 1.798, 4.407, -1.388, 2.398 over 288 real vertices, and the negative control calRout 4.4049034 at t=5.0 s (diff -0.0021 m).\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: the plan names exactly this inventory, seeds and comparison, and the fragment carries all of it and names every served array; it is held below full because the plan also makes this node settle whether PSRC carries a q profile or flux grid, which the fragment only implies, and because three boundary quantities were read outside the named reader fetch_channels.\nSCORE evidence: 19\nJUSTIFICATION evidence: every quantitative claim reproduces exactly against the cached zarr and the curated reference, with the node's logs agreeing with the manifest; one blemish holds it below full -- the seeds paragraph misnames curUpFPC and curLowFPC for the real curUpFPPC and curLowFPPC.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the single commit touches exactly the one fenced fragment, writes no figure and no plan/sprint/index file, and the manifest's changed_paths equal the diff.\nSCORE durability: 18\nJUSTIFICATION durability: a read-only node adds no guard, but its negative control is a declared mutation that reproduces independently and shows the boundary agreement is a real alignment; it is held below full because nothing guards the fragment's numbers against drift and the naming defect shows names were not cross-checked.\nSCORE fit: 19\nJUSTIFICATION fit: the fragment follows the evidence-fragment conventions and the commit carries a conventional subject and a mechanism body; the only blemish is a missing trailing newline.\nSCORE reuse: 19\nJUSTIFICATION reuse: no new reader or abstraction is committed; single-channel arrays use the sanctioned fetch_channels, the throwaway probe is reported rather than committed, and the normalise_unit refusal is a follow-on to fix at the reader.\nFINDING /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-psrc-selene-inventory/docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-selene-inventory.html:48 follow-on: the seeds paragraph names curUpFPC/curLowFPC but PSRC spells them curUpFPPC/curLowFPPC.\nFINDING /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-psrc-selene-inventory/docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-selene-inventory.html:15 follow-on: the plan makes this node settle whether PSRC carries a q profile or flux grid, and the fragment implies but does not state the negative answer.\nFINDING /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-psrc-selene-inventory/docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-selene-inventory.html:71 follow-on: six arrays including three boundary quantities were read outside fetch_channels, which refuses their uniform unit list, disclosed by the node.\n",
+  "review_run_id": "r-20261007T011229942375-review-of-jtmm-psrc-selene-inventory",
+  "reviewed_base_sha": "eefc8b5b9ef2853038301dc33058a4552b4dfab6",
+  "reviewed_head_sha": "890bd6e1cb8f832087217c324f563fce04df8fb5",
+  "reviewed_run_id": "r-20261007T005617527267-jtmm-psrc-selene-inventory",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "reviewer_run_id": "r-20261007T011229942375-review-of-jtmm-psrc-selene-inventory",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 18,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-07T01:41:30.035641+00:00",
+  "total": 113
+}
