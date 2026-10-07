@@ -1,0 +1,50 @@
+<section id="jtmm-signal-map-test-guards-landing" class="evidence-fragment" data-reckon="fragment" data-node="jtmm-signal-map-test-guards">
+  <header>
+    <h3>Both JT-60SA signal-map guards now fail on the mutation they exist to stop</h3>
+    <p class="meta">
+      Node <code>jtmm-signal-map-test-guards</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-machine-map</code> &sect;6
+    </p>
+  </header>
+
+  <p id="jtmm-signal-map-test-guards-unit-table">
+    <strong>Unit table.</strong>
+    <code>test_eddb_unit_spellings_resolve_to_each_bound_rule</code> previously
+    skipped any bound rule whose <code>source_group</code> or
+    <code>source_array</code> was absent from the E101154 cache and passed on a
+    bare <code>checked &gt; 0</code>, so a rule silently unverified could not be
+    told from one checked. It now collects every bound rule
+    (<code>(system, source_group, source_array)</code>) and requires each either
+    present in the cache, where its <code>units</code> spelling is resolved
+    through <code>jt-60sa-eddb-units.json</code>, or named in
+    <code>checked == bound - _CHANNELS_ABSENT_FROM_E101154</code>. The census
+    finds every bound channel present on E101154, so the explicit list is empty
+    today; a channel that goes absent, or a listed channel that turns out
+    present, fails the equality.
+  </p>
+
+  <p id="jtmm-signal-map-test-guards-blocked-reason">
+    <strong>Blocked reason.</strong>
+    <code>test_no_blocked_reason_rests_on_e101154_alone_while_citing_corroboration</code>
+    previously fired only on the literal substring <code>E101154 alone</code>, so
+    a reason that grounded the choice on E101154 in other words while citing a
+    corroborating shot passed. The trigger is now
+    <code>_RESTS_ON_E101154 = E101154 alone | \brests?\b[^.;]*?\bon E101154\b</code>,
+    and the reason fails if it also matches <code>_CORROBORATES</code>, whose
+    negative lookbehind still lets the legitimate negated form
+    (<code>do not corroborate</code>) through.
+  </p>
+
+  <p id="jtmm-signal-map-test-guards-measure">
+    <strong>Measure.</strong>
+    <code>test_jt60sa_signal_maps.py</code> red/green in the head tree: the
+    node gate reports <code>25 passed, EXIT=0</code> in 9.68&nbsp;s. The
+    negative control runs the real guard functions against the two declared
+    mutations and is red on both (<code>2 failed, 1 passed, EXIT=1</code>): the
+    unit-table guard raises on <code>('magnetics', 'PSRC', 'Ip')</code> when the
+    channel is absent and removed from the known-absent list, while its green
+    arm, with the channel listed, is excused; the blocked-reason guard raises on
+    the reason <em>the served chain rests on E101154, corroborated by E101173</em>.
+  </p>
+</section>

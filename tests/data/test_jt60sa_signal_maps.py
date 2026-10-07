@@ -54,6 +54,19 @@ _MEDIAN_ABS_R = re.compile(r"median \|r\| \d+\.\d{3}")
 # negated form ("do not corroborate") is the legitimate way a reason says the
 # other shots do NOT support the choice.
 _CORROBORATES = re.compile(r"(?<!not )corroborat", re.IGNORECASE)
+# A blocked reason grounds the chain choice on E101154 as a single-shot basis.
+# The claim is expressed either by the word "alone" or by saying the choice
+# rests on that shot; either way it contradicts a reason that also cites a
+# second shot as corroborating the same choice.
+_RESTS_ON_E101154 = re.compile(
+    r"E101154 alone|\brests?\b[^.;]*?\bon E101154\b", re.IGNORECASE
+)
+# Bound-rule channels the map declares but the E101154 cache does not carry, so
+# their unit spelling cannot be checked against it. Every bound rule must be
+# either present in the cache or named here, so a channel that goes absent fails
+# the unit-table test instead of being skipped. The census finds every bound
+# channel present on E101154, so the list is empty.
+_CHANNELS_ABSENT_FROM_E101154: frozenset[tuple[str, str, str]] = frozenset()
 
 _cache_missing = not (JT60SA_ROOT / "101154.zarr").is_dir()
 needs_cache = pytest.mark.skipif(
@@ -427,14 +440,23 @@ def test_magnetics_blocks_the_loops_and_probes_beyond_selene():
 def test_eddb_unit_spellings_resolve_to_each_bound_rule():
     table = json.loads(UNIT_TABLE_PATH.read_text(encoding="utf-8"))["units"]
     store = _group(101154)
-    checked = 0
+    bound: set[tuple[str, str, str]] = set()
+    checked: set[tuple[str, str, str]] = set()
     for system in SYSTEMS:
         for rule in load_packaged_signal_map("jt-60sa", system).signals:
-            if rule.source_group not in store:
+            key = (system, rule.source_group, rule.source_array)
+            bound.add(key)
+            present = (
+                rule.source_group in store
+                and rule.source_array in store[rule.source_group]
+            )
+            if not present:
+                # The channel is absent, so its spelling cannot be checked; it
+                # must be one the map already knows to be absent, otherwise the
+                # rule is silently unverified.
+                assert key in _CHANNELS_ABSENT_FROM_E101154, key
                 continue
             group = store[rule.source_group]
-            if rule.source_array not in group:
-                continue
             spelling = group[rule.source_array].attrs.get("units")
             assert spelling in table, (system, rule.source_array, spelling)
             assert table[spelling] == rule.source_unit, (
@@ -443,8 +465,14 @@ def test_eddb_unit_spellings_resolve_to_each_bound_rule():
                 spelling,
                 rule.source_unit,
             )
-            checked += 1
-    assert checked > 0
+            checked.add(key)
+    # Every bound rule is either checked or an explicitly excused absence, so a
+    # newly absent channel fails here rather than being skipped under a bare
+    # "checked > 0".
+    assert checked == bound - _CHANNELS_ABSENT_FROM_E101154, (
+        bound - _CHANNELS_ABSENT_FROM_E101154 - checked,
+    )
+    assert checked
 
 
 @needs_cache
@@ -481,12 +509,15 @@ def test_no_blocked_reason_rests_on_e101154_alone_while_citing_corroboration():
     """A choice may rest on E101154 alone only when no shot corroborates it.
 
     The other commissioning shots sit at the noise floor, so a reason that both
-    claims the choice rests on E101154 alone and cites a shot as corroborating it
-    is self-contradictory; the negated form ("do not corroborate") is legitimate.
+    grounds the choice on E101154 as a single-shot basis and cites a shot as
+    corroborating it is self-contradictory; the negated form ("do not
+    corroborate") is legitimate. The single-shot basis is caught by either the
+    word "alone" or a claim that the choice rests on E101154, so a reason that
+    avoids the word "alone" but repeats the contradiction still fails.
     """
     for system in SYSTEMS:
         for row in load_packaged_signal_map("jt-60sa", system).blocked:
-            if "E101154 alone" not in row.reason:
+            if not _RESTS_ON_E101154.search(row.reason):
                 continue
             assert not _CORROBORATES.search(row.reason), (
                 system,
