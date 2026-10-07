@@ -1,0 +1,65 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_basis": "unmeasured: the reviewed run's manifest names no baseline_suite and no after_suite arm (the reviewed node was unarmed, and its FENCE-EVIDENCE names a single gate), so the two gate logs the added-failure count is derived from are both absent. Per the store's rule a count never taken is stored as null, not as a measured zero. The reviewed run's own head arm (gate-head.txt, 25 passed EXIT=0) and negative control (negative-control.log, 2 failed/1 passed EXIT=1) are the readable evidence; this review re-ran the gate at the extracted head and reproduced 25 passed EXIT=0.",
+  "after_suite": null,
+  "base_log_revision": null,
+  "baseline_suite": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T01:32:00.998Z",
+  "dispatched_at": "2026-10-07T01:17:15Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T005741673940-jtmm-signal-map-test-guards/gate-head.txt",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the head gate log's first line names revision b99d8546 (the base) though the change landed at 853eb02c, so the log cannot tie its 25-passed result to the landing commit on its own; the manifest's tests field and the commit supply the missing link."
+    },
+    {
+      "file": "tests/data/test_jt60sa_signal_maps.py",
+      "line": "61",
+      "severity": "follow-on",
+      "text": "follow-on: _RESTS_ON_E101154 also matches a negated basis claim ('the choice does not rest on E101154') while a corroborating shot is cited, which the guard would fail though such a reason is legitimate; only the negated corroboration form is excused. No current blocked row uses the negated-basis form, so the map passes."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call site: the changed file is a test module and the other artifact is a docs fragment.",
+    "diff": "read against base b99d8546 (git rev-list base..head count 1): tests/data/test_jt60sa_signal_maps.py replaces the int checked counter with bound/checked sets, adds _CHANNELS_ABSENT_FROM_E101154 (empty today) and the assert checked == bound - absent equality, and widens the blocked-reason trigger from the literal 'E101154 alone' to _RESTS_ON_E101154; the fragment is new and names both guards.",
+    "done_when": "the node's done-when gate is pytest tests/data/test_jt60sa_signal_maps.py exiting 0 with the unit-table test accounting for every bound rule and the blocked-reason guard failing on the rest-form; re-run at the extracted head 853eb02c it reports 25 passed EXIT=0, and the two guards are the changed functions.",
+    "goal": "the plan's jt60sa-machine-map \u00a76 paragraph names exactly this node: tighten two guards in tests/data/test_jt60sa_signal_maps.py so the unit-table test accounts for every bound rule and the blocked-reason guard catches any reason resting a choice on E101154 while citing a corroborating shot; the diff implements both.",
+    "manifest": "read; it records commit 853eb02c, the gate 25 passed EXIT=0, both red mutations, the artifact paths and no blockers; its evidence_inputs (56 bound channels, empty known-absent list, nine pf_active rows on E101154 alone, EF2's second-shot row) reproduce. Blemishes: its gate-head.txt header names base b99d8546 rather than head 853eb02c, and it carries no baseline_suite/after_suite arms (the reviewed node was unarmed).",
+    "write_paths": "declared write paths are tests/data/test_jt60sa_signal_maps.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-signal-map-test-guards.html and a figures directory; git diff --name-only base..head touches exactly the first two, and no figure is written."
+  },
+  "justifications": {
+    "durability": "tests/data/test_jt60sa_signal_maps.py:457 fails on an absent-and-unlisted channel and :522 fails on 'rests on E101154, corroborated by ...'; this review's independent probe reddens both on the mutations and shows the pre-change guard (checked > 0) passing on the same mutation.",
+    "evidence": "the reviewed manifest cites gate-head.txt (25 passed, EXIT=0) and negative-control.log (2 failed, 1 passed, EXIT=1), and this review's independent gate re-run at the extracted head reproduced 25 passed EXIT=0; the head log's header naming base b99d8546 rather than head 853eb02c is the blemish.",
+    "fit": "the new regex and frozenset follow the module's existing guard idiom (tests/data/test_jt60sa_signal_maps.py:54-69) and the comments state the mechanism; no forbidden name is introduced.",
+    "goal_fidelity": "docs/plans/jt60sa-machine-map.html:527-533 names both guard tightenings; tests/data/test_jt60sa_signal_maps.py:440-473 and :508-523 implement exactly those two, adding nothing the paragraph does not state.",
+    "reuse": "the change extends the guards already owning this check in tests/data/test_jt60sa_signal_maps.py and reuses load_packaged_signal_map and the unit table; no capability is re-implemented.",
+    "scope_discipline": "git diff --name-only b99d8546..853eb02c lists only tests/data/test_jt60sa_signal_maps.py and the fragment, both inside the declared write paths; no map data, figure, plan or index file is touched."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the plan's jt60sa-machine-map \u00a76 paragraph names exactly this node: tighten two guards in tests/data/test_jt60sa_signal_maps.py so the unit-table test accounts for every bound rule and the blocked-reason guard catches any reason resting a choice on E101154 while citing a corroborating shot; the diff implements both.\nVERDICT done_when: the node's done-when gate is pytest tests/data/test_jt60sa_signal_maps.py exiting 0 with the unit-table test accounting for every bound rule and the blocked-reason guard failing on the rest-form; re-run at the extracted head 853eb02c it reports 25 passed EXIT=0, and the two guards are the changed functions.\nVERDICT write_paths: declared write paths are tests/data/test_jt60sa_signal_maps.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-signal-map-test-guards.html and a figures directory; git diff --name-only base..head touches exactly the first two, and no figure is written.\nVERDICT manifest: read; it records commit 853eb02c, the gate 25 passed EXIT=0, both red mutations, the artifact paths and no blockers; its evidence_inputs (56 bound channels, empty known-absent list, nine pf_active rows on E101154 alone, EF2's second-shot row) reproduce. Blemishes: its gate-head.txt header names base b99d8546 rather than head 853eb02c, and it carries no baseline_suite/after_suite arms (the reviewed node was unarmed).\nVERDICT diff: read against base b99d8546 (git rev-list base..head count 1): tests/data/test_jt60sa_signal_maps.py replaces the int checked counter with bound/checked sets, adds _CHANNELS_ABSENT_FROM_E101154 (empty today) and the assert checked == bound - absent equality, and widens the blocked-reason trigger from the literal 'E101154 alone' to _RESTS_ON_E101154; the fragment is new and names both guards.\nCALL_SITES: none\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: docs/plans/jt60sa-machine-map.html:527-533 names both guard tightenings; tests/data/test_jt60sa_signal_maps.py:440-473 and :508-523 implement exactly those two, adding nothing the paragraph does not state.\nSCORE evidence: 18\nJUSTIFICATION evidence: the reviewed manifest cites gate-head.txt (25 passed, EXIT=0) and negative-control.log (2 failed, 1 passed, EXIT=1), and this review's independent gate re-run at the extracted head reproduced 25 passed EXIT=0; the head log's header naming base b99d8546 rather than head 853eb02c is the blemish.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-only b99d8546..853eb02c lists only tests/data/test_jt60sa_signal_maps.py and the fragment, both inside the declared write paths; no map data, figure, plan or index file is touched.\nSCORE durability: 20\nJUSTIFICATION durability: tests/data/test_jt60sa_signal_maps.py:457 fails on an absent-and-unlisted channel and :522 fails on 'rests on E101154, corroborated by ...'; this review's independent probe reddens both on the mutations and shows the pre-change guard (checked > 0) passing on the same mutation.\nSCORE fit: 19\nJUSTIFICATION fit: the new regex and frozenset follow the module's existing guard idiom (tests/data/test_jt60sa_signal_maps.py:54-69) and the comments state the mechanism; no forbidden name is introduced.\nSCORE reuse: 20\nJUSTIFICATION reuse: the change extends the guards already owning this check in tests/data/test_jt60sa_signal_maps.py and reuses load_packaged_signal_map and the unit table; no capability is re-implemented.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T005741673940-jtmm-signal-map-test-guards/gate-head.txt:1 follow-on: follow-on: the head gate log's first line names revision b99d8546 (the base) though the change landed at 853eb02c, so the log cannot tie its 25-passed result to the landing commit on its own; the manifest's tests field and the commit supply the missing link.\nFINDING tests/data/test_jt60sa_signal_maps.py:61 follow-on: follow-on: _RESTS_ON_E101154 also matches a negated basis claim ('the choice does not rest on E101154') while a corroborating shot is cited, which the guard would fail though such a reason is legitimate; only the negated corroboration form is excused. No current blocked row uses the negated-basis form, so the map passes.",
+  "review_run_id": "r-20261007T011702631319-review-of-jtmm-signal-map-test-guards",
+  "reviewed_base_sha": "b99d85467ac3672683f1178b5e922c3f13987b13",
+  "reviewed_head_sha": "853eb02c6c9b6177d1d1cd641030d343cdf2c741",
+  "reviewed_run_id": "r-20261007T005741673940-jtmm-signal-map-test-guards",
+  "reviewer": "review-of-jtmm-signal-map-test-guards",
+  "scores": {
+    "durability": 20,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-07T01:32:00+00:00",
+  "total": 117
+}
