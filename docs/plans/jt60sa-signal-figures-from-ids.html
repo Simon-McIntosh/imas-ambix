@@ -25,7 +25,7 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="17">
+<meta name="plan-version" content="18">
 <meta name="plan-modified" content="2026-10-07">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;implementable&quot;}">
 </head>
@@ -95,9 +95,9 @@
       for E101154, without copying §1's body. <code>scripts/figures_jt60sa_signals.py</code> fixes its pulse and
       figure name in module constants (<code>SHOT</code>, <code>FIGURE</code>, <code>PULSE_FILE</code>), and its
       <code>_main()</code> takes no pulse. So this section moves the open → <code>extract_signal_traces</code> →
-      <code>time_trace_figure_mpl</code> → <code>render_to_bytes</code> path into one function that takes the run file's root, the pulse, the run number
-      and the series to draw as (IDS name, path) pairs, and returns the figure. It writes nothing; the script's
-      entry point renders each returned figure to SVG and writes it. E101154 and
+      <code>time_trace_figure_mpl</code> path into one function that takes the run file's root, the pulse, the run number
+      and the series to draw as (IDS name, path) pairs, and returns the matplotlib figure. It renders and writes
+      nothing. The script's entry point passes each returned figure to <code>render_to_bytes</code> and writes the SVG. E101154 and
       E101031 become calls to it with <code>("pf_active", "coil/current")</code> and <code>("magnetics", "ip")</code>,
       and §2's flux loops and probes become further calls rather than a second path. The constants fixed to E101154
       are retired, and E101154's figure is unchanged.
@@ -105,12 +105,15 @@
     <p>
       The function reaches a pulse through the owners jt60sa-facility-mint §8 introduces, so it runs after §8
       merges and never names a path. The file name comes from <code>pulse_writer.pulse_path</code>, which §8 migrates
-      <code>_read_pulse_ids</code> onto. The root is resolved once, in the entry point. It takes
-      <code>imas_alambic/settings.py</code> <code>resolve_settings</code> (<code>IMAS_ALAMBIC_IDS_ROOT</code>) when that
-      yields a root. Otherwise it takes ambix's own development store root,
-      <code>imas_ambix/data/paths.py</code> <code>JT60SA_ROOT / "ids"</code>, which is where
-      <code>jtfm-write-dev-pulses</code> wrote both files. Nothing in this repository sets
-      <code>IMAS_ALAMBIC_IDS_ROOT</code>, so <code>resolve_settings</code> alone yields no root here. Its flux loops
+      <code>_read_pulse_ids</code> onto. The root is resolved once, in the entry point. Its owner is
+      <code>imas_alambic/settings.py</code> <code>resolve_settings</code>: <code>ids_root</code>, from
+      <code>IMAS_ALAMBIC_IDS_ROOT</code>, called with <code>machine="jt-60sa"</code> because ambix's bundle still serves
+      three machines until jt60sa-facility-mint §1 lands. Nothing in this repository sets that variable, and settings
+      have no development default yet; jt60sa-facility-mint's coordinator owns adding one. Until then, the entry
+      point falls back to the store root ambix's bundle declares, <code>imas_alambic.machine_map</code>
+      <code>resolve_store_root("JT60SA_ROOT")</code>, under which <code>jtfm-write-dev-pulses</code> wrote both files in
+      <code>ids/</code>. It does not import <code>imas_ambix/data/paths.py</code> for the pulse. That fallback is
+      interim, recorded as such in the code, and retires when settings gain the default. Its flux loops
       and probes follow §2's terms. Both owners landed with §8 (merge <code>106c1104</code>, 2026-10-07):
       <code>imas_alambic/settings.py</code> <code>resolve_settings</code> and <code>pulse_writer.pulse_path</code>. The
       script already opens E101154 through <code>pulse_path</code>, but still takes its root from
