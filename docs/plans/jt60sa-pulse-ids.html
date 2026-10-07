@@ -7,10 +7,10 @@
   <meta name="reckon-type" content="plan">
   <meta name="plan-slug" content="jt60sa-pulse-ids">
   <meta name="plan-title" content="JT-60SA Pulse IDSs and Equilibrium Animation">
-  <meta name="plan-summary" content="Mint a JT-60SA pulse as IDSs through the machine map, then animate it from those IDSs alone: flux surfaces, O-point, X-points, strike points, via imas-ink">
+  <meta name="plan-summary" content="Write a JT-60SA pulse as IDSs through the machine map, then animate it from those IDSs alone: flux surfaces, O-point, X-points, strike points, via imas-ink">
   <meta name="plan-status" content="draft">
   <meta name="plan-roi" content="high">
-  <meta name="plan-effort-hours" content="8.5">
+  <meta name="plan-effort-hours" content="9.25">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="orchestrator">
   <meta name="plan-capability-reasoning" content="deep">
@@ -22,11 +22,11 @@
   <meta name="plan-tags" content="jt-60sa,machine-map,equilibrium,figures">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;jt60sa-machine-map#s7&quot;], &quot;s3&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;], &quot;s4&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;, &quot;imas-ink:geometry-figure-vessel-units#s5&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="21">
+<meta name="plan-version" content="23">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -61,8 +61,12 @@
       reads SELENE's equilibria from the facility's equilibrium database (EQDB) and maps psi on its
       grid, the boundary and the profiles into <code>equilibrium</code>, after §6 has fixed the
       source COCOS from data. This section does not read EQDB itself. It waits on that rung and
-      mints E101154's equilibria through the same writer as §1, so the equilibrium joins the other
-      five IDSs in <code>/work/projects/imas_gpu/jt60sa/ids/101154/</code>.
+      writes E101154's equilibria through the same writer as §1, <code>imas-alambic write</code>, so
+      the equilibrium sits beside the pulse's description IDSs in the writer's output. The writer owns
+      that layout; jt60sa-facility-mint §8 is moving it from one file per IDS to one run file per
+      pulse. So this section reaches the output through the writer's own path rule and never names a
+      path. If the writer exposes no such rule when this section is built, the section adds one to
+      <code>imas_alambic/pulse_writer.py</code> rather than restating the layout.
     </p>
     <p>
       imas-ink renders topology and never computes it, so the minted IDS must carry it in the
@@ -109,14 +113,14 @@
     <p>
       The animation is a second output of <code>scripts/figures_jt60sa_geometry.py</code> rather than a
       parallel script. ambix has two JT-60SA imas-ink drivers:
-      <code>scripts/figures_jt60sa_signals.py</code> draws time traces from the EDDB cache, and
-      <code>scripts/figures_jt60sa_geometry.py</code> opens a directory of <code>{ids}.nc</code> files at
-      the catalogue's DD version and builds the geometry with <code>extract_geometry</code>. The
-      animation reads only minted IDSs, whose directory has that same layout, so it belongs to the
-      geometry driver. It gains one
+      <code>scripts/figures_jt60sa_signals.py</code> draws time traces, and
+      <code>scripts/figures_jt60sa_geometry.py</code> builds the machine geometry with
+      <code>extract_geometry</code> from description IDSs. The animation needs that same geometry
+      under the written equilibrium, so it belongs to the geometry driver. It gains one
       option naming the pulse, and retires nothing: the script takes no options today, and a pulse
-      is a new input to it. With it, the script opens only the minted IDSs in
-      <code>/work/projects/imas_gpu/jt60sa/ids/101154/</code>, builds the geometry from
+      is a new input to it. With it, the script opens only the IDSs the writer wrote for that pulse.
+      It reaches them in one function, through the writer's own path rule, so a change in the
+      writer's layout is a change in one place. It builds the geometry from
       <code>wall</code>, <code>pf_active</code> and <code>magnetics</code>, and calls
       <code>animate_pulse</code> on <code>equilibrium</code> with the probes and flux loops left out.
       It draws nothing itself and holds no style constant, so a rendering change is an imas-ink change.
@@ -125,7 +129,7 @@
     </p>
     <p>
       Done-when: the GIF exists with one frame per equilibrium time slice. The script refuses if
-      any input is not a minted IDS, so no frame reads the cache, the store or EQDB directly. The
+      any input is not a written IDS, so no frame reads the cache, the store or EQDB directly. The
       evidence fragment <code>docs/evidence/fragments/jt60sa-pulse-ids/</code> embeds the GIF and
       records its frame count, its time range and, per frame, the number of X-points and strike
       points drawn. The lead has looked at it.
@@ -133,7 +137,11 @@
 
     <h2 id="s5">§5 — The writer&#x27;s test reads homogeneous_time from the receipt</h2>
 <section data-reckon="section" data-id="s5" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links="jt60sa-facility-mint#s7"></section>
-<p>§1's test of the writer asserts <code>ids_properties.homogeneous_time == 1</code> for every IDS that carries a time-dependent leaf. That held when <code>magnetics</code> served only <code>ip</code>. Since then jt60sa-machine-map has bound the raw flux loops and tangential probes too (commits <code>4d4c3b21</code>, <code>755c4b09</code>), so <code>magnetics</code> serves 45 signals on more than one time base, and the writer correctly writes <code>homogeneous_time = 0</code> with each signal carrying its own time vector, as §1 specifies. The assertion has been red on <code>main</code> since, in <code>tests/data/test_pulse_writer.py::test_write_covers_every_description_ids</code> (the file jt60sa-facility-mint §7 renamed from <code>test_pulse_mint.py</code>). The writer is right and the test is wrong.</p><p>The test derives the expected value from the receipt rather than hard-coding it. It expects 1 when every leaf the receipt names for that IDS uses the IDS-level <code>time</code> path, 0 when they carry their own time vectors, and 2 when the IDS has no time-dependent leaf. For a heterogeneous IDS it also checks that each written leaf's sibling <code>time</code> vector has as many samples as its data. No source file changes.</p><p>Done-when: <code>uv run --no-sync pytest -p no:cacheprovider tests/data/test_pulse_writer.py packages/imas-alambic/tests</code> passes with no failure, run in the worktree with <code>packages/imas-alambic/src</code> on <code>PYTHONPATH</code> so the engine under test is the worktree's. The negative control, a writer that writes <code>homogeneous_time = 1</code> for <code>magnetics</code> regardless, fails the repaired test.</p>
+<p>§1's test of the writer asserts <code>ids_properties.homogeneous_time == 1</code> for every IDS that carries a time-dependent leaf. That held when <code>magnetics</code> served only <code>ip</code>. Since then jt60sa-machine-map has bound the raw flux loops and tangential probes too (commits <code>4d4c3b21</code>, <code>755c4b09</code>), so <code>magnetics</code> serves 45 signals on more than one time base, and the writer correctly writes <code>homogeneous_time = 0</code> with each signal carrying its own time vector, as §1 specifies. The assertion has been red on <code>main</code> since, in <code>tests/data/test_pulse_writer.py::test_write_covers_every_description_ids</code> (renamed from <code>test_pulse_mint.py</code> by jt60sa-facility-mint §7, merged at <code>7e8b6db4</code>). The writer is right and the test is wrong.</p><p>The test derives the expected value from the receipt rather than hard-coding it. It expects 1 when every leaf the receipt names for that IDS uses the IDS-level <code>time</code> path, 0 when they carry their own time vectors, and 2 when the IDS has no time-dependent leaf. For a heterogeneous IDS it also checks that each written leaf's sibling <code>time</code> vector has as many samples as its data. No source file changes.</p><p>Done-when: <code>uv run --no-sync pytest -p no:cacheprovider tests/data/test_pulse_writer.py packages/imas-alambic/tests</code> passes with no failure, run in the worktree with <code>packages/imas-alambic/src</code> on <code>PYTHONPATH</code> so the engine under test is the worktree's. The negative control, a writer that writes <code>homogeneous_time = 1</code> for <code>magnetics</code> regardless, fails the repaired test.</p>
+
+    <h2 id="s6">§6 — E101154 rewritten from today&#x27;s maps, and E101031 written beside it</h2>
+<section data-reckon="section" data-id="s6" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links="jt60sa-pulse-ids#s5"></section>
+<p>There are two reasons to write pulses again. First, the E101154 on disk was written by §1 on 2026-10-06 at 18:44, before jt60sa-machine-map bound the raw flux loops and tangential probes. So its <code>magnetics</code> carries only <code>ip</code>, while the map now serves 45 magnetics signals: ip, 27 flux loops and 17 probes. The session redrawing the JT-60SA signal figures from IDS (imas-ambix-c3) draws the loops and probes once an IDS carries them. Second, those figures need a second pulse in place of C060033, and on 2026-10-07 the lead chose E101031.</p><p>C060033 cannot be written. Shot 60033 falls in no catalogue phase. As jt60sa-machine-map's vacuum census records, the C series drives only the TF coils, with the PF chain at the noise floor, and its cache holds no PSRC group, so there is no ip. E101031 is an OP1 plasma pulse: in jtmm-op1-shot-survey, ip holds 0.7&nbsp;MA for 5.4&nbsp;s without disruption, the coils are driven, and all 34 loops and 23 probes are acquired. Its cache carries all 56 channels the three signal maps serve (checked 2026-10-07), so today's writer writes it without change.</p><p>This is an operational node, run after §5 lands, that writes no source. It runs <code>imas-alambic write --machine jt-60sa --shot 101154 --out /work/projects/imas_gpu/jt60sa/ids</code>, then the same for 101031, in the writer's current layout. jt60sa-facility-mint §8 rewrites both pulses when it moves the writer to run files.</p><p>Done-when: both commands exit 0, and each pulse's five description IDSs read back through <code>imas.DBEntry</code> at DD 4.1.1. For each pulse, <code>pf_active</code> carries the 10 served coil currents. <code>magnetics</code> carries ip, 27 flux loops and 17 probes, each with its own time vector (<code>homogeneous_time</code> 0), and its probe axes equal the OP1 store's. E101031's ip peaks near 0.7&nbsp;MA and E101154's near 1.0&nbsp;MA. The evidence fragment records both output directories, the run, and each of these checks.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
