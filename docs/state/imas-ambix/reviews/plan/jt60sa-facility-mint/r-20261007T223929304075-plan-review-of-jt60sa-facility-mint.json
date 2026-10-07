@@ -1,0 +1,86 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-07T22:44:38.696Z",
+  "dispatched_at": "2026-10-07T22:39:41Z",
+  "findings": [
+    {
+      "anchor": "packages/imas-alambic/src/imas_alambic/machine_map.py:252",
+      "id": "reuse_search-1",
+      "reason": "the section must either add `packages/imas-alambic/src/imas_alambic/machine_map.py` to its write paths and specify the iterable entry-point form, or replace the entry-point route with a parent-directory scan owned by discovery.",
+      "text": "\u00a717 says ambix's `imas_alambic.bundles` entry point will \"offer every `maps/<machine>/` that holds a `bundle.json`\", but `discover_bundles` loads one entry point target and accepts only a `MapBundle` (`declared.append(target)`) or a directory path (`roots.append(Path(target))`); a callable returning a collection falls to the `else` branch, so `Path(<tuple of bundles>)` raises `TypeError` before any bundle is read. The repo-root `maps/<machine>/` set is dynamic and gitignored, so it cannot be registered as one static entry point per machine, and the engine's entry-point contract has no iterable form \u2014 yet \u00a717's write-path list names no engine file (`machine_map.py` is absent), so the mechanism the section describes cannot work as written.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/data/description_reader.py:213",
+      "id": "reuse_search-2",
+      "reason": "the section's third call site is in an ambix file its write paths do not grant, so the plan must add `imas_ambix/data/description_reader.py` to the write paths (or drop the claim of \"the two\" sites and justify leaving the third).",
+      "text": "\u00a716 states that \"the two store-root lookups that drop it\" are `MachineMapCatalog.description_store_root_path` (`packages/imas-alambic/src/imas_alambic/machine_map.py:1230`) and `load_machine_map` (`machine_map.py:1404`), but the census of `resolve_store_root` call sites that omit `search_path` is three, not two: `_resolve_store_addressing` in `imas_ambix/data/description_reader.py:213` also calls `resolve_store_root(catalog.description_store_root, kind=\"description store\")` with no `search_path`, so it falls back to `resolve_settings().maps` and the `IMAS_ALAMBIC_MAP_PATH` environment variable. Because `imas_ambix/data/description_reader.py` is outside \u00a716's declared write paths, a `write --maps <bundle>` with `IMAS_ALAMBIC_MAP_PATH` unset still fails its description-store lookup after the two named edits land.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "packages/imas-alambic/install/imasdb.sh:70",
+      "id": "duplicate_owner-1",
+      "reason": "the section must say which pull is canonical \u2014 retiring `imasdb.sh:70`'s oras call to the new command, or stating why the installer cannot reuse it.",
+      "text": "\u00a718 adds a `maps pull <machine>` subcommand that fetches a tagged bundle from `ghcr.io/simon-mcintosh/imas-alambic-<machine>`, but the same operation already has an owner: `imasdb.sh:70` does `gh auth token | oras pull --username \"$GH_USER\" --password-stdin \"$BUNDLE_REF\" -o \"$BUNDLE\"`, and the section touches `imasdb.sh` only to say it \"defaults to the latest stable tag and no longer names a date\". Two independent oras-pull paths would then exist over the same registry and the same gh token, and a change to either (auth form, artifact type, digest verification) drifts from the other.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html#s18",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the added CLI surface in its own text \u2014 naming what it retires or merges, or why nothing can be \u2014 as the interface-budget rule requires.",
+      "text": "the section adds the `imas-ambix maps` group with `release <machine> [--bump major|minor|patch] [--final] [-m MSG]`, `pull <machine> [--version]` and `status <machine>` to a CLI whose `cli_options` is currently 0, and adds a `--no-release` opt-out plus an automatic release call at the end of \"every ambix command that writes into `maps/<machine>/`\". The section names no CLI option, command or flag it retires or merges, and gives no reason nothing can be: the only surface it touches is `install/imasdb.sh`, which is a shell script rather than a member of the option family, and the `IMASDB_BUNDLE_REF`/date reference it retires is an environment default, not an option.",
+      "type": "interface_budget",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html#s17",
+      "id": "duplicate_owner-2",
+      "reason": "\u00a717 repoints the single owner constant `JT60SA_DESCRIPTION_DIR` in `imas_ambix/data/paths.py`, so this consumer follows the move without its own edit; the omission is a census gap rather than a broken path, and no plan text changes.",
+      "text": "\u00a717 says its write-path list covers \"the census tests that name the description store\" and enumerates five files, but `tests/data/test_transform_engine.py:35` also names the description store (`from imas_ambix.data.paths import JT60SA_DESCRIPTION_DIR`, used at `:40`-`:41` as `JT60SA_OP1_DESCRIPTION_ROOT / \"OP1\" / \"pf_active.nc\"`), so the enumeration misses one consumer of the owner it repoints.",
+      "type": "duplicate_owner",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "41776cbacbabeb939ff5dc52466b8ba652b97d49de786d53c73e82b40f894cce",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 117,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261007T223929304075-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "e92f956612927ff408a5ec8b1a555706f8bb079d",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the review units extend existing owners (`eddb_token`, `resolve_store_root`, `imas_ambix/data/bundle.py`) rather than spreading behaviour across new small wrappers; \u00a718's one new module, `imas_ambix/maps_cli.py`, hides the semver/RC state machine, the OCI push and the tree digest behind `release`/`pull`/`status`.",
+    "duplicate_owner": "a finding \u2014 \u00a718 adds `imas-ambix maps pull` while `packages/imas-alambic/install/imasdb.sh:70` already owns the \"pull a bundle from GHCR with the gh token\" mechanism (`gh auth token | oras pull \u2026`), and the section names no retirement or merge of that owner.",
+    "interface_budget": "a finding \u2014 `public_definitions` 0, `cli_options` 0, `mcp_views` 0, `refusal_families` 0; \u00a718 adds the `imas-ambix maps` CLI group (`release`, `pull`, `status`) plus a `--no-release` opt-out and an automatic release call at the end of every maps-writing command, moving `cli_options` off its current 0, and names neither what it retires or merges nor why nothing can be.",
+    "reuse_search": "a finding \u2014 \u00a717 states ambix's `imas_alambic.bundles` entry point \"offers every `maps/<machine>/` that holds a `bundle.json`\", but the engine's entry-point loader (`packages/imas-alambic/src/imas_alambic/machine_map.py:252`) consumes exactly one `MapBundle` or one directory per entry point, and \u00a716's account of which `resolve_store_root` call sites drop the map search path is a partial census (three sites, not two).",
+    "thin_wrapper": "pass \u2014 no review unit adds a bare layer over an owner it could instead extend; \u00a716 edits the existing grammar owner and the existing root resolver, and \u00a718's release state machine has no prior owner in imas-ambix to extend."
+  },
+  "section_digests": {
+    "_document": "88699358b3d2d92850ed703fcdff17e9843d3253cc3d2cd660a8dc6a2bd62b5c",
+    "s1": "9c7f16d6433487c622ba43b590d60de6ac6689995d01dfbcf8d4ab1d1d24f6c3",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "40878323aab9328585648d85591fd96dc6fcd4f5beedd01abbe2f0b3b1e8e508",
+    "s12": "7dd2ae47a38480f8a23a4bd518d5e1b9f6772d559fde8fe9885a2c7095f8ea50",
+    "s13": "2741a581fa4af709b92ea8db4a8330d65807a7a8665bbbfd9b84a09145be00ba",
+    "s14": "00628004df0e643b97e5a73b8e6ec838a6a572c206b20aff261081968fae4bb6",
+    "s15": "2d28daaa30674a0926633cf0bde89e0177a31a0f037724f0631b6efb13df02ba",
+    "s16": "53ba0ba04529722b831f4846c272220c764bae0e8be3a17d7e2a02bfad4887c3",
+    "s17": "c8ce9ae0317ee2057444df83e55295999c851ac6dc9b905ce95af5d623dd781d",
+    "s18": "c645b4b6bac1a40ce4ffae763f65ec54a24179e7c2b383bd9225765c02b1129e",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "b1fac0701ea703406fed882189756b422b8bb52294039078259ccc18acf7cef0",
+    "s6": "7d596f31b4c60f8f55c421e2bdcb0d3f6de538cc99713c8d9b99700aad5e07ae",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "0d934ec479471ff9f711bc6e58ec9f2d0f07d4722593ff98c53426b2b509ecda",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T22:46:32.606637+00:00"
+}
