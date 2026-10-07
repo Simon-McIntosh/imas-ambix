@@ -122,6 +122,82 @@ def test_cache_falls_back_from_the_bundle_role_to_the_user_default(
     assert "default" in fallback.cache.source
 
 
+def test_ids_root_flag_beats_every_earlier_source(tmp_path, monkeypatch):
+    _no_entry_points(monkeypatch)
+    home = tmp_path / "IMASDB"
+    _bundle(
+        home / "maps" / "current",
+        machine="jt-60sa",
+        store_roots={"ids_root": str(tmp_path / "bundle-ids")},
+    )
+    environ = {ENV_HOME: str(home), ENV_IDS_ROOT: str(tmp_path / "env-ids")}
+
+    flagged = resolve_settings(
+        SettingsFlags(ids_root=str(tmp_path / "flag-ids")), environ
+    )
+
+    assert flagged.ids_root.value == str(tmp_path / "flag-ids")
+    assert flagged.ids_root.source == "--out"
+
+
+def test_ids_root_variable_beats_home_and_the_bundle_role(tmp_path, monkeypatch):
+    _no_entry_points(monkeypatch)
+    home = tmp_path / "IMASDB"
+    _bundle(
+        home / "maps" / "current",
+        machine="jt-60sa",
+        store_roots={"ids_root": str(tmp_path / "bundle-ids")},
+    )
+
+    settings = resolve_settings(
+        SettingsFlags(), {ENV_HOME: str(home), ENV_IDS_ROOT: str(tmp_path / "env-ids")}
+    )
+
+    assert settings.ids_root.value == str(tmp_path / "env-ids")
+    assert settings.ids_root.source == ENV_IDS_ROOT
+
+
+def test_ids_root_home_beats_the_bundle_role(tmp_path, monkeypatch):
+    _no_entry_points(monkeypatch)
+    home = tmp_path / "IMASDB"
+    _bundle(
+        home / "maps" / "current",
+        machine="jt-60sa",
+        store_roots={"ids_root": str(tmp_path / "bundle-ids")},
+    )
+
+    settings = resolve_settings(SettingsFlags(), {ENV_HOME: str(home)})
+
+    assert settings.ids_root.value == home / "ids"
+    assert settings.ids_root.source == f"{ENV_HOME}/ids"
+
+
+def test_ids_root_comes_from_the_bundle_role_when_nothing_else_names_it(
+    tmp_path, monkeypatch
+):
+    _no_entry_points(monkeypatch)
+    root = _bundle(
+        tmp_path / "facility",
+        machine="jt-60sa",
+        store_roots={"ids_root": str(tmp_path / "bundle-ids")},
+    )
+
+    settings = resolve_settings(SettingsFlags(), {ENV_MAP_PATH: str(root)})
+
+    assert settings.ids_root.value == tmp_path / "bundle-ids"
+    assert settings.ids_root.source == "bundle ids_root role"
+
+
+def test_ids_root_is_unset_when_no_bundle_declares_the_role(tmp_path, monkeypatch):
+    _no_entry_points(monkeypatch)
+    root = _bundle(tmp_path / "bare", machine="jt-60sa")
+
+    settings = resolve_settings(SettingsFlags(), {ENV_MAP_PATH: str(root)})
+
+    assert settings.ids_root.value is None
+    assert not settings.ids_root.is_set
+
+
 def test_several_reachable_machines_leaves_the_machine_unset_naming_the_flag(
     tmp_path, monkeypatch
 ):

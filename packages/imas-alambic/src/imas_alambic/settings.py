@@ -10,9 +10,13 @@ precedence that names it:
 3. a default derived from ``IMAS_ALAMBIC_HOME`` -- ``maps/current`` for the map
    search path and ``ids`` for the IDS root.
 
-The cache has one more step than the others.  It falls back, so a bundle that
-declares an ``eddb_cache`` store root keeps the development cache where it
-already is, to ``~/.cache/imas-alambic``.
+The cache and the IDS root have one more step than the others: each falls back
+to the store role its bundle declares, so a checkout with neither variable set
+still finds the development cache and the development run files.  The cache
+falls through to ``~/.cache/imas-alambic`` when no bundle declares an
+``eddb_cache`` role; the IDS root falls through to unset when no bundle declares
+an ``ids_root`` role.  ``IMAS_ALAMBIC_HOME`` sits above the bundle role so the
+facility launcher's ``IMASDB`` always wins over any bundle.
 
 Every setting carries the source it came from, so ``imas-alambic config`` can
 print each value beside where it was read.  The machine is never a variable: it
@@ -46,9 +50,11 @@ ENV_CACHE = "IMAS_ALAMBIC_CACHE"
 #: The map search path variable, under the name bundle discovery knows it by.
 _BUNDLE_ENV_VAR = ENV_MAP_PATH
 
-#: The store role a bundle declares for the writer's on-demand EDDB cache, and
-#: the per-user fallback when no reachable bundle declares one.
+#: The store roles a bundle may declare: the writer's on-demand EDDB cache and
+#: the development IDS root.  The cache falls back to a per-user default when no
+#: reachable bundle declares one; the IDS root falls through to unset.
 _CACHE_ROLE = "eddb_cache"
+_IDS_ROOT_ROLE = "ids_root"
 _CACHE_FALLBACK = Path("~/.cache/imas-alambic")
 
 
@@ -132,7 +138,10 @@ def _maps(flags: SettingsFlags, environ: Mapping[str, str], home: Setting) -> Se
 
 
 def _ids_root(
-    flags: SettingsFlags, environ: Mapping[str, str], home: Setting
+    flags: SettingsFlags,
+    environ: Mapping[str, str],
+    home: Setting,
+    maps: Setting,
 ) -> Setting:
     if flags.ids_root is not None:
         return Setting(flags.ids_root, "--out")
@@ -141,6 +150,9 @@ def _ids_root(
         return Setting(raw, ENV_IDS_ROOT)
     if home.value is not None:
         return Setting(Path(home.value) / "ids", f"{ENV_HOME}/ids")
+    declared = _store_root_from_bundle(_IDS_ROOT_ROLE, "IDS", maps)
+    if declared is not None:
+        return Setting(declared, f"bundle {_IDS_ROOT_ROLE} role")
     return Setting(None, f"{ENV_HOME} (unset)")
 
 
@@ -150,10 +162,10 @@ def _bundles(search_path: object):
     return discover_bundles(() if search_path is None else search_path)
 
 
-def _cache_root_from_bundle(maps: Setting) -> Path | None:
+def _store_root_from_bundle(role: str, kind: str, maps: Setting) -> Path | None:
     return resolve_store_root(
-        _CACHE_ROLE,
-        kind="cache",
+        role,
+        kind=kind,
         optional=True,
         search_path=() if maps.value is None else maps.value,
     )
@@ -165,7 +177,7 @@ def _cache(flags: SettingsFlags, environ: Mapping[str, str], maps: Setting) -> S
     raw = environ.get(ENV_CACHE)
     if raw:
         return Setting(raw, ENV_CACHE)
-    declared = _cache_root_from_bundle(maps)
+    declared = _store_root_from_bundle(_CACHE_ROLE, "cache", maps)
     if declared is not None:
         return Setting(declared, f"bundle {_CACHE_ROLE} role")
     return Setting(_CACHE_FALLBACK.expanduser(), f"default {_CACHE_FALLBACK}")
@@ -206,7 +218,7 @@ def resolve_settings(
     maps = _maps(flags, environ, home)
     return ResolvedSettings(
         home=home,
-        ids_root=_ids_root(flags, environ, home),
+        ids_root=_ids_root(flags, environ, home, maps),
         maps=maps,
         cache=_cache(flags, environ, maps),
         machine=_machine(flags, maps),
