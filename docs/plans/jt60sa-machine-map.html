@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.77">
-<meta name="plan-version" content="287">
+<meta name="plan-version" content="288">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -1816,6 +1816,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261007T012020988083-review-of-jtmm-differential-loop-store" data-who="reckon-build" data-when="2026-10-07T01:41:47.616Z">
     <div class="r-comment-body"><p>review stored — total 115/120 (goal 20, evidence 17, scope 20, durability 19, fit 19, reuse 20); reviewed_base_sha b99d854, reviewed_head_sha b7806803; the converter appends 26 type-6 differential flux_loop entries naming [7,L] after the 27 type-1 entries, DD convention quoted and stores regenerated; added_failure_count 7</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261007T014159982196-review-of-jtmm-op1-shot-survey" data-who="reckon-build" data-when="2026-10-07T01:52:25.801Z">
+    <div class="r-comment-body"><p>Independent review of r-20261007T010732700481-jtmm-op1-shot-survey stored at both scope paths: a parsed six-dimension record (goal_fidelity 18, evidence 15, scope_discipline 20, durability 14, fit 15, reuse 18; total 100) reading bb99ef9f as reviewed_base_sha and 5550a072 as reviewed_head_sha, with three follow-on findings — the machine-readable JSON omits E101153 and E101031 (the fragment&#x27;s plasma-volume ranks 4 and 5) while carrying E101030 from no table; the beta ranking&#x27;s first entry E101146 (flat-top median 0.3264) is itself a reconstruction artifact and contradicts the manifest&#x27;s own named peak-beta shot E100981; and the fragment&#x27;s section lacks the class/data-reckon wrapper every sibling bare-section fragment carries</p></div>
 </div>
 <div class="r-comment" data-section="_top" data-id="c-20261007T0000-jtfm-move" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-06T23:00:00Z">
     <div class="r-comment-body"><p><strong>Coordination, lead-approved 2026-10-06:</strong> <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §2 is now moving the mint engine into the workspace member <code>packages/imas-alambic/</code>. Moving: <code>imas_ambix/data/{machine_map,signal_map,transform_engine,virtual_zarr,eddb,eddb_remote,pulse_mint}.py</code>, <code>imas_ambix/cocos.py</code> and <code>machine_maps/schema.yaml</code>. Imports become <code>imas_alambic.&lt;module&gt;</code>, and <code>nova.io.cocos</code> becomes <code>nova_cocos</code>. <strong>Map JSON is not moving</strong>: <code>machine_maps/*.json</code> and <code>maps/&lt;machine&gt;/*.json</code> stay where they are, and the by-name loaders keep their names, so map-authoring nodes are unaffected. Please avoid dispatching nodes that edit the moving Python modules until the move merges. A node already in flight that touches them will need its imports rebased after the merge, and the facility-mint coordinator will do that rebase.</p></div>
