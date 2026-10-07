@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-vacuum-verdicts-author-landing" data-reckon="evidence">
+      <h3>Vacuum sign verdicts authored into the JT-60SA magnetics signal map</h3>
+      <p id="jtmm-vacuum-verdicts-author-outcome">The measured vacuum verdicts are written into <code>imas_ambix/data/maps/jt-60sa/magnetics.json</code>. The 16 tangential probes the median rule found <code>identity</code> take <code>channel_factor</code> +1 and flux loop 7 takes &minus;1, all with <code>validation_state</code> <code>corpus-validated</code> and evidence citing the median slope, the median |r| and E100579, E100595 and E100642. The 27 channels the adjudication left undecided (flux loops 1&ndash;27 bar loop 7, plus probe 17) stay <code>source-only</code> at <code>channel_factor</code> 1, their evidence carrying the adjudication's own reason. The plasma-current rule is untouched. Counts move from 45 source-only to 17 corpus-validated / 28 source-only.</p>
+      <p id="jtmm-vacuum-verdicts-author-convention">The vacuum prediction the verdicts were measured against is the forward operator's raw-SI signature in the map's target convention (COCOS 17, DD 4.1.1): probe fields are projected onto the DDv4 directed poloidal angle (<code>B_probe = B_R cos&theta; &minus; B_Z sin&theta;</code>) and flux-loop flux is in Wb, with the coil currents taken through <code>ForwardOperator.assemble_pf_currents</code>. Every JT-60SA magnetics rule is <code>one_like</code> with no source COCOS, so <code>channel_factor</code> alone carries the sign: <code>identity</code> sets +1 and <code>negate</code> sets &minus;1 in that convention.</p>
+      <p id="jtmm-vacuum-verdicts-author-measure">Gate: <code>pytest tests/data/test_jt60sa_signal_maps.py tests/data/test_signal_map.py</code> passes (37 passed, EXIT=0); <code>ruff check</code> on the changed test is clean. The two verdict guards add traceability: a corpus-validated rule must cite the median slope and median |r| over the three shots, and an undecided rule must carry the adjudication's reason verbatim.</p>
+    </section>
+  </main>
+</body>
+</html>

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -37,6 +38,18 @@ PLASMA_CURRENT_PATH = "magnetics/ip/data"
 UNIT_TABLE_PATH = PACKAGED_MACHINE_MAP_ROOT / "jt-60sa-eddb-units.json"
 STORE_ROOT = JT60SA_ROOT / "machine_description" / "OP1"
 DD_VERSION = "4.1.1"
+# The vacuum shots the magnetics sign verdicts rest on, and the adjudication
+# receipt those verdicts are copied from.
+VACUUM_SHOTS = (100579, 100595, 100642)
+ADJUDICATION_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "docs" / "evidence" / "fragments" / "jt60sa-machine-map"
+    / "jtmm-vacuum-adjudication.json"
+)
+_IDENTITY_PROBES = tuple(f"magPbTC{i}" for i in range(1, 17))
+_UNDECIDED_LOOPS = tuple(f"magFlxLp{i}" for i in range(1, 28) if i != 7)
+_MEDIAN_SLOPE = re.compile(r"median slope [+-]\d+\.\d{3}")
+_MEDIAN_ABS_R = re.compile(r"median \|r\| \d+\.\d{3}")
 # A corroboration verb not negated by the immediately preceding "not": the
 # negated form ("do not corroborate") is the legitimate way a reason says the
 # other shots do NOT support the choice.
@@ -90,6 +103,14 @@ def _rules_for(target_path: str):
     return [rule for rule in _magnetics().signals if rule.target_path == target_path]
 
 
+def _rule_index():
+    return {rule.source_array: rule for rule in _magnetics().signals}
+
+
+def _adjudication():
+    return json.loads(ADJUDICATION_PATH.read_text(encoding="utf-8"))
+
+
 def _blocked_index():
     return {
         (row.source_group, row.source_array): row for row in _magnetics().blocked
@@ -114,14 +135,18 @@ def test_packaged_maps_load_and_name_the_eddb_cache():
         assert source_map.target_dd_version == "4.1.1"
 
 
-def test_every_jt60sa_signal_rule_is_source_only():
+def test_every_jt60sa_signal_rule_declares_a_known_validation_state():
     for system in SYSTEMS:
         source_map = load_packaged_signal_map("jt-60sa", system)
         assert source_map.signals, f"jt-60sa/{system} serves no signal rule"
         for rule in source_map.signals:
-            assert rule.validation_state == "source-only", (
+            assert rule.validation_state in ("source-only", "corpus-validated"), (
                 f"{system}:{rule.semantic_id} declares {rule.validation_state}"
             )
+            if system != "magnetics":
+                assert rule.validation_state == "source-only", (
+                    f"{system}:{rule.semantic_id} declares {rule.validation_state}"
+                )
 
 
 @needs_store
@@ -305,7 +330,7 @@ def test_magnetics_binds_every_raw_mdac_flux_loop_in_order():
         assert rule.source_unit == "Wb"
         assert rule.target_unit == "Wb"
         assert rule.unit_factor == 1.0
-        assert rule.validation_state == "source-only"
+        assert rule.validation_state in ("source-only", "corpus-validated")
 
 
 def test_magnetics_binds_every_raw_mdac_probe_in_order():
@@ -322,7 +347,60 @@ def test_magnetics_binds_every_raw_mdac_probe_in_order():
         assert rule.source_unit == "T"
         assert rule.target_unit == "T"
         assert rule.unit_factor == 1.0
-        assert rule.validation_state == "source-only"
+        assert rule.validation_state in ("source-only", "corpus-validated")
+
+
+def test_magnetics_authors_the_vacuum_sign_verdicts():
+    """The 16 identity probes and the negate loop 7 carry their measured sign.
+
+    A rule's stated sign must be traceable to the adjudication, so each
+    corpus-validated rule's evidence cites the median slope, the median |r| and
+    the three vacuum shots the verdict rests on.
+    """
+    index = _rule_index()
+    for name in _IDENTITY_PROBES:
+        rule = index[name]
+        assert rule.validation_state == "corpus-validated", name
+        assert rule.channel_factor == 1.0, name
+        assert _MEDIAN_SLOPE.search(rule.evidence), name
+        assert _MEDIAN_ABS_R.search(rule.evidence), name
+        for shot in VACUUM_SHOTS:
+            assert str(shot) in rule.evidence, (name, shot)
+
+    loop7 = index["magFlxLp7"]
+    assert loop7.validation_state == "corpus-validated"
+    assert loop7.channel_factor == -1.0
+    assert _MEDIAN_SLOPE.search(loop7.evidence)
+    assert _MEDIAN_ABS_R.search(loop7.evidence)
+    for shot in VACUUM_SHOTS:
+        assert str(shot) in loop7.evidence, shot
+
+    # Exactly the measured 17 carry a sign; probe 17 falls below the floor.
+    measured = [
+        rule
+        for rule in _magnetics().signals
+        if rule.validation_state == "corpus-validated"
+    ]
+    assert len(measured) == 17
+    assert index["magPbTC17"].validation_state == "source-only"
+
+
+def test_magnetics_leaves_the_undecided_channels_source_only():
+    """The 27 undecided channels keep channel_factor 1 and name their reason.
+
+    Their evidence carries the adjudication's own reason string, so an
+    undecided verdict cannot be restated as a measured one.
+    """
+    index = _rule_index()
+    adjudication = _adjudication()["channels"]
+    undecided = list(_UNDECIDED_LOOPS) + ["magPbTC17"]
+    assert len(undecided) == 27
+    for name in undecided:
+        rule = index[name]
+        assert rule.validation_state == "source-only", name
+        assert rule.channel_factor == 1.0, name
+        assert adjudication[name]["verdict"] == "undecided", name
+        assert adjudication[name]["reason"] in rule.evidence, name
 
 
 def test_magnetics_blocks_each_processed_psrc_alternate_naming_the_raw():
