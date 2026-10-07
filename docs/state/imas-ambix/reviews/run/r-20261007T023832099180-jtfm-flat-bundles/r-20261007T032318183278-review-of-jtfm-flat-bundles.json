@@ -1,0 +1,71 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "1926ecb66c0b032130508671e7da658e49b811b9",
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/data/bundle.py:34",
+    "packages/imas-alambic/src/imas_alambic/machine_map.py:250",
+    "packages/imas-alambic/src/imas_alambic/machine_map.py:1784",
+    "packages/imas-alambic/src/imas_alambic/signal_map.py:646"
+  ],
+  "completed_at": "2026-10-07T03:41:27.084Z",
+  "dispatched_at": "2026-10-07T03:23:36Z",
+  "findings": [
+    {
+      "file": "packages/imas-alambic/src/imas_alambic/machine_map.py",
+      "line": "531",
+      "severity": "follow-on",
+      "text": "follow-on: commit 3eb7dd05 folds a ruff-format sweep of lines the goal does not touch (machine_map.py:531, 963-966, 1339; the base revision was not ruff-format clean) into the behavioural change, mixing mechanical reflow with the intended change."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T023832099180-jtfm-flat-bundles/gate-cleanvenv.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the clean-venv gate header names revision 3eb7dd05 while the reviewed head is 22e09514; the two differ only by the docs fragment, so the measured code is the head's, but the recorded revision is not the head it is filed under."
+    }
+  ],
+  "head_log_revision": "22e09514deb07e28c1340f5586cf167b0b26c0f4",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 4 production call site(s)",
+    "diff": "read commit by commit; 3eb7dd05 adds six flat-bundle tests and the single_machine branch in machine_map.py, and 22e09514 adds only the evidence fragment.",
+    "done_when": "the done-when is the evidence fence's flat-bundle clause list (refused both/neither, flat paths, store-root resolution, clean venv, test_machine_map.py adds no failures); the gate that asserts it is packages/imas-alambic/tests plus tests/data/test_machine_map.py, both reproduced.",
+    "goal": "the node's goal is imas-ambix:jt60sa-facility-mint section 9, a flat single-machine bundle; machine_map.py:143-156 now branches machine_map_path and signal_map_path on a single_machine flag set at machine_map.py:190 from the machine key present.",
+    "manifest": "read; it records commits 3eb7dd05 and 22e09514, the clean-venv arm (25 passed), the base (29) and head (29) arms of tests/data/test_machine_map.py and the negative control, with log paths and no blockers.",
+    "write_paths": "the manifest declares packages/imas-alambic/src/imas_alambic/machine_map.py, packages/imas-alambic/tests/test_flat_bundle.py and docs/evidence/fragments/jt60sa-facility-mint/jtfm-flat-bundles.html; every path in both commits is inside that fence."
+  },
+  "justifications": {
+    "durability": "test_flat_bundle.py:166 asserts the flat signal-map path and reddens when the single_machine branch is removed, reproduced by my own mutation (2 failed, EXIT=1); the duplicate-refusal test at test_flat_bundle.py:246 guards only its own supplied value.",
+    "evidence": "tests/data/test_machine_map.py base 1926ecb6 (29 passed) and head 22e09514 (29 passed) and packages/imas-alambic/tests at head (25 passed) each reproduced independently under a fresh extraction; blemish: gate-cleanvenv.log:1 names revision 3eb7dd05, not the reviewed head 22e09514.",
+    "fit": "machine_map.py:125-142 follows the surrounding dataclass and docstring idiom and adds no name the naming rules forbid; the folded reflow slightly lowers it.",
+    "goal_fidelity": "machine_map.py:145-156 branches both path methods on single_machine, set from the key present at machine_map.py:180-190, matching section 9 clause for clause.",
+    "reuse": "the flag extends the existing MapBundle owner at machine_map.py:121, and a search of machine_map.py and signal_map.py found no pre-existing flat-bundle addressing to duplicate.",
+    "scope_discipline": "only the three declared paths are touched, but commit 3eb7dd05 also reflows unrelated lines at machine_map.py:531, 963-966 and 1339 that the goal does not imply."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is imas-ambix:jt60sa-facility-mint section 9, a flat single-machine bundle; machine_map.py:143-156 now branches machine_map_path and signal_map_path on a single_machine flag set at machine_map.py:190 from the machine key present.\nVERDICT done_when: the done-when is the evidence fence's flat-bundle clause list (refused both/neither, flat paths, store-root resolution, clean venv, test_machine_map.py adds no failures); the gate that asserts it is packages/imas-alambic/tests plus tests/data/test_machine_map.py, both reproduced.\nVERDICT write_paths: the manifest declares packages/imas-alambic/src/imas_alambic/machine_map.py, packages/imas-alambic/tests/test_flat_bundle.py and docs/evidence/fragments/jt60sa-facility-mint/jtfm-flat-bundles.html; every path in both commits is inside that fence.\nVERDICT manifest: read; it records commits 3eb7dd05 and 22e09514, the clean-venv arm (25 passed), the base (29) and head (29) arms of tests/data/test_machine_map.py and the negative control, with log paths and no blockers.\nVERDICT diff: read commit by commit; 3eb7dd05 adds six flat-bundle tests and the single_machine branch in machine_map.py, and 22e09514 adds only the evidence fragment.\nCALL_SITES: imas_ambix/data/bundle.py:34, packages/imas-alambic/src/imas_alambic/machine_map.py:250, packages/imas-alambic/src/imas_alambic/machine_map.py:1784, packages/imas-alambic/src/imas_alambic/signal_map.py:646\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: machine_map.py:145-156 branches both path methods on single_machine, set from the key present at machine_map.py:180-190, matching section 9 clause for clause.\nSCORE evidence: 18\nJUSTIFICATION evidence: tests/data/test_machine_map.py base 1926ecb6 (29 passed) and head 22e09514 (29 passed) and packages/imas-alambic/tests at head (25 passed) each reproduced independently under a fresh extraction; blemish: gate-cleanvenv.log:1 names revision 3eb7dd05, not the reviewed head 22e09514.\nSCORE scope_discipline: 17\nJUSTIFICATION scope_discipline: only the three declared paths are touched, but commit 3eb7dd05 also reflows unrelated lines at machine_map.py:531, 963-966 and 1339 that the goal does not imply.\nSCORE durability: 19\nJUSTIFICATION durability: test_flat_bundle.py:166 asserts the flat signal-map path and reddens when the single_machine branch is removed, reproduced by my own mutation (2 failed, EXIT=1); the duplicate-refusal test at test_flat_bundle.py:246 guards only its own supplied value.\nSCORE fit: 18\nJUSTIFICATION fit: machine_map.py:125-142 follows the surrounding dataclass and docstring idiom and adds no name the naming rules forbid; the folded reflow slightly lowers it.\nSCORE reuse: 20\nJUSTIFICATION reuse: the flag extends the existing MapBundle owner at machine_map.py:121, and a search of machine_map.py and signal_map.py found no pre-existing flat-bundle addressing to duplicate.\nFINDING packages/imas-alambic/src/imas_alambic/machine_map.py:531 follow-on: commit 3eb7dd05 folds a ruff-format sweep of lines the goal does not touch (machine_map.py:531, 963-966, 1339; the base revision was not ruff-format clean) into the behavioural change, mixing mechanical reflow with the intended change.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T023832099180-jtfm-flat-bundles/gate-cleanvenv.log:1 follow-on: the clean-venv gate header names revision 3eb7dd05 while the reviewed head is 22e09514; the two differ only by the docs fragment, so the measured code is the head's, but the recorded revision is not the head it is filed under.",
+  "review_run_id": "r-20261007T032318183278-review-of-jtfm-flat-bundles",
+  "reviewed_base_sha": "1926ecb66c0b032130508671e7da658e49b811b9",
+  "reviewed_head_sha": "22e09514deb07e28c1340f5586cf167b0b26c0f4",
+  "reviewed_run_id": "r-20261007T023832099180-jtfm-flat-bundles",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "reviewer_run_id": "r-20261007T032318183278-review-of-jtfm-flat-bundles",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 17
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T03:39:54.185977+00:00",
+  "total": 112
+}
