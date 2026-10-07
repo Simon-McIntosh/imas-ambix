@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.79">
-<meta name="plan-version" content="327">
+<meta name="plan-version" content="328">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -73,9 +73,10 @@
     </p>
     <p>
       <strong>Decision proposed and argued here, locked below:</strong> JT-60SA maps are
-      persisted in ambix as packaged, versioned documents under
-      <code>imas_ambix/data/machine_maps/jt-60sa.json</code> (description bindings) and
-      <code>imas_ambix/data/maps/jt-60sa/&lt;system&gt;.json</code> (pulse signal maps), each
+      persisted as versioned documents owned by ambix's machine-map substrate. They were first
+      packaged in the repository; since jt60sa-facility-mint §1 they live only in the private bundle
+      at <code>/work/projects/imas_gpu/jt60sa/maps</code>, as <code>machine_map.json</code>
+      (description bindings) and <code>maps/&lt;system&gt;.json</code> (pulse signal maps), each
       carrying evidence receipts that point back at codex graph nodes, handbook pages and
       PIDs. Codex remains the place where candidates are discovered, where the handbook and
       PID tables are indexed, and where an LLM proposal is scored; it does not become the
@@ -750,8 +751,9 @@
       FAME's real-time scalars: plasma current, poloidal and toroidal beta, normalised beta,
       internal inductance, axis position, X-point height, strike-point angles, boundary gaps and
       <code>Bt·R</code>. §6 binds them to <code>equilibrium/time_slice/global_quantities</code> and
-      <code>boundary</code> leaves and to <code>vacuum_toroidal_field</code> in an equilibrium signal
-      map under <code>imas_ambix/data/maps/jt-60sa/</code>, every rule
+      <code>boundary</code> leaves and to <code>vacuum_toroidal_field</code> in the bundle's equilibrium signal
+      map, <code>maps/equilibrium.json</code>, authored on a staged copy and beginning with the four
+      channels the sign cohort needs (below), every rule
       <code>validation_state: source-only</code>, as §5 does for magnetics. They are time series in EDDB, so they ride the §3 path unchanged, and the FAME
       loader reads them through that map. None is a <code>profiles_2d</code> binding, so the gate's
       measure is untouched. The second is SELENE's offline equilibria. The server holds the SELENE
