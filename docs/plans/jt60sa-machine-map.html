@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.79">
-<meta name="plan-version" content="302">
+<meta name="plan-version" content="304">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -844,6 +844,26 @@
       file out of another user's home except equilibrium outputs it lists, and it never reads or
       copies keys, credentials or shell history. It uses one ssh connection at a time and writes one
       fragment.
+      It landed 2026-10-07 (merge 0d0cb37c, review 110/120). No route from intr26-2 reaches E101154's
+      psi grid and q profile. The site catalogue expands FAME as Fast Analyzer for Magnetohydrodynamic
+      Equilibrium. SELENE's <code>efitout.f</code> writes psi and q to a G-EQDSK on every run, and a
+      single OP1 G-EQDSK, for E101011, sits in <code>/home/d240034/fbequ</code>. The lead then
+      reported that the FAME server <code>dbsvr17p</code> has been decommissioned, so asking for access
+      to it is moot.
+      <code>jtmm-jt60sa-host-survey</code> is read-only on both JT-60SA servers we reach,
+      <code>nakasvr26</code> (ssh alias <code>jt-60sa</code>) and <code>nakasvr23</code>
+      (<code>jt-60sa-23</code>). It discovers the site's other hosts from passive sources only:
+      host and service names in system and site configuration (<code>/etc/hosts</code>, resolver and
+      automount maps, mount tables, the EQDB and EDDB configuration under <code>/analysis</code>), names
+      referenced in site code and documentation, and DNS lookups of those names. For each host it
+      records what the sources say the host serves, and whether its name resolves and a port named in
+      site configuration accepts a TCP connection from each server. It also looks for where FAME's
+      records went: migrated stores, archived dumps or copies of <code>FAME3</code>, and any other
+      archive of equilibria carrying psi and q, on either server. It attempts one OP1 slice read for
+      each source it finds. It runs no port scans or ping sweeps and attempts no login to any host
+      other than the two servers. It reads no user's home other than <code>/home/d240034</code>,
+      which the lead named, and never reads or copies keys, credentials or shell history. It uses one
+      ssh connection at a time and writes one fragment.
       The cohort and the maps need more than three plasma shots. An OP1 sweep already exists:
       imas-efit's <code>docs/jt60sa-shot-candidates.html</code> read all 1167 E-series shots through
       the EDDB library, found 228 with a <code>PSRC/calIp</code> peak of at least 50 kA, and ranked them
@@ -1331,7 +1351,7 @@
       <button class="r-opt" data-value="e101011-only">use the single existing EQDSK and run nothing</button>
       <button class="r-opt" data-value="selene-all-16">run SELENE for all 16 OP1 shots</button>
       </p>
-    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-07: ask JT-60SA for read access to FAME&#x27;s EQDB records, and run nothing on the JT-60SA server ourselves. The q-sign test and the psi-grid comparisons wait on that access.</p>
+    <p class="r-dec-rat">Lead&#x27;s choice 2026-10-07: ask JT-60SA for read access to FAME&#x27;s EQDB records, and run nothing on the JT-60SA server ourselves. Superseded the same day: the lead reported that the FAME server dbsvr17p has been decommissioned, so no access request will be made. jtmm-jt60sa-host-survey now searches nakasvr26 and nakasvr23 for where FAME&#x27;s records went and for any other equilibrium archive with psi and q. Running SELENE on the JT-60SA server remains unchosen.</p>
     </div>
 </section>
 
@@ -1369,10 +1389,11 @@
     <div class="r-fu-body"><p>Exemption claimed: foreign-owner. Once jtmm-observation-time-alignment lands VirtualZarrView's untransformed accessor, imas_ambix/data/pulse_mint.py _served_entries should read each rule through it instead of resolving source_group and source_array through read_channel itself. The module belongs to the plan jt60sa-pulse-ids, so that plan owns the change.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-pulse-ids</pre>
     </article>
-<article class="r-fu" data-id="f-jtmm-006" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-07" data-recommends-skill="/reckon-build jt60sa-machine-map §6" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jtmm-006" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-07" data-recommends-skill="/reckon-build jt60sa-machine-map §6" data-resolved-at="2026-10-07T04:46:58+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Exemption claimed: authority-required. Request read access to FAME&#x27;s EQDB records from intr26-2</h4>
     <div class="r-fu-body"><p>Exemption claimed: authority-required. Only the lead can ask the JT-60SA side. The request needs read access, from intr26-2 or another host reachable over ssh, to the FAME equilibrium records on <code>dbsvr17p</code> (<code>/JT60SA_EQ/FAME3</code>). That means either DNS and a route to <code>dbsvr17p</code> for the EQDB socket client (<code>eqdbsockclient_connect</code> in <code>/analysis/lib/JT60SAEQDB/libEQDBMSPIC.so</code>), or a read-only mount of <code>/JT60SA_EQ</code>. The access is read-only, for the OP1 shots on the identified list, and the fields needed are psi, the boundary, the axis, p′, FF′ and the q profile. Evidence: <code>GetEqData(0,101154,500)</code> returns IRET 300 on intr26-2 (jtmm-selene-output-locate). Once access exists, §6's deferred EQDB transport, the FAME loader and the q-sign test resume.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-machine-map §6</pre>
+    <p class="r-fu-outcome">Moot: the lead reported on 2026-10-07 that the FAME server dbsvr17p has been decommissioned, so no access request will be made. The search for another source of psi and q continues as jtmm-jt60sa-host-survey in section 6.</p>
     </article>
 </section>
 
