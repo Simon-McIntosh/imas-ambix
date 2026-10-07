@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <section id="jtmm-operator-differential-loops-blocker">
+      <h3>Blocked: the type-6 carrier lives outside this node's write scope</h3>
+      <p>This node is the operator-side consumer of the 53-loop JT-60SA flux-loop bindings the differential-loop store node produced. Its done-when asks <code>read_geometry_table</code> and <code>build_operator</code> to carry each type-6
+      <code>magnetics/flux_loop</code> entry as the prediction of its
+      <code>indices_differential</code> second loop minus its first. That requires two pieces of state which do not exist anywhere in the current tree and which cannot be created inside the granted write scope.</p>
+    </section>
+
+    <section id="jtmm-operator-differential-loops-reproduction">
+      <h3>Reproduction</h3>
+      <p>Reading the staged 53-loop store
+      (<code>/work/projects/imas_gpu/jt60sa/machine_description/superseded/differential-loops-staged</code>)
+      through <code>read_geometry_table(100595, machine="jt-60sa", store_root=...)</code> returns
+      <strong>zero</strong> flux-loop sensor rows: only the 17 mapped B-probes survive. The transform reports both flux-loop position bindings absent:</p>
+      <pre>missing ('jt60sa-op1-magnetics-flux-loop-r', 'jt60sa-op1-magnetics-flux-loop-z')
+emitted 83 arrays; 2 declared arrays are absent from the pulse store
+sensor_map rows: 17  (all b_probe)</pre>
+      <p>The cause is the ragged position struct array: the store's
+      <code>flux_loop.position.r/z</code> is <code>(53, 1)</code> with a
+      <code>position:shape</code> variable that is 1 for the 27 type-1 entries
+      and 0 for the 26 type-6 entries, so
+      <code>_stack_struct_array_rows</code> raises and the whole flux-loop
+      family is dropped. <code>flux_loop.indices_differential</code> is
+      likewise ragged (<code>(53, 2)</code> in the file, empty for type-1).
+      The 53-loop store also carries <code>flux_loop/name</code> <code>(53,)</code>
+      and <code>flux_loop/type/index</code> <code>(53,)</code>, both uniform, so
+      those two read cleanly through the transform engine.</p>
+      <p>Probe log: <code>recon-53loop-read.log</code> in the run directory.</p>
+      </section>
+
+    <section id="jtmm-operator-differential-loops-missing-carrier">
+      <h3>Why it cannot be fixed in scope</h3>
+      <p>Carrying a type-6 row as "loop(second) &minus; loop(first)" needs two integer indices per sensor row. The sensor-row record
+      <code>SensorMapping</code> in <code>imas_ambix/gs/geometry.py</code> has
+      no field for them (<code>amb_channel, kind, efm_index, r, z, angle_deg, residual_m, flag</code>), and <code>GeometryTable</code> has no side table either. Both are outside this node's write paths, and a probe write outside the scope is refused read-only, so the breakage is not resumable by writing outside
+      the fence.</p>
+      <p>The plan assigns that carrier to the sibling node
+      <code>jtmm-differential-loop-adapter</code>: &ldquo;the JT-60SA map's
+      flux-loop position bindings expand over the type-1 entries only, and a
+      type-6 entry is carried by its <code>indices_differential</code> in place
+      of a position&rdquo;. That node also owns the
+      <code>tests/data/test_jt60sa_machine_map.py</code> bindings and the
+      <code>jt-60sa.json</code> catalog, and it has not been dispatched: no run
+      matching <code>jtmm-differential-loop-adapter</code> exists in the crew
+      run store at the time of this report.</p>
+    </section>
+
+    <section id="jtmm-operator-differential-loops-options">
+      <h3>Options</h3>
+      <ol>
+        <li><strong>Dispatch the adapter node first</strong> and redispatch this
+        node once a carrier field exists on <code>SensorMapping</code> and the
+        adapter emits type-6 rows. This node then only consumes.</li>
+        <li><strong>Grant this node the adapter scope</strong>
+        (<code>imas_ambix/gs/geometry.py</code>,
+        <code>imas_ambix/data/geometry_adapter.py</code>,
+        <code>imas_ambix/data/machine_maps/jt-60sa.json</code>,
+        <code>tests/data/test_jt60sa_machine_map.py</code>), and implement the
+        carrier here together with its operator consumer.</li>
+        <li><strong>Implement a within-scope carrier</strong> that abuses an
+        existing string field (e.g. encode the pair in
+        <code>SensorMapping.flag</code>), or resolve the pair by parsing the DD
+        channel name <code>FL7-FL1</code> in the operator. Both deviate from the
+        done-when's "read from <code>indices_differential</code>" and would
+        conflict with the adapter node's real carrier.</li>
+      </ol>
+    </section>
+
+  </main>
+</body>
+</html>
