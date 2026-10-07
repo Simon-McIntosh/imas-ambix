@@ -1,0 +1,50 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed run records baseline_suite: null and after_suite: null (a figure node runs no pytest suite), so no suite-derived added failures exist; the check and negative-control arms are the node's own probes, reproduced at review time (review-rerun.log).",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T10:41:06.925Z",
+  "dispatched_at": "2026-10-07T10:36:23Z",
+  "findings": [],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites; the script is an entry-point figure generator invoked directly.",
+    "diff": "I read 1d0a8d23 against 6c415879; it rewrites the module docstring to describe flux loops and probes, replaces the pulse tuple and SERIES_PAIRS with PULSES and FIGURE_CALLS, and loops pulses x figure calls in _main, adding no label, unit, array, rescale or re-sign.",
+    "done_when": "the done-when names four new SVGs with 27 FL and 17 MP panels, byte-identical coil-current SVGs, an element-for-element FL1/FL7/MP1 check, ruff clean, and four fragment embeds; render.log ends EXIT=0, check.log PASS EXIT=0, negative-control.log FAIL EXIT=1 with FL1 only, ruff.log EXIT=0, and the committed SVGs independently carry 27 [Wb] and 17 [T] panels with FL1-FL27 and MP1-MP17 labels.",
+    "goal": "plan section 2 asks scripts/figures_jt60sa_signals.py to add two figure calls per pulse through the existing _pulse_figure, with pairs (\"magnetics\",\"flux_loop/flux\") and (\"magnetics\",\"b_field_pol_probe/field\"), writing jt60sa-E{pulse}-flux-loops.svg and -pf-probes.svg into docs/figures/jt60sa-signals/ with names and units from the IDS; scripts/figures_jt60sa_signals.py defines PULSES and FIGURE_CALLS exactly so and loops both pulses through it.",
+    "manifest": "the reviewed manifest reports one commit 1d0a8d23, four SVGs, an element check and a negative control, byte-identical coil-current hashes, and a clean tree; its baseline_suite and after_suite fields are both null, so no suite-derived added failures exist.",
+    "write_paths": "the plan grants scripts/figures_jt60sa_signals.py, docs/figures/jt60sa-signals, and the node fragment; git show --stat 1d0a8d23 lists exactly those six paths and nothing else."
+  },
+  "justifications": {
+    "durability": "no committed test or assertion guards the new figure calls: fig_check.py lives in /tmp scratch, so a later edit that drops a call, changes the IDS root or re-signs a trace would fail no committed gate; the script is a generator with no test file in its write grants.",
+    "evidence": "render.log records base and new sha256 for both coil-current SVGs and EXIT=0; check.log PASS and negative-control.log FAIL-on-FL1-only are both reproduced independently at review time; the committed SVGs independently show 27 flux panels, 17 probe panels, the FL/MP label sets and the Wb/T units.",
+    "fit": "the change extends the existing _pulse_figure loop and imas-ink extraction rather than adding a parallel path, and updates the module docstring to describe the flux-loop and probe figures and the measured-difference convention.",
+    "goal_fidelity": "scripts/figures_jt60sa_signals.py builds the two pairs the section names and writes the four SVGs through _pulse_figure with root from require_setting(\"ids_root\", ...); the committed SVGs carry FL1-FL27 in Wb and MP1-MP17 in T, read from the IDS.",
+    "reuse": "scripts/figures_jt60sa_signals.py reuses _pulse_figure, pulse_path and imas-ink's extract_signal_traces/time_trace_figure_mpl/render_to_bytes; it constructs no TimeSeries, passes no label or unit, and holds no array.",
+    "scope_discipline": "the 1d0a8d23 diff touches only docs/figures/jt60sa-signals (four SVGs), the node fragment, and scripts/figures_jt60sa_signals.py, all inside the section's write paths; both coil-current SVGs remain byte-identical to their parent-commit predecessors."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: plan section 2 asks scripts/figures_jt60sa_signals.py to add two figure calls per pulse through the existing _pulse_figure, with pairs (\"magnetics\",\"flux_loop/flux\") and (\"magnetics\",\"b_field_pol_probe/field\"), writing jt60sa-E{pulse}-flux-loops.svg and -pf-probes.svg into docs/figures/jt60sa-signals/ with names and units from the IDS; scripts/figures_jt60sa_signals.py defines PULSES and FIGURE_CALLS exactly so and loops both pulses through it.\nVERDICT done_when: the done-when names four new SVGs with 27 FL and 17 MP panels, byte-identical coil-current SVGs, an element-for-element FL1/FL7/MP1 check, ruff clean, and four fragment embeds; render.log ends EXIT=0, check.log PASS EXIT=0, negative-control.log FAIL EXIT=1 with FL1 only, ruff.log EXIT=0, and the committed SVGs independently carry 27 [Wb] and 17 [T] panels with FL1-FL27 and MP1-MP17 labels.\nVERDICT write_paths: the plan grants scripts/figures_jt60sa_signals.py, docs/figures/jt60sa-signals, and the node fragment; git show --stat 1d0a8d23 lists exactly those six paths and nothing else.\nVERDICT manifest: the reviewed manifest reports one commit 1d0a8d23, four SVGs, an element check and a negative control, byte-identical coil-current hashes, and a clean tree; its baseline_suite and after_suite fields are both null, so no suite-derived added failures exist.\nVERDICT diff: I read 1d0a8d23 against 6c415879; it rewrites the module docstring to describe flux loops and probes, replaces the pulse tuple and SERIES_PAIRS with PULSES and FIGURE_CALLS, and loops pulses x figure calls in _main, adding no label, unit, array, rescale or re-sign.\nCALL_SITES: none\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: scripts/figures_jt60sa_signals.py builds the two pairs the section names and writes the four SVGs through _pulse_figure with root from require_setting(\"ids_root\", ...); the committed SVGs carry FL1-FL27 in Wb and MP1-MP17 in T, read from the IDS.\nSCORE evidence: 19\nJUSTIFICATION evidence: render.log records base and new sha256 for both coil-current SVGs and EXIT=0; check.log PASS and negative-control.log FAIL-on-FL1-only are both reproduced independently at review time; the committed SVGs independently show 27 flux panels, 17 probe panels, the FL/MP label sets and the Wb/T units.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the 1d0a8d23 diff touches only docs/figures/jt60sa-signals (four SVGs), the node fragment, and scripts/figures_jt60sa_signals.py, all inside the section's write paths; both coil-current SVGs remain byte-identical to their parent-commit predecessors.\nSCORE durability: 12\nJUSTIFICATION durability: no committed test or assertion guards the new figure calls: fig_check.py lives in /tmp scratch, so a later edit that drops a call, changes the IDS root or re-signs a trace would fail no committed gate; the script is a generator with no test file in its write grants.\nSCORE fit: 19\nJUSTIFICATION fit: the change extends the existing _pulse_figure loop and imas-ink extraction rather than adding a parallel path, and updates the module docstring to describe the flux-loop and probe figures and the measured-difference convention.\nSCORE reuse: 20\nJUSTIFICATION reuse: scripts/figures_jt60sa_signals.py reuses _pulse_figure, pulse_path and imas-ink's extract_signal_traces/time_trace_figure_mpl/render_to_bytes; it constructs no TimeSeries, passes no label or unit, and holds no array.\n",
+  "review_run_id": "r-20261007T103611374796-review-of-jtfig-flux-loops-probes",
+  "reviewed_base_sha": "6c41587902d0559880d86dab631a97410e81f31a",
+  "reviewed_head_sha": "1d0a8d237c444c016cd7f9157255eed50ec9e698",
+  "reviewed_run_id": "r-20261007T102448430350-jtfig-flux-loops-probes",
+  "rubric": "code",
+  "scores": {
+    "durability": 12,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T10:40:20.868126+00:00",
+  "total": 110
+}

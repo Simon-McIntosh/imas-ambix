@@ -25,7 +25,7 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="32">
+<meta name="plan-version" content="33">
 <meta name="plan-modified" content="2026-10-07">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
 </head>
@@ -118,6 +118,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261007T102448430350-jtfig-flux-loops-probes" data-who="reckon-build" data-when="2026-10-07T10:34:18.226Z">
     <div class="r-comment-body"><p>§2 — scripts/figures_jt60sa_signals.py makes three figure calls per pulse through _pulse_figure; it wrote jt60sa-E101154-flux-loops.svg (27 panels FL1–FL27, 257696 B) and -pf-probes.svg (17 panels MP1–MP17, 375851 B), and the same two for E101031, from ids/101154_0.nc and 101031_0.nc with names and units read from the IDS; both pf-coil-currents SVGs are byte-identical to their committed predecessors (sha256 16f34cd0… and cb67f089…); the FL1/FL7/MP1 element-for-element check passes (check.log EXIT=0) and the declared mutation flips only FL1.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20261007T103611374796-review-of-jtfig-flux-loops-probes" data-who="reckon-build" data-when="2026-10-07T10:41:06.925Z">
+    <div class="r-comment-body"><p>review-of-jtfig-flux-loops-probes scored r-20261007T102448430350-jtfig-flux-loops-probes 110/120 (goal_fidelity 20, evidence 19, scope_discipline 20, durability 12, fit 19, reuse 20) at reviewed_base_sha 6c41587902d0559880d86dab631a97410e81f31a / reviewed_head_sha 1d0a8d237c444c016cd7f9157255eed50ec9e698; no findings; the weak dimension is durability because the element check lives in /tmp scratch and no committed gate guards the figure calls.</p></div>
 </div>
 </section>
 </main>
