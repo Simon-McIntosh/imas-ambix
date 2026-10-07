@@ -25,7 +25,7 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="31">
+<meta name="plan-version" content="32">
 <meta name="plan-modified" content="2026-10-07">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
 </head>
@@ -115,6 +115,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-20261007-jsfi-s2-released" data-who="reckon-build" data-when="2026-10-07T08:05:00Z">
     <div class="r-comment-body"><p>§2 released from deferred: the lead ruled that the raw differences relative to loop 7 are how the flux loops are measured and are plotted as such. Both run files were read on the fleet node: 27 flux loops and 17 probes filled in each, DD 4.1.1, homogeneous time 0.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20261007T102448430350-jtfig-flux-loops-probes" data-who="reckon-build" data-when="2026-10-07T10:34:18.226Z">
+    <div class="r-comment-body"><p>§2 — scripts/figures_jt60sa_signals.py makes three figure calls per pulse through _pulse_figure; it wrote jt60sa-E101154-flux-loops.svg (27 panels FL1–FL27, 257696 B) and -pf-probes.svg (17 panels MP1–MP17, 375851 B), and the same two for E101031, from ids/101154_0.nc and 101031_0.nc with names and units read from the IDS; both pf-coil-currents SVGs are byte-identical to their committed predecessors (sha256 16f34cd0… and cb67f089…); the FL1/FL7/MP1 element-for-element check passes (check.log EXIT=0) and the declared mutation flips only FL1.</p></div>
 </div>
 </section>
 </main>
