@@ -1,0 +1,75 @@
+<section class="evidence-fragment" data-reckon="evidence" data-node="jtmm-fame-scalar-fetch" id="jtmm-fame-scalar-fetch-landing">
+<h2 id="jtmm-fame-scalar-fetch-h">The FAME q, plasma-current and F scalars are cached for E101154 and the 15 surveyed plasma shots: 64 served, 0 refused</h2>
+<p id="jtmm-fame-scalar-fetch-method">Cached 2026-10-07 from the compute allocation into the shared on-demand cache <code>/work/projects/imas_gpu/jt60sa/&lt;shot>.zarr/FAME/</code>. The channel set is the FAME category's <code>QAXIS</code>, <code>Q95</code>, <code>TTCU</code> and <code>BTV</code> for E101154 and the 15 shots the OP1 survey records <code>fame_present: true</code> (E100999, E101017, E101025, E101026, E101029, E101031, E101033, E101039, E101044, E101045, E101046, E101153, E101156, E101162, E101163) &mdash; <strong>64 channel requests over 16 shots</strong>. Each shot was fetched by one <code>fetch_channels</code> call, which is one <code>RemoteEddbExtractor</code> batch and one <code>ssh jt-60sa</code> session: <strong>16 shots, one ssh session each</strong>, a counting transport recording exactly one session per newly fetched shot. <code>fetch_channels</code> short-circuits a channel already on disk, so the four scalars were fetched once and never again: E101154's probe fetch is the only session that read them, and its subsequent read made no transport call.</p>
+<table id="jtmm-fame-scalar-fetch-table">
+<thead><tr><th>shot</th><th>channel</th><th>status</th><th>sign</th><th>min</th><th>max</th><th>samples</th></tr></thead>
+<tbody>
+<tr><td>E100999</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.9772</td><td>1.015</td><td>573</td></tr>
+<tr><td>E100999</td><td>Q95</td><td>served</td><td>positive</td><td>2.128</td><td>31.07</td><td>573</td></tr>
+<tr><td>E100999</td><td>TTCU</td><td>served</td><td>positive</td><td>3.666e+05 [A]</td><td>1.204e+06 [A]</td><td>573</td></tr>
+<tr><td>E100999</td><td>BTV</td><td>served</td><td>positive</td><td>5.987 [T.m]</td><td>6.02 [T.m]</td><td>573</td></tr>
+<tr><td>E101017</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.9925</td><td>1.024</td><td>481</td></tr>
+<tr><td>E101017</td><td>Q95</td><td>served</td><td>positive</td><td>19.16</td><td>40.25</td><td>481</td></tr>
+<tr><td>E101017</td><td>TTCU</td><td>served</td><td>positive</td><td>3.455e+05 [A]</td><td>7.635e+05 [A]</td><td>481</td></tr>
+<tr><td>E101017</td><td>BTV</td><td>served</td><td>positive</td><td>5.994 [T.m]</td><td>6.024 [T.m]</td><td>481</td></tr>
+<tr><td>E101025</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.9512</td><td>1.187</td><td>765</td></tr>
+<tr><td>E101025</td><td>Q95</td><td>served</td><td>positive</td><td>8.236</td><td>28.5</td><td>765</td></tr>
+<tr><td>E101025</td><td>TTCU</td><td>served</td><td>positive</td><td>4.86e+04 [A]</td><td>1.004e+06 [A]</td><td>765</td></tr>
+<tr><td>E101025</td><td>BTV</td><td>served</td><td>positive</td><td>4.98 [T.m]</td><td>5.026 [T.m]</td><td>765</td></tr>
+<tr><td>E101026</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.9775</td><td>1.163</td><td>871</td></tr>
+<tr><td>E101026</td><td>Q95</td><td>served</td><td>positive</td><td>8.593</td><td>27.86</td><td>871</td></tr>
+<tr><td>E101026</td><td>TTCU</td><td>served</td><td>positive</td><td>2.429e+05 [A]</td><td>9.659e+05 [A]</td><td>871</td></tr>
+<tr><td>E101026</td><td>BTV</td><td>served</td><td>positive</td><td>4.981 [T.m]</td><td>5.029 [T.m]</td><td>871</td></tr>
+<tr><td>E101029</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.811</td><td>1.051</td><td>898</td></tr>
+<tr><td>E101029</td><td>Q95</td><td>served</td><td>positive</td><td>8.379</td><td>30.3</td><td>898</td></tr>
+<tr><td>E101029</td><td>TTCU</td><td>served</td><td>positive</td><td>1.243e+05 [A]</td><td>1.129e+06 [A]</td><td>898</td></tr>
+<tr><td>E101029</td><td>BTV</td><td>served</td><td>positive</td><td>4.985 [T.m]</td><td>5.019 [T.m]</td><td>898</td></tr>
+<tr><td>E101031</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.7031</td><td>1.151</td><td>835</td></tr>
+<tr><td>E101031</td><td>Q95</td><td>served</td><td>positive</td><td>8.842</td><td>42.5</td><td>835</td></tr>
+<tr><td>E101031</td><td>TTCU</td><td>served</td><td>mixed</td><td>-7.769e+04 [A]</td><td>7.967e+05 [A]</td><td>835</td></tr>
+<tr><td>E101031</td><td>BTV</td><td>served</td><td>positive</td><td>4.978 [T.m]</td><td>5.027 [T.m]</td><td>835</td></tr>
+<tr><td>E101033</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.8579</td><td>3.457</td><td>508</td></tr>
+<tr><td>E101033</td><td>Q95</td><td>served</td><td>positive</td><td>9.226</td><td>31.42</td><td>508</td></tr>
+<tr><td>E101033</td><td>TTCU</td><td>served</td><td>positive</td><td>1.21e+05 [A]</td><td>1.337e+06 [A]</td><td>508</td></tr>
+<tr><td>E101033</td><td>BTV</td><td>served</td><td>positive</td><td>4.991 [T.m]</td><td>5.027 [T.m]</td><td>508</td></tr>
+<tr><td>E101039</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.9422</td><td>5.082</td><td>906</td></tr>
+<tr><td>E101039</td><td>Q95</td><td>served</td><td>positive</td><td>7.854</td><td>39.16</td><td>906</td></tr>
+<tr><td>E101039</td><td>TTCU</td><td>served</td><td>positive</td><td>1.788e+05 [A]</td><td>9.96e+05 [A]</td><td>906</td></tr>
+<tr><td>E101039</td><td>BTV</td><td>served</td><td>positive</td><td>5.986 [T.m]</td><td>6.025 [T.m]</td><td>906</td></tr>
+<tr><td>E101044</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.7346</td><td>17.56</td><td>908</td></tr>
+<tr><td>E101044</td><td>Q95</td><td>served</td><td>positive</td><td>2.119</td><td>34.33</td><td>908</td></tr>
+<tr><td>E101044</td><td>TTCU</td><td>served</td><td>positive</td><td>2.995e+04 [A]</td><td>3.763e+06 [A]</td><td>908</td></tr>
+<tr><td>E101044</td><td>BTV</td><td>served</td><td>positive</td><td>5.98 [T.m]</td><td>6.019 [T.m]</td><td>908</td></tr>
+<tr><td>E101045</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.9848</td><td>19.72</td><td>888</td></tr>
+<tr><td>E101045</td><td>Q95</td><td>served</td><td>positive</td><td>9.49</td><td>35.64</td><td>888</td></tr>
+<tr><td>E101045</td><td>TTCU</td><td>served</td><td>positive</td><td>1.493e+05 [A]</td><td>1.08e+06 [A]</td><td>888</td></tr>
+<tr><td>E101045</td><td>BTV</td><td>served</td><td>positive</td><td>5.979 [T.m]</td><td>6.019 [T.m]</td><td>888</td></tr>
+<tr><td>E101046</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.967</td><td>1.032</td><td>902</td></tr>
+<tr><td>E101046</td><td>Q95</td><td>served</td><td>positive</td><td>7.217</td><td>33.05</td><td>902</td></tr>
+<tr><td>E101046</td><td>TTCU</td><td>served</td><td>positive</td><td>4.27e+04 [A]</td><td>1.09e+06 [A]</td><td>902</td></tr>
+<tr><td>E101046</td><td>BTV</td><td>served</td><td>positive</td><td>5.981 [T.m]</td><td>6.022 [T.m]</td><td>902</td></tr>
+<tr><td>E101153</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.993</td><td>1.022</td><td>359</td></tr>
+<tr><td>E101153</td><td>Q95</td><td>served</td><td>positive</td><td>18.65</td><td>37.73</td><td>359</td></tr>
+<tr><td>E101153</td><td>TTCU</td><td>served</td><td>positive</td><td>3.376e+05 [A]</td><td>5.278e+05 [A]</td><td>359</td></tr>
+<tr><td>E101153</td><td>BTV</td><td>served</td><td>positive</td><td>5.992 [T.m]</td><td>6.026 [T.m]</td><td>359</td></tr>
+<tr><td>E101154</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.8788</td><td>1.056</td><td>1018</td></tr>
+<tr><td>E101154</td><td>Q95</td><td>served</td><td>positive</td><td>7.287</td><td>32.39</td><td>1018</td></tr>
+<tr><td>E101154</td><td>TTCU</td><td>served</td><td>positive</td><td>2.86e+05 [A]</td><td>9.98e+05 [A]</td><td>1018</td></tr>
+<tr><td>E101154</td><td>BTV</td><td>served</td><td>positive</td><td>5.985 [T.m]</td><td>6.023 [T.m]</td><td>1018</td></tr>
+<tr><td>E101156</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.8147</td><td>1.063</td><td>427</td></tr>
+<tr><td>E101156</td><td>Q95</td><td>served</td><td>positive</td><td>0.6324</td><td>39.22</td><td>427</td></tr>
+<tr><td>E101156</td><td>TTCU</td><td>served</td><td>positive</td><td>3.576e+05 [A]</td><td>1.293e+06 [A]</td><td>427</td></tr>
+<tr><td>E101156</td><td>BTV</td><td>served</td><td>positive</td><td>5.987 [T.m]</td><td>6.025 [T.m]</td><td>427</td></tr>
+<tr><td>E101162</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.9019</td><td>5.277</td><td>1226</td></tr>
+<tr><td>E101162</td><td>Q95</td><td>served</td><td>positive</td><td>5.013</td><td>32.74</td><td>1226</td></tr>
+<tr><td>E101162</td><td>TTCU</td><td>served</td><td>positive</td><td>5.643e+04 [A]</td><td>1.07e+06 [A]</td><td>1226</td></tr>
+<tr><td>E101162</td><td>BTV</td><td>served</td><td>positive</td><td>5.973 [T.m]</td><td>6.022 [T.m]</td><td>1226</td></tr>
+<tr><td>E101163</td><td>QAXIS</td><td>served</td><td>positive</td><td>0.7567</td><td>6.092</td><td>429</td></tr>
+<tr><td>E101163</td><td>Q95</td><td>served</td><td>positive</td><td>0.9153</td><td>33.79</td><td>429</td></tr>
+<tr><td>E101163</td><td>TTCU</td><td>served</td><td>mixed</td><td>-2.47e+05 [A]</td><td>2.42e+06 [A]</td><td>429</td></tr>
+<tr><td>E101163</td><td>BTV</td><td>served</td><td>positive</td><td>5.989 [T.m]</td><td>6.018 [T.m]</td><td>429</td></tr>
+</tbody></table>
+<p id="jtmm-fame-scalar-fetch-totals">Totals: <strong>64 served, 0 refused</strong> of 64 requests. Every shot served all four channels; there is no refusal and hence no EDDB return code to report. <code>QAXIS</code> and <code>Q95</code> are dimensionless (<code>-</code>) and positive on every shot. <code>BTV</code> is positive on every shot. <code>TTCU</code> is in amperes and positive on 14 shots; on E101031 and E101163 its trace dips negative (min &minus;7.77e4&nbsp;A and &minus;2.47e5&nbsp;A) as the plasma current rings through zero, so its sign is <em>mixed</em>.</p>
+<p id="jtmm-fame-scalar-fetch-controls"><strong>Nothing already cached is fetched again.</strong> The FAME/BETA and FAME/VOLUM scalars the OP1 fetch already landed were not in this request set; within it, any channel already on disk is skipped by <code>fetch_channels</code>, which returns without a transport call (E101154, cached by the first probe fetch, made <strong>0</strong> sessions on the sweep). <strong>A second read makes no transport call.</strong> After each shot, the same four requests were re-run through <code>fetch_channels</code> with a fresh counting transport; every shot returned <strong>0 ssh sessions</strong>, so a warm read is served wholly from disk. <strong>Nothing runs on the JT-60SA server beyond the existing EDDB read:</strong> each session is the one <code>RemoteEddbExtractor</code> batch reader under <code>nice -n 19</code>; no other command was issued. <strong>Negative control (declared):</strong> E100599, which has no FAME index and is not in the fetch set, gained no cached FAME channel from this run &mdash; <code>100599.zarr</code> holds <code>MDAC</code>, <code>MMSYS</code>, <code>PSRC</code> only, with no <code>FAME</code> group before or after.</p>
+<p id="jtmm-fame-scalar-fetch-gate">Measure: the driver <code>fame-scalar-fetch-driver.py</code> over the 16 shots; per-shot record in <code>fame-scalar-fetch-results.json</code> and the run log in <code>fame-scalar-fetch.log</code> (both in the run directory). Whole-run transport total: 16 ssh sessions, one per newly fetched shot. Read-back for every figure above is through <code>read_channel</code> from the cache, which reproduces the in-memory fetch statistics.</p>
+</section>
