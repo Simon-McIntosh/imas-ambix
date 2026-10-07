@@ -231,7 +231,9 @@ def _flux_loops(
                 )
             # A type-6 entry has no position of its own, so it adds no geometry
             # to the loop list: the mapping's pair is the whole of it, and no
-            # positioned slot may be claimed for it.
+            # positioned slot may be claimed for it.  ``efm_index`` is a sentinel
+            # with no positioned slot behind it; every consumer that would index
+            # or match by it refuses or skips a mapping with indices_differential.
             mappings.append(
                 SensorMapping(
                     amb_channel=_names(family, 1)[0],
@@ -791,6 +793,15 @@ def _apply_flux_loop_position_declarations(
                 )
             )
             continue
+        if mapping.indices_differential is not None:
+            # A differential flux loop has no position of its own and no slot in
+            # the positioned-loop list, so a declaration cannot give it one.  Its
+            # sentinel efm_index would otherwise write over a positioned loop.
+            raise GeometryAdapterError(
+                f"position declaration {declaration.name!r} names "
+                f"{declaration.acquisition_address!r}, a differential flux loop "
+                "with no position of its own"
+            )
         if declaration.declared_r is None or declaration.declared_z is None:
             raise GeometryAdapterError(
                 f"directional declaration {declaration.name!r} has no coordinates"

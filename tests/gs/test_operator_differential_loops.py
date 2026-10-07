@@ -18,11 +18,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from imas_ambix.data import geometry_adapter as ga
 from imas_ambix.data import selene_deck
 from imas_ambix.data.description_reader import read_geometry_table
 from imas_ambix.data.paths import JT60SA_ROOT
 from imas_ambix.gs import operator as op
-from imas_ambix.gs.geometry import CircuitDrive
+from imas_ambix.gs.geometry import CircuitDrive, FluxLoop, SensorMapping
 from tests.jt60sa_bundle import BUNDLE, SKIP_REASON
 
 pytestmark = pytest.mark.skipif(BUNDLE is None, reason=SKIP_REASON)
@@ -214,6 +215,59 @@ def test_differential_operator_row_is_second_loop_minus_first(tmp_path):
             np.testing.assert_allclose(
                 block[row, :], reference[bare_row, :], rtol=0, atol=0
             )
+
+
+def test_position_declaration_naming_a_differential_loop_is_refused():
+    """A declaration cannot give a type-6 entry the position it does not carry.
+
+    A differential flux loop has no slot in the positioned-loop list, so a
+    catalogue declaration that names its channel has nowhere to write: the
+    adapter refuses with :class:`GeometryAdapterError` rather than letting the
+    mapping's absent index overwrite a positioned loop.  Synthetic on purpose —
+    three positioned loops plus one type-6 entry isolate the refusal from the
+    mounted store.
+    """
+    from imas_alambic.machine_map import FluxLoopPositionDeclaration
+
+    loops = [FluxLoop(index=i, r=1.0 + i, z=0.0) for i in range(3)]
+    positioned = [
+        SensorMapping(
+            amb_channel=f"FL{i + 1}",
+            kind="flux_loop",
+            efm_index=i,
+            r=1.0 + i,
+            z=0.0,
+            angle_deg=None,
+            residual_m=0.0,
+            flag="",
+        )
+        for i in range(3)
+    ]
+    differential = SensorMapping(
+        amb_channel="FL7-FL1",
+        kind="flux_loop",
+        efm_index=-1,
+        r=float("nan"),
+        z=float("nan"),
+        angle_deg=None,
+        residual_m=0.0,
+        flag="differential flux loop",
+        indices_differential=(0, 2),
+    )
+    declaration = FluxLoopPositionDeclaration(
+        name="declares the differential channel",
+        acquisition_address="FL7-FL1",
+        range_first_shot=PHASE_SHOT,
+        range_last_shot=PHASE_SHOT,
+        position_verdict="nominal-table",
+        declared_r=2.0,
+        declared_z=1.0,
+        evidence="synthetic three-loop geometry table",
+    )
+    with pytest.raises(ga.GeometryAdapterError, match="differential flux loop"):
+        ga._apply_flux_loop_position_declarations(
+            loops, [*positioned, differential], (declaration,)
+        )
 
 
 def _jt60sa_drive_map(catalogue, topology):

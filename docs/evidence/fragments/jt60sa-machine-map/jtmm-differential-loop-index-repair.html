@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="reckon-type" content="doc">
+  <title>Differential flux-loop index repair — landed</title>
+</head>
+<body>
+<main class="plan-doc">
+  <h2 id="jtmm-differential-loop-index-repair">A differential flux-loop mapping is no longer usable as a positioned loop's list index</h2>
+  <p id="jtmm-differential-loop-index-repair-summary">A type-6 differential flux loop carries no position, so its mapping's <code>efm_index</code> is a sentinel with no positioned loop behind it. The defect was that the declaration pass wrote that sentinel straight into the positioned-loop list, where a negative index is the last positioned loop: a catalogue declaration naming a differential channel silently replaced the last loop's coordinates instead of erroring. Every consumer that indexes or matches by <code>efm_index</code> now refuses or skips a mapping whose <code>indices_differential</code> is set.</p>
+  <ul>
+    <li id="jtmm-differential-loop-index-repair-consumer-declarations"><strong><code>_apply_flux_loop_position_declarations</code></strong> (<code>imas_ambix/data/geometry_adapter.py</code>) — <em>refuses</em>: a declaration whose channel names a differential mapping raises <code>GeometryAdapterError</code> before any list write, so the positioned loop the sentinel would have addressed is left intact.</li>
+    <li id="jtmm-differential-loop-index-repair-consumer-nonunique"><strong>Non-unique-claim pass</strong> (<code>imas_ambix/gs/geometry.py</code>) — <em>skips</em>: the pass matches <code>m.kind == "flux_loop" and m.indices_differential is None and m.efm_index == i</code>, so a differential mapping is never rebuilt into a positioned claim.</li>
+    <li id="jtmm-differential-loop-index-repair-consumer-rowofloop"><strong><code>row_of_loop</code></strong> (<code>imas_ambix/gs/operator.py</code>) — <em>already correct, verified, no change</em>: <code>_apply_differential_rows</code> builds <code>row_of_loop</code> only from mappings whose <code>indices_differential</code> is None, then subtracts the two named rows for the differential rows themselves; the reverted <code>efm_index is not None</code> guard proved redundant against the base once the skip is keyed on the pair.</li>
+    <li id="jtmm-differential-loop-index-repair-consumer-transform"><strong>EFM identity binding</strong> (<code>imas_ambix/spine_bench/transform_geometry_source.py</code>) — <em>skips</em>: both the channel population fed to <code>_signal_identity_matches</code> and the rebind loop exclude mappings whose <code>indices_differential</code> is set, because a differential entry has no EFM column of its own to bind.</li>
+    <li id="jtmm-differential-loop-index-repair-consumer-artifact"><strong>Artifact sensor map</strong> (<code>imas_ambix/gs/artifact_geometry.py</code>) — <em>no change required, verified</em>: <code>_sensor_map</code> only constructs positioned mappings (<code>efm_index=i</code> over <code>b_probes</code> and <code>flux_loops</code>) and no path in the module indexes or matches by <code>efm_index</code>; no differential mapping reaches it.</li>
+    <li id="jtmm-differential-loop-index-repair-test">New test <code>test_position_declaration_naming_a_differential_loop_is_refused</code> in <code>tests/gs/test_operator_differential_loops.py</code> builds a synthetic three-loop geometry table plus one type-6 mapping (<code>efm_index=-1</code>, <code>indices_differential=(0, 2)</code>) and a declaration naming the differential channel, and requires <code>GeometryAdapterError</code>.</li>
+    <li id="jtmm-differential-loop-index-repair-gate">Gate <code>uv run --no-sync pytest tests/data/test_jt60sa_machine_map.py tests/gs/test_operator.py tests/gs/test_operator_differential_loops.py tests/gs/test_artifact_geometry.py tests/spine_bench/test_transform_geometry_source.py tests/spine_bench/test_machine_artifact_arm.py</code> with <code>IMAS_ALAMBIC_MAP_PATH</code> at the staged consumers map: <strong>100 passed, EXIT=0</strong>. Whole-tree <code>uv run --no-sync ruff check imas_ambix tests</code>: EXIT=0.</li>
+    <li id="jtmm-differential-loop-index-repair-negative-control">Negative control: removing the refusal lets the declaration write the sentinel index over the last positioned loop, and the new test fails with <code>DID NOT RAISE GeometryAdapterError</code> (EXIT=1, <code>negative_control_jtmm-differential-loop-index-repair.log</code>).</li>
+  </ul>
+</main>
+</body>
+</html>
