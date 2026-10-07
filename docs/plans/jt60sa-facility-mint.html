@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="73">
+<meta name="plan-version" content="74">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -504,7 +504,10 @@
     <div class="r-comment-body">jtfm-write-dev-pulses promoted: ids/101154_0.nc and ids/101031_0.nc written; review 18-20/20, 0 added; merged 08d19292</div>
 </div>
 <div class="r-comment" data-section="s11" data-id="c-run-r-20261007T063540093578-review-of-jtfm-engine-packaging" data-who="reckon-build" data-when="2026-10-07T06:59:05.041Z">
-    <div class="r-comment-body"><p>review-of-jtfm-engine-packaging reviewed r-20261007T061614681780-jtfm-engine-packaging at base 177c82d8b8fdba25315fa189ab4ceaaecb784ae9 head ec3f7fbbd162852609ccfe286dae18a492024409; stored a parsed record scoring all 6 dimensions (goal_fidelity 17, evidence 18, scope_discipline 20, durability 18, fit 19, reuse 20; total 112) with added_failure_count 0 and added_failure_ids [] derived from the reviewed run&#x27;s null baseline_suite/after_suite arms; §11 clauses 1,3,4,5 met and independently reproduced, clause 2 (ruff format --check packages/imas-alambic exits 0) unmet on three pre-existing out-of-scope format drifts, disclosed by the run as a follow-on.</p></div>
+    <div class="r-comment-body"><p>review-of-jtfm-engine-packaging reviewed r-20261007T061614681780-jtfm-engine-packaging at base 177c82d8b8fdba25315fa189ab4ceaaecb784ae9 head ec3f7fbbd162852609ccfe286dae18a492024409; stored a parsed record scoring all 6 dimensions (goal_fidelity 17, evidence 18, scope_discipline 20, durability 18, fit 19, reuse 20; total 112) with added_failure_count 0 and added_failure_ids [] derived from the reviewed run's null baseline_suite/after_suite arms; §11 clauses 1,3,4,5 met and independently reproduced, clause 2 (ruff format --check packages/imas-alambic exits 0) unmet on three pre-existing out-of-scope format drifts, disclosed by the run as a follow-on.</p></div>
+</div>
+<div class="r-comment" data-section="s11" data-id="c-run-r-20261007T061614681780-jtfm-engine-packaging" data-who="reckon-build" data-when="2026-10-07T06:34:40.255Z">
+    <div class="r-comment-body"><p>declared imas-python[netcdf]&gt;=2.3.0 and pinned packages/imas-alambic/**/*.py to py312, regenerated uv.lock, and extended the serving-interpreter parse backstop to packages/imas-alambic/src; measure: a fresh uv venv --python 3.12 holding only the imas-alambic and nova-cocos wheels imports netCDF4 1.7.4 (no hand install) and imas-alambic write 900001 writes ids/900001_0.nc (48829 bytes, five IDSs), ruff check imas_ambix tests packages exits 0, and ruff format --check flags eddb.py under the base py314 config (4 files) but not under the head py312 pin (3 files, pre-existing out-of-scope drift).</p></div>
 </div>
 </section>
 </main>
