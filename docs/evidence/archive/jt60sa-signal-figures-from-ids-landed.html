@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-signal-figures-from-ids-landed">
+  <meta name="plan-title" content="JT-60SA Signal Figures From IDS — landed record">
+  <meta name="plan-summary" content="Closure synthesis for JT-60SA Signal Figures From IDS: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).">
+  <meta name="plan-evidence-for" content="jt60sa-signal-figures-from-ids">
+  <meta name="plan-verdict" content="qualified">
+  <title>JT-60SA Signal Figures From IDS — landed record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+ <main class="plan-doc">
+  <h1>JT-60SA Signal Figures From IDS — landed record</h1>
+  <p>Closure synthesis for JT-60SA Signal Figures From IDS: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).</p>
+
+
+   <section id="s1">
+    <h2>§1 — E101154 redrawn from its pulse IDS</h2>
+    <p><code>scripts/figures_jt60sa_signals.py</code> is now about 60 lines. One function, <code>_read_pulse_ids</code>, opens <code>{ids}.nc</code> under <code>JT60SA_ROOT / "ids" / "101154"</code> with <code>imas.DBEntry</code> and <code>get(..., autoconvert=False)</code>. The script passes <code>extract_signal_traces(pf_active, "coil/current")</code> and <code>extract_signal_traces(magnetics, "ip")</code> to <code>time_trace_figure_mpl</code>, and writes one SVG through <code>render_to_bytes</code>: 402,315 bytes, 11 panels, no legend, one time label. Its printed series are CS1–CS4 and EF1–EF6 in A, and <code>ip</code> in A. A grep for <code>VirtualZarrView</code>, <code>read_channel</code>, <code>signal_map</code> and <code>TimeSeries(</code> in the script returns 0. Negative control: passing the indexed path <code>coil[0]/current</code> exits non-zero with imas-ink's <code>ValueError</code>.</p><p>Deleted: <code>jt60sa-E101154-flux-loops.svg</code> and <code>jt60sa-C060033-pf-coil-currents.svg</code>. The coordinator repaired the two records that embedded them. The <code>jtfig-signal-figures</code> evidence fragment now carries a withdrawal note in place of its three figures. The landed summary of <code>jt60sa-geometry-and-signal-figures</code> §3 is marked superseded and shows only this redrawn figure.</p><p>Review (run <code>r-20261007T023927303618-review-of-jtfig-ids-redraw</code>) scored goal fidelity, reuse and scope 20 each, evidence and fit 18, durability 12. Durability is low because the figure script has no test of its own; its behaviour rests on imas-ink's tested reader. One follow-on: the worker's <code>figures-run.log</code> has no <code>EXIT=</code> line, so the successful run is evidenced by the written SVG and the printed labels rather than by a sentinel.</p>
+  </section>
+
+</main>
+</body>
+</html>

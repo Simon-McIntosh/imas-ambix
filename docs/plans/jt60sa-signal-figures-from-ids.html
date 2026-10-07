@@ -25,6 +25,9 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-version" content="1">
+<meta name="plan-modified" content="2026-10-07">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -48,74 +51,12 @@
       </p>
     </header>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-07</span>
     <h2 id="s1">§1 — Redraw E101154's coil currents and plasma current from its IDS</h2>
-    <section data-reckon="section" data-id="s1" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
-    <p>
-      This section waits on imas-ink's <code>ids-signal-traces</code> §1, which adds <code>extract_signal_traces</code>.
-      That function does not exist until that section lands, so the dependency is declared on this section and on
-      the plan, and no builder is released before it merges to imas-ink's main branch. The ambix environment serves
-      imas-ink as an editable install, so the merged function is live here at once.
-    </p>
-    <p>
-      <code>scripts/figures_jt60sa_signals.py</code> is rewritten as a thin imas-ink caller:
-    </p>
-    <ul>
-      <li>One function, <code>_read_pulse_ids(pulse_dir, ids_name)</code>, opens one IDS with
-        <code>imas.DBEntry</code> and <code>get(..., autoconvert=False)</code>, from
-        <code>JT60SA_ROOT / "ids" / "101154"</code>, where <code>JT60SA_ROOT</code> comes from
-        <code>imas_ambix.data.paths</code>. The pulse-mint coordinator has announced a move to one netCDF per run,
-        so the file layout is known in this one place and that move is a one-function change.</li>
-      <li>It calls <code>extract_signal_traces(pf_active, "coil/current")</code> and
-        <code>extract_signal_traces(magnetics, "ip")</code>, and draws the series, one panel each, in one figure
-        through <code>time_trace_figure_mpl</code>.</li>
-      <li>It writes that figure through <code>render_to_bytes(format="svg")</code> to
-        <code>docs/figures/jt60sa-signals/jt60sa-E101154-pf-coil-currents.svg</code>, replacing the file of that
-        name.</li>
-    </ul>
-    <p>
-      The script constructs no <code>TimeSeries</code>, passes no label or unit string, and imports nothing from
-      <code>virtual_zarr</code>, <code>signal_map</code>, <code>eddb</code> or <code>zarr</code>. Every name and unit
-      on the figure comes from the IDS through imas-ink.
-    </p>
-    <p>
-      The same node deletes the two figures with no IDS behind them:
-    </p>
-    <ul>
-      <li><code>jt60sa-E101154-flux-loops.svg</code>, the raw PSRC-against-MDAC comparison. The lead withdrew it on
-        2026-10-07.</li>
-      <li><code>jt60sa-C060033-pf-coil-currents.svg</code>, for which no IDS exists.</li>
-    </ul>
-    <p>
-      Two records embed those files today and would show broken images once they are deleted. Both belong to the
-      shipped plan <code>jt60sa-geometry-and-signal-figures</code>, and the coordinator repairs them at this
-      section's landing, because a worker never edits another plan:
-    </p>
-    <ul>
-      <li><code>docs/evidence/fragments/jt60sa-geometry-and-signal-figures/jtfig-signal-figures.html</code> embeds
-        the flux-loop and C060033 figures.</li>
-      <li>That plan's §3 landed summary embeds all three figures, with captions from the raw-array era.</li>
-    </ul>
-    <p>
-      The repair removes the two withdrawn images, re-captions the surviving figure as drawn from IDS, and points
-      to this plan. The worker's own evidence goes in a new fragment for this plan, at
-      <code>docs/evidence/fragments/jt60sa-signal-figures-from-ids/</code>.
-    </p>
-    <p>
-      The IDS opener stays local to the script. The idiom it uses, <code>imas.DBEntry(path, "r")</code> then
-      <code>get(name, autoconvert=False)</code>, recurs in <code>scripts/figures_jt60sa_geometry.py</code>
-      (<code>_read_ids</code>), <code>imas_ambix/gs/artifact_geometry.py</code> and
-      <code>imas_ambix/bench/store_arms.py</code>. Each of those reads a different on-disk layout, and none owns
-      the pulse directory, so there is no shared owner to extend.
-    </p>
-    <p>
-      Done-when: the script opens only the two IDS files and writes exactly one SVG, with no PNG twin. It prints
-      each series' y-label and unit, which must be the ten coil names in <code>A</code> and <code>ip</code> in
-      <code>A</code>. <code>grep -cE 'VirtualZarrView|read_channel|signal_map|TimeSeries\(' scripts/figures_jt60sa_signals.py</code>
-      returns 0. <code>docs/figures/jt60sa-signals/</code> holds exactly one file. The SVG is rendered on a compute
-      node because it reads GPFS; open it and confirm it has no legend and one time label. The evidence fragment
-      embeds it with a project-absolute <code>src</code> and a caption naming the shot, the IDS paths and the
-      units. <code>uv run --no-sync ruff check imas_ambix tests scripts/figures_jt60sa_signals.py</code> passes.
-    </p>
+<section data-reckon="section" data-id="s1" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">E101154 drawn from its pulse IDS (merge <code>23fa1812</code>). <code>scripts/figures_jt60sa_signals.py</code> opens <code>pf_active</code> and <code>magnetics</code> with <code>imas.DBEntry</code> and passes them to imas-ink's <code>extract_signal_traces</code>. It builds no arrays and passes no label or unit. The flux-loop and C060033 figures are deleted, and the shipped plan's records that embedded them are repaired. Review scored 108/120.<br><img src="/imas-ambix/figures/jt60sa-signals/jt60sa-E101154-pf-coil-currents.svg" alt="E101154 PF coil currents and plasma current, drawn from its pulse IDS" style="max-width:100%"><br>E101154: the ten <code>pf_active/coil/current</code> traces CS1–EF6 and <code>magnetics/ip</code>, all in A, read with their names and units from the pulse IDS at <code>/work/projects/imas_gpu/jt60sa/ids/101154/</code>. <a href="s1">full record</a></p>
+</section>
 
     <h2 id="s2">§2 — Flux loops and probes, once the rewritten E101154 carries them</h2>
     <section data-reckon="section" data-id="s2" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="deferred" data-links=""></section>
@@ -151,10 +92,11 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-jsfi-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-07" data-recommends-skill="/reckon-build jt60sa-signal-figures-from-ids §1" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jsfi-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-07" data-recommends-skill="/reckon-build jt60sa-signal-figures-from-ids §1" data-resolved-at="2026-10-07T02:47:07+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Redraw E101154 from its IDS and withdraw the raw-signal figures</h4>
     <div class="r-fu-body"><p>Runs after imas-ink's ids-signal-traces lands. §2 and §3 wait on signals from the machine-map and pulse-mint coordinators.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-signal-figures-from-ids §1</pre>
+    <p class="r-fu-outcome">§1 landed (merge 23fa1812). §2 (flux loops and probes) stays deferred until imas-ambix-5b retargets the loop rules and imas-ambix-0d rewrites E101154; both will signal this session. §3 (C060033) stays deferred until a commissioning machine map exists and the pulse is minted.</p>
     </article>
 </section>
   </main>
