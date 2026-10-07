@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="81">
+<meta name="plan-version" content="82">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -481,6 +481,9 @@
 </div>
 <div class="r-comment" data-section="s1" data-id="c-run-r-20261007T041142406124-review-of-jtfm-maps-to-ghcr" data-who="reckon-build" data-when="2026-10-07T04:21:51.623Z">
     <div class="r-comment-body"><p>Reviewed run r-20261007T034932763033-jtfm-maps-to-ghcr (base 952116f1, head d593ae54): goal met and every done-when clause reproduced against the artifact — private GHCR package imas-alambic-jt60sa:2026.10.07 (digest sha256:6af476eb…), token fetch succeeds, credential-less fetch refused, oras pull diff -r equal to the /work bundle, machine_map.json equal to the base checkout except description_store_root=description, and the clean-venv load passes; total 104/120 with one follow-on finding that the recorded byte size 1118176 is a du -sb tree size, not the 1117742 content size.</p></div>
+</div>
+<div class="r-comment" data-section="s1" data-id="c-run-r-20261007T065600622395-jtfm-maps-out" data-who="reckon-build" data-when="2026-10-07T07:32:11Z">
+    <div class="r-comment-body"><p>Removed public JT-60SA catalogue, unit table and signal maps; private-bundle census 189 passed with zero added failures against 54 base failure IDs, empty-bundle census 118 passed and 71 skipped. [Evidence anchor](/imas-ambix/evidence/fragments/jt60sa-facility-mint/jtfm-maps-out.html#jtfm-maps-out-landing).</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261007T013805488822-jtfm-verb-write" data-who="reckon-build" data-when="2026-10-07T01:52:45.674Z">
     <div class="r-comment-body"><p>Renamed the engine's one command mint to write in cli.py; moved pulse_mint.py to pulse_writer.py (mint_pulse/write_pulse, MintReceipt/WriteReceipt, MintedLeaf/WrittenLeaf, PulseMintError/PulseWriteError); rewrote the module docstring, README, both pyproject.toml files and the engine-import list; moved test_pulse_mint.py to test_pulse_writer.py and added test_cli.py. Measure: grep -rniwE 'mint|minted|minting|pulse_mint|mint_pulse' packages imas_ambix tests scripts pyproject.toml prints nothing.</p></div>
