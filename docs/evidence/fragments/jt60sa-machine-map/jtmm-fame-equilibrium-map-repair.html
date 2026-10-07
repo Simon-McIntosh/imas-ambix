@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-fame-equilibrium-map-repair-landing" data-reckon="evidence">
+      <h3>FAME equilibrium map: the BTV unit spelling and its declared radius</h3>
+      <p>The staged <code>maps/equilibrium.json</code> spelled the BTV rule's
+      <code>source_unit</code> with a middle dot, <code>T·m</code>, where Data
+      Dictionary 4.1.1 spells the tesla-metre product with an ASCII period,
+      <code>T.m</code>. The middle-dot string is not in the DD unit vocabulary
+      (neither is it an SI prefix of a listed base unit), so the rule could not
+      resolve through the DD unit vocabulary the way every other binding in the
+      catalogue does. The map now declares <code>T.m</code>; the rule's
+      <code>channel_factor</code> already carried the physical conversion
+      (B0 = F / R on the catalogue's reference radius) and is unchanged.</p>
+      <p>The unit audit now reaches the equilibrium system beside
+      <code>magnetics</code>, <code>pf_active</code> and <code>tf</code>. Its
+      compound-product derivation handles the dotted <code>T.m</code> spelling by
+      multiplying each component's SI value, and the pair inventory grows to 230
+      bindings across the two catalogues. Because the BTV rule is the one bound leaf
+      whose factor is dimensional rather than a unit conversion, the audit asserts
+      that factor against its own hand-computed value, 1/3.0, the reciprocal of the
+      catalogue's declared 3.0 m reference radius.</p>
+      <p>The signal-map test no longer restates that radius: it reads the reference
+      radius the catalogue declares in <code>machine_map.json</code> and asserts the
+      B0 rule's <code>channel_factor</code> equals the radius's reciprocal, so the
+      catalogue stays the one declaration of the radius.</p>
+      <p>The gate is 36 passed, EXIT=0 over
+      <code>tests/data/test_jt60sa_signal_maps.py</code> and
+      <code>tests/data/test_jt60sa_unit_audit.py</code> with
+      <code>IMAS_ALAMBIC_MAP_PATH</code> naming the staged copy, and
+      <code>ruff check imas_ambix tests</code> is clean. The declared mutation —
+      restoring the middle-dot <code>T·m</code> on the BTV rule — reddens five unit
+      audit tests, EXIT=1: the vocabulary resolution, the hand-pair derivation, the
+      declared-factor check, the B0 channel-factor check and the pair inventory. The
+      live bundle carries no equilibrium map, so it is untouched.</p>
+    </section>
+  </main>
+</body>
+</html>

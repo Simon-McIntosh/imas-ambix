@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from imas_alambic.machine_map import load_packaged_machine_map
 from imas_alambic.signal_map import load_packaged_signal_map
 from imas_alambic.virtual_zarr import VirtualZarrError, VirtualZarrView
 from imas_ambix.data.paths import JT60SA_ROOT
@@ -74,17 +75,21 @@ _RESTS_ON_E101154 = re.compile(
 # channel present on E101154, so the list is empty.
 _CHANNELS_ABSENT_FROM_E101154: frozenset[tuple[str, str, str]] = frozenset()
 
-# The equilibrium sign cohort's four FAME scalars and the catalogue-declared
-# reference major radius.  B0 is the toroidal field on that radius, so BTV,
-# which carries F = R . BT, converts by dividing by the radius.
+# The equilibrium sign cohort's four FAME scalars.  B0 is the toroidal field on
+# the catalogue's declared reference major radius, so BTV, which carries
+# F = R . BT in T.m, converts by dividing by that radius; the radius is read
+# from machine_map.json rather than restated here, so the catalogue stays its
+# one declaration.
 EQ_SYSTEM = "equilibrium"
 EQ_FRAGMENT = (
     "docs/evidence/fragments/jt60sa-machine-map/"
     "jtmm-equilibrium-source-leads.html"
 )
-REFERENCE_RADIUS_M = 3.0
+_FAME_BTV_SEMANTIC_ID = "equilibrium_toroidal_field_b0"
 # semantic_id -> (source_group, source_array, source_unit, target_path,
-#                 target_unit, channel_factor)
+#                 target_unit).  The three identity scalars carry channel_factor
+# one; the BTV entry's channel factor is the reciprocal of the catalogue's
+# declared reference radius and is asserted in the b0 test.
 _EQ_RULES = {
     "equilibrium_q_axis": (
         "FAME",
@@ -92,7 +97,6 @@ _EQ_RULES = {
         "1",
         "equilibrium/time_slice/global_quantities/q_axis",
         "1",
-        1.0,
     ),
     "equilibrium_q_95": (
         "FAME",
@@ -100,7 +104,6 @@ _EQ_RULES = {
         "1",
         "equilibrium/time_slice/global_quantities/q_95",
         "1",
-        1.0,
     ),
     "equilibrium_plasma_current": (
         "FAME",
@@ -108,15 +111,13 @@ _EQ_RULES = {
         "A",
         "equilibrium/time_slice/global_quantities/ip",
         "A",
-        1.0,
     ),
     "equilibrium_toroidal_field_b0": (
         "FAME",
         "BTV",
-        "T·m",
+        "T.m",
         "equilibrium/vacuum_toroidal_field/b0",
         "T",
-        1.0 / REFERENCE_RADIUS_M,
     ),
 }
 
@@ -632,6 +633,23 @@ def _equilibrium_index():
     return {rule.semantic_id: rule for rule in _equilibrium().signals}
 
 
+def _reference_radius_m() -> float:
+    """The reference major radius the catalogue declares in machine_map.json."""
+    catalog = load_packaged_machine_map("jt-60sa")
+    return catalog.description_supplements[0].reference_radius
+
+
+def _channel_factor(semantic_id: str) -> float:
+    """The channel factor a rule is expected to declare.
+
+    The three identity scalars carry one; BTV carries F = R . BT in T.m and is
+    divided by the catalogue's declared reference radius to give b0 in T.
+    """
+    if semantic_id == _FAME_BTV_SEMANTIC_ID:
+        return 1.0 / _reference_radius_m()
+    return 1.0
+
+
 # Plausible FAME scalars for one shot; the equilibrium rules bind these source
 # arrays and the transform must not touch the raw values.
 _FAME_SERIES = {
@@ -676,7 +694,6 @@ def test_equilibrium_map_binds_the_four_fame_scalars():
         source_unit,
         target_path,
         target_unit,
-        channel_factor,
     ) in _EQ_RULES.items():
         rule = index[semantic_id]
         assert rule.source_group == group
@@ -688,7 +705,7 @@ def test_equilibrium_map_binds_the_four_fame_scalars():
         assert rule.transformation == "one_like"
         assert rule.source_cocos is None
         assert rule.unit_factor == 1.0
-        assert rule.channel_factor == pytest.approx(channel_factor)
+        assert rule.channel_factor == pytest.approx(_channel_factor(semantic_id))
         assert rule.validation_state == "source-only"
         assert EQ_FRAGMENT in rule.evidence
 
@@ -710,14 +727,18 @@ def test_equilibrium_map_compiles_and_reads_each_raw_series(tmp_path):
 
 
 def test_equilibrium_b0_divides_btimes_r_by_the_reference_radius(tmp_path):
-    """The served b0 is BTV over the catalogue's 3.0 m radius, not BTV itself."""
+    """The served b0 is BTV over the catalogue's declared reference radius."""
+    radius = _reference_radius_m()
+    rule = _equilibrium_index()[_FAME_BTV_SEMANTIC_ID]
+    assert rule.channel_factor == pytest.approx(1.0 / radius)
+
     path = _fame_store(tmp_path)
     view = VirtualZarrView.open(str(path), _equilibrium(), shot=101154)
 
-    raw_btv, _ = view.raw_series("equilibrium_toroidal_field_b0")
-    served = np.asarray(view["equilibrium_toroidal_field_b0"][:]).ravel()
+    raw_btv, _ = view.raw_series(_FAME_BTV_SEMANTIC_ID)
+    served = np.asarray(view[_FAME_BTV_SEMANTIC_ID][:]).ravel()
 
-    assert served == pytest.approx(raw_btv / REFERENCE_RADIUS_M)
+    assert served == pytest.approx(raw_btv / radius)
     # The rule must actually divide by the radius, so the served value differs
     # from the raw F = R . BT it was read from.
     assert not np.allclose(served, raw_btv)

@@ -5,9 +5,11 @@ signal maps and the machine-map catalogue must resolve through the Data
 Dictionary unit vocabulary of the catalogue's own DD version, and every
 ``target_unit`` must agree with the unit the Data Dictionary declares on the
 bound leaf.  The factor that carries a source unit into its target unit is
-computed from a small SI prefix and base-unit table and asserted against one
-hand-computed value per distinct unit pair, so the audit fails on any unit the
-vocabulary does not carry.
+computed from a small SI prefix, base-unit and compound-product table and
+asserted against one hand-computed value per distinct unit pair, and the
+equilibrium half's one dimensional factor (the reference radius that turns F =
+R . BT into b0) is asserted against its own hand-computed value, so the audit
+fails on any unit the vocabulary does not carry.
 
 The Data Dictionary metadata is read from ``imas-python``'s bundled dictionaries
 (``imas.dd_zip.dd_etree``) at the version each catalogue names, never from a
@@ -29,7 +31,7 @@ from tests.jt60sa_bundle import BUNDLE, SKIP_REASON
 pytestmark = pytest.mark.skipif(BUNDLE is None, reason=SKIP_REASON)
 
 MACHINE = "jt-60sa"
-SYSTEMS = ("magnetics", "pf_active", "tf")
+SYSTEMS = ("magnetics", "pf_active", "tf", "equilibrium")
 
 # A name, index or structural identifier leaf carries no physical unit; the
 # catalogues spell its dimensionless target as "1", which the Data Dictionary
@@ -37,8 +39,11 @@ SYSTEMS = ("magnetics", "pf_active", "tf")
 DIMENSIONLESS = "1"
 
 # One hand-computed factor per distinct (source, target) unit pair either
-# catalogue declares.  Every pair here is an identity pair, so each factor is
-# one unit of the source equal to one unit of the target.
+# catalogue declares.  Every pair here is a scale-preserving pair, so each
+# factor is one unit of the source equal to one unit of the target; a
+# dimensional difference a rule carries (the reference radius that turns the
+# FAME F = R . BT in T.m into b0 in T) is carried by the rule's channel_factor
+# and does not appear here, because this table converts units and not physics.
 HAND_FACTORS: dict[tuple[str, str], float] = {
     ("A", "A"): 1.0,
     ("T", "T"): 1.0,
@@ -46,11 +51,21 @@ HAND_FACTORS: dict[tuple[str, str], float] = {
     ("1", "1"): 1.0,
     ("m", "m"): 1.0,
     ("rad", "rad"): 1.0,
+    ("T.m", "T"): 1.0,
 }
+
+# The reference major radius the catalogue declares, and the BTV -> b0 channel
+# factor it fixes: FAME's BTV carries F = R . BT in T.m, so B0 = BTV / R on the
+# declared radius.  The value is hand-computed here beside the other hand-checked
+# factors, so a shifted radius reddens this audit as well as the map test.
+REFERENCE_RADIUS_M = 3.0
+BTV_TO_B0_FACTOR = 1.0 / REFERENCE_RADIUS_M
 
 # The numeric value of one unit in SI base units of its own dimension.  Only the
 # units the catalogues name appear here; the prefix parser below covers a
-# prefixed spelling such as mWb without widening the base table.
+# prefixed spelling such as mWb without widening the base table, and the
+# compound parser covers a product spelling such as T.m by multiplying the
+# value of each dotted component.
 _SI_BASE = {"1": 1.0, "m": 1.0, "A": 1.0, "T": 1.0, "Wb": 1.0, "rad": 1.0}
 _SI_PREFIX = {
     "Y": 1.0e24,
@@ -75,6 +90,11 @@ _MISSING = object()
 
 def _si_value(unit: str) -> float:
     """The numeric value of one ``unit`` in SI base units of its dimension."""
+    if "." in unit:
+        value = 1.0
+        for component in unit.split("."):
+            value *= _si_value(component)
+        return value
     if unit in _SI_BASE:
         return _SI_BASE[unit]
     for prefix in sorted(_SI_PREFIX, key=len, reverse=True):
@@ -209,6 +229,25 @@ def test_signal_derived_unit_factor_matches_the_hand_value():
         )
 
 
+def test_equilibrium_b0_channel_factor_is_the_hand_computed_radius_reciprocal():
+    """The BTV -> b0 factor is the reciprocal of the declared reference radius.
+
+    FAME's BTV carries F = R . BT in T.m, and b0 is the toroidal field on the
+    catalogue's declared reference major radius, so the factor carrying the
+    source into its target is 1/R.  The radius is hand-computed to 3.0 m, the
+    catalogue's own ``reference_radius``, so a shifted radius reddens this audit.
+    """
+    rules = {
+        rule.semantic_id: rule
+        for rule in load_packaged_signal_map(MACHINE, "equilibrium").signals
+    }
+    rule = rules["equilibrium_toroidal_field_b0"]
+    assert rule.source_unit == "T.m"
+    assert rule.target_unit == "T"
+    assert rule.unit_factor == pytest.approx(1.0)
+    assert rule.channel_factor == pytest.approx(BTV_TO_B0_FACTOR)
+
+
 def test_audit_reports_the_declared_unit_pair_inventory():
     """Both catalogues are reached and their distinct pairs are the audited set."""
     pairs = collections.Counter()
@@ -216,5 +255,5 @@ def test_audit_reports_the_declared_unit_pair_inventory():
         pairs[(source_unit, target_unit)] += 1
     for _, source_unit, target_unit, _, _ in _signal_rules():
         pairs[(source_unit, target_unit)] += 1
-    assert sum(pairs.values()) == 226
+    assert sum(pairs.values()) == 230
     assert set(pairs) == set(HAND_FACTORS)
