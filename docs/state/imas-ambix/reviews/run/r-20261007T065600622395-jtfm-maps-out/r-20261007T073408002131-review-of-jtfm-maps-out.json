@@ -1,0 +1,73 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "c255d3c3445884b72da66e74249c4eb2ca82cdb6",
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/data/bundle.py:27",
+    "packages/imas-alambic/src/imas_alambic/machine_map.py:280",
+    "scripts/vacuum_loop_adjudication.py:1105",
+    "scripts/vacuum_loop_adjudication.py:1443"
+  ],
+  "completed_at": "2026-10-07T07:42:13Z",
+  "dispatched_at": "2026-10-07T07:34:27Z",
+  "findings": [
+    {
+      "file": "tests/data/test_jt60sa_machine_map.py",
+      "line": "30",
+      "severity": "follow-on",
+      "text": "follow-on: catching all MachineMapError values and marking the module skipped treats duplicate or malformed bundles as absent; reintroducing jt-60sa to the public descriptor beside the private bundle would hide the regression rather than fail a test."
+    },
+    {
+      "file": "tests/data/test_eddb_local_transport.py",
+      "line": "38",
+      "severity": "follow-on",
+      "text": "follow-on: the moved real-data test copies the engine test's STANDIN_WRAPPER and three local-extractor helpers while the engine retains them, creating two owners for the same test fixture."
+    },
+    {
+      "file": "tests/data/test_selene_deck.py",
+      "line": "180",
+      "severity": "follow-on",
+      "text": "follow-on: Ruff reformats unrelated assertions throughout the file inside the map move, which makes the intended path change harder to audit."
+    }
+  ],
+  "head_log_revision": "b4c50bbc67992cf72ba2e482994f74a84d334387",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 4 production call site(s)",
+    "diff": "read commits 2d147887, c1233fd0, b4c50bbc and a78e3a36 against c255d3c3; the first removes public maps, the middle commits redirect readers and guards, and the last adds only the one-line evidence anchor.",
+    "done_when": "prompt.txt:107 requires an empty public map listing, bundle and reader census, no added suite failures, an empty-path skip arm, authenticated and anonymous GHCR fetches, and Ruff gates; census.log, baseline-scratch-suite.log, head-final.log, empty-bundle-final.log, oras-auth.log, oras-anonymous.log, ruff-check-final.log and ruff-format-final.log record those outcomes.",
+    "goal": "prompt.txt:30 asks to move the JT-60SA catalogue, unit table and maps from the public tree to the /work bundle; the reviewed diff deletes all five public map files and imas_ambix/data/bundle.json drops jt-60sa.",
+    "manifest": "manifest.md names four commits, all 19 changed paths, complete base and head arms and their logs; I parsed 54 base FAILED/ERROR ids and zero head ids directly from those logs, matching the manifest and yielding zero added ids.",
+    "write_paths": "prompt.txt:68-94 and manifest.md orientation_write_paths declare the fence; all 19 paths in git diff c255d3c3..a78e3a36 match manifest.md changed_paths and fall inside it."
+  },
+  "justifications": {
+    "durability": "negative-control.log proves removing the availability skip yields six failures, but tests/data/test_jt60sa_machine_map.py:30 catches every MachineMapError, so a duplicated or invalid bundle becomes a skip and the tests do not guard that regression.",
+    "evidence": "baseline-scratch-suite.log ends 48 failed, 135 passed, 6 errors and EXIT=1, head-final.log ends 189 passed and EXIT=0, and empty-bundle-final.log ends 118 passed, 71 skipped and EXIT=0; the head test log names b4c50bbc because a78e3a36 adds only the evidence anchor.",
+    "fit": "scripts/vacuum_loop_adjudication.py:1105 uses the established load_packaged_signal_map resolver and imas_ambix/data/bundle.py:18 keeps the existing eddb_cache role; the copied test fixture and reflow reduce fit slightly.",
+    "goal_fidelity": "imas_ambix/data/bundle.json:4 retains only mast and diii-d, and git ls-tree at a78e3a36 lists no JT-60SA map path while scripts/vacuum_loop_adjudication.py:1105 loads its PF map by bundle name.",
+    "reuse": "tests/data/test_eddb_local_transport.py:38-97 duplicates the stand-in wrapper and helper capability still owned by packages/imas-alambic/tests/test_eddb_local_transport.py:38-97, with 98% similarity across the 1.8 kB helper block.",
+    "scope_discipline": "all 19 changed paths are fenced, but tests/data/test_selene_deck.py:180 and scripts/vacuum_loop_adjudication.py:1127 include unrelated Ruff reflow beside the map-path edits."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: prompt.txt:30 asks to move the JT-60SA catalogue, unit table and maps from the public tree to the /work bundle; the reviewed diff deletes all five public map files and imas_ambix/data/bundle.json drops jt-60sa.\nVERDICT done_when: prompt.txt:107 requires an empty public map listing, bundle and reader census, no added suite failures, an empty-path skip arm, authenticated and anonymous GHCR fetches, and Ruff gates; census.log, baseline-scratch-suite.log, head-final.log, empty-bundle-final.log, oras-auth.log, oras-anonymous.log, ruff-check-final.log and ruff-format-final.log record those outcomes.\nVERDICT write_paths: prompt.txt:68-94 and manifest.md orientation_write_paths declare the fence; all 19 paths in git diff c255d3c3..a78e3a36 match manifest.md changed_paths and fall inside it.\nVERDICT manifest: manifest.md names four commits, all 19 changed paths, complete base and head arms and their logs; I parsed 54 base FAILED/ERROR ids and zero head ids directly from those logs, matching the manifest and yielding zero added ids.\nVERDICT diff: read commits 2d147887, c1233fd0, b4c50bbc and a78e3a36 against c255d3c3; the first removes public maps, the middle commits redirect readers and guards, and the last adds only the one-line evidence anchor.\nCALL_SITES: imas_ambix/data/bundle.py:27, packages/imas-alambic/src/imas_alambic/machine_map.py:280, scripts/vacuum_loop_adjudication.py:1105, scripts/vacuum_loop_adjudication.py:1443\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: imas_ambix/data/bundle.json:4 retains only mast and diii-d, and git ls-tree at a78e3a36 lists no JT-60SA map path while scripts/vacuum_loop_adjudication.py:1105 loads its PF map by bundle name.\nSCORE evidence: 18\nJUSTIFICATION evidence: baseline-scratch-suite.log ends 48 failed, 135 passed, 6 errors and EXIT=1, head-final.log ends 189 passed and EXIT=0, and empty-bundle-final.log ends 118 passed, 71 skipped and EXIT=0; the head test log names b4c50bbc because a78e3a36 adds only the evidence anchor.\nSCORE scope_discipline: 17\nJUSTIFICATION scope_discipline: all 19 changed paths are fenced, but tests/data/test_selene_deck.py:180 and scripts/vacuum_loop_adjudication.py:1127 include unrelated Ruff reflow beside the map-path edits.\nSCORE durability: 12\nJUSTIFICATION durability: negative-control.log proves removing the availability skip yields six failures, but tests/data/test_jt60sa_machine_map.py:30 catches every MachineMapError, so a duplicated or invalid bundle becomes a skip and the tests do not guard that regression.\nSCORE fit: 18\nJUSTIFICATION fit: scripts/vacuum_loop_adjudication.py:1105 uses the established load_packaged_signal_map resolver and imas_ambix/data/bundle.py:18 keeps the existing eddb_cache role; the copied test fixture and reflow reduce fit slightly.\nSCORE reuse: 5\nJUSTIFICATION reuse: tests/data/test_eddb_local_transport.py:38-97 duplicates the stand-in wrapper and helper capability still owned by packages/imas-alambic/tests/test_eddb_local_transport.py:38-97, with 98% similarity across the 1.8 kB helper block.\nFINDING tests/data/test_jt60sa_machine_map.py:30 follow-on: catching all MachineMapError values and marking the module skipped treats duplicate or malformed bundles as absent; reintroducing jt-60sa to the public descriptor beside the private bundle would hide the regression rather than fail a test.\nFINDING tests/data/test_eddb_local_transport.py:38 follow-on: the moved real-data test copies the engine test's STANDIN_WRAPPER and three local-extractor helpers while the engine retains them, creating two owners for the same test fixture.\nFINDING tests/data/test_selene_deck.py:180 follow-on: Ruff reformats unrelated assertions throughout the file inside the map move, which makes the intended path change harder to audit.",
+  "review_run_id": "r-20261007T073408002131-review-of-jtfm-maps-out",
+  "reviewed_base_sha": "c255d3c3445884b72da66e74249c4eb2ca82cdb6",
+  "reviewed_head_sha": "a78e3a362944fc73bd6b12810f0ed8f7c249011e",
+  "reviewed_run_id": "r-20261007T065600622395-jtfm-maps-out",
+  "reviewer_run_id": "r-20261007T073408002131-review-of-jtfm-maps-out",
+  "scores": {
+    "durability": 12,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 20,
+    "reuse": 5,
+    "scope_discipline": 17
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-07T07:40:35.061197+00:00",
+  "total": 90
+}
