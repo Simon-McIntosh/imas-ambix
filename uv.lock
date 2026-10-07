@@ -1113,7 +1113,7 @@ name = "imas-alambic"
 source = { editable = "packages/imas-alambic" }
 dependencies = [
     { name = "click" },
-    { name = "imas-python" },
+    { name = "imas-python", extra = ["netcdf"] },
     { name = "nova-cocos" },
     { name = "numpy" },
     { name = "pyyaml" },
@@ -1123,7 +1123,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "click", specifier = ">=8.1" },
-    { name = "imas-python", specifier = ">=2.3.0" },
+    { name = "imas-python", extras = ["netcdf"], specifier = ">=2.3.0" },
     { name = "nova-cocos" },
     { name = "numpy", specifier = ">=2.2" },
     { name = "pyyaml" },
@@ -1388,6 +1388,11 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a5/25/8d0088c182846c325d903d67610171b111942059d64331f92d20bd4a8b62/imas_python-2.3.0.tar.gz", hash = "sha256:10ba222cd4b1feec744ba4f58a59ab54e0cef86139178f6401274694c69aeb8f", size = 2757396, upload-time = "2026-06-17T15:15:50.774Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/74/32/e6160238f38c7eed9370c32928a6da2aedf9a6c41b65d8daef70bbb95d62/imas_python-2.3.0-py3-none-any.whl", hash = "sha256:75256993c60e08394c690afe342647fd1cb15055f2ee18ccf3cce13da4ead294", size = 2409809, upload-time = "2026-06-17T15:15:48.788Z" },
+]
+
+[package.optional-dependencies]
+netcdf = [
+    { name = "netcdf4" },
 ]
 
 [[package]]
