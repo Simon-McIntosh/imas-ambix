@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="96">
+<meta name="plan-version" content="97">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -439,7 +439,10 @@
     <div class="r-comment-body"><p>JT-60SA census bundle presence now has one owner (tests/jt60sa_bundle.py) deciding from discover_bundles() alone, and the EDDB stand-in wrapper has one definition (packages/imas-alambic/tests/eddb_standin.py) reached by the ambix test through its test directory on sys.path; head 107 passed vs base 107 passed (0 added failures), empty-dir 36 passed/71 skipped with the stated reason, both negative controls refuse with 7 collection errors each.</p></div>
 </div>
 <div class="r-comment" data-section="s14" data-id="c-run-r-20261007T093815607203-jtfm-census-guard-repair" data-who="reckon-build" data-when="2026-10-07T10:19:46.227Z">
-    <div class="r-comment-body"><p>jtfm-census-guard-repair brings the merged census guard and EDDB stand-in to §14: machine_map gains bundles_carrying(machine) as the one owner (bundle_for_machine resolves through it), the guard skips only on an empty result and delegates the two-bundle refusal, an empty IMAS_ALAMBIC_MAP_PATH now fails collection with the descriptor refusal, the MAST guards key on &quot;mast&quot;, and eddb_standin.py is the single EDDB stand-in loaded by file path; census arm 107 passed base and head with no added failures, ruff whole-tree exits 0</p></div>
+    <div class="r-comment-body"><p>jtfm-census-guard-repair brings the merged census guard and EDDB stand-in to §14: machine_map gains bundles_carrying(machine) as the one owner (bundle_for_machine resolves through it), the guard skips only on an empty result and delegates the two-bundle refusal, an empty IMAS_ALAMBIC_MAP_PATH now fails collection with the descriptor refusal, the MAST guards key on "mast", and eddb_standin.py is the single EDDB stand-in loaded by file path; census arm 107 passed base and head with no added failures, ruff whole-tree exits 0</p></div>
+</div>
+<div class="r-comment" data-section="s14" data-id="c-run-r-20261007T102103589283-review-of-jtfm-census-guard-repair" data-who="reckon-build" data-when="2026-10-07T10:34:46.020Z">
+    <div class="r-comment-body"><p>Reviewed run r-20261007T093815607203-jtfm-census-guard-repair (plan imas-ambix:jt60sa-facility-mint §14) at base 2f489503 vs head 19e4fdf9: 6 dimensions scored (goal_fidelity 20, evidence 20, scope_discipline 20, durability 20, fit 20, reuse 17; total 117/120), added_failure_count 0, added_failure_ids []; two findings -- reachable_bundles() left dead at tests/jt60sa_bundle.py:65 (cleanup), and §14&#x27;s write-path list omits three paths the dispatch granted and the revised text requires (follow-on).</p></div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261007T081209804162-jtfm-imasdb-install" data-who="reckon-build" data-when="2026-10-07T10:10:06.857Z">
     <div class="r-comment-body"><p>packages/imas-alambic/install/imasdb.sh installs imas-alambic into the shared IMASDB folder on intr26-2 in one command; the full FENCE—EVIDENCE measure is green in the run log and tied to the live install.</p></div>
