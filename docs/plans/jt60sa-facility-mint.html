@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="105">
+<meta name="plan-version" content="106">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -462,6 +462,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261007T131907016379-jtfm-imasdb-repair" data-who="reckon-build" data-when="2026-10-07T13:57:18.024Z">
     <div class="r-comment-body"><p>packages/imas-alambic/src/imas_alambic/settings.py now reports the machine and the cache/IDS-root store lookups as source-with-no-value when bundle discovery refuses, so imas-alambic config prints every setting with no reachable bundle (pinned by a new test in packages/imas-alambic/tests/test_settings.py); packages/imas-alambic/install/imasdb.sh no longer seeds maps/current, reads the IMASDB layout from config before the bundle exists, runs uv python install with --no-bin, and opens executables to others r-x (chmod -R o=rX); measure: config before the bundle on intr26-2 prints maps IMASDB/maps/current, ids_root IMASDB/ids, machine and cache carrying the descriptor refusal, the installer EXIT=0 with launcher and managed python3.12 at 755 and no python3.12 shim under ~/.local/bin, settings tests 11 passed at head against 10 at base, ruff whole-tree exits 0.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261007T135733028506-review-of-jtfm-imasdb-repair" data-who="reckon-build" data-when="2026-10-07T14:02:13.351Z">
+    <div class="r-comment-body"><p>review of r-20261007T131907016379-jtfm-imasdb-repair: settings.py now reports the machine and the cache/IDS store lookups as source-with-no-value when bundle discovery refuses, so imas-alambic config prints every setting before any bundle exists (pinned by a new committed test whose negative control reddens only at the mutated copy); imasdb.sh no longer seeds maps/current and reads the layout from config alone, installs with --no-bin, and opens executables to others r-x; the earlier installed revision&#x27;s three findings are each closed. Scores goal_fidelity 19, evidence 19, scope_discipline 19, durability 14, fit 19, reuse 19, total 109 of 120; two follow-on findings (the evidence fragment is header-only; the tests-dir suite log stamps the intermediate revision b0e41ab2, not the head).</p></div>
 </div>
 </section>
 </main>
