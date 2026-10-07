@@ -43,6 +43,7 @@ MIRROR_ROOT = Path("/work/projects/imas_gpu/mast")
 # reads the same bytes.
 JT60SA_ROOT = Path("/work/projects/imas_gpu/jt60sa")
 JT60SA_DESCRIPTION_DIR = JT60SA_ROOT / "machine_description"
+JT60SA_IDS_DIR = JT60SA_ROOT / "ids"
 LEVEL1_DIR = MIRROR_ROOT / "level1" / "shots"
 LEVEL2_DIR = MIRROR_ROOT / "level2" / "shots"
 MANIFEST_DIR = MIRROR_ROOT / "manifests"
