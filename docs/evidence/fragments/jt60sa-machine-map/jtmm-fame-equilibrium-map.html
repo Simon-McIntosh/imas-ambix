@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="reckon-type" content="doc">
+  <title>FAME equilibrium signal map — landed</title>
+</head>
+<body>
+<main class="plan-doc">
+  <h2 id="jtmm-fame-equilibrium-map">The JT-60SA equilibrium signal map</h2>
+  <ul>
+    <li id="jtmm-fame-equilibrium-map-copy">The staged bundle copy
+      <code>~/.config/reckon/crew/reports/imas-ambix/maps-staging/jtmm-fame-equilibrium-map</code>
+      gains <code>maps/equilibrium.json</code>; the copy needed no other change. The live
+      <code>/work/projects/imas_gpu/jt60sa/maps</code> bundle is untouched.</li>
+    <li id="jtmm-fame-equilibrium-map-bindings">Four rules, every one
+      <code>validation_state: source-only</code> and <code>transformation: one_like</code> with no
+      source COCOS, evidence citing
+      <code>docs/evidence/fragments/jt60sa-machine-map/jtmm-equilibrium-source-leads.html</code>:
+      <code>FAME/QAXIS</code> → <code>equilibrium/time_slice/global_quantities/q_axis</code> (1→1),
+      <code>FAME/Q95</code> → <code>q_95</code> (1→1),
+      <code>FAME/TTCU</code> → <code>global_quantities/ip</code> (A→A), and
+      <code>FAME/BTV</code> → <code>equilibrium/vacuum_toroidal_field/b0</code> (T·m→T) with
+      <code>channel_factor</code> 1/3.0 from the catalogue's declared 3.0 m reference radius
+      (<code>machine_map.json</code> <code>description_supplements</code> <code>reference_radius</code>).</li>
+    <li id="jtmm-fame-equilibrium-map-gate">Gate with <code>IMAS_ALAMBIC_MAP_PATH</code> at the copy:
+      <code>uv run --no-sync pytest tests/data/test_jt60sa_signal_maps.py</code> → 28 passed, EXIT=0;
+      <code>ruff check imas_ambix tests</code> → all checks passed, EXIT=0. The three new tests load
+      and compile the map, read each rule's raw series through <code>VirtualZarrView.raw_series</code>
+      over a FAME store built under <code>tmp_path</code>, and assert the served b0 is BTV/3.0 m.</li>
+    <li id="jtmm-fame-equilibrium-map-negative-control">Negative control: forcing BTV's
+      <code>channel_factor</code> to 1.0 makes
+      <code>test_equilibrium_b0_divides_btimes_r_by_the_reference_radius</code> fail
+      (2 failed, 26 passed, EXIT=1).</li>
+  </ul>
+</main>
+</body>
+</html>
