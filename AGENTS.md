@@ -16,7 +16,7 @@ Remotes:
 
 | Remote | Repository | Purpose |
 |--------|------------|---------|
-| `origin` | [`Simon-McIntosh/imas-ambix`](https://github.com/Simon-McIntosh/imas-ambix) | Fork — daily development; **GitHub Pages source** for the public plans dashboard at <https://simon-mcintosh.github.io/imas-ambix/> |
+| `origin` | [`Simon-McIntosh/imas-ambix`](https://github.com/Simon-McIntosh/imas-ambix) | Fork — daily development. GitHub Pages is off (lead, 2026-10-07); reckon serves `docs/` locally. The fork stays public, because GitHub keeps forks of a public repository public. |
 | `upstream` | [`iterorganization/imas-ambix`](https://github.com/iterorganization/imas-ambix) | Canonical |
 
 Routine flow:

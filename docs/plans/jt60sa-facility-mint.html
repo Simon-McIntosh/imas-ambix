@@ -22,11 +22,11 @@
   <meta name="plan-tags" content="jt-60sa,machine-map">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <meta name="plan-after" content="jt60sa-pulse-ids">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;deferred&quot;}">
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="55">
+<meta name="plan-version" content="56">
 <meta name="plan-modified" content="2026-10-07">
 </head>
 <body>
@@ -208,8 +208,8 @@
 </section>
 
     <h2 id="s10">§10 — Take the JT-60SA evidence out of the public tree</h2>
-<section data-reckon="section" data-id="s10" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links=""></section>
-<p>On 2026-10-07 the lead turned GitHub Pages off for imas-ambix. The public dashboard at <code>https://simon-mcintosh.github.io/imas-ambix/</code> was built from <code>docs/</code> on <code>main</code>; it was disabled through the GitHub API, and the Pages endpoint now returns 404. The fork cannot be made private, because GitHub keeps forks of a public repository public, and it is a fork of the public <code>iterorganization/IMAS-Ambix</code>. So privacy means removing material from the tree. Earlier commits keep it, under the <code>public-history</code> decision. The lead also ruled that JT-60SA facility evidence belongs to imas-codex discovery and its graph, not to ambix. Until imas-codex takes it, private copies live under <code>/work/projects/imas_gpu/jt60sa/evidence/</code>, mirroring their <code>docs/</code> paths.</p><p>What moves is everything <code>git ls-files docs | grep -E 'evidence/(fragments|archive)/jt60sa|figures/jt60sa'</code> lists when the node runs: the JT-60SA plans' evidence fragments, their landed records, and the JT-60SA figures. Run records under <code>docs/state</code> stay, because they are reckon's ledger. The plans stay too. Their links to moved records go dead, which reckon does not validate, and each affected plan gets one comment naming the private copy.</p><p>New evidence still lands in <code>docs/</code>. reckon writes fragments and landed records only there (<code>reckon/resources.py:55</code>, <code>reckon/_store.py:924</code>), so a private evidence root is a reckon feature. Until it exists, JT-60SA nodes write fragments with no facility content (no channel names, signal values or figures), keep figures under <code>/work</code>, and their plans' coordinators are told.</p><p>Done-when:</p><ul><li>That <code>git ls-files</code> pattern lists nothing on <code>main</code>.</li><li>Every moved file exists under <code>/work/projects/imas_gpu/jt60sa/evidence/</code> at its <code>docs/</code>-relative path, with a matching sha256. A manifest of path and digest is written beside the files.</li><li><code>gh api repos/Simon-McIntosh/imas-ambix/pages</code> returns 404.</li><li>Each JT-60SA plan that lost records carries a comment naming the private copy.</li><li>The repository's AGENTS.md no longer calls <code>origin</code> the Pages source.</li></ul>
+<section data-reckon="section" data-id="s10" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="deferred" data-links=""></section>
+<p><strong>Dropped 2026-10-07.</strong> The lead ruled that the JT-60SA evidence fragments, landed records and figures stay in <code>docs/</code> with their normal content, because that feedback is wanted in reckon's docs view. Only the maps are private, in GHCR (§1). <code>evidence-privacy</code> is re-locked as keep-public. GitHub Pages stays off: the public dashboard at <code>https://simon-mcintosh.github.io/imas-ambix/</code>, built from <code>docs/</code> on <code>main</code>, was disabled through the GitHub API on 2026-10-07, and the Pages endpoint returns 404. Nothing was moved, and new fragments keep their normal content.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -273,14 +273,14 @@
       </p>
     <p class="r-dec-rat">Lead, 2026-10-06: no GitHub credential is placed on a facility machine.</p>
     </div>
-<div class="r-dec" data-key="evidence-privacy" data-choice="move-private" data-by="Simon McIntosh" data-when="2026-10-07T04:34:39+00:00" data-sections="s1">
+<div class="r-dec" data-key="evidence-privacy" data-choice="keep-public" data-by="Simon McIntosh" data-when="2026-10-07T04:49:00+00:00" data-sections="s1">
     <p class="r-dec-q">Do the JT-60SA evidence fragments and signal figures under docs/ stay public?</p>
     <p class="r-dec-ctx">They are records of the jt60sa-machine-map and jt60sa-geometry-and-signal-figures plans and are served on the public Pages dashboard; moving them breaks those plans&#x27; evidence anchors.</p>
     <p class="r-dec-opts">
-      <button class="r-opt" data-value="keep-public">keep-public</button>
-      <button class="r-opt chosen" data-value="move-private">move-private</button>
+      <button class="r-opt chosen" data-value="keep-public">keep-public</button>
+      <button class="r-opt" data-value="move-private">move-private</button>
       </p>
-    <p class="r-dec-rat">Lead, 2026-10-07: GitHub Pages is turned off for imas-ambix. The JT-60SA evidence fragments, landed records and figures leave the public tree now, with private copies under /work/projects/imas_gpu/jt60sa/evidence. JT-60SA facility evidence belongs to imas-codex discovery and its graph, which takes it later.</p>
+    <p class="r-dec-rat">Lead, 2026-10-07, revising the earlier move-private choice: JT-60SA evidence fragments, landed records and figures stay in docs/ with their normal content, because that feedback is wanted. Only the maps are private, in GHCR. GitHub Pages stays off.</p>
     </div>
 <div class="r-dec" data-key="engine-verb" data-choice="write" data-by="Simon McIntosh" data-when="2026-10-07T01:30:02+00:00" data-sections="s6,s7">
     <p class="r-dec-q">What is the engine&#x27;s one command called?</p>
