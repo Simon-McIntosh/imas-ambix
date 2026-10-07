@@ -1,0 +1,27 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-local-eddb-landing">
+  <header>
+    <h3>the EDDB reader runs locally as one argv list, with no ssh prefix and no module shell</h3>
+    <p class="meta">
+      Node <code>jtfm-local-eddb</code> &middot;
+      date 2026-10-07 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;3 &middot;
+      node <code>98dci4-clu-2018</code> job <code>1277272</code>
+    </p>
+  </header>
+  <p>
+    With an empty <code>ssh_command</code>,
+    <code>RemoteEddbExtractor._argv()</code> composes
+    <code>nice -n 19 &lt;remote_python&gt; -c REMOTE_SCRIPT</code> as one argv
+    list, with no ssh prefix and no module-load shell; the ssh route keeps its
+    module-load string unchanged.  <code>SshTransport</code> is renamed
+    <code>SubprocessTransport</code> and both callers move with it; no new
+    <code>Transport</code> class is added.  Through a stand-in
+    <code>eddb_pwrapper</code> the local route returns records whose data and
+    time arrays equal the stand-in's bit for bit, decoded by the same
+    <code>decode_batch</code> the ssh route uses.  Gate: 35 passed (3 new
+    local-route tests + 32 cache tests), <code>EXIT=0</code>; clean
+    <code>uv venv --python 3.12</code> with the imas-alambic wheel, nova-cocos
+    and pytest: 3 passed, <code>EXIT=0</code>; ruff exit 0; negative control
+    3 failed, <code>EXIT=1</code>.
+  </p>
+</section>
