@@ -1,0 +1,65 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "59f12ee0155b7590b6334ec29a2b52e6a91dfa3d",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-07T02:06:07.582Z",
+  "dispatched_at": "2026-10-07T01:54:39Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T013805488822-jtfm-verb-write/after-arm.log",
+      "line": 105,
+      "severity": "follow-on",
+      "text": "follow-on: the plan done-when 'pytest ... passes with the same counts the base reaches' is red at both arms on the same assertion (test_write_covers_every_description_ids asserts magnetics ids_properties.homogeneous_time == 1, reads 0). It is unchanged by this rename and predates it: jt60sa-pulse-ids \u00a75 derives the expected value from the receipt and records that the writer is right and the test is wrong (the machine map now binds 45 magnetics signals on more than one time base). Recorded, not fixed, because the plan's own \u00a77 pytest clause cannot be made green by a rename."
+    },
+    {
+      "file": "docs/plans/jt60sa-facility-mint.html",
+      "line": 159,
+      "severity": "follow-on",
+      "text": "follow-on: the \u00a77 gate command carries PYTHONPATH=$PWD alone, which does not reach packages/imas-alambic/src, so a run exactly as written imports the main checkout's imas_alambic rather than the worktree's. The reviewed worker appended the worktree src to PYTHONPATH and said so; the plan's command should name the engine src so the gate measures the node's own tree."
+    }
+  ],
+  "head_log_revision": "c2db8bdd865bb90486ac78b5bf14730357815600",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "cli.py's click command mint becomes write with write_cmd and help text aligned; pulse_mint.py git-mv's to pulse_writer.py with mint_pulse/write_pulse, MintReceipt/WriteReceipt, MintedLeaf/WrittenLeaf, PulseMintError/PulseWriteError and the private _mint_one_ids/_write_one_ids renamed, docstrings rewritten to writing; __init__.py, README.md, both pyproject.toml files, test_engine_imports.py and the moved test module follow; a new 25-line test_cli.py asserts the group registers exactly write and write --help lists --machine/--shot/--out. No behaviour change.",
+    "done_when": "imas-alambic --help lists write and no mint (Commands: write ...), imas-alambic write --help lists --machine, --shot and --out; grep -rniwE 'mint|minted|minting|pulse_mint|mint_pulse' packages imas_ambix tests scripts pyproject.toml prints nothing (EXIT=1); the pytest gate runs with the same single failure set at both arms (base 1 failed/26 passed, after 1 failed/27 passed); ruff check and ruff format --check on the changed files add no finding. Reproduced independently from git-archive extractions of c2db8bdd and 59f12ee0.",
+    "goal": "plan jt60sa-facility-mint \u00a77 names exactly this: the click command mint becomes write; pulse_mint.py git-mv's to pulse_writer.py with write_pulse, WriteReceipt, WrittenLeaf and PulseWriteError; docstrings describe writing; the package self-description as the mint engine is rewritten in the module docstring, README, the package pyproject description and keywords and the root pyproject comment; test_pulse_mint.py moves to test_pulse_writer.py and the engine-import list follows; a new test_cli.py asserts the group registers exactly write and its three options; no behaviour change and no deprecated alias. The diff matches clause for clause.",
+    "manifest": "records commit c2db8bdd865bb90486ac78b5bf14730357815600, both arms with log paths and revisions, the negative control, measurement_module and measurement_cwd for the scratch base arm, and no blockers; its baseline_suite and after_suite JSON agree with the cited logs (base 59f12ee0 1 failed/26 passed EXIT=1; after c2db8bdd 1 failed/27 passed EXIT=1) and its changed_paths match the diff.",
+    "verification": "the head gate, the base arm, the grep gate, the CLI --help check, ruff and a mutation re-registering the click command as mint were each re-run from git-archive extractions of c2db8bdd and 59f12ee0 under /tmp, not from the worker's logs alone; the worker's numbers reproduce exactly and the mutation fails test_cli.py::test_help_lists_the_write_command_and_its_options, an id the head arm does not fail.",
+    "write_paths": "git show --name-only c2db8bdd lists the evidence fragment, the two pyproject.toml files, README.md, __init__.py, cli.py, pulse_writer.py (rename of pulse_mint.py), test_cli.py, test_engine_imports.py and test_pulse_writer.py (rename of test_pulse_mint.py), every one inside the declared fence; docs/figures/jt60sa-facility-mint/jtfm-verb-write is declared but untouched, which a pure rename has no figure to fill."
+  },
+  "justifications": {
+    "durability": "test_cli.py is added and the negative control proves it fires when the command is re-registered as mint (EXIT=1, an id the head arm does not fail), which I reproduced under my own mutation; the rename itself is covered by the grep gate, which was reproduced clean across packages, imas_ambix, tests, scripts and both pyproject.toml files. A no-behaviour rename has little else to guard.",
+    "evidence": "botch-free reproduction: head gate 1 failed/27 passed EXIT=1 and base gate 1 failed/26 passed EXIT=1, both from my own extraction of the revision, not the worker's tree; grep gate clean; --help lists write and its three options. No new failure is attributable to this node as added_failure_ids is empty: the one failing id changes only because the test module and test were renamed, and the assertion and root cause are identical in kind at both arms (magnetics homogeneous_time 0).",
+    "fit": "the diff is a clean, complete rename: every mint-named public symbol is renamed in one pass, docstrings and the module header describe writing, no mint spelling survives in source, and the commit carries a conventional subject with a mechanism body and no plan identifiers; no abbreviation or half-renamed symbol is left behind.",
+    "goal_fidelity": "the plan paragraph names this change clause for clause and the diff matches each one, including the rename set, the moved test module, the added test_cli.py and the two pyproject edits; the plan's own done-when is met for --help, grep and ruff, and its pytest clause is red only by a pre-existing failure the plan already records elsewhere.",
+    "reuse": "no abstraction is added; the rename reuses the existing structures unchanged and the new test_cli.py uses click's runner rather than introducing any fixture or helper.",
+    "scope_discipline": "only the ten declared paths are touched; no plan, index, sprint state or figure is edited, and the plan's own 'records keep the word' rule is honoured (the fragment keeps mint only inside the gate string it records)."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: plan jt60sa-facility-mint \u00a77 names the click command mint -> write, pulse_mint.py git-mv to pulse_writer.py with write_pulse, WriteReceipt, WrittenLeaf, PulseWriteError, docstrings describing writing, the package self-description rewritten in the module docstring, README and both pyproject.toml files, the test module moved to test_pulse_writer.py with the engine-import list following, a new test_cli.py asserting the group registers exactly write and its three options, no behaviour change and no deprecated alias. The diff matches clause for clause.\nVERDICT done_when: imas-alambic --help lists write and no mint (Commands: write ...); imas-alambic write --help lists --machine, --shot and --out; grep -rniwE 'mint|minted|minting|pulse_mint|mint_pulse' packages imas_ambix tests scripts pyproject.toml prints nothing (EXIT=1); pytest runs with the same single failure set at both arms; ruff check and ruff format --check on the changed files add no finding. Reproduced from my own git-archive extractions of c2db8bdd and 59f12ee0.\nVERDICT write_paths: git show --name-only c2db8bdd lists docs/evidence/fragments/jt60sa-facility-mint/jtfm-verb-write.html, packages/imas-alambic/README.md, the two pyproject.toml files, __init__.py, cli.py, pulse_writer.py, test_cli.py, test_engine_imports.py and test_pulse_writer.py, all inside the declared fence; the figures directory is declared but untouched.\nVERDICT manifest: records commit c2db8bdd, the base arm (1 failed/26 passed at 59f12ee0), the head arm (1 failed/27 passed at c2db8bdd), the negative control and the scratch base-arm measurement module and cwd, with log paths and no blockers; its baseline_suite and after_suite JSON agree with the cited logs.\nVERDICT diff: the click command and its function become write; the module and its public symbols are renamed in one pass and the private _mint_one_ids follows; the module docstring, README, both pyproject.toml files and the engine-import list follow; the test module moves and a new test_cli.py reads the group's own listing; no behaviour change.\nVERDICT verification: the head gate, the base arm, the grep gate, the CLI --help check, ruff and a mutation re-registering the command as mint were each re-run from extractions under /tmp with the shared venv; the worker's numbers reproduce (1 failed/27 passed; 1 failed/26 passed) and the mutation fails test_cli.py::test_help_lists_the_write_command_and_its_options, an id the head arm does not fail.\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: the plan \u00a77 paragraph names exactly this change and the diff matches clause for clause.\nSCORE evidence: 19\nJUSTIFICATION evidence: head and base arms bracket the change at named revisions and I reproduced both; the negative control's refusal reproduces under my own mutation. The plan's pytest clause is red, but only by a pre-existing failure identical in kind at both arms.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: only the ten declared paths are touched; no plan, index, sprint state or figure edit.\nSCORE durability: 19\nJUSTIFICATION durability: test_cli.py is added and its negative control fires; the rename is covered by the reproduced grep gate.\nSCORE fit: 19\nJUSTIFICATION fit: the rename is complete and consistent, docstrings and header describe writing, and the commit carries a conventional subject and a mechanism body.\nSCORE reuse: 20\nJUSTIFICATION reuse: no new abstraction; existing structures and click's runner are reused.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261007T013805488822-jtfm-verb-write/after-arm.log:105 follow-on: the plan done-when pytest clause is red at both arms on the pre-existing magnetics homogeneous_time assertion, which jt60sa-pulse-ids \u00a75 records as a test defect the plan will repair.\nFINDING docs/plans/jt60sa-facility-mint.html:159 follow-on: the \u00a77 gate command's PYTHONPATH=$PWD does not reach the engine src, so it measures the main checkout unless the worktree src is appended.\n",
+  "review_run_id": "r-20261007T015426941875-review-of-jtfm-verb-write",
+  "reviewed_base_sha": "59f12ee0155b7590b6334ec29a2b52e6a91dfa3d",
+  "reviewed_head_sha": "c2db8bdd865bb90486ac78b5bf14730357815600",
+  "reviewed_run_id": "r-20261007T013805488822-jtfm-verb-write",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "reviewer_run_id": "r-20261007T015426941875-review-of-jtfm-verb-write",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "timestamp": "2026-10-07T02:55:38.489155+00:00",
+  "total": 118
+}
