@@ -1,0 +1,49 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "b693579e7cfd1acb2bb64e8315df87727f22ddc6",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-08T02:11:18.952Z",
+  "dispatched_at": "2026-10-08T01:57:14Z",
+  "findings": [],
+  "head_log_revision": "45e99cfcc307f4516a8c4f644b14ab93e1a715f5",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "one commit, parent b693579e, so the reviewed diff is exactly this change; no",
+    "done_when": "the dispatched measure is this record stored parsed with all six dimensions; the",
+    "goal": "section 16's fixture repair asks that the cache fixtures name pulses by their full EDDB",
+    "manifest": "read; it records the base arm 14 failed / 18 passed EXIT=1, the head arm 32 passed",
+    "write_paths": "the node declared tests/data/test_eddb_cache.py and the evidence fragment; the"
+  },
+  "justifications": {
+    "durability": "I applied the node's own mutation -- reverting one fixture token to the bare",
+    "evidence": "I extracted both arms with git archive into a scratch tree and re-ran the",
+    "fit": "ruff check --no-cache on the head file is \"All checks passed!\" and ruff format",
+    "goal_fidelity": "the fixtures now name pulses by the full EDDB token (E051234/E000001)",
+    "reuse": "no new mechanism and no fork of the token grammar -- the fixtures reuse the",
+    "scope_discipline": "one commit, parent b693579e, whose stat touches exactly the two"
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261008T013050088623-jtfm-eddb-cache-fixture-tokens (plan imas-ambix:jt60sa-facility-mint section 16),\nread at its head 45e99cfcc307f4516a8c4f644b14ab93e1a715f5 on base b693579e7cfd1acb2bb64e8315df87727f22ddc6. The node is a test-only repair: the on-demand EDDB\ncache addresses a pulse by its full series token (E051234) and refuses a bare integer at\nwrite_channel and fetch_channels, so 14 of tests/data/test_eddb_cache.py's tests failed with\nthe pulse-token refusal; the node renamed every request and record fixture to the lettered form\nand left the cache-directory test on the non-refusing read path.\n\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: the fixtures now name pulses by the full EDDB token (E051234/E000001)\nand every walkthrough that reaches write_channel or fetch_channels passes the lettered form, so the\n14 failures the node targets are all green; the one test whose subject is the cache directory name\n(test_the_shot_token_is_normalised_to_its_int_form) keeps a bare integer only on normalised_shot,\nchannel_path and is_cached, which do not demand the letter, and still asserts the integer directory\nname 51234.zarr -- exactly the split the commit body states.\n\nSCORE evidence: 19\nJUSTIFICATION evidence: I extracted both arms with git archive into a scratch tree and re-ran the\nfocused gate independently: base b693579e 14 failed / 18 passed (EXIT=1) with the same 14 ids the\nnode's baseline_suite lists, head 45e99cfc 32 passed (EXIT=0); the reviewed run's own gate logs carry\nthe revision, tree and command on their header lines and a summary and EXIT line; one point off because\nthe base arm's header omits the module line the head arm carries and logs its failing ids with a\nrepo-relative path while the head arm logs an absolute one, both cosmetic.\n\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: one commit, parent b693579e, whose stat touches exactly the two\ndeclared paths (tests/data/test_eddb_cache.py and the fragment) and no engine source; nothing the\nchange does not imply.\n\nSCORE durability: 19\nJUSTIFICATION durability: I applied the node's own mutation -- reverting one fixture token to the bare\ndigit \"51234\" -- and the head test failed with EddbCacheError \"51234 is not an EDDB pulse token ...\"\nwhile a sibling stayed green, so the fixtures are load-bearing rather than vacuously passing; one point\noff because this file pins the lettered write/fetch path and the bare-digit read path but leaves the\nstrict refusal itself to the sibling file test_eddb_read_errors.py.\n\nSCORE fit: 20\nJUSTIFICATION fit: ruff check --no-cache on the head file is \"All checks passed!\" and ruff format\n--check reports it already formatted; the fixtures reuse the file's existing _request and _record\nhelpers and the commit body is present with no AI trailer.\n\nSCORE reuse: 20\nJUSTIFICATION reuse: no new mechanism and no fork of the token grammar -- the fixtures reuse the\nfile's existing helpers and the engine's normalised_shot for the integer directory name; the strict\neddb_token refusal is untouched.\n\nVERDICT goal: section 16's fixture repair asks that the cache fixtures name pulses by their full EDDB\ntoken so write_channel and fetch_channels receive the EDDB-addressed form; the commit does this and the\n14 failing tests pass.\nVERDICT done_when: the dispatched measure is this record stored parsed with all six dimensions; the\nnode's own measure is head 32 passed / 0 failed against a base of 14 failed / 18 passed.\nVERDICT write_paths: the node declared tests/data/test_eddb_cache.py and the evidence fragment; the\nsingle commit's diff touches exactly those two (test file +121/-... , fragment +1).\nVERDICT manifest: read; it records the base arm 14 failed / 18 passed EXIT=1, the head arm 32 passed\nEXIT=0, the ruff gate, and a negative control reverting a fixture to a bare digit.\nVERDICT diff: one commit, parent b693579e, so the reviewed diff is exactly this change; no\nproduction call site is added or altered.\nCALL_SITES: none\nreviewed_base_sha: b693579e7cfd1acb2bb64e8315df87727f22ddc6\nreviewed_head_sha: 45e99cfcc307f4516a8c4f644b14ab93e1a715f5\n",
+  "review_run_id": "r-20261008T015655191037-review-of-jtfm-eddb-cache-fixture-tokens",
+  "reviewed_base_sha": "b693579e7cfd1acb2bb64e8315df87727f22ddc6",
+  "reviewed_head_sha": "45e99cfcc307f4516a8c4f644b14ab93e1a715f5",
+  "reviewed_run_id": "r-20261008T013050088623-jtfm-eddb-cache-fixture-tokens",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T02:08:56.712976+00:00",
+  "total": 118
+}
