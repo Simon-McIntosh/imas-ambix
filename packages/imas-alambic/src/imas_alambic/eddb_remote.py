@@ -155,11 +155,14 @@ class BatchResult:
 
 
 def normalise_unit(unit: object) -> str:
-    """Return the EDDB unit string, refusing a multi-entry unit list.
+    """Return the EDDB unit string for a unit list, refusing a disagreeing one.
 
-    EDDB returns the unit as a list; a single-entry list is the unit itself
-    (``["A"]`` is ``A``), while a multi-entry list names several units and is
-    refused rather than joined into a string no reader can interpret.
+    EDDB returns the unit as a list.  A single-entry list is the unit itself
+    (``["A"]`` is ``A``), a literal string serves every channel alike, and a
+    multi-entry list whose entries all agree is that one unit too, so a
+    uniform per-channel list (``["mm", "mm"]``) reads as its single unit.  A
+    list naming several distinct units is refused rather than joined into a
+    string no reader can interpret.
     """
 
     if unit is None:
@@ -167,6 +170,9 @@ def normalise_unit(unit: object) -> str:
     if isinstance(unit, (list, tuple)):
         if len(unit) == 1:
             return str(unit[0])
+        entries = {str(entry) for entry in unit}
+        if len(entries) == 1:
+            return entries.pop()
         raise EddbRemoteError(
             f"EDDB returned a multi-entry unit {unit!r}; refusing to join it"
         )
@@ -440,6 +446,9 @@ def _unit(value):
     if isinstance(value, (list, tuple)):
         if len(value) == 1:
             return str(value[0])
+        entries = {str(entry) for entry in value}
+        if len(entries) == 1:
+            return entries.pop()
         raise RuntimeError(
             "EDDB returned a multi-entry unit %r; refusing to join it" % (value,)
         )
