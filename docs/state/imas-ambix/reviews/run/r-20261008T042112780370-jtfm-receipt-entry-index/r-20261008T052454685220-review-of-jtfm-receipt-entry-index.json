@@ -1,0 +1,48 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 1,
+  "call_sites": [
+    "packages/imas-alambic/src/imas_alambic/cli.py:write_cmd"
+  ],
+  "completed_at": "2026-10-08T05:37:52.826Z",
+  "dispatched_at": "2026-10-08T05:25:09Z",
+  "findings": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "read commit by commit against e7ea210b; 29af9f9c adds the index field and renders it, 108b6c31 lands the evidence fragment, and no unrelated file changed.",
+    "done_when": "the done-when names test_write_covers_every_description_ids_in_one_file failing at base with 0 == 286077 and passing at head, a synthetic one-bound-one-unbound test in packages/imas-alambic/tests/test_write_fetch.py, a negative control, and no added failures; base_coverage.log and after_suites.log record each arm to its pytest summary and EXIT line.",
+    "goal": "the node goal is to make the pulse receipt name the struct-array entry each written leaf fills; the diff adds WrittenLeaf.target_index at packages/imas-alambic/src/imas_alambic/pulse_writer.py:93 and renders it in as_dict, which is exactly that.",
+    "manifest": "read at manifest.md; it records commits 29af9f9c and 108b6c31, baseline_suite 1 failed/66 passed, after_suite 68 passed, and the negative_control_log path.",
+    "write_paths": "the manifest declares pulse_writer.py, tests/data/test_pulse_writer.py, packages/imas-alambic/tests/test_write_fetch.py and the fragment; git diff e7ea210b..108b6c31 --stat shows those exact four files and no other."
+  },
+  "justifications": {
+    "durability": "packages/imas-alambic/tests/test_write_fetch.py:362 asserts magnetics.flux_loop[1].flux.data has samples and flux_loop[0].flux.data is empty against independently hard-coded indices, and negative_control.log shows the dropped index reddens the coverage test on the unbound flux_loop[0].",
+    "evidence": "base_coverage.log and after_suites.log each end in a pytest summary and an EXIT line and ruff.log records \"All checks passed!\" EXIT=0, so the gate the done_when asserts is recorded, not merely claimed.",
+    "fit": "target_index is a dataclass member beside the existing WrittenLeaf fields at packages/imas-alambic/src/imas_alambic/pulse_writer.py:87-96 and the helper _named_holders at tests/data/test_pulse_writer.py:126 replaces the local _nodes_at rather than adding a parallel mechanism.",
+    "goal_fidelity": "packages/imas-alambic/src/imas_alambic/pulse_writer.py:93 adds WrittenLeaf.target_index and as_dict() renders \"target_index\" beside \"target_path\", so the receipt names the entry each leaf fills.",
+    "reuse": "the change extends the existing owner _struct_array_index/_navigate at packages/imas-alambic/src/imas_alambic/pulse_writer.py:199-224, whose computed index value it reuses, rather than re-deriving the element.",
+    "scope_discipline": "git diff e7ea210b..108b6c31 --stat touches only packages/imas-alambic/src/imas_alambic/pulse_writer.py, tests/data/test_pulse_writer.py, packages/imas-alambic/tests/test_write_fetch.py and the fragment, all inside the declared write paths."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is to make the pulse receipt name the struct-array entry each written leaf fills; the diff adds WrittenLeaf.target_index at packages/imas-alambic/src/imas_alambic/pulse_writer.py:93 and renders it in as_dict, which is exactly that.\nVERDICT done_when: the done-when names test_write_covers_every_description_ids_in_one_file failing at base with 0 == 286077 and passing at head, a synthetic one-bound-one-unbound test in packages/imas-alambic/tests/test_write_fetch.py, a negative control, and no added failures; base_coverage.log and after_suites.log record each arm to its pytest summary and EXIT line.\nVERDICT write_paths: the manifest declares pulse_writer.py, tests/data/test_pulse_writer.py, packages/imas-alambic/tests/test_write_fetch.py and the fragment; git diff e7ea210b..108b6c31 --stat shows those exact four files and no other.\nVERDICT manifest: read at manifest.md; it records commits 29af9f9c and 108b6c31, baseline_suite 1 failed/66 passed, after_suite 68 passed, and the negative_control_log path.\nVERDICT diff: read commit by commit against e7ea210b; 29af9f9c adds the index field and renders it, 108b6c31 lands the evidence fragment, and no unrelated file changed.\nCALL_SITES: packages/imas-alambic/src/imas_alambic/cli.py:write_cmd\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: packages/imas-alambic/src/imas_alambic/pulse_writer.py:93 adds WrittenLeaf.target_index and as_dict() renders \"target_index\" beside \"target_path\", so the receipt names the entry each leaf fills.\nSCORE evidence: 19\nJUSTIFICATION evidence: base_coverage.log and after_suites.log each end in a pytest summary and an EXIT line and ruff.log records \"All checks passed!\" EXIT=0, so the gate the done_when asserts is recorded, not merely claimed.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff e7ea210b..108b6c31 --stat touches only packages/imas-alambic/src/imas_alambic/pulse_writer.py, tests/data/test_pulse_writer.py, packages/imas-alambic/tests/test_write_fetch.py and the fragment, all inside the declared write paths.\nSCORE durability: 19\nJUSTIFICATION durability: packages/imas-alambic/tests/test_write_fetch.py:362 asserts magnetics.flux_loop[1].flux.data has samples and flux_loop[0].flux.data is empty against independently hard-coded indices, and negative_control.log shows the dropped index reddens the coverage test on the unbound flux_loop[0].\nSCORE fit: 20\nJUSTIFICATION fit: target_index is a dataclass member beside the existing WrittenLeaf fields at packages/imas-alambic/src/imas_alambic/pulse_writer.py:87-96 and the helper _named_holders at tests/data/test_pulse_writer.py:126 replaces the local _nodes_at rather than adding a parallel mechanism.\nSCORE reuse: 20\nJUSTIFICATION reuse: the change extends the existing owner _struct_array_index/_navigate at packages/imas-alambic/src/imas_alambic/pulse_writer.py:199-224, whose computed index value it reuses, rather than re-deriving the element.",
+  "review_run_id": "r-20261008T052454685220-review-of-jtfm-receipt-entry-index",
+  "reviewed_base_sha": "e7ea210b3dcd302ddc7880bd91cfd5c7877602e0",
+  "reviewed_head_sha": "108b6c3143272d87372d709ccb2529904abe7576",
+  "reviewed_run_id": "r-20261008T042112780370-jtfm-receipt-entry-index",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T05:38:06.107570+00:00",
+  "total": 118
+}
