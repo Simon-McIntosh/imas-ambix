@@ -57,7 +57,9 @@ def _local_extractor(api_dir: Path, transport: SubprocessTransport):
     return build
 
 
-def _signal(semantic_id: str, source_array: str, target_path: str) -> SignalRule:
+def _signal(
+    semantic_id: str, source_array: str, target_path: str, index: int = 0
+) -> SignalRule:
     return SignalRule(
         semantic_id=semantic_id,
         source_group="amc",
@@ -65,7 +67,7 @@ def _signal(semantic_id: str, source_array: str, target_path: str) -> SignalRule
         source_unit="kA",
         target_path=target_path,
         target_unit="A",
-        target_index=0,
+        target_index=index,
         transformation="ip_like",
         source_cocos=3,
         unit_factor=1000.0,
@@ -330,3 +332,48 @@ def test_write_finds_the_description_store_from_the_maps_flag_alone(
 
     assert (out / "900001_0.nc").is_file()
     assert receipt.description_root == str(bundle / "machine_description" / "phase")
+
+
+def test_receipt_names_only_the_bound_struct_array_entry(tmp_path, monkeypatch):
+    """A held-out entry is written empty, not as the entry a rule binds.
+
+    The description's ``flux_loop`` array is sized to two entries by a rule
+    that binds the second; the first is left as the empty element the write
+    did not touch.  The receipt must name the bound entry's index and no other,
+    so a reader resolving the leaf cannot mistake the empty element for it.
+    """
+
+    machine = "synth-machine"
+    bundle, _transport = _prepare(
+        tmp_path,
+        monkeypatch,
+        machine,
+        (
+            _signal(
+                "flux",
+                "plasma_current",
+                "magnetics/flux_loop/flux/data",
+                index=1,
+            ),
+        ),
+    )
+    cache = tmp_path / "cache"
+    out = tmp_path / "ids"
+
+    receipt = pulse_writer.write_pulse(
+        machine,
+        "E900001",
+        out,
+        maps=str(bundle),
+        cache=str(cache),
+        eddb_host="local",
+    )
+
+    leaves = [leaf for leaf in receipt.leaves if leaf.ids == "magnetics"]
+    assert [leaf.target_index for leaf in leaves] == [1]
+    assert receipt.as_dict()["leaves"][0]["target_index"] == 1
+    with imas.DBEntry(receipt.path, "r", dd_version=_DD_VERSION) as entry:
+        magnetics = entry.get("magnetics", autoconvert=False)
+    assert len(magnetics.flux_loop) == 2
+    assert len(magnetics.flux_loop[1].flux.data) == leaves[0].samples > 0
+    assert len(magnetics.flux_loop[0].flux.data) == 0

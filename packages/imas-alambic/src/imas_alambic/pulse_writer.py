@@ -90,6 +90,7 @@ class WrittenLeaf:
     ids: str
     semantic_id: str
     target_path: str
+    target_index: int
     time_path: str
     samples: int
 
@@ -137,6 +138,7 @@ class WriteReceipt:
                     "ids": leaf.ids,
                     "semantic_id": leaf.semantic_id,
                     "target_path": leaf.target_path,
+                    "target_index": leaf.target_index,
                     "time_path": leaf.time_path,
                     "samples": leaf.samples,
                 }
@@ -296,7 +298,8 @@ def _write_one_ids(
     leaves: list[WrittenLeaf] = []
     for rule, values, time in entries:
         components = rule.target_path.split("/")
-        holder = _navigate(description, components[1:-1], _struct_array_index(rule))
+        index = _struct_array_index(rule)
+        holder = _navigate(description, components[1:-1], index)
         setattr(holder, components[-1], np.ascontiguousarray(values, dtype=float))
         if homogeneous:
             time_path = f"{ids_name}/time"
@@ -308,6 +311,7 @@ def _write_one_ids(
                 ids=ids_name,
                 semantic_id=rule.semantic_id,
                 target_path=rule.target_path,
+                target_index=index,
                 time_path=time_path,
                 samples=int(values.shape[-1]),
             )
