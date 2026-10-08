@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="jt60sa-signal-figures-from-ids">
   <meta name="plan-title" content="JT-60SA Signal Figures From IDS">
   <meta name="plan-summary" content="Redraw the JT-60SA pulse signal figures from the minted pulse IDS through imas-ink, and withdraw the figures that were drawn from raw cache arrays">
-  <meta name="plan-status" content="in-progress">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="mid">
   <meta name="plan-effort-hours" content="1.0">
   <meta name="plan-capability-version" content="1.0">
@@ -25,9 +25,9 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="43">
+<meta name="plan-version" content="44">
 <meta name="plan-modified" content="2026-10-08">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -72,11 +72,12 @@
   <p class="landed-summary">E101031's ten coil currents and ip drawn beside E101154's in <code>docs/figures/jt60sa-signals/</code> through one pulse-taking function; root from settings, else the interim <code>paths.JT60SA_IDS_DIR</code>. Merged <code>6345ce6e</code>, review 110/120. <a href="s3">full record</a></p>
 </section>
 
+    <section class="section-landed">
+  <header><span class="badge badge-shipped">&#10003; landed 2026-10-08</span>
     <h2 id="s4">§4 — Redraw the flux loops from the differential entries</h2>
-<section data-reckon="section" data-id="s4" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
-<p>The machine-map decision <code>jt60sa-differential-flux-loops</code> landed its rules on 2026-10-08. The magnetics store now holds 53 loops: the 27 type-1 loops at indices 0–26 and 26 type-6 entries at indices 27–52. Each of loops 1–6 and 8–27 is routed to its type-6 entry, with <code>indices_differential</code> [7, L] and <code>channel_factor</code> −1. That stores the DD differential flux ψ<sub>L</sub> − ψ<sub>7</sub>, the negative of the raw difference, so <em>every</em> differential loop changes sign relative to the run files §2 drew. Their type-1 entries carry geometry and no flux. FL7 stays at index 6, unchanged. jt60sa-pulse-ids §7 rewrote both pulses under these rules on 2026-10-08. jt60sa-pulse-ids §8 then rewrites them once more with the differential entries renamed <code>FL&lt;L&gt;-FL7</code>.</p>
-<p>§8's rewrite landed on 2026-10-08 (merge <code>b406677c</code>), so this section is ready. It re-runs <code>scripts/figures_jt60sa_signals.py</code> with its code unchanged. <code>extract_signal_traces</code> skips any entry whose data is empty, so the same <code>("magnetics", "flux_loop/flux")</code> call draws FL7 and then the 26 differential entries, each labelled with its IDS name. Only the module docstring changes, because it still describes the earlier output. It is updated to say that the flux-loop figure draws FL7 and the 26 differential entries <code>FL1-FL7</code> … <code>FL27-FL7</code>. FL7 is absolute. Each differential entry is the data dictionary's ψ<sub>L</sub> − ψ<sub>7</sub>, drawn as stored, which is the negative of the raw measured difference. The lead ruled on 2026-10-07 that the redraw follows the IDS: the differential loops appear with the data dictionary's sign, the caption says so, and the script never re-signs data.</p>
-<p><strong>Done when</strong> the re-run, in place on the fleet allocation, rewrites both flux-loop SVGs with 27 panels: FL7 first, then the 26 differential entries in index order, each labelled with its IDS name. The coil-current and probe SVGs are byte-identical to their committed predecessors. The script's diff against main touches only its module docstring, which states the new labels and sign. ruff check and ruff format --check add no finding on the script. §2's check ran from a worker's scratch directory and no longer exists, so this section writes its own. The check script and its log are kept in the run's own directory under <code>~/.config/reckon/crew/runs/</code>, on GPFS, with the log's first lines naming the expanded command. The check intercepts the traces handed to <code>time_trace_figure_mpl</code> and asserts, for E101154, that the FL7, <code>FL1-FL7</code> and <code>FL27-FL7</code> panels equal <code>flux_loop</code> entries 6, 27 and 52 of the run file element for element. The evidence fragment embeds both new flux-loop SVGs. Each caption names the run file and states that FL7 is absolute and every other panel is the data dictionary's differential flux ψ<sub>L</sub> − ψ<sub>7</sub>, drawn as stored. <strong>Negative control:</strong> negating the <code>FL1-FL7</code> trace before the figure call fails its equality check, while FL7 and <code>FL27-FL7</code> still pass. The result is recorded in its own log.</p>
+<section data-reckon="section" data-id="s4" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section></header>
+  <p class="landed-summary">Flux-loop figures for E101154 and E101031 redrawn from the renamed differential entries: FL7, then <code>FL1-FL7</code> … <code>FL27-FL7</code> as ψ<sub>L</sub> − ψ<sub>7</sub> drawn as stored; script code unchanged, docstring updated; coil-current and probe figures byte-identical. Merged <code>f2e0ff45</code>, review 109/120. <a href="/imas-ambix/evidence/archive/jt60sa-signal-figures-from-ids-landed.html#s4">full record</a></p>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
@@ -98,10 +99,11 @@
     <pre class="r-fu-prompt">/reckon-build jt60sa-signal-figures-from-ids §2</pre>
     <p class="r-fu-outcome">§2 landed at 89c848ed. The redraw after the machine map's differential retarget is §4, deferred until the pulses are rewritten under those rules.</p>
     </article>
-<article class="r-fu" data-id="f-jsfi-004" data-status="open" data-written-by="reckon-build" data-written-at="2026-10-08" data-recommends-skill="/reckon-build jt60sa-signal-figures-from-ids §4" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jsfi-004" data-status="resolved" data-written-by="reckon-build" data-written-at="2026-10-08" data-recommends-skill="/reckon-build jt60sa-signal-figures-from-ids §4" data-resolved-at="2026-10-08T09:10:29+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Redraw the flux loops from the renamed differential entries</h4>
     <div class="r-fu-body"><p>jt60sa-pulse-ids §8 rewrote both pulses with the FL&lt;L&gt;-FL7 names (merged b406677c), so the redraw's trigger is met.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-signal-figures-from-ids §4</pre>
+    <p class="r-fu-outcome">done — no followup: section 4 landed at f2e0ff45 (review 109/120) and every section of the plan is done.</p>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
