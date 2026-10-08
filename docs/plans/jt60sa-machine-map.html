@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="375">
+<meta name="plan-version" content="377">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -380,8 +380,8 @@
       selector is built, before any read. The registry has one owner, extended rather than forked:
       <code>imas_ambix/gs/machine_identity.py</code> <code>default_registry</code> takes the machine
       as its key and keeps one cached registry per machine. MAST's key returns nova's packaged MAST
-      registry. The JT-60SA key returns the registry built from the JT-60SA artifact, whose
-      authoring is the open question <code>jt60sa-artifact-authoring</code>, and a machine with no
+      registry. The JT-60SA key returns the registry built from the JT-60SA artifact, which
+      <code>jtmm-jt60sa-artifact-producer</code> authors (below), and a machine with no
       registry is refused by name rather than answered with MAST's. All four public resolvers in
       that module fall back to <code>default_registry()</code> today, so all four change, not only
       the one on the route. <code>identity_for_representation</code>,
@@ -409,6 +409,29 @@
       is stamped, so a registry change fails the stamp loudly instead of silently re-labelling it.
       The pin is a tripwire against drift, so it must not be derived from the registry it guards.
       Nothing JT-60SA-specific is added to nova.
+    </p>
+    <p>
+      The authoring question is answered (<code>jtmm-artifact-authoring-route</code>): the route stays
+      inside ambix. Nova already holds a machine-arbitrary layer, <code>create_machine_artifact_manifest</code>,
+      <code>materialize_machine_artifact</code> and <code>resolve_machine_artifact</code> in
+      <code>nova/imas/machine_artifact.py</code>, which packs, verifies and caches a directory of IDS
+      containers as any named machine; the investigation's probe authored, verified and cached a
+      <code>nova-jt-60sa-machine-artifact</code> from the OP1 store with it. What no entry does is derive a
+      machine's identity from DD-shaped IDS input: the physical and registry digests, the shot ranges,
+      the field evidence and the channel drives are its inputs, and both existing producers (MAST's
+      <code>publish_refined_artifact</code>, DIII-D's <code>publish_diiid_machine_artifact</code>) are
+      machine-specific. So §7 adds a JT-60SA identity producer in ambix,
+      <code>jtmm-jt60sa-artifact-producer</code>, following the DIII-D precedent of a machine-specific
+      producer over the generic layer. It reads the OP1 and OP2 description stores under
+      <code>maps/jt-60sa/machine_description</code>, builds the JT-60SA geometry registry from them,
+      derives the physical and registry digests and the shot ranges from the catalogue's phases, and
+      calls nova's generic layer to materialize the artifact. The selection-route node,
+      <code>jtmm-machine-keyed-selection</code>, then makes <code>resolve_machine_description</code> and
+      <code>author_pinned_description</code> take a machine, turns the three pin constants into the
+      machine-keyed table, makes the selector and the geometry reader take the declared machine, and
+      keys the identity registry by machine, with the JT-60SA rows filled from the producer's artifact.
+    </p>
+    <p>
       The benchmark already holds a geometry source that reads the spine's own route:
       <code>imas_ambix/spine_bench/machine_artifact_arm.py</code>
       <code>MachineArtifactGeometrySource</code> hands the runner the table
@@ -425,8 +448,8 @@
       MAST's <code>FROZEN_SHOTSET</code>. JT-60SA has no second geometry for that comparison to
       make, and a JT-60SA key there would give the stamp a different reader from the spine,
       which is the divergence a single route removes.
-      How the JT-60SA artifact is authored from the §4 source without a JT-60SA module in nova
-      is the open question <code>jt60sa-artifact-authoring</code>. Using only the mapped
+      The JT-60SA artifact is authored from the §4 source by an ambix producer over nova's
+      generic artifact layer, as below. Using only the mapped
       pf_active, pf_passive, tf and magnetics data, the ambix physics spine
       (<code>greens-matvec</code>, with <code>grid-delstar</code> as the check) recovers the
       equilibrium for a frozen set of 2023 OP1 shots on which SELENE ran (PSRC populated, as on <code>E101154</code>), and the result is compared against SELENE on the
@@ -815,8 +838,9 @@
 <div class="r-q" data-id="eqdb-reader" data-section="s7" data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-05" data-resolved-at="" data-resolved-by="">
     <p class="r-q-body">Is there a Python or C entry point to the SELENE equilibrium database (eqdbms, eqdbget) that the remote extractor can call without a Fortran build, and what grid and profile set does an EQDB record carry? The Code TWiki in the graph documents the EQDBMS library under <code>/analysis/lib/eqdbms</code> in 129×129 and 1025×1025 mesh variants, consumed by EQREAD, EQFAME, SELENE, SETEQU and FBEQU, and an <em>EquilibriumDBFAME</em> page; a Python wrapper was not found on the server before the IFERC link dropped.</p>
     </div>
-<div class="r-q" data-id="jt60sa-artifact-authoring" data-section="s7" data-status="open" data-opened-by="reckon-build" data-opened-at="2026-10-05" data-resolved-at="" data-resolved-by="">
+<div class="r-q" data-id="jt60sa-artifact-authoring" data-section="s7" data-status="resolved" data-opened-by="reckon-build" data-opened-at="2026-10-05" data-resolved-at="2026-10-08T13:11:35+00:00" data-resolved-by="reckon-build">
     <p class="r-q-body">How is the spine's JT-60SA machine artifact authored from the §4 IDS description without adding a JT-60SA module to nova? gs/artifact_resolution.author_pinned_description reaches MAST's artifact through nova.imas.mast_geometry.publish_refined_artifact; whether nova.imas.machine_artifact can materialize an artifact from DD-shaped IDS input for any machine, or needs a generic entry point, decides whether this stays inside ambix.</p>
+    <p class="r-q-resolution">Answered by jtmm-artifact-authoring-route (review 114/120): nova's machine_artifact layer packs, verifies and caches any machine's IDS set, but no entry derives identity from DD IDS input. The route stays inside ambix: a JT-60SA identity producer (jtmm-jt60sa-artifact-producer) over nova's generic layer, following the DIII-D precedent; nothing JT-60SA-specific enters nova.</p>
     </div>
 </section>
 
