@@ -31,6 +31,7 @@ from imas_ambix.data.cocos_convention import (
     format_sign_report,
     read_level2_sign_table,
     read_signal_map_observation,
+    score_convention,
     score_conventions,
     surviving_conventions,
 )
@@ -260,6 +261,7 @@ def _signal_rule(
     *,
     target_index=None,
     channel_factor=1.0,
+    validation_state="corpus-validated",
 ):
     return SignalRule(
         semantic_id=semantic_id,
@@ -275,7 +277,7 @@ def _signal_rule(
         channel_factor=channel_factor,
         standard_name=None,
         evidence="synthetic signal map for the observation reader test",
-        validation_state="source-only",
+        validation_state=validation_state,
     )
 
 
@@ -351,6 +353,34 @@ def _synthetic_tf_map():
     )
 
 
+def _synthetic_equilibrium_map():
+    """A gridless equilibrium map: the signed q and the field scalar only.
+
+    Both rules stay ``source-only`` because the reader reads their raw values
+    and owns the sign itself, exactly as it does for the magnetics half.
+    """
+
+    return _signal_map(
+        "equilibrium",
+        (
+            _signal_rule(
+                "synthetic-q95",
+                "FAME",
+                "Q95",
+                "equilibrium/time_slice/global_quantities/q_95",
+                validation_state="source-only",
+            ),
+            _signal_rule(
+                "synthetic-toroidal-field",
+                "FAME",
+                "BTV",
+                "equilibrium/vacuum_toroidal_field/b0",
+                validation_state="source-only",
+            ),
+        ),
+    )
+
+
 def _synthetic_maps(*, plasma_current_factor=-1.0):
     return {
         "magnetics": _synthetic_magnetics_map(
@@ -360,7 +390,7 @@ def _synthetic_maps(*, plasma_current_factor=-1.0):
     }
 
 
-def _write_synthetic_store(root):
+def _write_synthetic_store(root, *, equilibrium_field_sign=1.0):
     group = zarr.open_group(root / f"{_SYNTHETIC_SHOT}.zarr", mode="w")
     plasma_current = group.require_group("PSRC")
     plasma_current.create_array("Ip", data=_SYNTHETIC_CURRENT)
@@ -376,6 +406,13 @@ def _write_synthetic_store(root):
     tf = group.require_group("MMSYS")
     tf.create_array("cur1TFLKAT", data=np.full(_SYNTHETIC_TIME.size, 3.0))
     tf.create_array("cur1TFLKAT_time", data=np.linspace(0.0, 7.0, _SYNTHETIC_TIME.size))
+    fame = group.require_group("FAME")
+    fame.create_array("Q95", data=np.full(_SYNTHETIC_TIME.size, 8.0))
+    fame.create_array("Q95_time", data=_SYNTHETIC_TIME)
+    fame.create_array(
+        "BTV", data=np.full(_SYNTHETIC_TIME.size, 6.0 * equilibrium_field_sign)
+    )
+    fame.create_array("BTV_time", data=_SYNTHETIC_TIME)
 
 
 def _synthetic_equilibrium():
@@ -385,9 +422,7 @@ def _synthetic_equilibrium():
     psirz = np.empty((frames, height.size, radius.size))
     for frame in range(frames):
         psirz[frame] = (
-            (radius[np.newaxis, :] - 3.0) ** 2
-            + height[:, np.newaxis] ** 2
-            + frame
+            (radius[np.newaxis, :] - 3.0) ** 2 + height[:, np.newaxis] ** 2 + frame
         )
     angle = np.linspace(0.0, tau, 16, endpoint=False)
     lcfs_r = np.tile(3.0 + 0.6 * np.cos(angle), (frames, 1))
@@ -483,11 +518,9 @@ def test_flux_loop_on_a_shifted_time_base_is_resampled_onto_the_current(
     )
 
 
-def test_flux_loop_not_covering_the_current_time_base_is_refused(
-    tmp_path, monkeypatch
-):
+def test_flux_loop_not_covering_the_current_time_base_is_refused(tmp_path, monkeypatch):
     _stub_signal_maps(monkeypatch, _single_loop_maps())
-    loop_time = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 6.5])
+    loop_time = np.array([1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.0, 7.4])
     _write_loop_store(tmp_path, loop_time, np.ones(loop_time.size))
 
     with pytest.raises(ValueError, match="does not cover"):
@@ -545,3 +578,161 @@ def test_signal_map_reader_stacks_every_flux_loop_rule_in_target_order(
     assert observation.raw_flux_loop_channels == 3
     assert observation.raw_flux_loop_response_sign == 1
     assert observation.raw_flux_loop_opposite_sign_channels == 0
+
+
+def test_row_without_a_flux_half_scores_with_the_flux_relation_unscored():
+    """A source with no psi grid has no edge-minus-axis flux to score.
+
+    The relation is left out of the violation set for that row rather than
+    failed, and the report names it beside its reason so an unscored relation
+    is never mistaken for a satisfied one.
+    """
+
+    row = replace(
+        MAST_LEVEL2_SIGN_TABLE[0],
+        poloidal_flux_edge_minus_axis_wb_per_rad=None,
+        poloidal_angle_signed_area_m2=None,
+    )
+
+    assert row.poloidal_flux_sign is None
+    assert row.poloidal_angle_direction is None
+    for candidate in COCOS_CANDIDATES:
+        violations = score_convention(candidate, (row,)).violations
+        assert f"{row.shot}:reconstructed_poloidal_flux" not in violations
+
+    report = format_sign_report((row,))
+    assert "UNSCORED RELATIONS" in report
+    assert f"{row.shot}: reconstructed_poloidal_flux not scored — " in report
+
+
+def test_signal_map_reader_supplies_the_equilibrium_half_from_the_map(
+    tmp_path, monkeypatch
+):
+    """With no equilibrium record the reader takes q and F from the map.
+
+    The q scalar and the field scalar come from the machine's equilibrium
+    signal map, so a store carrying no psi grid still yields the q relation's
+    two signs while every flux-dependent relation stays unscored.
+    """
+
+    _write_synthetic_store(tmp_path)
+    maps = _synthetic_maps()
+    maps["equilibrium"] = _synthetic_equilibrium_map()
+    _stub_signal_maps(monkeypatch, maps)
+
+    observation = read_signal_map_observation(_SYNTHETIC_SHOT, "jt-60sa", root=tmp_path)
+
+    assert observation.safety_factor == pytest.approx(8.0)
+    assert observation.safety_factor_sign == 1
+    assert observation.toroidal_field_t == pytest.approx(6.0)
+    assert observation.toroidal_field_sign == 1
+    assert observation.poloidal_flux_sign is None
+    assert observation.poloidal_flux_edge_minus_axis_wb_per_rad is None
+
+
+def test_negating_the_equilibrium_field_makes_the_q_relation_report_a_violation(
+    tmp_path, monkeypatch
+):
+    """The sign the reader reports for F is the store's own, not an assumption.
+
+    COCOS 17 carries ``sigma_rho_theta_phi = +1``, so the relation
+    ``sign(q) = sign(Ip) * sign(B0) * sigma_rho_theta_phi`` holds while the
+    store's F is positive and fails once the same store records it negative.
+    If the reader assumed a sign instead of reading it, the negative store
+    would score identically to the positive one.
+    """
+
+    maps = _synthetic_maps()
+    maps["equilibrium"] = _synthetic_equilibrium_map()
+    _stub_signal_maps(monkeypatch, maps)
+    positive_root = tmp_path / "positive"
+    negative_root = tmp_path / "negative"
+    _write_synthetic_store(positive_root, equilibrium_field_sign=1.0)
+    _write_synthetic_store(negative_root, equilibrium_field_sign=-1.0)
+
+    positive = read_signal_map_observation(
+        _SYNTHETIC_SHOT, "jt-60sa", root=positive_root
+    )
+    negative = read_signal_map_observation(
+        _SYNTHETIC_SHOT, "jt-60sa", root=negative_root
+    )
+
+    assert positive.toroidal_field_sign == 1
+    assert negative.toroidal_field_sign == -1
+    assert not any(
+        violation.endswith(":reconstructed_safety_factor")
+        for violation in score_convention(17, (positive,)).violations
+    )
+    assert any(
+        violation.endswith(":reconstructed_safety_factor")
+        for violation in score_convention(17, (negative,)).violations
+    )
+
+
+def test_signal_map_reader_reads_only_the_proven_absolute_flux_loop(
+    tmp_path, monkeypatch
+):
+    """A ``source-only`` loop carries an assumed sign and must not be scored.
+
+    The reference loop is proven; the differential loop beside it is not, so
+    only the reference enters the raw response and the channel count is one.
+    """
+
+    _write_synthetic_store(tmp_path)
+    maps = _synthetic_maps()
+    maps["magnetics"] = _signal_map(
+        "magnetics",
+        (
+            _signal_rule("synthetic-ip", "PSRC", "Ip", "magnetics/ip/data"),
+            _signal_rule(
+                "synthetic-flux-reference",
+                "MDAC",
+                "magFlxLp1",
+                "magnetics/flux_loop/flux/data",
+                target_index=6,
+                channel_factor=-1.0,
+            ),
+            _signal_rule(
+                "synthetic-flux-differential",
+                "MDAC",
+                "magFlxLp2",
+                "magnetics/flux_loop/flux/data",
+                target_index=3,
+                validation_state="source-only",
+            ),
+        ),
+    )
+    _stub_signal_maps(monkeypatch, maps)
+
+    observation = read_signal_map_observation(
+        _SYNTHETIC_SHOT, "jt-60sa", _synthetic_equilibrium(), root=tmp_path
+    )
+
+    assert observation.raw_flux_loop_channels == 1
+
+
+def test_signal_map_reader_refuses_a_map_with_no_proven_flux_loop(
+    tmp_path, monkeypatch
+):
+    _write_synthetic_store(tmp_path)
+    maps = _synthetic_maps()
+    maps["magnetics"] = _signal_map(
+        "magnetics",
+        (
+            _signal_rule("synthetic-ip", "PSRC", "Ip", "magnetics/ip/data"),
+            _signal_rule(
+                "synthetic-flux-differential",
+                "MDAC",
+                "magFlxLp2",
+                "magnetics/flux_loop/flux/data",
+                target_index=3,
+                validation_state="source-only",
+            ),
+        ),
+    )
+    _stub_signal_maps(monkeypatch, maps)
+
+    with pytest.raises(ValueError, match="no proven rule"):
+        read_signal_map_observation(
+            _SYNTHETIC_SHOT, "jt-60sa", _synthetic_equilibrium(), root=tmp_path
+        )
