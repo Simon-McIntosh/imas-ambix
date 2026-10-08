@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.93">
-<meta name="plan-version" content="420">
+<meta name="plan-version" content="421">
 <meta name="plan-modified" content="2026-10-09">
 </head>
 <body>
@@ -598,8 +598,11 @@
       (<code>imas_ambix/spine_bench/runner.py</code> <code>_magnetics_residual</code>, written into
       the stamped record), so it is read from the stamp; q95 and Ip have no owner that
       scores them against a reference, and <code>GeometryVerdict</code> is a verdict in metres, so
-      they are reported per shot in the stamped record as relative differences against SELENE,
-      without a pass mark: the first stamp is a baseline with no tolerance to apply. That adds two
+      they are reported per shot in the stamped record as relative differences against their
+      references, without a pass mark. PSRC carries no q (decision <code>jt60sa-psi-q-source</code>),
+      so q95's reference is the EDDB FAME <code>Q95</code> scalar that the equilibrium map already
+      binds, recorded as absent for a shot that does not carry it. Ip's reference is PSRC's
+      <code>calIp</code>, from the same SELENE run as the boundary: the first stamp is a baseline with no tolerance to apply. That adds two
       record fields and retires nothing, because no scalar reference comparison exists yet.
       Nova consumes the emitted IDSs through its existing readers; nothing JT-60SA-specific
       is added to nova, which is the transfer claim of the north star exercised on a second
