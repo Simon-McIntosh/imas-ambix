@@ -1,0 +1,63 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T14:09:25.625Z",
+  "dispatched_at": "2026-10-08T13:59:49Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:382",
+      "id": "reasoning-1",
+      "reason": "a node reading line 382 alone would key the pin table by machine alone, reintroducing exactly the one-row-per-machine defect the v385 change was made to fix.",
+      "text": "the sentence \"it gains a required machine and from it alone resolves the pin row, the registry, the acquisition read and the geometry reader\" contradicts the changed pin-table description at plan.html:294-301 and plan.html:447-451, where a machine's entry holds one row per pinned physical identity and the resolver needs the shot's physical digest to choose among two JT-60SA rows",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "8fdbad87fe539130b9fd8423b3dd958f0bde06121ded54f735b742ed213f3ec5",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 385,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v386/v387 (commit d16bc572): the selector resolves the registry, acquisition read and reader from the machine, and the pin row from the machine plus the physical digest of the shot's identity; use sites read the row chosen the same way, and the JT-60SA stamp takes its expected digests from the OP1 row because every frozen JT-60SA shot is OP1.",
+      "when": "2026-10-08T14:11:10.624706+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v386/v387 (commit d16bc572): the selector resolves the registry, acquisition read and reader from the machine, and the pin row from the machine plus the physical digest of the shot's identity; use sites read the row chosen the same way, and the JT-60SA stamp takes its expected digests from the OP1 row because every frozen JT-60SA shot is OP1.",
+      "when": "2026-10-08T14:11:10.624706+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v385.json",
+  "review_run_id": "r-20261008T135915856848-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "b38ca94cc95f266033826f8986424ea1258018b9",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 the changed unit's cited symbols (PINNED_* constants, resolve_machine_description, author_pinned_description, identity_for_shot, MachineArtifactGeometrySource) all resolve in the tree; no extensionless href appears in the changed unit.",
+    "done_when": "pass \u2014 \u00a77's done-when (plan.html:508-520) carries a 0.10 m boundary floor and a must-fail control (loop 7 channel_factor flipped to +1 must raise the whitened residual), and the \u00a77 gate is closed/passed.",
+    "evidence_paths": "pass \u2014 s7's gate evidence path (docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort.html) and the /work bundle paths are durable, not scratchpad.",
+    "naming": "pass \u2014 the changed text introduces no plan label, phase label, ticket number or version tag into a symbol or comment; jtmm-* names are node ids used as data.",
+    "reasoning": "a finding \u2014 the section still says the selector resolves the pin row \"from it alone\" (the machine), which the change to a one-row-per-pinned-identity table makes impossible for a two-row JT-60SA entry.",
+    "single_goal": "pass \u2014 jtmm-jt60sa-artifact-producer authors the per-phase artifacts and jtmm-machine-keyed-selection keys the selector/registry; no node carries two deliverables.",
+    "wiring": "pass \u2014 the conventions-before-equilibrium gate (s7) names \u00a76's sign report as its input and its data-gated-sections is s7; jtmm-machine-keyed-selection and jtmm-jt60sa-artifact-producer are named and correctly ordered (producer authors, selector keys)."
+  },
+  "section_digests": {
+    "_document": "1a041e1b69e7c648e3848440450d2aa25ac955ec54bdbca27a0558b3e2fb8c3a",
+    "s1": "52731ac311aa8ac6ed57dc5f58a5868e5f9e2e34b4e132f297830fa912abbc0f",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "baeacc16c7287c0befca53e27a3c96ccc7feb1a70d6bba69c9e515673f64dfbd",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T14:11:10.621272+00:00"
+}
