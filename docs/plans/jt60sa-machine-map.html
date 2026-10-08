@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.93">
-<meta name="plan-version" content="417">
+<meta name="plan-version" content="418">
 <meta name="plan-modified" content="2026-10-09">
 </head>
 <body>
@@ -260,18 +260,20 @@
 
     <h2 id="s7">§7 — Equilibrium: SELENE maps, then the reconstruction gate</h2>
     <p>
-      §6 lays both equilibrium sources and owns their reads: the FAME scalars bound with their
-      sign unvalidated, and SELENE's boundary reconstruction read from the EDDB <code>PSRC</code>
-      category through the existing channel extractor. PSRC carries no flux grid and no q, so the
-      SELENE <code>profiles_2d</code> psi bindings below, and the reference loader's psi and
-      magnetic-axis reduction, have no source yet. <code>jtmm-equilibrium-source-leads</code> found psi on a grid
+      §6 lays both equilibrium sources: the FAME scalars bound with their sign unvalidated, and
+      SELENE's boundary reconstruction in the EDDB <code>PSRC</code> category, whose reader §7 adds
+      below. PSRC carries no flux grid and no q, so the SELENE <code>profiles_2d</code> psi bindings
+      below have no PSRC source. PSRC does carry each shot's magnetic axis
+      (<code>calRp0</code>, <code>calZp0</code>), cached for all sixteen frozen shots, and that is the
+      reference loader's axis. <code>jtmm-equilibrium-source-leads</code> found psi on a grid
       with a q profile reachable for one OP1 shot only. That is E101011, whose G-EQDSK (written by
       SELENE's <code>efitout.f</code>) sits in <code>/home/d240034/fbequ/EFIT95.DATA</code> and its
       <code>LOCALDB</code>. For the rest of the list those fields sit in the decommissioned
       <code>dbsvr17p</code> stores. Under decision <code>jt60sa-psi-q-source</code>, §7 takes
       E101011's G-EQDSK as its one psi and q reference, and PSRC's boundary, X-point, plasma centre
-      and plasma current for every other shot. Nothing runs on the JT-60SA server, and §7's psi
-      bindings and the reference loader's psi and axis reduction are scoped against E101011 alone.
+      and plasma current for every other shot. Nothing runs on the JT-60SA server. §7's psi
+      bindings are scoped against E101011 alone, and the reference loader's boundary, X-point and
+      axis come from PSRC for every frozen shot.
       The G-EQDSK is read through the <code>eqdsk</code> package's <code>EQDSKInterface</code>, which
       reads the format with its COCOS handling and is already in the project environment as a
       dependency of <code>torax</code> (<code>eqdsk</code> 0.8.0). <code>EQDSKInterface.from_file</code>
@@ -565,6 +567,14 @@
       m), X-point (<code>calRX</code>, <code>calZX</code>), magnetic axis (<code>calRp0</code>,
       <code>calZp0</code>) and plasma current (<code>calIp</code>), with their time bases. It reads
       them through the existing channel extractor and its on-demand cache, and adds no transport.
+      That extractor refuses <code>surfABVxp</code> today. Each multi-channel PSRC array carries a
+      per-channel unit list, and <code>eddb_remote.normalise_unit</code>
+      (<code>packages/imas-alambic/src/imas_alambic/eddb_remote.py</code>) refuses any multi-entry
+      list, so a batch holding one aborts before it writes a channel. §6's inventory found every such
+      list uniform and read the arrays through a direct probe. So the reader node changes
+      <code>normalise_unit</code> to accept a multi-entry list whose entries all agree and return that
+      one unit, and to refuse a disagreeing list as it does now. That edit is the node's, with its
+      test.
       The sixteen frozen shots cache the axis and X-point arrays but no boundary contour, so one
       read-only EDDB fetch of <code>surfABVxp</code> for those shots fills the cache before the
       stamp. It runs over the lead's tunnel, one connection at a time, as every JT-60SA fetch does.
