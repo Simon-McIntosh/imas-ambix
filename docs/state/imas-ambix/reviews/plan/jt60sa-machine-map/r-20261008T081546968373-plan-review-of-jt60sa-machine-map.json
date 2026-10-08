@@ -1,0 +1,62 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T08:38:26.670Z",
+  "dispatched_at": "2026-10-08T08:16:31Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/checkout-note: no",
+      "id": "reasoning-1",
+      "reason": "the plan body and the evidence fragment already carry the correct set, so no \u00a76 or \u00a77 node reads this comment for the candidate set and no edit to the plan's declarations is implied.",
+      "text": "see plan.html:2103: the c-run-\u2026-jtmm-sign-cohort comment states \"the surviving COCOS candidates are (1, 2)\", while the fragment it reports (docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort.html) and the plan body (plan.html:936, plan.html:2150) both say 1, 2, 11 and 12; the comment's own stated reason (no row carries psi, so e_Bp is unscored) entails four candidates, not two",
+      "type": "reasoning",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "1ad1ab5e204f8cd1b77f8a84289b59b0e0e49ad62d8d4d2c657ffd3814978b17",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 363,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reasoning-1",
+      "reason": "plan v366: a correction comment states the current verdict COCOS 1, 2, 11 and 12; the original landing comment is a point-in-time record and is left as written",
+      "when": "2026-10-08T08:39:51.633443+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "plan v366: a correction comment states the current verdict COCOS 1, 2, 11 and 12; the original landing comment is a point-in-time record and is left as written",
+      "when": "2026-10-08T08:39:51.633443+00:00"
+    }
+  },
+  "review_run_id": "r-20261008T081546968373-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "4158e24321970546b5a28e51a2b7945723a9a474",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every anchor the changed sentences name resolves (`read_signal_map_observation` and `EfitLabels` as verified above; decision `jt60sa-source-cocos` exists, `EfitLabels` is `imas_ambix/challenge/loader.py`), and the \"(below)\" at plan.html:708 resolves to the paragraph at plan.html:936-947.",
+    "done_when": "pass \u2014 the changed \u00a76 done-when is measurable and keeps a must-fail mechanism in \"every channel left unvalidated with its reason\" and the per-unit-pair hand-check; the change only relaxes the \u03c3_R\u03c6Z clause from \"identified\" to \"declared\", which is what makes it satisfiable at all.",
+    "evidence_paths": "pass \u2014 the changed text names no scratch or node-local path; its cited evidence (`jwmm-e101011-psi-row`'s copy at `/work/projects/imas_gpu/jt60sa/101011.geqdsk`, \u00a77's read at plan.html:986-988) is on durable shared storage.",
+    "naming": "pass \u2014 the changed text introduces no plan label, ticket number or version tag into a symbol, filename or comment; the decision it names is a plan decision key, not a code identifier.",
+    "reasoning": "a finding \u2014 the changed premise (E101011 is needed because no row fixes e_Bp) is correct against the code and the evidence fragment, but a comment in the same document mis-reports the landed cohort's surviving candidates as (1, 2) rather than (1, 2, 11, 12).",
+    "single_goal": "pass \u2014 the changed units add no second deliverable to any node; `jtmm-e101011-psi-row` still carries one goal (add the one psi row).",
+    "wiring": "pass \u2014 the `conventions-before-equilibrium` gate still names `data-section=\"s7\"`/`data-gated-sections=\"s7\"`, its required evidence is \u00a76's sign report and the decision `jt60sa-source-cocos` it cites resolves (plan.html:1458); the prior wiring-1 (gate demanded an *identified* source COCOS the decision says is unmeasurable) is answered."
+  },
+  "section_digests": {
+    "_document": "9419c38f26bebd3fdf8c176820f91fb866fa8aeb279f052b6ab93984974bb8d9",
+    "s1": "52731ac311aa8ac6ed57dc5f58a5868e5f9e2e34b4e132f297830fa912abbc0f",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "54a93a113190a5b0c899f958eb3b51e03b0834ba2c36cbf08e64ce22eb9bb0d4",
+    "s7": "8f069fd5099db14abeaf3c3d385fa65cf1c124382f9efff94876b3bdc6a81d37",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T08:39:51.538552+00:00"
+}
