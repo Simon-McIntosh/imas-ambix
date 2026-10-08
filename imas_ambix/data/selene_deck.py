@@ -69,10 +69,11 @@ FLUX_LOOP_TYPE_DIFFERENTIAL = 6
 # The raw JT-60SA flux loops other than the seventh measure their flux
 # difference from the seventh, whose own channel is the one that tracks its
 # absolute vacuum prediction; the seventh is therefore the reference.  A
-# differential against loop L is written as the DD's loop(second) - loop(first)
-# pair naming the reference first, so the type-6 entry is loop L minus the
-# reference.  A source carrying fewer loops than the reference can form no
-# difference from a reference it does not hold.
+# differential against loop L stores loop L minus the reference: the DD's
+# indices_differential names the reference first then L, since it reads
+# loop(second) - loop(first), and the entry is named FL<L>-FL<reference> so the
+# name reads as that same difference.  A source carrying fewer loops than the
+# reference can form no difference from a reference it does not hold.
 FLUX_LOOP_DIFFERENTIAL_REFERENCE = 7
 # Angular step at which a deck arc is discretised into wall-outline points.
 ARC_ANGULAR_STEP_DEG = 1.0
@@ -954,11 +955,12 @@ def build_magnetics(factory, geo: GeoIn):
         out.position[0].z = float(loop.z)
     for k, loop_no in enumerate(differential_loops):
         out = ids.flux_loop[n_loops + k]
-        out.name = f"FL{reference}-FL{loop_no}"
+        out.name = f"FL{loop_no}-FL{reference}"
         out.type.index = FLUX_LOOP_TYPE_DIFFERENTIAL
-        # The DD carries the two loop indices as loop(second) - loop(first);
-        # naming the reference first makes this entry the loop minus the
-        # reference, matching the raw channel's measured difference.  A
+        # The stored value is loop L minus the reference, so the entry is named
+        # FL<L>-FL<reference> to read as that difference.  The DD carries the
+        # two loop indices as loop(second) - loop(first) over the 1-based
+        # flux_loop array, so the reference index is written first.  A
         # differential entry describes no loop position or area of its own.
         out.indices_differential = np.array([reference, loop_no], dtype=np.int32)
     return ids
