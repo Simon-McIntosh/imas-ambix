@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.94">
-<meta name="plan-version" content="397">
+<meta name="plan-version" content="398">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -400,8 +400,11 @@
       <code>resolve_representation(digest)</code> through the registry's representation aliases.
       Nova's <code>MachineGeometryRegistry</code> provides all five for MAST. The producer's
       <code>Jt60saGeometryRegistry</code> (<code>imas_ambix/gs/description_artifact.py</code>)
-      provides the two digests and a configurations map without authoring gaps, so the selection
-      node completes it rather than forking a second registry type. Each configuration carries its
+      provides the two digests and a configurations map without authoring gaps. A registry node,
+      <code>jtmm-jt60sa-registry</code>, completes it after the drive-map node and before the
+      selection node, rather than forking a second registry type; it writes only the producer
+      module, the shared digest function in <code>artifact_geometry.py</code> and their tests, so
+      the selection node's scope stays the machine keying. Each configuration carries its
       phase artifact's unresolved gaps as its authoring gaps, which leaves a JT-60SA identity
       reported as not operator-ready, as MAST's provisional identity already is. <code>select</code>
       reads the per-phase ranges. <code>resolve_representation</code> reads one alias per phase:
