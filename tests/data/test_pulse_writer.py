@@ -220,9 +220,9 @@ def test_static_content_is_the_description_unchanged(written):
 
 def test_shot_without_cache_refuses_and_names_the_cache(tmp_path):
     with pytest.raises(PulseWriteError) as error:
-        write_pulse(MACHINE, 999999, tmp_path)
+        write_pulse(MACHINE, "E999999", tmp_path)
     message = str(error.value)
-    assert "999999" in message
+    assert "E999999" in message
     assert "no EDDB cache" in message
     assert str(JT60SA_ROOT / "999999.zarr") in message
 
