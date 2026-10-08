@@ -1,0 +1,384 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "3ea425d23ace3a09c5a53a4d67a81688ac834fd5",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 11956276,
+      "input_tokens_cumulative": 11956276,
+      "output_tokens": 59473,
+      "output_tokens_cumulative": 59473,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 668,
+    "files": 4,
+    "removed": 0
+  },
+  "clone_matches": [],
+  "commit_resolution": null,
+  "commits": [
+    "f76f132636ab2ac2069a8d49966b24ce18da5cf5",
+    "57e2ca928859eb2de7a3dea30dd7d6abb25336e8"
+  ],
+  "completed_at": "2026-10-08T14:46:57.191Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-08T14:22:16Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/gs/test_description_artifact.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T142203012705-jtmm-jt60sa-artifact-producer/jt60sa-description-artifact-gate.log"
+  },
+  "impl_move": {
+    "at_complete": 0.94,
+    "at_dispatch": 0.92,
+    "plan": "jt60sa-machine-map",
+    "verdict": "moved"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-08T15:22:07.038583+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": "clive",
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-08T14:22:07Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 29,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 4,
+    "headroom": 8,
+    "mean_context": 128000,
+    "observed_at": "2026-10-08T14:21:38Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 29,
+      "aggregate_tokens_per_second": 289.032,
+      "detail": "",
+      "mean_tokens_per_second": 72.258,
+      "observed_at": "2026-10-08T14:21:38Z",
+      "runs": 4.0,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-08T14:46:57.191Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T142203012705-jtmm-jt60sa-artifact-producer/manifest.md",
+  "member": "disposable-r-20261008T142203012705-jtmm-jt60sa-artifact-producer",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/gs/test_description_artifact.py::test_authoring_twice_gives_same_semantic_identity_and_physical_digest",
+      "tests/gs/test_description_artifact.py::test_moving_one_pf_coil_changes_only_that_phase_physical_digest"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/gs/test_description_artifact.py::test_authoring_twice_gives_same_semantic_identity_and_physical_digest",
+      "tests/gs/test_description_artifact.py::test_moving_one_pf_coil_changes_only_that_phase_physical_digest"
+    ],
+    "declaration": "Deriving the physical digest from file bytes instead of geometry content makes the authoring-twice test fail after a rewrite of the same store, logged with a non-zero EXIT and the failing test id",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T142203012705-jtmm-jt60sa-artifact-producer/jt60sa-description-artifact-negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T142203012705-jtmm-jt60sa-artifact-producer/jt60sa-description-artifact-negative-control.log",
+    "test_paths": [
+      "tests/gs/test_description_artifact.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "jtmm-jt60sa-artifact-producer",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1114,
+          "cached_input_tokens": 188559,
+          "input_tokens": 189675,
+          "output_tokens": 387,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 190062,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "c66d1ea6-525d-4cec-8114-013919000083",
+      "session_id": "c66d1ea6-525d-4cec-8114-013919000083"
+    },
+    "done_when": "One public entry in a new module, imas_ambix/gs/description_artifact.py, authors two JT-60SA machine artifacts, one for each operating phase, from /home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/machine_description/OP1 and OP2. For each phase it reads that store's five IDSs (magnetics, pf_active, pf_passive, tf, wall) through imas and writes them into an IMAS HDF5 entry (imas:hdf5?path=) in a staging directory of its own, the form imas_ambix/gs/artifact_geometry.py MachineArtifactGeometryReader opens, as nova's nova/imas/mast_geometry.py write_and_reopen writes it; the netCDF files and the converter receipt.json are never artifact members. It derives the identity create_machine_artifact_manifest takes rather than accepting it as input: one registry digest from a JT-60SA geometry registry built over both phases; each phase's physical digest from that phase's geometry content (not file bytes, so library write metadata does not move it); each phase's shot range from that phase's first_shot and last_shot in the maps list of /home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/machine_map.json; and complete with any unresolved gaps named. It calls create_machine_artifact_manifest and materialize_machine_artifact for each phase into a cache directory it is given, and resolve_machine_artifact verifies each. Read §7 of the plan and docs/evidence/fragments/jt60sa-machine-map/jtmm-artifact-authoring-route.html first: the fragment maps nova's generic entries and the MAST and DIII-D producers this follows. Nothing is added to nova, nothing under maps/ is written, and the durable cache route, the pin table and the selector change are left to jtmm-machine-keyed-selection. New tests in tests/gs/test_description_artifact.py show five things: authoring twice gives each phase the same semantic identity and physical digest; the OP1 and OP2 artifacts carry different physical digests, one shared registry digest and disjoint shot ranges; moving one PF coil position in a tmp_path copy of one phase's store changes that phase's physical digest; each artifact resolves with its own expected digests; and each artifact directory reopens through imas.DBEntry imas:hdf5 at the manifest's dictionary version with pf_active, pf_passive, wall and magnetics present. On the fleet allocation (SLURM_JOB_ID set), with the worktree's maps a symlink to the main checkout's maps/, run in the foreground and capture once, to a log in the run directory whose first lines give the head revision and command and whose last line is EXIT=: uv run --no-sync pytest -p no:cacheprovider tests/gs/test_description_artifact.py; it exits 0, and uv run --no-sync ruff check imas_ambix tests exits 0. The fragment quotes, for each phase, the authored artifact's semantic identity, physical digest, registry digest, shot range and OCI tag. A landing fragment is written to the fragment path.",
+    "estimated_hours": null,
+    "goal": "Author verified JT-60SA machine artifacts, one per operating phase, from the description stores through nova's generic layer",
+    "id": "jtmm-jt60sa-artifact-producer",
+    "lane_declaration": {
+      "backend": "clive",
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-08T14:22:07Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 29,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 4,
+      "headroom": 8,
+      "mean_context": 128000,
+      "observed_at": "2026-10-08T14:21:38Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 29,
+        "aggregate_tokens_per_second": 289.032,
+        "detail": "",
+        "mean_tokens_per_second": 72.258,
+        "observed_at": "2026-10-08T14:21:38Z",
+        "runs": 4.0,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T142203012705-jtmm-jt60sa-artifact-producer/manifest.md",
+    "negative_control": "Deriving the physical digest from file bytes instead of geometry content makes the authoring-twice test fail after a rewrite of the same store, logged with a non-zero EXIT and the failing test id",
+    "plan": "jt60sa-machine-map",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§7",
+    "spec_level": "guided",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/gs/description_artifact.py",
+      "tests/gs/test_description_artifact.py",
+      "docs/evidence/fragments/jt60sa-machine-map/jtmm-jt60sa-artifact-producer.html",
+      "docs/figures/jt60sa-machine-map/jtmm-jt60sa-artifact-producer"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": 6209371.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "jtmm-jt60sa-artifact-producer",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-08T14:22:09.310017+00:00",
+    "score": 0.7375,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "fallback",
+    "backend": null,
+    "comment": "",
+    "confidence": null,
+    "effort": null,
+    "excluded": [],
+    "fallback_reason": "timeout",
+    "family": null,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 5007.692,
+    "model": null,
+    "offered": [],
+    "probabilities": {}
+  },
+  "plan": "jt60sa-machine-map",
+  "plan_impl_at_dispatch": 0.92,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "57e2ca928859eb2de7a3dea30dd7d6abb25336e8",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "3ea425d23ace3a09c5a53a4d67a81688ac834fd5",
+    "reviewed_head_sha": "57e2ca928859eb2de7a3dea30dd7d6abb25336e8",
+    "scores": {
+      "durability": 16,
+      "evidence": 19,
+      "fit": 17,
+      "goal_fidelity": 16,
+      "reuse": 19,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 107
+  },
+  "review_tier": "full",
+  "role": "implement",
+  "route_mode": "shadow",
+  "run_id": "r-20261008T142203012705-jtmm-jt60sa-artifact-producer",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§7",
+  "session": "c66d1ea6-525d-4cec-8114-013919000083",
+  "session_harness": "claude",
+  "session_id": "c7d022e0-b958-4cb6-9982-cf93dbed3128",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 5,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 12153951,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 1468.382,
+    "generated_tokens": 65743,
+    "generation_seconds": 1199.787,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 85.3,
+    "machine_seconds": 268.595,
+    "peak_input_tokens": 196375,
+    "tokens_per_second": 54.8,
+    "wall_tokens_per_second": 44.77
+  },
+  "time_budget": "60m",
+  "tool_steps": 89.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 1481,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-08T14:47:01Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-08T14:22:24Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261008T142203012705-jtmm-jt60sa-artifact-producer",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 10412,
+    "worker_pid": 3308673
+  },
+  "worker_seconds": 1453,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
