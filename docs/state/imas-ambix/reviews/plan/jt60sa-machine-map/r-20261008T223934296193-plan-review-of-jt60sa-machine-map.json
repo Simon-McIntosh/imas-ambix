@@ -1,0 +1,63 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T22:52:03.261Z",
+  "dispatched_at": "2026-10-08T22:40:13Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:647",
+      "id": "wiring-1",
+      "reason": "a coordinator dispatching from \u00a78 would attribute the reader node to a closed section and look for it in \u00a77.",
+      "text": "\u00a78's execution order still lists \"the PSRC SELENE loader (\u00a76)\", but \u00a77 (:565) states \u00a76 closed without the reader and \u00a77 adds it as `jtmm-selene-psrc-loader`; \u00a76's landed summary (:257-260) names only the sign report, and the PSRC reader is a \u00a77 node, so the \u00a78 annotation points the node at the wrong section.",
+      "type": "wiring",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "6d133f7471d683b1890991c134944fb50026afc077e009b90bc9da1dbba3e0b1",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 419,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "wiring-1",
+      "reason": "Plan v420: section 8's execution order now lists the PSRC SELENE reader (jtmm-selene-psrc-loader) in section 7, with the selection route, the reference loader and the E101011 psi store.",
+      "when": "2026-10-08T22:52:06.356266+00:00"
+    }
+  ],
+  "responses": {
+    "wiring-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v420: section 8's execution order now lists the PSRC SELENE reader (jtmm-selene-psrc-loader) in section 7, with the selection route, the reference loader and the E101011 psi store.",
+      "when": "2026-10-08T22:52:06.356266+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v419.json",
+  "review_run_id": "r-20261008T223934296193-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "c0ec6e6ca8b6374879271acf4521712aab1b6969",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 the changed text's one code anchor, `packages/imas-alambic/src/imas_alambic/eddb_remote.py`, resolves, and `REMOTE_SCRIPT`/`_unit`/`normalise_unit` all exist there.",
+    "done_when": "pass \u2014 \u00a77's done-when carries two falsifiable checks (boundary RMS under 0.10 m; a must-fail `channel_factor` flip) plus a psi-binding check whose negative control is the sign-flipped binding.",
+    "evidence_paths": "pass \u2014 the reader's fetch and the stamp write to the shared GPFS cache (`/work/projects/imas_gpu/jt60sa/`) and `docs/evidence/fragments/jt60sa-machine-map/`, not a scratchpad; the changed units add no new path.",
+    "naming": "pass \u2014 the changed text adds no plan label, ticket or version tag; it names only real code identifiers and node names.",
+    "reasoning": "pass \u2014 the changed units correct the mechanism: the refusal that aborts a batch is `_unit` inside `REMOTE_SCRIPT` (raises at :443 before `main` appends any segment), and `normalise_unit` is its client-side mirror in `decode_batch`; and the reference loader's axis is PSRC's cached `calRp0`/`calZp0` \u2014 the \"uniform unit list\" and \"axis cached for the frozen shots\" claims both match the cited evidence.",
+    "single_goal": "pass \u2014 the changed reader paragraph names one deliverable (read SELENE's PSRC arrays); the `_unit`/`normalise_unit` widening is a prerequisite edit in the extractor, not a second goal.",
+    "wiring": "a finding \u2014 \u00a78 item 6 (:647) still annotates \"the PSRC SELENE loader (\u00a76)\", while \u00a77 (:565) states \u00a77 adds it as `jtmm-selene-psrc-loader` because \u00a76 closed without it."
+  },
+  "section_digests": {
+    "_document": "aeae9043f53534ca2bc015344ff6611bcb0f8f1fd2d90c733ffbe2bbfb65ca84",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "fdefec37202e271fcda00b7ed0291b3e0861521fe810e7a097ae8032469bc66e",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T22:52:06.353985+00:00"
+}
