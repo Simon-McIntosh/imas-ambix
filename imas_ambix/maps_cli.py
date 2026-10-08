@@ -49,6 +49,18 @@ ANNOTATION_DESCRIPTION = "org.opencontainers.image.description"
 
 _SEMVER_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)(?:-rc(\d+))?$")
 
+_BUNDLE_TEMP_RE = re.compile(rf"^{re.escape(BUNDLE_NAME)}\..*\.tmp$")
+
+
+def _is_bundle_temp(rel: Path) -> bool:
+    """Whether ``rel`` is a descriptor's temporary write file.
+
+    The atomic descriptor write creates its temporary beside the descriptor it
+    replaces, so a process killed between the two leaves one behind in the
+    machine directory.  It is not a published file.
+    """
+    return bool(_BUNDLE_TEMP_RE.match(rel.name))
+
 
 def _package(machine: str) -> tuple[str, str]:
     """The registry and package name carrying ``machine``'s bundle."""
@@ -271,7 +283,8 @@ def released_paths(root: Path) -> list[Path]:
     """Files the published tree holds, relative to ``root`` and sorted.
 
     The development inputs under ``source/`` and ``superseded/`` are left out,
-    so a facility install receives only the converted store and its descriptor.
+    as is any stray descriptor temporary file, so a facility install receives
+    only the converted store and its descriptor.
     """
     rels: list[Path] = []
     for path in sorted(root.rglob("*")):
@@ -279,6 +292,8 @@ def released_paths(root: Path) -> list[Path]:
             continue
         rel = path.relative_to(root)
         if rel.parts and rel.parts[0] in EXCLUDED_TOP_LEVEL:
+            continue
+        if _is_bundle_temp(rel):
             continue
         rels.append(rel)
     return rels

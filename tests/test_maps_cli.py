@@ -28,6 +28,7 @@ from imas_ambix.maps_cli import (
     latest_stable_tag,
     latest_tag,
     semver_tags,
+    stage_bundle,
     tree_digest,
 )
 
@@ -191,6 +192,23 @@ def test_tree_digest_ignores_development_inputs(tmp_path: Path) -> None:
     (b / "source" / "deck.txt").write_text("changed deck")
     (b / "superseded" / "deck.txt").write_text("changed superseded")
     assert tree_digest(a) == tree_digest(b)
+
+
+def test_a_stray_bundle_temp_is_neither_hashed_nor_staged(tmp_path: Path) -> None:
+    root = tmp_path / "jt-60sa"
+    write_tree(root)
+    baseline = tree_digest(root)
+    # The atomic descriptor write leaves this name behind if the process dies
+    # between its mkstemp and its os.replace.
+    stray = root / "bundle.json.a1b2c3d4.tmp"
+    stray.write_text('{"version": "v9.9.9"}')
+
+    assert tree_digest(root) == baseline
+
+    dest = tmp_path / "staging"
+    stage_bundle(root, dest, "v0.2.0-rc1")
+    assert not (dest / stray.name).exists()
+    assert json.loads((dest / "bundle.json").read_text())["version"] == "v0.2.0-rc1"
 
 
 def test_release_pushes_the_next_version_with_its_annotations(
