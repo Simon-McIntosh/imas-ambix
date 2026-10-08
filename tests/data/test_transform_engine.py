@@ -32,13 +32,10 @@ from imas_ambix.data.cocos_convention import (
     MAST_SOURCE_COCOS,
     MAST_TO_COCOS_17_FACTORS,
 )
-from imas_ambix.data.paths import JT60SA_DESCRIPTION_DIR
-from tests.jt60sa_bundle import requires_mast
+from tests.jt60sa_bundle import requires_jt60sa, requires_mast
 
 LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 TRANSITION_SHOTS = (11_766, 12_417, 12_533)
-JT60SA_OP1_DESCRIPTION_ROOT = JT60SA_DESCRIPTION_DIR
-JT60SA_OP1_PF_ACTIVE = JT60SA_OP1_DESCRIPTION_ROOT / "OP1" / "pf_active.nc"
 _COIL_ELEMENT_DD_PATH = "pf_active/coil/element/geometry/rectangle/r"
 #: These tests read the public MAST map, so they guard on a bundle carrying mast
 #: and run whether or not the private JT-60SA bundle is reachable.
@@ -615,12 +612,21 @@ def test_zarr_engine_refuses_a_binding_selecting_a_struct_array_entry(tmp_path):
     print("STRUCT_ENTRY_ZARR refused=declared slot")
 
 
-@pytest.mark.skipif(
-    not JT60SA_OP1_PF_ACTIVE.is_file(),
-    reason="JT-60SA OP1 machine description is not mounted",
-)
+@requires_jt60sa
 def test_static_netcdf_store_selects_each_real_coil_by_name():
-    with imas.DBEntry(JT60SA_OP1_PF_ACTIVE, "r") as entry:
+    """The netCDF engine reads each coil of the resolved OP1 description store.
+
+    The store root comes from the bundle declaration the engine itself resolves
+    (``MachineMapCatalog.description_store_root_path``), not from a path
+    constant, so the test reaches ``machine_description/OP1`` wherever the
+    reachable jt-60sa bundle places it.
+    """
+
+    catalog = load_packaged_machine_map("jt-60sa")
+    store_root = catalog.description_store_root_path()
+    op1_root = store_root / "OP1"
+
+    with imas.DBEntry(op1_root / "pf_active.nc", "r") as entry:
         dd_version = entry.dd_version
         ids = entry.get("pf_active", autoconvert=False)
         names = [str(coil.name) for coil in ids.coil]
@@ -630,7 +636,7 @@ def test_static_netcdf_store_selects_each_real_coil_by_name():
     machine_map = SimpleNamespace(name="OP1")
     lengths: list[int] = []
     with engine.open(
-        str(JT60SA_OP1_DESCRIPTION_ROOT),
+        str(store_root),
         100_001,
         dd_version,
         machine_map,
