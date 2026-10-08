@@ -1,0 +1,63 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T22:39:04.365Z",
+  "dispatched_at": "2026-10-08T22:31:47Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:571",
+      "id": "reasoning-1",
+      "reason": "a node told to widen `normalise_unit` passes its own test while the `surfABVxp` fetch still aborts, so the boundary-RMS < 0.10 m check has no boundary contour (the sixteen frozen shots cache none) and the section's guard cannot fire; the plan must name `_unit` inside `REMOTE_SCRIPT` as the refusal on the fetch path.",
+      "text": "the paragraph says \"`eddb_remote.normalise_unit` \u2026 refuses any multi-entry list, so a batch holding one aborts before it writes a channel. \u2026 the reader node changes `normalise_unit` to accept a multi-entry list whose entries all agree\", but `normalise_unit` (`packages/imas-alambic/src/imas_alambic/eddb_remote.py:157-172`) is the *client-side decode* guard: `decode_batch` calls it on the header entry (`entry.get(\"unit\", \"\")`, line 294), and the header's unit is written as a `str` by both `encode_batch` (`ChannelRecord.unit: str`) and the remote script (`\"unit\": record[\"unit\"]`). The fetch path is `fetch_channels` \u2192 `RemoteEddbExtractor.fetch_batch` \u2192 the transport runs `REMOTE_SCRIPT`, and the refusal is the script's own `_unit` copy (`eddb_remote.py:437-446`), which reads the raw EDDB unit (`rtn.get(\"unit\") or rtn.get(\"units\")`) and raises a plain `RuntimeError` on a multi-entry list, crashing the script and aborting the batch. Reproduced at the worktree HEAD: `normalise_unit([\"mm\"]*3)` raises `EddbRemoteError`; `exec(REMOTE_SCRIPT)[\"_unit\"]([\"mm\"]*3)` raises `RuntimeError`; a `encode_batch`/`decode_batch` round-trip yields a `str` unit, so the client guard's list branch is unreachable on this path",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "d1624c6644bb18c867aa6c7a76d25630a8535e3b07a6fcb45d7ea374a8cac792",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 418,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v419: the paragraph now names the remote script's _unit inside REMOTE_SCRIPT as the refusal that aborts a batch and normalise_unit as its client-side decode mirror; the reader node widens both together to accept a uniform multi-entry unit list, with one test running both over the same cases.",
+      "when": "2026-10-08T22:39:05.984131+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v419: the paragraph now names the remote script's _unit inside REMOTE_SCRIPT as the refusal that aborts a batch and normalise_unit as its client-side decode mirror; the reader node widens both together to accept a uniform multi-entry unit list, with one test running both over the same cases.",
+      "when": "2026-10-08T22:39:05.984131+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v418.json",
+  "review_run_id": "r-20261008T223108486972-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "c781280bdfe0cf91e35a41ad180eedb1288c616f",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `packages/imas-alambic/src/imas_alambic/eddb_remote.py::normalise_unit`, `calRp0`/`calZp0`, `/work/projects/imas_gpu/jt60sa/101011.geqdsk`, `maps/jt-60sa/maps/equilibrium.json` and `imas_ambix/worldmodel/equilibrium_labels.py::build_geometry_from_arrays` all resolve; the sixteen frozen shots (`imas_ambix/spine_bench/shots.py:74`) each carry `calRp0`/`calZp0`/`calRX`/`calZX` and no `surfABVxp`, matching the opening's claim, and E101011 is correctly not one of the sixteen.",
+    "done_when": "pass \u2014 \u00a77's done-when (`plan.html:606-623`) is measurable (boundary RMS < 0.10 m per shot, normalised psi RMS < 1% of the psi range) and names two must-fail controls (the psi comparison with the binding's sign flipped, and the loop-7 `channel_factor` flip growing the whitened residual), so a node can show both limbs of the guard fail where they should.",
+    "evidence_paths": "pass \u2014 the changed text reads the boundary through the existing extractor and its on-demand cache under the JT-60SA cache root, and cites the repository fragment `docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-selene-inventory.html`, which exists on disk; nothing lands in a session scratchpad or a node-local temporary path.",
+    "naming": "pass \u2014 the changed text introduces only mechanism names (`normalise_unit`, `surfABVxp`, `calRp0`); no plan label, ticket number or version tag reaches a symbol.",
+    "reasoning": "a finding \u2014 the changed paragraph names `normalise_unit` as the function that refuses the multi-channel unit list and as the function to widen, but on the fetch path `normalise_unit` never sees a list; the refusal that aborts the batch lives in the mirrored `_unit` inside `REMOTE_SCRIPT`, so the named edit cannot unblock the `surfABVxp` fetch the section's done-when depends on.",
+    "single_goal": "pass \u2014 the changed paragraph adds one deliverable to `jtmm-selene-psrc-loader` (the multi-entry unit-list policy) and names no second; the opening edit records a correction rather than adding a node.",
+    "wiring": "pass \u2014 the section's nodes still run in the order the prose fixes (psi store \u2192 PSRC reader \u2192 reference loader), and the `conventions-before-equilibrium` gate (`plan.html:748`) still gates the psi binding this text writes after \u00a76's sign report."
+  },
+  "section_digests": {
+    "_document": "aeae9043f53534ca2bc015344ff6611bcb0f8f1fd2d90c733ffbe2bbfb65ca84",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "8b2dda85134100aab7d7dca4b6c861e5e336d90f85f90639ce3992f8f29c50a6",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T22:39:05.981651+00:00"
+}
