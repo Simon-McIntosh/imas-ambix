@@ -1,0 +1,38 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-release-version-after-push-landing">
+  <header>
+    <h3>the local bundle version is written only after the push succeeds, atomically</h3>
+    <p class="meta">
+      Node <code>jtfm-release-version-after-push</code> &middot;
+      date 2026-10-08 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;18 &middot;
+      node <code>98dci4-clu-2002</code> job <code>1281970</code>
+    </p>
+  </header>
+  <p>
+    In <code>imas_ambix/maps_cli.py</code>, <code>release</code> no longer writes
+    the local <code>bundle.json</code> before the push: <code>stage_bundle</code>
+    already carries the version into the staged copy, so the local descriptor is
+    written only after <code>push_tree</code> returns, and the read-and-restore
+    of the original bytes on push failure is removed because nothing local
+    changes before the push. <code>_write_bundle_version</code> writes to a
+    sibling temporary file in the same directory and moves it over the original
+    with <code>os.replace</code>, so neither a concurrent reader nor an
+    interrupted write sees a partial descriptor.
+  </p>
+  <p>
+    Measure: <code>tests/test_maps_cli.py</code> runs whole at base
+    <code>033d84d6</code> (27 passed) and head <code>640ea2fc</code> (29 passed),
+    each to a log ending in the pytest summary and an <code>EXIT=</code> line;
+    the two added tests are a stubbed-<code>push_tree</code> test that reads the
+    local descriptor mid-push and asserts it still names the deployed version,
+    and a test whose <code>os.replace</code> raises and that asserts the original
+    bytes are intact. The existing failed-push test still passes.
+  </p>
+  <p>
+    Negative control: moving the local write back before the push makes the
+    during-push test fail (<code>EXIT=1</code>,
+    <code>test_release_leaves_the_local_bundle_unpublished_while_the_push_runs</code>).
+    <code>uv run --no-sync ruff check imas_ambix tests packages</code> exits 0.
+    All tests use the stubbed registry with no network call.
+  </p>
+</section>
