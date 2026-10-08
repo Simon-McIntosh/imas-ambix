@@ -2,17 +2,21 @@
 
 Each figure has one panel per series. The coil-current figure draws the ten
 ``pf_active/coil/current`` traces CS1-EF6 and the ``magnetics/ip`` trace; the
-flux-loop figure draws the 27 ``magnetics/flux_loop/flux`` traces FL1-FL27; the
-probe figure draws the 17 ``magnetics/b_field_pol_probe/field`` traces MP1-MP17.
+flux-loop figure draws the ``magnetics/flux_loop/flux`` traces FL7 and the 26
+differential entries FL1-FL7 to FL27-FL7; the probe figure draws the 17
+``magnetics/b_field_pol_probe/field`` traces MP1-MP17.
 Every name and unit is read from the IDS by imas-ink's
 :func:`~imas_ink.extract_signal_traces` and drawn by
 :func:`~imas_ink.figures.time_trace_figure_mpl`; the script constructs no
 :class:`~imas_ink.components.TimeSeries` and passes no label or unit string of
 its own. The figures are written through ``imas_ink.io.render_to_bytes`` as SVG.
 
-The flux loops are drawn as the files measure them: loop 7 is absolute and every
-other loop is the measured difference relative to loop 7, stored with its
-measured sign. The script draws the stored values unchanged.
+FL7 is absolute. Each of the other 26 panels is the data dictionary's
+differential flux psi_L - psi_7 for apparatus loop L, drawn as stored: the
+stored value is the negative of the raw measured difference relative to FL7, and
+the script never re-signs data. The flux-loop figure skips the 27 type-1 loop
+entries that carry geometry and no flux, so the 26 differential entries appear
+in the order the run file stores them.
 
 The IDS file is one netCDF per pulse and run under the IDS root.  Its name is
 built by the writer's :func:`~imas_alambic.pulse_writer.pulse_path`, so this
