@@ -1,0 +1,87 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed run's manifest names baseline_suite=null and after_suite=null, so no base gate log exists and the added-failure count was not taken",
+  "base_log_revision": null,
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/data/geometry_adapter.py:565"
+  ],
+  "completed_at": "2026-10-08T16:56:33.200Z",
+  "dispatched_at": "2026-10-08T16:45:39Z",
+  "findings": [
+    {
+      "file": "imas_ambix/gs/description_artifact.py",
+      "line": "404",
+      "severity": "follow-on",
+      "text": "follow-on: the agreement band is relative (_WEIGHT_AGREEMENT * abs(high), 1e-2) where the two-decimal rounding the docstring, the plan and the corrected fragment describe; for the CS and EF coils (~13.7 per element) the effective tolerance is ~0.14, so a sub-1% per-element mismatch that is not rounding is accepted."
+    },
+    {
+      "file": "tests/gs/test_description_artifact.py",
+      "line": "275",
+      "severity": "follow-on",
+      "text": "follow-on: the reader-side assertion compares the summed filament xmult against drive.ampere_turns_per_ampere, both read from the same manifest drive, so it verifies the area split preserves the total but cannot catch a wrong weight; its independent anchor is the cs1 == 549.0 line at :279."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "read all three code commits against base bde6fdaa; the source change is confined to the producer and the one geometry_adapter rename, and 290dbb60 corrects the drive weight from the per-element mean to the coil sum at description_artifact.py:409.",
+    "done_when": "the done_when names tests/gs/test_description_artifact.py and the three-file gate, and the corrected drive weight checked against artifact_geometry._element_weights and ResolvedDrive.shares; gate-pytest.log records 57 passed EXIT=0 with ruff EXIT=0 at revision 290dbb60, and review-drive-weight-check.log shows the reader's shares sum to 549.0 for the coil total but only 13.725 for the pre-fix per-element value.",
+    "goal": "the node's goal is to author each JT-60SA phase artifact's channel drives from its machine map's drive topology; imas_ambix/gs/description_artifact.py:412 _phase_channel_drives authors one nova ChannelDrive per pf_active coil from the phase row's drive topology, so the goal is met.",
+    "manifest": "read; it states the gate at revision 290dbb60 and commits b8abb49f, c216fa3b, 290dbb60 and 9a835303, but baseline_suite and after_suite are both null, so the added-failure count is unmeasured.",
+    "write_paths": "read the manifest's five declared paths; the diff bde6fdaa..9a835303 touches only imas_ambix/gs/description_artifact.py, imas_ambix/data/geometry_adapter.py, tests/gs/test_description_artifact.py and the docs fragment, all inside them."
+  },
+  "justifications": {
+    "durability": "tests/gs/test_description_artifact.py:192 sums the CS1 topology connections independently and asserts the drive's 549.0, and the reader-side :275 comparison is anchored by the independent cs1 total at :279.",
+    "evidence": "the gate over tests/gs/test_description_artifact.py (gate-pytest.log, 57 passed EXIT=0) names the done-when file, negative-control.log reddens at EXIT=1, and review-drive-weight-check.log resolves shares at the reviewed head's artifact_geometry.py.",
+    "fit": "the helpers at imas_ambix/gs/description_artifact.py:381 and :412 follow the module's dataclass and local-import idiom and introduce no plan-labelled name.",
+    "goal_fidelity": "imas_ambix/gs/description_artifact.py:412 authors one drive per pf_active coil with the channel from current_channel_from_conductors and, at :409, the coil's total weight the plan states.",
+    "reuse": "current_channel_from_conductors is reused rather than restated and the sum at imas_ambix/gs/description_artifact.py:409 matches geometry_adapter.py:705's per-circuit sum, though it recomputes the rule rather than calling it.",
+    "scope_discipline": "every path in the diff bde6fdaa..9a835303 is inside the declared write paths and no file outside the fence was touched."
+  },
+  "prior_review": {
+    "findings": [
+      {
+        "file": "imas_ambix/gs/description_artifact.py",
+        "line": "402",
+        "severity": "follow-on",
+        "text": "follow-on: _coil_drive_weight returns the mean of the per-element weights; within the 1e-2 agreement band that value is not any connection's declared per-element weight, so a coil whose elements differ slightly takes a weight the plan's \"the connection's turns times its current weight times its direction\" does not name. Disclosed as a caveat in the docs fragment."
+      }
+    ],
+    "reviewed_base_sha": "bde6fdaa5786af4e876cfb6206be771d9d321ab8",
+    "reviewed_head_sha": "c216fa3b10ec26aff03213d82fd2ac03526846a0",
+    "scores": {
+      "durability": 18,
+      "evidence": 18,
+      "fit": 18,
+      "goal_fidelity": 19,
+      "reuse": 17,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "timestamp": "2026-10-08T16:24:04.517435+00:00",
+    "total": 110
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is to author each JT-60SA phase artifact's channel drives from its machine map's drive topology; imas_ambix/gs/description_artifact.py:412 _phase_channel_drives authors one nova ChannelDrive per pf_active coil from the phase row's drive topology, so the goal is met.\nVERDICT done_when: the done_when names tests/gs/test_description_artifact.py and the three-file gate, and the corrected drive weight checked against artifact_geometry._element_weights and ResolvedDrive.shares; gate-pytest.log records 57 passed EXIT=0 with ruff EXIT=0 at revision 290dbb60, and review-drive-weight-check.log shows the reader's shares sum to 549.0 for the coil total but only 13.725 for the pre-fix per-element value.\nVERDICT write_paths: read the manifest's five declared paths; the diff bde6fdaa..9a835303 touches only imas_ambix/gs/description_artifact.py, imas_ambix/data/geometry_adapter.py, tests/gs/test_description_artifact.py and the docs fragment, all inside them.\nVERDICT manifest: read; it states the gate at revision 290dbb60 and commits b8abb49f, c216fa3b, 290dbb60 and 9a835303, but baseline_suite and after_suite are both null, so the added-failure count is unmeasured.\nVERDICT diff: read all three code commits against base bde6fdaa; the source change is confined to the producer and the one geometry_adapter rename, and 290dbb60 corrects the drive weight from the per-element mean to the coil sum at description_artifact.py:409.\nCALL_SITES: imas_ambix/data/geometry_adapter.py:565\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/gs/description_artifact.py:412 authors one drive per pf_active coil with the channel from current_channel_from_conductors and, at :409, the coil's total weight the plan states.\nSCORE evidence: 18\nJUSTIFICATION evidence: the gate over tests/gs/test_description_artifact.py (gate-pytest.log, 57 passed EXIT=0) names the done-when file, negative-control.log reddens at EXIT=1, and review-drive-weight-check.log resolves shares at the reviewed head's artifact_geometry.py.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: every path in the diff bde6fdaa..9a835303 is inside the declared write paths and no file outside the fence was touched.\nSCORE durability: 18\nJUSTIFICATION durability: tests/gs/test_description_artifact.py:192 sums the CS1 topology connections independently and asserts the drive's 549.0, and the reader-side :275 comparison is anchored by the independent cs1 total at :279.\nSCORE fit: 18\nJUSTIFICATION fit: the helpers at imas_ambix/gs/description_artifact.py:381 and :412 follow the module's dataclass and local-import idiom and introduce no plan-labelled name.\nSCORE reuse: 18\nJUSTIFICATION reuse: current_channel_from_conductors is reused rather than restated and the sum at imas_ambix/gs/description_artifact.py:409 matches geometry_adapter.py:705's per-circuit sum, though it recomputes the rule rather than calling it.\nFINDING imas_ambix/gs/description_artifact.py:404 follow-on: the agreement band is relative (_WEIGHT_AGREEMENT * abs(high), 1e-2) where the two-decimal rounding the docstring, the plan and the corrected fragment describe; for the CS and EF coils (~13.7 per element) the effective tolerance is ~0.14, so a sub-1% per-element mismatch that is not rounding is accepted.\nFINDING tests/gs/test_description_artifact.py:275 follow-on: the reader-side assertion compares the summed filament xmult against drive.ampere_turns_per_ampere, both read from the same manifest drive, so it verifies the area split preserves the total but cannot catch a wrong weight; its independent anchor is the cs1 == 549.0 line at :279.\nreviewed_base_sha: bde6fdaa5786af4e876cfb6206be771d9d321ab8\nreviewed_head_sha: 9a8353033bad0e1f60d0ae6744bc90e5e7721df2\n",
+  "review_run_id": "r-20261008T164528562318-review-of-jtmm-artifact-drive-map",
+  "reviewed_base_sha": "bde6fdaa5786af4e876cfb6206be771d9d321ab8",
+  "reviewed_head_sha": "9a8353033bad0e1f60d0ae6744bc90e5e7721df2",
+  "reviewed_run_id": "r-20261008T153846147981-jtmm-artifact-drive-map",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 18,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T16:54:10.792801+00:00",
+  "total": 111
+}
