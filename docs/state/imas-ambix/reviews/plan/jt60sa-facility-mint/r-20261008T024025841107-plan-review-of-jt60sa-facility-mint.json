@@ -1,0 +1,62 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T02:54:35.241Z",
+  "dispatched_at": "2026-10-08T02:40:48Z",
+  "findings": [
+    {
+      "anchor": "imas_codex/cli/release.py:29",
+      "id": "reuse_search-1",
+      "reason": "the plan must state that the single oras list is version-sorted (or that these two queries sort it) before it can claim the copied machine is safe over an unsorted registry tag list.",
+      "text": "\u00a718 says \"one function lists the package's tags with `oras repo tags` ... and every tag query in the copied machine reads that one list: the latest tag (`_get_latest_tag`), the latest stable tag (`_get_latest_stable_tag`)\", but those two functions in the copied machine depend on the version ordering that `git tag --sort=-v:refname` supplied (`_get_latest_tag` release.py:29-42, `_get_latest_stable_tag` :45-58 take the first match in sorted order); `oras repo tags` returns tags in registry order, so \"the latest tag\" becomes undefined and `compute_next_version` (release.py:153) can pick the wrong base and compute a next version that re-collides with an existing tag or steps backwards",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_codex/graph/ghcr.py:335",
+      "id": "duplicate_owner-1",
+      "reason": "naming the owner lets the author mirror its empty-list and annotation-key conventions (and say whether ambix can depend on it) rather than fork a second, drifting oras layer.",
+      "text": "the map release CLI re-implements the GHCR operations that already live in `ghcr.py`: `list_registry_tags` (:335, the exact `oras repo tags` call \u00a718 specifies, including its `not found` \u2192 `[]` handling that the \"with no semver tag ... stable at `v0.0.0`\" start state needs), `fetch_tag_messages` (:355, the `oras manifest fetch` annotation read that \u00a718's `status` and its push annotation require), `login_to_ghcr` (:230) and `require_oras` (:205); \u00a718 names `release.py` as the source it copies but never names this owner, so the new module re-derives the registry conventions",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "3c91810cc4bf36ffd2268587a4a7fcfd25bcc18b4d144324fffb969b5d4cb06d",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 133,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261008T024025841107-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "8cb16bc2b8cb4acb93c691abfde1534aa5c295f4",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 one new module `imas_ambix/maps_cli.py` hides the registry protocol, the CLI state machine and the tree digest behind three commands (`release`, `pull`, `status`), and the machine-to-package table is placed with its sibling map constants in `imas_ambix/data/paths.py`.",
+    "duplicate_owner": "a finding \u2014 the oras tag listing, manifest-annotation read, ghcr login and oras presence check \u00a718 adds are already owned by `imas_codex/graph/ghcr.py` (`list_registry_tags` :335, `fetch_tag_messages` :355, `login_to_ghcr` :230, `require_oras` :205) and \u00a718 names no owner to extend or mirror.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a718's \"Accounting for the new surface\" paragraph names the installer pull path it retires by merging into `maps pull`, states that `release`/`status` are capabilities with no command to retire, and gives the reason the one added refusal cannot be retired.",
+    "reuse_search": "a finding \u2014 \u00a718 cites the state machine in `imas_codex/cli/release.py` but not `imas_codex/graph/ghcr.py`, which already owns the `oras repo tags` listing, the manifest-annotation read and the ghcr login the new map CLI is about to re-add; and the copied tag queries depend on a version ordering the git query supplied and the oras list does not.",
+    "thin_wrapper": "pass \u2014 `maps pull`/`maps release` justify themselves: \u00a718 merges `packages/imas-alambic/install/imasdb.sh`'s private `oras pull` into `maps pull --dest` so \"the registry, the auth form and the artifact type have one owner\", and it is that write path the section names."
+  },
+  "section_digests": {
+    "_document": "88699358b3d2d92850ed703fcdff17e9843d3253cc3d2cd660a8dc6a2bd62b5c",
+    "s1": "9c7f16d6433487c622ba43b590d60de6ac6689995d01dfbcf8d4ab1d1d24f6c3",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "40878323aab9328585648d85591fd96dc6fcd4f5beedd01abbe2f0b3b1e8e508",
+    "s12": "7dd2ae47a38480f8a23a4bd518d5e1b9f6772d559fde8fe9885a2c7095f8ea50",
+    "s13": "2741a581fa4af709b92ea8db4a8330d65807a7a8665bbbfd9b84a09145be00ba",
+    "s14": "00628004df0e643b97e5a73b8e6ec838a6a572c206b20aff261081968fae4bb6",
+    "s15": "2d28daaa30674a0926633cf0bde89e0177a31a0f037724f0631b6efb13df02ba",
+    "s16": "53ba0ba04529722b831f4846c272220c764bae0e8be3a17d7e2a02bfad4887c3",
+    "s17": "1c72b11004a93f7813cad93f7de13a1dd1d8f45bef1b0d7aca77b96851c0f1a3",
+    "s18": "dbad879e1ceb011f042129492d19267a0f4e7134432219267be9db7ba5804b5f",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "b1fac0701ea703406fed882189756b422b8bb52294039078259ccc18acf7cef0",
+    "s6": "7d596f31b4c60f8f55c421e2bdcb0d3f6de538cc99713c8d9b99700aad5e07ae",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "0d934ec479471ff9f711bc6e58ec9f2d0f07d4722593ff98c53426b2b509ecda",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T02:55:57.704862+00:00"
+}
