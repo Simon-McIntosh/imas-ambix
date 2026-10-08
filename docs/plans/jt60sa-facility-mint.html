@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="146">
+<meta name="plan-version" content="147">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -577,6 +577,9 @@
 </div>
 <div class="r-comment" data-section="s17" data-id="c-run-r-20261008T025657912608-jtfm-engine-test-description-root" data-who="reckon-build" data-when="2026-10-08T03:52:59.742Z">
     <div class="r-comment-body"><p>jt60sa-facility-mint §17 — the JT-60SA OP1 netCDF engine test now resolves its description store through the bundle declaration (MachineMapCatalog.description_store_root_path(), via the reachable jt-60sa bundle) and combines the bundle-reachability guard with its own store-presence check, so an absent store skips while a present but unreadable store fails; head arm passes 1 test / 12 coils (base arm skipped), full file 19 passed at head vs 18 passed 1 skipped at base, ruff exit 0.</p></div>
+</div>
+<div class="r-comment" data-section="s19" data-id="c-run-r-20261008T042112780370-jtfm-receipt-entry-index" data-who="reckon-build" data-when="2026-10-08T05:02:17.522Z">
+    <div class="r-comment-body"><p>WrittenLeaf carries target_index (the struct-array element _struct_array_index computes) and WriteReceipt.as_dict() writes it beside target_path; the coverage test now requires samples on exactly the entry each leaf names and accepts an empty time base on every unbound entry; head gate 68 passed (base 1 failed, 66 passed); the declared negative control fails on unbound flux_loop[0].</p></div>
 </div>
 </section>
 </main>
