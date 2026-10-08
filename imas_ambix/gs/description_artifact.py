@@ -15,9 +15,10 @@ shot ranges but one shared registry digest.
 The geometry, registry and shot-range identity is derived, and the operator-
 ready channel drives are authored from each phase's drive topology in
 ``machine_map.json``: one nova drive per ``pf_active`` coil, its channel taken
-from the phase's acquisition declaration and its weight from the topology's
-per-element ampere-turns.  The geometry field-evidence ledger is not authored
-here, so each phase artifact is created ``complete=False``, its
+from the phase's acquisition declaration and its weight the coil's total
+ampere-turns per ampere over the topology's connections.  The geometry
+field-evidence ledger is not authored here, so each phase artifact is created
+``complete=False``, its
 ``unresolved_gaps`` naming that absence, and it becomes ``complete`` only when
 the ledger is supplied -- which this producer does not do.
 
@@ -378,14 +379,20 @@ def _connections_by_coil(connections: Sequence[Any]) -> dict[str, tuple[Any, ...
 
 
 def _coil_drive_weight(coil: str, connections: Sequence[Any]) -> float:
-    """Return one coil's per-element ampere-turns per ampere.
+    """Return one coil's total ampere-turns per ampere.
 
-    Each connection declares ``turns * current_weight * direction``, the
-    per-element weight a consumer scales by.  A coil's elements are one winding
-    when they agree to within the catalogue's declared precision, and the
-    winding's weight is that single value; a coil whose elements disagree by
-    more is refused by name rather than averaged, because an averaged weight
-    stands for no element the description actually carries.
+    Each connection declares ``turns * current_weight * direction``.  The coil's
+    drive weight is their sum -- the ampere turns one ampere of the channel
+    drives through the whole coil, matching how
+    :func:`imas_ambix.data.geometry_adapter._materialise_circuit_drives` sums a
+    circuit.  A reader divides that total across the elements the drive names in
+    proportion to section area, so a per-element value here would cut the coil's
+    current by its element count.
+
+    A coil's elements are one winding when their per-element weights agree to
+    within the two-decimal rounding the catalogue carries; a coil whose elements
+    disagree by more is refused by name, because its connections do not describe
+    a symmetric winding and their sum would be unverifiable.
     """
     weights = [
         float(connection.turns)
@@ -399,7 +406,7 @@ def _coil_drive_weight(coil: str, connections: Sequence[Any]) -> float:
             f"pf_active coil {coil!r} elements disagree on the ampere-turns per "
             f"ampere: {sorted(set(weights))}"
         )
-    return sum(weights) / len(weights)
+    return sum(weights)
 
 
 def _phase_channel_drives(
@@ -410,9 +417,10 @@ def _phase_channel_drives(
     The channel is the current channel the coil's geometry element names stem to
     under the rule ``current_channel_from_conductors`` applies, accepted only
     when the phase's acquisition declaration lists it.  The elements are the
-    coil's own element indices, and the weight is the topology's per-element
-    ampere-turns.  Each drive's path points at an evidence record citing the
-    drive topology, so the manifest carries the provenance the weight needs.
+    coil's own element indices, and the weight is the coil's total ampere-turns
+    per ampere, which a reader divides across those elements by section area.
+    Each drive's path points at an evidence record citing the drive topology, so
+    the manifest carries the provenance the weight needs.
     """
     from nova.imas.machine_drive import (  # noqa: PLC0415
         SECTION_AREA,
@@ -485,9 +493,9 @@ def _phase_channel_drives(
                 first_shot=row.first_shot,
                 last_shot=row.last_shot,
                 statement=(
-                    f"one ampere of {channel} drives {weight:.6g} ampere turns, "
-                    f"the per-element weight the {row.drive_topology} drive "
-                    f"topology declares for coil {name}"
+                    f"one ampere of {channel} drives {weight:.6g} ampere turns "
+                    f"through coil {name}, the {row.drive_topology} drive "
+                    "topology's total over its connections"
                 ),
                 source=SourceReference(
                     title="JT-60SA machine map drive topology",

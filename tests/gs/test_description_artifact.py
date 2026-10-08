@@ -189,23 +189,24 @@ def test_each_drive_channel_is_in_the_phase_acquisition_declaration(baseline) ->
             assert drive.channel in channels, (phase, drive.channel)
 
 
-def test_cs1_drive_weight_is_the_connections_per_element_weight(baseline) -> None:
-    """CS1's weight is its connections' turns times current weight times direction."""
+def test_cs1_drive_weight_is_the_sum_over_its_connections(baseline) -> None:
+    """CS1's drive weight is the total ampere turns its connections declare."""
     rows, topologies, _ = _phase_map()
     topology = topologies[rows["OP1"]["drive_topology"]]
-    products = {
+    products = [
         connection["turns"] * connection["current_weight"] * connection["direction"]
         for connection in topology["connections"]
         if connection["circuit_identifier"] == "jt60sa-op1-circuit-cs1"
-    }
-    assert len(products) == 1, products
-    (product,) = products
+    ]
+    assert len(products) == 40, len(products)
+    total = sum(products)
+    assert total == pytest.approx(549.0)
     drive = next(
         drive
         for drive in baseline["OP1"].manifest.channel_drive
         if drive.conductor == "CS1"
     )
-    assert drive.ampere_turns_per_ampere == pytest.approx(product)
+    assert drive.ampere_turns_per_ampere == pytest.approx(total)
 
 
 def test_a_changed_cs1_turns_is_refused_by_coil_name(tmp_path) -> None:
@@ -244,6 +245,38 @@ def test_resolve_drives_resolves_one_drive_per_coil(baseline) -> None:
         assert {drive.conductor for drive in resolved} == set(
             _pf_active_coils(phase)
         ), phase
+
+
+def test_resolved_drives_carry_each_coils_total_xmult(baseline) -> None:
+    """The reader's area split of a drive's weight sums back to the coil total."""
+    from imas_ambix.gs.artifact_geometry import (
+        read_artifact_pf_active,
+        resolve_drives,
+    )
+
+    for phase in PHASES:
+        manifest = baseline[phase].manifest
+        resolved, _flags = resolve_drives(manifest, _phase_channels(phase))
+        store = da.DEFAULT_DESCRIPTION_ROOT / phase / "pf_active.nc"
+        with imas.DBEntry(str(store), "r", dd_version=da.DD_VERSION) as entry:
+            pf_active = entry.get("pf_active", autoconvert=False)
+        filaments, _sections, declared, _read_flags = read_artifact_pf_active(
+            pf_active, resolved
+        )
+        names = _pf_active_coils(phase)
+        for name in ("CS1", "EF1"):
+            drive = next(row for row in declared if row.conductor == name)
+            circuit = names.index(name)
+            total = sum(
+                filament.xmult
+                for filament in filaments
+                if filament.circuit == circuit
+            )
+            assert total == pytest.approx(
+                drive.ampere_turns_per_ampere, rel=1e-9
+            ), (phase, name, total, drive.ampere_turns_per_ampere)
+        cs1 = next(row for row in declared if row.conductor == "CS1")
+        assert cs1.ampere_turns_per_ampere == pytest.approx(549.0), phase
 
 
 def test_op1_shot_evidence_is_observed_and_op2_inherited(baseline) -> None:
