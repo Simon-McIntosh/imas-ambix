@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T08:11:48.896Z",
+  "dispatched_at": "2026-10-08T08:00:34Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-signal-figures-from-ids.html:78",
+      "id": "reasoning-1",
+      "reason": "a node reading the body as authority would treat \u00a74 as still deferred and not run, while a node reading the status runs now; the body must be reconciled with the release (or the release is premature).",
+      "text": "\u00a74 still reads \"Once \u00a78's rewrite lands, and not before, this section re-runs \u2026\" and its done-when at line 79 ends \"Deferred until \u00a78 lands\", yet the section is declared `implementable` (79c4ebbb) on the stated ground that \"Both pulses now carry the renamed differential entries, so the redraw's trigger is met\", and followup f-jsfi-004 records \"jt60sa-pulse-ids \u00a78 rewrote both pulses with the FL<L>-FL7 names (merged b406677c)\" \u2014 so the body conditions the run on a trigger the plan elsewhere records as already met",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-signal-figures-from-ids.html:79",
+      "id": "evidence_paths-1",
+      "reason": "\u00a74's only evidence that the redrawn panels equal the IDS rests on an artifact a later reader cannot open, so the node should commit the check (or \u00a74 should name a durable path for it) or the same durability gap that \u00a72 was marked down for recurs and the element measure is unverifiable from the repository.",
+      "text": "\u00a74's done-when depends on \"The check from \u00a72 \u2026 re-run\", but \u00a72's own landed record (`docs/evidence/archive/jt60sa-signal-figures-from-ids-landed.html`) states \"The check script ran from the worker's scratch directory, so its logs are the record\", and its independent review scored durability 12/20 for exactly this (\"the element check lives in /tmp scratch and no committed gate guards the figure calls\"); no committed check exists (no test or script under `tests/` or `scripts/` performs the panel-vs-IDS equality check), so \u00a74 presupposes re-using a check whose source is already gone and does not require it to be committed",
+      "type": "evidence_paths",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "eb75d15eba4b8b641683ea8e220404073683980d1d64d078790b4a945933a9a4",
+  "plan_slug": "jt60sa-signal-figures-from-ids",
+  "plan_version": 37,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261008T080024215000-plan-review-of-jt60sa-signal-figures-from-ids",
+  "reviewed_blob_sha": "70c041ad2423397c4d7685d6fd9e089848167c64",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `jt60sa-pulse-ids.html#s8`, the `jt60sa-differential-flux-loops` decision, `scripts/figures_jt60sa_signals.py`, `imas_ink.extract_signal_traces` and the DD path all resolve; the one unresolved name is the \u00a72 check, raised under evidence_paths.",
+    "done_when": "pass \u2014 \u00a74 names a measurable done-when (27 panels, FL7 first then the 26 differential entries in index order, byte-identical coil-current and probe SVGs, element-for-element equality) and a declared negative control (negating one differential panel before the figure call fails its equality check).",
+    "evidence_paths": "a finding \u2014 \u00a74's central check is \"the check from \u00a72\", which by \u00a72's own record ran from a worker scratch directory and is not committed anywhere, so the plan names a check no later reader can open.",
+    "naming": "pass \u2014 no plan labels, ticket numbers or version tags reach symbols or comments; `FL<L>-FL7` are IDS names and \u03c8_L is physics notation.",
+    "reasoning": "a finding \u2014 \u00a74's body asserts the section is deferred until \u00a78 lands, but its own record (79c4ebbb, f-jsfi-004) treats \u00a78's rewrite as merged, so the section contradicts the state it was released into.",
+    "single_goal": "pass \u2014 \u00a74 carries one deliverable, the flux-loop SVG redraw from the differential entries.",
+    "wiring": "pass \u2014 the section's `jt60sa-pulse-ids#s8` dependency and the plan's `imas-ink:ids-signal-traces` dependency both name nodes that exist; no relationship points at the wrong node."
+  },
+  "section_digests": {
+    "_document": "5a8ea84299547c5a58cce9faf1450d1aa6aa748ce8916783d5a686c144fcc2dc",
+    "s1": "8cc1fc171352c18ac739b983fe55145c39f922e6a6e144dd81cf938653d2845d",
+    "s2": "fc4daf44641a035f6ef2fe1ac229811b3fe01215fb262370abe39533d38afd8a",
+    "s3": "d094bd911e0ef5845f9b6fa508f0370125201199f3a3f5078285339b7bd30a8a",
+    "s4": "e1173299ea4bee1ff5ae4ae1c9ae54b043bd6971dc9aa8cee6597fd8e86feeb1"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T08:13:17.110787+00:00"
+}
