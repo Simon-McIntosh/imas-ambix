@@ -1,0 +1,105 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T16:39:00.734Z",
+  "dispatched_at": "2026-10-08T16:30:53Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:720",
+      "id": "anchors_resolve-1",
+      "reason": "the plan points at two different bundle roots and only one resolves, so a node acting on the decision or \u00a71 would read or write a nonexistent path while \u00a77's own nodes use the other.",
+      "text": "the map-persistence decision (and \u00a71 at :78) states the JT-60SA maps \"live only in the private bundle at /work/projects/imas_gpu/jt60sa/maps\", but that directory does not exist; \u00a77 (:462, :494) and the 2026-10-08 landing log (:1590) cite the repository's maps/jt-60sa/, where bundle.json, machine_map.json and maps/ actually live",
+      "type": "anchors_resolve",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:1521",
+      "id": "evidence_paths-1",
+      "reason": "a reclaimed worktree path cannot be opened by a later reader, so the plan's cited evidence is unreachable and should name docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-consumers.html.",
+      "text": "the jtmm-differential-loop-consumers fragment is cited by its transient worktree path under .reckon-worktrees/<hash>/<uuid>/ rather than a repo-relative evidence path",
+      "type": "evidence_paths",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:568",
+      "id": "done_when-1",
+      "reason": "a node can satisfy \u00a77's stated done-when with the psi binding wrong or absent, so the psi deliverable needs its own measurand (for example the bound psi compared against E101011's G-EQDSK, the one psi reference the section already names) before the section can be closed.",
+      "text": "\u00a77's done-when measures only the reconstruction stamp, which the section states is produced \"using only the mapped pf_active, pf_passive, tf and magnetics data\" (:532), so the section's equilibrium/profiles_2d psi binding (:284, \"beginning with psi\") has no measurable done-when or negative control",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "b539505429c0fb49eba23991a6d48f83cb5acc72fe2a347496d9ec6f50efcba5",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 404,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "anchors_resolve-1",
+      "reason": "Plan v405 + 9d9226aa: section 1 and the map-persistence decision context now name the repository's gitignored maps/jt-60sa/ and the GHCR package ghcr.io/simon-mcintosh/imas-alambic-jt60sa; the remaining /work mentions are dated historical comments, accurate when written.",
+      "when": "2026-10-08T16:40:41.168332+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "evidence_paths-1",
+      "reason": "9d9226aa: the jtmm-differential-loop-consumers landing comment now cites docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-consumers.html, which exists in the repository.",
+      "when": "2026-10-08T16:40:41.173501+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "done_when-1",
+      "reason": "Plan v405: section 7's done-when gains a psi-binding check: E101011's psi read through the binding agrees with its G-EQDSK psi on the G-EQDSK grid in COCOS 17 to under 1% of the psi range, and the sign-flipped binding must fail it.",
+      "when": "2026-10-08T16:40:41.175253+00:00"
+    }
+  ],
+  "responses": {
+    "anchors_resolve-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v405 + 9d9226aa: section 1 and the map-persistence decision context now name the repository's gitignored maps/jt-60sa/ and the GHCR package ghcr.io/simon-mcintosh/imas-alambic-jt60sa; the remaining /work mentions are dated historical comments, accurate when written.",
+      "when": "2026-10-08T16:40:41.168332+00:00"
+    },
+    "done_when-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v405: section 7's done-when gains a psi-binding check: E101011's psi read through the binding agrees with its G-EQDSK psi on the G-EQDSK grid in COCOS 17 to under 1% of the psi range, and the sign-flipped binding must fail it.",
+      "when": "2026-10-08T16:40:41.175253+00:00"
+    },
+    "evidence_paths-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "9d9226aa: the jtmm-differential-loop-consumers landing comment now cites docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-consumers.html, which exists in the repository.",
+      "when": "2026-10-08T16:40:41.173501+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v404.json",
+  "review_run_id": "r-20261008T163017672990-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "ece3b66d6ac93081beb940e89adeac68f4044a80",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 the map-persistence decision and \u00a71 cite /work/projects/imas_gpu/jt60sa/maps, which does not exist; \u00a77 and the 2026-10-08 landing log cite the repository's maps/jt-60sa/.",
+    "done_when": "a finding \u2014 \u00a77's equilibrium/profiles_2d psi bindings, its first named deliverable, carry no measure; the section's only done-when is the reconstruction stamp, produced from coil and magnetics data alone.",
+    "evidence_paths": "a finding \u2014 the jtmm-differential-loop-consumers fragment is cited by a transient reckon worktree path that will not survive the run.",
+    "naming": "pass \u2014 code symbols cited are mechanism names (_target_cocos_transformation, resolve_machine_description, PINNED_PHYSICAL_DIGEST); plan/node ids (jtmm-*) appear only in plan prose, not as code names.",
+    "reasoning": "pass \u2014 the psi/q source root cause matches the cited PSRC inventory, the SELENE-loader mechanism reaches the seam's caller (read_efit_geometry loader=...), and each section's mechanism produces its stamp done-when.",
+    "single_goal": "pass \u2014 each named build node in \u00a77 (producer, registry, machine-keyed selection, drive map) carries one deliverable.",
+    "wiring": "pass \u2014 the two evidence gates carry correct data-section/data-gated-sections (conventions-before-equilibrium gated-sections=\"s7\"; g-jt60sa-machine-map-1 section/gated \"s5\"), plan-blocks names the dependent plan, and the \u00a76\u2192\u00a77 dependency is carried by the conventions gate."
+  },
+  "section_digests": {
+    "_document": "1a041e1b69e7c648e3848440450d2aa25ac955ec54bdbca27a0558b3e2fb8c3a",
+    "s1": "52731ac311aa8ac6ed57dc5f58a5868e5f9e2e34b4e132f297830fa912abbc0f",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "0a0be3bc1437ae97368662dfc8f8b432fd51b802473015c4282044d668f4f856",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T16:40:41.165374+00:00"
+}
