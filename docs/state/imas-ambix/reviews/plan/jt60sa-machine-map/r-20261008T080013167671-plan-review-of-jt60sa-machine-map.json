@@ -1,0 +1,83 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T08:13:12.734Z",
+  "dispatched_at": "2026-10-08T08:00:55Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:706",
+      "id": "reasoning-1",
+      "reason": "a worker reading the stale sentence treats the kernel's equilibrium half as unfeedable and may not wire E101011's `EfitLabels` into `read_signal_map_observation`/`measure_convention`, defeating the one row this change exists to add.",
+      "text": "\"The sign kernel's equilibrium half reads an EfitLabels, so it has no JT-60SA source yet\" is contradicted by the new paragraph added in this same change (plan.html:936-943), which has `jtmm-e101011-psi-row` read E101011's G-EQDSK \"through the `eqdsk` package into an `EfitLabels` record, and add that row to the cohort\" \u2014 i.e. the kernel's equilibrium half now has precisely the JT-60SA `EfitLabels` source the sentence says it lacks",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:1304",
+      "id": "wiring-1",
+      "reason": "either the gate's required evidence and section 6's done-when must admit a declared-with-basis COCOS (as written they cannot be satisfied), or section 7's psi binding is blocked by the plan's own gate and a worker closing it would be writing a psi binding the gate forbids.",
+      "text": "the gate `conventions-before-equilibrium` (data-section s7) requires \"the source COCOS is identified from data\" and names \"the identified source COCOS\" as its evidence, but decision `jt60sa-source-cocos` (plan.html:1453) states sigma_R_phi_Z \"is not measurable from these signals\" and fixes it by owner declaration; section 7's psi binding is written \"once section 6's sign report names the source COCOS\" so it rests on a declared, not identified, convention",
+      "type": "wiring",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "3aa5bf229265fdb0607b14ad7b4bfac2fce4f7613becbb7891679ff5d191ad56",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 362,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reasoning-1",
+      "reason": "plan v363: section 6 names E101011 G-EQDSK as the sign kernel one JT-60SA psi source, passed to read_signal_map_observation by jtmm-e101011-psi-row",
+      "when": "2026-10-08T08:15:18.000327+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "wiring-1",
+      "reason": "plan v364: the conventions-before-equilibrium gate and section 6 done-when ask for each coefficient identified from data where measurable and sigma_R_phi_Z declared under jt60sa-source-cocos",
+      "when": "2026-10-08T08:15:18.004170+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "plan v363: section 6 names E101011 G-EQDSK as the sign kernel one JT-60SA psi source, passed to read_signal_map_observation by jtmm-e101011-psi-row",
+      "when": "2026-10-08T08:15:18.000327+00:00"
+    },
+    "wiring-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "plan v364: the conventions-before-equilibrium gate and section 6 done-when ask for each coefficient identified from data where measurable and sigma_R_phi_Z declared under jt60sa-source-cocos",
+      "when": "2026-10-08T08:15:18.004170+00:00"
+    }
+  },
+  "review_run_id": "r-20261008T080013167671-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "a3e70e934dac495e181a02d04815ab332be4aae5",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 verified in the worktree: `imas_ambix/gs/operator.py` (`build_operator`, `ForwardOperator.vacuum_prediction`, `assemble_pf_currents`), `packages/imas-alambic/src/imas_alambic/transform_engine.py` (`_apply_cocos_convention` with its `pol_angle_like` branch), `.../cocos.py` (`canonical_factor`, `project_poloidal_field`), `imas_ambix/challenge/convention.py` (`measure_convention`, `_integrated_current`), `imas_ambix/eval/efit_referee.py` (`judge_geometry`, `read_efit_geometry`), `imas_ambix/spine_bench/shots.py` (`FROZEN_SHOTSET`, `SHOTSET_VERSION`), and `jt60sa-facility-mint` \u00a717/\u00a718 all resolve; the `eqdsk` 0.8.0 read claims reproduce (`EQDSK_EXTENSIONS = [\".eqdsk\", \".eqdsk_out\", \".geqdsk\"]`, so `.DATA` is refused and `.geqdsk` is accepted; `eqdsk` is installed and required by `torax 1.1.1`; the package's own `COCOS.C1` is exactly `sign_Bp=+1, exp_Bp=0, sign_R_phi_Z=+1, sign_rho_theta_phi=+1`, matching the decision's description); `docs/mast-imas-cocos-evaluation.html` and `maps/jt-60sa/` exist.",
+    "done_when": "pass \u2014 section 6's measure (sign report over >=3 vacuum and >=3 plasma shots naming the source COCOS, per-channel slope and correlation, and every unvalidated channel with its reason, plus the unit audit) is falsifiable, and section 7 carries the flipped-loop-7 must-fail control added at the prior review.",
+    "evidence_paths": "pass \u2014 the new node writes the G-EQDSK to `/work/projects/imas_gpu/jt60sa/101011.geqdsk` (durable GPFS) and one evidence fragment, not a scratch or node-local path.",
+    "naming": "pass \u2014 the changed prose carries no plan label, ticket number or version tag into a code symbol, and the version tags it names (GHCR `v0.1.0`, `v0.2.0-rc1/rc2`) are release-artifact data, not source.",
+    "reasoning": "a finding \u2014 section 6 still asserts the sign kernel's equilibrium half has no JT-60SA source, while the same section's new node supplies exactly that source.",
+    "single_goal": "pass \u2014 each node in the changed units names one deliverable (`jtmm-e101011-psi-row` reads one shot's G-EQDSK into one cohort row; its pyproject declaration is the same import's durability, not a second goal).",
+    "wiring": "a finding \u2014 the gate `conventions-before-equilibrium` requires the source COCOS be \"identified from data\" before any section 7 psi binding, but the new decision `jt60sa-source-cocos` resolves sigma_R_phi_Z by owner declaration, not measurement."
+  },
+  "section_digests": {
+    "_document": "6b28b82f81c98fec417ae630ceca15ccf10cc4409c6ffba078fdc67b06e51f9d",
+    "s1": "52731ac311aa8ac6ed57dc5f58a5868e5f9e2e34b4e132f297830fa912abbc0f",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "8408a9e3a5e6ee54101018af91b16706d2d8bfde672bae149f09e5d86993cbd9",
+    "s7": "8f069fd5099db14abeaf3c3d385fa65cf1c124382f9efff94876b3bdc6a81d37",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T08:15:17.557862+00:00"
+}
