@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T08:29:01.955Z",
+  "dispatched_at": "2026-10-08T08:16:59Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-signal-figures-from-ids.html:78",
+      "id": "reasoning-1",
+      "reason": "an \"unchanged\" instruction should instead require the module docstring be updated to the new labels and sign, otherwise \u00a74's landing leaves a false description inside the very file it runs.",
+      "text": "\u00a74 says it \"re-runs `scripts/figures_jt60sa_signals.py` unchanged\", yet that file's module docstring (`scripts/figures_jt60sa_signals.py:4-5` \"draws the 27 `magnetics/flux_loop/flux` traces FL1-FL27\"; `:13-15` \"loop 7 is absolute and every other loop is the measured difference relative to loop 7, stored with its measured sign\") describes the pre-\u00a74 output, so an unchanged re-run lands a figure whose own docstring is false: the panels are labelled `FL1-FL7 \u2026 FL27-FL7` and the stored value is the data dictionary's `\u03c8_L \u2212 \u03c8_7`, not the measured sign",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "2e157ff7519de46aedaa7337a12a172c80ba87371a3eb765cac945eb76819848",
+  "plan_slug": "jt60sa-signal-figures-from-ids",
+  "plan_version": 40,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261008T081647438936-plan-review-of-jt60sa-signal-figures-from-ids",
+  "reviewed_blob_sha": "c0404271086f827fb9b5248a5bfd51103542993f",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 the cited merge `b406677c` resolves, and the cited `scripts/...`/`extract_signal_traces` mechanism exists and behaves as the section states.",
+    "done_when": "pass \u2014 the done-when names a measured 27-panel count, the exact run-file entries (6, 27, 52) the check compares, byte-identical sibling figures, and a negative control (negating one differential panel's trace fails its equality check) that can fail.",
+    "evidence_paths": "pass \u2014 the check script and its log are placed in the run's own directory under `~/.config/reckon/crew/runs/` (GPFS), replacing \u00a72's scratch-directory check.",
+    "naming": "pass \u2014 \u00a74 is prose; it introduces no code symbols and carries no plan labels, ticket numbers or version tags.",
+    "reasoning": "a finding \u2014 the section asserts the script re-runs \"unchanged\", but the script's own module docstring will then describe the superseded labels and sign.",
+    "single_goal": "pass \u2014 \u00a74 carries one deliverable: redraw the flux-loop figures from the differential entries.",
+    "wiring": "pass \u2014 \u00a74's declared dependency (`plan-section-depends-on` \u2192 `jt60sa-pulse-ids#s8`) resolves to that plan's \u00a78, which is `done`, and the run files \u00a74 reads carry the renamed differential entries the section requires."
+  },
+  "section_digests": {
+    "_document": "5a8ea84299547c5a58cce9faf1450d1aa6aa748ce8916783d5a686c144fcc2dc",
+    "s1": "8cc1fc171352c18ac739b983fe55145c39f922e6a6e144dd81cf938653d2845d",
+    "s2": "fc4daf44641a035f6ef2fe1ac229811b3fe01215fb262370abe39533d38afd8a",
+    "s3": "d094bd911e0ef5845f9b6fa508f0370125201199f3a3f5078285339b7bd30a8a",
+    "s4": "ed5f5d1d104f48c546aa5394a2c22778ca9a42982c3682461ce867ded5fcfa81"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T08:30:15.444282+00:00"
+}
