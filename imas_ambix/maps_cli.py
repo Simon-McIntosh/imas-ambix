@@ -438,6 +438,8 @@ def release(machine: str, bump: str | None, final: bool, message: str | None) ->
         return
 
     version = compute_next_version(bump, final=final, tags=tags)
+    bundle_path = machine_dir / BUNDLE_NAME
+    original_bundle = bundle_path.read_bytes()
     write_released_version(machine_dir, version)
 
     annotations = {
@@ -449,10 +451,17 @@ def release(machine: str, bump: str | None, final: bool, message: str | None) ->
     if message:
         annotations[ANNOTATION_DESCRIPTION] = message
 
-    with tempfile.TemporaryDirectory(prefix="ambix-maps-release-") as staging_dir:
-        staging = Path(staging_dir)
-        stage_bundle(machine_dir, staging, version)
-        push_tree(_ref(registry, pkg_name, version), staging, annotations, token)
+    try:
+        with tempfile.TemporaryDirectory(prefix="ambix-maps-release-") as staging_dir:
+            staging = Path(staging_dir)
+            stage_bundle(machine_dir, staging, version)
+            push_tree(_ref(registry, pkg_name, version), staging, annotations, token)
+    except Exception:
+        # The registry never received this version, so the local descriptor must
+        # not name it; put back the bytes the call found rather than a version
+        # that matches no released tag.
+        bundle_path.write_bytes(original_bundle)
+        raise
     click.echo(f"{machine}: released {version} ({registry}/{pkg_name}).")
     click.echo(f"  tree digest: {digest}")
 

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-facility-mint">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtfm-release-failed-push-landing">
+      <p><code>release</code> now restores the local <code>bundle.json</code> bytes when the
+      registry push raises, so a version that never reached the registry is never named
+      locally. <code>tests/test_maps_cli.py</code> grew a stubbed failed push asserting the
+      version field is unchanged; the tree-digest annotation is compared against a digest
+      fixed for the fixture tree rather than recomputed on it; and the no-git-tag test
+      records <code>subprocess</code> calls and fails on any <code>git tag</code>, after
+      showing the recorder sees the <code>git rev-parse</code> the module does run. Suite
+      whole: 26 passed at base, 27 passed at head. Negative control: with the restore removed
+      the suite is 1 failed, 26 passed — the failed-push test alone, with
+      <code>bundle.json</code> left reading <code>v0.2.0-rc1</code>.</p>
+    </section>
+  </main>
+</body>
+</html>

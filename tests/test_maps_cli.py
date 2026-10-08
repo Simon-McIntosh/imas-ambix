@@ -11,6 +11,7 @@ module sorts it newest first before reading "the latest tag".
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -34,8 +35,11 @@ from imas_ambix.maps_cli import (
 class FakeRegistry:
     """A registry whose tags, annotations and pushes live in memory."""
 
-    def __init__(self, tags: list[str] | None = None) -> None:
+    def __init__(
+        self, tags: list[str] | None = None, *, fail_push: bool = False
+    ) -> None:
         self.raw_tags = list(tags or [])
+        self.fail_push = fail_push
         self.annotations: dict[str, dict[str, str]] = {}
         self.pushes: list[tuple[str, dict[str, str]]] = []
 
@@ -51,6 +55,8 @@ class FakeRegistry:
             return {tag: dict(self.annotations.get(tag, {})) for tag in tags}
 
         def push_tree(ref, staging, annotations, token):
+            if self.fail_push:
+                raise RuntimeError("registry refused the push")
             self.pushes.append((ref, dict(annotations)))
             tag = annotations["org.opencontainers.image.version"]
             self.raw_tags.append(tag)
@@ -206,8 +212,35 @@ def test_release_pushes_the_next_version_with_its_annotations(
     assert ref.endswith("/imas-alambic-jt60sa:v0.2.0-rc1")
     assert annotations["io.imas-ambix.machine"] == "jt-60sa"
     assert annotations["org.opencontainers.image.version"] == "v0.2.0-rc1"
-    assert annotations["io.imas-ambix.tree-digest"] == tree_digest(maps_dir / "jt-60sa")
+    # A digest fixed for the fixture tree rather than recomputed on it here: a
+    # recomputation would agree with any digest rule, so it could not catch a
+    # change to how tree_digest hashes the published files.
+    assert (
+        annotations["io.imas-ambix.tree-digest"]
+        == "df450b7015b8c06ded34cc5df6dcc5c2a91e1658e3018661af3bb96f83af53e0"
+    )
     assert "v0.2.0-rc1" in (maps_dir / "jt-60sa" / "bundle.json").read_text()
+
+
+def test_release_leaves_the_bundle_version_when_the_push_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    maps_dir = tmp_path / "maps"
+    machine_dir = maps_dir / "jt-60sa"
+    write_tree(machine_dir, version="2026.10.07")
+    monkeypatch.setattr(maps_cli, "MAPS_DIR", maps_dir)
+    registry = FakeRegistry(["2026.10.07", "v0.1.0"], fail_push=True)
+    registry.install(monkeypatch)
+    before = json.loads((machine_dir / "bundle.json").read_text())
+
+    result = CliRunner().invoke(
+        maps_cli.maps, ["release", "jt-60sa", "--bump", "minor"]
+    )
+
+    assert result.exit_code != 0
+    after = json.loads((machine_dir / "bundle.json").read_text())
+    assert registry.pushes == []
+    assert after["version"] == before["version"] == "2026.10.07"
 
 
 def test_release_skips_the_push_when_the_tree_digest_is_unchanged(
@@ -237,8 +270,22 @@ def test_release_creates_no_git_tag(
     monkeypatch.setattr(maps_cli, "MAPS_DIR", maps_dir)
     registry = FakeRegistry(["v0.1.0"])
     registry.install(monkeypatch)
-    CliRunner().invoke(maps_cli.maps, ["release", "jt-60sa", "--bump", "minor"])
-    assert all("git" not in ref for ref, _ in registry.pushes)
+    commands: list[list[str]] = []
+
+    def recording_run(command, *args, **kwargs):
+        commands.append(list(command))
+        return subprocess.CompletedProcess(command, 0, stdout="0" * 40, stderr="")
+
+    monkeypatch.setattr(maps_cli.subprocess, "run", recording_run)
+    result = CliRunner().invoke(
+        maps_cli.maps, ["release", "jt-60sa", "--bump", "minor"]
+    )
+
+    assert result.exit_code == 0, result.output
+    # The recorder is shown to see the git call the module does make, so its
+    # silence on ``git tag`` is an observation and not an empty list.
+    assert any(command[:2] == ["git", "rev-parse"] for command in commands)
+    assert not any(command[:2] == ["git", "tag"] for command in commands), commands
 
 
 def test_pull_defaults_to_the_latest_stable_tag(
