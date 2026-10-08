@@ -1,0 +1,356 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "5bef753dd9ba27758d58f01268824a048cae06d8",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "no events yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": null,
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 52,
+    "files": 2,
+    "removed": 25
+  },
+  "clone_matches": [],
+  "commit_resolution": null,
+  "commits": [
+    "655cfc5b222bf882021b6349141594d13f6882c2"
+  ],
+  "completed_at": "2026-10-08T04:11:58.043Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-08T03:53:45Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": {
+    "reason": "model_span_unavailable_at_promotion",
+    "status": "underivable"
+  },
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/data/test_jt60sa_unit_audit.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T035305718585-jtmm-unit-inventory-reach/gate-unit-audit.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.83,
+    "plan": "jt60sa-machine-map",
+    "reason": "corrective-run:repairs:r-20261008T031133939777-jtmm-unit-inventory-count",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-08T04:23:20.129415+00:00",
+    "horizon_seconds": 1800,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": "clive",
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-08T03:53:20Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 7,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 11,
+    "headroom": 8,
+    "mean_context": 133333,
+    "observed_at": "2026-10-08T03:53:13Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 7,
+      "aggregate_tokens_per_second": 413.66,
+      "detail": "",
+      "mean_tokens_per_second": 41.366,
+      "observed_at": "2026-10-08T03:53:13Z",
+      "runs": 10.0,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-08T04:11:58.043Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T035305718585-jtmm-unit-inventory-reach/manifest.md",
+  "member": "disposable-r-20261008T035305718585-jtmm-unit-inventory-reach",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/data/test_jt60sa_unit_audit.py::test_audit_reports_the_declared_unit_pair_inventory"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "after_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/data/test_jt60sa_unit_audit.py::test_audit_reports_the_declared_unit_pair_inventory"
+    ],
+    "declaration": "Making the audit's signal traversal skip the tf system makes the inventory test fail, logged with a non-zero EXIT and the failing test id",
+    "head_failure_ids": [],
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T035305718585-jtmm-unit-inventory-reach/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T035305718585-jtmm-unit-inventory-reach/negative-control.log",
+    "test_paths": [
+      "tests/data/test_jt60sa_unit_audit.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "jtmm-unit-inventory-reach",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 618,
+          "cached_input_tokens": 652299,
+          "input_tokens": 652919,
+          "output_tokens": 1401,
+          "reasoning_output_tokens": 331,
+          "total_tokens": 654320,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "c66d1ea6-525d-4cec-8114-013919000083",
+      "session_id": "c66d1ea6-525d-4cec-8114-013919000083"
+    },
+    "done_when": "In tests/data/test_jt60sa_unit_audit.py, test_audit_reports_the_declared_unit_pair_inventory replaces its two traversal-against-traversal count comparisons with checks that can fail. The machine half's audited count equals the catalogue's own MachineMapCatalog.bound_channel_count, read through that property rather than re-summed inline. The set of signal systems the audit yields rules from equals SYSTEMS, with every system contributing at least one rule, so an audit that skips one system fails even when the totals of the two traversals agree. It keeps set(pairs) == set(HAND_FACTORS). Only that test file changes and nothing under maps/ is written. On the fleet allocation (SLURM_JOB_ID set), with IMAS_ALAMBIC_MAP_PATH unset and the worktree's maps a symlink to the main checkout's maps/, uv run --no-sync pytest -p no:cacheprovider tests/data/test_jt60sa_unit_audit.py exits 0, captured once to a log with the revision and command on its first lines, and uv run --no-sync ruff check imas_ambix tests exits 0. A landing fragment is written to the fragment path.",
+    "estimated_hours": null,
+    "goal": "Make the unit-pair inventory test detect a catalogue or signal system the audit fails to reach",
+    "id": "jtmm-unit-inventory-reach",
+    "lane_declaration": {
+      "backend": "clive",
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-08T03:53:20Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 7,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 11,
+      "headroom": 8,
+      "mean_context": 133333,
+      "observed_at": "2026-10-08T03:53:13Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 7,
+        "aggregate_tokens_per_second": 413.66,
+        "detail": "",
+        "mean_tokens_per_second": 41.366,
+        "observed_at": "2026-10-08T03:53:13Z",
+        "runs": 10.0,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T035305718585-jtmm-unit-inventory-reach/manifest.md",
+    "negative_control": "Making the audit's signal traversal skip the tf system makes the inventory test fail, logged with a non-zero EXIT and the failing test id",
+    "plan": "jt60sa-machine-map",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§6",
+    "spec_level": "exact",
+    "time_budget": "30m",
+    "token_budget": null,
+    "write_paths": [
+      "tests/data/test_jt60sa_unit_audit.py",
+      "docs/evidence/fragments/jt60sa-machine-map/jtmm-unit-inventory-reach.html",
+      "docs/figures/jt60sa-machine-map/jtmm-unit-inventory-reach"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": 1631280.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "jtmm-unit-inventory-reach",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-08T03:53:27.902584+00:00",
+    "score": 0.49375,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "fallback",
+    "backend": null,
+    "comment": "",
+    "confidence": null,
+    "effort": null,
+    "excluded": [],
+    "fallback_reason": "timeout",
+    "family": null,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 5000.401,
+    "model": null,
+    "offered": [],
+    "probabilities": {}
+  },
+  "plan": "jt60sa-machine-map",
+  "plan_impl_at_dispatch": 0.83,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "655cfc5b222bf882021b6349141594d13f6882c2",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "5bef753dd9ba27758d58f01268824a048cae06d8",
+    "reviewed_head_sha": "655cfc5b222bf882021b6349141594d13f6882c2",
+    "scores": {
+      "durability": 14,
+      "evidence": 12,
+      "fit": 17,
+      "goal_fidelity": 15,
+      "reuse": 19,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 97
+  },
+  "review_tier": "none",
+  "role": "implement",
+  "route_mode": "shadow",
+  "run_id": "r-20261008T035305718585-jtmm-unit-inventory-reach",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§6",
+  "session": "c66d1ea6-525d-4cec-8114-013919000083",
+  "session_harness": "claude",
+  "session_id": "468d22fe-3fc5-408a-b06e-0485007e995a",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "time_budget": "30m",
+  "tool_steps": 48.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 1093,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-08T04:12:29Z",
+    "last_record_type": "system",
+    "launched_at": "2026-10-08T03:53:58Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261008T035305718585-jtmm-unit-inventory-reach",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 3602,
+    "worker_pid": 647523
+  },
+  "worker_seconds": 1050,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
