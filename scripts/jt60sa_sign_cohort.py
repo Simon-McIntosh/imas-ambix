@@ -141,6 +141,7 @@ def _apply_style() -> None:
             "ytick.labelsize": 20,
             "legend.fontsize": 20,
             "axes.linewidth": 1.2,
+            "svg.hashsalt": "jt60sa-vacuum-channel-slope",
         }
     )
 
@@ -208,7 +209,7 @@ def write_vacuum_figure(vacuum: dict, path: Path) -> Path:
     axes.legend(frameon=False, loc="upper left")
     figure.tight_layout()
     path.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(path, format="svg")
+    figure.savefig(path, format="svg", metadata={"Date": None})
     plt.close(figure)
     return path
 
