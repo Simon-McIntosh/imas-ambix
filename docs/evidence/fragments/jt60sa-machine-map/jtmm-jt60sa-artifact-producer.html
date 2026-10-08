@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <section id="jtmm-jt60sa-artifact-producer-landing">
+      <h3>The JT-60SA artifact producer</h3>
+      <p>A single public entry,
+      <code>imas_ambix/gs/description_artifact.py::author_jt60sa_machine_artifacts</code>,
+      authors one verified machine artifact for each JT-60SA operating phase
+      (<code>OP1</code>, <code>OP2</code>) from the phase description stores under
+      <code>maps/jt-60sa/machine_description/</code>. It reads each phase's five IDSs
+      through imas, writes them into a fresh IMAS HDF5 entry
+      (<code>imas:hdf5?path=&lt;staging dir&gt;</code>, mode <code>"x"</code>) &mdash; the
+      directory form <code>MachineArtifactGeometryReader</code> opens and the same
+      form nova's <code>nova/imas/mast_geometry.py::write_and_reopen</code> produces
+      &mdash; and calls nova's generic layer to assemble, materialize and resolve the
+      manifest. Only the five IDSs are staged, so the store's converter
+      <code>receipt.json</code> and the source netCDF files are never artifact
+      members: the netCDF is re-written in the IMAS HDF5 form rather than copied.</p>
+
+      <p>The identity the manifest carries is <strong>derived, not accepted as
+      input</strong>. One registry digest is built over a JT-60SA geometry registry
+      spanning both phases; each phase's physical digest comes from that phase's own
+      geometry content, taken through the same extractors the geometry reader uses
+      &mdash; not from the container bytes, so library write metadata does not move it;
+      each phase's shot range comes from that phase's <code>first_shot</code> and
+      <code>last_shot</code> in the packaged <code>machine_map.json</code>, and each
+      artifact is written <code>complete</code> with no unresolved gaps.</p>
+
+      <figure id="jtmm-jt60sa-artifact-producer-figure-pipeline">
+        <img src="/imas-ambix/figures/jt60sa-machine-map/jtmm-jt60sa-artifact-producer/authoring-pipeline.svg" alt="The authoring pipeline: two phase description stores read into a geometry payload, one shared registry over both phases, a staged IMAS HDF5 entry per phase, and nova's generic manifest/materialize/resolve layer writing a verified cache directory">
+        <figcaption>How one public entry turns the two phase stores into two verified
+        artifacts. The physical digest is taken from the geometry payload (content),
+        the registry digest from the one registry spanning both phases, and the shot
+        ranges from the packaged catalogue; the staged IMAS HDF5 entry &mdash;
+        <code>master.h5</code> plus one <code>&lt;ids&gt;.h5</code> per IDS &mdash; is the
+        member set the manifest packs.</figcaption>
+      </figure>
+    </section>
+
+    <section id="jtmm-jt60sa-artifact-producer-identities">
+      <h3>The identity each phase carries</h3>
+      <p>Authored from the packaged stores at data dictionary
+      <code>4.1.1</code>; the values below are read back from the resolved
+      manifests. The two phases carry <strong>different physical digests</strong>,
+      <strong>one shared registry digest</strong>, and <strong>disjoint shot
+      ranges</strong>.</p>
+      <table>
+        <thead>
+          <tr><th>phase</th><th>semantic identity</th><th>physical digest</th><th>registry digest</th><th>shot range</th><th>OCI tag</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>OP1</code></td>
+            <td><code>sha256:1c1c5f430d90940637619c397d5036883b61861f0cd87de367a5f9930464442e</code></td>
+            <td><code>f4ba9a35aab22485</code></td>
+            <td><code>5ed87773a386&hellip;f80873</code></td>
+            <td>100001&ndash;101173</td>
+            <td><code>dd-4.1.1-physical-f4ba9a35aab22485</code></td>
+          </tr>
+          <tr>
+            <td><code>OP2</code></td>
+            <td><code>sha256:218bef264d7273753ecdee4fa27e8c261b0991b599b5a8f12e2be23dfb78b56b</code></td>
+            <td><code>08807c77e7b35487</code></td>
+            <td><code>5ed87773a386&hellip;f80873</code></td>
+            <td>101174&ndash;999999</td>
+            <td><code>dd-4.1.1-physical-08807c77e7b35487</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <p>The shared registry digest is
+      <code>5ed87773a386111aab284c97b4598726d3c3e6098524d70decaf11d7a2f80873</code>
+      for both phases: one registry, two physical identities. Each artifact
+      directory holds <code>master.h5</code> plus
+      <code>magnetics.h5</code>, <code>pf_active.h5</code>, <code>pf_passive.h5</code>,
+      <code>tf.h5</code> and <code>wall.h5</code> &mdash; the five IDSs and nothing
+      else.</p>
+    </section>
+
+    <section id="jtmm-jt60sa-artifact-producer-tests">
+      <h3>The gate and what it measures</h3>
+      <p><code>tests/gs/test_description_artifact.py</code> holds five tests, one per
+      done-when claim, and exits 0 at the delivered head:</p>
+      <ul>
+        <li><code>test_authoring_twice_gives_same_semantic_identity_and_physical_digest</code>
+        &mdash; authoring the same store twice carries one physical digest and one
+        semantic identity. This is the test the negative control breaks.</li>
+        <li><code>test_phases_differ_in_physical_but_share_registry_on_disjoint_ranges</code>
+        &mdash; OP1 and OP2 carry different physical digests, one shared registry
+        digest, and non-overlapping shot spans.</li>
+        <li><code>test_moving_one_pf_coil_changes_only_that_phase_physical_digest</code>
+        &mdash; moving one PF coil rectangle in a <code>tmp_path</code> copy of the
+        OP1 store changes OP1's physical digest and leaves OP2's unchanged, so the
+        digest follows geometry content rather than store layout.</li>
+        <li><code>test_each_artifact_resolves_with_its_own_expected_digests</code>
+        &mdash; <code>resolve_machine_artifact</code> verifies each artifact against
+        its own expected physical and shared registry digest.</li>
+        <li><code>test_artifact_directory_reopens_through_imas_hdf5</code> &mdash;
+        every artifact directory reopens through <code>imas.DBEntry</code> at its
+        manifest's dictionary version with <code>pf_active</code>,
+        <code>pf_passive</code>, <code>wall</code> and <code>magnetics</code>
+        present.</li>
+      </ul>
+      <p>Gate commands, both run in the fleet allocation and captured once:</p>
+      <pre id="jtmm-jt60sa-artifact-producer-gate"><code>uv run --no-sync pytest -p no:cacheprovider tests/gs/test_description_artifact.py
+  &rarr; 5 passed in 22.79s   EXIT=0
+
+uv run --no-sync ruff check imas_ambix tests
+  &rarr; All checks passed!   EXIT=0</code></pre>
+    </section>
+
+    <section id="jtmm-jt60sa-artifact-producer-negative-control">
+      <h3>Evidence that could have failed</h3>
+      <p>The declared negative control is: <em>deriving the physical digest from
+      file bytes instead of geometry content makes the authoring-twice test fail
+      after a rewrite of the same store, logged with a non-zero EXIT and the
+      failing test id</em>. Applied literally &mdash; the physical digest recomputed
+      from the staged container bytes in place of the geometry payload &mdash; the
+      gate fails:</p>
+      <pre id="jtmm-jt60sa-artifact-producer-negative-control-log"><code>FAILED tests/gs/test_description_artifact.py::test_authoring_twice_gives_same_semantic_identity_and_physical_digest
+FAILED tests/gs/test_description_artifact.py::test_moving_one_pf_coil_changes_only_that_phase_physical_digest
+========================= 2 failed, 3 passed in 25.54s =========================
+EXIT=1</code></pre>
+      <p>The failing test is the one the geometry-content digest exists to pass, and
+      it passes at the delivered head. Two authorings of one store differ in
+      container bytes (the manifests' file digests are unequal) while describing
+      one machine; the bytes-derived digest moves with them, the geometry-derived
+      digest does not. The mutation was reverted and the head gate re-run green
+      (<code>5 passed</code>, <code>EXIT=0</code>) before the deliverable was
+      committed.</p>
+    </section>
+
+    <section id="jtmm-jt60sa-artifact-producer-evidence">
+      <h3>Evidence</h3>
+      <ul>
+        <li><code>imas_ambix/gs/description_artifact.py</code> &mdash; the public
+        entry and its derivation of physical digest, registry digest and shot
+        ranges.</li>
+        <li><code>tests/gs/test_description_artifact.py</code> &mdash; the five
+        gate tests.</li>
+        <li>Run-directory logs:
+        <code>jt60sa-description-artifact-gate.log</code> (5 passed,
+        <code>EXIT=0</code>), <code>jt60sa-description-artifact-ruff.log</code>
+        (<code>All checks passed!</code>, <code>EXIT=0</code>),
+        <code>jt60sa-description-artifact-negative-control.log</code> (2 failed,
+        <code>EXIT=1</code>).</li>
+        <li>This gate measures only this node's own change. Verifying the merged
+        result across the wider suite belongs to a separately dispatched test
+        node.</li>
+      </ul>
+    </section>
+
+  </main>
+</body>
+</html>
