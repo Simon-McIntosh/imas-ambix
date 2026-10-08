@@ -1,0 +1,84 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T23:32:20.686Z",
+  "dispatched_at": "2026-10-08T23:20:17Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-machine-map.html:602",
+      "id": "reasoning-1",
+      "reason": "a node following the decision or lines 272-273 would source q95 from E101011's G-EQDSK, which exists for one of the sixteen shots, instead of FAME Q95, which the map binds and fifteen of sixteen shots cache.",
+      "text": "the change names FAME Q95 as q95's reference, but \u00a77 states at lines 265-266 and 272-273, and decision jt60sa-psi-q-source states at line 904, that \u00a77 takes E101011's G-EQDSK as its one psi and q reference, so the section now carries two q references and the decision's single-q-reference claim is left unsatisfied",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-machine-map.html:553",
+      "id": "reasoning-2",
+      "reason": "a node reading only the summary sentence would search SELENE's output for a q95 it never carries, or report a FAME-derived difference under a \"SELENE\" comparator label, so the summary must name q95's actual reference as the change did at line 602.",
+      "text": "the section still says the result \"is compared against SELENE on the quantities SELENE reports: boundary distance, axis position, Ip, q95, ...\", but line 602 and decision jt60sa-psi-q-source record that SELENE's PSRC carries no q, so q95 is reported against FAME Q95, a different equilibrium code, and the done-when's \"comparator named as SELENE\" then mislabels that one comparison",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "14ea9588b70ade8d47c09611dbcfcecc2602fc5db6ad1df57b8571802d458386",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 421,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v422: section 7 now scopes decision jt60sa-psi-q-source's q to the q profile on a psi grid (E101011's G-EQDSK) and takes the per-shot q95 scalar from FAME Q95, the same FAME q scalars the decision has the section 6 sign report read.",
+      "when": "2026-10-08T23:32:48.111868+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-2",
+      "reason": "Plan v422: the summary now compares boundary distance, axis position and Ip against SELENE's PSRC and q95 against FAME's Q95, since PSRC carries no q.",
+      "when": "2026-10-08T23:32:48.115290+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v422: section 7 now scopes decision jt60sa-psi-q-source's q to the q profile on a psi grid (E101011's G-EQDSK) and takes the per-shot q95 scalar from FAME Q95, the same FAME q scalars the decision has the section 6 sign report read.",
+      "when": "2026-10-08T23:32:48.111868+00:00"
+    },
+    "reasoning-2": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v422: the summary now compares boundary distance, axis position and Ip against SELENE's PSRC and q95 against FAME's Q95, since PSRC carries no q.",
+      "when": "2026-10-08T23:32:48.115290+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v421.json",
+  "review_run_id": "r-20261008T231937150460-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "9af2b3c50be2a480cf190cd29b32e1516cbe6eb0",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 the changed claim resolves against the tree: maps/jt-60sa/maps/equilibrium.json binds a FAME Q95 rule (source_array \"Q95\", source_group \"FAME\"), and the claim \"recorded as absent for a shot that does not carry it\" matches the cache \u2014 15 of the 16 frozen shots (imas_ambix/spine_bench/shots.py:74-90) carry FAME/Q95, and E100599 alone does not.",
+    "done_when": "pass \u2014 the section done-when is a measurable record (per-shot boundary RMS under 0.10 m against SELENE's PSRC boundary, a stamped provenance naming MachineArtifactGeometrySource and the resolved physical digest, a machine/env block, and the psi binding agreeing on the G-EQDSK grid within 1% of the psi range), and it declares two stated negative controls: the loop-7 channel_factor flip to +1 must stamp a larger whitened magnetics residual on every shot, and the sign-flipped psi binding must fail the psi check.",
+    "evidence_paths": "pass \u2014 the changed text adds no path; the cited fragments sit under docs/evidence/fragments/jt60sa-machine-map/ and the handoff's probe log under ~/.config/reckon/crew/reports/imas-ambix/, both durable, and the heavy stamp is routed to SLURM.",
+    "naming": "pass \u2014 the changed sentence introduces no plan label, stage name or ticket number; PSRC, calIp and FAME Q95 are the data's own names.",
+    "reasoning": "a finding \u2014 the q95 reference the change names is FAME Q95, which the section's summary and the section's own decision do not agree with.",
+    "single_goal": "pass \u2014 the changed unit does not merge deliverables; \u00a77 keeps each unit of work as its own node (jtmm-jt60sa-artifact-producer, jtmm-artifact-drive-map, jtmm-jt60sa-registry, jtmm-machine-keyed-selection, jtmm-selene-psrc-loader, jtmm-selene-reference-loader, jtmm-geqdsk-psi-store, the stamp) and the psi check is split from the stamp by the plan itself.",
+    "wiring": "pass \u2014 the section's stated order (producer -> drive-map -> registry -> selection -> stamp) and the gate conventions-before-equilibrium (data-section=\"s7\", data-gated-sections=\"s7\", closed/passed) resolve to the sections they name, and \u00a78 item 6 now lists the PSRC reader in \u00a77 as the prior wiring finding required."
+  },
+  "section_digests": {
+    "_document": "aeae9043f53534ca2bc015344ff6611bcb0f8f1fd2d90c733ffbe2bbfb65ca84",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "fd4f9f0c1af7b2bb7209c11adc96ba1b9c97fbcec41d92bc30447b6d91b324aa",
+    "s8": "acaa8e846bc7d30783f4709d0009ac816bf41baeed2fe1392b0574460f80e420"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T23:32:48.109056+00:00"
+}
