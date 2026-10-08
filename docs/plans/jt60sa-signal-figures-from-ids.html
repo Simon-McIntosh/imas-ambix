@@ -25,8 +25,8 @@
   <title>JT-60SA Signal Figures From IDS | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="33">
-<meta name="plan-modified" content="2026-10-07">
+<meta name="plan-version" content="34">
+<meta name="plan-modified" content="2026-10-08">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;deferred&quot;}">
 </head>
 <body>
@@ -74,7 +74,9 @@
 
     <h2 id="s4">§4 — Redraw the flux loops from the differential entries</h2>
 <section data-reckon="section" data-id="s4" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="deferred" data-links=""></section>
-<p>The machine-map decision <code>jt60sa-differential-flux-loops</code> moves loops 1–6 and 8–27 to type-6 entries with <code>indices_differential</code> [7, L], storing the DD differential flux ψ<sub>L</sub> − ψ<sub>7</sub>. This flips the sign of loops 12–27 relative to today's run files and leaves their type-1 entries without flux. When the pulses are written under those rules, this section points the flux-loop figure call at the type-6 entries and redraws both pulses. The lead ruled on 2026-10-07 that the redraw follows the IDS: loops 12–27 appear with the data dictionary's sign, the caption says so, and the script never re-signs data. Deferred until the map coordinator, imas-ambix-5b, signals that the rules have landed and the pulses have been rewritten.</p>
+<p>The machine-map decision <code>jt60sa-differential-flux-loops</code> landed its rules on 2026-10-08. The magnetics store now holds 53 loops: the 27 type-1 loops at indices 0–26 and 26 type-6 entries at indices 27–52. Each of loops 1–6 and 8–27 is routed to its type-6 entry, with <code>indices_differential</code> [7, L] and <code>channel_factor</code> −1. That stores the DD differential flux ψ<sub>L</sub> − ψ<sub>7</sub>, the negative of the raw difference, so <em>every</em> differential loop changes sign relative to the run files §2 drew. Their type-1 entries carry geometry and no flux. FL7 stays at index 6, unchanged. jt60sa-pulse-ids §7 writes both pulses again under these rules.</p>
+<p>Once that rewrite lands, this section re-runs <code>scripts/figures_jt60sa_signals.py</code> unchanged. <code>extract_signal_traces</code> skips any entry whose data is empty, so the same <code>("magnetics", "flux_loop/flux")</code> call draws FL7 and then the 26 differential entries, each labelled with its IDS name. The lead ruled on 2026-10-07 that the redraw follows the IDS: the differential loops appear with the data dictionary's sign, the caption says so, and the script never re-signs data.</p>
+<p><strong>Done when</strong> the re-run, in place on the fleet allocation, rewrites both flux-loop SVGs with 27 panels: FL7 first, then the 26 differential entries in index order, each labelled with its IDS name. The coil-current and probe SVGs are byte-identical to their committed predecessors. The check from §2 is re-run, with its panel indices updated to the 53-entry store, and asserts for E101154 that FL7 and two differential panels equal their IDS arrays element for element. The evidence fragment embeds both new flux-loop SVGs. Each caption names the run file and states that FL7 is absolute and every other panel is the data dictionary's differential flux ψ<sub>L</sub> − ψ<sub>7</sub>, drawn as stored. <strong>Negative control:</strong> negating one differential panel's trace before the figure call fails its equality check. Deferred until jt60sa-pulse-ids §7 lands.</p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
