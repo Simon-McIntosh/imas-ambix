@@ -435,7 +435,7 @@ def test_differential_flux_loops_follow_the_physical_loops():
         assert float(f.position[0].z) == pytest.approx(geo.flux_loops[i].z)
 
     reference = sd.FLUX_LOOP_DIFFERENTIAL_REFERENCE
-    other_loops = [L for L in range(1, 28) if L != reference]
+    other_loops = [n for n in range(1, 28) if n != reference]
     assert [str(f.name) for f in differential] == [
         f"FL{L}-FL{reference}" for L in other_loops
     ]
