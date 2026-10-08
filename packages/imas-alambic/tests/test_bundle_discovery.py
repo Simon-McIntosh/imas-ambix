@@ -183,6 +183,28 @@ def test_a_declared_bundle_wins_over_the_same_directory_on_the_map_path(
     assert resolve_store_root("EXT") == tmp_path / "ext"
 
 
+def test_an_entry_point_may_supply_several_bundles(tmp_path, monkeypatch):
+    """A target that returns an iterable publishes a ready bundle and a directory."""
+
+    ready_root = _bundle(tmp_path / "ready", name="ready", machines=["ready-machine"])
+    ready = load_bundle_descriptor(ready_root)
+    directory = _bundle(
+        tmp_path / "directory", name="directory", machines=["dir-machine"]
+    )
+    monkeypatch.delenv(ENV_MAP_PATH, raising=False)
+    monkeypatch.delenv("IMAS_ALAMBIC_HOME", raising=False)
+    monkeypatch.setattr(
+        "imas_alambic.machine_map.entry_points",
+        lambda group: [_FakeEntryPoint([ready, directory])],
+    )
+
+    bundles = discover_bundles()
+
+    assert [bundle.name for bundle in bundles] == ["ready", "directory"]
+    assert bundles[0] is ready
+    assert bundles[1].root == directory
+
+
 class _FakeEntryPoint:
     def __init__(self, target):
         self._target = target

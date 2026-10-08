@@ -231,15 +231,32 @@ def _search_roots(search_path: object) -> list[str]:
     return [str(entry) for entry in search_path if str(entry)]
 
 
+def _entry_point_bundles(target: object) -> list[MapBundle | Path]:
+    """Return the bundles and bundle directories one entry-point target names.
+
+    A target is a single :class:`MapBundle`, a single bundle directory, or an
+    iterable of either, so a package may publish several bundles -- its own and
+    one per-machine directory -- through one entry point.
+    """
+
+    if isinstance(target, MapBundle):
+        return [target]
+    if isinstance(target, (str, Path)):
+        return [Path(target)]
+    return [item if isinstance(item, MapBundle) else Path(item) for item in target]
+
+
 def discover_bundles(search_path: object = None) -> tuple[MapBundle, ...]:
     """Return every reachable bundle, once each, in resolution order.
 
-    Installed packages register a bundle under the ``imas_alambic.bundles``
-    entry-point group; the target may be a directory, or a :class:`MapBundle`
-    the package builds itself so its store roots come from one owner rather than
-    a second copy in ``bundle.json``.  Directories that are not Python packages
-    are named by the resolved map search path, passed as ``search_path``: a
-    ``os.pathsep``-joined string or a sequence of directories.  The same
+    Installed packages register bundles under the ``imas_alambic.bundles``
+    entry-point group; a target may be a directory, a :class:`MapBundle` the
+    package builds itself so its store roots come from one owner rather than a
+    second copy in ``bundle.json``, or an iterable of either so one package
+    publishes several bundles through one entry point.  Directories that are not
+    Python packages are named by the resolved map search path, passed as
+    ``search_path``: a ``os.pathsep``-joined string or a sequence of
+    directories.  A search-path entry must carry a ``bundle.json``.  The same
     directory reached by both routes is one bundle, because bundles are
     de-duplicated by their resolved directory.
 
@@ -253,10 +270,11 @@ def discover_bundles(search_path: object = None) -> tuple[MapBundle, ...]:
         target = entry_point.load()
         if callable(target):
             target = target()
-        if isinstance(target, MapBundle):
-            declared.append(target)
-        else:
-            roots.append(Path(target))
+        for item in _entry_point_bundles(target):
+            if isinstance(item, MapBundle):
+                declared.append(item)
+            else:
+                roots.append(item)
     for entry in _search_roots(search_path):
         roots.append(Path(entry))
 

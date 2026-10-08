@@ -12,6 +12,12 @@ build/
 .venv
 venv/
 
+# Map development directory: private machine maps live in maps/<machine>/ and
+# are published to GHCR by the map release CLI rather than tracked in git.  The
+# bare pattern (no trailing slash) also excludes the maps symlink a worktree
+# carries to the shared development copy beside .venv and .env.
+/maps
+
 # IDE
 .vscode/
 .idea/
