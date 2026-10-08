@@ -1,0 +1,83 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T12:30:08.512Z",
+  "dispatched_at": "2026-10-08T12:21:48Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:750",
+      "id": "reasoning-1",
+      "reason": "\u00a77 takes its source COCOS from this decision, and a candidate set that contradicts the report and the landed record the plan rests on is the authority a later node reads.",
+      "text": "decision jt60sa-source-cocos states the sign report \"leaves COCOS 1, 2, 11 and 12\", but the report it cites (docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort.html at main 2aa0a799: \"the surviving COCOS candidates are 1, 2 ... e_Bp is fixed by row 101011\") and \u00a76's landed record (docs/evidence/archive/jt60sa-machine-map-landed.html#s6: \"leaving COCOS 1 and 2\") both state {1, 2}; the decision also lists e_Bp = 1 candidates (11, 12) in the same sentence that asserts e_Bp is fixed by E101011's G-EQDSK",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:277",
+      "id": "reasoning-2",
+      "reason": "\u00a77 relies on the dependency being declared, so the plan carries a false premise about an interface it does not own.",
+      "text": "\u00a77 says \"The first node to import the package, \u00a76's jtmm-e101011-psi-row, declares it a direct dependency in pyproject.toml because ambix now imports it\", but pyproject.toml declares no `eqdsk` entry and \u00a76's own fragment (docs/evidence/fragments/jt60sa-machine-map/jtmm-e101011-psi-row.html follow-on: \"`eqdsk` is used through torax's installed copy and is not yet declared directly in `pyproject`\") contradicts it",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "8533e560b963badba169b54915678d3c4d5cad3987e5bf31bafc0a87d220fd77",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 371,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reasoning-1",
+      "reason": "plan v373: the decision context records E101011 fixing e_Bp = 0, leaving COCOS 1 and 2",
+      "when": "2026-10-08T12:31:50.303065+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reasoning-2",
+      "reason": "plan v372: section 7 states eqdsk is imported through torax and declared by jtmm-eqdsk-dependency, not yet in pyproject",
+      "when": "2026-10-08T12:31:50.304889+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "plan v373: the decision context records E101011 fixing e_Bp = 0, leaving COCOS 1 and 2",
+      "when": "2026-10-08T12:31:50.303065+00:00"
+    },
+    "reasoning-2": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "plan v372: section 7 states eqdsk is imported through torax and declared by jtmm-eqdsk-dependency, not yet in pyproject",
+      "when": "2026-10-08T12:31:50.304889+00:00"
+    }
+  },
+  "review_run_id": "r-20261008T122118095189-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "fd518a56965badaf2b02fd276d3a0f68c6978b37",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 verified resolving: the fragment jtmm-sign-cohort.html exists at main 2aa0a799 (2aa0a799 is an ancestor of HEAD), jtmm-vacuum-adjudication.json exists, the landed archive carries id=\"s3\"/\"s4\"/\"s5\"/\"s6\", and the decision jt60sa-source-cocos anchor resolves.",
+    "done_when": "pass \u2014 \u00a77's done-when (plan.html:462-473) keeps its measurable 0.10 m boundary-RMS floor and its must-fail control (loop 7's channel_factor flipped to +1 must stamp a larger whitened magnetics residual on every shot), and the newly-closed \u00a76 gate names the sign report it rests on.",
+    "evidence_paths": "pass \u2014 the \u00a76 landing points at docs/evidence/archive/jt60sa-machine-map-landed#s6 and the cited fragment docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort.html, both durable repository paths, not a scratch or node-local temporary.",
+    "naming": "pass \u2014 the changed content (landed summary, gate measure, decision body) carries no plan labels, ticket numbers or version tags into symbols or comments.",
+    "reasoning": "two findings \u2014 the decision jt60sa-source-cocos misstates the sign report it cites on the surviving COCOS candidates, and \u00a77 asserts a pyproject declaration its own cited \u00a76 fragment contradicts.",
+    "single_goal": "pass \u2014 each section and each gate names one deliverable; the \u00a76 close carries the vacuum/sign/COCOS proof as a single landed unit.",
+    "wiring": "pass \u2014 the two evidence gates carry correct scoping (conventions-before-equilibrium gates s7, g-jt60sa-machine-map-1 gates s5) and every section declaration resolves; no missing or misdirected relationship in the changed document unit."
+  },
+  "section_digests": {
+    "_document": "d50153395f0c7608becddf07ae70a673a6c9c092a5989ffb695a7e1d1a585d39",
+    "s1": "52731ac311aa8ac6ed57dc5f58a5868e5f9e2e34b4e132f297830fa912abbc0f",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "8f069fd5099db14abeaf3c3d385fa65cf1c124382f9efff94876b3bdc6a81d37",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T12:31:50.223510+00:00"
+}
