@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T07:56:33.763Z",
+  "dispatched_at": "2026-10-08T07:39:17Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-signal-figures-from-ids.html:78",
+      "id": "reasoning-1",
+      "reason": "the only firing condition a builder acts on (\"once that rewrite lands\") is already true, so a node reading paragraph 2 fires the redraw before \u00a78's rename and produces panels labelled with the backwards `FL7-FL<L>` names, the exact defect \u00a78 exists to fix, forcing the redraw to be done twice.",
+      "text": "\u00a74's second paragraph states \"jt60sa-pulse-ids \u00a77 writes both pulses again under these rules. Once that rewrite lands, this section re-runs `scripts/figures_jt60sa_signals.py` unchanged\", but \u00a77 landed 2026-10-08 (status `done`) and the section's own done-when at line 79 says \"Deferred until \u00a78 lands\"; \u00a78 (the rename of the differential entries from `FL7-FL<L>` to `FL<L>-FL7`) is still `implementable`",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "bdf22cb5e9617fe43cf02ca7332f00d0f6cd65152fd9f85b16988d67caef633f",
+  "plan_slug": "jt60sa-signal-figures-from-ids",
+  "plan_version": 35,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261008T073905553621-plan-review-of-jt60sa-signal-figures-from-ids",
+  "reviewed_blob_sha": "341c749f19c4e1e458e5af223bbfdaaee2662222",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 \u00a74's named anchors all resolve: `scripts/figures_jt60sa_signals.py`, imas-ink's `extract_signal_traces` (verified to skip empty elements, so the `(\"magnetics\", \"flux_loop/flux\")` call yields 27 series), the machine-map decision `jt60sa-differential-flux-loops`, and pulse-ids \u00a77/\u00a78; the landed sections' extensionless `href=\"s1\"` links are the house convention. The 53-loop store claim matches the landed rules.",
+    "done_when": "pass \u2014 \u00a74, the only open node, carries a measurable done-when (27 panels, byte-identical coil/probe SVGs, an element-for-element check) and a declared negative control (negated differential panel fails the equality check); \u00a71\u2013\u00a73 are landed and carry their measures in their comment records.",
+    "evidence_paths": "pass \u2014 figures land under `docs/figures/jt60sa-signals/`, the evidence fragment under `docs/evidence/fragments/jt60sa-signal-figures-from-ids/`, and the re-run is specified in place on the fleet allocation (not a login-node scratch).",
+    "naming": "pass \u2014 no plan labels, stage names, ticket numbers or version tags reach symbols or comments; \u00a74's deferral is stated in prose, not encoded in code.",
+    "reasoning": "a finding \u2014 \u00a74's mechanism paragraph conditions the re-run on \u00a77 (already landed) while its own done-when defers to \u00a78.",
+    "single_goal": "pass \u2014 \u00a74 names one deliverable, the flux-loop redraw from the 53-entry differential store.",
+    "wiring": "pass \u2014 `plan-depends-on imas-ink:ids-signal-traces` resolves (imas-ink plan `ids-signal-traces` exists), the section metas `s1 \u2192 imas-ink:ids-signal-traces#s1` and the new `s4 \u2192 jt60sa-pulse-ids#s8` both resolve to live sections (\u00a78 exists and is `implementable`, matching \u00a74's `deferred`), and `plan-informs jt60sa-machine-map` names a real plan that cross-references this one."
+  },
+  "section_digests": {
+    "_document": "5a8ea84299547c5a58cce9faf1450d1aa6aa748ce8916783d5a686c144fcc2dc",
+    "s1": "8cc1fc171352c18ac739b983fe55145c39f922e6a6e144dd81cf938653d2845d",
+    "s2": "fc4daf44641a035f6ef2fe1ac229811b3fe01215fb262370abe39533d38afd8a",
+    "s3": "d094bd911e0ef5845f9b6fa508f0370125201199f3a3f5078285339b7bd30a8a",
+    "s4": "25673f58afa6fdbe3e504137a55025bdf661031c005fc04e71a837eaf9462f3b"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T07:57:17.457115+00:00"
+}
