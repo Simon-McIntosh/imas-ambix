@@ -101,6 +101,7 @@ def test_each_artifact_resolves_with_its_own_expected_digests(baseline) -> None:
             baseline[phase].digest,
             expected_physical_digest=manifest.physical_digest,
             expected_registry_digest=manifest.registry_digest,
+            allow_incomplete=not manifest.complete,
         )
         assert verified.manifest.physical_digest == manifest.physical_digest
         assert verified.manifest.registry_digest == manifest.registry_digest
@@ -117,3 +118,31 @@ def test_artifact_directory_reopens_through_imas_hdf5(baseline) -> None:
             for ids_name in ("pf_active", "pf_passive", "wall", "magnetics"):
                 ids = entry.get(ids_name, autoconvert=False)
                 assert ids is not None, (phase, ids_name)
+
+
+def test_artifact_members_are_the_five_ids_and_master_only(baseline) -> None:
+    """Each artifact packs master.h5 plus the five IDS files, nothing else."""
+    expected = {"master.h5"} | {f"{name}.h5" for name in da.IDS_NAMES}
+    for phase in PHASES:
+        names = {artifact_file.name for artifact_file in baseline[phase].manifest.files}
+        assert names == expected, (phase, names)
+        assert "receipt.json" not in names
+        assert not any(name.endswith(".nc") for name in names)
+
+
+def test_each_artifact_is_incomplete_and_names_both_gaps(baseline) -> None:
+    """No field evidence and no channel drive are authored, so both are named."""
+    for phase in PHASES:
+        manifest = baseline[phase].manifest
+        assert manifest.complete is False, phase
+        gaps = manifest.unresolved_gaps
+        assert da.NO_FIELD_EVIDENCE_GAP in gaps, (phase, gaps)
+        assert any("channel drive map" in gap for gap in gaps), (phase, gaps)
+
+
+def test_op1_shot_evidence_is_observed_and_op2_inherited(baseline) -> None:
+    """OP1's range was checked against pulses; OP2's identity is declared only."""
+    op1 = {row.evidence for row in baseline["OP1"].manifest.shot_ranges}
+    op2 = {row.evidence for row in baseline["OP2"].manifest.shot_ranges}
+    assert op1 == {"observed"}, op1
+    assert op2 == {"inherited"}, op2
