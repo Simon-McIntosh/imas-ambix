@@ -1,0 +1,37 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T15:26:28.711Z",
+  "dispatched_at": "2026-10-08T15:11:10Z",
+  "findings": [],
+  "plan_fingerprint": "64fe6f0ecaa6426e7d594041faaff9086c485c5fbb87706e67dc80937546605f",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 394,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261008T151031090345-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "1ca79ec9c72b8240b9e26d6c613dd53e85815484",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every file and symbol the changed paragraph cites resolves: imas_ambix/gs/operator.py defines _PF_COIL_AMC at line 225 and _PF_COIL_CENTROID at line 251 with the 0.08 m match radius at line 266; maps/jt-60sa/machine_map.json exists and carries drive_topologies jt60sa-pf-drive-op1 / jt60sa-pf-drive-op2 and acquisition_declarations jt60sa-acquisition-op1 / jt60sa-acquisition-op2; nova's ChannelDrive resolves to nova.imas.machine_drive.",
+    "done_when": "pass \u2014 the changed unit adds no separate done-when, which is the plan's convention in the body text; the \u00a77 done-when it sits under (plan.html:536-546) is measurable (boundary RMS under 0.10 m, per-shot whitened residual) and carries its declared must-fail control (the same run with loop 7's channel_factor flipped to +1 stamps a larger residual on every shot).",
+    "evidence_paths": "pass \u2014 the unit reads the durable bundle path maps/jt-60sa/machine_map.json (verified present, 556 KB topology payload) and writes into the artifact cache; it names no session scratchpad or node-local temporary path.",
+    "naming": "pass \u2014 the changed unit uses plan node ids (jtmm-*) only in plan prose, which is the plan's vocabulary, and introduces no plan label, stage name or ticket number into a code symbol; no changelog prose (\"the drive map's gap then closes\" states a mechanism outcome, not a reference to a tracker entry or prior incident).",
+    "reasoning": "pass \u2014 all three checks hold for the changed unit. The stated root cause matches the cited evidence: with no declared circuit drives imas_ambix/gs/operator.py:404-460 does fall back to _PF_COIL_CENTROID / _PF_COIL_AMC nearest-centroid matching, and no JT-60SA coil can match because MAST's centroid table (operator.py:251-265) spans R 0.14-1.65 m, Z within +/-1.75 m against a 0.08 m radius, while JT-60SA's PF coils sit outside that box, so every JT-60SA PF circuit is left inferred_passive as the paragraph says. The mechanism produces the done-when: the reader keys drives by coil (read_artifact_pf_active at imas_ambix/gs/artifact_geometry.py:302 keys by drive.conductor with container==\"pf_active\"), so one ChannelDrive per pf_active coil reaches the operator's declared-drive path and the measured current flows, which is what the reconstruction stamp needs. The mechanism runs on the real code path with the caller named: the machine-keyed acquisition read supplies amc_current_channels from the same acquisition declaration (machine_selection.py:181 sets amc_current_channels=current_acquisition.currents), the driver channel and the measured current are spelled in one place, and the reader resolves incomplete artifacts already.",
+    "single_goal": "pass \u2014 the changed unit adds one node, jtmm-artifact-drive-map, with one deliverable: author each phase's channel drives so the operator receives measured PF currents.",
+    "wiring": "pass \u2014 the changed unit introduces jtmm-artifact-drive-map with its dependency on the landed producer (jtmm-jt60sa-artifact-producer) stated in prose (\"extends the producer\"), and its ordering (\"before the selection node pins the JT-60SA rows\") matches the changed clause at plan.html:457 (\"the JT-60SA rows filled from the producer's two artifacts once the drive-map node below has landed\"); no dependency the unit needs is missing and no relationship points at the wrong node."
+  },
+  "section_digests": {
+    "_document": "1a041e1b69e7c648e3848440450d2aa25ac955ec54bdbca27a0558b3e2fb8c3a",
+    "s1": "52731ac311aa8ac6ed57dc5f58a5868e5f9e2e34b4e132f297830fa912abbc0f",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "40c69a45d4555d372a48442ce2f3a2535dbd0681af9a15e5687d03aab658431a",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T15:26:46.717844+00:00"
+}
