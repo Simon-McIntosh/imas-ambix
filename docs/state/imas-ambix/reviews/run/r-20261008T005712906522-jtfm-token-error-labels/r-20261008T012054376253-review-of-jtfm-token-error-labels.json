@@ -1,0 +1,59 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "735f1be0f3d3e417b1f1cf5d7fe0562d4fdee55a",
+  "call_site_count": 2,
+  "call_sites": [
+    "packages/imas-alambic/src/imas_alambic/eddb.py:read_channel (not-cached message)",
+    "packages/imas-alambic/src/imas_alambic/eddb.py:read_channel (half-written message)"
+  ],
+  "completed_at": "2026-10-08T01:37:36.953Z",
+  "dispatched_at": "2026-10-08T01:21:13Z",
+  "findings": [
+    {
+      "file": "tests/data/test_eddb_cache.py",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: 14 failures are present identically at base 735f1be0 and head 9e5aac36 (set-identical FAILED ids), all in tests/data/test_eddb_cache.py, from the token-structure commit that made write_channel/eddb_token refuse a letterless shot while these fixtures still pass bare-digit shots. They are not this node's and repairing them is outside its declared fence."
+    }
+  ],
+  "head_log_revision": "9e5aac3699e124fa61b0364e2e1becf85f5d7886",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 2 production call sites of _channel_label, both inside read_channel's two cache-fault messages; no other read-path label routes through the strict eddb_token",
+    "diff": "read one commit (parent 735f1be0) against the base; _channel_label at eddb.py:121 forms eddb_token's canonical form for a lettered token and normalised_shot's integer for a bare one",
+    "done_when": "the dispatched measure is this record stored parsed with all six dimensions; the node's own done-when is pinned by test_eddb_read_errors.py:35/52/66/74 and test_cli.py:52, all green in my own run",
+    "goal": "section 16's repair asks read_channel's error labels to stop routing through the strict token plus a CLI-level refusal test; eddb.py:320/330 now label through _channel_label and test_cli.py:52 refuses a bare number through the CLI",
+    "manifest": "read; head arm packages/imas-alambic/tests tests/data/test_eddb_cache.py 14 failed / 75 passed EXIT=1, base arm 14 failed / 70 passed EXIT=1, ruff EXIT=0, negative control reverts to eddb_token",
+    "write_paths": "read the node's declared fence -- eddb.py, test_* test files, evidence fragment -- and the commit's diff touches exactly those four paths"
+  },
+  "justifications": {
+    "durability": "the two bare-digit tests are load-bearing: I reverted both read_channel labels to eddb_token and they failed with the pulse-token refusal while the lettered and strict tests stayed green; the lettered-message test guards the unchanged path; the CLI test guards the refusal end-to-end. One point off because _channel_label's leading-zero normalisation for a bare token is unpinned.",
+    "evidence": "gate-base.log and gate-head.log name their revisions and carry summary and EXIT lines; the 14 FAILED ids are set-identical, giving added_failure_count 0; I independently re-ran the new file (4 passed) and the whole directory (57 passed) in a scratch extraction of the head, and reproduced the mutation. One point off for the base arm's empty full-sha header line and because the negative control is re-derived rather than read.",
+    "fit": "ruff check over the three changed Python files exits 0, the module docstring and _channel_label docstring extend the eddb.py token-helper idiom, and the naming scans are clean.",
+    "goal_fidelity": "read_channel(root, 101154, \"MMSYS\", \"CS1\") on a miss now raises \"channel 101154/MMSYS/CS1 is not cached at <path>\" instead of \"101154 is not an EDDB pulse token\", a lettered read is byte-identical to base, and eddb_token(101154) still refuses -- exactly the section-16 repair.",
+    "reuse": "no new refusal family and no fork of the grammar: _channel_label composes the existing _split_token, eddb_token and normalised_shot; the strict refusal still lives only in eddb_token.",
+    "scope_discipline": "the single commit touches only eddb.py, the two test files and the evidence fragment, all inside the node's declared fence, and carries nothing the repair does not imply."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261008T005712906522-jtfm-token-error-labels (plan\nimas-ambix:jt60sa-facility-mint section 16), read at its head\n9e5aac3699e124fa61b0364e2e1becf85f5d7886 on base 735f1be0f3d3e417b1f1cf5d7fe0562d4fdee55a.\nThe node is the section-16 repair the followup \"Resume after the fleet move\" names: read_channel\nlabelled its not-cached and half-written errors through the review's own strict token.\n\nVERDICT goal: section 16's repair is that read_channel's error labels do not route through the\nstrict pulse-token grammar, plus a CLI-level refusal test. It is met. read_channel\n(packages/imas-alambic/src/imas_alambic/eddb.py:320, :330) now names the channel through a new\nnon-refusing _channel_label (eddb.py:121) in both cache-fault messages -- 4 passed (EXIT=0) and\na full packages/imas-alambic/tests run 57 passed (EXIT=0) in my own worktree, against the\nrepository's shared project environment.\n\nVERDICT done_when: the dispatched measure is this record stored parsed with all six dimensions,\nwhich this record satisfies. The node's own done-when is that a bare integer read that misses the\ncache, or finds a half-written channel, names the cache fault instead of \"101154 is not an EDDB\npulse token\", and that eddb_token still refuses a bare digit. tests/test_eddb_read_errors.py:35\n(\"channel 101154/MMSYS/CS1 is not cached at\") and :52 (\"... is half-written\") pin both bare-digit\nmessages; :66 pins the unchanged lettered message \"channel E101154/MMSYS/CS1 is not cached at\";\n:74 pins that eddb_token(101154) still raises with \"series letter\". The CLI refusal is pinned at\ntest_cli.py:52. Both arms of the gate carry the same 14 failure ids, so zero added.\n\nVERDICT write_paths: the node's declared fence was eddb.py, the two new/extended test files and the\nevidence fragment; the single commit's diff touches exactly those four paths and nothing else\n(git show --stat: eddb.py +18/-2, test_cli.py +38, new test_eddb_read_errors.py +75, fragment +14).\n\nVERDICT manifest: read; it records the head arm of packages/imas-alambic/tests tests/data/test_eddb_cache.py\nat 14 failed / 75 passed (EXIT=1) against a base arm of 14 failed / 70 passed (EXIT=1), whole-tree\nruff EXIT=0, and a negative control that reverts read_channel to eddb_token.\n\nVERDICT diff: one commit, parent 735f1be0, so the reviewed diff is exactly this change. _channel_label\nreturns eddb_token's canonical form for a series-lettered token and str(int(digits)) for a bare\ninteger, the same directory name normalised_shot yields, so no message names a directory that does\nnot exist.\n\nREPRODUCTION (independent, in my own tree). The head is not an ancestor of my checkout, so I\nextracted 9e5aac36 with git archive into a scratch tree and ran the focused gate:\n`UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=<scratch>/packages/imas-alambic/src\nuv run --no-sync pytest -q packages/imas-alambic/tests/test_eddb_read_errors.py` -> 4 passed,\nEXIT=0; and the whole directory `packages/imas-alambic/tests` -> 57 passed, EXIT=0. I then applied\nthe node's own mutation (sed 's/_channel_label(shot)/eddb_token(shot)/g' on eddb.py, reverting both\nread_channel labels (so both sites use eddb_token)): the two bare-digit tests failed with\n\"101154 is not an EDDB pulse token; name the pulse with its series letter and digits, for example\nE101154\" -- 2 failed, 2 passed, EXIT=1 -- and the two lettered/strict tests stayed green, which is\nthe correct discrimination. The guard is therefore load-bearing, not a test that passes vacuously.\n\nADDED FAILURES. Derived from the reviewed run's own gate logs, not from this review's runs.\ngate-base.log header revision 735f1be0, tail \"14 failed, 70 passed\", EXIT=1; gate-head.log header\nrevision 9e5aac36, tail \"14 failed, 75 passed\", EXIT=1. The 14 FAILED ids are set-identical between\nthe two arms (comm -13 and comm -23 both empty), all in tests/data/test_eddb_cache.py, so\nadded_failure_count=0 and added_failure_ids=[]. The 5 newly-passing tests are the node's own.\n\nSCORES (0..20): goal_fidelity 20, done_when 20, scope_discipline 20, fit 20, reuse 20,\nevidence 19, durability 19; total 118. evidence keeps one point because the base arm's second\nheader line prints an empty full-sha field (the short sha 735f1be0 is on the header line and the\nmanifest carries the full revision, so this is cosmetic) and because the negative control is the\nnode's own claim which I re-derived rather than read. durability keeps one point because no test\ncovers _channel_label's leading-zero normalisation for a bare token (str(int(\"0101154\")) is not\npinned), a minor but real coverage gap. ruff check over the three changed Python files exits 0; the\nnaming scans are clean (E101154/E900001/CS1 are EDDB pulse tokens and a channel name, not plan\nlabels); the commit body is present and carries no AI trailer.\n\nBEFORE/AFTER, representative. At base, `read_channel(root, 101154, \"MMSYS\", \"CS1\")` on a miss raised\nEddbCacheError \"101154 is not an EDDB pulse token; name the pulse with its series letter and digits,\nfor example E101154\" -- the remote-address grammar's refusal, misdescribing a cache miss. At head\nthe same call raises \"channel 101154/MMSYS/CS1 is not cached at <path>\". A lettered read is\nunchanged: read_channel(root, \"E101154\", ...) still says \"channel E101154/MMSYS/CS1 is not cached at\".\neddb_token(101154) still refuses, so the remote address grammar is untouched.\n\nFOLLOW-ON (carried from the node, not introduced by it): tests/data/test_eddb_cache.py holds 14\nfailures present identically at base and head, from the token-strictness commit that made\nwrite_channel/eddb_token refuse a letterless shot while those fixtures still pass bare-digit shots.\nRepairing those fixtures or the write path is outside this node's scope.\n",
+  "review_run_id": "r-20261008T012054376253-review-of-jtfm-token-error-labels",
+  "reviewed_base_sha": "735f1be0f3d3e417b1f1cf5d7fe0562d4fdee55a",
+  "reviewed_head_sha": "9e5aac3699e124fa61b0364e2e1becf85f5d7886",
+  "reviewed_run_id": "r-20261008T005712906522-jtfm-token-error-labels",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T01:31:14.534930+00:00",
+  "total": 118
+}
