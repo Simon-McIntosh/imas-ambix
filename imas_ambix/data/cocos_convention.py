@@ -26,6 +26,7 @@ import numpy as np
 from nova_cocos import CONVENTION_DIGITS
 
 from imas_alambic.eddb import normalised_shot
+from imas_alambic.machine_map import load_packaged_machine_map
 from imas_alambic.signal_map import SignalRule, load_packaged_signal_map
 from imas_alambic.virtual_zarr import VirtualZarrView
 
@@ -53,11 +54,18 @@ _BASELINE_CURRENT_A = 10_000.0
 _VACUUM_FIELD_KEY = "magnetics_bcoil"
 
 #: A flux-loop rule enters the raw response only when its sign and value are
-#: proven.  A ``source-only`` loop is left out: on JT-60SA every loop but the
-#: reference (loop 7) measures a difference to that reference and never fits its
-#: own absolute prediction, so only the reference carries an absolute flux a
-#: sign product can use.
+#: proven and its target entry is an absolute flux rather than a differential
+#: pair.  A ``source-only`` loop is left out: its sign is an assumption the
+#: reader exists to measure.  A differential (type-6) entry names two loops
+#: through ``indices_differential`` and stores their difference, so it is not
+#: an absolute flux either, however well its convention is proven -- on JT-60SA
+#: every loop but the reference (loop 7) targets such an entry and never fits
+#: its own absolute prediction.  What survives is the reference loop alone.
 _PROVEN_VALIDATION_STATE = "corpus-validated"
+
+#: The IMAS int32 fill a non-differential flux-loop entry carries in place of an
+#: index pair; an entry whose pair is fill is an absolute loop.
+_NO_DIFFERENTIAL_INDEX = -2147483647
 
 EvidenceClassification = Literal[
     "measurable-from-data",
@@ -821,10 +829,49 @@ def _one_rule(
     return selected[0]
 
 
+def _differential_flux_loop_targets(machine: str) -> frozenset[int]:
+    """Return the flux-loop target indices whose store entry is a differential pair.
+
+    A type-6 flux-loop entry names two loops through ``indices_differential``
+    and carries the difference between them rather than a flux of its own, so a
+    rule targeting that entry is not an absolute flux.  The pairs are read from
+    the machine's description store, whose entry order is therefore never
+    assumed.  The pair assignment is structural, so any declared phase answers
+    it; a machine that declares no description store yields no differential
+    targets.
+    """
+
+    catalog = load_packaged_machine_map(machine)
+    if catalog.description_store_root is None or not catalog.maps:
+        return frozenset()
+    store = (
+        catalog.description_store_root_path()
+        / catalog.maps[0].name
+        / "magnetics.nc"
+    )
+    if not store.is_file():
+        return frozenset()
+
+    import imas
+
+    with imas.DBEntry(store, "r") as entry:
+        flux_loop = entry.get("magnetics").flux_loop
+        differential = set()
+        for index, loop in enumerate(flux_loop):
+            values = np.asarray(
+                getattr(loop, "indices_differential", np.empty(0))
+            ).reshape(-1)
+            if values.size == 2 and not np.any(values == _NO_DIFFERENTIAL_INDEX):
+                differential.add(index)
+    return frozenset(differential)
+
+
 def _absolute_flux_loop_rules(
     rules: Sequence[SignalRule],
     targets: tuple[str, ...],
     quantity: str,
+    *,
+    differential_targets: frozenset[int] = frozenset(),
 ) -> tuple[SignalRule, ...]:
     """Keep only the flux-loop rules whose sign and value a sign product may use.
 
@@ -832,22 +879,26 @@ def _absolute_flux_loop_rules(
     (``indices_differential``), so its raw channel is not an absolute flux and no
     sign product over it is meaningful: on JT-60SA every loop but the reference
     measures a difference against that reference and never fits its own absolute
-    prediction.  A ``source-only`` rule carries an assumed sign the reader exists
-    to measure, so it cannot enter either.  What survives is the rules whose
-    convention is already proven, which for JT-60SA is the absolute reference
-    loop alone.
+    prediction.  A rule is therefore kept only when its convention is proven
+    *and* its ``target_index`` is absent from ``differential_targets`` -- the
+    store entries a differential pair owns.  A ``source-only`` rule carries an
+    assumed sign the reader exists to measure, so it cannot enter either.  What
+    survives is the rules whose target is an absolute, proven loop, which for
+    JT-60SA is the reference loop alone.
     """
 
     selected = tuple(
         rule
         for rule in _rules_targeting(rules, targets, quantity)
         if rule.validation_state == _PROVEN_VALIDATION_STATE
+        and rule.target_index not in differential_targets
     )
     if not selected:
         raise ValueError(
-            f"signal map declares no proven rule targeting {quantity} "
-            f"(expected at least one with validation_state "
-            f"{_PROVEN_VALIDATION_STATE!r})"
+            f"signal map declares no proven rule targeting {quantity} with an "
+            f"absolute target entry (expected at least one with validation_state "
+            f"{_PROVEN_VALIDATION_STATE!r} whose target entry carries no "
+            "indices_differential)"
         )
     return selected
 
@@ -1009,7 +1060,10 @@ def read_signal_map_observation(
         magnetics_map.signals, _RAW_PLASMA_CURRENT_TARGETS, "the plasma current"
     )
     flux_loop_rules = _absolute_flux_loop_rules(
-        magnetics_map.signals, _RAW_FLUX_LOOP_TARGETS, "the flux-loop flux"
+        magnetics_map.signals,
+        _RAW_FLUX_LOOP_TARGETS,
+        "the flux-loop flux",
+        differential_targets=_differential_flux_loop_targets(machine),
     )
     tf_coil_rule = _one_rule(
         tf_map.signals, _RAW_TF_COIL_TARGETS, "the TF coil current"
