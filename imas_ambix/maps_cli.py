@@ -27,6 +27,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
 from pathlib import Path
@@ -351,9 +352,11 @@ def _write_bundle_version(root: Path, version: str) -> None:
         with os.fdopen(fd, "w") as handle:
             handle.write(json.dumps(data, indent=2) + "\n")
         # mkstemp creates its file mode 0600, and os.replace carries that mode
-        # onto the descriptor; give the replacement the descriptor's own bits so
-        # a published bundle keeps the mode it was written with.
-        os.chmod(tmp_name, os.stat(bundle).st_mode)
+        # onto the descriptor; give the replacement the descriptor's own
+        # permission bits so a published bundle keeps the mode it was written
+        # with.  stat.S_IMODE drops the file-type bits st_mode carries, which
+        # os.chmod ignores on Linux but which are the wrong arguments to pass.
+        os.chmod(tmp_name, stat.S_IMODE(os.stat(bundle).st_mode))
         os.replace(tmp_name, bundle)
     except BaseException:
         os.unlink(tmp_name)

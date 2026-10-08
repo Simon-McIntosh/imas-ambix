@@ -337,6 +337,36 @@ def test_release_preserves_the_bundle_file_mode(
     assert (bundle.stat().st_mode & 0o777) == 0o644
 
 
+def test_release_chmods_only_permission_bits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    maps_dir = tmp_path / "maps"
+    machine_dir = maps_dir / "jt-60sa"
+    write_tree(machine_dir, version="2026.10.07")
+    os.chmod(machine_dir / "bundle.json", 0o640)
+    monkeypatch.setattr(maps_cli, "MAPS_DIR", maps_dir)
+    registry = FakeRegistry(["2026.10.07", "v0.1.0"])
+    registry.install(monkeypatch)
+    modes: list[int] = []
+    real_chmod = os.chmod
+
+    def recording_chmod(path, mode, **kwargs):
+        modes.append(mode)
+        real_chmod(path, mode, **kwargs)
+
+    monkeypatch.setattr(maps_cli.os, "chmod", recording_chmod)
+
+    result = CliRunner().invoke(
+        maps_cli.maps, ["release", "jt-60sa", "--bump", "minor"]
+    )
+
+    assert result.exit_code == 0, result.output
+    # Passed the raw st_mode, a chmod argument carries S_IFREG (0o100000); the
+    # fix passes the permission bits alone, so no type bits reach os.chmod.
+    assert modes, "no chmod call was observed"
+    assert [mode for mode in modes if mode & ~0o7777] == [], modes
+
+
 def test_release_skips_the_push_when_the_tree_digest_is_unchanged(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
