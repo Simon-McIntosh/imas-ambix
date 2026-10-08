@@ -11,6 +11,7 @@ module sorts it newest first before reading "the latest tag".
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -28,6 +29,7 @@ from imas_ambix.maps_cli import (
     latest_stable_tag,
     latest_tag,
     semver_tags,
+    stage_bundle,
     tree_digest,
 )
 
@@ -193,6 +195,23 @@ def test_tree_digest_ignores_development_inputs(tmp_path: Path) -> None:
     assert tree_digest(a) == tree_digest(b)
 
 
+def test_a_stray_bundle_temp_is_neither_hashed_nor_staged(tmp_path: Path) -> None:
+    root = tmp_path / "jt-60sa"
+    write_tree(root)
+    baseline = tree_digest(root)
+    # The atomic descriptor write leaves this name behind if the process dies
+    # between its mkstemp and its os.replace.
+    stray = root / "bundle.json.a1b2c3d4.tmp"
+    stray.write_text('{"version": "v9.9.9"}')
+
+    assert tree_digest(root) == baseline
+
+    dest = tmp_path / "staging"
+    stage_bundle(root, dest, "v0.2.0-rc1")
+    assert not (dest / stray.name).exists()
+    assert json.loads((dest / "bundle.json").read_text())["version"] == "v0.2.0-rc1"
+
+
 def test_release_pushes_the_next_version_with_its_annotations(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -241,6 +260,81 @@ def test_release_leaves_the_bundle_version_when_the_push_fails(
     after = json.loads((machine_dir / "bundle.json").read_text())
     assert registry.pushes == []
     assert after["version"] == before["version"] == "2026.10.07"
+
+
+def test_release_leaves_the_local_bundle_unpublished_while_the_push_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    maps_dir = tmp_path / "maps"
+    machine_dir = maps_dir / "jt-60sa"
+    write_tree(machine_dir, version="2026.10.07")
+    monkeypatch.setattr(maps_cli, "MAPS_DIR", maps_dir)
+    registry = FakeRegistry(["2026.10.07", "v0.1.0"])
+    registry.install(monkeypatch)
+    staged = maps_cli.push_tree
+    seen: list[str] = []
+
+    def observing_push(ref, staging, annotations, token):
+        seen.append(json.loads((machine_dir / "bundle.json").read_text())["version"])
+        staged(ref, staging, annotations, token)
+
+    monkeypatch.setattr(maps_cli, "push_tree", observing_push)
+
+    result = CliRunner().invoke(
+        maps_cli.maps, ["release", "jt-60sa", "--bump", "minor"]
+    )
+
+    assert result.exit_code == 0, result.output
+    # The local descriptor still names the deployed version while the push runs,
+    # so a reader concurrent with the push cannot see the unpublished one.
+    assert seen == ["2026.10.07"], seen
+    after = json.loads((machine_dir / "bundle.json").read_text())
+    assert after["version"] == "v0.2.0-rc1"
+
+
+def test_release_leaves_the_bundle_bytes_intact_when_the_atomic_replace_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    maps_dir = tmp_path / "maps"
+    machine_dir = maps_dir / "jt-60sa"
+    write_tree(machine_dir, version="2026.10.07")
+    monkeypatch.setattr(maps_cli, "MAPS_DIR", maps_dir)
+    registry = FakeRegistry(["2026.10.07", "v0.1.0"])
+    registry.install(monkeypatch)
+    original = (machine_dir / "bundle.json").read_bytes()
+
+    def failing_replace(src, dst):
+        raise OSError("cannot move the descriptor into place")
+
+    monkeypatch.setattr(maps_cli.os, "replace", failing_replace)
+
+    result = CliRunner().invoke(
+        maps_cli.maps, ["release", "jt-60sa", "--bump", "minor"]
+    )
+
+    assert result.exit_code != 0
+    assert (machine_dir / "bundle.json").read_bytes() == original
+
+
+def test_release_preserves_the_bundle_file_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    maps_dir = tmp_path / "maps"
+    machine_dir = maps_dir / "jt-60sa"
+    write_tree(machine_dir, version="2026.10.07")
+    bundle = machine_dir / "bundle.json"
+    os.chmod(bundle, 0o644)
+    monkeypatch.setattr(maps_cli, "MAPS_DIR", maps_dir)
+    registry = FakeRegistry(["2026.10.07", "v0.1.0"])
+    registry.install(monkeypatch)
+
+    result = CliRunner().invoke(
+        maps_cli.maps, ["release", "jt-60sa", "--bump", "minor"]
+    )
+
+    assert result.exit_code == 0, result.output
+    # mkstemp's 0600 must not become the published descriptor's mode.
+    assert (bundle.stat().st_mode & 0o777) == 0o644
 
 
 def test_release_skips_the_push_when_the_tree_digest_is_unchanged(
