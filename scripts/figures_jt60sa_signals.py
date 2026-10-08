@@ -14,9 +14,9 @@ its own. The figures are written through ``imas_ink.io.render_to_bytes`` as SVG.
 FL7 is absolute. Each of the other 26 panels is the data dictionary's
 differential flux psi_L - psi_7 for apparatus loop L, drawn as stored: the
 stored value is the negative of the raw measured difference relative to FL7, and
-the script never re-signs data. The flux-loop figure skips the 27 type-1 loop
-entries that carry geometry and no flux, so the 26 differential entries appear
-in the order the run file stores them.
+the script never re-signs data. The flux-loop figure skips the 26 type-1 loop
+entries other than FL7, which carry geometry and no flux, so the 26 differential
+entries appear in the order the run file stores them.
 
 The IDS file is one netCDF per pulse and run under the IDS root.  Its name is
 built by the writer's :func:`~imas_alambic.pulse_writer.pulse_path`, so this
