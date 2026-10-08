@@ -1,0 +1,62 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T03:39:14.229Z",
+  "dispatched_at": "2026-10-08T03:19:19Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html:163",
+      "id": "reuse_search-1",
+      "reason": "the state-machine specification must either feed the synthesized v0.0.0 baseline to both stable queries or forbid `--bump` before a real stable tag exists, since today a new machine's first `--bump` raises where \u00a718 presents the machine as complete.",
+      "text": "\u00a718 adds \"with no semver tag, the package is stable at v0.0.0\", but that synthesized baseline is described only for the latest-tag query; `_get_latest_stable_tag` (imas_codex/cli/release.py:45) reads the same v-filtered list and, on a package whose only tag is a stable-less `v0.0.1-rc1`, returns None, so the copied machine's abandon-RC path (`stable_tag = _get_latest_stable_tag()` then `raise click.ClickException(\"No stable (non-RC) tags found to bump from...\")`, imas_codex/cli/release.py:223-228) raises for a fresh machine that \u00a718 tells a coordinator to release with `--bump`. The instances are both stable-baseline queries, not one: `_get_latest_tag` at imas_codex/cli/release.py:29 is covered by the starting state, `_get_latest_stable_tag` at imas_codex/cli/release.py:45 is not",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html:48",
+      "id": "duplicate_owner-1",
+      "reason": "the lead must name `maps/<machine>/` (the `paths.py` owner) or the plan's own summary contradicts the section that moved the maps.",
+      "text": "the lead paragraph places the maps at `/work/projects/imas_gpu/jt60sa/maps/`, but \u00a717 moved them to `maps/<machine>/` owned by `imas_ambix/data/paths.py:35` (`MAPS_DIR`) and states \"take the maps back out of /work\"; `ls /work/projects/imas_gpu/jt60sa/maps` now fails. The placement is written in two places \u2014 the lead and the \u00a717/`paths.py` owner \u2014 and they disagree, so a reader of the plan summary is sent to a directory that no longer exists",
+      "type": "duplicate_owner",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "2b846b43430055e0ece514f1d509e4a3ac7c2569dc8871da587947d5b9c32266",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 138,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261008T031856702436-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "dc2b96b2cbbe376f11394afaed7b24b4a7b3c84d",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 `imas_ambix/maps_cli.py` hides the registry auth, the tag list and its semver sort, the two-state version machine, the tree digest and the push behind the three `maps` commands; the four registry helpers and `compute_next_version` are copied into one module rather than spread across wrappers.",
+    "duplicate_owner": "a finding \u2014 the map directory is stated in two places that have drifted: the plan's own lead still places the maps under `/work/projects/imas_gpu/jt60sa/maps/`, while \u00a717 moves them to `maps/<machine>/` owned by `imas_ambix/data/paths.py:35` and that principal path is already gone.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the section's \"Accounting for the new surface\" paragraph names what the `maps` group merges (the installer's private `oras pull`) and why the one added refusal cannot be retired (the tree it guards is the only copy of unreleased work), so the added CLI surface and refusal are accounted for.",
+    "reuse_search": "a finding \u2014 the plan enumerates every registry tag query of the copied machine (`_get_latest_tag`, `_get_latest_stable_tag`, `_tag_exists`) yet its new \"no semver tag \u2192 stable at v0.0.0\" starting state covers only `_get_latest_tag`; `_get_latest_stable_tag` (imas_codex/cli/release.py:45), which the copied machine's abandon-RC `--bump` path calls at imas_codex/cli/release.py:223, is left unhandled and returns None on that same package state.",
+    "thin_wrapper": "pass \u2014 the only wrapper is `maps pull` over `oras pull`, and the plan states why the installer's private oras path cannot be extended and must instead be merged: the registry, the auth form and the artifact type then have one owner."
+  },
+  "section_digests": {
+    "_document": "88965225401f30fc73e7958884cfb84787833046410cd09aaed43fc6b9f94466",
+    "s1": "9c7f16d6433487c622ba43b590d60de6ac6689995d01dfbcf8d4ab1d1d24f6c3",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "40878323aab9328585648d85591fd96dc6fcd4f5beedd01abbe2f0b3b1e8e508",
+    "s12": "7dd2ae47a38480f8a23a4bd518d5e1b9f6772d559fde8fe9885a2c7095f8ea50",
+    "s13": "2741a581fa4af709b92ea8db4a8330d65807a7a8665bbbfd9b84a09145be00ba",
+    "s14": "00628004df0e643b97e5a73b8e6ec838a6a572c206b20aff261081968fae4bb6",
+    "s15": "2d28daaa30674a0926633cf0bde89e0177a31a0f037724f0631b6efb13df02ba",
+    "s16": "53ba0ba04529722b831f4846c272220c764bae0e8be3a17d7e2a02bfad4887c3",
+    "s17": "1c72b11004a93f7813cad93f7de13a1dd1d8f45bef1b0d7aca77b96851c0f1a3",
+    "s18": "6b34e10b86fa827023e074d362161317bbd34be2a3e791bb9e87b7843e2ec9b0",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "b1fac0701ea703406fed882189756b422b8bb52294039078259ccc18acf7cef0",
+    "s6": "7d596f31b4c60f8f55c421e2bdcb0d3f6de538cc99713c8d9b99700aad5e07ae",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "0d934ec479471ff9f711bc6e58ec9f2d0f07d4722593ff98c53426b2b509ecda",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T03:40:08.444266+00:00"
+}
