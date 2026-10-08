@@ -134,9 +134,7 @@ class _FakeTransport:
                 records.append(self._factory(spec))
             else:
                 refusals.append(
-                    ChannelRefusal(
-                        spec["shot"], spec["category"], spec["dname"], code
-                    )
+                    ChannelRefusal(spec["shot"], spec["category"], spec["dname"], code)
                 )
         return encode_batch(records, refusals)
 
@@ -222,7 +220,7 @@ def test_ssh_command_defaults_to_the_jt60sa_alias_and_is_configurable(tmp_path):
     fetch_channels(
         _extractor(default_transport),
         tmp_path / "default",
-        [_request("1", "MMSYS", "CS1")],
+        [_request("E000001", "MMSYS", "CS1")],
     )
     default_argv, _ = default_transport.calls[0]
     assert default_argv[:4] == [
@@ -236,14 +234,16 @@ def test_ssh_command_defaults_to_the_jt60sa_alias_and_is_configurable(tmp_path):
     custom = RemoteEddbExtractor(
         ssh_command=("ssh", "-p", "2222", "jt-60sa"), transport=custom_transport
     )
-    fetch_channels(custom, tmp_path / "custom", [_request("1", "MMSYS", "CS1")])
+    fetch_channels(custom, tmp_path / "custom", [_request("E000001", "MMSYS", "CS1")])
     custom_argv, _ = custom_transport.calls[0]
     assert custom_argv[:4] == ["ssh", "-p", "2222", "jt-60sa"]
 
 
 def test_ssh_config_path_is_expanded_to_an_absolute_path_at_call_time(tmp_path):
     transport = _FakeTransport()
-    fetch_channels(_extractor(transport), tmp_path, [_request("1", "MMSYS", "CS1")])
+    fetch_channels(
+        _extractor(transport), tmp_path, [_request("E000001", "MMSYS", "CS1")]
+    )
     argv, _ = transport.calls[0]
 
     assert argv[1] == "-F"
@@ -254,7 +254,9 @@ def test_ssh_config_path_is_expanded_to_an_absolute_path_at_call_time(tmp_path):
 
 def test_remote_command_loads_the_python_module_and_runs_niced(tmp_path):
     transport = _FakeTransport()
-    fetch_channels(_extractor(transport), tmp_path, [_request("1", "MMSYS", "CS1")])
+    fetch_channels(
+        _extractor(transport), tmp_path, [_request("E000001", "MMSYS", "CS1")]
+    )
     argv, _ = transport.calls[0]
     shell_command = argv[4]
 
@@ -268,9 +270,9 @@ def test_remote_command_loads_the_python_module_and_runs_niced(tmp_path):
 def test_one_transport_process_per_batch(tmp_path):
     transport = _FakeTransport()
     requests = [
-        _request("51234", "MMSYS", "CS1"),
-        _request("51234", "MMSYS", "EF1"),
-        _request("51234", "PSRC", "Ip"),
+        _request("E051234", "MMSYS", "CS1"),
+        _request("E051234", "MMSYS", "EF1"),
+        _request("E051234", "PSRC", "Ip"),
     ]
 
     result = fetch_channels(_extractor(transport), tmp_path, requests)
@@ -282,11 +284,13 @@ def test_one_transport_process_per_batch(tmp_path):
 
 def test_each_channel_lands_raw_with_eddb_attributes_and_its_time_base(tmp_path):
     transport = _FakeTransport()
-    expected = _record("51234", "MMSYS", "CS1")
+    expected = _record("E051234", "MMSYS", "CS1")
 
-    fetch_channels(_extractor(transport), tmp_path, [_request("51234", "MMSYS", "CS1")])
+    fetch_channels(
+        _extractor(transport), tmp_path, [_request("E051234", "MMSYS", "CS1")]
+    )
 
-    path = channel_path(tmp_path, "51234", "MMSYS", "CS1")
+    path = channel_path(tmp_path, "E051234", "MMSYS", "CS1")
     assert path.is_dir()
     stored = zarr.open_array(path, mode="r")
     assert stored[...].shape == expected.data.shape
@@ -295,7 +299,7 @@ def test_each_channel_lands_raw_with_eddb_attributes_and_its_time_base(tmp_path)
     assert stored.attrs["channel_count"] == 2
     assert stored.attrs["sequence_number"] == 7
 
-    time_path = channel_time_path(tmp_path, "51234", "MMSYS", "CS1")
+    time_path = channel_time_path(tmp_path, "E051234", "MMSYS", "CS1")
     assert time_path.is_dir()
     stored_time = zarr.open_array(time_path, mode="r")
     assert np.array_equal(stored_time[...], expected.time)
@@ -303,10 +307,10 @@ def test_each_channel_lands_raw_with_eddb_attributes_and_its_time_base(tmp_path)
 
 
 def test_read_channel_round_trips_data_time_base_and_unit(tmp_path):
-    record = _record("51234", "MMSYS", "CS1", nch=2, ntime=5, unit="V", seq=9)
+    record = _record("E051234", "MMSYS", "CS1", nch=2, ntime=5, unit="V", seq=9)
     write_channel(tmp_path, record)
 
-    back = read_channel(tmp_path, "51234", "MMSYS", "CS1")
+    back = read_channel(tmp_path, "E051234", "MMSYS", "CS1")
 
     assert np.array_equal(back.data, record.data)
     assert np.array_equal(back.time, record.time)
@@ -316,21 +320,21 @@ def test_read_channel_round_trips_data_time_base_and_unit(tmp_path):
 
 
 def test_read_channel_refuses_a_time_base_mismatched_with_the_data(tmp_path):
-    write_channel(tmp_path, _record("51234", "MMSYS", "CS1", nch=2, ntime=5))
+    write_channel(tmp_path, _record("E051234", "MMSYS", "CS1", nch=2, ntime=5))
     group = zarr.open_group(tmp_path / "51234.zarr", mode="a")
     group["MMSYS"].create_array(
         time_array_name("CS1"), data=np.arange(3, dtype="<f8"), overwrite=True
     )
 
     with pytest.raises(EddbCacheError, match="half-written"):
-        read_channel(tmp_path, "51234", "MMSYS", "CS1")
+        read_channel(tmp_path, "E051234", "MMSYS", "CS1")
 
 
 def test_a_cached_channel_causes_no_transport_call(tmp_path):
     transport = _FakeTransport()
     extractor = _extractor(transport)
-    first = _request("51234", "MMSYS", "CS1")
-    second = _request("51234", "MMSYS", "EF1")
+    first = _request("E051234", "MMSYS", "CS1")
+    second = _request("E051234", "MMSYS", "EF1")
 
     fetch_channels(extractor, tmp_path, [first])
     assert len(transport.calls) == 1
@@ -345,49 +349,55 @@ def test_a_cached_channel_causes_no_transport_call(tmp_path):
 
 
 def test_writing_over_an_existing_channel_is_refused(tmp_path):
-    record = _record("51234", "MMSYS", "CS1")
+    record = _record("E051234", "MMSYS", "CS1")
     write_channel(tmp_path, record)
 
     with pytest.raises(EddbCacheError, match="never rewritten"):
         write_channel(tmp_path, replace(record, data=record.data + 1.0))
 
-    stored = zarr.open_array(channel_path(tmp_path, "51234", "MMSYS", "CS1"), mode="r")
+    stored = zarr.open_array(
+        channel_path(tmp_path, "E051234", "MMSYS", "CS1"), mode="r"
+    )
     assert np.array_equal(stored[...], record.data)
 
 
 def test_an_unreadable_channel_node_is_refused_not_reported_not_cached(tmp_path):
-    path = channel_path(tmp_path, "51234", "MMSYS", "CS1")
+    path = channel_path(tmp_path, "E051234", "MMSYS", "CS1")
     path.mkdir(parents=True)
     (path / "junk").write_text("not a zarr array")
 
     with pytest.raises(EddbCacheError, match="not a readable array"):
-        is_cached(tmp_path, "51234", "MMSYS", "CS1")
+        is_cached(tmp_path, "E051234", "MMSYS", "CS1")
 
-    record = _record("51234", "MMSYS", "CS1")
+    record = _record("E051234", "MMSYS", "CS1")
     with pytest.raises(EddbCacheError, match="not a readable array"):
         write_channel(tmp_path, record)
 
     transport = _FakeTransport()
     with pytest.raises(EddbCacheError, match="not a readable array"):
         fetch_channels(
-            _extractor(transport), tmp_path, [_request("51234", "MMSYS", "CS1")]
+            _extractor(transport), tmp_path, [_request("E051234", "MMSYS", "CS1")]
         )
     assert transport.calls == []
 
 
 def test_the_shot_token_is_normalised_to_its_int_form(tmp_path):
     transport = _FakeTransport()
-    token = "051234"
+    token = "E051234"
 
     fetch_channels(_extractor(transport), tmp_path, [_request(token, "MMSYS", "CS1")])
 
     sent = json.loads(transport.calls[0][1])["requests"][0]["shot"]
     assert sent == token
 
-    path = channel_path(tmp_path, token, "MMSYS", "CS1")
+    # The cache directory is named by the integer of the token's digits, so a
+    # bare integer addresses the same pulse on the read path, which does not
+    # demand the series letter.
+    assert normalised_shot("051234") == "51234"
+    path = channel_path(tmp_path, "051234", "MMSYS", "CS1")
     assert "051234" not in str(path)
     assert str(path).endswith("51234.zarr/MMSYS/CS1")
-    assert is_cached(tmp_path, token, "MMSYS", "CS1") is True
+    assert is_cached(tmp_path, "051234", "MMSYS", "CS1") is True
 
     with ZarrTransformEngine().open(tmp_path, 51234, "4.1.1") as arrays:
         engine_values = arrays.read(_binding("MMSYS", "CS1"))
@@ -456,33 +466,34 @@ def test_a_half_written_channel_is_completed_rather_than_refused(tmp_path):
 
 
 def test_a_refetch_completes_a_half_written_channel(tmp_path):
-    record = _record("51234", "MMSYS", "CS1")
+    record = _record("E051234", "MMSYS", "CS1")
     group = zarr.open_group(tmp_path / "51234.zarr", mode="a")
-    group.require_group("MMSYS").create_array(
-        "CS1", data=record.data, overwrite=False
-    )
+    group.require_group("MMSYS").create_array("CS1", data=record.data, overwrite=False)
 
     transport = _FakeTransport()
-    fetch_channels(_extractor(transport), tmp_path, [_request("51234", "MMSYS", "CS1")])
+    fetch_channels(
+        _extractor(transport), tmp_path, [_request("E051234", "MMSYS", "CS1")]
+    )
 
     assert len(transport.calls) == 1
-    assert is_cached(tmp_path, "51234", "MMSYS", "CS1") is True
-    assert channel_time_path(tmp_path, "51234", "MMSYS", "CS1").is_dir()
+    assert is_cached(tmp_path, "E051234", "MMSYS", "CS1") is True
+    assert channel_time_path(tmp_path, "E051234", "MMSYS", "CS1").is_dir()
 
 
 def test_cached_store_opens_through_engine_and_view_with_no_transport_call(tmp_path):
     transport = _FakeTransport()
-    shot = "51234"
+    shot = "E051234"
     fetch_channels(_extractor(transport), tmp_path, [_request(shot, "MMSYS", "CS1")])
     calls_after_fetch = len(transport.calls)
 
-    with ZarrTransformEngine().open(tmp_path, shot, "4.1.1") as arrays:
+    shot_int = int(normalised_shot(shot))
+    with ZarrTransformEngine().open(tmp_path, shot_int, "4.1.1") as arrays:
         engine_values = arrays.read(_binding("MMSYS", "CS1"))
     assert engine_values.shape == (2, 5)
 
-    store_path = tmp_path / f"{shot}.zarr"
+    store_path = tmp_path / f"{shot_int}.zarr"
     view = VirtualZarrView.open(
-        str(store_path), _signal_map("MMSYS", "CS1"), shot=int(shot)
+        str(store_path), _signal_map("MMSYS", "CS1"), shot=shot_int
     )
     assert view.keys() == ("cs1",)
     assert np.array_equal(view["cs1"][:, :3], engine_values[:, :3])
@@ -492,7 +503,7 @@ def test_cached_store_opens_through_engine_and_view_with_no_transport_call(tmp_p
 
 def test_remote_script_executes_and_decodes_a_known_record(tmp_path):
     completed = _run_remote_script(
-        tmp_path, [{"shot": "051234", "category": "MMSYS", "dname": "CS1"}]
+        tmp_path, [{"shot": "E051234", "category": "MMSYS", "dname": "CS1"}]
     )
     assert completed.returncode == 0, completed.stderr.decode()
 
@@ -500,7 +511,7 @@ def test_remote_script_executes_and_decodes_a_known_record(tmp_path):
     assert len(result.records) == 1
     assert result.refusals == []
     record = result.records[0]
-    assert (record.shot, record.category, record.dname) == ("051234", "MMSYS", "CS1")
+    assert (record.shot, record.category, record.dname) == ("E051234", "MMSYS", "CS1")
     assert np.array_equal(record.data, [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
     assert np.array_equal(record.time, [0.0, 0.5, 1.0])
     assert record.unit == "A"
@@ -510,13 +521,13 @@ def test_remote_script_executes_and_decodes_a_known_record(tmp_path):
 
 def test_remote_script_refuses_a_record_with_no_time_base(tmp_path):
     completed = _run_remote_script(
-        tmp_path, [{"shot": "051234", "category": "MMSYS", "dname": "NOTIME"}]
+        tmp_path, [{"shot": "E051234", "category": "MMSYS", "dname": "NOTIME"}]
     )
 
     assert completed.returncode != 0
     stderr = completed.stderr.decode()
     assert "no time base" in stderr
-    assert "051234" in stderr
+    assert "E051234" in stderr
     assert "MMSYS" in stderr
     assert "NOTIME" in stderr
 
@@ -527,9 +538,9 @@ def test_remote_script_reports_a_refusal_per_channel_without_aborting_the_batch(
     completed = _run_remote_script(
         tmp_path,
         [
-            {"shot": "051234", "category": "MMSYS", "dname": "CS1"},
-            {"shot": "051234", "category": "PSRC", "dname": "REFUSED"},
-            {"shot": "051234", "category": "MMSYS", "dname": "EF1"},
+            {"shot": "E051234", "category": "MMSYS", "dname": "CS1"},
+            {"shot": "E051234", "category": "PSRC", "dname": "REFUSED"},
+            {"shot": "E051234", "category": "MMSYS", "dname": "EF1"},
         ],
     )
     assert completed.returncode == 0, completed.stderr.decode()
@@ -539,7 +550,7 @@ def test_remote_script_reports_a_refusal_per_channel_without_aborting_the_batch(
     assert [refusal.dname for refusal in result.refusals] == ["REFUSED"]
     refusal = result.refusals[0]
     assert (refusal.shot, refusal.category, refusal.dname) == (
-        "051234",
+        "E051234",
         "PSRC",
         "REFUSED",
     )
@@ -578,7 +589,7 @@ def test_remote_script_refuses_a_failed_read_with_no_integer_irc(tmp_path):
 
 def test_remote_script_refuses_a_multi_entry_unit(tmp_path):
     completed = _run_remote_script(
-        tmp_path, [{"shot": "051234", "category": "MMSYS", "dname": "MULTIUNIT"}]
+        tmp_path, [{"shot": "E051234", "category": "MMSYS", "dname": "MULTIUNIT"}]
     )
 
     assert completed.returncode != 0
@@ -619,11 +630,13 @@ def test_fetch_batch_raises_only_when_the_session_itself_fails():
             raise EddbRemoteError("ssh: connect to host jt-60sa port 22: refused")
 
     with pytest.raises(EddbRemoteError, match="connect to host"):
-        _extractor(_BrokenTransport()).fetch_batch([_request("1", "MMSYS", "CS1")])
+        _extractor(_BrokenTransport()).fetch_batch(
+            [_request("E000001", "MMSYS", "CS1")]
+        )
 
     # A refused channel is reported in the result, not raised.
     transport = _FakeTransport(refuse={"CS1": 1015})
-    result = _extractor(transport).fetch_batch([_request("1", "MMSYS", "CS1")])
+    result = _extractor(transport).fetch_batch([_request("E000001", "MMSYS", "CS1")])
     assert result.records == []
     assert result.refusals[0].code == 1015
 
@@ -660,7 +673,7 @@ def test_a_batch_that_is_entirely_refused_writes_nothing(tmp_path):
 
 def test_the_cached_unit_is_the_eddb_unit_string_not_its_repr(tmp_path):
     completed = _run_remote_script(
-        tmp_path, [{"shot": "051234", "category": "MMSYS", "dname": "CS1"}]
+        tmp_path, [{"shot": "E051234", "category": "MMSYS", "dname": "CS1"}]
     )
     record = decode_batch(completed.stdout).records[0]
     assert record.unit == "A"
@@ -668,7 +681,7 @@ def test_the_cached_unit_is_the_eddb_unit_string_not_its_repr(tmp_path):
     cache_root = tmp_path / "cache"
     write_channel(cache_root, record)
     stored = zarr.open_array(
-        channel_path(cache_root, "051234", "MMSYS", "CS1"), mode="r"
+        channel_path(cache_root, "E051234", "MMSYS", "CS1"), mode="r"
     )
     assert stored.attrs["units"] == "A"
 
@@ -683,7 +696,7 @@ def test_normalise_unit_takes_a_single_entry_and_refuses_a_multi_entry_list():
 
 
 def test_envelope_round_trips_through_encode_and_decode():
-    records = [_record("51234", "MMSYS", "CS1"), _record("51234", "PSRC", "Ip")]
+    records = [_record("E051234", "MMSYS", "CS1"), _record("E051234", "PSRC", "Ip")]
     decoded = decode_batch(encode_batch(records))
     assert [record.key for record in decoded.records] == [
         record.key for record in records
