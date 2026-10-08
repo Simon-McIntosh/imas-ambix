@@ -1,0 +1,37 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T15:56:01.639Z",
+  "dispatched_at": "2026-10-08T15:42:03Z",
+  "findings": [],
+  "plan_fingerprint": "dfa4624e957d2569f17ae59a3932e890e12e693faa332a537280f7769862e39d",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 396,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261008T154128947367-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "e3d38d9109e585a6e5e7fe53097affdafee910e8",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every target the unit cites resolves and carries the members claimed: nova's MachineGeometryRegistry (nova/catalog/mast_geometry.py:300) defines registry_digest, dd_version, configurations keyed by physical digest (PhysicalConfiguration carries physical_digest and authoring_gaps at lines 306-317), select(shot) (line 414) and resolve_representation(digest) (line 432); Jt60saGeometryRegistry (imas_ambix/gs/description_artifact.py:102) defines registry_digest, dd_version, configurations and ranges but no authoring_gaps, select or resolve_representation, matching \"provides the two digests and a configurations map without authoring gaps\"; MachineArtifactGeometryReader (imas_ambix/gs/artifact_geometry.py:726) computes its SetupSignature inline at lines 854-875, matching \"the digest formula moves out of the reader\"; and machine_geometry.py's projection (lines 225-228) catches MachineIdentityError/ImportError/OSError/TypeError/ValueError but not AttributeError, matching \"which it does not catch\".",
+    "done_when": "pass \u2014 the unit adds no done-when of its own, which is this plan's convention for body prose; the \u00a77 done-when it sits under (plan.html:556-566) is measurable (every shot's boundary RMS under 0.10 m) and carries its declared must-fail control (the same run with loop 7's channel_factor flipped to +1) so the gate can fail.",
+    "evidence_paths": "pass \u2014 the unit cites code paths only, and the bundle it depends on (maps/jt-60sa/, whose drive/acquisition keys the sibling unit reads) is a durable /work bundle path, not a session scratchpad or node-local temporary.",
+    "naming": "pass \u2014 the changed unit carries no plan label, stage name, ticket number or version tag into a code symbol; the jtmm-* identifiers are the plan's own node vocabulary, and the prose describes mechanisms (\"an alias and the reader's signature cannot drift apart\") rather than tracker references or changelog history.",
+    "reasoning": "pass \u2014 all three checks hold. The stated cause matches the cited evidence: the resolvers do read a registry through exactly those five members (machine_identity.py:_identity at 157-171 reads registry_digest and dd_version; identity_for_representation at 187-204 reads configuration.physical_digest/authoring_gaps and resolve_representation; identity_for_shot at 216-230 reads select and selection.evidence; all four public resolvers fall back to default_registry() at 187/216/241/259), and the producer's registry genuinely lacks three of them, so \"the selection node completes it\" is the right mechanism. The mechanism produces the measure: recording the aliases into the producer-built registry payload moves its registry_digest, and description_artifact.py:364 records that same registry. The mechanism runs on the real code path with the caller named: resolve_representation is reached through identity_for_representation, whose three production callers (machine_selection.py:138 selector, artifact_geometry.py:804 _shot_evidence, and identity_for_table) are the ones \u00a77 names, and the produced artifacts take the digest verbatim from the producer's registry (description_artifact.py:343-375), so a producer that records the aliases before materializing yields manifests that carry the moved digest and the pinned rows match.",
+    "single_goal": "pass \u2014 the unit refines one deliverable, the JT-60SA selection route's registry interface (five read members, the completed JT-60SA registry, the shared signature-digest function); it names no second deliverable.",
+    "wiring": "pass \u2014 the changed unit (\u00a77, plan.html:392-415, the registry-interface paragraph) adds no node and no new relationship; it refines the interface of the two nodes \u00a77 already names and orders, jtmm-jt60sa-artifact-producer (\"authors (below)\") and jtmm-machine-keyed-selection (\"then makes...\"), both of which resolve to real prose in the same section, and the digest-sharing it introduces (reader and producer both call one function) points at the producer, not at a wrong node."
+  },
+  "section_digests": {
+    "_document": "1a041e1b69e7c648e3848440450d2aa25ac955ec54bdbca27a0558b3e2fb8c3a",
+    "s1": "52731ac311aa8ac6ed57dc5f58a5868e5f9e2e34b4e132f297830fa912abbc0f",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "831e00da1230c1e38476a681cb1db3c9cb46f8785c37e32954156f16251d5256",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T15:56:10.947572+00:00"
+}
