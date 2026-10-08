@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.92">
-<meta name="plan-version" content="382">
+<meta name="plan-version" content="384">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -380,8 +380,8 @@
       selector is built, before any read. The registry has one owner, extended rather than forked:
       <code>imas_ambix/gs/machine_identity.py</code> <code>default_registry</code> takes the machine
       as its key and keeps one cached registry per machine. MAST's key returns nova's packaged MAST
-      registry. The JT-60SA key returns the registry built from the JT-60SA artifact, which
-      <code>jtmm-jt60sa-artifact-producer</code> authors (below), and a machine with no
+      registry. The JT-60SA key returns the registry built over the two JT-60SA phase artifacts,
+      which <code>jtmm-jt60sa-artifact-producer</code> authors (below), and a machine with no
       registry is refused by name rather than answered with MAST's. All four public resolvers in
       that module fall back to <code>default_registry()</code> today, so all four change, not only
       the one on the route. <code>identity_for_representation</code>,
@@ -422,16 +422,27 @@
       <code>publish_refined_artifact</code>, DIII-D's <code>publish_diiid_machine_artifact</code>) are
       machine-specific. So §7 adds a JT-60SA identity producer in ambix,
       <code>jtmm-jt60sa-artifact-producer</code>, following the DIII-D precedent of a machine-specific
-      producer over the generic layer. It reads the OP1 and OP2 description stores under
-      <code>maps/jt-60sa/machine_description</code>, stages only their five IDS containers (each store
-      directory also holds a converter <code>receipt.json</code>, which is not an IDS and must not
-      become an artifact member), builds the JT-60SA geometry registry from them,
-      derives the physical and registry digests and the shot ranges from the catalogue's phases, and
-      calls nova's generic layer to materialize the artifact. The selection-route node,
+      producer over the generic layer. It authors one artifact per operating phase. OP1 and OP2 are
+      two physical identities, not one: their stores carry the same five IDS names but different
+      <code>pf_passive</code> and <code>wall</code> content, as decision
+      <code>operating-phase-of-existing-pulses</code> binds them. Nova's generic layer packs one
+      directory and refuses a repeated member name, and the selector compares a shot's physical
+      identity with one resolved artifact's. For each phase, the producer reads that phase's store
+      under <code>maps/jt-60sa/machine_description</code> through imas. It writes the five IDSs into
+      an IMAS HDF5 entry in a staging directory of its own; the converter <code>receipt.json</code>
+      beside each store is not an IDS and does not become a member. The HDF5 entry is the form the
+      geometry reader opens (<code>imas:hdf5?path=</code>, as MAST's <code>write_and_reopen</code>
+      writes it), so the netCDF files are never staged as they are. The producer builds one
+      JT-60SA geometry registry over both phases and takes the registry digest from it, as MAST's
+      producer does. Each phase's physical digest comes from that phase's geometry content, and
+      its shot ranges from the catalogue's dates for that phase. The producer then calls nova's
+      generic layer to materialize each artifact. The selection-route node,
       <code>jtmm-machine-keyed-selection</code>, then makes <code>resolve_machine_description</code> and
-      <code>author_pinned_description</code> take a machine, turns the three pin constants into the
-      machine-keyed table, makes the selector and the geometry reader take the declared machine, and
-      keys the identity registry by machine, with the JT-60SA rows filled from the producer's artifact.
+      <code>author_pinned_description</code> take a machine. It turns the three pin constants into
+      the machine-keyed table, with one JT-60SA row for each phase. It makes the selector resolve
+      the artifact whose physical digest the shot's identity names, rather than the one artifact it
+      resolves today. It makes the geometry reader take the declared machine, and keys the identity
+      registry by machine, with the JT-60SA rows filled from the producer's two artifacts.
     </p>
     <p>
       The benchmark already holds a geometry source that reads the spine's own route:
