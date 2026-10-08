@@ -31,7 +31,6 @@ from imas_alambic.eddb import (
     write_channel,
 )
 from imas_alambic.eddb_remote import ChannelRecord
-
 from imas_ambix.challenge.loader import load_geqdsk
 from imas_ambix.data.paths import JT60SA_ROOT
 

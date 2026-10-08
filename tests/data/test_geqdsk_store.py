@@ -23,7 +23,11 @@ import pytest
 import zarr
 
 from imas_alambic.eddb import time_array_name
-from imas_alambic.signal_map import MAP_SCHEMA_VERSION, SignalMap, load_packaged_signal_map
+from imas_alambic.signal_map import (
+    MAP_SCHEMA_VERSION,
+    SignalMap,
+    load_packaged_signal_map,
+)
 from imas_alambic.virtual_zarr import VirtualZarrView
 from imas_ambix.challenge.loader import load_geqdsk
 from imas_ambix.data.geqdsk_store import (
@@ -36,7 +40,7 @@ from imas_ambix.data.geqdsk_store import (
     write_geqdsk_store,
 )
 from imas_ambix.data.paths import JT60SA_ROOT
-from tests.jt60sa_bundle import BUNDLE, SKIP_REASON
+from tests.jt60sa_bundle import BUNDLE
 
 pytestmark = pytest.mark.skipif(
     BUNDLE is None or not default_geqdsk_path("E101011").is_file(),
