@@ -1,0 +1,54 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T07:36:36.238Z",
+  "dispatched_at": "2026-10-08T07:30:00Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-pulse-ids.html:169",
+      "id": "reasoning-1",
+      "reason": "the section must be restated in the past tense (rename on main, section ready) or a dispatched node waits on a precondition the plan itself records as met.",
+      "text": "\u00a78 still frames the rename as in flight (\"The machine-map coordinator is renaming\u2026\", \"it waits for jt60sa-facility-mint \u00a718's release to lift its hold\", \"Once it lands, this section writes both pulses once more\") while the evidence sentence appended to the same paragraph records it landed at ca81ca18 with the bundle released, so a node cut for \u00a78 can read a satisfied precondition as still open and hold",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-pulse-ids.html:225",
+      "id": "reasoning-2",
+      "reason": "the superseding followup f-jpi-s8-rename-rewrite and \u00a78's own status already carry the current state, so correcting this outcome is housekeeping rather than a change of what a node does.",
+      "text": "the \u00a77 followup outcome still reads \"\u00a78, deferred until the machine map's rename lands\" and carries a stray `<l>\u2026</l>` tag, contradicting \u00a78's new implementable declaration",
+      "type": "reasoning",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "ea6a4ccd0da9954dd3c85f5461e6e2076f763e4564afaf4161390c8f202d453a",
+  "plan_slug": "jt60sa-pulse-ids",
+  "plan_version": 41,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261008T072950416499-plan-review-of-jt60sa-pulse-ids",
+  "reviewed_blob_sha": "67b41886cb2c28f8c95891a93a91c1b3881dc15f",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 ca81ca18 is a real ancestor merge and maps/jt-60sa/bundle.json reads v0.2.0-rc2; the claimed sha256 prefixes 0b089a3a734a8836 and 6a0e4b10b1bf0180 match both OP stores' magnetics.nc and machine_map.json on disk; every cited path resolves (packages/imas-alambic/src/imas_alambic/pulse_writer.py, scripts/figures_jt60sa_geometry.py, jt60sa-facility-mint#s18, jt60sa-signal-figures-from-ids#s4).",
+    "done_when": "pass \u2014 s8's done-when is measurable (exit 0, entries 27\u201352 named FL<L>-FL7, element-for-element equality with the \u00a77 baseline) and names a negative control that can fail (the name check fails 26/26 against the \u00a77 baseline).",
+    "evidence_paths": "pass \u2014 s8 stages the \u00a77 baseline under the run's own directory under ~/.config/reckon/crew/runs/ (durable), naming no scratchpad or node-local temporary path.",
+    "naming": "pass \u2014 no plan labels, ticket numbers or version tags reach code; FL<L>-FL7 are stored entry names, not plan identifiers.",
+    "reasoning": "a finding \u2014 s8's opening premise (the rename is pending, \"once it lands\") contradicts the landed evidence appended to the same paragraph at line 169.",
+    "single_goal": "pass \u2014 each section names one deliverable; s8 is the renamed-entries rewrite alone.",
+    "wiring": "pass \u2014 s4's declared depends-on now carries the jt60sa-pulse-ids#s2 edge (line 24), and s8's prerequisites (the machine-map rename and jt60sa-facility-mint \u00a718) have landed, so no gating edge is missing."
+  },
+  "section_digests": {
+    "_document": "34fb73cec3457be9bf69e28178095f98c64760cbfdb373e42db0cfe9516dc2dc",
+    "s1": "03eeaedd2c5502c88ec72ea09f8ea2eec7ce704b95be59fa080894ef4214bc98",
+    "s2": "f49593e5403499a57748e5a2f55d48c3b7ca8992a3bb64e5103a440e5c668366",
+    "s3": "e0c752d72775115b7987ba7db0722d7fe24721ae7a504604a237ca7050f3775d",
+    "s4": "181a42b6bf8c74edb3710bd11a1bc408ce6d67da65064e96d0b7b7d5c47573e8",
+    "s5": "2fe78b8eaa57cdcf1ca2ee21a6164a26bd291494f76eced7774ae0f4e43b6efa",
+    "s6": "a01f31a138a09e8b6b39bf55196646418b937b800d2df12100db301174553acd",
+    "s7": "a479d1a46c2a42924c1269f4dc93f4996d8803812991bef413bfd6a0995db895",
+    "s8": "5adb272ab40fc0ad83844c9cfacedbf38e9185dd6ca0b297346429ed69c0376e"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T07:37:41.899318+00:00"
+}
