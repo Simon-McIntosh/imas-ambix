@@ -1,0 +1,84 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T23:42:50.878Z",
+  "dispatched_at": "2026-10-08T23:34:22Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:273",
+      "id": "reasoning-1",
+      "reason": "a worker building jtmm-geqdsk-psi-store or the equilibrium map cannot tell whether the G-EQDSK q profile is still required, so it will either stage an unused profile or omit one the section's own designation says it needs; the sentence should say what consumes the q profile or drop the phrase.",
+      "text": "\"\u00a77 takes E101011's G-EQDSK as its one psi grid and q-profile reference\" but the only store node (jtmm-geqdsk-psi-store, :296-301) stages the psi grid alone and the only binding named is profiles_2d/psi, while the only q measure in the section (:555-556, :605-606) is the per-shot q95 scalar against FAME Q95, so the designated q-profile source is consumed by nothing",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:273",
+      "id": "reasoning-2",
+      "reason": "read literally, \"every other shot\" excludes E101011 from the PSRC boundary reference, so a node could leave the one shot whose psi comes from the G-EQDSK without a SELENE reference boundary and the done-when's per-shot boundary check could not run for it.",
+      "text": "the changed clause has PSRC supply \"boundary, X-point, magnetic axis and plasma current for every other shot\", which contradicts \u00a77 line 277 (\"the reference loader's boundary, X-point and axis come from PSRC for every other shot\" -> for every frozen shot) and the done-when's per-shot boundary RMS against SELENE's PSRC boundary for the whole set",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "cc83ecf5ce91fb6dd1e8dc4677555d91dd6545a2165999912183f5d5eee857b7",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 422,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v426: section 7 now takes the G-EQDSK as its one psi grid reference and says no section 7 measure consumes a q profile, so none is staged; q95 comes from FAME Q95.",
+      "when": "2026-10-08T23:41:54.358670+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-2",
+      "reason": "Plan v426: PSRC's boundary, X-point, magnetic axis and plasma current are now named for every frozen shot, matching the reference-loader sentence and the done-when.",
+      "when": "2026-10-08T23:41:54.360432+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v426: section 7 now takes the G-EQDSK as its one psi grid reference and says no section 7 measure consumes a q profile, so none is staged; q95 comes from FAME Q95.",
+      "when": "2026-10-08T23:41:54.358670+00:00"
+    },
+    "reasoning-2": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v426: PSRC's boundary, X-point, magnetic axis and plasma current are now named for every frozen shot, matching the reference-loader sentence and the done-when.",
+      "when": "2026-10-08T23:41:54.360432+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v422.json",
+  "review_run_id": "r-20261008T233343190491-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "aa97690d5dde71ebfb530fcc4359f7213c092359",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 the changed sentence's anchors resolve: decision jt60sa-psi-q-source (snapshot :898), the cited FAME Q95 scalar (maps/jt-60sa/maps/equilibrium.json binds FAME Q95 to equilibrium/time_slice/global_quantities/q_95), and \u00a76's sign report; hrefs are extensionless and resolve as <path>.html.",
+    "done_when": "pass \u2014 \u00a77's done-when (snapshot :614-633) carries two negative controls: the loop-7 channel_factor flipped to +1 must stamp a larger whitened residual on every shot, and the sign-flipped psi binding must fail the psi check.",
+    "evidence_paths": "pass \u2014 the section's evidence sits in docs/evidence/fragments/jt60sa-machine-map/ (jtmm-reference-scope.html, jtmm-e101011-psi-row.html, jtmm-sign-cohort.html all exist) and the fetched arrays land under the shared JT-60SA cache root, not a session scratchpad.",
+    "naming": "pass \u2014 the changed text introduces no symbol, version tag or ticket number; the node names it cites (jtmm-selene-psrc-loader and peers) are already the plan's identifiers within the plan's own record, not in code.",
+    "reasoning": "a finding \u2014 the changed sentence names E101011's G-EQDSK as \u00a77's q-profile reference while no \u00a77 node or map rule reads or binds that q profile, and the shot-scope clause in the same changed line contradicts \u00a77's own reference loader and the section's done-when.",
+    "single_goal": "pass \u2014 each \u00a77 node names one deliverable (the PSRC reader, the reference loader, the psi store, the artifact producer, the drive map, the registry, the machine-keyed selection).",
+    "wiring": "pass \u2014 \u00a77's node names resolve against \u00a78's execution order, whose item 6 now places the PSRC SELENE reader (jtmm-selene-psrc-loader) in \u00a77 with the selection route, the reference loader and the E101011 psi store."
+  },
+  "section_digests": {
+    "_document": "aeae9043f53534ca2bc015344ff6611bcb0f8f1fd2d90c733ffbe2bbfb65ca84",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "232a0cfc9a608cacbc9b0433abf83bc093603f63d598608bae198e871c1ab5f1",
+    "s8": "acaa8e846bc7d30783f4709d0009ac816bf41baeed2fe1392b0574460f80e420"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T23:41:54.356298+00:00"
+}
