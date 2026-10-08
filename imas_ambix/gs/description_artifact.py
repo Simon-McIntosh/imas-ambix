@@ -12,12 +12,15 @@ different ``pf_passive`` and ``wall`` content, so each phase's physical digest
 is derived from its own geometry content and the two artifacts carry disjoint
 shot ranges but one shared registry digest.
 
-The geometry, registry and shot-range identity is derived, but the operator-
-ready evidence layer is not authored here: the producer supplies no field-
-evidence ledger and derives no channel drive map from the phase drive topology
-in ``machine_map.json``.  Each phase artifact is therefore created
-``complete=False``, its ``unresolved_gaps`` naming both absences, and it becomes
-``complete`` only when both are supplied -- which this producer does not do.
+The geometry, registry and shot-range identity is derived, and the operator-
+ready channel drives are authored from each phase's drive topology in
+``machine_map.json``: one nova drive per ``pf_active`` coil, its channel taken
+from the phase's acquisition declaration and its weight the coil's total
+ampere-turns per ampere over the topology's connections.  The geometry
+field-evidence ledger is not authored here, so each phase artifact is created
+``complete=False``, its
+``unresolved_gaps`` naming that absence, and it becomes ``complete`` only when
+the ledger is supplied -- which this producer does not do.
 
 For each phase the producer reads the phase's five IDSs from its description
 store through imas, writes them into a fresh IMAS HDF5 entry
@@ -38,6 +41,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,7 +50,8 @@ from typing import TYPE_CHECKING, Any
 import imas
 import numpy as np
 
-from imas_ambix.data.paths import JT60SA_MAP_DIR
+from imas_ambix.data.geometry_adapter import current_channel_from_conductors
+from imas_ambix.data.paths import GHCR_OWNER, JT60SA_MAP_DIR, package_for_machine
 from imas_ambix.gs.artifact_geometry import (
     read_artifact_limiter,
     read_artifact_magnetics,
@@ -89,8 +94,14 @@ PHASE_SHOT_EVIDENCE: dict[str, str] = {
     "OP2": "inherited",
 }
 
-#: The evidence the producer does not yet author.  Both absences are named on
-#: every phase artifact, so each is created incomplete until they are supplied.
+#: The relative spread two elements of one coil may show on the per-element
+#: ampere-turns and still be one winding.  The catalogue declares turns to two
+#: decimals, so a uniform winding's last declared digit may differ between its
+#: elements; a larger spread is a genuine disagreement and is refused by name.
+_WEIGHT_AGREEMENT = 1e-2
+
+#: The evidence the producer does not yet author: the geometry field ledger.
+#: The absence is named on every phase artifact, so each stays incomplete.
 NO_FIELD_EVIDENCE_GAP = "no field evidence ledger is authored"
 DRIVE_TOPOLOGY_GAP = (
     "the channel drive map is not authored from the {phase} drive topology "
@@ -243,64 +254,265 @@ def _read_phase_ids(store: Path) -> dict[str, Any]:
     return ids
 
 
-def _phase_shot_ranges(
-    machine_map_path: Mapping[str, Any] | Path | str,
-) -> dict[str, tuple[int, int]]:
-    """Return each phase's closed shot range from the packaged catalogue."""
-    if isinstance(machine_map_path, (Path, str)):
-        payload = json.loads(Path(machine_map_path).read_text())
-    else:
-        payload = machine_map_path
-    ranges = {
-        str(row["name"]): (int(row["first_shot"]), int(row["last_shot"]))
-        for row in payload["maps"]
-    }
-    missing = [phase for phase in PHASES if phase not in ranges]
-    if missing:
-        raise ValueError(f"machine map names no shot range for {missing}")
-    return ranges
+@dataclass(frozen=True)
+class _PhaseMapRow:
+    """One phase's catalogue row: its shot range and its drive-map identities.
+
+    It carries the drive topology's connections and the acquisition declaration
+    that names their current channels, so the drive authoring reads one loaded
+    structure rather than re-loading the catalogue per concern.
+    """
+
+    phase: str
+    first_shot: int
+    last_shot: int
+    drive_topology: str
+    connections: tuple[Any, ...]
+    acquisition: Any
 
 
-def _phase_drive_topologies(
+def _machine_map_payload(
     machine_map_path: Mapping[str, Any] | Path | str,
-) -> dict[str, str]:
-    """Return each phase's drive-topology key from the packaged catalogue."""
+) -> Mapping[str, Any]:
+    """Return the catalogue, reading it from disk only when given a path."""
     if isinstance(machine_map_path, (Path, str)):
-        payload = json.loads(Path(machine_map_path).read_text())
-    else:
-        payload = machine_map_path
+        return json.loads(Path(machine_map_path).read_text())
+    return machine_map_path
+
+
+def _phase_map_rows(
+    machine_map_path: Mapping[str, Any] | Path | str,
+) -> dict[str, _PhaseMapRow]:
+    """Read the catalogue once and serve each phase's shot range and drive map.
+
+    One load replaces the separate loads the shot ranges and drive topologies
+    each made.  Each phase row carries the drive topology it names and the
+    acquisition declaration that topology's ``current_channel_declaration``
+    names, so the channel a drive carries and the measured current it receives
+    are read from one place.
+    """
+    from imas_alambic.machine_map import (  # noqa: PLC0415
+        AcquisitionDeclaration,
+        DriveTopology,
+    )
+
+    payload = _machine_map_payload(machine_map_path)
     topologies = {
-        str(row["name"]): str(row["drive_topology"]) for row in payload["maps"]
+        str(row["name"]): DriveTopology.from_dict(
+            row, f"drive_topologies[{row['name']}]"
+        )
+        for row in payload["drive_topologies"]
     }
-    missing = [phase for phase in PHASES if phase not in topologies]
+    declarations = {
+        str(row["name"]): AcquisitionDeclaration.from_dict(
+            row, f"acquisition_declarations[{row['name']}]"
+        )
+        for row in payload["acquisition_declarations"]
+    }
+    rows: dict[str, _PhaseMapRow] = {}
+    for row in payload["maps"]:
+        phase = str(row["name"])
+        if phase not in PHASES:
+            continue
+        topology = topologies[str(row["drive_topology"])]
+        rows[phase] = _PhaseMapRow(
+            phase=phase,
+            first_shot=int(row["first_shot"]),
+            last_shot=int(row["last_shot"]),
+            drive_topology=topology.name,
+            connections=topology.connections,
+            acquisition=declarations[topology.current_channel_declaration],
+        )
+    missing = [phase for phase in PHASES if phase not in rows]
     if missing:
-        raise ValueError(f"machine map names no drive topology for {missing}")
-    return topologies
+        raise ValueError(f"machine map names no row for {missing}")
+    return rows
 
 
 def _phase_completeness(
     phase: str,
     drive_topology: str,
     *,
-    field_evidence: Sequence[Any] = (),
     channel_drive: Sequence[Any] = (),
 ) -> tuple[bool, tuple[str, ...]]:
     """Derive one phase's completeness and the gaps it has not yet closed.
 
-    Completeness follows the evidence the phase carries rather than a constant.
-    The producer authors no field-evidence ledger and no channel drive map, so
-    both absences are named and the phase stays incomplete; it becomes complete
-    only when both are supplied.  The gap text is trimmed and canonically
-    ordered, so nova's manifest validator accepts it unchanged.
+    The producer authors no geometry field-evidence ledger, so that absence is
+    always named and the phase stays incomplete.  The channel drive map is
+    authored from the phase's drive topology, so its gap is named only when no
+    drive is supplied.  The gap text is trimmed and canonically ordered, so
+    nova's manifest validator accepts it unchanged.
     """
-    gaps: list[str] = []
-    if not field_evidence:
-        gaps.append(NO_FIELD_EVIDENCE_GAP)
+    gaps: list[str] = [NO_FIELD_EVIDENCE_GAP]
     if not channel_drive:
         gaps.append(
             DRIVE_TOPOLOGY_GAP.format(phase=phase, drive_topology=drive_topology)
         )
     return (not gaps, tuple(sorted(gaps)))
+
+
+def _element_index(geometry_element_identifier: str) -> int:
+    """Return the coil-relative element index a topology geometry name holds.
+
+    The topology names a coil's elements ``<stem>_<ordinal>`` with a one-based
+    ordinal, so the store element at index ``i`` is ``<stem>_<i+1>``.
+    """
+    segment = geometry_element_identifier.rsplit("/", 1)[-1]
+    match = re.fullmatch(r".+_(\d+)", segment)
+    if match is None:
+        raise ValueError(
+            "drive topology geometry name "
+            f"{geometry_element_identifier!r} carries no element ordinal"
+        )
+    return int(match.group(1)) - 1
+
+
+def _connections_by_coil(connections: Sequence[Any]) -> dict[str, tuple[Any, ...]]:
+    """Group a topology's connections by the coil their geometry names stem to."""
+    grouped: dict[str, list[Any]] = {}
+    for connection in connections:
+        stem = re.sub(
+            r"_\d+$", "", connection.geometry_element_identifier.rsplit("/", 1)[-1]
+        )
+        grouped.setdefault(stem, []).append(connection)
+    return {stem: tuple(rows) for stem, rows in grouped.items()}
+
+
+def _coil_drive_weight(coil: str, connections: Sequence[Any]) -> float:
+    """Return one coil's total ampere-turns per ampere.
+
+    Each connection declares ``turns * current_weight * direction``.  The coil's
+    drive weight is their sum -- the ampere turns one ampere of the channel
+    drives through the whole coil, matching how
+    :func:`imas_ambix.data.geometry_adapter._materialise_circuit_drives` sums a
+    circuit.  A reader divides that total across the elements the drive names in
+    proportion to section area, so a per-element value here would cut the coil's
+    current by its element count.
+
+    A coil's elements are one winding when their per-element weights agree to
+    within the two-decimal rounding the catalogue carries; a coil whose elements
+    disagree by more is refused by name, because its connections do not describe
+    a symmetric winding and their sum would be unverifiable.
+    """
+    weights = [
+        float(connection.turns)
+        * float(connection.current_weight)
+        * float(connection.direction)
+        for connection in connections
+    ]
+    low, high = min(weights), max(weights)
+    if high - low > _WEIGHT_AGREEMENT * abs(high):
+        raise ValueError(
+            f"pf_active coil {coil!r} elements disagree on the ampere-turns per "
+            f"ampere: {sorted(set(weights))}"
+        )
+    return sum(weights)
+
+
+def _phase_channel_drives(
+    row: _PhaseMapRow, pf_active: Any
+) -> tuple[list[Any], list[Any]]:
+    """Author one nova ChannelDrive and its evidence record per pf_active coil.
+
+    The channel is the current channel the coil's geometry element names stem to
+    under the rule ``current_channel_from_conductors`` applies, accepted only
+    when the phase's acquisition declaration lists it.  The elements are the
+    coil's own element indices, and the weight is the coil's total ampere-turns
+    per ampere, which a reader divides across those elements by section area.
+    Each drive's path points at an evidence record citing the drive topology, so
+    the manifest carries the provenance the weight needs.
+    """
+    from nova.imas.machine_drive import (  # noqa: PLC0415
+        SECTION_AREA,
+        SINGLE_ELEMENT,
+        ChannelDrive,
+    )
+    from nova.imas.machine_evidence import (  # noqa: PLC0415
+        EvidenceRecord,
+        FieldEvidence,
+        SourceReference,
+    )
+
+    grouped = _connections_by_coil(row.connections)
+    drives: list[Any] = []
+    records: list[Any] = []
+    for coil in pf_active.coil:
+        name = str(coil.name)
+        connections = grouped.get(name)
+        if connections is None:
+            raise ValueError(
+                f"drive topology {row.drive_topology!r} names no circuit for "
+                f"pf_active coil {name!r}"
+            )
+        channel = current_channel_from_conductors(
+            tuple(item.geometry_element_identifier for item in connections),
+            row.acquisition,
+        )
+        if channel is None:
+            raise ValueError(
+                f"pf_active coil {name!r} stems to no current channel the "
+                f"acquisition declaration {row.acquisition.name!r} lists"
+            )
+        elements = tuple(
+            sorted(
+                _element_index(item.geometry_element_identifier)
+                for item in connections
+            )
+        )
+        if elements != tuple(range(len(coil.element))):
+            raise ValueError(
+                f"drive topology {row.drive_topology!r} reaches elements "
+                f"{elements} of pf_active coil {name!r}, not its "
+                f"{len(coil.element)} elements"
+            )
+        circuits = {str(item.circuit_identifier) for item in connections}
+        if len(circuits) != 1:
+            raise ValueError(
+                f"pf_active coil {name!r} spans circuits {sorted(circuits)}, "
+                "not one"
+            )
+        weight = _coil_drive_weight(name, connections)
+        path = f"pf_active/coil({name})/current({channel})"
+        drives.append(
+            ChannelDrive(
+                channel=channel,
+                container="pf_active",
+                conductor=name,
+                elements=elements,
+                circuit=circuits.pop(),
+                ampere_turns_per_ampere=weight,
+                distribution=SINGLE_ELEMENT if len(elements) == 1 else SECTION_AREA,
+                evidence=FieldEvidence.PUBLISHED,
+                path=path,
+            )
+        )
+        records.append(
+            EvidenceRecord(
+                path=path,
+                evidence=FieldEvidence.PUBLISHED,
+                first_shot=row.first_shot,
+                last_shot=row.last_shot,
+                statement=(
+                    f"one ampere of {channel} drives {weight:.6g} ampere turns "
+                    f"through coil {name}, the {row.drive_topology} drive "
+                    "topology's total over its connections"
+                ),
+                source=SourceReference(
+                    title="JT-60SA machine map drive topology",
+                    url=(
+                        f"https://ghcr.io/{GHCR_OWNER}/"
+                        f"{package_for_machine(MACHINE)}"
+                    ),
+                    locator=(
+                        f"drive_topologies[{row.drive_topology}].connections "
+                        "in machine_map.json"
+                    ),
+                    machine=MACHINE,
+                    text_verified=True,
+                ),
+            )
+        )
+    return drives, records
 
 
 def _write_phase_ids(ids: Mapping[str, Any], directory: Path) -> None:
@@ -333,8 +545,10 @@ def author_jt60sa_machine_artifacts(
     )
 
     root = Path(description_root)
-    shot_ranges = _phase_shot_ranges(machine_map_path)
-    drive_topologies = _phase_drive_topologies(machine_map_path)
+    rows = _phase_map_rows(machine_map_path)
+    shot_ranges = {
+        phase: (rows[phase].first_shot, rows[phase].last_shot) for phase in PHASES
+    }
 
     ids_by_phase = {phase: _read_phase_ids(root / phase) for phase in PHASES}
     geometries = {
@@ -345,7 +559,12 @@ def author_jt60sa_machine_artifacts(
     artifacts: dict[str, Any] = {}
     for phase in PHASES:
         physical_digest = registry.physical_digest(phase)
-        complete, gaps = _phase_completeness(phase, drive_topologies[phase])
+        drives, drive_evidence = _phase_channel_drives(
+            rows[phase], ids_by_phase[phase]["pf_active"]
+        )
+        complete, gaps = _phase_completeness(
+            phase, rows[phase].drive_topology, channel_drive=drives
+        )
         phase_ranges = (
             ArtifactShotRange(
                 first_shot=shot_ranges[phase][0],
@@ -366,6 +585,8 @@ def author_jt60sa_machine_artifacts(
                 shot_ranges=phase_ranges,
                 complete=complete,
                 unresolved_gaps=gaps,
+                field_evidence=drive_evidence,
+                channel_drive=drives,
             )
             materialize_machine_artifact(source, cache_directory, manifest)
         artifacts[phase] = resolve_machine_artifact(

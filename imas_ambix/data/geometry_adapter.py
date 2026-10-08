@@ -475,10 +475,17 @@ def _source_geometry_topology(
     return max(catalog.drive_topologies, key=score)
 
 
-def _current_channel_from_conductors(
+def current_channel_from_conductors(
     conductor_identifiers: tuple[str, ...],
     acquisition: AcquisitionDeclaration,
 ) -> str | None:
+    """Return the current channel a conductor set's element names stem to.
+
+    A coil's geometry elements carry one stem (``CS1_1`` to ``CS1``), and that
+    stem names the acquisition channel when the declaration lists it.  A set
+    whose names stem to more than one candidate, or to a name no declaration
+    records, has no current channel and returns ``None``.
+    """
     stems = {
         re.sub(r"_\d+$", "", identifier.rsplit("/", 1)[-1])
         for identifier in conductor_identifiers
@@ -555,7 +562,7 @@ def _current_source_resolutions(
             )
             continue
 
-        current_channel = _current_channel_from_conductors(
+        current_channel = current_channel_from_conductors(
             direct_identifiers, acquisition
         )
         if current_channel is None:
