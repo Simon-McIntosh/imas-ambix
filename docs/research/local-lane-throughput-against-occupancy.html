@@ -7,7 +7,7 @@
   <meta name="reckon-type"  content="research">
   <meta name="plan-slug"    content="local-lane-throughput-against-occupancy">
   <meta name="plan-title"   content="Local-Lane Throughput Against Occupancy — the aggregate plateau, per-request decay, and the width-12 gate">
-  <meta name="plan-summary" content="Five days of serve logs and router receipts binned by running width show aggregate decode plateaus from about 10 running, per-request rate. The router gate was cut from 16 to 12 on this evidence: a small aggregate cost for 28% more per request and fewer prefill stalls.">
+  <meta name="plan-summary" content="Local-lane decode plateaus from about 10 running while per-request rate falls as 1/width; the router gate was cut from 16 to 12.">
   <meta name="plan-tags"    content="agent-serving,gpu-deployment,benchmarking">
   <title>Local-Lane Throughput Against Occupancy | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -35,7 +35,7 @@
     per-request rate falls as <code>1/width</code> with no extra break. The width-16 bin
     is additionally biased high by the gate itself: at a full gate of 16 no new request
     is admitted, so its profile is not the profile a steady width of 16 would deliver.
-    On that evidence the lead had the gate set to 12.</p>
+    On that evidence the gate was set to 12 at the lead's request.</p>
 
     <h2 id="s2">§2 — Sources and method</h2>
     <p>The measurement pools four engine serve jobs and the router receipt stream,
@@ -240,9 +240,10 @@
       about 13% of observed time sat at widths 12–16. The common case is unchanged; the
       busy case is cheaper per request.</li>
       <li><strong>Causal limit.</strong> Every bin here is observational, pooling
-      different hours, contexts and accept lengths — the live job above width 16 carries
-      a median context near 97k tokens against about 125k on the older traffic in the 1–16
-      range, so the collapse above 16 is partly a context effect as much as a width
+      different hours, contexts and accept lengths — the bins above width 16 come only
+      from the older jobs 1273253 and 1276246, with a median context near 97k tokens,
+      while the 1–16 range pools all four jobs including the live job 1280470 at about
+      125k. So the behaviour above 16 is partly a context effect as much as a width
       effect. A controlled trial is the follow-on: alternate the gate between 12 and 16 in
       fixed blocks under live load and compare the counter-derived aggregate against the
       receipt per-request rate.</li>
