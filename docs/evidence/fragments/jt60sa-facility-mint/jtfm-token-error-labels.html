@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>jtfm-token-error-labels — read_channel cache faults for a bare-digit pulse</title>
+</head>
+<body>
+<section data-reckon="evidence" id="jtfm-token-error-labels">
+<h2 id="jtfm-token-error-labels-title">read_channel names the cache fault for a bare-digit pulse</h2>
+<p id="jtfm-token-error-labels-outcome">read_channel labelled its not-cached and half-written errors through the strict eddb_token, so a bare-digit pulse that missed the cache raised the pulse-token refusal instead of naming the cache fault. A non-refusing <code>_channel_label</code> now names the channel in both errors: a bare integer shows as its digits, a series-lettered token in canonical form, so the lettered message is unchanged and <code>eddb_token</code> still refuses a letterless pulse for the remote address.</p>
+<p id="jtfm-token-error-labels-measure">Gate: <code>packages/imas-alambic/tests tests/data/test_eddb_cache.py</code> at head 14 failed / 75 passed against base 14 failed / 70 passed — identical failure ids, zero added. <code>ruff check imas_ambix tests packages</code> exits 0. Negative control: reverting read_channel to label via <code>eddb_token</code> fails the two bare-digit read tests with the pulse-token refusal (EXIT=1).</p>
+</section>
+</body>
+</html>
