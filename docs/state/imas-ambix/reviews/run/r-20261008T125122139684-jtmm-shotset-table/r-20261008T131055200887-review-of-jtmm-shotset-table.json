@@ -1,0 +1,99 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest records no armed gate arms, so reckon's read-time annotation would report this run unmeasured; both arms were reproduced by this reviewer (review-base-gate.log at cc8399f6: 101 passed, EXIT=0; review-head-gate.log at 403aa7b6: 110 passed, EXIT=0), and the FAILED/ERROR id set difference is empty, so the measured added-failure count is 0.",
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/spine_bench/runner.py:326",
+    "imas_ambix/spine_bench/channel_gap.py:238",
+    "imas_ambix/spine_bench/machine_artifact_arm.py:211",
+    "imas_ambix/spine_bench/machine_artifact_arm.py:240",
+    "imas_ambix/spine_bench/channel_gap.py:309"
+  ],
+  "commits_read": [
+    "674244466d1e31dcb12cfb2ec52a1c5ba573e463",
+    "403aa7b6d1d3c9cecd5bf6964279d69c94b44a1e"
+  ],
+  "completed_at": "2026-10-08T13:29:09.499Z",
+  "dispatched_at": "2026-10-08T13:11:03Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T125122139684-jtmm-shotset-table/manifest.md",
+      "line": "11",
+      "severity": "follow-on",
+      "text": "the reviewed manifest records its gate as free-text `tests:`/`test_logs:` (lines 11-12) rather than the armed `baseline_suite`/`after_suite` JSON the manifest contract names, so reckon.crew.review.annotate_review_of_run reads the run unmeasured rather than deriving its added-failure count; this reviewer reproduced both arms independently (base cc8399f6 101 passed, head 403aa7b6 110 passed, EXIT=0 both), so the true added-failure count is 0."
+    }
+  ],
+  "gate_arms": {
+    "after_suite": {
+      "command": "env -C /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-shotset-table TMPDIR=/tmp/reckon-crew-scratch/r-20261008T131055200887-review-of-jtmm-shotset-table UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-shotset-table PYTHONDONTWRITEBYTECODE=1 uv run --no-sync pytest -p no:cacheprovider -q tests/spine_bench",
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T131055200887-review-of-jtmm-shotset-table/review-head-gate.log",
+      "revision": "403aa7b6d1d3c9cecd5bf6964279d69c94b44a1e"
+    },
+    "baseline_suite": {
+      "command": "env -C /tmp/reckon-crew-scratch/r-20261008T131055200887-review-of-jtmm-shotset-table/base TMPDIR=/tmp/reckon-crew-scratch/r-20261008T131055200887-review-of-jtmm-shotset-table UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/tmp/reckon-crew-scratch/r-20261008T131055200887-review-of-jtmm-shotset-table/base uv run --no-sync pytest -p no:cacheprovider -q -rA tests/spine_bench",
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T131055200887-review-of-jtmm-shotset-table/review-base-gate.log",
+      "revision": "cc8399f6173ffc2f96e4a06b8638291bdcf331f5"
+    }
+  },
+  "item_verdicts": {
+    "diff": "read commit by commit against base cc8399f6: 67424446 keys the frozen sets by machine and adds the JT-60SA row; 403aa7b6 is docs-only (the evidence fragment), so the reviewed head is code-identical to 67424446.",
+    "done_when": "the node's measure is the spine-bench gate plus a negative control showing the digit-collision guard fires; the manifest records 110 passed and ruff clean, and I reproduced both, plus the base arm (101 passed) and the recorded negative control reddening the collision test.",
+    "goal": "the node's goal is that the frozen benchmark shot sets be keyed by machine with a JT-60SA row added beside MAST's; imas_ambix/spine_bench/shots.py:96 FROZEN_SHOTSETS carries MAST's row (FROZEN_SHOTSET/SHOTSET_VERSION) and a JT-60SA row of the sixteen OP1 PSRC-present shots labelled v0-jt60sa-op1-16, and resolve_shotset_version resolves by the declared machine.",
+    "manifest": "read; it names the machine-keyed table, the JT-60SA row, the gate (110 passed, ruff clean at 67424446) with log paths, and the negative control; its account matches the code, the logs and the fragment, though it records the gate as free-text `tests:` rather than armed `baseline_suite`/`after_suite`.",
+    "write_paths": "read the manifest's declared paths; git diff cc8399f6 403aa7b6 --name-status is exactly imas_ambix/spine_bench/{shots,parity,machine_artifact_arm}.py, tests/spine_bench/{test_shotset_labelling,test_parity,test_machine_artifact_arm}.py and the evidence fragment, all inside the declared scope."
+  },
+  "justifications": {
+    "durability": "tests/spine_bench/test_shotset_labelling.py:126-140 asserts a JT-60SA-declaring clone of MAST's ids resolves AD_HOC and not under a MAST label, and the reviewer reproduced the reviewed negative control (resolve_shotset_version mutated to resolve MAST's row) reddening it ('v0-mast-heldout-6' == 'ad-hoc', EXIT=1, review-negative-control.log), so the assertion fails under its regression.",
+    "evidence": "the done-when gate `uv run --no-sync pytest -p no:cacheprovider tests/spine_bench` was reproduced at head 403aa7b6 (110 passed, EXIT=0, review-head-gate.log) and at base cc8399f6 in a scratch tree (101 passed, EXIT=0, review-base-gate.log), ruff --no-cache is clean (review-head-ruff.log), and the sixteen JT-60SA shot ids were re-derived from jtmm-op1-shot-survey.json (ordered match), so the gate asserts the measure and its result is recorded.",
+    "fit": "shots.py:60-79 bundles each set with its label in a frozen dataclass beside the existing FROZEN_SHOTSET idiom, and the added constants/docstrings name the mechanism (machine-keyed set, declared-machine resolution) with no plan, ticket or version identifier.",
+    "goal_fidelity": "imas_ambix/spine_bench/shots.py:96-118 adds FROZEN_SHOTSETS keyed by machine with MAST's FROZEN_SHOTSET/SHOTSET_VERSION kept as its row and a JT-60SA row of the sixteen OP1 PSRC-present shots, exactly the deliverable plan jt60sa-machine-map section 7 assigns ('Both become keyed by machine, reading one table of frozen sets ... MAST's FROZEN_SHOTSET and SHOTSET_VERSION stay as the names of its MAST row').",
+    "reuse": "the change extends the owners of the capabilities it touches (imas_ambix/spine_bench/shots.py resolve_shotset_version, parity.py check_admissibility, machine_artifact_arm.py resolve_geometry_source) rather than adding a second label resolver or parity guard.",
+    "scope_discipline": "git diff cc8399f6 403aa7b6 --name-status is exactly the seven declared write paths (three production modules, three test modules, the evidence fragment), with no plan edit and no concurrent node's path."
+  },
+  "plan": "imas-ambix:jt60sa-machine-map",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is that the frozen benchmark shot sets be keyed by machine with a JT-60SA row added beside MAST's; imas_ambix/spine_bench/shots.py:96 FROZEN_SHOTSETS carries MAST's row (FROZEN_SHOTSET/SHOTSET_VERSION) and a JT-60SA row of the sixteen OP1 PSRC-present shots labelled v0-jt60sa-op1-16, and resolve_shotset_version resolves by the declared machine.\nVERDICT done_when: the node's measure is the spine-bench gate plus a negative control showing the digit-collision guard fires; the manifest records 110 passed and ruff clean, and I reproduced both, plus the base arm (101 passed) and the recorded negative control reddening the collision test.\nVERDICT write_paths: read the manifest's declared paths; git diff cc8399f6 403aa7b6 --name-status is exactly imas_ambix/spine_bench/{shots,parity,machine_artifact_arm}.py, tests/spine_bench/{test_shotset_labelling,test_parity,test_machine_artifact_arm}.py and the evidence fragment, all inside the declared scope.\nVERDICT manifest: read; it names the machine-keyed table, the JT-60SA row, the gate (110 passed, ruff clean at 67424446) with log paths, and the negative control; its account matches the code, the logs and the fragment, though it records the gate as free-text `tests:` rather than armed `baseline_suite`/`after_suite`.\nVERDICT diff: read commit by commit against base cc8399f6: 67424446 keys the frozen sets by machine and adds the JT-60SA row; 403aa7b6 is docs-only (the evidence fragment), so the reviewed head is code-identical to 67424446.\nCALL_SITES: imas_ambix/spine_bench/runner.py:326, imas_ambix/spine_bench/channel_gap.py:238, imas_ambix/spine_bench/machine_artifact_arm.py:211, imas_ambix/spine_bench/machine_artifact_arm.py:240, imas_ambix/spine_bench/channel_gap.py:309\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: imas_ambix/spine_bench/shots.py:96-118 adds FROZEN_SHOTSETS keyed by machine with MAST's FROZEN_SHOTSET/SHOTSET_VERSION kept as its row and a JT-60SA row of the sixteen OP1 PSRC-present shots, exactly the deliverable plan jt60sa-machine-map section 7 assigns ('Both become keyed by machine, reading one table of frozen sets ... MAST's FROZEN_SHOTSET and SHOTSET_VERSION stay as the names of its MAST row').\nSCORE evidence: 20\nJUSTIFICATION evidence: the done-when gate `uv run --no-sync pytest -p no:cacheprovider tests/spine_bench` was reproduced at head 403aa7b6 (110 passed, EXIT=0, review-head-gate.log) and at base cc8399f6 in a scratch tree (101 passed, EXIT=0, review-base-gate.log), ruff --no-cache is clean (review-head-ruff.log), and the sixteen JT-60SA shot ids were re-derived from jtmm-op1-shot-survey.json (ordered match), so the gate asserts the measure and its result is recorded.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff cc8399f6 403aa7b6 --name-status is exactly the seven declared write paths (three production modules, three test modules, the evidence fragment), with no plan edit and no concurrent node's path.\nSCORE durability: 19\nJUSTIFICATION durability: tests/spine_bench/test_shotset_labelling.py:126-140 asserts a JT-60SA-declaring clone of MAST's ids resolves AD_HOC and not under a MAST label, and the reviewer reproduced the reviewed negative control (resolve_shotset_version mutated to resolve MAST's row) reddening it ('v0-mast-heldout-6' == 'ad-hoc', EXIT=1, review-negative-control.log), so the assertion fails under its regression.\nSCORE fit: 19\nJUSTIFICATION fit: shots.py:60-79 bundles each set with its label in a frozen dataclass beside the existing FROZEN_SHOTSET idiom, and the added constants/docstrings name the mechanism (machine-keyed set, declared-machine resolution) with no plan, ticket or version identifier.\nSCORE reuse: 20\nJUSTIFICATION reuse: the change extends the owners of the capabilities it touches (imas_ambix/spine_bench/shots.py resolve_shotset_version, parity.py check_admissibility, machine_artifact_arm.py resolve_geometry_source) rather than adding a second label resolver or parity guard.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T125122139684-jtmm-shotset-table/manifest.md:11 follow-on: the reviewed manifest records its gate as free-text `tests:`/`test_logs:` (lines 11-12) rather than the armed `baseline_suite`/`after_suite` JSON the manifest contract names, so reckon.crew.review.annotate_review_of_run reads the run unmeasured rather than deriving its added-failure count; this reviewer reproduced both arms independently (base cc8399f6 101 passed, head 403aa7b6 110 passed, EXIT=0 both) and the set difference is empty, so the true added-failure count is 0.",
+  "review_run_id": "r-20261008T131055200887-review-of-jtmm-shotset-table",
+  "reviewed_base_sha": "cc8399f6173ffc2f96e4a06b8638291bdcf331f5",
+  "reviewed_commit": "403aa7b6d1d3c9cecd5bf6964279d69c94b44a1e",
+  "reviewed_head_sha": "403aa7b6d1d3c9cecd5bf6964279d69c94b44a1e",
+  "reviewed_revision": "403aa7b6d1d3c9cecd5bf6964279d69c94b44a1e",
+  "reviewed_run_id": "r-20261008T125122139684-jtmm-shotset-table",
+  "reviewed_worktree": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-shotset-table",
+  "reviewer_node": "review-of-jtmm-shotset-table",
+  "reviewer_run_id": "r-20261008T131055200887-review-of-jtmm-shotset-table",
+  "scores": {
+    "durability": 19,
+    "evidence": 20,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T13:24:44.218929+00:00",
+  "total": 118,
+  "verdict": "pass",
+  "verified_independently": [
+    "reviewed_head_sha 403aa7b6d1d3c9cecd5bf6964279d69c94b44a1e is the reviewed worktree HEAD (git -C <worktree> rev-parse HEAD); git status --porcelain is empty.",
+    "reviewed_base_sha cc8399f6173ffc2f96e4a06b8638291bdcf331f5 is the reviewed worktree HEAD~2 and is an ancestor of HEAD (git merge-base --is-ancestor).",
+    "git diff cc8399f6 403aa7b6 --name-status is exactly seven paths: A docs/evidence/fragments/jt60sa-machine-map/jtmm-shotset-table.html; M imas_ambix/spine_bench/{machine_artifact_arm,parity,shots}.py; M tests/spine_bench/{test_machine_artifact_arm,test_parity,test_shotset_labelling}.py.",
+    "the sixteen JT-60SA shot ids in JT60SA_FROZEN_SHOTSET equal, in order, the psrc_present rows of docs/evidence/fragments/jt60sa-machine-map/jtmm-op1-shot-survey.json (100599,100999,101017,101025,101026,101029,101031,101032,101039,101044,101045,101046,101153,101156,101162,101163).",
+    "the head gate was reproduced in the reviewed worktree: 110 passed in 137.76s, EXIT=0 (review-head-gate.log); ruff check --no-cache imas_ambix tests is 'All checks passed!', EXIT=0 (review-head-ruff.log).",
+    "the base arm was reproduced in a scratch tree at cc8399f6: 101 passed in 44.79s, EXIT=0 (review-base-gate.log); the 9-test difference is exactly the tests the node added.",
+    "the negative control was reproduced: with resolve_shotset_version mutated to resolve MAST's row regardless of the declared machine, tests/spine_bench/test_shotset_labelling.py::test_a_jt60sa_shot_whose_digits_match_a_mast_id_is_not_labelled_mast fails ('v0-mast-heldout-6' == 'ad-hoc', 1 failed, 18 deselected, EXIT=1) (review-negative-control.log).",
+    "the machine import resolved from the scratch tree, not the main checkout's editable install: module.__file__ under PYTHONPATH=<scratch> resolves to <scratch>/imas_ambix/spine_bench/shots.py with FROZEN_SHOTSETS present at head and absent at base."
+  ]
+}
