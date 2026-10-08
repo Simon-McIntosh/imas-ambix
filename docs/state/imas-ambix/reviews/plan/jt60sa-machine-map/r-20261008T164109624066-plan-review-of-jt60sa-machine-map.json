@@ -1,0 +1,63 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T16:53:19.750Z",
+  "dispatched_at": "2026-10-08T16:41:53Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:643",
+      "id": "reasoning-1",
+      "reason": "a node reading the sentence literally converts by x1, compares COCOS 1 against the COCOS-17 binding, and gets a spurious -2pi mismatch, or authors the binding in COCOS 1 and writes psi per radian into a DDv4 field the geometry reader refuses (artifact_geometry.py:86 accepts only COCOS-17).",
+      "text": "the changed \u00a77 done-when (snapshot lines 640-647) says the comparison is \"in the dictionary's COCOS 17, the G-EQDSK psi converted by the \u00a76 sign report's coefficients\", but the \u00a76 sign report (`docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort.html`, \"COHORT COEFFICIENT CLASSIFICATION\") reports the *source* convention \u2014 sigma_Bp=+1, e_Bp=0 \u2014 i.e. COCOS 1, and the dictionary's canonical is COCOS 17 (sigma_Bp=-1, e_Bp=0\u21921), so the conversion is a -2pi factor the sign-report coefficients do not supply",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "f747dc9fd63dd6d0a8c6d506e3bcaf35102e8d2b527ac8d1235c410d24eeb1d3",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 405,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v406: the psi check now states the G-EQDSK psi is COCOS 1 (sigma_Bp=+1, e_Bp=0, per radian) and is multiplied by -2*pi to reach COCOS 17 (sigma_Bp flips, e_Bp rises to 1) before the comparison.",
+      "when": "2026-10-08T16:53:20.536604+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v406: the psi check now states the G-EQDSK psi is COCOS 1 (sigma_Bp=+1, e_Bp=0, per radian) and is multiplied by -2*pi to reach COCOS 17 (sigma_Bp flips, e_Bp rises to 1) before the comparison.",
+      "when": "2026-10-08T16:53:20.536604+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v405.json",
+  "review_run_id": "r-20261008T164109624066-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "65cae7013a2b01bb09d19af36ce8d8b581859867",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `load_geqdsk` resolves at `imas_ambix/challenge/loader.py:162`; the G-EQDSK copy `/work/projects/imas_gpu/jt60sa/101011.geqdsk` exists and its header carries the `4000ms` time `load_geqdsk` needs; `maps/jt-60sa/machine_map.json` and `maps/jt-60sa/machine_description/OP{1,2}/` (five IDSs plus `receipt.json` each) exist and are the paths \u00a77 names; the GHCR package `ghcr.io/simon-mcintosh/imas-alambic-jt60sa` matches `imas_ambix/data/paths.py`; the sign report fragment carries the cohort coefficient classification.",
+    "done_when": "pass \u2014 \u00a77's done-when carries two must-fail controls (the loop-7 `channel_factor` flip; the psi comparison with the binding's sign flipped) beside the 0.10 m boundary floor and the psi RMS ceiling, so the section's guard is shown to fire.",
+    "evidence_paths": "pass \u2014 the psi check and the stamp read evidence from the repository and the `/work/projects/imas_gpu/jt60sa/` bundle, and the `_document` change at snapshot line 1982 replaces a transient `.reckon-worktrees/<hash>/` path with `docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-consumers.html`, which exists.",
+    "naming": "pass \u2014 the changed \u00a71 and \u00a77 text introduces no plan labels, ticket numbers or version tags into code, and cites node ids only as plan-record identifiers.",
+    "reasoning": "a finding \u2014 \u00a77's new psi check names the \u00a76 sign report's coefficients as the psi conversion into the dictionary convention, but those coefficients classify the source as COCOS 1, not a COCOS-1-to-COCOS-17 factor.",
+    "single_goal": "pass \u2014 \u00a77's done-when states one deliverable, a stamped JT-60SA reconstruction baseline with SELENE as comparator; the psi-binding check shares that one stamp and is not a second deliverable.",
+    "wiring": "pass \u2014 the \u00a77 prose's ordering statements (`jtmm-jt60sa-registry` after the drive-map node and before `jtmm-machine-keyed-selection`; `jtmm-artifact-drive-map` before the selection node pins the JT-60SA rows) name nodes that exist in the section, and the psi-binding work is attached to \u00a77 as its prose already states."
+  },
+  "section_digests": {
+    "_document": "fb025c35209a0402c36c41d2d019ba3743ad0b05ecb6623360aa4154b42f1d87",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "2884556e4b60c3d9797edd51c2ea330647e5018b61a0a602d67e6c465a27acf1",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T16:53:20.534024+00:00"
+}
