@@ -123,16 +123,26 @@ def _expected_homogeneous_time(written, ids_name: str) -> int:
     return 0
 
 
-def _nodes_at(ids, relative: str):
-    """Every node a receipt path reaches, expanding struct arrays as it goes."""
+def _named_holders(ids, leaf, ids_name: str):
+    """The struct-array entries a receipt leaf names.
+
+    The leaf's ``target_index`` selects one element at every struct array on
+    its target path, so a leaf filling ``flux_loop[10]/flux`` reaches only that
+    entry.  A leaf that names no index reaches every element, which is the
+    assumption the receipt's index replaced, so the check fails on the first
+    entry no rule binds rather than reading a later one as that leaf's.
+    """
 
     nodes = [ids]
-    for component in relative.split("/"):
+    for component in _relative(leaf.target_path, ids_name).split("/")[:-1]:
         children = []
         for node in nodes:
             child = getattr(node, component)
             if isinstance(child, IDSStructArray):
-                children.extend(child)
+                if leaf.target_index is None:
+                    children.extend(child)
+                else:
+                    children.append(child[leaf.target_index])
             else:
                 children.append(child)
         nodes = children
@@ -156,10 +166,23 @@ def test_write_covers_every_description_ids_in_one_file(written):
         if expected != 0:
             continue
         for leaf in _leaves_of(written, ids_name):
-            times = _nodes_at(read, _relative(leaf.time_path, ids_name))
-            assert times, leaf.time_path
-            for time in times:
-                assert len(time) == leaf.samples, (ids_name, leaf.target_path)
+            # The receipt names the entry each leaf fills; only that entry is
+            # required to carry samples.  Every other entry may be an empty
+            # time base, which is how the description's geometry-only elements
+            # read back.
+            for holder in _named_holders(read, leaf, ids_name):
+                value = getattr(holder, leaf.target_path.rsplit("/", 1)[1])
+                assert len(value) == leaf.samples, (
+                    ids_name,
+                    leaf.target_path,
+                    leaf.target_index,
+                )
+                if leaf.time_path != f"{ids_name}/time":
+                    assert len(holder.time) == leaf.samples, (
+                        ids_name,
+                        leaf.time_path,
+                        leaf.target_index,
+                    )
 
 
 def test_served_coil_currents_match_the_compiled_map(written):
