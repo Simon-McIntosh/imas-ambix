@@ -1,0 +1,80 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "0c62c8cf85890529d562b383372538a1c24538df",
+  "completed_at": "2026-10-08T06:35:23.522Z",
+  "dispatched_at": "2026-10-08T06:13:21Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-rules-repair.html",
+      "line": "",
+      "severity": "follow-on",
+      "text": [
+        "follow-on: the run's gate log and this fragment label the measured revision as 0c62c8cf (the run's BASE commit) while the run's own commits field names the head 6394dcb0. The gate log content shows 90 tests, i.e. the two tests this node adds, so the tree actually measured carried the repair; only the header's `revision:` line names the pre-commit base. A reader cannot reconcile the log's revision with the run's commits line without re-running. Independent reproduction at 6394dcb0 (my own arm, gate-head equivalent) reads 90 passed EXIT=0, so the substance holds; the defect is in the record's label, not the measure. Same shape the prior review flagged against the rejected commit's parent-revision log."
+      ]
+    },
+    {
+      "file": "manifest.md",
+      "line": "",
+      "severity": "follow-on",
+      "text": [
+        "follow-on: the run supplies no baseline_suite and no after_suite JSON, so the manifest cannot carry added_failure_count from its own record. added_failure_count 0 here is derived from this reviewer's own arms, run against the same five-file gate: base 0c62c8cf 88 passed EXIT=0, head 6394dcb0 90 passed EXIT=0 (the two extra passes are this node's new tests). No failure is added; the failure set is empty on both arms. The node's own gate-head.log reads identically (90 passed in 197.71s EXIT=0)."
+      ]
+    },
+    {
+      "file": "imas_ambix/data/cocos_convention.py",
+      "line": "843",
+      "severity": "follow-on",
+      "text": [
+        "follow-on: _magnetics_description_store locates the store by probing every declared map's directory for magnetics.nc rather than by reading a declared IDS-to-map binding, while its docstring (and the fragment) say the map 'is found by the magnetics IDS the catalogue declares'. Operationally equivalent for the static-over-map layout, and the choice between OP1 and OP2 is harmless because the pair assignment is structural ('any declared phase answers it'), so this is a wording nuance, not a defect. Worth stating as file-presence probing if the store's layout is ever reorganised."
+      ]
+    },
+    {
+      "file": "maps/jt-60sa/maps/magnetics.json",
+      "line": "",
+      "severity": "follow-on",
+      "text": [
+        "follow-on (fenced out of maps/, carried by the run itself): loop rules 12, 13, 14 and 27 (failing E100595) and 15, 16 and 17 (15 and 16 failing both E100579 and E100595, 17 failing E100579) assert three-shot tracking without recording their per-shot outliers beside the verdict, which decision vacuum-verdict-rule requires. Independent of this change and correctly recorded as a later maps-edit follow-on; this node wrote nothing under maps/."
+      ]
+    }
+  ],
+  "head_log_revision": "6394dcb06e3d6963dce7972049b37a616407fd19",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "_magnetics_description_store is called only from _differential_flux_loop_targets, which is called only from _absolute_flux_loop_rules' caller path (read_signal_map_observation). The refusal now propagates a ValueError into that path for a genuinely defective store; this is the fail-closed behaviour the prior review asked for, so it is intended rather than a regression. A machine that declares no description store still yields frozenset() and keeps the prior permissive-but-correct behaviour. No production caller outside the module is disturbed; the two new imports under TYPE_CHECKING defer correctly (the module has `from __future__ import annotations`).",
+    "diff": "One commit, 6394dcb0 on base 0c62c8cf, three files: imas_ambix/data/cocos_convention.py (+53/-10, the helper plus the rewritten resolver), tests/data/test_cocos_convention.py (+52, two new tests and a _catalogue_with_maps helper), docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-rules-repair.html (+82, the four-finding answer). No maps/ write (the bundle lives in the shared, gitignored tree at /home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa; the live magnetics.json is already retargeted, unversioned, attested only by the prior review's digests).",
+    "done_when": "This record is the dispatched measure. Stored parsed at both fenced paths with all six dimensions in 0..20 (goal_fidelity 19, evidence 18, scope_discipline 20, durability 19, fit 19, reuse 20; total 115), the revision pair reviewed_base_sha 0c62c8cf / reviewed_head_sha 6394dcb0, and added_failure_count 0 with added_failure_ids []. The run supplied no baseline_suite and no after_suite, so the count is derived from the reviewer's own arms at both revisions (base 88 passed EXIT=0, head 90 passed EXIT=0, no added failures).",
+    "goal": "Met. The dispatch asked for the fail-open selector to be made to fail closed. _differential_flux_loop_targets no longer infers the store from catalog.maps[0].name: the new helper tries every declared map and takes the one carrying magnetics.nc, and a declared store whose maps carry no magnetics.nc now raises ValueError instead of resolving to the empty set. Reproduced independently: at base 0c62c8cf both the shadowed-first-map and every-map-renamed mutations return [] (fail open, admitting every proven loop as absolute); at head 6394dcb0 the shadowed case resolves to indices 27-52 and the every-map-renamed case raises. Both new tests are falsifiable (see evidence).",
+    "manifest": "Read. status complete, commits [6394dcb0], changed_paths (source, test, fragment), negative_control_log and its note, landing, tests, test_logs, evidence_inputs, follow_ons present; worktree clean at head. Defects: no baseline_suite/after_suite JSON, and the cited gate log's `revision:` header names the base 0c62c8cf rather than the head.",
+    "write_paths": "The node wrote exactly its three declared paths (imas_ambix/data/cocos_convention.py, tests/data/test_cocos_convention.py, docs/evidence/fragments/.../jtmm-differential-loop-rules-repair.html); the declared docs/figures/... path was declared but not used (no figure). No plan, index or sprint mutation; nothing under maps/. The reviewed worktree is clean at 6394dcb0 (git status empty). This reviewer wrote only the two fenced record paths, outside the repository."
+  },
+  "justifications": {
+    "durability": "A real, tested gain with a mutation-killed guard: the selector can no longer silently switch itself off when the store moves, which was the exact hazard the prior review flagged, and the added tests pin both the order-independence and the refusal. Marks off only for the residual coupling to the current store layout (file-presence probing) and for the unversioned map the behaviour depends on.",
+    "evidence": "Strong and independent: I reproduced the defect at base (both mutations return [] and admit every proven loop), reproduced the fix at head (resolves 27-52; raises on the empty-of-magnetics catalogue), and killed both new tests by mutation -- replacing the ValueError with a permissive return makes test_differential_targets_refuse_a_declared_store_with_no_magnetics_file fail (1 failed, 1 passed, EXIT=1), and restricting the resolver to catalog.maps[:1] makes test_differential_targets_resolve_when_the_first_map_is_not_magnetics fail (1 failed, 1 passed, EXIT=1). Gate reproduced both arms (base 88 passed, head 90 passed, EXIT=0 each) and whole-tree ruff is clean. Marks off for the run's own record: the gate log's revision header names the base, and no baseline/after arms are supplied, so the run's own record cannot support its count without re-measurement.",
+    "fit": "Follows the module's idiom: a small private helper with a full docstring, ValueError for the refusal as the module's other selectors use, reuses replace/load_packaged_machine_map, and the tests use the file's existing pytest helpers. Marks off for a docstring wording that overstates the mechanism and for a helper/test naming that is verbose relative to the module's terser neighbours.",
+    "goal_fidelity": "The repair does precisely what the rejected commit's review asked: the store resolution is independent of map order, and an unresolvable declared store fails closed. Both behaviours are pinned by tests and reproduced independently. One mark off because the fragment (part of the deliverable) mislabels the tested revision, and the docstring describes the mechanism as a 'declared magnetics IDS' lookup where the code probes for magnetics.nc by file presence.",
+    "reuse": "Good: no new catalogue reader, the helper reuses description_store_root_path's resolution and the existing load_packaged_machine_map, the test helper _catalogue_with_maps centralises the monkeypatch rather than repeating it, and no constant is duplicated. It also removes the maps[0] inference the prior review faulted.",
+    "scope_discipline": "Exemplary: writes stayed on the three declared paths, the fenced maps/ tree was not touched (the run explicitly declined to write there and carried the maps finding as a follow-on), no plan/index/sprint mutation, no stray files, worktree clean at head."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261008T052416718441-jtmm-differential-loop-rules-repair (plan imas-ambix:jt60sa-machine-map section 6, decision jt60sa-differential-flux-loops), head 6394dcb06e3d6963dce7972049b37a616407fd19 on base 0c62c8cf85890529d562b383372538a1c24538df, one commit, three files.\n\nThe node repairs the fail-open differential-flux-loop selector the rejected commit's review flagged: _magnetics_description_store locates the description store by trying every declared map for magnetics.nc rather than inferring it from catalog.maps[0].name, and a declared store whose maps carry no magnetics.nc now raises ValueError instead of resolving to the empty set that admits every proven loop. Two tests pin it.\n\nREPRODUCTION (mine, scratch trees under $TMPDIR extracted by git archive at each revision, imas_alambic from the shared editable install, imas_ambix from the scratch tree via PYTHONPATH).\n- DEFECT AT BASE: with the live jt-60sa catalogue (maps ['OP1','OP2'], description_store_root 'description') mutated so the first declared map's directory is not magnetics, base _differential_flux_loop_targets('jt-60sa') returns [] (fail open); mutating every map to a non-magnetics name also returns [] (fail open). Both would admit all 17 proven loops as absolute.\n- FALSIFICATION OF THE FIX AT HEAD: the same first-map mutation returns [27..52] (resolved); the every-map-renamed mutation raises ValueError('... no declared map carries magnetics.nc ...'); exiting non-zero is not needed since the raise is the asserted behaviour.\n- TEST FALSIFICATION: replacing the ValueError with a permissive return in the scratch head tree makes test_differential_targets_refuse_a_declared_store_with_no_magnetics_file fail (DID NOT RAISE; 1 failed, 1 passed, EXIT=1). Restricting the resolver to catalog.maps[:1] makes test_differential_targets_resolve_when_the_first_map_is_not_magnetics fail (ValueError raised; 1 failed, 1 passed, EXIT=1). Both new guards fire.\n- GATE: five-file gate (test_jt60sa_signal_maps, test_jt60sa_unit_audit, test_jt60sa_machine_map, test_operator_differential_loops, test_cocos_convention): base 0c62c8cf 88 passed EXIT=0; head 6394dcb0 90 passed EXIT=0. Whole-tree ruff check imas_ambix tests: all checks passed (EXIT=0). The run's own gate-head.log reproduces 90 passed in 197.71s EXIT=0.\n- ANNEX: the run's sign-cohort.log exits 0 with surviving COCOS candidates (1, 2, 11, 12) and one flux channel per shot, loop 7 alone as reference; not re-run here (corpus read, not the node's changed paths).\n\nVERDICT goal: met -- fail-open closed and order-independence added, both pinned and independently reproduced.\nVERDICT done_when: this record, stored parsed at both fenced paths, six dimensions 0..20 (total 115), revision pair 0c62c8cf/6394dcb0, added_failure_count 0.\nVERDICT scope: declared paths only, maps/ untouched, worktree clean at head.\nVERDICT write_paths: as above.\nVERDICT manifest: read; no baseline_suite/after_suite, and the gate log's revision header names the base rather than the head.\nVERDICT diff: one commit, source+test+fragment; the map the behaviour depends on is unversioned (shared bundle), already retargeted on disk.\n\nadded_failure_count 0, added_failure_ids [] (derived from this reviewer's own arms; the run supplied no baseline/after suites).\n\nFINDING docs/evidence/.../jtmm-differential-loop-rules-repair.html follow-on: the fragment and the cited logs label the measured revision as the base 0c62c8cf while the run's head is 6394dcb0; the log content (90 tests) shows the repair was measured, so the label is wrong, not the measure.\nFINDING manifest.md follow-on: no baseline_suite/after_suite, so added_failure_count is the reviewer's own measurement (base 88/head 90 passed, EXIT=0 each).\nFINDING imas_ambix/data/cocos_convention.py:843 note: the docstring describes a declared-IDS lookup where the code probes for magnetics.nc by file presence; harmless for the current layout.\nFINDING-ANNEX maps/jt-60sa/maps/magnetics.json follow-on: the seven loop rules' evidence strings lack their per-shot outliers; fenced out of maps/, carried by the run itself.\n\nSCORE goal_fidelity: 19\nevidence: 18\nscope_discipline: 20\ndurability: 19\nfit: 19\nreuse: 20\ntotal 115, added_failure_count 0, added_failure_ids [].",
+  "review_run_id": "r-20261008T061258055920-review-of-jtmm-differential-loop-rules-repair",
+  "reviewed_base_sha": "0c62c8cf85890529d562b383372538a1c24538df",
+  "reviewed_head_sha": "6394dcb06e3d6963dce7972049b37a616407fd19",
+  "reviewed_run_id": "r-20261008T052416718441-jtmm-differential-loop-rules-repair",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T06:40:00+00:00",
+  "total": 115
+}
