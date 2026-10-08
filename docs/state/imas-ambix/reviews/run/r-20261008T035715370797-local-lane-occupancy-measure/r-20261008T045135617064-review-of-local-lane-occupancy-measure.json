@@ -1,0 +1,81 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed run declared no pytest suite (its manifest baseline_suite and after_suite are empty); its gate logs control.log and measure.log both end EXIT=0 with no failing test id, so no added failures",
+  "base_log_revision": "9a9f2f82aafff0cc56294ddbfefe4b605989bca5",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-08T05:21:12.369Z",
+  "dispatched_at": "2026-10-08T04:51:53Z",
+  "findings": [
+    {
+      "file": "docs/figures/local-lane-occupancy/measure.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: neither gate log attests the head revision. control.log and measure.log each begin revision=9a9f2f82aafff0cc56294ddbfefe4b605989bca5, but both files are carried by c2208398, and inside 9a9f2f82 the same logs read revision=4c7dcc79. A reader cannot tie the delivered occupancy_stats.json to the revision that produced it, since epoch() changed between the log's stated revision and the revision that carries the log."
+    },
+    {
+      "file": "docs/figures/local-lane-occupancy/occupancy_measure.py",
+      "line": "1199",
+      "severity": "follow-on",
+      "text": "follow-on: only the aggregate reduction is controlled. control() at lines 164-180 exercises aggregate_knee alone, so the piecewise per-request fit (piecewise_break) and the thrash onset (onset) have no synthetic input, and the reported \"no break detected\" and \"onset width 33\" are not calibrated against a known-input control as the brief's negative-control requirement asks for the reduction."
+    },
+    {
+      "file": "docs/figures/local-lane-occupancy/occupancy_measure.py",
+      "line": "1226",
+      "severity": "follow-on",
+      "text": "follow-on: the recommendation is structurally pinned to 16. lower_supported requires request_break is not None, so proposed is 16 whenever no per-request break is found, regardless of the aggregate knee (width 10, CI 10-16) and of the node's own per-worker yield figures (27.66 tok/s at 13 workers vs 17.35 at 21). The stated basis, that the aggregate knee's upper CI reaching 16 keeps the gate, is therefore never the deciding condition in the observed outcome."
+    },
+    {
+      "file": "imas_ambix/agent/receipt_bins.py",
+      "line": "121",
+      "severity": "follow-on",
+      "text": "follow-on: receipt_metrics (occupancy_measure.py:371-488) re-derives interval receipt statistics, including a per-request rate from completion over duration, that summarise_receipt_rows already owns; the owner bins by a recorded num_requests_running engine-section row, which the router per-request receipts do not carry, so the reviewed script duplicates part of the capability without extending its owner rather than widening the owner's input contract."
+    },
+    {
+      "file": "docs/figures/local-lane-occupancy/occupancy.json",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the directory now holds occupancy.json, occupancy.png and occupancy_control.json from the pre-existing script this node replaced in place, while the current outputs are occupancy_stats.json and five SVGs; the superseded artifacts are no longer produced by any script and sit beside the current ones under a confusable name."
+    }
+  ],
+  "head_log_revision": "9a9f2f82aafff0cc56294ddbfefe4b605989bca5",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read revision by revision; 9a9f2f82 rewrites occupancy_measure.py in place and adds occupancy_stats.json, five SVGs and two logs, and c2208398 changes epoch() from UTC to Europe/Paris with a future-timestamp guard and regenerates the artifacts, all inside the declared scope.",
+    "done_when": "the brief's measure is the JSON, the five SVGs, the two logs and the manifest; the manifest records the commands, control.log and measure.log both end EXIT=0, and I reproduced the control myself.",
+    "goal": "the goal was to measure the aggregate knee, the per-worker knee and the prefill-thrash onset and recommend one integer gate width; occupancy_stats.json carries aggregate_knee width 10 (CI 10-16), per_worker_knee piecewise_request_rate null, thrash_onset width 33 at KV median 0.80, and recommendation.gate_width 16 with a stated basis, so all three are reported and one width is recommended.",
+    "manifest": "read; status complete, two revisions, nine changed paths, both gate logs EXIT=0, recommendation stated; baseline_suite and after_suite are empty because this is a measurement node with no pytest suite, and both gate-log headers name 9a9f2f82 rather than the head c2208398.",
+    "write_paths": "all nine changed paths are inside docs/figures/local-lane-occupancy/; nothing under imas_ambix/, and no gate, router, serve job or plan was touched."
+  },
+  "justifications": {
+    "durability": "occupancy_measure.py:164-180 asserts the aggregate reduction recovers a planted knee and reports none on a flat curve, which is a real guard for that reduction, but the piecewise per-request fit and the thrash onset carry no synthetic control and the timestamp alignment fixed in c2208398 is guarded only by a runtime raise, so a regression in the two other reductions is not caught.",
+    "evidence": "control.log and measure.log both end EXIT=0, the control reproduces identically under my independent re-run, and occupancy_stats.json carries source sha256, byte lengths and spans, but the gate logs attest revision 9a9f2f82 while the artifacts they describe are committed at c2208398, so no log names the head revision.",
+    "fit": "the script names its symbols by mechanism, ruff passes, the figures follow the data-ink style (no grid, despined, direct labels, captions in JSON), and the py314 unparenthesised except at occupancy_measure.py:409 matches the repository's requires-python >=3.14, with points off for the absent knee marker on the per-worker figure and the stale occupancy.json/occupancy.png left beside the new outputs.",
+    "goal_fidelity": "occupancy_stats.json records all three boundaries (aggregate_knee.width 10, per_worker_knee.piecewise_request_rate null, thrash_onset.width 33) and one recommended gate width 16, answering the lead's suspicion that 16 is past both knees in the negative.",
+    "reuse": "parsing extends imas_ambix/agent/decode_bins.py and the read handle extends imas_ambix/agent/telemetry_index.py as the brief directs, but occupancy_measure.py:371-488 computes per-request decode rate from receipts without extending imas_ambix/agent/receipt_bins.py, which owns interval-receipt summarisation, so it duplicates part of that capability.",
+    "scope_discipline": "the two commits touch exactly the nine files under docs/figures/local-lane-occupancy/, the worktree is clean at c2208398, and no imas_ambix/, gate or plan path is modified."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261008T035715370797-local-lane-occupancy-measure, head c22083989ec9477426bc1102f52e581d9b45c0f9 on base 4c7dcc793abbb3d7a59bc37f70afee44beaec338.\n\nThe node measures the local lane's request-occupancy and worker-occupancy behaviour from four compatible serve logs, the router receipts and the read-only telemetry index, and recommends one gate width.\n\nREPRODUCTION (mine). I re-ran the synthetic control in the reviewed worktree, reading the unchanged occupancy_measure.py: python occupancy_measure.py --control -> {\"flat\": {\"bootstrap_ci95\": null, \"detected_width\": null}, \"planted\": {\"bootstrap_ci95\": [12, 12], \"detected_width\": 12}}, EXIT=0. The planted knee is recovered exactly and the flat noisy curve reports none.\n\nVERDICT goal: the goal was to measure the aggregate knee, the per-worker knee and the prefill-thrash onset and recommend one integer gate width; occupancy_stats.json carries aggregate_knee width 10 (CI 10-16), per_worker_knee piecewise_request_rate null, thrash_onset width 33 at KV median 0.80, and recommendation.gate_width 16 with a stated basis, so all three are reported and one width is recommended.\nVERDICT done_when: the brief's measure is the JSON, the five SVGs, the two logs and the manifest; the manifest records the commands, control.log and measure.log both end EXIT=0, and I reproduced the control myself.\nVERDICT write_paths: all nine changed paths are inside docs/figures/local-lane-occupancy/; nothing under imas_ambix/, and no gate, router, serve job or plan was touched.\nVERDICT manifest: read; status complete, two revisions, nine changed paths, both gate logs EXIT=0, recommendation stated; baseline_suite and after_suite are empty because this is a measurement node with no pytest suite, and both gate-log headers name 9a9f2f82 rather than the head c2208398.\nVERDICT diff: read revision by revision; 9a9f2f82 rewrites occupancy_measure.py in place and adds occupancy_stats.json, five SVGs and two logs, and c2208398 changes epoch() from UTC to Europe/Paris with a future-timestamp guard and regenerates the artifacts, all inside the declared scope.\nCALL_SITES: none\n\nSCORE goal_fidelity: 16\nJUSTIFICATION goal_fidelity: occupancy_stats.json records all three boundaries (aggregate_knee.width 10, per_worker_knee.piecewise_request_rate null, thrash_onset.width 33) and one recommended gate width 16, answering the lead's suspicion that 16 is past both knees in the negative.\nSCORE evidence: 15\nJUSTIFICATION evidence: control.log and measure.log both end EXIT=0, the control reproduces identically under my independent re-run, and occupancy_stats.json carries source sha256, byte lengths and spans, but the gate logs attest revision 9a9f2f82 while the artifacts they describe are committed at c2208398, so no log names the head revision.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the two commits touch exactly the nine files under docs/figures/local-lane-occupancy/, the worktree is clean at c2208398, and no imas_ambix/, gate or plan path is modified.\nSCORE durability: 14\nJUSTIFICATION durability: occupancy_measure.py:164-180 asserts the aggregate reduction recovers a planted knee and reports none on a flat curve, which is a real guard for that reduction, but the piecewise per-request fit and the thrash onset carry no synthetic control and the timestamp alignment fixed in c2208398 is guarded only by a runtime raise, so a regression in the two other reductions is not caught.\nSCORE fit: 17\nJUSTIFICATION fit: the script names its symbols by mechanism, ruff passes, the figures follow the data-ink style (no grid, despined, direct labels, captions in JSON), and the py314 unparenthesised except at occupancy_measure.py:409 matches the repository's requires-python >=3.14, with points off for the absent knee marker on the per-worker figure and the stale occupancy.json/occupancy.png left beside the new outputs.\nSCORE reuse: 12\nJUSTIFICATION reuse: parsing extends imas_ambix/agent/decode_bins.py and the read handle extends imas_ambix/agent/telemetry_index.py as the brief directs, but occupancy_measure.py:371-488 computes per-request decode rate from receipts without extending imas_ambix/agent/receipt_bins.py, which owns interval-receipt summarisation, so it duplicates part of that capability.\n\nFINDING docs/figures/local-lane-occupancy/measure.log:1 follow-on: neither gate log attests the head revision. control.log and measure.log each begin revision=9a9f2f82aafff0cc56294ddbfefe4b605989bca5, but both files are carried by c2208398, and inside 9a9f2f82 the same logs read revision=4c7dcc79. A reader cannot tie the delivered occupancy_stats.json to the revision that produced it, since epoch() changed between the log's stated revision and the revision that carries the log.\nFINDING docs/figures/local-lane-occupancy/occupancy_measure.py:1199 follow-on: only the aggregate reduction is controlled. control() at lines 164-180 exercises aggregate_knee alone, so the piecewise per-request fit (piecewise_break) and the thrash onset (onset) have no synthetic input, and the reported \"no break detected\" and \"onset width 33\" are not calibrated against a known-input control as the brief's negative-control requirement asks for the reduction.\nFINDING docs/figures/local-lane-occupancy/occupancy_measure.py:1226 follow-on: the recommendation is structurally pinned to 16. lower_supported requires request_break is not None, so proposed is 16 whenever no per-request break is found, regardless of the aggregate knee (width 10, CI 10-16) and of the node's own per-worker yield figures (27.66 tok/s at 13 workers vs 17.35 at 21). The stated basis, that the aggregate knee's upper CI reaching 16 keeps the gate, is therefore never the deciding condition in the observed outcome.\nFINDING imas_ambix/agent/receipt_bins.py:121 follow-on: receipt_metrics (occupancy_measure.py:371-488) re-derives interval receipt statistics, including a per-request rate from completion over duration, that summarise_receipt_rows already owns; the owner bins by a recorded num_requests_running engine-section row, which the router per-request receipts do not carry, so the reviewed script duplicates part of the capability without extending its owner rather than widening the owner's input contract.\nFINDING docs/figures/local-lane-occupancy/occupancy.json:1 follow-on: the directory now holds occupancy.json, occupancy.png and occupancy_control.json from the pre-existing script this node replaced in place, while the current outputs are occupancy_stats.json and five SVGs; the superseded artifacts are no longer produced by any script and sit beside the current ones under a confusable name.",
+  "review_run_id": "r-20261008T045135617064-review-of-local-lane-occupancy-measure",
+  "reviewed_base_sha": "4c7dcc793abbb3d7a59bc37f70afee44beaec338",
+  "reviewed_head_sha": "c22083989ec9477426bc1102f52e581d9b45c0f9",
+  "reviewed_run_id": "r-20261008T035715370797-local-lane-occupancy-measure",
+  "scores": {
+    "durability": 14,
+    "evidence": 15,
+    "fit": 17,
+    "goal_fidelity": 16,
+    "reuse": 12,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T05:17:48.894685+00:00",
+  "total": 94
+}
