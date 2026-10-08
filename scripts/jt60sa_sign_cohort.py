@@ -287,9 +287,13 @@ No file outside this repository was written.
 <p id="jtmm-sign-cohort-answer">
 Over {len(observations)} rows the surviving COCOS candidates are
 <strong>{_escape(survivor_text)}</strong>, out of {len(COCOS_CANDIDATES)} candidates.
-The raw absolute flux-loop response and the q relation over the FAME signs fix
-the pair; the poloidal-flux relation is unscored on every row because the FAME
-equilibrium carries no psi grid.
+The raw absolute flux-loop response fixes sigma_Bp and the q relation over the
+FAME signs fixes sigma_rho_theta_phi, so the scored relations leave every
+candidate that agrees on those two. sigma_R_phi_Z is undetermined — no row
+measures the direction of positive toroidal angle — and e_Bp is undetermined
+because the FAME equilibrium carries no psi grid, so the declared-flux-exponent
+check is unscored on every row; E101011's G-EQDSK (section 7) is the source that
+would fix e_Bp.
 </p>
 
 <h3 id="jtmm-sign-cohort-cohort-h">The cohort</h3>
