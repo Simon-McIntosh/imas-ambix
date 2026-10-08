@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 470" width="1120" height="470" font-family="ui-sans-serif, system-ui, sans-serif">
+  <rect x="0" y="0" width="1120" height="470" fill="#ffffff"/>
+
+  <defs>
+    <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#444"/>
+    </marker>
+  </defs>
+
+  <!-- Store: two phases -->
+  <text x="30" y="34" font-size="17" fill="#111">description store (maps/jt-60sa/machine_description)</text>
+  <rect x="30" y="48" width="200" height="118" rx="6" fill="#f4f4f4" stroke="#bbb"/>
+  <text x="46" y="74" font-size="16" font-weight="600" fill="#111">OP1/</text>
+  <text x="46" y="98" font-size="13" fill="#333">magnetics.nc</text>
+  <text x="46" y="118" font-size="13" fill="#333">pf_active.nc</text>
+  <text x="46" y="138" font-size="13" fill="#333">pf_passive.nc · tf.nc · wall.nc</text>
+  <text x="46" y="158" font-size="12" fill="#777">(no receipt.json staged)</text>
+
+  <rect x="30" y="186" width="200" height="96" rx="6" fill="#f4f4f4" stroke="#bbb"/>
+  <text x="46" y="212" font-size="16" font-weight="600" fill="#111">OP2/</text>
+  <text x="46" y="236" font-size="13" fill="#333">same five IDS names</text>
+  <text x="46" y="256" font-size="13" fill="#333">different content</text>
+
+  <rect x="30" y="300" width="200" height="60" rx="6" fill="#fff" stroke="#bbb" stroke-dasharray="4 3"/>
+  <text x="46" y="324" font-size="14" fill="#111">machine_map.json</text>
+  <text x="46" y="346" font-size="12" fill="#777">first_shot / last_shot per phase</text>
+
+  <!-- geometry snapshot -->
+  <line x1="230" y1="107" x2="300" y2="120" stroke="#444" stroke-width="1.6" marker-end="url(#arw)"/>
+  <line x1="230" y1="234" x2="300" y2="150" stroke="#444" stroke-width="1.6" marker-end="url(#arw)"/>
+  <line x1="230" y1="330" x2="300" y2="180" stroke="#666" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#arw)"/>
+
+  <rect x="300" y="88" width="250" height="128" rx="6" fill="#eef3fb" stroke="#9db6db"/>
+  <text x="318" y="114" font-size="16" font-weight="600" fill="#111">geometry payload</text>
+  <text x="318" y="138" font-size="13" fill="#333">read through the reader extractors</text>
+  <text x="318" y="158" font-size="13" fill="#333">(coils, passives, limiter, probes)</text>
+  <text x="318" y="182" font-size="13" fill="#333">→ physical digest per phase</text>
+  <text x="318" y="202" font-size="12" fill="#777">content, never container bytes</text>
+
+  <!-- registry -->
+  <line x1="550" y1="152" x2="620" y2="152" stroke="#444" stroke-width="1.6" marker-end="url(#arw)"/>
+  <rect x="620" y="88" width="230" height="128" rx="6" fill="#eef7ee" stroke="#9dc99d"/>
+  <text x="638" y="114" font-size="16" font-weight="600" fill="#111">JT-60SA registry</text>
+  <text x="638" y="138" font-size="13" fill="#333">one registry over both phases</text>
+  <text x="638" y="158" font-size="13" fill="#333">→ one shared registry digest</text>
+  <text x="638" y="182" font-size="13" fill="#333">→ per-phase shot ranges</text>
+  <text x="638" y="202" font-size="12" fill="#777">ambix-side, not nova's MAST schema</text>
+
+  <!-- staged IMAS HDF5 -->
+  <line x1="550" y1="120" x2="620" y2="300" stroke="#444" stroke-width="1.6" marker-end="url(#arw)"/>
+  <rect x="620" y="250" width="230" height="140" rx="6" fill="#fdf6ec" stroke="#d9b98a"/>
+  <text x="638" y="276" font-size="16" font-weight="600" fill="#111">staged IMAS HDF5 entry</text>
+  <text x="638" y="300" font-size="13" fill="#333">imas:hdf5?path=&lt;staging dir&gt;</text>
+  <text x="638" y="320" font-size="13" fill="#333">mode "x" → master.h5 + →</text>
+  <text x="638" y="338" font-size="12" fill="#555">magnetics.h5 pf_active.h5 pf_passive.h5</text>
+  <text x="638" y="354" font-size="12" fill="#555">tf.h5 wall.h5</text>
+  <text x="638" y="378" font-size="12" fill="#777">the form the geometry reader opens</text>
+
+  <!-- nova generic layer -->
+  <line x1="850" y1="152" x2="920" y2="200" stroke="#444" stroke-width="1.6" marker-end="url(#arw)"/>
+  <line x1="850" y1="320" x2="920" y2="250" stroke="#444" stroke-width="1.6" marker-end="url(#arw)"/>
+  <rect x="920" y="170" width="175" height="150" rx="6" fill="#f3f0f7" stroke="#b7a9cd"/>
+  <text x="936" y="196" font-size="15" font-weight="600" fill="#111">nova generic layer</text>
+  <text x="936" y="220" font-size="12" fill="#333">create_machine_artifact_manifest</text>
+  <text x="936" y="240" font-size="12" fill="#333">materialize_machine_artifact</text>
+  <text x="936" y="260" font-size="12" fill="#333">resolve_machine_artifact</text>
+  <text x="936" y="284" font-size="12" fill="#555">→ cache directory</text>
+  <text x="936" y="304" font-size="12" fill="#555">verified, content-addressed</text>
+
+  <text x="30" y="452" font-size="12" fill="#777">One public entry: author_jt60sa_machine_artifacts(cache_directory). Identity is derived, not accepted as input.</text>
+</svg>
