@@ -26,6 +26,7 @@ from imas_alambic.virtual_zarr import VirtualZarrView
 from imas_ambix.challenge.loader import geqdsk_declared_time_ms, load_geqdsk
 from imas_ambix.data.cocos_convention import (
     COCOS_CANDIDATES,
+    SELENE_OUTPUT_COCOS,
     format_sign_report,
     read_signal_map_observation,
     surviving_conventions,
@@ -54,9 +55,35 @@ REFERENCE_SHOT = 101154
 #: E101011 is the cohort's psi-carrying row.  Its EFIT G-EQDSK is the one
 #: source here that carries a poloidal-flux grid, so it is the only row on
 #: which the declared flux exponent is scored.  The file is copied read-only
-#: from the JT-60SA EFIT output into the same corpus root as the zarr cache.
+#: from the JT-60SA EFIT output into the same corpus root as the zarr cache,
+#: so it is resolved under the root the caller passes rather than a fixed path.
 E101011_SHOT = 101011
-E101011_EQDSK = JT60SA_ROOT / f"{E101011_SHOT}.geqdsk"
+
+
+def load_psi_row(
+    root: Path | str,
+    *,
+    shot: int = E101011_SHOT,
+    time_ms: float | None = None,
+):
+    """Read the cohort's psi-carrying G-EQDSK from ``root``, or ``None``.
+
+    The G-EQDSK is resolved under ``root`` -- the same root the zarr rows are
+    read from -- so ``--root`` moves the psi row with the cohort.  A G-EQDSK
+    carries no time field, so the snapshot time is read from the token its
+    header declares unless the caller supplies one, and a file that declares
+    none is refused rather than read at an unstated instant.
+    """
+
+    path = Path(root) / f"{shot}.geqdsk"
+    if not path.is_file():
+        return None
+    if time_ms is None:
+        declared_ms = geqdsk_declared_time_ms(path)
+        if declared_ms is None:
+            raise ValueError(f"{path} declares no snapshot time")
+        time_ms = declared_ms / 1000.0
+    return load_geqdsk(path, time_ms=time_ms)
 
 _PLASMA_CURRENT_TARGETS = ("magnetics/ip",)
 
@@ -373,29 +400,25 @@ def main(argv: list[str] | None = None) -> int:
     psi_row = None
     psi_cocos = None
     psi_exp_bp = None
-    if E101011_EQDSK.is_file():
-        # The header writes the snapshot in milliseconds; the kernel compares
-        # an equilibrium's time against the raw EDDB series, which run in
-        # seconds, so the snapshot time is converted before it is carried.
-        declared_ms = geqdsk_declared_time_ms(E101011_EQDSK)
-        if declared_ms is None:
-            raise ValueError(f"{E101011_EQDSK} declares no snapshot time")
-        record = load_geqdsk(E101011_EQDSK, time_ms=declared_ms / 1000.0)
+    psi_record = load_psi_row(arguments.root)
+    if psi_record is not None:
         observations.append(
             read_signal_map_observation(
                 E101011_SHOT,
                 MACHINE,
-                record,
+                psi_record,
                 root=arguments.root,
                 minimum_current_a=JT60SA_MINIMUM_CURRENT_A,
                 baseline_current_a=JT60SA_BASELINE_CURRENT_A,
             )
         )
         psi_row = E101011_SHOT
-        psi_cocos = record.cocos
-        psi_exp_bp = 0 if record.cocos <= 8 else 1
+        psi_cocos = psi_record.cocos
+        psi_exp_bp = 0 if psi_record.cocos <= 8 else 1
     else:
-        print(f"psi row omitted: {E101011_EQDSK} is absent from the corpus root")
+        print(
+            f"psi row omitted: no {E101011_SHOT}.geqdsk under {arguments.root}"
+        )
     observations = tuple(observations)
     envelopes = {
         observation.shot: plasma_current_envelope(
@@ -406,7 +429,7 @@ def main(argv: list[str] | None = None) -> int:
         for observation in observations
     }
     vacuum = vacuum_channels()
-    report = format_sign_report(observations)
+    report = format_sign_report(observations, declared_source=SELENE_OUTPUT_COCOS)
 
     figure_src = None
     if not arguments.no_figure:
