@@ -1,0 +1,70 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T01:07:54.025Z",
+  "dispatched_at": "2026-10-08T00:59:05Z",
+  "findings": [
+    {
+      "anchor": "imas_codex/cli/release.py:153",
+      "id": "reuse_search-1",
+      "reason": "the plan should name the owner that lists the package's tags, or say the state is read from git tags as imas-codex does, before a node builds against it.",
+      "text": "\u00a718 says it copies imas-codex's release CLI \"`compute_next_version`, with the same two-state machine\", but that function reads the release state from git tags (`_get_latest_tag` \u2192 `git tag --sort=-v:refname`, imas_codex/cli/release.py:33-50), whereas \u00a718 states the state is read \"from the tags of `ghcr.io/simon-mcintosh/<name>`\"; the cited mechanism therefore does not provide the behaviour \u00a718 assigns to it, and no mechanism is named anywhere for enumerating a private GHCR package's OCI tags (the installer only pulls a single fixed ref)",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html#s18",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the refusal surface it adds, as the rubric requires of every family it moves off zero.",
+      "text": "the section adds at least two refusal routes to a `refusal_families` currently 0 (a bundle whose `bundle.json` `name` disagrees with the machine-to-package table, and a `pull` that refuses to overwrite a local tree whose digest matches no released tag), and its \"Accounting for the new surface\" paragraph names only the retired CLI pull path and says nothing it retires or merges for these refusals, nor why nothing can be",
+      "type": "interface_budget",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-facility-mint.html#s18",
+      "id": "interface_budget-2",
+      "reason": "the automatic-release trigger must name the command it attaches to, or be dropped for the coordinator/`AGENTS.md` rule the section also names as the landing trigger.",
+      "text": "\u00a718 requires that \"every ambix command that writes into `maps/<machine>/` calls it at its end, with a `--no-release` opt-out\", but no ambix command writes maps: the map roots are named only by `imas_ambix/data/paths.py` and `imas_ambix/data/bundle.py`, no `maps` writer exists among the registered groups (`imas_ambix/cli.py:53,61,69,77`), and \u00a717 records that map edits have been made by hand or through a staged copy \u2014 so the option is added to commands that do not exist and the trigger names no host",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "82e4fd7671e26fccb5621a771e6d25cf1e4bb73107068e448b4156c62fed1bfe",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 123,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261008T005852815258-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "3d64537227cedd1d65466b05f85c36f12c7f9cb0",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 the proposed `imas_ambix/maps_cli.py` hides the version state machine, the machine-to-package table, the digest comparison and the oras push/pull behind three commands, an interface much smaller than what it hides.",
+    "duplicate_owner": "pass \u2014 the GHCR package identity and auth that today live only in `packages/imas-alambic/install/imasdb.sh:44` (`BUNDLE_REF`) and `:45` (`GH_USER`) are made a single owner in the machine-to-package table, and the installer is repointed at `imas-ambix maps pull <machine> --dest`, so the owner is extended rather than forked.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a718 adds refusals and a `--no-release` opt-out and names nothing it retires, merges or cannot retire for them.",
+    "reuse_search": "a finding \u2014 \u00a718 cites imas-codex's release state machine as the mechanism it copies, but that owner reads its version state from git tags while \u00a718 sources it from GHCR OCI tags, and no owner is named for enumerating a private package's tags.",
+    "thin_wrapper": "pass \u2014 \u00a718 states that `maps pull` retires the installer's own oras pull and merges the registry, the auth form and the artifact type into one owner, so the wrapper carries a stated justification (`packages/imas-alambic/install/imasdb.sh:70`)."
+  },
+  "section_digests": {
+    "_document": "88699358b3d2d92850ed703fcdff17e9843d3253cc3d2cd660a8dc6a2bd62b5c",
+    "s1": "9c7f16d6433487c622ba43b590d60de6ac6689995d01dfbcf8d4ab1d1d24f6c3",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "40878323aab9328585648d85591fd96dc6fcd4f5beedd01abbe2f0b3b1e8e508",
+    "s12": "7dd2ae47a38480f8a23a4bd518d5e1b9f6772d559fde8fe9885a2c7095f8ea50",
+    "s13": "2741a581fa4af709b92ea8db4a8330d65807a7a8665bbbfd9b84a09145be00ba",
+    "s14": "00628004df0e643b97e5a73b8e6ec838a6a572c206b20aff261081968fae4bb6",
+    "s15": "2d28daaa30674a0926633cf0bde89e0177a31a0f037724f0631b6efb13df02ba",
+    "s16": "53ba0ba04529722b831f4846c272220c764bae0e8be3a17d7e2a02bfad4887c3",
+    "s17": "1c72b11004a93f7813cad93f7de13a1dd1d8f45bef1b0d7aca77b96851c0f1a3",
+    "s18": "06a7a731a9222409e4807176df2964e75d79450d5f73f38d97327cff38ba0514",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "b1fac0701ea703406fed882189756b422b8bb52294039078259ccc18acf7cef0",
+    "s6": "7d596f31b4c60f8f55c421e2bdcb0d3f6de538cc99713c8d9b99700aad5e07ae",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "0d934ec479471ff9f711bc6e58ec9f2d0f07d4722593ff98c53426b2b509ecda",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T01:08:42.442922+00:00"
+}
