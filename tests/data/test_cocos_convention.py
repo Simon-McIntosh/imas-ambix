@@ -17,6 +17,7 @@ from imas_alambic.signal_map import (
 )
 from imas_ambix.challenge.loader import EfitLabels
 from imas_ambix.data.cocos_convention import (
+    _RAW_FLUX_LOOP_TARGETS,
     COCOS_3_4_MEASUREMENT_DISTINGUISHABLE,
     COCOS_CANDIDATES,
     COEFFICIENT_ASSESSMENTS,
@@ -28,6 +29,8 @@ from imas_ambix.data.cocos_convention import (
     MAST_TO_COCOS_17_FACTORS,
     RELATIVE_SIGN_PRODUCTS,
     SOURCE_COCOS_RECOMMENDATION,
+    _absolute_flux_loop_rules,
+    _differential_flux_loop_targets,
     format_sign_report,
     read_level2_sign_table,
     read_signal_map_observation,
@@ -736,6 +739,93 @@ def test_signal_map_reader_refuses_a_map_with_no_proven_flux_loop(
         read_signal_map_observation(
             _SYNTHETIC_SHOT, "jt-60sa", _synthetic_equilibrium(), root=tmp_path
         )
+
+
+def test_absolute_loop_selector_drops_a_proven_differential_entry():
+    """A proven loop whose target is a differential pair is not an absolute flux.
+
+    The selector keeps a rule only when its convention is proven *and* its
+    target entry carries no ``indices_differential``.  A type-6 entry stores the
+    difference between two loops, so its channel cannot carry a sign product
+    however well the pair's convention is known.
+    """
+
+    rules = (
+        _signal_rule(
+            "synthetic-flux-reference",
+            "MDAC",
+            "magFlxLp1",
+            "magnetics/flux_loop/flux/data",
+            target_index=6,
+        ),
+        _signal_rule(
+            "synthetic-flux-differential",
+            "MDAC",
+            "magFlxLp2",
+            "magnetics/flux_loop/flux/data",
+            target_index=37,
+        ),
+    )
+
+    kept = _absolute_flux_loop_rules(
+        rules,
+        _RAW_FLUX_LOOP_TARGETS,
+        "the flux-loop flux",
+        differential_targets=frozenset({37}),
+    )
+
+    assert [rule.semantic_id for rule in kept] == ["synthetic-flux-reference"]
+
+
+def test_jt60sa_differential_loop_targets_are_the_type6_entries():
+    """The resolver reads the pair entries, it does not assume the store order.
+
+    The 53-loop store holds 27 absolute entries then 26 differential pairs, so
+    the differential target indices run from 27 to 52 inclusive.
+    """
+
+    assert _differential_flux_loop_targets("jt-60sa") == frozenset(range(27, 53))
+
+
+def test_signal_map_reader_drops_a_proven_differential_loop(tmp_path, monkeypatch):
+    """A ``corpus-validated`` differential rule is still not an absolute flux.
+
+    Loop 7 is proven and targets its absolute type-1 entry; a second proven
+    rule targets a type-6 entry, which stores a difference to the reference.
+    The reader keeps the absolute loop alone, so the channel count is one.
+    """
+
+    _write_synthetic_store(tmp_path)
+    maps = _synthetic_maps()
+    maps["magnetics"] = _signal_map(
+        "magnetics",
+        (
+            _signal_rule("synthetic-ip", "PSRC", "Ip", "magnetics/ip/data"),
+            _signal_rule(
+                "synthetic-flux-reference",
+                "MDAC",
+                "magFlxLp1",
+                "magnetics/flux_loop/flux/data",
+                target_index=6,
+                channel_factor=-1.0,
+            ),
+            _signal_rule(
+                "synthetic-flux-differential",
+                "MDAC",
+                "magFlxLp2",
+                "magnetics/flux_loop/flux/data",
+                target_index=37,
+                channel_factor=-1.0,
+            ),
+        ),
+    )
+    _stub_signal_maps(monkeypatch, maps)
+
+    observation = read_signal_map_observation(
+        _SYNTHETIC_SHOT, "jt-60sa", _synthetic_equilibrium(), root=tmp_path
+    )
+
+    assert observation.raw_flux_loop_channels == 1
 
 
 def test_single_absolute_loop_row_is_not_a_consensus_violation():

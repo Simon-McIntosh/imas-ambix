@@ -31,6 +31,9 @@ import numpy as np
 
 REFERENCE_LOOP = 7
 CORPUS_VALIDATED_FROM = 12
+# The store's non-differential entries carry the IMAS int32 fill for an absent
+# index, and an entry whose pair is all fill is not differential.
+_NO_INDEX = -2147483647
 REFERENCE_EVIDENCE = "docs/evidence/fragments/jt60sa-machine-map/jtmm-loop-reference-rca.html"
 
 
@@ -51,12 +54,16 @@ def _differential_entries(store: Path) -> dict[int, int]:
             if raw is None:
                 continue
             values = np.asarray(raw).reshape(-1)
+            if values.size == 0:
+                continue
             if values.size != 2:
                 raise SystemExit(
                     f"flux_loop entry {index} names {values.size} differential "
                     "indices; a type-6 entry names exactly two"
                 )
             first, second = int(values[0]), int(values[1])
+            if first == _NO_INDEX or second == _NO_INDEX:
+                continue
             if first == REFERENCE_LOOP and second != REFERENCE_LOOP:
                 if second in pairs:
                     raise SystemExit(
