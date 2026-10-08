@@ -1,0 +1,369 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "read-only",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "68f71b529ef0545ccc9da1e7fc804a8252b60095",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 3762427,
+      "input_tokens_cumulative": 3762427,
+      "output_tokens": 32054,
+      "output_tokens_cumulative": 32054,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "clone_matches": {
+    "reason": "the run asserted no revision pair to compare",
+    "status": "unmeasured"
+  },
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-10-08T04:30:15.502Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-08T04:13:36Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "tests/data/test_jt60sa_unit_audit.py:276",
+    "tests/data/test_jt60sa_unit_audit.py:278",
+    "gate-unit-audit.log"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"import json; d=json.load(open('/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261008T035305718585-jtmm-unit-inventory-reach.json')); print(d['total'], d['status']); assert d['status']=='parsed'\"",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T041314204992-review-of-jtmm-unit-inventory-reach/gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.83,
+    "plan": "jt60sa-machine-map",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-08T04:43:16.478125+00:00",
+    "horizon_seconds": 1800,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-08T04:13:16Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 28,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 14,
+    "headroom": 1,
+    "mean_context": 148571,
+    "observed_at": "2026-10-08T04:12:48Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 28,
+      "aggregate_tokens_per_second": 256.762,
+      "detail": "",
+      "mean_tokens_per_second": 19.751,
+      "observed_at": "2026-10-08T04:12:48Z",
+      "runs": 13.0,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-08T04:30:15.502Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T041314204992-review-of-jtmm-unit-inventory-reach/manifest.md",
+  "member": "disposable-r-20261008T041314204992-review-of-jtmm-unit-inventory-reach",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "review record only; no source change",
+  "node": "review-of-jtmm-unit-inventory-reach",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1443,
+          "cached_input_tokens": 659533,
+          "input_tokens": 660978,
+          "output_tokens": 796,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 661774,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "c66d1ea6-525d-4cec-8114-013919000083",
+      "session_id": "c66d1ea6-525d-4cec-8114-013919000083"
+    },
+    "done_when": "the review for r-20261008T035305718585-jtmm-unit-inventory-reach stores a parsed record scoring all 6 dimensions in the range 0..20, recording the revision it read as reviewed_base_sha and reviewed_head_sha, and carrying added_failure_count and added_failure_ids derived from the reviewed run's own baseline_suite and after_suite gate logs; the turn ends once that record is stored and the manifest reads complete",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20261008T035305718585-jtmm-unit-inventory-reach",
+    "id": "review-of-jtmm-unit-inventory-reach",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-08T04:13:16Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 28,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 14,
+      "headroom": 1,
+      "mean_context": 148571,
+      "observed_at": "2026-10-08T04:12:48Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 28,
+        "aggregate_tokens_per_second": 256.762,
+        "detail": "",
+        "mean_tokens_per_second": 19.751,
+        "observed_at": "2026-10-08T04:12:48Z",
+        "runs": 13.0,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T041314204992-review-of-jtmm-unit-inventory-reach/manifest.md",
+    "negative_control": "",
+    "plan": "jt60sa-machine-map",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§6",
+    "spec_level": "exact",
+    "time_budget": "30m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261008T035305718585-jtmm-unit-inventory-reach.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261008T035305718585-jtmm-unit-inventory-reach.at-655cfc5b222bf882021b6349141594d13f6882c2.json"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "review-of-jtmm-unit-inventory-reach",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-08T04:13:23.897161+00:00",
+    "score": 0.55,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "fallback",
+    "backend": null,
+    "comment": "reviews stay off metered lanes",
+    "confidence": null,
+    "effort": null,
+    "excluded": [],
+    "fallback_reason": "timeout",
+    "family": null,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 5000.771,
+    "model": null,
+    "offered": [],
+    "probabilities": {}
+  },
+  "plan": "jt60sa-machine-map",
+  "plan_impl_at_dispatch": 0.83,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "68f71b529ef0545ccc9da1e7fc804a8252b60095",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "id": "r-20261008T041314204992-review-of-jtmm-unit-inventory-reach",
+    "reviewed_base_sha": "5bef753dd9ba27758d58f01268824a048cae06d8",
+    "reviewed_head_sha": "655cfc5b222bf882021b6349141594d13f6882c2",
+    "scores": {
+      "durability": 14,
+      "evidence": 12,
+      "fit": 17,
+      "goal_fidelity": 15,
+      "reuse": 19,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 97
+  },
+  "review_tier": "none",
+  "role": "review",
+  "route_mode": "explicit",
+  "run_id": "r-20261008T041314204992-review-of-jtmm-unit-inventory-reach",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§6",
+  "session": "c66d1ea6-525d-4cec-8114-013919000083",
+  "session_harness": "claude",
+  "session_id": "16b6b6be-b918-4606-bbd2-ae373794fd6d",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 3762427,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 994.716,
+    "generated_tokens": 32054,
+    "generation_seconds": 860.588,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 63.5,
+    "machine_seconds": 134.128,
+    "peak_input_tokens": 146188,
+    "tokens_per_second": 37.25,
+    "wall_tokens_per_second": 32.22
+  },
+  "time_budget": "30m",
+  "tool_steps": 43.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 999,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-08T04:30:31Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-08T04:13:45Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261008T041314204992-review-of-jtmm-unit-inventory-reach",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 6603,
+    "worker_pid": 809313
+  },
+  "worker_seconds": 925,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
