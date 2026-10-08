@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <section id="jtmm-loop-verdict-outliers-landing">
+      <p>Each corpus-validated differential loop rule in
+      <code>maps/jt-60sa/maps/magnetics.json</code> whose loop fails the
+      per-shot differential fit on at least one vacuum shot now records that
+      shot with the fit's slope and r in its <code>evidence</code> string, beside
+      the three-shot verdict &mdash; as decision <code>vacuum-verdict-rule</code>
+      requires. Seven rules carry an outlier: loops 12, 13, 14, 15, 16, 17 and
+      27. No other field of any signal changed; the edit was made by a
+      script kept in the run directory
+      (<code>apply_outliers.py</code>), which asserts every non-evidence field
+      is byte-identical after the write.</p>
+    </section>
+
+    <section id="jtmm-loop-verdict-outliers-confirmed">
+      <h3>The failing list, confirmed against the RCA per-shot table</h3>
+      <p>Transcribed from the <code>L&minus;7</code> columns of
+      <code>jtmm-loop-reference-rca.html</code> (a shot fails when
+      |slope&nbsp;+&nbsp;1|&nbsp;&gt;&nbsp;0.1 or |r|&nbsp;&le;&nbsp;0.95), this
+      node <strong>confirms</strong> the list the done-when named &mdash; no
+      correction was needed. The boundary cases that could have moved a loop out
+      of the list were checked: loops 18&ndash;21 fall inside the slope tolerance
+      (loop 18 on E100579 at slope &minus;1.098 is |slope&nbsp;+&nbsp;1| =
+      0.098&nbsp;&le;&nbsp;0.1 with r&nbsp;&minus;0.9903, a pass) and loop 16 on
+      E100595 is a pass on slope (&minus;0.929, |slope&nbsp;+&nbsp;1| =
+      0.071) but fails on r (0.9497 &lt; 0.95), which is why it appears with
+      E100579.</p>
+      <ul>
+        <li>loop 12 &mdash; E100595 slope &minus;0.341, r &minus;0.5920</li>
+        <li>loop 13 &mdash; E100595 slope &minus;0.513, r &minus;0.5578</li>
+        <li>loop 14 &mdash; E100595 slope &minus;0.416, r &minus;0.4192</li>
+        <li>loop 15 &mdash; E100579 slope &minus;1.156, r &minus;0.9940 and
+        E100595 slope &minus;0.890, r &minus;0.9170</li>
+        <li>loop 16 &mdash; E100579 slope &minus;1.185, r &minus;0.9924 and
+        E100595 slope &minus;0.929, r &minus;0.9497</li>
+        <li>loop 17 &mdash; E100579 slope &minus;1.127, r &minus;0.9875</li>
+        <li>loop 27 &mdash; E100595 slope &minus;0.856, r &minus;0.9017</li>
+      </ul>
+      <p>Loops 18&ndash;26 pass all three shots, and loop 7 (the absolute
+      reference, not a differential rule) is untouched. Each loop stays
+      <code>corpus-validated</code>: the median rule fixes the sign over the
+      three shots, and the outlier names the shot it rests least securely on.</p>
+    </section>
+
+    <section id="jtmm-loop-verdict-outliers-sha">
+      <h3>Bundle file sha256, before and after</h3>
+      <p>The prior map is kept at
+      <code>maps/jt-60sa/superseded/pre-verdict-outliers/maps/magnetics.json</code>.
+      Only the seven loop rules' <code>evidence</code> strings differ; the
+      script asserts no <code>target_index</code>, <code>channel_factor</code>,
+      <code>validation_state</code> or other field moved.</p>
+      <ul>
+        <li><code>maps/jt-60sa/maps/magnetics.json</code><br>
+        before <code>105c18422dc5a4b245b324cdb80032b2852d83412cad1def8ac58d43b12ab985</code><br>
+        after <code>29b94b281d9586a0a3e89bcaa75b1da3a03d07eb69075f2f09ac347124d07f9e</code></li>
+      </ul>
+    </section>
+
+    <section id="jtmm-loop-verdict-outliers-thin-margin">
+      <h3>Loop 16's E100595 margin, made explicit for a future regeneration</h3>
+      <p>Loop 16 is the one outlier whose classification rests on a narrow
+      margin: its E100595 per-shot r of 0.9497 sits 0.0003 below the 0.95 floor,
+      the thinnest of the seven, so a regenerated per-shot fit could move it
+      across the threshold and change which loops carry an outlier. Loop 16's
+      <code>evidence</code> now records that margin and flags loop 16 for
+      re-check, so the warning travels with the data a regeneration reads. The
+      classification itself is unchanged &mdash; the loop-reference RCA's own
+      per-shot table does not mark this fit as passing, so the fail is the
+      source's own. The existing outlier test already guards it: it asserts loop
+      <code>L</code>'s evidence names each failing shot with its slope and r, so
+      a regeneration that drops loop 16's E100595 outlier reddens the test.</p>
+      <p>The bundle file sha256 before and after this disclosure:
+      <code>maps/jt-60sa/maps/magnetics.json</code> was
+      <code>29b94b281d9586a0a3e89bcaa75b1da3a03d07eb69075f2f09ac347124d07f9e</code>
+      and is now
+      <code>99bdc9688e482e501d408d66e30c18b92e015d9c5816422342e1452cbe2181de</code>.
+      The prior copy is at
+      <code>maps/jt-60sa/superseded/pre-loop16-margin-note/maps/magnetics.json</code>.</p>
+    </section>
+
+  </main>
+</body>
+</html>
