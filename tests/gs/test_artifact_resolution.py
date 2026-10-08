@@ -17,11 +17,14 @@ import pytest
 
 from imas_ambix.gs import artifact_resolution as resolution
 
+#: MAST's row of the pin table: the one machine every committed measurement used.
+_MAST_ROW = resolution.pinned_rows("mast")[0]
+
 
 @pytest.fixture(scope="module")
 def resolved():
     """The description the package pins, resolved however this machine can."""
-    return resolution.resolve_machine_description()
+    return resolution.resolve_machine_description("mast")
 
 
 def test_machine_artifact_api_comes_from_the_machine_generic_module():
@@ -41,8 +44,8 @@ def test_machine_artifact_api_comes_from_the_machine_generic_module():
     inspect.signature(resolve_machine_artifact).bind(
         "cache",
         "sha256:" + "0" * 64,
-        expected_physical_digest=resolution.PINNED_PHYSICAL_DIGEST,
-        expected_registry_digest=resolution.PINNED_REGISTRY_DIGEST,
+        expected_physical_digest=_MAST_ROW.physical_digest,
+        expected_registry_digest=_MAST_ROW.registry_digest,
         allow_incomplete=True,
     )
 
@@ -55,22 +58,22 @@ def test_the_description_resolves_with_nothing_set(monkeypatch):
     monkeypatch.delenv(resolution.CACHE_ENV, raising=False)
     monkeypatch.delenv(resolution.DIGEST_ENV, raising=False)
 
-    resolved = resolution.resolve_machine_description()
+    resolved = resolution.resolve_machine_description("mast")
 
-    assert resolved.semantic_identity == resolution.PINNED_SEMANTIC_IDENTITY
+    assert resolved.semantic_identity == _MAST_ROW.semantic_identity
     assert resolved.matches_pin
     assert resolved.route in {resolution.ROUTE_CACHED, resolution.ROUTE_AUTHORED}
 
 
 def test_the_resolved_description_states_the_pinned_machine(resolved):
     """Identity is checked during resolution, not asserted about afterwards."""
-    assert resolved.physical_digest == resolution.PINNED_PHYSICAL_DIGEST
-    assert resolved.registry_digest == resolution.PINNED_REGISTRY_DIGEST
+    assert resolved.physical_digest == _MAST_ROW.physical_digest
+    assert resolved.registry_digest == _MAST_ROW.registry_digest
 
 
 def test_the_second_resolution_reads_the_cache_the_first_one_left(resolved):
     """Authoring happens at most once per machine; the object is then found."""
-    again = resolution.resolve_machine_description()
+    again = resolution.resolve_machine_description("mast")
 
     assert again.route == resolution.ROUTE_CACHED
     assert again.digest == resolved.digest
@@ -78,7 +81,7 @@ def test_the_second_resolution_reads_the_cache_the_first_one_left(resolved):
 
 def test_a_revision_is_found_by_what_it_says_not_by_its_file_hashes(resolved):
     found = resolution.find_revision(
-        resolved.cache_directory, resolution.PINNED_SEMANTIC_IDENTITY
+        resolved.cache_directory, _MAST_ROW.semantic_identity
     )
 
     assert found == resolved.digest
@@ -91,7 +94,10 @@ def test_an_absent_revision_is_reported_as_absent_rather_than_guessed(resolved):
 
 
 def test_a_cache_that_does_not_exist_is_not_an_error_to_search(tmp_path):
-    assert resolution.find_revision(tmp_path / "nothing-here") is None
+    assert (
+        resolution.find_revision(tmp_path / "nothing-here", _MAST_ROW.semantic_identity)
+        is None
+    )
 
 
 # --- why the pin is a semantic identity --------------------------------------
@@ -119,7 +125,7 @@ def test_re_authoring_reproduces_the_identity_the_package_pins(tmp_path, resolve
             resolution.publish_object(republished, tmp_path) / "manifest.json"
         ).read_bytes()
     )
-    assert stored["physical_digest"] == resolution.PINNED_PHYSICAL_DIGEST
+    assert stored["physical_digest"] == _MAST_ROW.physical_digest
 
 
 # --- publishing where the atomic no-clobber rename is unavailable ------------
@@ -137,7 +143,9 @@ def test_an_object_publishes_into_a_cache_that_refuses_no_clobber_rename(
     published = resolution.publish_object(resolved.artifact, tmp_path)
 
     assert published.is_dir()
-    mirrored = resolution.resolve_machine_description(tmp_path, resolved.digest)
+    mirrored = resolution.resolve_machine_description(
+        "mast", cache_directory=tmp_path, digest=resolved.digest
+    )
     assert mirrored.semantic_identity == resolved.semantic_identity
     assert mirrored.route == resolution.ROUTE_ENVIRONMENT
 
@@ -175,7 +183,7 @@ def test_the_environment_names_a_description_instead_of_the_pinned_one(
     monkeypatch.setenv(resolution.CACHE_ENV, str(resolved.cache_directory))
     monkeypatch.setenv(resolution.DIGEST_ENV, resolved.digest)
 
-    named = resolution.resolve_machine_description()
+    named = resolution.resolve_machine_description("mast")
 
     assert named.route == resolution.ROUTE_ENVIRONMENT
     assert named.digest == resolved.digest
@@ -194,12 +202,12 @@ def test_a_named_description_records_which_revision_it_actually_read(
     resolution.publish_object(resolved.artifact, tmp_path)
 
     provenance = resolution.resolve_machine_description(
-        tmp_path, resolved.digest
+        "mast", cache_directory=tmp_path, digest=resolved.digest
     ).provenance()
 
     assert provenance["semantic_identity"] == resolved.semantic_identity
     assert provenance["pinned_semantic_identity"] == (
-        resolution.PINNED_SEMANTIC_IDENTITY
+        _MAST_ROW.semantic_identity
     )
     assert provenance["matches_pinned_description"] is True
     assert provenance["resolution_route"] == resolution.ROUTE_ENVIRONMENT
@@ -211,12 +219,14 @@ def test_half_an_override_is_refused_rather_than_half_applied(monkeypatch):
     monkeypatch.delenv(resolution.DIGEST_ENV, raising=False)
 
     with pytest.raises(resolution.ArtifactResolutionError, match="needs both"):
-        resolution.resolve_machine_description()
+        resolution.resolve_machine_description("mast")
 
 
 def test_a_named_artifact_that_is_not_this_machine_is_refused(tmp_path):
     with pytest.raises(resolution.ArtifactResolutionError, match="does not verify"):
-        resolution.resolve_machine_description(tmp_path, "sha256:" + "0" * 64)
+        resolution.resolve_machine_description(
+            "mast", cache_directory=tmp_path, digest="sha256:" + "0" * 64
+        )
 
 
 # --- where each cache root lives ---------------------------------------------

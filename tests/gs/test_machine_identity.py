@@ -84,7 +84,7 @@ def test_the_rounded_position_digest_is_unchanged_by_this_module():
 
 
 def test_the_frozen_campaign_resolves_to_the_published_configuration():
-    identity = identity_for_representation(FROZEN_REPRESENTATION_DIGEST)
+    identity = identity_for_representation(FROZEN_REPRESENTATION_DIGEST, machine="mast")
     assert identity.physical_digest == MAST_PHYSICAL_DIGEST
     assert identity.dd_version == "4.1.1"
     assert len(identity.registry_digest) == 64
@@ -95,15 +95,19 @@ def test_a_signature_object_and_a_bare_digest_resolve_alike():
     signature = _Signature(FROZEN_REPRESENTATION_DIGEST, FROZEN_REPRESENTATION_KEY)
     assert (
         identity_for_representation(signature).physical_digest
-        == identity_for_representation(FROZEN_REPRESENTATION_DIGEST).physical_digest
+        == identity_for_representation(
+            FROZEN_REPRESENTATION_DIGEST, machine="mast"
+        ).physical_digest
     )
 
 
 def test_every_recorded_representation_names_one_machine():
     """Three discretizations, one device: the identity rule as a measurement."""
-    registry = default_registry()
+    registry = default_registry("mast")
     resolved = {
-        identity_for_representation(digest, registry=registry).physical_digest
+        identity_for_representation(
+            digest, machine="mast", registry=registry
+        ).physical_digest
         for digest in registry.representation_aliases
     }
     assert resolved == {MAST_PHYSICAL_DIGEST}
@@ -121,7 +125,7 @@ def test_a_different_filament_count_is_the_same_machine():
 def test_an_unaliased_representation_raises_rather_than_guessing():
     """An unknown campaign must be aliased in nova, never silently assigned."""
     with pytest.raises(MachineIdentityError, match="not in the Nova registry"):
-        identity_for_representation("ffffffffffffffff")
+        identity_for_representation("ffffffffffffffff", machine="mast")
 
 
 # --- the shot route carries evidence the alias table cannot ---------------
@@ -129,21 +133,24 @@ def test_an_unaliased_representation_raises_rather_than_guessing():
 
 @pytest.mark.parametrize("shot", FROZEN_SHOTS)
 def test_each_frozen_shot_selects_the_published_configuration(shot):
-    identity = identity_for_shot(shot)
+    identity = identity_for_shot(shot, machine="mast")
     assert identity.physical_digest == MAST_PHYSICAL_DIGEST
     assert identity.evidence == "observed"
 
 
 def test_the_shot_route_and_the_alias_route_agree():
     """Two independent paths to identity; a disagreement would be a registry fault."""
-    by_alias = identity_for_representation(FROZEN_REPRESENTATION_DIGEST)
+    by_alias = identity_for_representation(FROZEN_REPRESENTATION_DIGEST, machine="mast")
     for shot in FROZEN_SHOTS:
-        assert identity_for_shot(shot).physical_digest == by_alias.physical_digest
+        assert (
+            identity_for_shot(shot, machine="mast").physical_digest
+            == by_alias.physical_digest
+        )
 
 
 def test_a_shot_outside_the_registry_ranges_raises():
     with pytest.raises(MachineIdentityError, match="outside the Nova registry"):
-        identity_for_shot(1)
+        identity_for_shot(1, machine="mast")
 
 
 def test_a_table_prefers_the_shot_route_for_its_evidence_state():
@@ -167,7 +174,7 @@ def test_a_table_with_no_registered_shot_falls_back_to_the_alias_route():
 
 def test_the_provisional_configuration_is_not_operator_ready():
     """Unsourced electrical semantics must be visible, not assumed away."""
-    identity = identity_for_representation(FROZEN_REPRESENTATION_DIGEST)
+    identity = identity_for_representation(FROZEN_REPRESENTATION_DIGEST, machine="mast")
     assert not identity.is_operator_ready
     assert identity.authoring_gaps
     assert any("turns" in gap for gap in identity.authoring_gaps)
@@ -190,14 +197,14 @@ def test_a_configuration_without_gaps_would_be_operator_ready():
 
 
 def test_the_two_identity_modes_return_the_two_keys():
-    identity = identity_for_representation(FROZEN_REPRESENTATION_DIGEST)
+    identity = identity_for_representation(FROZEN_REPRESENTATION_DIGEST, machine="mast")
     assert identity.key(IDENTITY_REPRESENTATION) == FROZEN_REPRESENTATION_DIGEST
     assert identity.key(IDENTITY_PHYSICAL) == MAST_PHYSICAL_DIGEST
     assert IDENTITY_MODES == (IDENTITY_REPRESENTATION, IDENTITY_PHYSICAL)
 
 
 def test_an_unknown_identity_mode_raises():
-    identity = identity_for_representation(FROZEN_REPRESENTATION_DIGEST)
+    identity = identity_for_representation(FROZEN_REPRESENTATION_DIGEST, machine="mast")
     with pytest.raises(ValueError, match="unknown identity mode"):
         identity.key("physical-digest")
 

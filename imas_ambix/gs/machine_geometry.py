@@ -267,10 +267,12 @@ class MachineGeometryService:
     def __init__(
         self,
         *,
+        machine: str = "mast",
         channel_shots: _typing.Iterable[int] = (),
         amc_channel_shot: int | None = None,
     ) -> None:
         self._selector = _machine_selection.ArtifactMachineSelector(
+            machine=machine,
             channel_shots=tuple(int(shot) for shot in channel_shots),
             amc_channel_shot=amc_channel_shot,
         )

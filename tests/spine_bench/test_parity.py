@@ -575,7 +575,7 @@ def _jt60sa_stamp() -> SpineBenchmarkStamp:
 def test_the_parity_guard_reads_the_row_for_the_declared_machine():
     """A JT-60SA stamp is admissible under JT-60SA's row and not under MAST's."""
     stamp = _jt60sa_stamp()
-    assert parity.check_admissibility(stamp, machine="jt60sa") == ()
+    assert parity.check_admissibility(stamp, machine="jt-60sa") == ()
     reasons = parity.check_admissibility(stamp)
     assert reasons, "the MAST row must reject a JT-60SA label and shot set"
     assert any("frozen" in reason for reason in reasons)

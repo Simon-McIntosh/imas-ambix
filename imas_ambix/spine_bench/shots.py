@@ -72,22 +72,22 @@ FROZEN_SHOTSET: list[BenchShot] = [
 #: is the same for each -- there is no ramp/flat-top split within this set the way
 #: MAST's roles carry.
 JT60SA_FROZEN_SHOTSET: list[BenchShot] = [
-    BenchShot(machine="jt60sa", shot_id=100599, role="op1 SELENE-ran (PSRC present)"),
-    BenchShot(machine="jt60sa", shot_id=100999, role="op1 SELENE-ran (PSRC present)"),
-    BenchShot(machine="jt60sa", shot_id=101017, role="op1 SELENE-ran (PSRC present)"),
-    BenchShot(machine="jt60sa", shot_id=101025, role="op1 SELENE-ran (PSRC present)"),
-    BenchShot(machine="jt60sa", shot_id=101026, role="op1 SELENE-ran (PSRC present)"),
-    BenchShot(machine="jt60sa", shot_id=101029, role="op1 SELENE-ran (PSRC present)"),
-    BenchShot(machine="jt60sa", shot_id=101031, role="op1 SELENE-ran (PSRC present)"),
-    BenchShot(machine="jt60sa", shot_id=101033, role="op1 SELENE-ran (PSRC present)"),
-    BenchShot(machine="jt60sa", shot_id=101039, role="op1 SELENE-ran (PSRC present)"),
-    BenchShot(machine="jt60sa", shot_id=101044, role="op1 SELENE-ran (PSRC present)"),
-    BenchShot(machine="jt60sa", shot_id=101045, role="op1 SELENE-ran (PSRC present)"),
-    BenchShot(machine="jt60sa", shot_id=101046, role="op1 SELENE-ran (PSRC present)"),
-    BenchShot(machine="jt60sa", shot_id=101153, role="op1 SELENE-ran (PSRC present)"),
-    BenchShot(machine="jt60sa", shot_id=101156, role="op1 SELENE-ran (PSRC present)"),
-    BenchShot(machine="jt60sa", shot_id=101162, role="op1 SELENE-ran (PSRC present)"),
-    BenchShot(machine="jt60sa", shot_id=101163, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=100599, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=100999, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=101017, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=101025, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=101026, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=101029, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=101031, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=101033, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=101039, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=101044, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=101045, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=101046, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=101153, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=101156, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=101162, role="op1 SELENE-ran (PSRC present)"),
+    BenchShot(machine="jt-60sa", shot_id=101163, role="op1 SELENE-ran (PSRC present)"),
 ]
 
 
@@ -112,8 +112,8 @@ FROZEN_SHOTSETS: dict[str, FrozenShotset] = {
     "mast": FrozenShotset(
         machine="mast", version=SHOTSET_VERSION, shots=FROZEN_SHOTSET
     ),
-    "jt60sa": FrozenShotset(
-        machine="jt60sa", version=JT60SA_SHOTSET_VERSION, shots=JT60SA_FROZEN_SHOTSET
+    "jt-60sa": FrozenShotset(
+        machine="jt-60sa", version=JT60SA_SHOTSET_VERSION, shots=JT60SA_FROZEN_SHOTSET
     ),
 }
 

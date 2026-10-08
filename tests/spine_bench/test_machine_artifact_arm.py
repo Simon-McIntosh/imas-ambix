@@ -124,8 +124,9 @@ def test_an_unnamed_artifact_still_names_a_machine(monkeypatch):
 
     assert source.cache_directory is None
     assert source.digest is None
-    assert source.expected_physical_digest == arm.PINNED_PHYSICAL_DIGEST
-    assert source.expected_registry_digest == arm.PINNED_REGISTRY_DIGEST
+    mast = resolution.pinned_rows("mast")[0]
+    assert source.expected_physical_digest == mast.physical_digest
+    assert source.expected_registry_digest == mast.registry_digest
 
 
 def test_the_source_reads_the_artifact_named_in_the_environment(monkeypatch):
@@ -141,8 +142,9 @@ def test_the_source_reads_the_artifact_named_in_the_environment(monkeypatch):
     assert source.cache_directory == "/somewhere/cache"
     assert source.digest == "sha256:feed"
     assert source.label == "machine-artifact"
-    assert source.expected_physical_digest == arm.PINNED_PHYSICAL_DIGEST
-    assert source.expected_registry_digest == arm.PINNED_REGISTRY_DIGEST
+    mast = resolution.pinned_rows("mast")[0]
+    assert source.expected_physical_digest == mast.physical_digest
+    assert source.expected_registry_digest == mast.registry_digest
 
 
 def test_the_channel_shots_span_the_whole_frozen_set():
@@ -156,7 +158,7 @@ def test_the_channel_shots_span_the_whole_frozen_set():
 
 def test_the_source_addresses_the_declared_machines_frozen_row():
     """A JT-60SA stamp must address JT-60SA's shots, not MAST's."""
-    source = arm.resolve_geometry_source(machine="jt60sa")
+    source = arm.resolve_geometry_source(machine="jt-60sa")
 
     assert source.channel_shots == tuple(int(s.shot_id) for s in JT60SA_FROZEN_SHOTSET)
     assert source.evidence_shot == JT60SA_FROZEN_SHOTSET[0].shot_id
@@ -190,18 +192,19 @@ def test_the_arm_reads_the_table_the_committed_reader_produces(source):
     from imas_ambix.data.description_reader import read_acquisition_channels
     from imas_ambix.gs.artifact_geometry import MachineArtifactGeometryReader
 
-    described = resolution.resolve_machine_description()
+    described = resolution.resolve_machine_description("mast")
     shots = [int(s.shot_id) for s in FROZEN_SHOTSET]
-    sensor_acquisition = read_acquisition_channels(shots)
-    current_acquisition = read_acquisition_channels((shots[0],))
+    sensor_acquisition = read_acquisition_channels(shots, machine="mast")
+    current_acquisition = read_acquisition_channels((shots[0],), machine="mast")
     direct = MachineArtifactGeometryReader(
+        machine="mast",
         cache_directory=described.cache_directory,
         digest=described.digest,
         shot=shots[0],
         amb_channels=sensor_acquisition.sensors,
         amc_current_channels=current_acquisition.currents,
-        expected_physical_digest=arm.PINNED_PHYSICAL_DIGEST,
-        expected_registry_digest=arm.PINNED_REGISTRY_DIGEST,
+        expected_physical_digest=resolution.pinned_rows("mast")[0].physical_digest,
+        expected_registry_digest=resolution.pinned_rows("mast")[0].registry_digest,
     ).read()
     table = source.build()
 
@@ -221,11 +224,12 @@ def test_the_arm_reads_the_table_the_committed_reader_produces(source):
 def test_the_machine_is_pinned_so_a_swapped_cache_cannot_be_benched(source):
     provenance = source.provenance()
 
-    assert provenance["physical_digest"] == arm.PINNED_PHYSICAL_DIGEST
-    assert provenance["registry_digest"] == arm.PINNED_REGISTRY_DIGEST
+    mast = resolution.pinned_rows("mast")[0]
+    assert provenance["physical_digest"] == mast.physical_digest
+    assert provenance["registry_digest"] == mast.registry_digest
     assert provenance["source"] == arm.ARTIFACT_SOURCE_LABEL
     assert provenance["artifact_digest"] == (
-        resolution.resolve_machine_description().digest
+        resolution.resolve_machine_description("mast").digest
     )
 
 
@@ -244,7 +248,9 @@ def test_the_machine_was_chosen_by_identity_rather_than_by_address(source):
     assert provenance["selected_shot"] == FROZEN_SHOTSET[0].shot_id
     assert provenance["registry_evidence"] == "observed"
     assert provenance["matches_pinned_description"] is True
-    assert provenance["semantic_identity"] == resolution.PINNED_SEMANTIC_IDENTITY
+    assert provenance["semantic_identity"] == (
+        resolution.pinned_rows("mast")[0].semantic_identity
+    )
 
 
 def test_the_compute_key_stays_the_setup_signature_the_geometry_determines(source):
