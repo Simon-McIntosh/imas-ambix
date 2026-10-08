@@ -10,10 +10,17 @@ import yaml
 
 from imas_ambix.latent.gs_solve import SUBSTRATE_GREENS, SUBSTRATE_GRID
 from imas_ambix.spine_bench import parity
-from imas_ambix.spine_bench.schema import SpineBenchmarkStamp
+from imas_ambix.spine_bench.schema import (
+    EnvInfo,
+    MachineInfo,
+    ShotStamp,
+    SpineBenchmarkStamp,
+)
 from imas_ambix.spine_bench.shots import (
     AD_HOC_SHOTSET_VERSION,
     FROZEN_SHOTSET,
+    JT60SA_FROZEN_SHOTSET,
+    JT60SA_SHOTSET_VERSION,
     SHOTSET_VERSION,
 )
 
@@ -542,3 +549,41 @@ def test_the_after_path_stamp_is_a_genuine_clean_two_arm_frozen_run(after_path):
     assert all(
         row.n_slices_scored == row.n_slices_attempted for row in after_path.shots
     )
+
+
+# --- the frozen row is keyed by the run's declared machine -----------------
+
+
+def _jt60sa_stamp() -> SpineBenchmarkStamp:
+    """A complete two-arm stamp over JT-60SA's frozen set."""
+    shots = [
+        ShotStamp(shot_id=shot.shot_id, role=shot.role, substrate=substrate)
+        for substrate in parity.GATED_ARMS
+        for shot in JT60SA_FROZEN_SHOTSET
+    ]
+    return SpineBenchmarkStamp(
+        shotset_version=JT60SA_SHOTSET_VERSION,
+        created_utc="2026-01-01T00:00:00+00:00",
+        machine=MachineInfo(platform="linux", hostname="jt60sa.example"),
+        env=EnvInfo(
+            python_version="3.14.0", git_commit="0" * 16, git_dirty=False
+        ),
+        shots=shots,
+    )
+
+
+def test_the_parity_guard_reads_the_row_for_the_declared_machine():
+    """A JT-60SA stamp is admissible under JT-60SA's row and not under MAST's."""
+    stamp = _jt60sa_stamp()
+    assert parity.check_admissibility(stamp, machine="jt60sa") == ()
+    reasons = parity.check_admissibility(stamp)
+    assert reasons, "the MAST row must reject a JT-60SA label and shot set"
+    assert any("frozen" in reason for reason in reasons)
+    assert not parity.evaluate(stamp).ok
+
+
+def test_a_machine_with_no_frozen_row_is_refused_by_name():
+    """An unmapped machine is refused, not silently scored against MAST."""
+    stamp = _jt60sa_stamp()
+    reasons = parity.check_admissibility(stamp, machine="d3d")
+    assert reasons == ("no frozen shot set is declared for machine 'd3d'",)

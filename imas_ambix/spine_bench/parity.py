@@ -212,7 +212,12 @@ from __future__ import annotations
 import enum
 from dataclasses import dataclass
 
-from imas_ambix.spine_bench.shots import FROZEN_SHOTSET, SHOTSET_VERSION
+from imas_ambix.spine_bench.shots import FROZEN_SHOTSETS
+
+#: The machine a stamp is assumed to describe when the caller names none.  Every
+#: committed stamp predates the machine-keyed table and measured MAST, so MAST is
+#: the only safe default; a run on another machine must name it.
+DEFAULT_MACHINE = "mast"
 
 #: The reference stamp every tolerance below is derived from.
 REFERENCE_STAMP = "physics-spine-v0-mast-heldout-6-0447fb2e0d-98dci4-clu-3141.yaml"
@@ -524,7 +529,7 @@ class ParityReport:
         return "\n".join(lines)
 
 
-def check_admissibility(stamp) -> tuple[str, ...]:
+def check_admissibility(stamp, machine: str = DEFAULT_MACHINE) -> tuple[str, ...]:
     """Return the reasons a stamp may not be scored as a frozen-set parity run.
 
     Partial scoring is a failure, not a qualified pass, so a stamp that is
@@ -532,21 +537,29 @@ def check_admissibility(stamp) -> tuple[str, ...]:
     compared.  A single campaign signature is required too: the frozen set was
     curated as one machine configuration, and a second signature would mean the
     run silently mixed geometries.
+
+    ``machine`` names the device the stamp is meant to describe, which selects the
+    frozen row its label, shots and roles must match.  It cannot be inferred from
+    the stamp -- a shot integer is not unique across machines -- so it is declared
+    by the caller, exactly as the run declared it.
     """
+    row = FROZEN_SHOTSETS.get(machine)
+    if row is None:
+        return (f"no frozen shot set is declared for machine {machine!r}",)
     reasons: list[str] = []
-    if stamp.shotset_version != SHOTSET_VERSION:
+    if stamp.shotset_version != row.version:
         reasons.append(
             f"shotset_version {stamp.shotset_version!r} is not the frozen "
-            f"{SHOTSET_VERSION!r}"
+            f"{row.version!r}"
         )
-    expected_shots = {shot.shot_id for shot in FROZEN_SHOTSET}
-    present_shots = {row.shot_id for row in stamp.shots}
+    expected_shots = {shot.shot_id for shot in row.shots}
+    present_shots = {row_shot.shot_id for row_shot in stamp.shots}
     if missing := sorted(expected_shots - present_shots):
         reasons.append(f"missing frozen shots {missing}")
     if extra := sorted(present_shots - expected_shots):
         reasons.append(f"shots outside the frozen set {extra}")
 
-    expected_roles = {shot.shot_id: shot.role for shot in FROZEN_SHOTSET}
+    expected_roles = {shot.shot_id: shot.role for shot in row.shots}
     for row in stamp.shots:
         role = expected_roles.get(row.shot_id)
         if role is not None and row.role != role:
@@ -587,10 +600,10 @@ def _score(stamp, tolerances) -> list[ParityFailure]:
     return failures
 
 
-def evaluate(stamp) -> ParityReport:
+def evaluate(stamp, machine: str = DEFAULT_MACHINE) -> ParityReport:
     """Score a benchmark stamp against the registered tolerances."""
     return ParityReport(
-        admissibility=check_admissibility(stamp),
+        admissibility=check_admissibility(stamp, machine),
         failures=tuple(_score(stamp, PARITY_TOLERANCES)),
         checked=len(PARITY_TOLERANCES),
     )
@@ -631,7 +644,10 @@ def tolerances_from(
 
 
 def compare_paths(
-    before, after, kind: ComparisonKind = ComparisonKind.SAME_SOURCE
+    before,
+    after,
+    kind: ComparisonKind = ComparisonKind.SAME_SOURCE,
+    machine: str = DEFAULT_MACHINE,
 ) -> ParityReport:
     """Score an after-path stamp against the before-path it must reproduce.
 
@@ -645,8 +661,12 @@ def compare_paths(
     sources must say so, because the wider budget is only derivable once the two
     descriptions' Green's columns have been tabulated against each other.
     """
-    admissibility = [f"before-path: {reason}" for reason in check_admissibility(before)]
-    admissibility += [f"after-path: {reason}" for reason in check_admissibility(after)]
+    admissibility = [
+        f"before-path: {reason}" for reason in check_admissibility(before, machine)
+    ]
+    admissibility += [
+        f"after-path: {reason}" for reason in check_admissibility(after, machine)
+    ]
     before_coverage = {
         (row.shot_id, row.substrate, row.topology_read): (
             row.n_slices_attempted,

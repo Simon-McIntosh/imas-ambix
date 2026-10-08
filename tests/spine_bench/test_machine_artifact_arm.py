@@ -22,7 +22,11 @@ from imas_ambix.gs import artifact_resolution as resolution
 from imas_ambix.spine_bench import machine_artifact_arm as arm
 from imas_ambix.spine_bench.runner import CampaignGeometrySource, write_yaml
 from imas_ambix.spine_bench.schema import EnvInfo, MachineInfo, SpineBenchmarkStamp
-from imas_ambix.spine_bench.shots import FROZEN_SHOTSET, SHOTSET_VERSION
+from imas_ambix.spine_bench.shots import (
+    FROZEN_SHOTSET,
+    JT60SA_FROZEN_SHOTSET,
+    SHOTSET_VERSION,
+)
 
 RESULTS = Path(__file__).parents[2] / "imas_ambix" / "spine_bench" / "results"
 
@@ -148,6 +152,21 @@ def test_the_channel_shots_span_the_whole_frozen_set():
 
     assert source.channel_shots == tuple(int(s.shot_id) for s in FROZEN_SHOTSET)
     assert source.evidence_shot == FROZEN_SHOTSET[0].shot_id
+
+
+def test_the_source_addresses_the_declared_machines_frozen_row():
+    """A JT-60SA stamp must address JT-60SA's shots, not MAST's."""
+    source = arm.resolve_geometry_source(machine="jt60sa")
+
+    assert source.channel_shots == tuple(int(s.shot_id) for s in JT60SA_FROZEN_SHOTSET)
+    assert source.evidence_shot == JT60SA_FROZEN_SHOTSET[0].shot_id
+    assert source.evidence_shot != FROZEN_SHOTSET[0].shot_id
+
+
+def test_a_machine_with_no_frozen_row_is_refused():
+    """An unmapped machine is refused rather than addressed with MAST's shots."""
+    with pytest.raises(ValueError, match="no frozen shot set is declared"):
+        arm.resolve_geometry_source(machine="d3d")
 
 
 # --- integration against the pinned published artifact -----------------------
