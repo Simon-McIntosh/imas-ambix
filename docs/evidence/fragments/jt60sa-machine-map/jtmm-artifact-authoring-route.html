@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <section id="jtmm-artifact-authoring-route-landing">
+      <p>The question is <em>how the JT-60SA machine artifact is authored from the
+      &sect;4 source without a JT-60SA module in nova</em>. Read from the code, the
+      answer is: <strong>nova already holds a machine-arbitrary packing, verification
+      and caching layer, but no entry derives a machine's identity from DD-shaped IDS
+      input, and both producers that exist are hard-wired to one machine.</strong> A
+      JT-60SA artifact <em>can</em> be produced and verified today by calling the
+      generic entry directly &mdash; the probe below does exactly that from the
+      <code>OP1</code> store and gets a
+      <code>nova-jt-60sa-machine-artifact</code> manifest with matching digests &mdash;
+      but the identity such a manifest must carry (physical digest, registry digest,
+      shot ranges, field evidence, channel drives) has <strong>no producer and no
+      owner for JT-60SA</strong>. That missing producer is the thing to add, it can
+      live in ambix, and it is the only piece absent: the mechanical layer it would
+      call is complete, machine-parameterized and importable, so
+      <code>nothing JT-60SA-specific needs to enter nova</code>. The rest of this
+      record names the entries, their inputs and writes, how verification works, the
+      files a JT-60SA route would touch, and the exact call that fails without the
+      producer.</p>
+    </section>
+
+    <section id="jtmm-artifact-authoring-route-generic-layer">
+      <h3>The generic layer exists and is machine-arbitrary</h3>
+      <p>Four functions in <code>nova/imas/machine_artifact.py</code> carry no
+      machine constant at all; each takes the machine by name and a directory of
+      already-authored IDS containers. Their signatures were read with
+      <code>inspect.signature</code> in the probe:</p>
+      <table>
+        <thead><tr><th>entry</th><th>machine-arbitrary?</th><th>role</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>create_machine_artifact_manifest(source_directory, *,
+            machine, dd_version=None, registry_digest, physical_digest, shot_ranges,
+            complete, unresolved_gaps, field_evidence=(), channel_drive=())</code></td>
+            <td><strong>yes</strong> &mdash; <code>machine</code> is a parameter</td>
+            <td>hash every file in the source directory and assemble a canonical,
+            validated manifest (<code>manifest_schema(machine)</code> &rarr;
+            <code>nova-{machine}-machine-artifact</code>)</td>
+          </tr>
+          <tr>
+            <td><code>materialize_machine_artifact(source_directory,
+            cache_directory, manifest)</code></td>
+            <td><strong>yes</strong></td>
+            <td>verify the source files against the manifest, then publish atomically
+            into a content-addressed cache with
+            <code>renameat2(RENAME_NOREPLACE)</code></td>
+          </tr>
+          <tr>
+            <td><code>resolve_machine_artifact(cache_directory, digest, *,
+            expected_dd_version=None, expected_registry_digest=None,
+            expected_physical_digest=None, allow_incomplete=False)</code></td>
+            <td><strong>yes</strong></td>
+            <td>re-hash every file against the manifest, re-validate the manifest,
+            and enforce any supplied expected identity</td>
+          </tr>
+          <tr>
+            <td><code>MachineArtifactManifest.semantic_identity()</code></td>
+            <td><strong>yes</strong></td>
+            <td>content address over the dictionary pin, physical and registry
+            identity, shot extent and field provenance, excluding the file table
+            (which carries library write metadata)</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>What this layer does <em>not</em> do is read the IDSs to derive an
+      identity. <code>create_machine_artifact_manifest</code> hashes bytes and checks
+      nothing about their contents beyond the file inventory; the dictionary version,
+      the physical digest, the registry digest, the shot ranges and the field
+      evidence are all <strong>inputs</strong>. So the entry answers
+      &ldquo;package and verify <em>this</em> directory as machine
+      <em>X</em>&rdquo;, not &ldquo;author machine <em>X</em> from a DD-shaped IDS
+      set&rdquo;. Removing the five identity arguments is not optional:</p>
+      <pre><code>create_machine_artifact_manifest(OP1, machine="jt-60sa", dd_version="4.1.1")
+  -&gt; TypeError: missing 5 required keyword-only arguments:
+     'registry_digest', 'physical_digest', 'shot_ranges', 'complete', and
+     'unresolved_gaps'</code></pre>
+    </section>
+
+    <section id="jtmm-artifact-authoring-route-producers">
+      <h3>The two producers that exist are each hard-wired to one machine</h3>
+      <table>
+        <thead><tr><th>producer</th><th>machine</th><th>identity source</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>nova.imas.mast_geometry.publish_refined_artifact</code>
+            (<code>nova/imas/mast_geometry.py:541</code>) and
+            <code>publish_provisional_artifact</code> (<code>:601</code>)</td>
+            <td><code>"mast"</code>, written literally into
+            <code>create_machine_artifact_manifest(..., machine="mast", ...)</code> at
+            <code>publish_refined_artifact</code> line 570</td>
+            <td><code>MachineGeometryRegistry.default()</code> &mdash; nova's packaged
+            MAST geometry catalogue; the physical and registry digests, the shot ranges
+            and the evidence all come from the MAST catalog, the channel drives from
+            <code>nova.imas.mast_channel_drive</code></td>
+          </tr>
+          <tr>
+            <td><code>nova/scripts/diiid_machine_artifact.py</code>
+            <code>publish_diiid_machine_artifact</code></td>
+            <td><code>MACHINE = "DIII-D"</code> (module constant)</td>
+            <td><code>nova.imas.diiid_machine_ids.build_diiid_machine_ids</code> over
+            <code>SOURCE_PATH</code> (DIII-D's own native source), then
+            <code>_artifact_digests</code> over the leaf snapshot</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>DIII-D is the precedent that a second machine is added by writing a
+      machine-specific producer, not by widening a generic one. Its producer is a
+      module-private script (<code>nova/scripts/ DIII-D-specific</code>), reads a
+      single netCDF file <code>diiid_machine_description.nc</code> holding the whole
+      IDS set, derives the dictionary version from the file itself
+      (<code>_declared_dd_version</code>) and the digests from its own converter's
+      snapshot, and only then calls the generic
+      <code>publish_diiid_machine_artifact</code>-&gt;<code>create_machine_artifact_manifest</code>. No
+      part of that path reads an <em>arbitrary</em> DD IDS directory; the identity
+      still comes from the machine's own converter.</p>
+      <p>On the ambix side there is exactly one entry and it is MAST-only.
+      <code>imas_ambix/gs/artifact_resolution.py</code> exposes
+      <code>resolve_machine_description(cache_directory=None, digest=None)</code> and
+      <code>author_pinned_description(durable_root=None)</code>: neither takes a
+      machine, and <code>author_pinned_description</code> hard-imports the MAST
+      producer at line 316, <code>from nova.imas.mast_geometry import
+      publish_refined_artifact</code>. The call a JT-60SA caller would want fails:</p>
+      <pre><code>resolve_machine_description(machine="jt-60sa")
+  -&gt; TypeError: resolve_machine_description() got an unexpected keyword
+     argument 'machine'
+publish_refined_artifact(cache, machine="jt-60sa")
+  -&gt; TypeError: publish_refined_artifact() got an unexpected keyword
+     argument 'machine'</code></pre>
+    </section>
+
+    <section id="jtmm-artifact-authoring-route-probe">
+      <h3>Probe: a JT-60SA artifact authors, verifies and caches from the OP1 store</h3>
+      <p>Read-only w.r.t. <code>nova/</code>, <code>maps/</code> and every cache.
+      The &sect;4 source <code>OP1</code> was opened with <code>imas</code>: it holds
+      five DD&nbsp;4.1.1 netCDF (HDF5) containers &mdash; <code>magnetics.nc</code>,
+      <code>pf_active.nc</code>, <code>pf_passive.nc</code>, <code>tf.nc</code>,
+      <code>wall.nc</code> &mdash; each declaring
+      <code>version_put.data_dictionary = 4.1.1</code>, plus a
+      <code>receipt.json</code> that is a converter receipt and not an IDS. The probe
+      staged the five IDS files into its own directory under the run directory,
+      derived identity itself (the missing producer's job, below), and called the
+      generic entry:</p>
+      <table>
+        <thead><tr><th>field</th><th>value</th></tr></thead>
+        <tbody>
+          <tr><td><code>schema</code></td><td><code>nova-jt-60sa-machine-artifact</code></td></tr>
+          <tr><td><code>machine</code></td><td><code>jt-60sa</code></td></tr>
+          <tr><td><code>dd_version</code></td><td><code>4.1.1</code></td></tr>
+          <tr><td><code>files</code></td><td><code>magnetics.nc, pf_active.nc, pf_passive.nc, tf.nc, wall.nc</code></td></tr>
+          <tr><td><code>physical_digest</code></td><td><code>9263c7373d8ebf88</code> (probe stand-in)</td></tr>
+          <tr><td><code>registry_digest</code></td><td><code>a5610c1a&hellip;e7d30d</code> (probe stand-in)</td></tr>
+          <tr><td><code>oci_tag</code></td><td><code>dd-4.1.1-physical-9263c7373d8ebf88</code></td></tr>
+          <tr><td><code>semantic_identity</code></td><td><code>sha256:61e49667&hellip;a10162</code></td></tr>
+          <tr><td><code>complete</code></td><td><code>false</code> &mdash; no JT-60SA registry supplies shot ranges or field evidence</td></tr>
+        </tbody>
+      </table>
+      <p>The two digests above are <strong>probe-derived stand-ins</strong>
+      (sha256 over a file table the probe computed), not published identities; they
+      are quoted only to show the manifest is structurally complete and its OCI tag
+      self-consistent. Materializing it demonstrates the verification path: into a
+      node-local cache under <code>/tmp</code>,
+      <code>materialize_machine_artifact</code> returned a
+      <code>VerifiedMachineArtifact</code> whose <code>digest</code>
+      (<code>sha256:bd2145a2&hellip;3cefb</code>) equals the manifest's own
+      <code>digest</code>, so the round trip through
+      <code> &rarr; verify-and-publish &rarr; resolve-and-verify</code> closes.
+      Materializing into the run directory (GPFS) instead is refused, and that
+      refusal is itself load-bearing:</p>
+      <pre><code>materialize_machine_artifact(staging, &lt;run-directory&gt;/probe-cache, manifest)
+  -&gt; MachineArtifactError: the cache filesystem does not support atomic
+     no-clobber directory rename, so an artifact cannot be published there
+     without risking a half-visible object</code></pre>
+      <p>This is why ambix does not author into the durable cache directly: it
+      authors into <code>staging_cache_root()</code> (node-local
+      <code>TMPDIR</code>) and mirrors with its own
+      <code>publish_object</code>, which fsyncs and uses a plain no-clobber rename
+      that GPFS accepts. A JT-60SA producer inside ambix inherits that pattern
+      unchanged. The probe script, its JSON report and its stderr are under the run
+      directory: <code>probe_jt60sa_artifact_route.py</code>,
+      <code>probe_output.json</code>, <code>probe_stderr.log</code>.</p>
+    </section>
+
+    <section id="jtmm-artifact-authoring-route-files">
+      <h3>Files a JT-60SA authoring route in ambix would touch</h3>
+      <p>The route the plan &sect;7 describes touches these ambix files &mdash; all
+      of them &sect;7's own pin-table and machine-keying work, none of it new to this
+      question:</p>
+      <ul>
+        <li><code>imas_ambix/gs/artifact_resolution.py</code> &mdash; the pin table
+        keyed by machine replaces the three module constants;
+        <code>author_pinned_description</code> takes each machine's authoring route
+        from that table (retiring the hard import at line 316) and
+        <code>resolve_machine_description</code> gains the machine.</li>
+        <li><code>imas_ambix/gs/machine_identity.py</code> &mdash;
+        <code>default_registry()</code> (line 145) keyed by machine; the JT-60SA key
+        returns the registry built from the JT-60SA artifact</li>
+        <li><code>imas_ambix/gs/artifact_geometry.py</code> &mdash;
+        <code>MachineArtifactGeometryReader.machine</code> becomes required (today
+        <code>machine: str = "mast"</code> at line 758).</li>
+        <li><code>imas_ambix/gs/machine_selection.py</code> &mdash;
+        <code>ArtifactMachineSelector</code> gains a required machine and passes it to
+        the identity registry, the acquisition read and the geometry reader.</li>
+        <li><code>imas_ambix/spine_bench/machine_artifact_arm.py</code> &mdash; the
+        expected physical and registry digests come from the machine-keyed pin table
+        instead of the MAST constants it defaults to.</li>
+        <li><strong>New:</strong> a JT-60SA producer that reads the &sect;4 stores
+        (<code>maps/jt-60sa/machine_description/{OP1,OP2}</code>, DD&nbsp;4.1.1
+        netCDF IDSs), derives the physical digest, registry digest, shot ranges, field
+        evidence and channel drives, and calls nova's generic
+        <code>create_machine_artifact_manifest</code> and
+        <code>materialize_machine_artifact</code> (or ambix's
+        <code>publish_object</code> for the durable mirror). This is the entry that is
+        missing, and it is the only new file.</li>
+      </ul>
+      <p><strong>Can the route stay inside ambix? Yes.</strong> The mechanical layer
+      the producer needs is entirely machine-arbitrary and already importable from
+      ambix (<code>artifact_resolution.py</code> imports it lazily today), so the
+      producer adds no JT-60SA constant to nova. The one decision the producer must
+      make that the MAST producer never does is what to do with a non-IDS file in the
+      source directory: <code>create_machine_artifact_manifest</code> inventories
+      <em>every</em> file it is handed, so the OP1 store's <code>receipt.json</code>
+      would otherwise be packaged into the artifact as a member. The producer either
+      excludes it or stages only the <code>.nc</code> files, as the probe did. Nova
+      needs no change for any of this; the alternative of parking the producer in
+      <code>nova/scripts/</code> beside <code>diiid_machine_artifact.py</code> is
+      available but would put a JT-60SA constant in nova, which &sect;7 rules out.</p>
+    </section>
+
+    <section id="jtmm-artifact-authoring-route-negative-control">
+      <h3>Negative control: lines that refuse or mis-key a non-MAST machine today</h3>
+      <p>A reading taken from naming alone would say &ldquo;the machine-artifact code
+      is generic, so JT-60SA works&rdquo;. Each of these lines falsifies that, and
+      each is what a JT-60SA caller meets on the current route:</p>
+      <ul>
+        <li><code>imas_ambix/gs/artifact_resolution.py:316</code> &mdash;
+        <code>from nova.imas.mast_geometry import publish_refined_artifact</code>: the
+        ambix authoring entry reaches MAST and only MAST, so
+        <code>author_pinned_description</code> for any other machine cannot exist
+        without a code change here.</li>
+        <li><code>imas_ambix/gs/artifact_resolution.py:288</code> &mdash;
+        <code>if require_pin and semantic_identity != PINNED_SEMANTIC_IDENTITY</code>:
+        a JT-60SA description cannot satisfy the single MAST pin, so
+        <code>resolve_machine_description()</code> refuses it.</li>
+        <li><code>imas_ambix/gs/machine_identity.py:152</code> &mdash;
+        <code>from nova.catalog.mast_geometry import MachineGeometryRegistry</code>
+        inside <code>default_registry</code>: every resolver that falls back to it
+        (&ldquo;all four&rdquo; in &sect;7) answers a JT-60SA question with MAST's
+        registry unless a machine key is added.</li>
+        <li><code>imas_ambix/gs/artifact_geometry.py:758</code> &mdash;
+        <code>machine: str = "mast"</code>: the one silent default on the selection
+        route, which would tag a JT-60SA selection
+        <code>SetupSignature(machine="mast")</code> and collide with MAST's
+        <code>SetupSignature.key</code>.</li>
+        <li><code>nova/imas/mast_geometry.py:570</code> &mdash;
+        <code>machine="mast"</code> written literally into
+        <code>create_machine_artifact_manifest</code>: the MAST producer cannot
+        produce another machine's artifact, which is why the generic entry must be
+        called directly (as the probe did) and why a producer is needed.</li>
+      </ul>
+      <p>The probe turns four of these into observed refusals rather than read lines:
+      the two <code>TypeError</code>s above and the two-entry no-machine
+      <code>TypeError</code>/<code>MachineArtifactError</code> in the entry table, all
+      reproducible from <code>probe_output.json</code>. The generic layer is real, and
+      the machine keying is not: both facts are needed to read the route correctly.</p>
+    </section>
+
+  </main>
+</body>
+</html>
