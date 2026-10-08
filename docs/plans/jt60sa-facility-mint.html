@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="159">
+<meta name="plan-version" content="160">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -623,6 +623,9 @@
 </div>
 <div class="r-comment" data-section="s18" data-id="c-20261008T0840-race" data-who="reckon-build" data-when="2026-10-08T08:40:00+00:00">
     <div class="r-comment-body">release writes the local version only after the push succeeds, atomically and keeping the descriptor mode; merged dea870ae and 7db4fd38. Evidence anchor s18-release-race.</div>
+</div>
+<div class="r-comment" data-section="s18" data-id="c-run-r-20261008T082959722176-review-of-jtfm-release-version-after-push" data-who="reckon-build" data-when="2026-10-08T08:42:56.308Z">
+    <div class="r-comment-body"><p>Review of run r-20261008T073935828854-jtfm-release-version-after-push (plan imas-ambix:jt60sa-facility-mint §18), third independent review at the run&#x27;s final head after the chmod narrowing: parsed record stored at both fenced paths, six dimensions scored 0..20 (goal_fidelity 19, evidence 19, scope_discipline 19, durability 18, fit 19, reuse 19; total 113), reviewed_base_sha 033d84d68f63034ed9b1f3856272a28ab03a74c4 / reviewed_head_sha 607add490ce12d2c30c53a6f34081a64ae3d54f8, added_failure_count 0 with added_failure_ids [] derived from the run&#x27;s baseline_suite (27 passed at 033d84d6) and after_suite (32 passed at 8af5104d); the release path writes the local bundle version only after push_tree returns, atomically via mkstemp+os.replace, taking the descriptor&#x27;s own permission bits through stat.S_IMODE so no file-type bits reach os.chmod, and released_paths skips a stray descriptor temp. No blocking finding; one follow-on (the still-open registry-ahead-of-local asymmetry on a post-push write_released_version failure). The two prior follow-ons (descriptor mode 0600 under the atomic write; imprecise chmod mode argument) are closed at 10173220 and 8af5104d.</p></div>
 </div>
 </section>
 </main>

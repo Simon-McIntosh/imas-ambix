@@ -1,0 +1,57 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/maps_cli.py:495 (`release`, the only command that writes the released version into the local bundle.json; stage_bundle writes the staging copy)"
+  ],
+  "completed_at": "2026-10-08T08:42:56.308Z",
+  "dispatched_at": "2026-10-08T08:30:13Z",
+  "findings": [
+    {
+      "file": "imas_ambix/maps_cli.py",
+      "line": "495",
+      "severity": "follow-on",
+      "text": "follow-on: the local write now happens after push_tree returns, so a failure inside write_released_version (rather than the push) -- a full filesystem, or the atomic replace raising -- leaves the registry holding a version the local descriptor does not name, until the next pull. This is the mirror of the defect the node repaired and is the lower-risk direction (an unpublished local version cannot be pulled by a facility), so it is a note rather than a defect. Still open from the prior reviews."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "release() is the only production write of the local bundle version (imas_ambix/maps_cli.py:495); stage_bundle writes the local copy into the staging tree.",
+    "diff": "read against 033d84d6/607add49: only maps_cli.py, tests/test_maps_cli.py and the fragment changed; release() writes the local descriptor only after push_tree returns; _write_bundle_version is atomic via mkstemp+os.replace and preserves the descriptor mode through stat.S_IMODE; released_paths skips a stray descriptor temp.",
+    "done_when": "the maps_cli unit suite is green at head (32 passed, EXIT=0, reproduced by this review at 607add49) and at base (27 passed, EXIT=0), and `uv run --no-sync ruff check imas_ambix tests packages` exits 0.",
+    "goal": "The plan section's follow-on (from the review of the failed-push repair): stop `release` writing the local bundle.json before the push and make that write atomic, and close the two follow-ons the prior reviews left. Fully met at 8af5104d/607add49: imas_ambix/maps_cli.py release() stages and pushes inside the TemporaryDirectory block and calls write_released_version only after push_tree returns (line 495); _write_bundle_version is atomic via mkstemp+os.replace and preserves the descriptor mode through stat.S_IMODE; released_paths skips a stray descriptor temp. Docked one only for the still-open, lower-risk registry-ahead-of-local asymmetry.",
+    "manifest": "read at the run directory; status complete, seven commits named (640ea2fc, 13743063, 1c7ffc73, 10173220, 2cc2a29c, 8af5104d, 607add49), base/head/ruff/negative-control logs named, baseline_suite (27 passed at 033d84d6) and after_suite (32 passed at 8af5104d) both present and exit 0.",
+    "write_paths": "The three changed paths -- imas_ambix/maps_cli.py, tests/test_maps_cli.py and the section's landing fragment under docs/evidence/fragments/jt60sa-facility-mint/ -- sit inside the node's declared write paths and the plan \u00a718 release CLI surface; no other command, module or plan file is touched."
+  },
+  "justifications": {
+    "durability": "Each guard reddens when its mechanism is removed. Re-inserting write_released_version before the staging/push block (the declared mutation) makes test_release_leaves_the_local_bundle_unpublished_while_the_push_runs fail (1 failed EXIT=1, seen == ['v0.2.0-rc1']) against the head's clean 32 passed; reverting the chmod to the raw st_mode makes test_release_chmods_only_permission_bits fail (1 failed EXIT=1); the atomic-replace test fails the write through a raising os.replace and asserts the original bytes are intact; the stray-temp test asserts the digest and staged tree ignore a bundle.json.*.tmp; the mode test pins a 0644 descriptor at 0644. Docked two for the still-open registry-ahead-of-local asymmetry (write_released_version sits outside any try after push_tree), which no added guard covers.",
+    "evidence": "The run's manifest carries a readable baseline_suite (033d84d6, whole tests/test_maps_cli.py, 27 passed, exit 0, completed true, failure_ids []) and after_suite (8af5104d, 32 passed, exit 0, completed true, failure_ids []), so added_failure_count is 0 with no added ids. The after_suite gate measured 8af5104d; the run's final head 607add49 is a fragment-only commit whose code tree is identical. This review independently re-ran the whole suite in the worktree at 607add49 (32 passed, EXIT=0), and confirmed both negative-control logs each refuse: negative-control.log fails test_release_leaves_the_local_bundle_unpublished_while_the_push_runs (EXIT=1, seen == ['v0.2.0-rc1']) and negative-control-permission-bits.log fails test_release_chmods_only_permission_bits (EXIT=1, an extra os.chmod argument carrying the 0o100000 file-type bit). ruff exits 0 at head; the 607add49 fragment now names the mode and permission-bits guards, so the stale-fragment finding of the first review is closed.",
+    "fit": "The mechanism comments state the rule (the descriptor is written only after the registry holds the version; the mkstemp+os.replace write is atomic for a concurrent reader and an interrupted write; the replacement keeps the descriptor's own permission bits through stat.S_IMODE) with no plan, ticket or phase reference. The module idiom -- typed click command, mechanism docstrings, module-level regex, EXCLUDED_TOP_LEVEL filter, _BUNDLE_TEMP_RE following _SEMVER_RE -- is preserved, and ruff exits 0 at head.",
+    "goal_fidelity": "The plan section's follow-on (from the review of the failed-push repair): stop `release` writing the local bundle.json before the push and make that write atomic, and close the two follow-ons the prior reviews left. Fully met at 8af5104d/607add49: imas_ambix/maps_cli.py release() stages and pushes inside the TemporaryDirectory block and calls write_released_version only after push_tree returns (line 495), so nothing local names an unpublished version and there is no byte-restore to get wrong; _write_bundle_version writes a sibling temp and moves it over the descriptor with os.replace; the replacement takes the descriptor's own permission bits through stat.S_IMODE, so mkstemp's 0600 does not become the published mode and no file-type bits reach os.chmod (the prior info finding is now closed); and released_paths leaves out a stray bundle.json.*.tmp so a process killed mid-write cannot put it into the digest or the staged tree. Docked one only for the still-open, lower-risk registry-ahead-of-local asymmetry.",
+    "reuse": "The fix reuses write_released_version (now called after the atomic write machinery) and stage_bundle's carried version rather than adding a second staging mechanism; the stray-temp predicate is a small module-level regex following the existing _SEMVER_RE idiom. The tests extend the existing FakeRegistry and push_tree stubbing rather than introducing a new fake, and the during-push test reuses the stubbed push_tree to observe the descriptor mid-push.",
+    "scope_discipline": "The three changed paths -- imas_ambix/maps_cli.py, tests/test_maps_cli.py and the section's landing fragment under docs/evidence/fragments/jt60sa-facility-mint/ -- sit inside the node's declared write paths and the plan \u00a718 release CLI surface; no other command, module or plan file is touched. The change is confined to release() and its helpers plus their tests."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The plan section's follow-on (from the review of the failed-push repair): stop `release` writing the local bundle.json before the push and make that write atomic, and close the two follow-ons the prior reviews left. Fully met at 8af5104d/607add49: imas_ambix/maps_cli.py release() stages and pushes inside the TemporaryDirectory block and calls write_released_version only after push_tree returns (line 495), so nothing local names an unpublished version and there is no byte-restore to get wrong; _write_bundle_version writes a sibling temp and moves it over the descriptor with os.replace; the replacement takes the descriptor's own permission bits through stat.S_IMODE, so mkstemp's 0600 does not become the published mode and no file-type bits reach os.chmod; and released_paths leaves out a stray bundle.json.*.tmp so a process killed mid-write cannot put it into the digest or the staged tree. Docked one only for the still-open, lower-risk registry-ahead-of-local asymmetry.\nVERDICT done_when: the maps_cli unit suite is green at head (32 passed, EXIT=0) and at base (27 passed, EXIT=0), reproduced by this review at 607add49, and `uv run --no-sync ruff check imas_ambix tests packages` exits 0.\nVERDICT write_paths: The three changed paths -- imas_ambix/maps_cli.py, tests/test_maps_cli.py and the section's landing fragment under docs/evidence/fragments/jt60sa-facility-mint/ -- sit inside the node's declared write paths and the plan \u00a718 release CLI surface; no other command, module or plan file is touched. The change is confined to release() and its helpers plus their tests.\nVERDICT manifest: read at the run directory; status complete, seven commits named, base/head/ruff/negative-control logs named, baseline_suite (27 passed at 033d84d6) and after_suite (32 passed at 8af5104d) both present and exit 0.\nVERDICT diff: read against 033d84d6/607add49: only maps_cli.py, tests/test_maps_cli.py and the fragment changed; release() writes the local descriptor only after push_tree returns; _write_bundle_version is atomic via mkstemp+os.replace and preserves the descriptor mode through stat.S_IMODE; released_paths skips a stray descriptor temp.\nVERDICT call_sites: release() is the only production write of the local bundle version (imas_ambix/maps_cli.py:495); stage_bundle writes the local copy into the staging tree.",
+  "review_run_id": "r-20261008T082959722176-review-of-jtfm-release-version-after-push",
+  "reviewed_base_sha": "033d84d68f63034ed9b1f3856272a28ab03a74c4",
+  "reviewed_head_sha": "607add490ce12d2c30c53a6f34081a64ae3d54f8",
+  "reviewed_run_id": "r-20261008T073935828854-jtfm-release-version-after-push",
+  "reviewer": "deepseek-v4.1-flash",
+  "rubric": "code",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T08:36:00+00:00",
+  "total": 113
+}
