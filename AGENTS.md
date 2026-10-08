@@ -214,6 +214,27 @@ those entries are convention exemptions rather than lint violations: keep the
 scientific or framework meaning explicit instead of renaming symbols merely to
 satisfy a generic naming rule.
 
+## Machine map bundles (GHCR)
+
+The machine maps under the gitignored `maps/<machine>/` are released to GHCR
+with `imas-ambix maps release <machine>`, fetched with `imas-ambix maps pull
+<machine>`, and inspected with `imas-ambix maps status <machine>`, all through
+`imas_ambix/maps_cli.py`.
+
+- **A coordinator calls `release` at each landing that changed a bundle.** The
+  automatic call carries no flags: in candidate state it increments the
+  candidate, and on a stable release it starts a patch candidate. The push is
+  skipped when the tree digest is unchanged, so a landing that touched no map
+  costs no push. A stable release is promoted with `--final`, and a release
+  line's `v1.0.0` is kept for a validated map.
+- **Declare any write into a machine directory as an absolute main-checkout
+  path** (`/home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/<file>`), never a
+  relative `maps/...` path. The `maps/` directory reaches the real tree through
+  a symlink, so a relative write path resolves inside the worker's worktree and
+  leaves the real tree read-only under the write fence.
+- **`release` creates no git tag.** Both packages take their version from git
+  tags, so a map tag in git would become a package version.
+
 ## Plans & docs (reckon — HTML-first)
 
 All plans **and** non-plan structured docs (RCAs, incident reports,

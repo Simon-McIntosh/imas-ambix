@@ -75,3 +75,11 @@ demo = _LazyGroup(
     help="Forward-prediction demo for held-out MAST shots (plans/demo.md).",
 )
 main.add_command(demo)
+
+
+maps = _LazyGroup(
+    import_path="imas_ambix.maps_cli:maps",
+    name="maps",
+    help="Publish and fetch machine map bundles through GHCR.",
+)
+main.add_command(maps)

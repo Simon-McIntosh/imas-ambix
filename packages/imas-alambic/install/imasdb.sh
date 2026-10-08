@@ -20,8 +20,7 @@
 # Environment overrides:
 #   IMASDB_SSH_HOST     ssh host alias of the server (default jt-60sa)
 #   IMASDB_SSH_ARGS     extra ssh/scp arguments, word-split (e.g. "-F $HOME/.ssh/config")
-#   IMASDB_BUNDLE_REF   OCI reference of the private map bundle
-#   IMASDB_GH_USER      GHCR username for the gh token (default Simon-McIntosh)
+#   IMASDB_MACHINE      machine whose bundle to install (default jt-60sa)
 #   IMASDB_NOVA_COCOS   path to the nova-cocos package to build (defaults to the
 #                       sibling `nova` checkout of this repository)
 set -euo pipefail
@@ -41,8 +40,7 @@ IMASDB=${IMASDB%/}
 
 SSH_HOST=${IMASDB_SSH_HOST:-jt-60sa}
 SSH_ARGS=${IMASDB_SSH_ARGS:-}
-BUNDLE_REF=${IMASDB_BUNDLE_REF:-ghcr.io/simon-mcintosh/imas-alambic-jt60sa:2026.10.07}
-GH_USER=${IMASDB_GH_USER:-Simon-McIntosh}
+BUNDLE_MACHINE=${IMASDB_MACHINE:-jt-60sa}
 
 REPO_ROOT=$(git -C "$(dirname -- "$0")" rev-parse --show-toplevel)
 # nova-cocos is a sibling checkout of the repository, resolved from the main
@@ -64,11 +62,14 @@ nice -n 19 uv build --out-dir "$WHEELS" "$NOVA_COCOS"
 ls -la "$WHEELS"
 
 # --- 2. pull the map bundle -------------------------------------------------
-say "pulling the bundle $BUNDLE_REF"
+# The registry, the authentication form and the artifact type have one owner,
+# the maps CLI: it defaults to the package's latest stable tag, so this script
+# names no version.
+say "pulling the $BUNDLE_MACHINE bundle"
 BUNDLE=$WORK/bundle
 mkdir -p "$BUNDLE"
-gh auth token | oras pull --username "$GH_USER" --password-stdin \
-  "$BUNDLE_REF" -o "$BUNDLE"
+export GH_TOKEN=${GH_TOKEN:-$(gh auth token)}
+uv run --project "$MAIN_ROOT" imas-ambix maps pull "$BUNDLE_MACHINE" --dest "$BUNDLE"
 BUNDLE_VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$BUNDLE/bundle.json")
 if [ -z "$BUNDLE_VERSION" ]; then
   echo "$PROG: $BUNDLE/bundle.json names no version" >&2
