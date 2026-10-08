@@ -11,7 +11,12 @@ import pytest
 from imas_alambic.cocos import CANONICAL_COCOS
 from imas_ambix.challenge.convention import DIIID_CONVENTION
 from imas_ambix.challenge.facts import build_report
-from imas_ambix.challenge.loader import load_geqdsk, load_shot, validate_shot_schema
+from imas_ambix.challenge.loader import (
+    geqdsk_declared_time_ms,
+    load_geqdsk,
+    load_shot,
+    validate_shot_schema,
+)
 
 
 def _real_slice() -> list[Path]:
@@ -61,7 +66,9 @@ def test_facts_report_covers_every_circulated_claim() -> None:
     assert report["measurements"]["shots"] == 100
 
 
-def _write_small_geqdsk(path: Path, *, psi_sign: float = 1.0) -> Path:
+def _write_small_geqdsk(
+    path: Path, *, psi_sign: float = 1.0, name: str = "small"
+) -> Path:
     """Write one small G-EQDSK under a temporary path for the loader to read."""
 
     from eqdsk import EQDSKInterface
@@ -81,7 +88,7 @@ def _write_small_geqdsk(path: Path, *, psi_sign: float = 1.0) -> Path:
         ffprime=np.zeros(size),
         fpol=np.full(size, 6.0),
         Ic=np.zeros(0),
-        name="small",
+        name=name,
         nbdry=angle.size,
         ncoil=0,
         nlim=0,
@@ -134,6 +141,29 @@ def test_geqdsk_loader_reads_a_file_into_efit_labels(tmp_path: Path) -> None:
     assert record.scalars["efit_r_axis"][0] == pytest.approx(3.0)
     assert record.scalars["magnetics_bcoil"][0] == pytest.approx(2.5)
     assert record.psirz[0, 0, 0] - record.psirz[0, 4, 4] > 0.0
+
+
+def test_geqdsk_loader_reads_the_snapshot_time_the_header_declares(
+    tmp_path: Path,
+) -> None:
+    """A header naming its snapshot time dates the frame without a caller's help."""
+
+    path = _write_small_geqdsk(tmp_path / "declared.geqdsk", name="4000ms")
+
+    assert geqdsk_declared_time_ms(path) == pytest.approx(4000.0)
+    assert load_geqdsk(path).time_ms == pytest.approx([4000.0])
+
+
+def test_geqdsk_loader_requires_a_time_when_the_header_declares_none(
+    tmp_path: Path,
+) -> None:
+    """A file with no declared snapshot time does not silently read as t=0."""
+
+    path = _write_small_geqdsk(tmp_path / "undeclared.geqdsk")
+
+    assert geqdsk_declared_time_ms(path) is None
+    with pytest.raises(ValueError, match="declares no snapshot time"):
+        load_geqdsk(path)
 
 
 def test_geqdsk_loader_keeps_the_files_psi_sign(tmp_path: Path) -> None:
