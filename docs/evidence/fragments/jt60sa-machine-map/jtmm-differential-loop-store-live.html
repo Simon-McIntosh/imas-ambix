@@ -1,0 +1,80 @@
+<section data-reckon="evidence" id="jtmm-differential-loop-store-live">
+  <h2 id="jtmm-differential-loop-store-live-h2">jtmm-differential-loop-store-live — the consumer tests against the live 53-loop bundle</h2>
+
+  <p id="jtmm-differential-loop-store-live-outcome">
+    The live JT-60SA bundle now carries the 53-loop stores and the staged map. Every
+    one of the seven consumer tests the store node first turned red passes against it
+    with IMAS_ALAMBIC_MAP_PATH unset, so the bundle is resolved from the repository's
+    maps/jt-60sa through ambix's entry point.
+  </p>
+
+  <h3 id="jtmm-differential-loop-store-live-gate">Gate</h3>
+  <p id="jtmm-differential-loop-store-live-gate-cmd">
+    Revision cbbce2b7, worktree .../jtmm-differential-loop-store-live, maps symlink
+    maps -> /home/ITER/mcintos/Code/imas-ambix/maps, resolved bundle root
+    /home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa. Command, run once on the fleet
+    allocation (SLURM_JOB_ID=1281970), log
+    gate-jtmm-differential-loop-store-live.log:
+  </p>
+  <pre id="jtmm-differential-loop-store-live-gate-pre">uv run --no-sync pytest -p no:cacheprovider \
+  tests/data/test_jt60sa_machine_map.py tests/gs/test_operator.py \
+  tests/gs/test_operator_differential_loops.py tests/data/test_jt60sa_signal_maps.py \
+  tests/data/test_jt60sa_unit_audit.py tests/data/test_cocos_convention.py \
+  tests/data/test_transform_engine.py</pre>
+  <p id="jtmm-differential-loop-store-live-gate-result">
+    Summary line: 1 failed, 118 passed, 1 skipped in 590.79s (0:09:50), EXIT=1. All
+    seven named consumer tests pass. The single failure is a stale hard-coded
+    inventory outside this node's write scope; see the follow-on below.
+  </p>
+
+  <h3 id="jtmm-differential-loop-store-live-red">The seven tests the store node turned red</h3>
+  <ul id="jtmm-differential-loop-store-live-red-list">
+    <li>
+      tests/data/test_jt60sa_machine_map.py — 14 passed, none skipped. Includes the
+      flux-loop cases that bind a position per entry:
+      test_each_phase_emits_and_adapts_through_one_code_path (both phase parameters)
+      and test_both_phases_share_the_pf_and_magnetics_geometry; the 53-loop table
+      reports 27 positioned loops and 26 differential entries.
+    </li>
+    <li>
+      tests/gs/test_operator.py::test_turn_corrected_vacuum_fit_of_loop_7_is_within_20_percent_of_minus_one
+      — passed (the operator's loop-7 vacuum fit; the seventh red test).
+    </li>
+    <li>
+      tests/gs/test_operator_differential_loops.py — 5 passed, 0 skipped, including
+      test_differential_vacuum_prediction_tracks_the_measured_difference.
+    </li>
+  </ul>
+
+  <h3 id="jtmm-differential-loop-store-live-skip">Skipped</h3>
+  <p id="jtmm-differential-loop-store-live-skip-body">
+    One skip, and it is not caused by the bundle: tests/data/test_transform_engine.py:618
+    — "JT-60SA OP1 machine description is not mounted" (the description store root is
+    not present in this worktree). No other test skipped.
+  </p>
+
+  <h3 id="jtmm-differential-loop-store-live-hashes">Live bundle hashes against the apply log</h3>
+  <p id="jtmm-differential-loop-store-live-hashes-body">
+    Recomputed on the live bundle and compared with the "after" block of
+    maps-apply/2026-10-08-differential-loops-and-fame-equilibrium.log. All match:
+  </p>
+  <ul id="jtmm-differential-loop-store-live-hash-list">
+    <li>machine_map.json — b9c641d6553242437b738bde72fb3dcddfd0e9137c306a8ee7c75516e4aec256</li>
+    <li>machine_description/OP1/magnetics.nc — e543c0674272e38c46e1aa2f7036c9011387b621eb2c702365f7368fcc457ceb</li>
+    <li>machine_description/OP1/receipt.json — ee212aa5b4689cb678207b6e46b6d1744fdb5557711c25b475cf97fbf10d4958</li>
+    <li>machine_description/OP2/magnetics.nc — e543c0674272e38c46e1aa2f7036c9011387b621eb2c702365f7368fcc457ceb</li>
+    <li>machine_description/OP2/receipt.json — 8d39e430227ff5a7e39f637099ace95a2f3080b026c2a808bfc678e916de6ee7</li>
+    <li>maps/equilibrium.json — bdf0bca2d72f554b9e315a538b805973113d120a294d1fc6a3a0fc8f6e68d45d</li>
+  </ul>
+
+  <h3 id="jtmm-differential-loop-store-live-followon">Follow-on — out of scope for this node</h3>
+  <p id="jtmm-differential-loop-store-live-followon-body">
+    tests/data/test_jt60sa_unit_audit.py::test_audit_reports_the_declared_unit_pair_inventory
+    fails: assert sum(pairs.values()) == 230 reads 492. Cause measured: the live
+    machine_map.json carries 432 bindings against the superseded map's 170
+    (432 + 60 signal rules = 492, and 170 + 60 = 230 is exactly the asserted value),
+    so the hard-coded inventory is stale relative to the per-entry flux-loop bindings
+    the staged map introduces. The fix belongs in that test file, which is outside
+    this node's write scope; it is reported here rather than fixed.
+  </p>
+</section>
