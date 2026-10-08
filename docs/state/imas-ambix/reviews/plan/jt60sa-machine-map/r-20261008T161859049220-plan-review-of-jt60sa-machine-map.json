@@ -1,0 +1,63 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T16:28:07.953Z",
+  "dispatched_at": "2026-10-08T16:19:36Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/jt60sa-machine-map/r-20261008T161859049220-plan-review-of-jt60sa-machine-map/plan.html:360",
+      "id": "reasoning-1",
+      "reason": "a node dispatched against this prose would re-create (or fork) a machine-keyed table that is already present and already read by parity.py and machine_artifact_arm.py, and the \"what remains\" it names is not what remains.",
+      "text": "s7 states \"What remains for this section is the JT-60SA frozen set\u2026 Both become keyed by machine\u2026 That machine-keyed table is the one public addition in this section\", but that work is already landed: imas_ambix/spine_bench/shots.py holds FROZEN_SHOTSETS keyed by machine (line 111) with JT60SA_FROZEN_SHOTSET (line 74) and JT60SA_SHOTSET_VERSION = \"v0-jt60sa-op1-16\" (line 29), resolve_shotset_version resolves by the declared machine (line 141), and the parity guard reads the declared machine's row (imas_ambix/spine_bench/parity.py:546) \u2014 and the plan's own landing comment (plan.html:1124, run jtmm-shotset-table at 67424446) records exactly this, so the section body contradicts the plan's own record",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "b8e74f8efd1342f771966f7109698bb11c3edeb9467351abbfa5263868c303e1",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 401,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v403/v404: the shot-set passage now records that jtmm-shotset-table landed FROZEN_SHOTSETS with the JT-60SA row (67424446) and that no section-7 node edits it again; the stale eqdsk 'not yet declared' sentence is likewise rewritten as landed (09de3a2b).",
+      "when": "2026-10-08T16:29:53.181426+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v403/v404: the shot-set passage now records that jtmm-shotset-table landed FROZEN_SHOTSETS with the JT-60SA row (67424446) and that no section-7 node edits it again; the stale eqdsk 'not yet declared' sentence is likewise rewritten as landed (09de3a2b).",
+      "when": "2026-10-08T16:29:53.181426+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v401.json",
+  "review_run_id": "r-20261008T161859049220-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "36951f8d60a397dca3e5ddd6f9fbb6eae7dd728c",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 the cited symbols resolve: `author_jt60sa_machine_artifacts` (imas_ambix/gs/description_artifact.py:316), `Jt60saGeometryRegistry` (ibid.:102, with registry_digest/dd_version/configurations), `MachineArtifactGeometryReader.machine = \"mast\"` default (imas_ambix/gs/artifact_geometry.py:758), `_materialise_circuit_drives`/`_element_weights`/`ResolvedDrive.shares`, `_PF_COIL_CENTROID`/`_PF_COIL_AMC` (imas_ambix/gs/operator.py:225,251), `judge_geometry`/`GeometryVerdict`/`read_efit_geometry` (imas_ambix/eval/efit_referee.py:272,174,120), `build_geometry_from_arrays`/`load_equilibrium_geometry` (imas_ambix/worldmodel/equilibrium_labels.py:465,400), `load_geqdsk` (imas_ambix/challenge/loader.py:162), and the extensionless `#s6` full-record href against the house convention.",
+    "done_when": "pass \u2014 s7's done-when (plan.html:570-580) is almost-unchanged context and carries a measurable floor (boundary RMS < 0.10 m) and a declared negative control (loop 7's channel_factor flipped to +1 must stamp a larger whitened magnetics residual on every shot), which the earlier review added.",
+    "evidence_paths": "pass \u2014 gate evidence sits on durable paths (docs/evidence/fragments/jt60sa-machine-map/\u2026, the stamped spine-benchmark record), not a scratchpad.",
+    "naming": "pass \u2014 the changed paragraph introduces no plan labels, stage names, ticket numbers or version tags into code; the `jtmm-\u2026` identifiers are plan node ids, and `author_jt60sa_machine_artifacts` is named by what it does.",
+    "reasoning": "a finding \u2014 the s7 body still presents the machine-keyed frozen shot-set table and the JT-60SA frozen set as remaining work (\"What remains for this section is the JT-60SA frozen set\u2026 Both become keyed by machine\u2026 That machine-keyed table is the one public addition in this section\", plan.html:360-372), but that table already exists in the tree and the plan's own landing comment records it; the changed paragraph itself (plan.html:480-486) is coherent with its cited code.",
+    "single_goal": "pass \u2014 each node named in s7 (jtmm-jt60sa-artifact-producer, jtmm-artifact-drive-map, jtmm-jt60sa-registry, jtmm-machine-keyed-selection) carries one deliverable.",
+    "wiring": "pass \u2014 the changed selection paragraph's ordering (drive-map \u2192 registry \u2192 selection) matches the node sequence stated at plan.html:404 (\"completes it after the drive-map node and before the selection node\"), and the machine-keyed selection's dependence on jtmm-jt60sa-registry and jtmm-artifact-drive-map is stated consistently."
+  },
+  "section_digests": {
+    "_document": "1a041e1b69e7c648e3848440450d2aa25ac955ec54bdbca27a0558b3e2fb8c3a",
+    "s1": "52731ac311aa8ac6ed57dc5f58a5868e5f9e2e34b4e132f297830fa912abbc0f",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "9985e17f520f132921a8fca019d231f32c0fc2bbab92078556867a1ef14b0034",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T16:29:53.178413+00:00"
+}
