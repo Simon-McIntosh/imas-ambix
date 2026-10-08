@@ -1,0 +1,84 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T22:30:46.743Z",
+  "dispatched_at": "2026-10-08T22:13:01Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:567",
+      "id": "reasoning-1",
+      "reason": "the node would dispatch, hit the refusal, and must either widen `normalise_unit` for an agreeing list or take the gateway route \u00a75/\u00a76 took; the plan settles neither and states the opposite.",
+      "text": "\u00a77 has `jtmm-selene-psrc-loader` read `surfABVxp` \"through the existing channel extractor and its on-demand cache, and adds no transport\", but that extractor refuses this array: `eddb_remote.normalise_unit` (`packages/imas-alambic/src/imas_alambic/eddb_remote.py:167-172`) raises `EddbRemoteError` on the multi-entry unit list, and the plan's own inventory records `surfABVxp` as 604\u00d7`mm` \u2014 \"refused by the extractor's unit policy and read by a direct wrapper probe\" (`docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-selene-inventory.html`). The declared one-shot fetch of `surfABVxp` therefore aborts before writing any channel, and the boundary RMS < 0.10 m check has nothing to compare",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:265",
+      "id": "reasoning-2",
+      "reason": "a node reads the opening as \"the axis has no per-shot source, scope it to E101011\", which reverses the axis decision this change exists to record, so the loader is built against the wrong source.",
+      "text": "\u00a77's opening still says \"\u00a76 lays both equilibrium sources and owns their reads \u2026 PSRC carries no flux grid and no q, so \u2026 the reference loader's psi and magnetic-axis reduction, have no source yet\", and line 274 scopes \"the reference loader's psi and magnetic-axis reduction \u2026 against E101011 alone\", while the paragraph the change adds at 576-577 states the loader passes PSRC's magnetic axis `calRp0`/`calZp0` \u2014 cached for all sixteen frozen shots (verified: every `PSRC` group under `/work/projects/imas_gpu/jt60sa/<shot>.zarr` holds `calRp0`/`calZp0`/`calRX`/`calZX`) \u2014 and the done-write requires the SELENE comparison on all sixteen",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "c0e82d252d394168315db2d936c6b17b847b1171e21f9790b9e57cf076cdbb3e",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 417,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v418: the PSRC reader node now changes eddb_remote.normalise_unit to accept a multi-entry unit list whose entries all agree (every PSRC multi-channel list the inventory read is uniform) and to keep refusing a disagreeing list, so the surfABVxp fetch goes through the existing extractor.",
+      "when": "2026-10-08T22:30:34.701850+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-2",
+      "reason": "Plan v418: section 7's opening now says PSRC carries each shot's magnetic axis calRp0/calZp0, cached for all sixteen frozen shots, as the reference loader's axis; only the psi bindings are scoped to E101011.",
+      "when": "2026-10-08T22:30:34.703650+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v418: the PSRC reader node now changes eddb_remote.normalise_unit to accept a multi-entry unit list whose entries all agree (every PSRC multi-channel list the inventory read is uniform) and to keep refusing a disagreeing list, so the surfABVxp fetch goes through the existing extractor.",
+      "when": "2026-10-08T22:30:34.701850+00:00"
+    },
+    "reasoning-2": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v418: section 7's opening now says PSRC carries each shot's magnetic axis calRp0/calZp0, cached for all sixteen frozen shots, as the reference loader's axis; only the psi bindings are scoped to E101011.",
+      "when": "2026-10-08T22:30:34.703650+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v417.json",
+  "review_run_id": "r-20261008T221223787513-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "254ebde9b97f13f5bfa08db72f415c2dec254db2",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `maps/jt-60sa/maps/equilibrium.json`, `/work/projects/imas_gpu/jt60sa/101011.geqdsk`, `imas_ambix/challenge/loader.py::load_geqdsk`, `imas_ambix/spine_bench/shots.py::FROZEN_SHOTSETS` (JT-60SA row of 16, `v0-jt60sa-op1-16`) and `imas_ambix/eval/efit_referee.py::judge_geometry`/`GeometryVerdict` all resolve; `canonical_factor(\"psi_like\", source_cocos=1) == -6.283185307179586` confirms the stated \u22122\u03c0.",
+    "done_when": "pass \u2014 \u00a77's done-when is measurable (boundary RMS < 0.10 m per shot, normalised psi RMS < 1% of the psi range) and names two must-fail controls (the psi comparison with the binding's sign flipped, and the loop-7 `channel_factor` flip growing the whitened residual), so a node can show both limbs of the section's guard fail where they should.",
+    "evidence_paths": "pass \u2014 the changed text cites the repository fragment `docs/evidence/fragments/jt60sa-machine-map/jtmm-reference-scope.html` and `docs/evidence/fragments/jt60sa-machine-map/jtmm-psrc-selene-inventory.html`, and the gitignored map development copy `maps/jt-60sa/` the plan names at \u00a71 and in decision `map-persistence-location`; nothing lands on a session scratchpad.",
+    "naming": "pass \u2014 the names the change introduces are mechanism names (`IDS_NAMES`, `load_geqdsk`, `psi_like`, `source_cocos`); no plan label, ticket number or version tag reaches a symbol.",
+    "reasoning": "a finding \u2014 the mechanism \u00a77 now declares for the PSRC boundary cannot produce the boundary its own done-when measures, and the section's opening still contradicts the axis source the change just settled.",
+    "single_goal": "pass \u2014 each node the change names carries one deliverable: the psi store and its rule, the PSRC reader, or the reference loader; the `pulse_writer.IDS_NAMES` extension rides the store node that cannot write without it.",
+    "wiring": "pass \u2014 the three nodes this change adds (`jtmm-selene-psrc-loader`, `jtmm-selene-reference-loader`, `jtmm-geqdsk-psi-store`) are wired in the prose order they must run, and the s7 gate `conventions-before-equilibrium` still gates the psi binding the change writes after \u00a76's sign report (`plan.html:738`)."
+  },
+  "section_digests": {
+    "_document": "aeae9043f53534ca2bc015344ff6611bcb0f8f1fd2d90c733ffbe2bbfb65ca84",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "8296b4e9bb16ed1ffabdfca62f71ecf9474d6ad84c9a227b9b322a437f0a0495",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T22:30:34.699248+00:00"
+}
