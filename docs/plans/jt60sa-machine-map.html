@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.94">
-<meta name="plan-version" content="399">
+<meta name="plan-version" content="400">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -494,10 +494,15 @@
       (CS1 to CS4, EF1 to EF6, and the upper and lower FPPC coils). The reader keys drives by coil, so
       the node authors one nova <code>ChannelDrive</code> per <code>pf_active</code> coil. Its channel
       is the current channel the phase's acquisition declaration (<code>jt60sa-acquisition-op1</code>,
-      <code>jt60sa-acquisition-op2</code>) names for that circuit. Its elements are the coil's elements,
-      and its weight in ampere turns per ampere is the connection's turns times its current weight
-      times its direction. A coil whose elements disagree on that weight is refused by name rather
-      than averaged. Each drive's path points at an evidence record citing the drive topology. The
+      <code>jt60sa-acquisition-op2</code>) names for that circuit. Its elements are the coil's elements.
+      Its weight is the coil's total ampere turns per ampere: the sum, over the coil's element
+      connections, of turns times current weight times direction, as
+      <code>geometry_adapter.py</code>'s <code>_materialise_circuit_drives</code> already sums it
+      per circuit. The reader divides a drive's weight across the elements it names in proportion
+      to section area (<code>_element_weights</code> through <code>ResolvedDrive.shares</code>), so a
+      per-element weight would scale every coil's current down by its element count. That split
+      assumes one winding, so a coil whose per-element weights disagree beyond the catalogue's
+      two-decimal rounding (the FPPC coils declare 3.83 and 3.84 for 23/6) is refused by name. Each drive's path points at an evidence record citing the drive topology. The
       machine-keyed acquisition read takes its current-channel names from the same declaration, so a
       drive's channel and the measured current it receives are spelled in one place. The drive map's
       gap then closes. Field evidence for the geometry fields stays a named gap, so the artifacts
