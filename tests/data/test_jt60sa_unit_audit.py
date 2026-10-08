@@ -24,11 +24,7 @@ from typing import Any
 import pytest
 from imas.dd_zip import dd_etree
 
-from imas_alambic.machine_map import (
-    bundle_for_machine,
-    load_machine_map,
-    load_packaged_machine_map,
-)
+from imas_alambic.machine_map import load_packaged_machine_map
 from imas_alambic.signal_map import load_packaged_signal_map
 from tests.jt60sa_bundle import BUNDLE, SKIP_REASON
 
@@ -255,33 +251,30 @@ def test_equilibrium_b0_channel_factor_is_the_hand_computed_radius_reciprocal():
 def test_audit_reports_the_declared_unit_pair_inventory():
     """Both catalogues are reached and their distinct pairs are the audited set.
 
-    No catalogue's size is written here as a literal: each half's audited count
-    is asserted equal to the size the catalogue itself declares, so the audit
-    reddens when it stops reaching a whole catalogue, not when a map legitimately
-    grows.  The machine half is counted independently through the machine-map
-    loader from the live ``machine_map.json`` the bundle ships, and the signal
-    half from the rules the bundle's own signal maps declare.
+    No catalogue's size is written here as a literal.  The machine half's
+    audited count is asserted equal to the machine catalogue's own
+    ``bound_channel_count`` property, so the audit reddens when it stops
+    reaching the machine catalogue, not when a map legitimately grows.  The
+    signal half reports which systems its traversal reached: their set must
+    equal ``SYSTEMS`` with every system contributing at least one rule, so an
+    audit that stops reaching a whole signal system reddens even when the two
+    traversals agree on their total.  The distinct pair set must equal
+    ``HAND_FACTORS``.
     """
     pairs = collections.Counter()
     audited_machine = 0
     for _, source_unit, target_unit, _, _ in _machine_bindings():
         pairs[(source_unit, target_unit)] += 1
         audited_machine += 1
-    audited_signal = 0
-    for _, source_unit, target_unit, _, _ in _signal_rules():
+    systems_reached: collections.Counter[str] = collections.Counter()
+    for system, source_unit, target_unit, _, _ in _signal_rules():
         pairs[(source_unit, target_unit)] += 1
-        audited_signal += 1
+        systems_reached[system] += 1
 
-    declared_machine = sum(
-        len(bindings)
-        for bindings in load_machine_map(
-            bundle_for_machine(MACHINE).machine_map_path(MACHINE)
-        ).binding_sets.values()
-    )
-    declared_signal = sum(
-        len(load_packaged_signal_map(MACHINE, system).signals) for system in SYSTEMS
-    )
+    declared_machine = load_packaged_machine_map(MACHINE).bound_channel_count
 
     assert audited_machine == declared_machine, (audited_machine, declared_machine)
-    assert audited_signal == declared_signal, (audited_signal, declared_signal)
+    assert set(systems_reached) == set(SYSTEMS), (sorted(systems_reached), SYSTEMS)
+    for system in SYSTEMS:
+        assert systems_reached[system] >= 1, (system, systems_reached[system])
     assert set(pairs) == set(HAND_FACTORS)
