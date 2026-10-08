@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -158,7 +159,7 @@ def load_labels(path: str | Path) -> EfitLabels:
     return _build_labels(table)
 
 
-def load_geqdsk(path: str | Path, *, time_ms: float = 0.0) -> EfitLabels:
+def load_geqdsk(path: str | Path, *, time_ms: float | None = None) -> EfitLabels:
     """Read one G-EQDSK file into a canonical :class:`EfitLabels` record.
 
     The file is read through the ``eqdsk`` package's ``EQDSKInterface``, which
@@ -167,8 +168,9 @@ def load_geqdsk(path: str | Path, *, time_ms: float = 0.0) -> EfitLabels:
     (``e_Bp = 0``), so the file is read as its declared COCOS 1 and the record
     keeps the stored psi unchanged rather than converting it; the poloidal-flux
     relation is then scored from the file's own values.  A G-EQDSK carries one
-    equilibrium snapshot and no time base, so the caller supplies the time the
-    snapshot belongs to and the record holds a single frame there.
+    equilibrium snapshot and no time base, so the record holds a single frame:
+    at ``time_ms`` when it is given, and otherwise at the snapshot time the
+    file's own header declares.
     """
 
     from eqdsk import EQDSKInterface  # noqa: PLC0415
@@ -179,6 +181,12 @@ def load_geqdsk(path: str | Path, *, time_ms: float = 0.0) -> EfitLabels:
     radial = np.asarray(instance.x, dtype=np.float64)
     vertical = np.asarray(instance.z, dtype=np.float64)
     flux = np.asarray(instance.psi, dtype=np.float64)
+    if time_ms is None:
+        time_ms = geqdsk_declared_time_ms(path)
+        if time_ms is None:
+            raise ValueError(
+                f"{path} declares no snapshot time in its header; pass time_ms"
+            )
     if flux.shape != (radial.size, vertical.size):
         raise ValueError(
             f"G-EQDSK flux grid {flux.shape} does not match its "
@@ -200,6 +208,21 @@ def load_geqdsk(path: str | Path, *, time_ms: float = 0.0) -> EfitLabels:
         },
         cocos=int(instance.cocos.index),
     )
+
+
+def geqdsk_declared_time_ms(path: str | Path) -> float | None:
+    """Return the snapshot time the file's comment header declares, if any.
+
+    A G-EQDSK has no time field in the format itself, so a writer that knows
+    when its snapshot belongs records it in the free-form header line —
+    ``4000ms`` for the four-second snapshot.  Absent that token there is no
+    declared time and the caller must supply one.
+    """
+
+    with open(path, encoding="latin-1") as handle:
+        header = handle.readline()
+    match = re.search(r"(\d+(?:\.\d+)?)\s*ms(?![A-Za-z])", header)
+    return None if match is None else float(match.group(1))
 
 
 def _geqdsk_safety_factor(instance: object) -> float:

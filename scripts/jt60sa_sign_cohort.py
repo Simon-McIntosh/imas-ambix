@@ -23,7 +23,7 @@ import numpy as np
 from imas_alambic.eddb import normalised_shot
 from imas_alambic.signal_map import load_packaged_signal_map
 from imas_alambic.virtual_zarr import VirtualZarrView
-from imas_ambix.challenge.loader import load_geqdsk
+from imas_ambix.challenge.loader import geqdsk_declared_time_ms, load_geqdsk
 from imas_ambix.data.cocos_convention import (
     COCOS_CANDIDATES,
     format_sign_report,
@@ -374,7 +374,13 @@ def main(argv: list[str] | None = None) -> int:
     psi_cocos = None
     psi_exp_bp = None
     if E101011_EQDSK.is_file():
-        record = load_geqdsk(E101011_EQDSK)
+        # The header writes the snapshot in milliseconds; the kernel compares
+        # an equilibrium's time against the raw EDDB series, which run in
+        # seconds, so the snapshot time is converted before it is carried.
+        declared_ms = geqdsk_declared_time_ms(E101011_EQDSK)
+        if declared_ms is None:
+            raise ValueError(f"{E101011_EQDSK} declares no snapshot time")
+        record = load_geqdsk(E101011_EQDSK, time_ms=declared_ms / 1000.0)
         observations.append(
             read_signal_map_observation(
                 E101011_SHOT,

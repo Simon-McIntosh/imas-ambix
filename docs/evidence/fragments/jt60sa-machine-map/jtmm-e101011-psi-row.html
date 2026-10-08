@@ -2,84 +2,84 @@
 <h2 id="jtmm-e101011-psi-row-h">E101011 as the sign cohort's psi-carrying row</h2>
 
 <p id="jtmm-e101011-psi-row-summary">
-The cohort's psi half is implemented and tested. A G-EQDSK now reads into the
-typed <code>EfitLabels</code> record the convention audit consumes, and the
-cohort script adds E101011 as the one row whose equilibrium carries a
-poloidal-flux grid. The row's <em>data</em> half — the file itself and the
-cached channel series — could not be produced: the JT-60SA host was
-unreachable for the whole node, so <code>101011.geqdsk</code> is absent from
-the corpus root and the row is omitted from the regenerated report rather than
-scored against fabricated numbers.
+E101011 is now the cohort's one row whose equilibrium carries a poloidal-flux
+grid. It is read from the shot's EFIT G-EQDSK, copied once read-only from the
+JT-60SA EFIT output directory into the corpus root. The row scores the
+poloidal-flux relation and the declared flux exponent, and the two candidates
+that would need psi per two pi are eliminated — the surviving set narrows from
+<code>(1, 2, 11, 12)</code> to <code>(1, 2)</code>, so the source COCOS has
+<code>e_Bp = 0</code> and psi reads per radian.
 </p>
 
-<h3 id="jtmm-e101011-psi-row-code-h">What landed</h3>
+<h3 id="jtmm-e101011-psi-row-source-h">The source file</h3>
 
-<table id="jtmm-e101011-psi-row-code-table">
-<thead><tr><th>path</th>change</th></tr></thead>
+<table id="jtmm-e101011-psi-row-source-table">
 <tbody>
-<tr><td><code>imas_ambix/challenge/loader.py</code></td>
-<td><code>load_geqdsk(path, *, time_ms=0.0)</code> reads one G-EQDSK through
-<code>eqdsk.EQDSKInterface.from_file</code> into an <code>EfitLabels</code>
-record — flux grid, R and Z coordinates, boundary, magnetic axis, q95
-interpolated at 0.95 normalised flux, and the vacuum field scalar. The file is
-read as positive-phi, psi-per-radian and the record keeps the stored psi, so
-the poloidal-flux relation is scored from the file's own values rather than a
-converted copy. The record carries the identified COCOS index.</td></tr>
-<tr><td><code>scripts/jt60sa_sign_cohort.py</code></td>
-<td>Adds E101011 (<code>E101011_EQDSK</code>) as a row whose equilibrium half
-is that record, and reports the file's COCOS index and flux exponent in the
-fragment prose. The row is added only when the G-EQDSK is present at the
-corpus root; when it is absent the script prints that the psi row is omitted
-and still exits 0.</td></tr>
-<tr><td><code>tests/challenge/test_loader.py</code></td>
-<td>Two tests write a small G-EQDSK under <code>tmp_path</code> and read it
-back: the record shape, grids, boundary point count, scalars and identified
-COCOS, and a second test asserting the file's psi sign is carried through
-rather than assumed.</td></tr>
-<tr><td><code>tests/data/test_cocos_convention.py</code></td>
-<td><code>test_geqdsk_flux_row_scores_the_poloidal_flux_relation</code> reads a
-synthetic G-EQDSK into the record and scores it as a cohort row: the
-poloidal-flux relation is scored, its sign matches the plasma-current sign,
-the flux exponent reads per radian, and the opposite-sign candidate is
-reported violated.</td></tr>
+<tr><td>remote path</td><td><code>/home/d240034/fbequ/EFIT95.DATA</code> on <code>nakasvr26</code></td></tr>
+<tr><td>corpus path</td><td><code>/work/projects/imas_gpu/jt60sa/101011.geqdsk</code></td></tr>
+<tr><td>bytes</td><td>294 019</td></tr>
+<tr><td>sha256</td><td><code>b97ed0fb7501408473ff6defe76c141b7c90da2d111d6da81cbacd6c1a0e155b</code></td></tr>
+<tr><td>grid</td><td>129 &times; 129, boundary 301 points</td></tr>
+<tr><td>declared snapshot</td><td>4000 ms, read from the file's own header</td></tr>
+<tr><td>identified COCOS</td><td>1, <code>e_Bp = 0</code></td></tr>
+<tr><td>q95 / R axis / B<sub>0</sub></td><td>18.907 / 3.2749 m / 2.0319 T</td></tr>
 </tbody>
 </table>
+
+<p id="jtmm-e101011-psi-row-channels">
+The row's plasma current (PSRC <code>Ip</code>, A), loop 7 (MDAC
+<code>magFlxLp7</code>, Wb) and TF coil current (MMSYS <code>cur1TFLKAT</code>,
+A) were cached in one fetch. At the declared snapshot the raw samples read
++492 658 A, &minus;0.128422 Wb and +23 151 A.
+</p>
+
+<h3 id="jtmm-e101011-psi-row-receipt-h">What the row scores
+</h3>
+
+<table id="jtmm-e101011-psi-row-receipt-table">
+<thead><tr><th>quantity</th><th>row value</th></tr></thead>
+<tbody>
+<tr><td>plasma-current sign</td><td>+1</td></tr>
+<tr><td>raw flux-loop response / plasma current</td><td>+1, one of one loops</td></tr>
+<tr><td>toroidal-field sign</td><td>+1</td></tr>
+<tr><td>psi(edge &minus; axis) sign</td><td>+1</td></tr>
+<tr><td>poloidal direction</td><td>clockwise</td></tr>
+<tr><td>safety-factor sign</td><td>+1</td></tr>
+<tr><td>declared flux exponent</td><td>0 (per radian)</td></tr>
+<tr><td>retained slices</td><td>1</td></tr>
+</tbody>
+</table>
+
+<p id="jtmm-e101011-psi-row-verdict">
+Only candidates 11 and 12 are violated on
+<code>101011:declared_flux_exponent</code>. Candidate 4 is violated on the
+poloidal-flux relation and the safety factor on this row as it is on the
+other sixteen. The surviving set is <code>(1, 2)</code>, against
+<code>(1, 2, 11, 12)</code> before this row existed.
+</p>
 
 <h3 id="jtmm-e101011-psi-row-evidence-h">Gate evidence</h3>
 
 <p id="jtmm-e101011-psi-row-evidence">
-The loader tests and the flux-row cohort test pass. The negative control
-negates psi in the <code>tmp_path</code> G-EQDSK and the flux-row test then
-fails with <code>poloidal_flux_sign == -1</code> where the head arm reads
-<code>+1</code>, on a non-zero exit — so the scored relation is being read from
-the file rather than asserted.
-</p>
-
-<h3 id="jtmm-e101011-psi-row-blocked-h">Blocked</h3>
-
-<p id="jtmm-e101011-psi-row-blocked">
-The G-EQDSK copy from <code>/home/d240034/fbequ/EFIT95.DATA</code> on the
-JT-60SA host did not happen. <code>ssh -F ~/.ssh/config jt-60sa</code> reached
-the login node and then failed opening the reverse tunnel at
-<code>localhost:2222</code> — the remote end answered <code>Connection
-refused</code>, and every attempt over the node repeated it. The corpus at
-<code>/work/projects/imas_gpu/jt60sa/</code> carries no
-<code>101011.geqdsk</code> and no <code>101011.zarr</code>, so neither the file
-copy nor the cached plasma-current, loop-7 and TF-coil series could be
-produced. Consequence: the regenerated sign report scores the poloidal-flux
-relation on no row, and the declared flux exponent stays undetermined. The
-<code>jt60sa-source-cocos</code> decision (COCOS 1 per EFIT G-EQDSK, contingent
-on psi reading per radian) is unchanged and unsettled by this node.
+The focused gate over the three named test files passes 41 tests with no
+failure, and the whole-tree lint gate is clean. The negative control negates
+psi in the <code>tmp_path</code> G-EQDSK and the flux-row test then fails with
+<code>poloidal_flux_sign == -1</code> where the head arm reads <code>+1</code>,
+on a non-zero exit — so the scored sign is read from the file rather than
+asserted.
 </p>
 
 <h3 id="jtmm-e101011-psi-row-follow-on-h">Follow-on</h3>
 
 <ul id="jtmm-e101011-psi-row-follow-on">
-<li>Re-run this node's copy-and-cache step once the JT-60SA host is reachable,
-then regenerate <code>jtmm-sign-cohort.html</code>; the row wiring is already
-in place and needs no code change.</li>
+<li>The cohort report's classification summary still prints <code>e_Bp:
+requires-an-external-declaration; value=unknown</code> and a reasoning line
+naming this G-EQDSK as the source that <em>would</em> fix it, even though the
+row now fixes it and the surviving set reflects that. The sentence is composed
+in the convention kernel's report formatter, outside this node's write scope,
+so it is reported rather than changed here.</li>
 <li><code>eqdsk</code> is used through torax's installed copy and is not yet
-declared directly in <code>pyproject.toml</code>; it should be declared when
-the dependency is next touched.</li>
+declared directly in <code>pyproject</code>; declare it when the dependency is
+next touched.</li>
 </ul>
 </section>
