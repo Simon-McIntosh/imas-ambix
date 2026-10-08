@@ -1,0 +1,198 @@
+<section id="jtmm-reference-scope" data-reckon="fragment">
+<h2 id="jtmm-reference-scope-h">The SELENE reference loader's axis source and the profiles_2d psi binding route</h2>
+
+<p id="jtmm-reference-scope-summary">
+Two design points §7 leaves open are settled here from code and cached data,
+read-only. <strong>Axis:</strong> the loader may not pass PSRC's plasma centre
+to <code>build_geometry_from_arrays</code> as the axis — PSRC's own plasma
+centre <code>calCCSRc</code>/<code>calCCSZc</code> is a coarse geometric
+centre, while PSRC carries the magnetic axis directly in
+<code>calRp0</code>/<code>calZp0</code>; the loader must pass the latter, and
+no argument on <code>build_geometry_from_arrays</code> rescues a wrongly-sourced
+origin. <strong>psi binding:</strong> a signal map cannot bind a file-backed
+G-EQDSK into <code>equilibrium/time_slice/profiles_2d/psi</code> — signal
+sources are store arrays read through a registered engine, and a text
+<code>.geqdsk</code> matches neither format the engine accepts; psi must instead
+be staged into a store the engine reads and bound with an ordinary rule whose
+<code>psi_like</code> convention factor performs the COCOS 1&nbsp;&rarr;&nbsp;17
+step. The open question <code>eqdb-reader</code> is overtaken by decision
+<code>jt60sa-psi-q-source</code>.
+</p>
+
+<h3 id="jtmm-reference-scope-axis-h">Axis: what PSRC's centre is, and which array the loader must pass</h3>
+
+<p id="jtmm-reference-scope-axis-geqdsk">
+The G-EQDSK at <code>/work/projects/imas_gpu/jt60sa/101011.geqdsk</code>, read
+through <code>imas_ambix/challenge/loader.py</code> <code>load_geqdsk</code> at
+its declared snapshot (4000&nbsp;ms, COCOS&nbsp;1), gives a magnetic axis at
+<code>rmaxis = 3.274936&nbsp;m</code>, <code>zmaxis = 0.216996&nbsp;m</code> on a
+129&times;129 psi grid with 301 boundary points. Its stored psi spans
+&minus;0.438183506 to +0.959444888&nbsp;Wb/rad.
+</p>
+
+<p id="jtmm-reference-scope-axis-cache-gap">
+The matching PSRC cache for this shot,
+<code>/work/projects/imas_gpu/jt60sa/101011.zarr</code>, carries
+<strong>only</strong> <code>PSRC/Ip</code> and <code>PSRC/Ip_time</code>. PSRC's
+centre, axis and boundary arrays are not cached for E101011, so the axis
+comparison cannot be drawn on 101011 itself. This is a real data gap, not an
+instrument failure: the same read path returns all of those arrays for the
+populated shot E101154 (below). Nothing here is fetched over ssh to close it.
+</p>
+
+<p id="jtmm-reference-scope-axis-populated">
+On the populated shot (<code>101154.zarr</code>) at 4.0&nbsp;s the PSRC
+inventory fragment <code>jtmm-psrc-selene-inventory.html</code> assigns
+<code>calRp0</code>/<code>calZp0</code> to the <strong>magnetic axis</strong>
+(m) and <code>calCCSRc</code>/<code>calCCSZc</code> to the
+<strong>geometric centre</strong> (m). The two do not coincide:
+</p>
+
+<table id="jtmm-reference-scope-axis-table">
+<thead><tr><th>quantity</th><th>value at 4.0&nbsp;s</th></tr></thead>
+<tbody>
+<tr><td>PSRC magnetic axis (<code>calRp0</code>, <code>calZp0</code>)</td><td>(3.106028, 0.263676) m</td></tr>
+<tr><td>PSRC geometric centre (<code>calCCSRc</code>, <code>calCCSZc</code>)</td><td>(3.200000, 0.200000) m</td></tr>
+<tr><td>separation</td><td>0.113514 m</td></tr>
+<tr><td>E101011 G-EQDSK axis, for scale</td><td>(3.274936, 0.216996) m</td></tr>
+</tbody>
+</table>
+
+<p id="jtmm-reference-scope-axis-quantised">
+The geometric centre is quantised and cannot stand for the axis. Over the full
+E101154 time series <code>calCCSRc</code> takes only <strong>5 distinct
+values</strong> on a 0.2&nbsp;m grid ({0, 2.6, 2.8, 3.0, 3.2}) and
+<code>calCCSZc</code> only 7 values; the axis arrays <code>calRp0</code> and
+<code>calZp0</code> are continuous (5348 and 5539 unique values). A 0.2&nbsp;m
+quantisation is far larger than the ~0.11&nbsp;m offset between the two points
+and larger than the ~0.000035&nbsp;m agreement the inventory fragment already
+measured between <code>calRp0</code> and the reference axis at 6.0&nbsp;s on
+E101154. So PSRC's "plasma centre" is a coarse geometric marker, and PSRC's
+magnetic axis is the array that carries the axis.
+</p>
+
+<figure id="jtmm-reference-scope-fig">
+<img src="/imas-ambix/figures/jt60sa-machine-map/jtmm-reference-scope/psrc-centre-vs-axis.svg"
+     alt="Left: E101011 G-EQDSK poloidal-flux contours with the SELENE reconstruction boundary and the G-EQDSK magnetic axis. Right: on E101154 at 4.0 s, PSRC's magnetic axis (calRp0/calZp0) against PSRC's geometric centre (calCCSRc/calCCSZc), separated by 0.113 m.">
+<figcaption>
+Left — E101011's G-EQDSK poloidal flux (COCOS&nbsp;1, Wb/rad) with the SELENE
+reconstruction boundary and the magnetic axis (rmaxis, zmaxis) overlaid.
+Right — PSRC's magnetic axis (<code>calRp0</code>, <code>calZp0</code>) and
+geometric centre (<code>calCCSRc</code>, <code>calCCSZc</code>) on the populated
+shot E101154 at 4.0&nbsp;s; the 0.113&nbsp;m separation is drawn, and the centre
+R is annotated with its 5-value, 0.2&nbsp;m quantisation.
+</figcaption>
+</figure>
+
+<p id="jtmm-reference-scope-axis-recommend">
+<strong>Recommendation.</strong> The loader may pass PSRC's centre as the axis
+to <code>build_geometry_from_arrays</code> only when it passes the
+<em>magnetic-axis</em> arrays <code>calRp0</code>/<code>calZp0</code> — never
+<code>calCCSRc</code>/<code>calCCSZc</code>. The function takes
+<code>axis_r</code>/<code>axis_z</code> as the origin for the LCFS-radius
+resample (<code>axis_r[i]</code>, <code>axis_z[i]</code> at
+<code>equilibrium_labels.py</code>:508) and exposes <strong>no
+geometric-versus-magnetic flag</strong>: there is no argument that makes a
+geometric centre behave as an axis, so the choice must be made at the array the
+loader reads. Pass <code>calRp0</code>/<code>calZp0</code> with no flag. (On
+E101011 specifically, PSRC carries no axis array in cache, so the axis must come
+from the G-EQDSK's <code>rmaxis</code>/<code>zmaxis</code> — the same value the
+figure overlays.)
+</p>
+
+<h3 id="jtmm-reference-scope-psi-h">psi binding: a signal map cannot bind a file-backed G-EQDSK</h3>
+
+<p id="jtmm-reference-scope-psi-signalrule">
+A signal map binds a store array, not a file. In
+<code>imas_alambic/signal_map.py</code> a <code>SignalRule</code> names its
+source only as <code>source_group</code>/<code>source_array</code> — there is no
+source-path or source-file field at all. The store is resolved through a
+registered engine, and the engine accepts exactly two formats. The refusal is
+explicit in <code>transform_engine.py</code>:
+</p>
+
+<pre id="jtmm-reference-scope-psi-refusal"><code>raise TransformEngineError(
+    f"unsupported store format {store_format!r}; available={TRANSFORM_ENGINE_FORMATS}"
+)</code></pre>
+
+<p id="jtmm-reference-scope-psi-refusal-note">
+<code>TRANSFORM_ENGINE_FORMATS</code> is <code>("zarr", "netcdf")</code>, and the
+machine-description side repeats the same closed set —
+<code>_DESCRIPTION_STORE_FORMATS = {"netcdf", "zarr"}</code> in
+<code>machine_map.py</code>, refused with "description_store_format must be one
+of&nbsp;...". A text <code>.geqdsk</code> is neither zarr nor netcdf, so no
+<code>SignalRule</code> can name it, and no binding node can point
+<code>equilibrium/time_slice/profiles_2d/psi</code> at the G-EQDSK directly.
+This is the code line the negative control asked for: the engine refuses a
+non-store source kind by name, so the answer rests on a quoted refusal rather
+than on convention.
+</p>
+
+<p id="jtmm-reference-scope-psi-route">
+<strong>Route.</strong> The G-EQDSK psi must be staged into a store the engine
+reads, then bound with an ordinary rule — the same route §7 already uses for
+every other equilibrium signal, adding no second reader of either source. A
+binding node writes:
+</p>
+
+<table id="jtmm-reference-scope-psi-route-table">
+<thead><tr><th>file</th><th>what the node writes</th></tr></thead>
+<tbody>
+<tr><td>a converter module under <code>imas_ambix/</code></td><td>reads the shot's G-EQDSK through <code>load_geqdsk</code> and writes the psi grid (and its R/Z coordinates) into a per-shot store group the engine reads</td></tr>
+<tr><td><code>maps/jt-60sa/maps/equilibrium.json</code></td><td>the psi <code>SignalRule</code> binding that store array to <code>equilibrium/time_slice/profiles_2d/psi</code>, with <code>transformation="psi_like"</code> and <code>source_cocos=1</code></td></tr>
+<tr><td>tests</td><td>the rule's convention factor and the staged-store round-trip</td></tr>
+</tbody>
+</table>
+
+<p id="jtmm-reference-scope-psi-cocos">
+<strong>The COCOS 1&nbsp;&rarr;&nbsp;17 step.</strong> The G-EQDSK psi is COCOS&nbsp;1
+(<code>&sigma;<sub>Bp</sub> = +1</code>, <code>e<sub>Bp</sub> = 0</code>, per
+radian), so the binding carries <code>source_cocos=1</code> and
+<code>transformation="psi_like"</code>. The engine then folds the convention
+into the rule's <code>static_scale</code> through
+<code>convention_factor</code> = <code>canonical_factor("psi_like",
+source_cocos=1)</code> = <code>transform_factor("psi_like", source=1,
+target=17)</code>, which computes to exactly <strong>&minus;2&pi;</strong>
+(&minus;6.283185307179586). That factor is the whole COCOS 1&nbsp;&rarr;&nbsp;17
+conversion: psi is multiplied by &minus;2&pi; on the way into
+<code>profiles_2d/psi</code>. <code>SignalRule.validate</code> requires
+<code>source_cocos</code> for any non-<code>one_like</code> transformation, so
+the rule cannot be authored without stating the source convention.
+</p>
+
+<p id="jtmm-reference-scope-psi-writer">
+The equilibrium is minted through the engine's writer (<code>write_pulse</code>,
+per <code>jt60sa-pulse-ids.html</code> §2), which joins the machine description
+and the signal maps into IDSs. Note that equilibrium is <strong>not</strong>
+among <code>pulse_writer.IDS_NAMES = ("pf_active", "pf_passive", "wall",
+"magnetics", "tf")</code>, so writing <code>profiles_2d</code> requires the
+writer's IDS set to be extended to include equilibrium — a separate, recorded
+follow-on rather than something this read-only node changes.
+</p>
+
+<h3 id="jtmm-reference-scope-eqdb-h">eqdb-reader is overtaken by jt60sa-psi-q-source</h3>
+
+<p id="jtmm-reference-scope-eqdb">
+Open question <code>data-id="eqdb-reader"</code> (§7) asked for a Python/C entry
+point to the SELENE equilibrium DB (<code>eqdbms</code>/<code>eqdbget</code>),
+opened 2026-10-05. Decision <code>jt60sa-psi-q-source</code> (lead, 2026-10-07)
+takes E101011's G-EQDSK as the one psi/q reference and PSRC for the rest,
+because the FAME EQDB server <code>dbsvr17p</code> is decommissioned and
+unreachable. With psi and q sourced from the G-EQDSK, §7's psi binding no longer
+depends on any EQDB psi/q reader, so <strong>yes — <code>eqdb-reader</code> is
+overtaken</strong>: it is moot for this binding route and should be closed
+against the decision rather than pursued.
+</p>
+
+<h3 id="jtmm-reference-scope-limits-h">Limits of this reading</h3>
+
+<p id="jtmm-reference-scope-limits">
+Read-only, no ssh. The axis comparison is measured on E101154 because E101011's
+PSRC centre/axis/boundary arrays are absent from its cache; the E101011 axis
+value itself comes from the G-EQDSK and is drawn in the figure. PSRC's
+<code>surfp</code> boundary outline is also not present in the cache, so the PSRC
+boundary is not overlaid — the figure shows the G-EQDSK boundary instead. The
+psi-binding answer is code-verified against the installed engine, with the
+engine's own refusal of a non-store source kind quoted above.
+</p>
+</section>
