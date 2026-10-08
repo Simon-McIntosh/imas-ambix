@@ -1,0 +1,64 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "base_log_revision": null,
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/gs/machine_selection.py:192"
+  ],
+  "completed_at": "2026-10-08T17:24:01.791Z",
+  "dispatched_at": "2026-10-08T17:18:56Z",
+  "findings": [
+    {
+      "file": "tests/gs/test_description_artifact.py",
+      "line": "398",
+      "severity": "follow-on",
+      "text": "follow-on: the FPPC assertion compares _coil_drive_weight against a sum the test computes from the same products the function it calls sums, so it holds whatever the function does; the independent anchors are the catalogue read at :396 and the CS1 refusal at :403."
+    },
+    {
+      "file": "imas_ambix/gs/description_artifact.py",
+      "line": "578",
+      "severity": "follow-on",
+      "text": "follow-on: the agreement band is an absolute 0.011 on the per-element ampere-turns, so a genuine per-element disagreement up to 0.011 on a large-magnitude coil is accepted as rounding; the catalogue's two-decimal resolution makes this correct for the declared weights but the band no longer scales, so a future finer catalogue would need it retuned."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "read all three commits against base 19f1f189; imas_ambix/gs/artifact_geometry.py:698 extracts the reader's inline setup digest into the public representation_digest and :897 calls it with unchanged output, and imas_ambix/gs/description_artifact.py adds Jt60saConfiguration/Jt60saPhaseRange/Jt60saSelection, reworks the registry payload to carry representation_aliases and per-configuration authoring_gaps, adds build_jt60sa_registry_from_stores and the shared _registry_inputs, and makes _coil_drive_weight's band absolute at :578.",
+    "done_when": "the done_when names tests/gs/test_description_artifact.py and tests/gs/test_artifact_geometry.py plus the whole-tree ruff gate; gate_pytest.log records 59 passed EXIT=0 and gate_ruff.log records All checks passed EXIT=0 at revision 7244859a, and the landed tests at tests/gs/test_description_artifact.py:322-403 assert select observed/inherited/KeyError, gaps equal to each artifact's unresolved_gaps, registry-digest equality across both artifacts, the reader-signature alias resolution and the coil band.",
+    "goal": "the node's goal is to complete the JT-60SA geometry registry with the read interface the identity resolvers use; imas_ambix/gs/description_artifact.py:154 Jt60saGeometryRegistry with select at :195 and resolve_representation at :214 supplies the five members imas_ambix/gs/machine_identity.py reads (registry_digest, dd_version, configurations keyed by physical digest, select, resolve_representation), and building from the committed stores reproduces the fragment's registry digest 058b377f and both aliases.",
+    "manifest": "read; it states status complete, commits 59b64486, 023cf347, 7244859a, the gate at 7244859a and names gate_pytest.log and gate_ruff.log, but baseline_suite and after_suite are both null, so the added-failure count is unmeasured.",
+    "write_paths": "the manifest declares six paths (two source, two test, one fragment, one figures dir); git diff 19f1f189..7244859a touches imas_ambix/gs/artifact_geometry.py, imas_ambix/gs/description_artifact.py, tests/gs/test_description_artifact.py and docs/evidence/fragments/jt60sa-machine-map/jtmm-jt60sa-registry.html, all inside them."
+  },
+  "justifications": {
+    "durability": "tests/gs/test_description_artifact.py:339 reads the authored artifact and resolves the reader's stamped digest through the registry's alias table, which the negative control at negative_control_alias_limiter.log reddens at EXIT=1 when the producer's alias digest drops the limiter arrays.",
+    "evidence": "gate_pytest.log records 59 passed EXIT=0 and gate_ruff.log All checks passed EXIT=0 at revision 7244859a for the two files the done-when names, and building the registry from the committed stores reproduces the fragment's digest 058b377f and both aliases.",
+    "fit": "the added dataclasses at imas_ambix/gs/description_artifact.py:119-161 follow the module's frozen-dataclass idiom, the test uses a local import at tests/gs/test_description_artifact.py:349, and no plan-labelled name is introduced.",
+    "goal_fidelity": "imas_ambix/gs/description_artifact.py:154 Jt60saGeometryRegistry exposes registry_digest, dd_version, configurations keyed by physical digest with physical_digest and authoring_gaps, select and resolve_representation, matching what imas_ambix/gs/machine_identity.py:191 reads.",
+    "reuse": "representation_digest is extracted from the reader rather than duplicated, _registry_inputs is shared by author_jt60sa_machine_artifacts and build_jt60sa_registry_from_stores, and a search over imas_ambix/gs found no machine-keyed registry owner for the from-stores entry to fork.",
+    "scope_discipline": "every path in git diff 19f1f189..7244859a is inside the manifest's declared write paths and nothing outside the fence was touched."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is to complete the JT-60SA geometry registry with the read interface the identity resolvers use; imas_ambix/gs/description_artifact.py:154 Jt60saGeometryRegistry with select at :195 and resolve_representation at :214 supplies the five members imas_ambix/gs/machine_identity.py reads (registry_digest, dd_version, configurations keyed by physical digest, select, resolve_representation), and building from the committed stores reproduces the fragment's registry digest 058b377f and both aliases.\nVERDICT done_when: the done_when names tests/gs/test_description_artifact.py and tests/gs/test_artifact_geometry.py plus the whole-tree ruff gate; gate_pytest.log records 59 passed EXIT=0 and gate_ruff.log records All checks passed EXIT=0 at revision 7244859a, and the landed tests at tests/gs/test_description_artifact.py:322-403 assert select observed/inherited/KeyError, gaps equal to each artifact's unresolved_gaps, registry-digest equality across both artifacts, the reader-signature alias resolution and the coil band.\nVERDICT write_paths: the manifest declares six paths (two source, two test, one fragment, one figures dir); git diff 19f1f189..7244859a touches imas_ambix/gs/artifact_geometry.py, imas_ambix/gs/description_artifact.py, tests/gs/test_description_artifact.py and docs/evidence/fragments/jt60sa-machine-map/jtmm-jt60sa-registry.html, all inside them.\nVERDICT manifest: read; it states status complete, commits 59b64486, 023cf347, 7244859a, the gate at 7244859a and names gate_pytest.log and gate_ruff.log, but baseline_suite and after_suite are both null, so the added-failure count is unmeasured.\nVERDICT diff: read all three commits against base 19f1f189; imas_ambix/gs/artifact_geometry.py:698 extracts the reader's inline setup digest into the public representation_digest and :897 calls it with unchanged output, and imas_ambix/gs/description_artifact.py adds Jt60saConfiguration/Jt60saPhaseRange/Jt60saSelection, reworks the registry payload to carry representation_aliases and per-configuration authoring_gaps, adds build_jt60sa_registry_from_stores and the shared _registry_inputs, and makes _coil_drive_weight's band absolute at :578.\nCALL_SITES: imas_ambix/gs/machine_selection.py:192\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/gs/description_artifact.py:154 Jt60saGeometryRegistry exposes registry_digest, dd_version, configurations keyed by physical digest with physical_digest and authoring_gaps, select and resolve_representation, matching what imas_ambix/gs/machine_identity.py:191 reads.\nSCORE evidence: 18\nJUSTIFICATION evidence: gate_pytest.log records 59 passed EXIT=0 and gate_ruff.log All checks passed EXIT=0 at revision 7244859a for the two files the done-when names, and building the registry from the committed stores reproduces the fragment's digest 058b377f and both aliases.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: every path in git diff 19f1f189..7244859a is inside the manifest's declared write paths and nothing outside the fence was touched.\nSCORE durability: 17\nJUSTIFICATION durability: tests/gs/test_description_artifact.py:339 reads the authored artifact and resolves the reader's stamped digest through the registry's alias table, which the negative control at negative_control_alias_limiter.log reddens at EXIT=1 when the producer's alias digest drops the limiter arrays.\nSCORE fit: 18\nJUSTIFICATION fit: the added dataclasses at imas_ambix/gs/description_artifact.py:119-161 follow the module's frozen-dataclass idiom, the test uses a local import at tests/gs/test_description_artifact.py:349, and no plan-labelled name is introduced.\nSCORE reuse: 19\nJUSTIFICATION reuse: representation_digest is extracted from the reader rather than duplicated, _registry_inputs is shared by author_jt60sa_machine_artifacts and build_jt60sa_registry_from_stores, and a search over imas_ambix/gs found no machine-keyed registry owner for the from-stores entry to fork.\nFINDING tests/gs/test_description_artifact.py:398 follow-on: the FPPC assertion compares _coil_drive_weight against a sum the test computes from the same products the function it calls sums, so it holds whatever the function does; the independent anchors are the catalogue read at :396 and the CS1 refusal at :403.\nFINDING imas_ambix/gs/description_artifact.py:578 follow-on: the agreement band is an absolute 0.011 on the per-element ampere-turns, so a genuine per-element disagreement up to 0.011 on a large-magnitude coil is accepted as rounding; the catalogue's two-decimal resolution makes this correct for the declared weights but the band no longer scales, so a future finer catalogue would need it retuned.\n",
+  "review_run_id": "r-20261008T171847623947-review-of-jtmm-jt60sa-registry",
+  "reviewed_base_sha": "19f1f189d5ab460d4df0d6a52f71c2658ab793ca",
+  "reviewed_head_sha": "7244859a0d3a66bc280c7f5f90d04db613fbb6eb",
+  "reviewed_run_id": "r-20261008T170210478925-jtmm-jt60sa-registry",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T17:23:21.977337+00:00",
+  "total": 111
+}

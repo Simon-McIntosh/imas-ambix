@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.96">
-<meta name="plan-version" content="411">
+<meta name="plan-version" content="412">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -1176,6 +1176,9 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261008T170210478925-jtmm-jt60sa-registry" data-who="reckon-build" data-when="2026-10-08T17:18:18.437Z">
     <div class="r-comment-body"><p>Jt60saGeometryRegistry now exposes the five members the identity resolvers read (registry_digest, dd_version, configurations keyed by physical digest with physical_digest+authoring_gaps, select(shot), resolve_representation(digest)), the setup representation digest moved to the public representation_digest in artifact_geometry.py, build_jt60sa_registry_from_stores added, and the coil drive weight band tightened to an absolute 0.011. Registry digest 058b377fda345c171706e94feb78a1e1a7694b3cf70a2b15cb0676adf16db742; aliases OP1 7111ca22fa49bbae, OP2 ba9d3c2c85488e14; both gs gate files 59 passed, ruff whole-tree clean.</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-run-r-20261008T171847623947-review-of-jtmm-jt60sa-registry" data-who="reckon-build" data-when="2026-10-08T17:24:01.791Z">
+    <div class="r-comment-body"><p>Independent review of run r-20261008T170210478925-jtmm-jt60sa-registry stored at reviewed base 19f1f189 head 7244859a: all six dimensions scored (goal_fidelity 19, evidence 18, scope_discipline 20, durability 17, fit 18, reuse 19; total 111), two non-blocking follow-on findings, added_failure_count unmeasured (the reviewed manifest names neither baseline_suite nor after_suite).</p></div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20261006T0430-gate-pass" data-who="reckon-build" data-when="2026-10-06T04:30:00Z">
     <div class="r-comment-body"><p>Gate g-jt60sa-machine-map-1 passed on the codex census receipt (imas-codex <code>docs/evidence/receipts/jt60sa-eddb-census-gate.json</code> at <code>9c1d3cef</code>). The graph's coverage is enough for a first-pass map. What it does not hold is which raw MDAC flux-loop and pickup-coil channel feeds which <code>geo.in</code> position. SELENE's input code holds that: the <code>#MAG</code> index arrays <code>JLOOP</code>, <code>JTPRB</code> and <code>JNPRB</code>, filled by <code>getseldata_v4.2</code>, which codex is now indexing under its plan's §14. The processed PSRC and raw MDAC flux loops already cached for E101154 give the per-channel scale and sign offline.</p></div>
