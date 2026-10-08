@@ -1,0 +1,378 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 2,
+  "attempt_kind": "resume",
+  "backend": "clive",
+  "base_sha": "6839ec1f83d9a2d1e8387e71a70de34b1fca7c97",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 3501276,
+      "input_tokens_cumulative": 3501276,
+      "output_tokens": 19039,
+      "output_tokens_cumulative": 19039,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 22,
+    "files": 1,
+    "removed": 0
+  },
+  "clone_matches": [],
+  "commit_list_shortfall": {
+    "declared": 2,
+    "kind": "presented_commits_subset_of_manifest",
+    "message": "run 'r-20261008T072844244565-jtmm-loop-verdict-outliers' has a passing gate presenting 1 commit(s) of the 2 its manifest declares; missing: 27a380823c188e23bfa36df2704d6c2a8f4cd2e4. The out-of-scope boundary check runs against the presented commits, so an incomplete presentation narrows it. This is a report, not a refusal — present the full list, or the boundary check may not cover the node's work",
+    "missing": [
+      "27a380823c188e23bfa36df2704d6c2a8f4cd2e4"
+    ],
+    "presented": 1
+  },
+  "commit_resolution": null,
+  "commits": [
+    "63e4d01732c2771ad27158cfdd8bbc425cc64233"
+  ],
+  "completed_at": "2026-10-08T08:28:00.939Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-08T07:29:03Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/data/test_jt60sa_signal_maps.py tests/data/test_jt60sa_unit_audit.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T072844244565-jtmm-loop-verdict-outliers/logs/repair-head-gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.83,
+    "plan": "jt60sa-machine-map",
+    "reason": "corrective-run:resume",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-08T08:13:50.840966+00:00",
+    "horizon_seconds": 2700,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": "clive",
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-08T07:28:50Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 10,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 3,
+    "headroom": 8,
+    "mean_context": 133333,
+    "observed_at": "2026-10-08T07:28:40Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 10,
+      "aggregate_tokens_per_second": 318.049,
+      "detail": "",
+      "mean_tokens_per_second": 122.326,
+      "observed_at": "2026-10-08T07:28:40Z",
+      "runs": 2.6,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-08T08:28:00.939Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T072844244565-jtmm-loop-verdict-outliers/manifest.md",
+  "member": "disposable-r-20261008T072844244565-jtmm-loop-verdict-outliers",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/data/test_jt60sa_signal_maps.py::test_magnetics_records_the_differential_loop_per_shot_outliers"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/data/test_jt60sa_signal_maps.py::test_magnetics_records_the_differential_loop_per_shot_outliers"
+    ],
+    "declaration": "Removing E100595 from loop 12's evidence makes the new outlier test fail, logged with a non-zero EXIT and the failing test id",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T072844244565-jtmm-loop-verdict-outliers/logs/negative-control-repair.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T072844244565-jtmm-loop-verdict-outliers/logs/negative-control-repair.log",
+    "test_paths": [
+      "tests/data/test_jt60sa_signal_maps.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "jtmm-loop-verdict-outliers",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 661,
+          "cached_input_tokens": 757285,
+          "input_tokens": 757948,
+          "output_tokens": 1769,
+          "reasoning_output_tokens": 561,
+          "total_tokens": 759717,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "c66d1ea6-525d-4cec-8114-013919000083",
+      "session_id": "c66d1ea6-525d-4cec-8114-013919000083"
+    },
+    "done_when": "In /home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/maps/magnetics.json, the evidence string of every corpus-validated differential loop rule whose loop fails the per-shot fit on some vacuum shot names that shot and its slope and r, as decision vacuum-verdict-rule requires. Per the loop-reference fits in docs/evidence/fragments/jt60sa-machine-map/jtmm-loop-reference-rca.html, loops 12, 13, 14 and 27 fail E100595, loops 15 and 16 fail E100579 and E100595, and loop 17 fails E100579; the fragment confirms or corrects this list against that RCA's per-shot table. Only evidence text changes: no target_index, channel_factor, validation_state or other field. The edit is made by a script kept in the run directory, not by hand. The prior magnetics.json is copied first to /home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/superseded/pre-verdict-outliers/maps/magnetics.json, and the fragment records both sha256s. A new test in tests/data/test_jt60sa_signal_maps.py asserts that each of those loop rules' evidence names its failing shots. On the fleet allocation (SLURM_JOB_ID set), with IMAS_ALAMBIC_MAP_PATH unset and the worktree's maps a symlink to the main checkout's maps/, run in the foreground and capture once, to a log in the run directory whose first lines give the head revision and command and whose last line is EXIT=: uv run --no-sync pytest -p no:cacheprovider tests/data/test_jt60sa_signal_maps.py tests/data/test_jt60sa_unit_audit.py. It exits 0, and uv run --no-sync ruff check imas_ambix tests exits 0. A landing fragment is written to the fragment path.",
+    "estimated_hours": null,
+    "goal": "Record each corpus-validated loop rule's per-shot outliers beside its verdict",
+    "id": "jtmm-loop-verdict-outliers",
+    "lane_declaration": {
+      "backend": "clive",
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-08T07:28:50Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 10,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 3,
+      "headroom": 8,
+      "mean_context": 133333,
+      "observed_at": "2026-10-08T07:28:40Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 10,
+        "aggregate_tokens_per_second": 318.049,
+        "detail": "",
+        "mean_tokens_per_second": 122.326,
+        "observed_at": "2026-10-08T07:28:40Z",
+        "runs": 2.6,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T072844244565-jtmm-loop-verdict-outliers/manifest.md",
+    "negative_control": "Removing E100595 from loop 12's evidence makes the new outlier test fail, logged with a non-zero EXIT and the failing test id",
+    "plan": "jt60sa-machine-map",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§6",
+    "spec_level": "exact",
+    "time_budget": "45m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/maps",
+      "/home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/superseded",
+      "tests/data/test_jt60sa_signal_maps.py",
+      "docs/evidence/fragments/jt60sa-machine-map/jtmm-loop-verdict-outliers.html",
+      "docs/figures/jt60sa-machine-map/jtmm-loop-verdict-outliers"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": 4451191.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "jtmm-loop-verdict-outliers",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-08T07:28:54.053348+00:00",
+    "score": 0.64375,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "fallback",
+    "backend": null,
+    "comment": "",
+    "confidence": null,
+    "effort": null,
+    "excluded": [],
+    "fallback_reason": "timeout",
+    "family": null,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 5000.387,
+    "model": null,
+    "offered": [],
+    "probabilities": {}
+  },
+  "plan": "jt60sa-machine-map",
+  "plan_impl_at_dispatch": 0.83,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "63e4d01732c2771ad27158cfdd8bbc425cc64233",
+  "resume_waiver": null,
+  "review": null,
+  "review_tier": "none",
+  "role": "implement",
+  "route_mode": "shadow",
+  "run_id": "r-20261008T072844244565-jtmm-loop-verdict-outliers",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§6",
+  "session": "c66d1ea6-525d-4cec-8114-013919000083",
+  "session_harness": "claude",
+  "session_id": "58f11e37-33a7-47c6-b47f-d93f6eb1c3fb",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 1,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 11785570,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 542.578,
+    "generated_tokens": 54523,
+    "generation_seconds": 465.673,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 84.1,
+    "machine_seconds": 76.905,
+    "peak_input_tokens": 193662,
+    "tokens_per_second": 117.08,
+    "wall_tokens_per_second": 100.49
+  },
+  "time_budget": "45m",
+  "tool_steps": 64.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 3537,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 2,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-08T08:28:03Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-08T08:18:55Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261008T072844244565-jtmm-loop-verdict-outliers",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 10585,
+    "worker_pid": 3354070
+  },
+  "worker_seconds": 3512,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
