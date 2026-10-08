@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="reckon-type" content="doc">
+  <title>eqdsk declared a direct dependency — landed</title>
+</head>
+<body>
+<main class="plan-doc">
+  <h2 id="jtmm-eqdsk-dependency">eqdsk declared a direct dependency of imas-ambix</h2>
+  <ul>
+    <li id="jtmm-eqdsk-dependency-pyproject"><code>pyproject.toml</code> <code>[project] dependencies</code> now carries, beside the existing torax entry:
+      <pre>    "torax&gt;=1.1.1",
+    "eqdsk&gt;=0.8.0",
+    "nova-stella",</pre></li>
+    <li id="jtmm-eqdsk-dependency-lock"><code>uv.lock</code> records it as a direct dependency of the <code>imas-ambix</code> package entry; the only hunks added are two lines, with no resolved version changed:
+      <pre>@@ imas-ambix dependencies (lock)
+     { name = "datasets" },
++    { name = "eqdsk" },
+     { name = "h5netcdf" },
+@@ imas-ambix requires-dist (lock)
+     { name = "einops", marker = "extra == 'train'", specifier = "&gt;=0.8" },
++    { name = "eqdsk", specifier = "&gt;=0.8.0" },
+     { name = "fsspec", extras = ["s3"], marker = "extra == 'data'", specifier = "&gt;=2024.10" },</pre></li>
+    <li id="jtmm-eqdsk-dependency-unchanged"><code>imas_ambix/challenge/loader.py</code> <code>load_geqdsk</code> (the eqdsk importer) is unchanged: <code>git diff --stat -- uv.lock pyproject.toml</code> = 2 files changed, 3 insertions(+).</li>
+    <li id="jtmm-eqdsk-dependency-gate">Gate: <code>uv lock --check</code> EXIT=0 (<code>Resolved 238 packages in 8ms</code>); <code>uv run --no-sync pytest -p no:cacheprovider tests/challenge/test_loader.py</code> 5 passed, 2 deselected, EXIT=0; <code>uv run --no-sync ruff check imas_ambix tests</code> EXIT=0. The two deselected tests read the 100-shot DIII-D corpus (753 s / 724 s) and do not touch eqdsk.</li>
+    <li id="jtmm-eqdsk-dependency-negative-control">Negative control: with the <code>eqdsk&gt;=0.8.0</code> line removed from <code>pyproject.toml</code> and the updated lock kept, <code>uv lock --check</code> exits 1: <code>The lockfile at uv.lock needs to be updated, but --check was provided.</code></li>
+    <li id="jtmm-eqdsk-dependency-environment-note"><code>uv lock</code>/<code>--check</code> cannot resolve inside the worktree: the <code>[tool.uv.sources]</code> path deps <code>../imas-ink</code> and <code>../nova</code> are absent beside the worktree and its parent is mount-fenced read-only. The lock was produced and the check run in a scratch mirror of identical layout (same pyproject.toml and uv.lock) and copied back; worktree <code>--check</code> fails with <code>Distribution not found at: .../nova/packages/nova-cocos</code>, independent of this change.</li>
+  </ul>
+</main>
+</body>
+</html>
