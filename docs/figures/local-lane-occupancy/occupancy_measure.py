@@ -17,6 +17,7 @@ import re
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import matplotlib
 
@@ -36,6 +37,7 @@ JOBS = ("1280470", "1273253", "1276246", "1278105")
 INDEX = Path("/home/ITER/mcintos/.cache/ambix/watch-index.sqlite3")
 RECEIPTS = Path("/home/ITER/mcintos/public/imas-ambix/requests.jsonl")
 CHANGE_AT = datetime.fromisoformat("2026-10-05T14:33:00+00:00").timestamp()
+ENGINE_TIMEZONE = ZoneInfo("Europe/Paris")
 MIN_STEPS = 20
 RESAMPLES = 400
 SEED = 20261008
@@ -68,8 +70,10 @@ STAMP = re.compile(r"\[(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)")
 
 
 def epoch(stamp: str) -> int:
-    """Engine timestamps are UTC, as verified against indexed samples."""
-    return int(datetime.fromisoformat(stamp).replace(tzinfo=UTC).timestamp())
+    """Convert the serve host's Europe/Paris wall clock to Unix seconds."""
+    return int(
+        datetime.fromisoformat(stamp).replace(tzinfo=ENGINE_TIMEZONE).timestamp()
+    )
 
 
 def med(values: list[float] | np.ndarray) -> float | None:
@@ -251,6 +255,7 @@ def load_log(job: str) -> tuple[list[dict], list[dict], dict, dict]:
         )
     source.update(
         {
+            "timestamp_timezone": "Europe/Paris",
             "rows": len(lines),
             "decode_rows": len(decodes),
             "malformed_decode_rows": len(parsed.malformed),
@@ -263,6 +268,11 @@ def load_log(job: str) -> tuple[list[dict], list[dict], dict, dict]:
             ],
         }
     )
+    if (
+        source["span"][1] is not None
+        and source["span"][1] > datetime.now(UTC).timestamp() + 120
+    ):
+        raise ValueError("serve log lies in the future; timezone alignment failed")
     return decodes, prefills, config, source
 
 
