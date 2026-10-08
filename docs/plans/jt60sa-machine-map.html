@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="373">
+<meta name="plan-version" content="374">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -1004,6 +1004,9 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261005T125917372067-jtmm-shotset-machine" data-who="reckon-build" data-when="2026-10-05T13:11:29.040Z">
     <div class="r-comment-body"><p>BenchShot gains a required machine field (no default); MAST's six frozen shots declare machine="mast"; resolve_shotset_version compares (machine, int(shot_id), role) so a set matching MAST's ids and roles under another machine resolves AD_HOC and never the frozen label; spine_benchmark.py takes --machine with no default and the parser refuses --shots without it; gate 72 passed, ruff clean.</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-20261008T125000-gate-evidence-ebp-row" data-who="reckon-build" data-when="2026-10-08T12:50:00Z">
+    <div class="r-comment-body"><p><strong>Correction to the conventions-before-equilibrium gate's evidence line</strong>, which reads "e_Bp = 0 measured on 17 rows including E101011's G-EQDSK". sigma_Bp and sigma_rho_theta_phi are scored on all 17 rows; e_Bp is measured on row 101011 alone, the one row whose equilibrium carries psi, and is left unscored on the 16 FAME rows. The verdict, SELENE's output COCOS 1, is unchanged.</p></div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20261006T0430-gate-pass" data-who="reckon-build" data-when="2026-10-06T04:30:00Z">
     <div class="r-comment-body"><p>Gate g-jt60sa-machine-map-1 passed on the codex census receipt (imas-codex <code>docs/evidence/receipts/jt60sa-eddb-census-gate.json</code> at <code>9c1d3cef</code>). The graph's coverage is enough for a first-pass map. What it does not hold is which raw MDAC flux-loop and pickup-coil channel feeds which <code>geo.in</code> position. SELENE's input code holds that: the <code>#MAG</code> index arrays <code>JLOOP</code>, <code>JTPRB</code> and <code>JNPRB</code>, filled by <code>getseldata_v4.2</code>, which codex is now indexing under its plan's §14. The processed PSRC and raw MDAC flux loops already cached for E101154 give the per-channel scale and sign offline.</p></div>
