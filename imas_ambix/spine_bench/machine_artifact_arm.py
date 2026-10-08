@@ -69,7 +69,7 @@ from imas_ambix.gs.artifact_resolution import (
 )
 from imas_ambix.gs.machine_selection import ArtifactMachineSelector
 from imas_ambix.spine_bench.runner import run_stamp, write_yaml
-from imas_ambix.spine_bench.shots import FROZEN_SHOTSET
+from imas_ambix.spine_bench.shots import FROZEN_SHOTSETS
 
 logger = logging.getLogger(__name__)
 
@@ -190,6 +190,7 @@ def resolve_geometry_source(
     digest: str | None = None,
     *,
     evidence_shot: int | None = None,
+    machine: str = "mast",
 ) -> MachineArtifactGeometrySource:
     """Build the source, naming a description explicitly or resolving the pinned one.
 
@@ -200,8 +201,19 @@ def resolve_geometry_source(
     semantic identity after resolution and recorded in the stamp.  A run that
     names nothing therefore measures a machine this repository states, not
     whatever a cache happened to hold.
+
+    The evidence shot and the channel shots come from the DECLARED machine's
+    frozen row, so a JT-60SA stamp addresses JT-60SA's sensors and channels rather
+    than MAST's.  The default is MAST, the machine every committed stamp measured;
+    a run on another machine names it.
     """
-    shots = tuple(int(s.shot_id) for s in FROZEN_SHOTSET)
+    try:
+        row = FROZEN_SHOTSETS[machine]
+    except KeyError:
+        raise ValueError(
+            f"no frozen shot set is declared for machine {machine!r}"
+        ) from None
+    shots = tuple(int(s.shot_id) for s in row.shots)
     return MachineArtifactGeometrySource(
         cache_directory=cache_directory,
         digest=digest,

@@ -1,0 +1,54 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-shotset-table">
+  <header>
+    <h3>jtmm-shotset-table: the frozen shot sets are keyed by machine, with a JT-60SA row</h3>
+    <p class="meta">
+      Node <code>jtmm-shotset-table</code> &middot;
+      date 2026-10-08 &middot; plan <code>jt60sa-machine-map</code> &sect;7 &middot;
+      <code>imas_ambix/spine_bench/shots.py</code>,
+      <code>imas_ambix/spine_bench/parity.py</code>,
+      <code>imas_ambix/spine_bench/machine_artifact_arm.py</code>
+    </p>
+  </header>
+
+  <p id="jtmm-shotset-table-change">
+    <code>imas_ambix/spine_bench/shots.py</code> now carries one table of frozen
+    shot sets keyed by machine (<code>FROZEN_SHOTSETS</code>), each row bundling
+    its shots and its version label. MAST's <code>FROZEN_SHOTSET</code> and
+    <code>SHOTSET_VERSION</code> are kept as the names of its MAST row. A new
+    JT-60SA row is the sixteen 2023 OP1 shots whose EDDB PSRC record is populated
+    (the OP1 shot survey), labelled <code>v0-jt60sa-op1-16</code>.
+    <code>resolve_shotset_version</code> resolves the set through the machine the
+    shots <em>declare</em>, never from their digits, so a JT-60SA shot whose
+    number coincides with a MAST id resolves against JT-60SA's row and can never
+    be stamped under MAST's label, and a JT-60SA run resolves to its own label
+    rather than <code>AD_HOC_SHOTSET_VERSION</code>. The parity guard
+    (<code>parity.py</code> <code>check_admissibility</code>/<code>evaluate</code>/<code>compare_paths</code>)
+    reads the row for the machine the caller declares and refuses an unmapped
+    machine by name; MAST's labels and verdicts are unchanged, so every committed
+    stamp reads as before. The artifact arm's
+    <code>resolve_geometry_source</code> takes its evidence shot and channel
+    shots from the declared machine's row instead of MAST's.
+  </p>
+
+  <h4>Measure, run on the fleet allocation (job 1281970)</h4>
+  <ul>
+    <li id="jtmm-shotset-table-gate">
+      <code>uv run --no-sync pytest -p no:cacheprovider tests/spine_bench</code>
+      exits 0, &ldquo;110 passed&rdquo; at revision
+      <code>67424446</code>; <code>uv run --no-sync ruff check imas_ambix
+      tests</code> exits 0, &ldquo;All checks passed!&rdquo;. The machine keying is pinned by
+      <code>test_a_jt60sa_shot_whose_digits_match_a_mast_id_is_not_labelled_mast</code>,
+      <code>test_the_jt60sa_row_is_the_psrc_present_shots_of_the_op1_survey</code>,
+      <code>test_the_parity_guard_reads_the_row_for_the_declared_machine</code> and
+      <code>test_the_source_addresses_the_declared_machines_frozen_row</code>.
+    </li>
+    <li id="jtmm-shotset-table-negative-control">
+      Negative control: with <code>resolve_shotset_version</code> mutated to
+      ignore the declared machine (resolve MAST's row regardless), the
+      digit-colliding test fails &mdash;
+      <code>assert 'v0-mast-heldout-6' == 'ad-hoc'</code> &mdash;
+      &ldquo;1 failed, 18 deselected&rdquo;, <code>EXIT=1</code>. The head arm
+      passes the same test.
+    </li>
+  </ul>
+</section>
