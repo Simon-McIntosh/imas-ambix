@@ -1,0 +1,43 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtfm-receipt-entry-index-landing">
+  <header>
+    <h3>the pulse receipt names the struct-array entry each written leaf fills</h3>
+    <p class="meta">
+      Node <code>jtfm-receipt-entry-index</code> &middot;
+      date 2026-10-08 &middot;
+      plan <code>jt60sa-facility-mint</code> &sect;19 &middot;
+      commit <code>29af9f9c</code>
+    </p>
+  </header>
+  <p>
+    <code>WrittenLeaf</code> now carries <code>target_index</code>, the
+    element of the struct array the writer filled (the value
+    <code>_struct_array_index</code> already computed), and
+    <code>WriteReceipt.as_dict()</code> writes it beside <code>target_path</code>.
+    The coverage test resolves each leaf to the one element it names instead of
+    expanding every element of the struct array, so a geometry-only element no
+    rule binds is accepted as an empty time base rather than read as that
+    leaf's entry.
+  </p>
+  <p>
+    The magnetics store binds the flux loops at array indices 6 and 27&ndash;52;
+    the 26 elements between carry geometry and no signal. The writer correctly
+    filled only the bound loops, but the receipt could be written without the
+    index and no field recorded which element each leaf reached.
+  </p>
+  <p>
+    Base (<code>e7ea210b</code>),
+    <code>test_write_covers_every_description_ids_in_one_file</code>: FAILED,
+    <code>assert 0 == 286077</code> at
+    <code>flux_loop[0]/flux/time</code> (empty) &mdash; the base test has no
+    index to resolve a leaf to its entry, so the unbound element stands in for
+    the bound one.
+  </p>
+  <p>
+    Head (<code>29af9f9c</code>): PASSED, 68 passed, EXIT=0
+    (<code>packages/imas-alambic/tests</code> plus
+    <code>tests/data/test_pulse_writer.py</code>; at base the same gate is
+    1 failed, 66 passed). The red log for the declared mutation, with the entry
+    index dropped from the receipt, fails on an unbound
+    <code>flux_loop[0]</code>.
+  </p>
+</section>
