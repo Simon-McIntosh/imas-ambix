@@ -1,0 +1,387 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "cc8399f6173ffc2f96e4a06b8638291bdcf331f5",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 9589584,
+      "input_tokens_cumulative": 9589584,
+      "output_tokens": 53307,
+      "output_tokens_cumulative": 53307,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 54,
+    "files": 1,
+    "removed": 0
+  },
+  "clone_matches": [],
+  "commit_resolution": null,
+  "commits": [
+    "403aa7b6d1d3c9cecd5bf6964279d69c94b44a1e"
+  ],
+  "completed_at": "2026-10-08T13:10:50.448Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-08T12:51:34Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/spine_bench",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T125122139684-jtmm-shotset-table/gate-tests.log"
+  },
+  "impl_move": {
+    "at_complete": 0.92,
+    "at_dispatch": 0.9,
+    "plan": "jt60sa-machine-map",
+    "verdict": "moved"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-08T13:51:25.876354+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": "clive",
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-08T12:51:25Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 7,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 9,
+    "headroom": 3,
+    "mean_context": 113333,
+    "observed_at": "2026-10-08T12:51:18Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 7,
+      "aggregate_tokens_per_second": 420.46,
+      "detail": "",
+      "mean_tokens_per_second": 56.819,
+      "observed_at": "2026-10-08T12:51:18Z",
+      "runs": 7.4,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-08T13:10:50.448Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T125122139684-jtmm-shotset-table/manifest.md",
+  "member": "disposable-r-20261008T125122139684-jtmm-shotset-table",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/spine_bench/test_shotset_labelling.py::test_a_jt60sa_shot_whose_digits_match_a_mast_id_is_not_labelled_mast"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/spine_bench/test_shotset_labelling.py::test_a_jt60sa_shot_whose_digits_match_a_mast_id_is_not_labelled_mast"
+    ],
+    "declaration": "Making resolve_shotset_version ignore the declared machine makes the digit-colliding shot test fail, logged with a non-zero EXIT and the failing test id",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T125122139684-jtmm-shotset-table/negative-control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T125122139684-jtmm-shotset-table/negative-control.log",
+    "test_paths": [
+      "tests/spine_bench/test_machine_artifact_arm.py",
+      "tests/spine_bench/test_parity.py",
+      "tests/spine_bench/test_shotset_labelling.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "jtmm-shotset-table",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1755,
+          "cached_input_tokens": 908677,
+          "input_tokens": 910434,
+          "output_tokens": 929,
+          "reasoning_output_tokens": 69,
+          "total_tokens": 911363,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "c66d1ea6-525d-4cec-8114-013919000083",
+      "session_id": "c66d1ea6-525d-4cec-8114-013919000083"
+    },
+    "done_when": "imas_ambix/spine_bench/shots.py carries one table of frozen shot sets keyed by machine, each with its own version label. MAST's row is today's FROZEN_SHOTSET and SHOTSET_VERSION, kept as those names. The JT-60SA row is a new frozen set drawn from the 2023 OP1 shots on which SELENE ran, the 16 shots in docs/evidence/fragments/jt60sa-machine-map/jtmm-op1-shot-survey.json whose psrc_present is true, with its own label, so a JT-60SA shot whose digits match a MAST id is never stamped under MAST's label. resolve_shotset_version and the parity guard in imas_ambix/spine_bench/parity.py read the row for the run's declared machine, a JT-60SA run resolves to its own label rather than AD_HOC_SHOTSET_VERSION, and MAST's labels and parity verdicts are unchanged, pinned by the existing tests. imas_ambix/spine_bench/machine_artifact_arm.py resolve_geometry_source takes its evidence shot and channel shots from the declared machine's row. runner.py, channel_gap.py, transform_geometry_source.py and __init__.py keep reading MAST's row unchanged. New tests pin the JT-60SA row, its label, a digit-colliding shot resolving by machine, and the parity guard per machine. On the fleet allocation (SLURM_JOB_ID set), run in the foreground and capture once, to a log in the run directory whose first lines give the head revision and command and whose last line is EXIT=: uv run --no-sync pytest -p no:cacheprovider tests/spine_bench; it exits 0, and uv run --no-sync ruff check imas_ambix tests exits 0. A landing fragment is written to the fragment path.",
+    "estimated_hours": null,
+    "goal": "Key the spine benchmark's frozen shot sets and their labels by machine, with a JT-60SA row",
+    "id": "jtmm-shotset-table",
+    "lane_declaration": {
+      "backend": "clive",
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-08T12:51:25Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 7,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 9,
+      "headroom": 3,
+      "mean_context": 113333,
+      "observed_at": "2026-10-08T12:51:18Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 7,
+        "aggregate_tokens_per_second": 420.46,
+        "detail": "",
+        "mean_tokens_per_second": 56.819,
+        "observed_at": "2026-10-08T12:51:18Z",
+        "runs": 7.4,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T125122139684-jtmm-shotset-table/manifest.md",
+    "negative_control": "Making resolve_shotset_version ignore the declared machine makes the digit-colliding shot test fail, logged with a non-zero EXIT and the failing test id",
+    "plan": "jt60sa-machine-map",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§7",
+    "spec_level": "exact",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/spine_bench/shots.py",
+      "imas_ambix/spine_bench/parity.py",
+      "imas_ambix/spine_bench/machine_artifact_arm.py",
+      "tests/spine_bench/test_shotset_labelling.py",
+      "tests/spine_bench/test_parity.py",
+      "tests/spine_bench/test_machine_artifact_arm.py",
+      "docs/evidence/fragments/jt60sa-machine-map/jtmm-shotset-table.html",
+      "docs/figures/jt60sa-machine-map/jtmm-shotset-table"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": 2404526.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "jtmm-shotset-table",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-08T12:51:28.915812+00:00",
+    "score": 0.56875,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "fallback",
+    "backend": null,
+    "comment": "",
+    "confidence": null,
+    "effort": null,
+    "excluded": [],
+    "fallback_reason": "timeout",
+    "family": null,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 5000.466,
+    "model": null,
+    "offered": [],
+    "probabilities": {}
+  },
+  "plan": "jt60sa-machine-map",
+  "plan_impl_at_dispatch": 0.9,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "403aa7b6d1d3c9cecd5bf6964279d69c94b44a1e",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "cc8399f6173ffc2f96e4a06b8638291bdcf331f5",
+    "reviewed_head_sha": "403aa7b6d1d3c9cecd5bf6964279d69c94b44a1e",
+    "scores": {
+      "durability": 19,
+      "evidence": 20,
+      "fit": 19,
+      "goal_fidelity": 20,
+      "reuse": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 118
+  },
+  "review_tier": "none",
+  "role": "implement",
+  "route_mode": "shadow",
+  "run_id": "r-20261008T125122139684-jtmm-shotset-table",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§7",
+  "session": "c66d1ea6-525d-4cec-8114-013919000083",
+  "session_harness": "claude",
+  "session_id": "2ca5bfc7-c553-45df-8f0c-20b7e09528df",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 6,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 9589584,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 1146.153,
+    "generated_tokens": 53307,
+    "generation_seconds": 978.065,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 80.3,
+    "machine_seconds": 168.088,
+    "peak_input_tokens": 184919,
+    "tokens_per_second": 54.5,
+    "wall_tokens_per_second": 46.51
+  },
+  "time_budget": "60m",
+  "tool_steps": 72.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 1156,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-08T13:10:52Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-08T12:51:39Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261008T125122139684-jtmm-shotset-table",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 10986,
+    "worker_pid": 1897007
+  },
+  "worker_seconds": 1124,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
