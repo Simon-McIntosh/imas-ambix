@@ -1,0 +1,83 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T13:24:58.631Z",
+  "dispatched_at": "2026-10-08T13:12:47Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:425",
+      "id": "reasoning-1",
+      "reason": "\u00a77 as written under-specifies the staging step, so a builder can materialize an artifact carrying a non-IDS member the plan never mentions.",
+      "text": "the new paragraph has the producer \"read the OP1 and OP2 description stores under maps/jt-60sa/machine_description\" and \"call nova's generic layer to materialize the artifact\", but the store directories each carry a non-IDS receipt.json beside the five IDSs (maps/jt-60sa/machine_description/OP1/{receipt.json,*.nc}), and create_machine_artifact_manifest inventories every file it is handed, so a producer that passes the store directory through packages receipt.json as an artifact member; the cited fragment (jtmm-artifact-authoring-route.html, \"Files a JT-60SA authoring route\" and the negative-control section) states excluding it or staging only the .nc files is the one decision this producer must make that the MAST producer never does",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:451",
+      "id": "anchors_resolve-1",
+      "reason": "a reader reaches the description either way; only the pointer's direction is wrong.",
+      "text": "\"The JT-60SA artifact is authored from the \u00a74 source by an ambix producer over nova's generic artifact layer, as below\" points forward, but the producer description it refers to sits above it at plan.html:414-433 (no authoring description follows line 451; the sibling forward reference \"(below)\" at plan.html:384 is correctly oriented)",
+      "type": "anchors_resolve",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "eaeca65f9e88d6f0243dc99111ad05583c56d6e91ccaf084b13642c8cb2f20cb",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 377,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reasoning-1",
+      "reason": "plan v380: the producer stages only the five IDS containers, excluding receipt.json; the producer done-when carries the same rule",
+      "when": "2026-10-08T13:27:37.881481+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "anchors_resolve-1",
+      "reason": "plan v380: the cross-reference reads as above",
+      "when": "2026-10-08T13:27:37.884105+00:00"
+    }
+  ],
+  "responses": {
+    "anchors_resolve-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "plan v380: the cross-reference reads as above",
+      "when": "2026-10-08T13:27:37.884105+00:00"
+    },
+    "reasoning-1": {
+      "action": "acted",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "plan v380: the producer stages only the five IDS containers, excluding receipt.json; the producer done-when carries the same rule",
+      "when": "2026-10-08T13:27:37.881481+00:00"
+    }
+  },
+  "review_run_id": "r-20261008T131215734169-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "b0ac245a7a14dc493bdd11ad88fda1e1861e41e2",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 the cross-reference \"as below\" at plan.html:451 points the wrong way.",
+    "done_when": "pass \u2014 s7's done-when (plan.html:488-498) is unchanged by this edit and still names a measurable floor (every shot's boundary RMS under 0.10 m) plus a declared must-fail control (loop 7's channel_factor flipped to +1; magFlxLp7 is corpus-validated at -1 per the s6 landing comment, so the flip is a real change, not a no-op).",
+    "evidence_paths": "pass \u2014 the new paragraph cites the run jtmm-artifact-authoring-route and its landing comment (plan.html:1036) links docs/evidence/fragments/jt60sa-machine-map/jtmm-artifact-authoring-route.html, which is present on a durable path.",
+    "naming": "pass \u2014 the new prose introduces only node ids in a plan document; no ticket number or version tag enters a source symbol.",
+    "reasoning": "a finding \u2014 the producer mechanism at plan.html:425-427 omits the non-IDS member the cited fragment names as the producer's one new decision.",
+    "single_goal": "pass \u2014 the two new nodes each carry one deliverable: jtmm-jt60sa-artifact-producer authors the JT-60SA artifact; jtmm-machine-keyed-selection keys the one selection route by machine.",
+    "wiring": "pass \u2014 the new material adds no node edge to break; the resolved question jt60sa-artifact-authoring carries data-section=\"s7\" and the s7 gate conventions-before-equilibrium keeps its data-gated-sections=\"s7\", both correct, and the producer\u2192selection dependency is stated in prose at plan.html:432."
+  },
+  "section_digests": {
+    "_document": "1a041e1b69e7c648e3848440450d2aa25ac955ec54bdbca27a0558b3e2fb8c3a",
+    "s1": "52731ac311aa8ac6ed57dc5f58a5868e5f9e2e34b4e132f297830fa912abbc0f",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "3c59db0d2157888f765e0572378baf32e8a6a706c10260d989ef28c61ae88b00",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T13:27:37.804090+00:00"
+}
