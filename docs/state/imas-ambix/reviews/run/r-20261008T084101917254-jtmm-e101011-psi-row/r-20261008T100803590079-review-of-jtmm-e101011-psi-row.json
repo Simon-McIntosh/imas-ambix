@@ -1,0 +1,80 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": null,
+  "completed_at": "2026-10-08T10:24:03.650Z",
+  "dispatched_at": "2026-10-08T10:08:13Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-e101011-psi-row/docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort.html",
+      "line": "",
+      "severity": "follow-on",
+      "text": [
+        "follow-on: the cohort report embedded in jtmm-sign-cohort.html still prints, in its COHORT COEFFICIENT CLASSIFICATION block, 'e_Bp: requires-an-external-declaration; value=unknown' with a reasoning line naming E101011's G-EQDSK as the source that would fix e_Bp, even though row 101011 now scores e_Bp and the STRICT CANDIDATE SCORE table in the same fragment uses it to eliminate candidates 11 and 12. I reproduced this against the landed tree: the report line reads verbatim 'e_Bp: requires-an-external-declaration; value=unknown ... E101011's G-EQDSK (section 7) is the source that would fix e_Bp'. The sentence is composed by format_sign_report in imas_ambix/data/cocos_convention.py, which is outside this node's write paths, so the node reported it rather than editing it -- correctly. Repair when the formatter is next touched: derive the e_Bp classification from whether any row scored the relation, and drop the '(section 7)' cross-reference, which points at a plan section rather than the row. A reader of the report otherwise sees its own summary contradict its own candidate table."
+      ]
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T084101917254-jtmm-e101011-psi-row/manifest.md",
+      "line": "",
+      "severity": "follow-on",
+      "text": [
+        "follow-on: the manifest's changed_paths lists docs/figures/jt60sa-machine-map/jtmm-sign-cohort/jt60sa-vacuum-channel-slope.svg, but git diff --name-only 9d1ed784 af176bcd changes no figure -- the six changed paths are the two evidence fragments, imas_ambix/challenge/loader.py, scripts/jt60sa_sign_cohort.py and the two test files. The script regenerated the figure byte-identical (its last content change is 8b50e5ba), so listing it overstates the node's footprint by one path. Harmless here, because the figure is unchanged; record only paths the diff actually touches."
+      ]
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T084101917254-jtmm-e101011-psi-row/gate-pytest.log",
+      "line": "",
+      "severity": "follow-on",
+      "text": [
+        "follow-on: gate-pytest.log's closing note records the deselected re-run as '41 passed, EXIT=0', while the log it names, gate-pytest-focused.log, records its own summary line as '43 passed, 2 deselected in 108.15s'. The 43 is correct; the 41 is a stale tally carried into the note. The note's substantive claim (the two DIII-D sweeps are pre-existing and do not reach load_geqdsk) is sound. Correct the number when the log is next touched."
+      ]
+    },
+    {
+      "file": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-e101011-psi-row/scripts/jt60sa_sign_cohort.py",
+      "line": "380",
+      "severity": "follow-on",
+      "text": [
+        "follow-on: the script parses a --root argument (line 356) and threads it through every observation, but the psi row reads its G-EQDSK from the module-level E101011_EQDSK = JT60SA_ROOT / '101011.geqdsk' (line 59), so --root does not move the psi row's input and the present/absent branch keys on the default root regardless of the argument. The landed behaviour is correct for the default corpus and the effect is nil on this run; it will bite a caller who passes --root to point at another corpus root expecting the psi row to follow. Resolve E101011_EQDSK from arguments.root when the psi-row read is next touched."
+      ]
+    }
+  ],
+  "head_log_revision": "af176bcd4bbecad4958fb2aa32e91b3d4f92b010",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "load_geqdsk and geqdsk_declared_time_ms are new in imas_ambix/challenge/loader.py. Their one production caller is scripts/jt60sa_sign_cohort.py (load_geqdsk at line 383, geqdsk_declared_time_ms at line 380), which passes the returned EfitLabels to read_signal_map_observation as the psi row's equilibrium half. No other production module imports either name; the remaining references are the node's own tests (tests/challenge/test_loader.py, tests/data/test_cocos_convention.py).",
+    "diff": "Three commits on base 9d1ed784. dad5aecc adds load_geqdsk and geqdsk_declared_time_ms to imas_ambix/challenge/loader.py and wires the psi row into the script plus tests and the first fragment; ebd83a7e scores the row (script + fragment updates); af176bcd adds the snapshot-time tests. diff --stat 9d1ed784 af176bcd is six files, +452/-30. The only source change is two new public functions in loader.py (load_geqdsk, geqdsk_declared_time_ms) plus a private helper, and their consumer in the script; no existing signature is changed. Uncertain on the loader: it reads the file with clockwise_phi=False and volt_seconds_per_radian=True and reports the record's COCOS as 1, so the 'identified COCOS 1' is the reading the loader was told to take (psi per radian), which is what the plan's jt60sa-source-cocos decision declares for SELENE's output -- a declared convention rather than an independent measurement, and the node states it that way.",
+    "done_when": "This record is the dispatched measure. It is stored parsed at both fenced paths with all six dimensions in 0..20 (goal_fidelity 19, evidence 18, scope_discipline 19, durability 18, fit 18, reuse 18; total 110), reviewed_base_sha 9d1ed784 and reviewed_head_sha af176bcd. added_failure_count 0 and added_failure_ids [] are derived from the reviewed run's own gate logs: the reviewed run names no baseline_suite and no after_suite pair (its manifest leaves both empty and classification.json carries baseline_suite null and after_suite null), and its head gate log, gate-pytest-focused.log at af176bcd, records '43 passed, 2 deselected, EXIT=0' with no failing id in it, so no failing test was added over the reviewed change. Because the reviewed run names no base/head suite pair the count is a reading of its own passing head gate rather than a base-vs-head delta, and that is what 0 records here.",
+    "goal": "Met, independently verified. The node copies E101011's EFIT G-EQDSK read-only into the corpus root, caches the row's plasma current, loop 7 and TF coil current in one fetch, reads psi, boundary, axis, q95 and B0 through load_geqdsk into an EfitLabels record, and appends the row to the cohort. I reproduced the run from the reviewed tree (scripts/jt60sa_sign_cohort.py, --no-figure, fragment to scratch): 17 rows, surviving COCOS (1, 2), with row 101011 the sole psi-carrying row at psi(edge-axis) +1, eBp 0, q95 18.91. I verified the decisive claim directly: with the psi row the survivors are (1, 2); with it removed they are (1, 2, 11, 12) -- exactly the narrowing the fragment states. The copied file /work/projects/imas_gpu/jt60sa/101011.geqdsk is 294019 bytes, sha256 b97ed0fb...155b, matching the fragment, and its header declares 4000 ms, which geqdsk_declared_time_ms recovers. load_geqdsk reads it as COCOS 1 with q95 18.9068, R axis 3.27494 m, B0 2.03192 T, all matching the fragment table. The two candidates 11 and 12 are violated only on 101011:declared_flux_exponent and candidate 4 on 101011:reconstructed_poloidal_flux, exactly as the fragment's verdict paragraph says.",
+    "manifest": "Read, complete; status 'complete' is a recognised value. Orientation base 9d1ed784 and the three commits (dad5aecc, ebd83a7e, af176bcd) reproduce; the worktree is clean at af176bcd. tests, test_logs, negative_control_log and evidence_inputs are all named with real paths, and every evidence_inputs fact reproduces against the corpus (the geqdsk sha256, its 4000 ms header, the three cached channels, the 17-row cohort and the (1, 2) survivor set). retry_failures records two genuinely recovered faults with reasons (an ssh tunnel that refused on the first attempt, and EDDB refusing a bare-digit pulse token until it was addressed as E101011). exit.json reads ended_during 'working' with exit_code 0 and last_record_type 'result' -- the supervisor's snapshot of a run that had completed its report, not an unfinished one. Minor imprecisions: changed_paths over-lists the unchanged SVG, and gate-pytest.log's note carries a stale '41 passed'.",
+    "write_paths": "The node wrote only its declared repo paths -- imas_ambix/challenge/loader.py, scripts/jt60sa_sign_cohort.py, tests/challenge/test_loader.py, tests/data/test_cocos_convention.py and the two evidence fragments -- plus its own run directory under ~/.config/reckon/crew/runs/. git diff --name-only 9d1ed784 af176bcd lists exactly those six paths and nothing else; the worktree is clean at af176bcd with no uncommitted files. The one non-repo write is the corpus copy /work/projects/imas_gpu/jt60sa/101011.geqdsk, which the plan's psi-row paragraph explicitly directs. No plan, sprint or index mutation; this reviewer wrote only the two fenced record paths. The manifest's changed_paths additionally lists a figure SVG the diff does not change (see findings)."
+  },
+  "justifications": {
+    "durability": "A real, kept change in three commits with bodies: the loader function, the script row and the tests are all committed, and the two evidence fragments carry the source path, sha256, receipt table and survivor set. The row is re-runnable: the script rebuilds it from the corpus when the geqdsk is present and states the omission when it is absent, so a run without the file still completes. Points off only because the psi-row path ignores --root, so the reader's declared corpus-root argument does not move the row's input.",
+    "evidence": "Strong and falsifiable. The negative control (negative-control.log) negates psi in the tmp_path G-EQDSK and the flux-row test then fails with poloidal_flux_sign == -1 against the head arm's +1, on EXIT=1 -- the scored sign is read from the file, not asserted -- and I reproduced the equivalent separation by scoring with and without the psi row. The focused gate is 43 passed / EXIT=0 at head and ruff is clean, and the cohort script re-runs to EXIT=0. Points off for three recorded imprecisions: the embedded report's e_Bp summary still contradicts its own candidate table, the manifest's changed_paths over-lists an unchanged SVG, and gate-pytest.log's note carries a stale '41 passed'.",
+    "fit": "Follows the psi-row paragraph closely: one read-only copy of the G-EQDSK, one fetch for the three channels, EfitLabels via the eqdsk package (the plan's named reader), the row appended to the cohort, and e_Bp scored -- and the fragment records psi per radian, matching decision jt60sa-source-cocos. It adds the reader as a public loader rather than a second reader, and the tests cover the snapshot-time branch and the single-frame shape. The departures are the stale report sentence it correctly left to the formatter's owner and the --root coupling noted above.",
+    "goal_fidelity": "The plan's psi-row deliverable lands and every stated property reproduces. I re-ran the cohort from the reviewed tree and got 17 rows with survivors (1, 2), row 101011 the only psi row (psi(edge-axis) +1, eBp 0, q95 18.91), and I verified the causal step by scoring the same observations with the psi row removed, which restores (1, 2, 11, 12). The geqdsk's sha256, byte count, 4000 ms header and loader-read COCOS 1 / q95 18.9068 / R axis 3.2749 / B0 2.0319 all match the fragment.",
+    "reuse": "Good reuse: it reads through eqdsk's EQDSKInterface rather than writing a G-EQDSK reader, returns the existing EfitLabels record the convention kernel already consumes, and feeds the row through the existing read_signal_map_observation and cohort scorer with no parallel scorer. The snapshot time is recovered from the file's own header rather than a new metadata file. No duplication of the FAME equilibrium path.",
+    "scope_discipline": "Exactly the six declared repo paths (two source, two test, two fragments) plus the node's own run directory; the diff names nothing else and the worktree is clean at head. The corpus copy to /work/projects/imas_gpu/jt60sa/101011.geqdsk is the write the plan's psi-row paragraph directs. No plan/index/sprint mutation. The only overstatement is in the manifest's changed_paths list, not in the tree."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261008T084101917254-jtmm-e101011-psi-row (plan imas-ambix:jt60sa-machine-map section 6), head af176bcd4bbecad4958fb2aa32e91b3d4f92b010 on base 9d1ed7845d3c8b08a63cbc24b7995931882c22f6.\n\nREPRODUCTION (mine). Re-ran scripts/jt60sa_sign_cohort.py from the reviewed tree (--no-figure, fragment to scratch): 17 rows, surviving COCOS (1, 2), row 101011 the only psi row (psi(edge-axis) +1, eBp 0, q95 18.91, predicted by the run's receipt). Scored the same observations with the psi row removed and got (1, 2, 11, 12) back, so the row is what narrows the set, as the fragment states. /work/projects/imas_gpu/jt60sa/101011.geqdsk is 294019 B, sha256 b97ed0fb7501408473ff6defe76c141b7c90da2d111d6da81cbacd6c1a0e155b, header declares 4000 ms; load_geqdsk reads COCOS 1, q95 18.9068, R axis 3.27494 m, B0 2.03192 T, all matching the fragment. Negative control reproduced: psi negated in the tmp_path G-EQDSK fails test_geqdsk_flux_row_scores_the_poloidal_flux_relation with poloidal_flux_sign == -1, EXIT=1. Head gate 43 passed EXIT=0; ruff EXIT=0.\n\nreviewed_base_sha: 9d1ed7845d3c8b08a63cbc24b7995931882c22f6\nreviewed_head_sha: af176bcd4bbecad4958fb2aa32e91b3d4f92b010\n\nVERDICT goal: met; row landed and its narrowing reproduced independently.\nVERDICT done_when: this record, parsed at both fenced paths, six dimensions 0..20 (total 110), revision pair 9d1ed784/af176bcd, added_failure_count 0.\nVERDICT write_paths: six declared repo paths plus the run directory; clean worktree.\nVERDICT manifest: complete; three commits reproduce; changed_paths over-lists one unchanged SVG.\nVERDICT diff: three commits, two new loader functions and their one consumer.\nCALL_SITES: scripts/jt60sa_sign_cohort.py:383\n\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort.html: follow-on: the embedded cohort report still prints e_Bp as requires-an-external-declaration / value=unknown while the same fragment's candidate table scores it; the sentence is in the kernel formatter, outside the node's write paths.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T084101917254-jtmm-e101011-psi-row/manifest.md: follow-on: changed_paths lists an SVG the diff does not change.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T084101917254-jtmm-e101011-psi-row/gate-pytest.log: follow-on: its note says '41 passed' where gate-pytest-focused.log says 43 passed.\nFINDING scripts/jt60sa_sign_cohort.py:380: follow-on: the psi row reads the G-EQDSK from the module-level root, so --root does not move its input.\n\nSCORE goal_fidelity: 19\nSCORE evidence: 18\nSCORE scope_discipline: 19\nSCORE durability: 18\nSCORE fit: 18\nSCORE reuse: 18",
+  "review_run_id": "r-20261008T100803590079-review-of-jtmm-e101011-psi-row",
+  "reviewed_base_sha": "9d1ed7845d3c8b08a63cbc24b7995931882c22f6",
+  "reviewed_head_sha": "af176bcd4bbecad4958fb2aa32e91b3d4f92b010",
+  "reviewed_run_id": "r-20261008T084101917254-jtmm-e101011-psi-row",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T10:19:46+00:00",
+  "total": 110
+}
