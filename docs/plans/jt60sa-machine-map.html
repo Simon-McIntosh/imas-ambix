@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.93">
-<meta name="plan-version" content="418">
+<meta name="plan-version" content="419">
 <meta name="plan-modified" content="2026-10-09">
 </head>
 <body>
@@ -568,13 +568,16 @@
       <code>calZp0</code>) and plasma current (<code>calIp</code>), with their time bases. It reads
       them through the existing channel extractor and its on-demand cache, and adds no transport.
       That extractor refuses <code>surfABVxp</code> today. Each multi-channel PSRC array carries a
-      per-channel unit list, and <code>eddb_remote.normalise_unit</code>
-      (<code>packages/imas-alambic/src/imas_alambic/eddb_remote.py</code>) refuses any multi-entry
-      list, so a batch holding one aborts before it writes a channel. §6's inventory found every such
-      list uniform and read the arrays through a direct probe. So the reader node changes
-      <code>normalise_unit</code> to accept a multi-entry list whose entries all agree and return that
-      one unit, and to refuse a disagreeing list as it does now. That edit is the node's, with its
-      test.
+      per-channel unit list. The refusal that aborts a batch is the remote script's own
+      <code>_unit</code> inside <code>REMOTE_SCRIPT</code>
+      (<code>packages/imas-alambic/src/imas_alambic/eddb_remote.py</code>). It reads the raw EDDB
+      unit and raises on any multi-entry list, so the script stops before writing a channel.
+      <code>normalise_unit</code> in the same module is the client-side mirror of that rule, applied
+      when a batch is decoded. §6's inventory found every such list uniform and read the arrays
+      through a direct probe. So the reader node changes both, together. A multi-entry list whose
+      entries all agree yields that one unit, and a disagreeing list is refused as now. A test runs
+      the script's <code>_unit</code> and <code>normalise_unit</code> over the same cases, so the two
+      cannot drift.
       The sixteen frozen shots cache the axis and X-point arrays but no boundary contour, so one
       read-only EDDB fetch of <code>surfABVxp</code> for those shots fills the cache before the
       stamp. It runs over the lead's tunnel, one connection at a time, as every JT-60SA fetch does.
