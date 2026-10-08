@@ -1,0 +1,33 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T08:44:37.302Z",
+  "dispatched_at": "2026-10-08T08:31:01Z",
+  "findings": [],
+  "plan_fingerprint": "1b87c8aea43f6322187bf7e4b8139d988ae96707964ec4f98bc345e231a376fe",
+  "plan_slug": "jt60sa-signal-figures-from-ids",
+  "plan_version": 43,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261008T083044458408-plan-review-of-jt60sa-signal-figures-from-ids",
+  "reviewed_blob_sha": "dd077b49ea1fbc59edfca738c0d67bdc78f4216a",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `scripts/figures_jt60sa_signals.py`, `jt60sa-pulse-ids#s8` (merge b406677c, landed), the `jt60sa-differential-flux-loops` decision (`docs/plans/jt60sa-machine-map.html:1436`) and the run file `/work/projects/imas_gpu/jt60sa/ids/101154_0.nc` all resolve.",
+    "done_when": "pass \u2014 \u00a74's done-when is measurable (27 panels FL7 then the 26 differential entries; coil-current and probe SVGs byte-identical; docstring-only diff; ruff check/format clean) and it declares its own negative control (\"negating the FL1-FL7 trace \u2026 fails its equality check, while FL7 and FL27-FL7 still pass\"), which the equality check can actually fail.",
+    "evidence_paths": "pass \u2014 \u00a74 places the check script and its log in the run's own directory under `~/.config/reckon/crew/runs/` on GPFS and rewrites the flux-loop SVGs in `docs/figures/jt60sa-signals/`, both durable and openable by a later reader; it explicitly declines \u00a72's vanished scratch-tree check.",
+    "naming": "pass \u2014 \u00a74 introduces no code symbol, and the `\u00a77`/`\u00a78`/merge-sha references are the plan's own prose about other plans, not names or comments in source.",
+    "reasoning": "pass \u2014 all three checks hold: the stated mechanism matches the cited evidence (the run file carries 53 `magnetics/flux_loop` entries with exactly 27 non-empty \u2014 index 6 named `FL7` and 27\u201352 named `FL1-FL7`\u2026`FL27-FL7`), `imas_ink.extract_signal_traces` skips a size-zero element and labels each series with its element `name`, so `(\"magnetics\",\"flux_loop/flux\")` yields those 27 in that order; the mechanism runs on the real path, with the caller named (`scripts/figures_jt60sa_signals.py` \u2192 `extract_signal_traces` via `pulse_path`, which resolves to `101154_0.nc`); and the stored sign (\u00a74's \u03c8_L \u2212 \u03c8_7) matches the decision's DD convention (`indices_differential [7, L]` = loop(second) \u2212 loop(first) = \u03c8_L \u2212 \u03c8_7).",
+    "single_goal": "pass \u2014 \u00a74 carries one deliverable, the flux-loop redraw from the renamed differential entries, with the module-docstring update as its own record of that change.",
+    "wiring": "pass \u2014 the only changed unit \u00a74 declares `plan-section-depends-on` s4 \u2192 jt60sa-pulse-ids#s8, which exists and is `done`; `plan-depends-on` imas-ink:ids-signal-traces and `plan-informs` jt60sa-machine-map both resolve to an existing imas-ink plan and `docs/plans/jt60sa-machine-map.html`."
+  },
+  "section_digests": {
+    "_document": "5a8ea84299547c5a58cce9faf1450d1aa6aa748ce8916783d5a686c144fcc2dc",
+    "s1": "8cc1fc171352c18ac739b983fe55145c39f922e6a6e144dd81cf938653d2845d",
+    "s2": "fc4daf44641a035f6ef2fe1ac229811b3fe01215fb262370abe39533d38afd8a",
+    "s3": "d094bd911e0ef5845f9b6fa508f0370125201199f3a3f5078285339b7bd30a8a",
+    "s4": "5af090d3075ee431512561abd53495029db02a44933f5f19db68c3248155efb2"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T08:45:09.827840+00:00"
+}
