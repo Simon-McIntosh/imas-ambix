@@ -1,0 +1,53 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T05:34:36.362Z",
+  "dispatched_at": "2026-10-08T05:21:40Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-pulse-ids.html:102",
+      "id": "done_when-1",
+      "reason": "a control that cannot go red does not show the guard fires, and this is the only negative control \u00a72 declares, so the plan must state that the test derives the O-point from psi (or name a field proven O-point-free) for the control to be one.",
+      "text": "\u00a72's new negative control (lines 102\u2013104) substitutes only psi with \"the vacuum field of that slice's coil currents\", but \u00a72's own account (line 76) makes the O-point the stored `global_quantities.magnetic_axis`, a field the control leaves unchanged, so the guarded \"O-point inside the last closed surface\" assertion need not fail and the control may never go red; where instead the test derives the O-point from psi, the \u00a72-cited finder `latent/topology.py` `read_topology` documents in its own docstring that a field with coil currents but no plasma current still carries PF-coil O-points, so a vacuum coil field is not established to be O-point-free",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-pulse-ids.html:62",
+      "id": "reasoning-1",
+      "reason": "\u00a72's only declared dependency does not supply an E101154 psi grid, so a node dispatched on \u00a72 waits on a rung that does not deliver the psi its done-when measures, and the plan must re-scope \u00a72's psi source or its dependency.",
+      "text": "\u00a72 says the machine map's \u00a77 \"reads SELENE's equilibria from the facility's equilibrium database (EQDB) and maps psi on its grid, the boundary and the profiles into equilibrium\", but jt60sa-machine-map \u00a77 says its \"psi bindings and the reference loader's psi and axis reduction are scoped against E101011 alone\", takes that psi from a G-EQDSK file copied under /work, and takes only boundary, X-point, plasma centre and plasma current from PSRC, which \"carries no flux grid\"",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "b9cdeda43a569b729fc3ee234aa74b6bda379616f3a35c64851a2ba81e1c7a56",
+  "plan_slug": "jt60sa-pulse-ids",
+  "plan_version": 33,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261008T052129355778-plan-review-of-jt60sa-pulse-ids",
+  "reviewed_blob_sha": "196eef99b7df2a7006906ea7deb70cbd39641373",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 jt60sa-machine-map#s7, imas_ink/extract.py extract_slice, latent/topology.py read_topology, camera_topology_targets.py _strike_points, equilibrium_labels.py xpoint_null_set, challenge/convention.py _axis_and_boundary and packages/imas-alambic/src/imas_alambic/pulse_writer.py all resolve.",
+    "done_when": "a finding \u2014 \u00a72's new negative control replaces only psi, yet \u00a72's own account makes the O-point a stored field, so the control may never go red.",
+    "evidence_paths": "pass \u2014 \u00a72 puts no evidence in a session scratchpad, and the logs it names sit under the durable run-directory convention \u00a77 states.",
+    "naming": "pass \u2014 \u00a72 carries no plan label, stage name, ticket number or version tag.",
+    "reasoning": "a finding \u2014 \u00a72 names EQDB as the machine map \u00a77's equilibrium source, which \u00a77's own text does not support.",
+    "single_goal": "pass \u2014 \u00a72 carries one deliverable, E101154's minted equilibrium with its topology.",
+    "wiring": "pass \u2014 every depends-on in plan-section-depends-on resolves, including the newly added s4 \u2192 jt60sa-pulse-ids#s2 edge that answers the earlier wiring-1 finding."
+  },
+  "section_digests": {
+    "_document": "b81a74e3f381ff42135b603f47c8820d8c18421790c7da5392127d9cf059f37f",
+    "s1": "03eeaedd2c5502c88ec72ea09f8ea2eec7ce704b95be59fa080894ef4214bc98",
+    "s2": "0d0c247071bdcccc8c55de7e16a00e31855becd6428223a47b5fb1bcf98d4945",
+    "s3": "e0c752d72775115b7987ba7db0722d7fe24721ae7a504604a237ca7050f3775d",
+    "s4": "181a42b6bf8c74edb3710bd11a1bc408ce6d67da65064e96d0b7b7d5c47573e8",
+    "s5": "2fe78b8eaa57cdcf1ca2ee21a6164a26bd291494f76eced7774ae0f4e43b6efa",
+    "s6": "a01f31a138a09e8b6b39bf55196646418b937b800d2df12100db301174553acd",
+    "s7": "c6ba0b7f7f05e8d0d240db7206c8e05a26f09f76be3cc3d2144dc3d466ef23fb"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T05:35:49.403069+00:00"
+}
