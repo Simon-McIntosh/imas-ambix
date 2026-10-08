@@ -1,0 +1,80 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "09980cbe9568ddf84fc2d3c26edc2b6009eacd3d",
+  "completed_at": "2026-10-08T07:25:56.537Z",
+  "dispatched_at": "2026-10-08T07:10:35Z",
+  "findings": [
+    {
+      "file": "docs/plans/jt60sa-machine-map.html",
+      "line": "552",
+      "severity": "follow-on",
+      "text": [
+        "follow-on: the rename reverses the naming order the plan itself states and the order the earlier jtmm-differential-loop-store node landed under review. Plan section 6 line 552 reads 'a type-6 entry naming loop 7 then loop L', which is the DD index order (indices_differential is [7, L]); the reviewed head names the same entries FL<L>-FL7, so the name order is now the reverse of indices_differential. The store node's 115/120 review (comment 1959) records its choice as 'naming [7,L]' with the DD index order. Both spellings are defensible -- the new name reads as the stored difference psi_L - psi_7, the old one listed the pair in DD index order -- but only one can hold, and the dispatch goal ('so the name reads as its stored difference') overrides the plan text without the plan recording the change. Follow-on for the coordinator: update plan section 6 line 552 and record the naming-order decision so the store node's landed convention is not left silently contradicted."
+      ]
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T060547700090-jtmm-differential-loop-names/gate.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": [
+        "follow-on: the head gate log does not meet the done-when's own format. The declared measure requires 'a log in the run directory whose first lines give the head revision and command'; gate.log's first line is the progress dots ('.................................... [ 63%%]'), with no revision, tree or command header, and the manifest discloses this. The 109-passed/4-failed/EXIT=1 body is reproducible (I reproduced it at 6c4df923), but the log alone cannot be checked against the tree it ran on. The command and revision live only in the manifest's tests: field and the disclosed note. Also the manifest records no baseline_suite or after_suite arm at all, so the run supplies no positive base comparison of its own."
+      ]
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T060547700090-jtmm-differential-loop-names/manifest.md",
+      "line": "",
+      "severity": "follow-on",
+      "text": [
+        "follow-on (record, not a defect in the artefact): the done-when ends 'It exits 0', and the gate exited 1 (4 failures). The failures are provably base drift, not this node's work, and the generic fence directs an out-of-scope failure to follow_ons -- which the node did. I confirmed it: at base 09980cbe with the same live bundle the same 4 tests fail (base arm: 7 failed 106 passed), so head adds no failure and the 4 are pre-existing (the live maps/jt-60sa/maps/magnetics.json already carries the differential-loop retarget the base's copy of tests/data/test_jt60sa_signal_maps.py predates). The record still cannot claim a green gate, and the 'exits 0' clause is literally unmet; a coordinator should accept the delta arm deliberately rather than treat the gate as passed as written."
+      ]
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-consumers.html",
+      "line": "36",
+      "severity": "follow-on",
+      "text": [
+        "follow-on (low): three evidence fragments now name an entry that no longer exists in the store -- jtmm-differential-loop-consumers.html (lines 36, 40, 52, 93, the 'FL7-FL1' the adapter resolves and the per-entry bindings), jtmm-operator-differential-loops.html:75 and jtpi-rewrite-differential-loops.html:58. These are point-in-time records of the state at their own reviews and are left unedited by convention, so this is a documentation-staleness note rather than a defect to repair; a reader tracing the differential-loop lineage from any of them will find the name changed at this node. No product source or test carries a stale old-style token: a tree-wide grep of imas_ambix/, tests/, scripts/ and docs/ for 'FL7-FL' or 'fl7-fl' returns only these historical fragments and the new fragment's own description of the old name."
+      ]
+    }
+  ],
+  "head_log_revision": "6c4df923b8cb8719fdc33799751b55ecf57468f8",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "The rename moves no index, sign or value: I read both OP1 and OP2 stores through imas at DD 4.1.1 and compared element-wise against the superseded pre-rename stores -- type, indices_differential, position, area and flux are equal element for element in both phases, and the only changed array is name over indices 27..52 (26 names each), with indices_differential still [7,1] .. [7,27]. The consumer path is exercised by the head arm: tests/gs/test_operator_differential_loops.py resolves the renamed entries through the regenerated machine_map.json bindings and passes at head (the three base-only failures it repairs are exactly those bindings). maps/jt-60sa/maps/magnetics.json is untouched (its rules target by index), so the signal-map consumer is unaffected by the rename. No product code builds or parses an FL<...> entry name outside selene_deck.build_magnetics.",
+    "diff": "Three commits on base 09980cbe: 22e2156f (fix(selene): name type-6 flux loops FL<L>-FL7 as their stored difference; imas_ambix/data/selene_deck.py +18/-...), 0fd8cdbf (style(test)), 6c4df923 (docs(evidence)). diff --stat: 4 files, +153/-22 (selene_deck.py, test_selene_deck.py, test_operator_differential_loops.py, the new fragment). The bundle files are not in any commit: maps/ is reached through the worktree's maps symlink into the shared, gitignored bundle, so the store and machine_map.json edits are unversioned and attested only by digest.",
+    "done_when": "This record is the dispatched measure. It is stored parsed at both fenced paths with all six dimensions in 0..20 (goal_fidelity 18, evidence 14, scope_discipline 20, durability 17, fit 17, reuse 18; total 104), the revision pair reviewed_base_sha 09980cbe / reviewed_head_sha 6c4df923, and added_failure_count 0 with added_failure_ids []. The run recorded no baseline_suite/after_suite, so the count is derived from my own arms in scratch trees under TMPDIR: base 09980cbe (7 failed, 106 passed, EXIT=1) vs head 6c4df923 (4 failed, 109 passed, EXIT=1). Head's four failures are a subset of base's seven, so none is added; head also drops the three base-only failures in tests/gs/test_operator_differential_loops.py that the node's updated expectations repair.",
+    "goal": "Met. The reviewed head names each of the 26 type-6 magnetics/flux_loop entries FL<L>-FL7 (indices 27..52 read FL1-FL7 ... FL27-FL7, no FL7-FL7) in place of FL7-FL<L>, exactly the dispatch goal.",
+    "manifest": "Read. Status complete, three commits, the landing line, the negative control path and its note, and the follow_ons are present. Defects: no baseline_suite/after_suite; the cited gate.log lacks the header the done-when required; the run's own record cannot show a green gate (the gate exited 1). The follow_ons' base-drift claim is accurate and I reproduced it. retry_failures is empty though the gate ran once.",
+    "scope_write_paths": "The node wrote exactly its declared paths: imas_ambix/data/selene_deck.py, tests/data/test_selene_deck.py, tests/gs/test_operator_differential_loops.py, its evidence fragment, and the widened /home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa bundle (OP1/OP2 magnetics.nc, OP1/OP2 receipt.json, machine_map.json, and the superseded/differential-loop-names-pre-rename copies). No plan, sprint or index file is modified (docs/plans/jt60sa-machine-map.html is untouched), and the reviewed worktree is clean at 6c4df923 (git status empty). This reviewer wrote only the two fenced review records and its own run-directory logs and scratch trees."
+  },
+  "justifications": {
+    "durability": "A real, tested rename: tests/data/test_selene_deck.py and tests/gs/test_operator_differential_loops.py pin the new names and the [7,L] index pairing, and the negative control shows the pin fires. Held below full because the artefact it pins is a rename with no behavioural change of its own, and because the store and catalogue it aligns are unversioned shared-bundle files attested only by digest, so the rename's coherence rests on the digests rather than on a committed artefact.",
+    "evidence": "Strong direct verification: the negative control fires (restoring FL7-FL<L> turns test_differential_flux_loops_follow_the_physical_loops red, EXIT=1, a test the head arm passes), the element-wise store comparison reproduces the node's 'only names changed' claim in both phases, every before/after sha256 in the fragment matches on disk, and ruff is clean at head (EXIT=0). Held below full because the head gate log omits the revision and command header the done-when explicitly required, the run records no baseline or after arm of its own, and the gate exited non-zero against a done-when that named exit 0.",
+    "fit": "Keeps the module idiom: the comment block and the test docstring are rewritten to the new rule, the test reuses the module's existing constants and helpers, and the fragment follows the evidence-fragment conventions with node-prefixed element ids. Points off for the naming order now disagreeing with indices_differential's own order ([7, L] against a name reading L then 7), a readability trade the dispatch chose but which a reader comparing name to index will find inverted, and for contradicting the plan text in place.",
+    "goal_fidelity": "The node does exactly its dispatched goal: 26 type-6 entries renamed FL<L>-FL7 so the name reads as the stored difference psi_L - psi_7 under indices_differential [7, L], stores and per-entry bindings regenerated, tests pin the new names and the [7,L] indices, and the fragment records before/after sha256s. Points off because the rename reverses the naming order the plan text and the earlier store node's review both recorded (finding 1) without the plan being updated, and because the done-when's 'exits 0' clause is unmet (finding 3).",
+    "reuse": "No new reader, abstraction or module: the converter reuses the merged build_magnetics write path, the binding regeneration adapts the existing staged builder rather than adding a second path, and the tests reuse existing fixtures and constants. The adapted binding builder is copied into the run directory rather than imported, which is a run-directory duplicate rather than a committed parallel implementation.",
+    "scope_discipline": "Writes stayed inside the declared paths, the bundle edits were scripted (regenerate_jt60sa_store.py and rename_map_flux_loop_bindings.py, both with EXIT=0 logs) rather than hand-edited, the pre-rename stores and map are preserved under superseded/, the plan and index are untouched, and the worktree is clean at head. Full marks."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261008T060547700090-jtmm-differential-loop-names (plan imas-ambix:jt60sa-machine-map section 6), head 6c4df923b8cb8719fdc33799751b55ecf57468f8 on base 09980cbe9568ddf84fc2d3c26edc2b6009eacd3d.\n\nThe node renames the 26 JT-60SA type-6 magnetics/flux_loop entries from FL7-FL<L> to FL<L>-FL7 so each name reads as the difference it stores (psi_L - psi_7 under indices_differential [7, L]), regenerates the OP1/OP2 stores and the machine_map.json per-entry bindings, keeps pre-rename copies under superseded/differential-loop-names-pre-rename, and pins the new names with tests.\n\nREPRODUCTION (mine). Pure rename confirmed by reading both OP1 and OP2 stores through imas at DD 4.1.1 and comparing element-wise against the superseded copies: type, indices_differential, position, area and flux are equal element for element, and the only changed array is name over indices 27..52 (26 names each, FL1-FL7 .. FL27-FL7, indices_differential still [7,1]..[7,27]). Every before/after sha256 in the fragment matches on disk (magnetics.nc e543c0..->0b089a.. both phases, receipts ee212a../8d39e4..->cbdee6../f564b1.., machine_map.json b9c641..->6a0e4b..); the live machine_map.json carries 0 old-style FL7-FL tokens. Ruff at head EXIT=0.\n\nARMS (mine, scratch trees under TMPDIR, module.__file__ under each tree). Base 09980cbe: 7 failed, 106 passed, EXIT=1. Head 6c4df923: 4 failed, 109 passed, EXIT=1. Head's four failures (all tests/data/test_jt60sa_signal_maps.py) are a subset of base's seven, so added_failure_count 0, added_failure_ids []. The 4 are base drift: the live maps/jt-60sa/maps/magnetics.json already carries the differential-loop retarget, and the base's copy of that test expects target_index 0..26 where the live map yields 6,27..52. Head also drops the three tests/gs/test_operator_differential_loops.py failures present at base. Negative control reproduced: restoring FL7-FL<L> in build_magnetics fails test_differential_flux_loops_follow_the_physical_loops (1 failed, 32 passed, EXIT=1, negative-control.log), a test the head arm passes.\n\nVERDICT goal: met -- FL<L>-FL7 names landed, stores and bindings regenerated, tests pin.\nVERDICT done_when: this record, parsed at both fenced paths, six dimensions 0..20 (total 104), revision pair 09980cbe/6c4df923, added_failure_count 0; the done-when's 'exits 0' clause is unmet (gate EXIT=1, 4 base-drift failures).\nVERDICT scope/write_paths: declared paths plus the widened maps/jt-60sa bundle, scripted not hand-edited, worktree clean at head, no plan/index mutation.\nVERDICT manifest: read; no baseline/after arms, gate.log missing its required header, record cannot claim a green gate; follow_ons' base-drift claim accurate.\nVERDICT diff: three commits, +153/-22 over four files; the store and machine_map.json edits are not in any commit.\n\nFINDING docs/plans/jt60sa-machine-map.html:552 follow-on: the rename reverses the plan's own 'naming loop 7 then loop L' and the store node's landed index-order convention; the plan should record the supersession.\nFINDING gate.log:1 follow-on: the head gate log lacks the revision/command header the done-when required; no baseline arm recorded.\nFINDING manifest.md follow-on: 'It exits 0' unmet (gate EXIT=1); 4 failures proven base drift (base arm also fails them).\nFINDING jtmm-differential-loop-consumers.html:36 low: three historical fragments now name a renamed entry; convention leaves them, no code carries a stale token.\n\nSCORE goal_fidelity 18, evidence 14, scope_discipline 20, durability 17, fit 17, reuse 18; total 104. added_failure_count 0, added_failure_ids [].",
+  "review_run_id": "r-20261008T071023882337-review-of-jtmm-differential-loop-names",
+  "reviewed_base_sha": "09980cbe9568ddf84fc2d3c26edc2b6009eacd3d",
+  "reviewed_head_sha": "6c4df923b8cb8719fdc33799751b55ecf57468f8",
+  "reviewed_run_id": "r-20261008T060547700090-jtmm-differential-loop-names",
+  "scores": {
+    "durability": 17,
+    "evidence": 14,
+    "fit": 17,
+    "goal_fidelity": 18,
+    "reuse": 18,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T07:45:00+00:00",
+  "total": 104
+}

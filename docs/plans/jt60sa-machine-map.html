@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.83">
-<meta name="plan-version" content="358">
+<meta name="plan-version" content="359">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -2101,6 +2101,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261008T060547700090-jtmm-differential-loop-names" data-who="reckon-build" data-when="2026-10-08T07:10:03.445Z">
     <div class="r-comment-body"><p>Renamed the 26 JT-60SA type-6 flux-loop entries to FL&lt;L&gt;-FL7 (FL1-FL7 ... FL27-FL7) in imas_ambix/data/selene_deck.py, regenerated the OP1/OP2 stores and the machine_map.json per-entry bindings, and kept pre-rename copies under superseded/differential-loop-names-pre-rename; gate 109 passed / 4 failed (all 4 base drift in tests/data/test_jt60sa_signal_maps.py, reported under follow_ons), ruff EXIT=0, negative control EXIT=1.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-run-r-20261008T071023882337-review-of-jtmm-differential-loop-names" data-who="reckon-build" data-when="2026-10-08T07:25:56.537Z">
+    <div class="r-comment-body"><p>Independent review of jtmm-differential-loop-names stored at reviewed_base_sha 09980cbe / reviewed_head_sha 6c4df923: six dimensions 0..20 (goal_fidelity 18, evidence 14, scope_discipline 20, durability 17, fit 17, reuse 18; total 104), added_failure_count 0 with added_failure_ids []; the rename is a verified pure rename (OP1/OP2 store arrays element-equal except the 26 type-6 names, every before/after sha256 matches on disk, negative control fires EXIT=1), with four follow-on/low findings (plan naming-order supersession, gate.log missing the required header, the &#x27;exits 0&#x27; clause unmet by proven base drift, and three historical fragments naming the old entry).</p></div>
 </div>
 <div class="r-comment" data-section="_top" data-id="c-20261007T0000-jtfm-move" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-06T23:00:00Z">
     <div class="r-comment-body"><p><strong>Coordination, lead-approved 2026-10-06:</strong> <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §2 is now moving the mint engine into the workspace member <code>packages/imas-alambic/</code>. Moving: <code>imas_ambix/data/{machine_map,signal_map,transform_engine,virtual_zarr,eddb,eddb_remote,pulse_mint}.py</code>, <code>imas_ambix/cocos.py</code> and <code>machine_maps/schema.yaml</code>. Imports become <code>imas_alambic.&lt;module&gt;</code>, and <code>nova.io.cocos</code> becomes <code>nova_cocos</code>. <strong>Map JSON is not moving</strong>: <code>machine_maps/*.json</code> and <code>maps/&lt;machine&gt;/*.json</code> stay where they are, and the by-name loaders keep their names, so map-authoring nodes are unaffected. Please avoid dispatching nodes that edit the moving Python modules until the move merges. A node already in flight that touches them will need its imports rebased after the merge, and the facility-mint coordinator will do that rebase.</p></div>

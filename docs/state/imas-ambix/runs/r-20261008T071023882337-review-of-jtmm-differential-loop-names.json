@@ -1,0 +1,368 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "local": true,
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "read-only",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "9ef6f6bb00fcb298dc883d428df65ee706d7a656",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 4960688,
+      "input_tokens_cumulative": 4960688,
+      "output_tokens": 35902,
+      "output_tokens_cumulative": 35902,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": null,
+  "clone_matches": {
+    "reason": "the run asserted no revision pair to compare",
+    "status": "unmeasured"
+  },
+  "commit_resolution": null,
+  "commits": [],
+  "completed_at": "2026-10-08T07:25:56.537Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-08T07:10:35Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": false,
+    "matched_measure": null,
+    "override": false,
+    "role": "review",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "gate.log",
+    "revision/command"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "python3 -c \"import json; d=json.load(open('/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261008T060547700090-jtmm-differential-loop-names.json')); print(d['total'], d['status']); assert d['status']=='parsed'\"",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T071023882337-review-of-jtmm-differential-loop-names/gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.83,
+    "plan": "jt60sa-machine-map",
+    "reason": "role-not-enforced:review",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-08T08:10:24.467744+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": null,
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-08T07:10:24Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 17,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 8,
+    "headroom": 4,
+    "mean_context": 137778,
+    "observed_at": "2026-10-08T07:10:07Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 17,
+      "aggregate_tokens_per_second": 497.434,
+      "detail": "",
+      "mean_tokens_per_second": 63.774,
+      "observed_at": "2026-10-08T07:10:07Z",
+      "runs": 7.8,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-08T07:25:56.537Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": true,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T071023882337-review-of-jtmm-differential-loop-names/manifest.md",
+  "member": "disposable-r-20261008T071023882337-review-of-jtmm-differential-loop-names",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": "review record only; no source change",
+  "node": "review-of-jtmm-differential-loop-names",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1400,
+          "cached_input_tokens": 744000,
+          "input_tokens": 745402,
+          "output_tokens": 429,
+          "reasoning_output_tokens": 313,
+          "total_tokens": 745831,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "c66d1ea6-525d-4cec-8114-013919000083",
+      "session_id": "c66d1ea6-525d-4cec-8114-013919000083"
+    },
+    "done_when": "the review for r-20261008T060547700090-jtmm-differential-loop-names stores a parsed record scoring all 6 dimensions in the range 0..20, recording the revision it read as reviewed_base_sha and reviewed_head_sha, and carrying added_failure_count and added_failure_ids derived from the reviewed run's own baseline_suite and after_suite gate logs; the turn ends once that record is stored and the manifest reads complete",
+    "estimated_hours": null,
+    "goal": "attach an independent review to run r-20261008T060547700090-jtmm-differential-loop-names",
+    "id": "review-of-jtmm-differential-loop-names",
+    "lane_declaration": {
+      "backend": null,
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-08T07:10:24Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 17,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 8,
+      "headroom": 4,
+      "mean_context": 137778,
+      "observed_at": "2026-10-08T07:10:07Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 17,
+        "aggregate_tokens_per_second": 497.434,
+        "detail": "",
+        "mean_tokens_per_second": 63.774,
+        "observed_at": "2026-10-08T07:10:07Z",
+        "runs": 7.8,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T071023882337-review-of-jtmm-differential-loop-names/manifest.md",
+    "negative_control": "",
+    "plan": "jt60sa-machine-map",
+    "requested_backend": null,
+    "requires_decisions": [],
+    "role": "review",
+    "section": "§6",
+    "spec_level": "exact",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261008T060547700090-jtmm-differential-loop-names.json",
+      "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/r-20261008T060547700090-jtmm-differential-loop-names.at-6c4df923b8cb8719fdc33799751b55ecf57468f8.json"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "review-of-jtmm-differential-loop-names",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-08T07:10:27.886379+00:00",
+    "score": 0.625,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "fallback",
+    "backend": null,
+    "comment": "",
+    "confidence": null,
+    "effort": null,
+    "excluded": [],
+    "fallback_reason": "timeout",
+    "family": null,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 5005.633,
+    "model": null,
+    "offered": [],
+    "probabilities": {}
+  },
+  "plan": "jt60sa-machine-map",
+  "plan_impl_at_dispatch": 0.83,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "9ef6f6bb00fcb298dc883d428df65ee706d7a656",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "id": "r-20261008T071023882337-review-of-jtmm-differential-loop-names",
+    "reviewed_base_sha": "09980cbe9568ddf84fc2d3c26edc2b6009eacd3d",
+    "reviewed_head_sha": "6c4df923b8cb8719fdc33799751b55ecf57468f8",
+    "scores": {
+      "durability": 17,
+      "evidence": 14,
+      "fit": 17,
+      "goal_fidelity": 18,
+      "reuse": 18,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 104
+  },
+  "review_tier": "none",
+  "role": "review",
+  "route_mode": "explicit",
+  "run_id": "r-20261008T071023882337-review-of-jtmm-differential-loop-names",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§6",
+  "session": "c66d1ea6-525d-4cec-8114-013919000083",
+  "session_harness": "claude",
+  "session_id": "84335386-8cde-43cf-816e-719cef0c4141",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 4960688,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 916.265,
+    "generated_tokens": 35902,
+    "generation_seconds": 545.95,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 67.7,
+    "machine_seconds": 370.315,
+    "peak_input_tokens": 155890,
+    "tokens_per_second": 65.76,
+    "wall_tokens_per_second": 39.18
+  },
+  "time_budget": "60m",
+  "tool_steps": 46.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 921,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-08T07:26:05Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-08T07:10:40Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261008T071023882337-review-of-jtmm-differential-loop-names",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 6835,
+    "worker_pid": 2818659
+  },
+  "worker_seconds": 899,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
