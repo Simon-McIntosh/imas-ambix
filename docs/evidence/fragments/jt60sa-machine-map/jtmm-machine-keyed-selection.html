@@ -1,0 +1,130 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-machine-keyed-selection">
+  <header>
+    <h3>jtmm-machine-keyed-selection: the selection route is keyed by machine, with JT-60SA pinned per operating phase</h3>
+    <p class="meta">
+      Node <code>jtmm-machine-keyed-selection</code> &middot;
+      date 2026-10-09 &middot; plan <code>jt60sa-machine-map</code> &sect;7 &middot;
+      <code>imas_ambix/gs/artifact_resolution.py</code>,
+      <code>imas_ambix/gs/machine_identity.py</code>,
+      <code>imas_ambix/gs/machine_selection.py</code>
+    </p>
+  </header>
+
+  <p id="jtmm-machine-keyed-selection-change">
+    The resolution, identity and selection path was written for one machine: the
+    pinned description was three module constants
+    (<code>PINNED_SEMANTIC_IDENTITY</code>, <code>PINNED_PHYSICAL_DIGEST</code>,
+    <code>PINNED_REGISTRY_DIGEST</code>), the registry was a cached MAST loader,
+    and <code>ArtifactMachineSelector</code> resolved a description without ever
+    naming a machine. JT-60SA has two physical identities &mdash; OP1 and OP2 are
+    separate physical identities of one device &mdash; so a single pin and a
+    single registry cannot express it.
+  </p>
+
+  <p id="jtmm-machine-keyed-selection-pin-table">
+    The three constants retire into one table keyed by machine,
+    <code>PINNED_DESCRIPTIONS</code>. Each row carries the semantic identity that
+    survives re-authoring, the physical and registry digests resolution enforces,
+    and the route that authors the row. <code>resolve_machine_description</code>
+    and <code>author_pinned_description</code> take the machine and the shot's
+    physical digest; the digest may be omitted only for a single-row machine, is
+    refused by name when a two-row machine omits it, and a digest the machine does
+    not hold is refused by name. The rows as committed:
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>machine</th>
+        <th>row</th>
+        <th>semantic identity</th>
+        <th>physical digest</th>
+        <th>registry digest</th>
+        <th>authoring route</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>mast</code></td>
+        <td>&mdash;</td>
+        <td><code>sha256:8df7a0a6c3f6162dbe0f226660bc069f37de8eb69f0f7c80bbfedc2bd4be220c</code></td>
+        <td><code>b55c5bb005a2cb67</code></td>
+        <td><code>2a26cc0a3a22e7fb8f42a53ee4c45e639290f0c5587e5f56405772b007f31bfd</code></td>
+        <td><code>nova.imas.mast_geometry.publish_refined_artifact</code></td>
+      </tr>
+      <tr>
+        <td><code>jt-60sa</code></td>
+        <td>OP1</td>
+        <td><code>sha256:1ea4dac766f47ba01bb6f9e35d5ca74f47d816772006379076f466a51e58f372</code></td>
+        <td><code>f4ba9a35aab22485</code></td>
+        <td><code>058b377fda345c171706e94feb78a1e1a7694b3cf70a2b15cb0676adf16db742</code></td>
+        <td><code>author_jt60sa_machine_artifacts(&hellip;)["OP1"]</code></td>
+      </tr>
+      <tr>
+        <td><code>jt-60sa</code></td>
+        <td>OP2</td>
+        <td><code>sha256:b3c079a077b818f1ecd51ee608653338b8d53b1a565f432d4250e8dd25685e49</code></td>
+        <td><code>08807c77e7b35487</code></td>
+        <td><code>058b377fda345c171706e94feb78a1e1a7694b3cf70a2b15cb0676adf16db742</code></td>
+        <td><code>author_jt60sa_machine_artifacts(&hellip;)["OP2"]</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p id="jtmm-machine-keyed-selection-registry">
+    <code>default_registry</code> takes the machine and caches one registry per
+    machine: <code>mast</code> resolves to Nova's packaged registry and
+    <code>jt-60sa</code> to <code>build_jt60sa_registry_from_stores()</code>, which
+    derives the two phases' physical digests from their description stores. Any
+    other machine is refused by name. <code>identity_for_shot</code> and the
+    bare-digest form of <code>identity_for_representation</code> gain a required
+    machine; and the table-based resolvers read the machine from the signature they
+    are given.
+    <code>ArtifactMachineSelector</code> gains a required machine, resolves its
+    registry, acquisition read and geometry reader from it, and looks the shot's
+    identity up first so the pin row and the artifact follow from the shot's own
+    physical digest. A machine with no pin row or registry is refused when the
+    selector is built. The JT-60SA shot set and the tests move to the
+    <code>jt-60sa</code> slug the registry and the description artifact already
+    use; <code>imas_ambix/spine_bench/shots.py</code> and the three spine_bench
+    test modules were the outlier spelling <code>jt60sa</code>.
+  </p>
+
+  <h4>Measure, run on the fleet allocation (job 1281970)</h4>
+  <ul>
+    <li id="jtmm-machine-keyed-selection-gate">
+      <code>uv run --no-sync pytest -p no:cacheprovider</code> &mdash; the eight
+      named modules &mdash; exits 1 at revision <code>16a7fa4f</code> with
+      &ldquo;1 failed, 191 passed&rdquo;. The single failure,
+      <code>test_re_authoring_reproduces_the_identity_the_package_pins</code>, is
+      pre-existing: the installed Nova MAST producer republishes semantic identity
+      <code>sha256:f20d64dbde63756150fecd5a41d34a0d7a055900877370aae40a594ca7d039d5</code>
+      while the package pins <code>sha256:8df7a0a6c3f6162dbe0f226660bc069f37de8eb69f0f7c80bbfedc2bd4be220c</code>.
+      It fails identically at the base revision
+      <code>a72522ec198f7f02601d72655ca2377d14a3bb72</code> (13 modules, &ldquo;1
+      failed, 184 passed&rdquo;), so the added-failure count for this node is zero.
+      <code>ruff check imas_ambix tests</code> exits 0, &ldquo;All checks
+      passed!&rdquo;.
+    </li>
+    <li id="jtmm-machine-keyed-selection-negative-control">
+      Negative control: with <code>pinned_row</code> mutated to resolve JT-60SA's
+      first pin row whatever the shot's physical digest, and the OP1-selection
+      test pointed at OP2's row, the test fails &mdash;
+      <code>assert 'f4ba9a35aab22485' == '08807c77e7b35487'</code> &mdash;
+      <code>tests/gs/test_machine_selection.py::test_an_op1_shot_selects_to_the_pinned_op1_artifact</code>,
+      &ldquo;1 failed&rdquo;, <code>EXIT=1</code>. Both the production mutation and
+      the test pointing were reverted before the gate above.
+    </li>
+  </ul>
+
+  <p id="jtmm-machine-keyed-selection-tests">
+    Five new tests in <code>tests/gs/test_machine_selection.py</code> pin the
+    route: a JT-60SA selector selects OP1 shot 101173 to the pinned OP1 artifact
+    with a <code>jt-60sa</code> table signature; resolving <code>jt-60sa</code>
+    with no digest is refused naming the machine; an unknown machine is refused
+    when the selector is built; re-authoring both phases reproduces the pinned OP1
+    and OP2 rows; and MAST's resolution and selection are unchanged. The pin
+    table's rows are quoted above so a reader can check the identities the route
+    resolves against without opening the module.
+  </p>
+</section>
