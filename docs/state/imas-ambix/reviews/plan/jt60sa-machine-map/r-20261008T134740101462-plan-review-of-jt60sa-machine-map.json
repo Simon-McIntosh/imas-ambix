@@ -1,0 +1,63 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T13:56:48.827Z",
+  "dispatched_at": "2026-10-08T13:48:12Z",
+  "findings": [
+    {
+      "anchor": "plan.html:443",
+      "id": "reasoning-1",
+      "reason": "jtmm-machine-keyed-selection cannot key a machine-indexed table to hold two jt-60sa rows, nor decide which phase artifact `resolve_machine_description(machine)` returns, without inventing a key the plan does not state.",
+      "text": "the changed sentence gives the pin table \"one JT-60SA row for each phase\" while the table is still described as \"keyed by machine\" and `resolve_machine_description`/`author_pinned_description` as taking only \"a machine\", so the table's key and the phase-selection input to those two functions are left unspecified",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "3e2ed14c1fcc18a44b3dc75a43cda4cc74eed5b362c18d51911581177ed63825",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 384,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v385 (commit 87e930b0): the table stays keyed by machine, and each machine's entry holds one row per pinned physical identity (MAST one, JT-60SA two, one per phase); resolve_machine_description and author_pinned_description take the machine and the physical digest the shot's identity names, the digest omissible only for a one-row machine, so a JT-60SA call without one or with an unheld digest is refused by name; the selector looks up the shot's identity first and resolves by its digest.",
+      "when": "2026-10-08T13:58:38.123664+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v385 (commit 87e930b0): the table stays keyed by machine, and each machine's entry holds one row per pinned physical identity (MAST one, JT-60SA two, one per phase); resolve_machine_description and author_pinned_description take the machine and the physical digest the shot's identity names, the digest omissible only for a one-row machine, so a JT-60SA call without one or with an unheld digest is refused by name; the selector looks up the shot's identity first and resolves by its digest.",
+      "when": "2026-10-08T13:58:38.123664+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v384.json",
+  "review_run_id": "r-20261008T134740101462-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "39f7868be2ae06a0b8cdc68b083994b27c63fd9e",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every target the changed units cite resolves: decision `operating-phase-of-existing-pulses` (plan.html:716); `maps/jt-60sa/machine_description/OP1` and `/OP2` (each holds the five IDS files plus `maps/jt-60sa/machine_description/OP*/receipt.json`); nova's `create_machine_artifact_manifest`, `materialize_machine_artifact`, `resolve_machine_artifact` (nova/imas/machine_artifact.py:696,741,768); MAST's `publish_refined_artifact` (nova/imas/mast_geometry.py:541) and DIII-D's `publish_diiid_machine_artifact` (nova/scripts/diiid_machine_artifact.py:336); and MAST's `write_and_reopen` (nova/imas/mast_geometry.py:635, emitting `imas:hdf5?path=...`).",
+    "done_when": "pass \u2014 the changed units add no node done-when; \u00a77's section done-when is unchanged and still carries its 0.10 m boundary floor and the flipped-loop-7 must-fail control (plan.html:506-510).",
+    "evidence_paths": "pass \u2014 the changed text names the durable /work bundle staging directory and the IMAS HDF5 entry it writes; no session scratchpad or node-local temporary path is introduced.",
+    "naming": "pass \u2014 the changed prose introduces no plan label, stage name or ticket number into a code symbol or filename; the node ids remain plan-side.",
+    "reasoning": "a finding \u2014 the pin table is still declared \"keyed by machine\" yet the change gives it \"one JT-60SA row for each phase\", and the two functions said to take it take only \"a machine\", so nothing selects the phase (plan.html:443).",
+    "single_goal": "pass \u2014 the producer remains one deliverable (author the JT-60SA description artifact), now emitted once per operating phase; the two artifacts are a consequence of one device having two configurations, not two goals.",
+    "wiring": "pass \u2014 the change adds no depends-on/gates edge; the gate `conventions-before-equilibrium` still gates s7 and the newly cited decision `operating-phase-of-existing-pulses` (data-sections s4,s7) resolves at plan.html:716 and covers s7."
+  },
+  "section_digests": {
+    "_document": "1a041e1b69e7c648e3848440450d2aa25ac955ec54bdbca27a0558b3e2fb8c3a",
+    "s1": "52731ac311aa8ac6ed57dc5f58a5868e5f9e2e34b4e132f297830fa912abbc0f",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "aa6b4d20afde36de3832d35fbdfe2418db3a64ff8451ccefa6f3d3668757db82",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T13:58:29.592101+00:00"
+}
