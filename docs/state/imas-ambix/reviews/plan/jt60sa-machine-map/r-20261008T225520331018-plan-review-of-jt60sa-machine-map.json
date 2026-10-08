@@ -1,0 +1,63 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T23:11:50.024Z",
+  "dispatched_at": "2026-10-08T22:55:58Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-machine-map.html:602",
+      "id": "reasoning-1",
+      "reason": "a node implementing \"q95 relative difference against SELENE\" would either blockade on a value PSRC never carries, or silently source it elsewhere, and the section's own decision already establishes that SELENE q exists for one shot only.",
+      "text": "\u00a77 states that \"q95 and Ip ... are reported per shot in the stamped record as relative differences against SELENE\", but the frozen benchmark set is the sixteen 2023 OP1 shots and the plan's own decision jt60sa-psi-q-source (\u00a77 lines 265-266 and the decision at lines 892-902) records that SELENE's PSRC category carries no q profile and that E101011's G-EQDSK is the single q reference \u2014 so fourteen-plus of the sixteen shots have no SELENE q95 to subtract. The plan needs to name the q95 reference it actually means (the EDDB FAME scalars, which \u00a76 already uses for q-handedness, or None where absent), exactly as it does for the boundary, axis and Ip references.",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "f3a1b20735957007dc2e05fdc2d716ad5e8fcd68d6e4f81a596b5cfffd1f4402",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 420,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v421: q95 is reported against the EDDB FAME Q95 scalar the equilibrium map binds, recorded as absent where a shot lacks it, and Ip against PSRC's calIp from the same SELENE run; PSRC carries no q per jt60sa-psi-q-source.",
+      "when": "2026-10-08T23:13:21.165186+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v421: q95 is reported against the EDDB FAME Q95 scalar the equilibrium map binds, recorded as absent where a shot lacks it, and Ip against PSRC's calIp from the same SELENE run; PSRC carries no q per jt60sa-psi-q-source.",
+      "when": "2026-10-08T23:13:21.165186+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v420.json",
+  "review_run_id": "r-20261008T225520331018-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "459b1264274536126b248cecc2fd22eb5c668d0b",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 verified against the tree: load_geqdsk (imas_ambix/challenge/loader.py:162), eqdsk>=0.8.0 in pyproject.toml, IDS_NAMES absent of equilibrium, the three PINNED_* constants and the exact test-site counts (8/3/9), the seven tokamap_export names, MachineArtifactGeometryReader.machine=\"mast\", judge_geometry, resolve_machine_description, author_pinned_description, _magnetics_residual, the geometry_adapter _materialise_circuit_drives, DIII-D's last_shot 2147483647, JT60SA_FROZEN_SHOTSET/v0-jt60sa-op1-16, maps/jt-60sa/maps/equilibrium.json, and the landed-page anchors #s3\u2013#s6; no code reads surfABVxp or calRp0, as \u00a77 states.",
+    "done_when": "pass \u2014 the section's done-when is a measurable record (boundary RMS under 0.10 m per shot, a stamped provenance naming MachineArtifactGeometrySource and the resolved physical digest) and it declares two negative controls: the loop-7 channel_factor flip and the psi-binding sign flip, each stated to fail the measure it guards.",
+    "evidence_paths": "pass \u2014 no gate or fragment is placed in a session scratchpad or node-local temp; the handoff notes name durable locations (the codex report probe log under ~/.config/reckon/crew/reports/, GPFS /work/projects/imas_gpu/jt60sa/) and \u00a78 routes the heavy gates (census, vacuum adjudication, spine stamp) to SLURM rather than the login node.",
+    "naming": "pass \u2014 the plan's new symbols are named by mechanism (author_jt60sa_machine_artifacts, Jt60saGeometryRegistry, representation_digest, resolve_machine_description) rather than by plan label, and no comment or identifier carries a stage name or ticket number.",
+    "reasoning": "a finding \u2014 \u00a77 reports q95 \"against SELENE\" per shot, but its own decision records that SELENE's PSRC carries no q and only E101011 has one.",
+    "single_goal": "pass \u2014 \u00a77 names each unit of work as its own node (jtmm-jt60sa-registry, jtmm-artifact-drive-map, jtmm-machine-keyed-selection, jtmm-selene-psrc-loader, jtmm-selene-reference-loader, jtmm-geqdsk-psi-store, the stamp, jtmm-tokamap-jt60sa), and the one place two checks meet (the stamp, and the psi binding \"has its own check\") is split by the plan itself.",
+    "wiring": "pass \u2014 plan-blocks, the section declarations, each decision's data-sections and each gate's data-section/data-gated-sections resolve to the sections they name (conventions-before-equilibrium gates s7, g-jt60sa-machine-map-1 gates s5), and no dependency the plan states in prose (registry before selection before stamp) is left unexpressed or aimed at the wrong section."
+  },
+  "section_digests": {
+    "_document": "aeae9043f53534ca2bc015344ff6611bcb0f8f1fd2d90c733ffbe2bbfb65ca84",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "fdefec37202e271fcda00b7ed0291b3e0861521fe810e7a097ae8032469bc66e",
+    "s8": "acaa8e846bc7d30783f4709d0009ac816bf41baeed2fe1392b0574460f80e420"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T23:13:21.162478+00:00"
+}
