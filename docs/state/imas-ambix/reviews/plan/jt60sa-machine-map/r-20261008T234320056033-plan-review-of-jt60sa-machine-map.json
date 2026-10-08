@@ -1,0 +1,84 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T23:58:23.016Z",
+  "dispatched_at": "2026-10-08T23:44:00Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:912",
+      "id": "reasoning-1",
+      "reason": "a node that follows the cited decision would pass `calCCSRc`/`calCCSZc`, the coarse centre the landed scope node (jtmm-reference-scope, :1235, :1241) explicitly routed away from, so the decision text must be corrected to \"magnetic axis\" (or \u00a77 made to match).",
+      "text": "the decision `jt60sa-psi-q-source` rationale says \u00a77 takes \"PSRC's boundary, X-point, plasma centre and plasma current\", but the changed \u00a77 clause (:273-274) and the section body (:597-599, \"never PSRC's plasma centre `calCCSRc` and `calCCSZc`. That centre is a geometric marker \u2026 0.113 m from the axis\") name the magnetic axis (`calRp0`/`calZp0`) as the reference-loader axis, so the plan states two different PSRC arrays as the one axis source",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:303-309",
+      "id": "reasoning-2",
+      "reason": "the plan either has an orphan node (minted IDS with no consumer) or an undeclared dependency of the psi check on the mint, and a worker building the psi-store node cannot tell which; naming the consumer fixes it either way.",
+      "text": "the changed unit splits the equilibrium-IDS mint into `jtmm-pulse-writer-equilibrium` and then says only \"The stamp does not wait on it, because the stamp reads coil and magnetics data\", naming no \u00a77 step that does consume the minted `equilibrium` IDS, while the psi-store node immediately above \"meets the psi check in the done-when below, read through the engine\" (:303) and the done-when check reads `equilibrium/time_slice/profiles_2d/psi` (:629-632) \u2014 a path the section says only this new node can mint because \"the writer mints each IDS over a description container that equilibrium does not have\" (:306-307)",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "d1716cde99ad6a444e0aaf63b2bd5744694f17d588b987831636ac839c17b536",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 426,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v431: section 7 now states that it reads PSRC's magnetic axis calRp0/calZp0 where decision jt60sa-psi-q-source's rationale lists the plasma centre, citing jtmm-reference-scope's measurement that calCCSRc/calCCSZc is a 0.2 m-grid geometric marker 0.113 m from the axis; the lead's locked decision text is left as written.",
+      "when": "2026-10-08T23:58:54.770533+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-2",
+      "reason": "Plan v431: section 7 mints no equilibrium IDS; writing it through the pulse writer is jt60sa-pulse-ids section 2's work, which consumes this binding, and the split-out node is withdrawn. The psi check reads through the engine and the stamp reads coil and magnetics data.",
+      "when": "2026-10-08T23:58:54.774474+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v431: section 7 now states that it reads PSRC's magnetic axis calRp0/calZp0 where decision jt60sa-psi-q-source's rationale lists the plasma centre, citing jtmm-reference-scope's measurement that calCCSRc/calCCSZc is a 0.2 m-grid geometric marker 0.113 m from the axis; the lead's locked decision text is left as written.",
+      "when": "2026-10-08T23:58:54.770533+00:00"
+    },
+    "reasoning-2": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v431: section 7 mints no equilibrium IDS; writing it through the pulse writer is jt60sa-pulse-ids section 2's work, which consumes this binding, and the split-out node is withdrawn. The psi check reads through the engine and the stamp reads coil and magnetics data.",
+      "when": "2026-10-08T23:58:54.774474+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v426.json",
+  "review_run_id": "r-20261008T234320056033-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "76b78d895f61fd9cb9ba3f2970d58fce30438723",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 the decision anchor resolves at :903 and the module anchor resolves: `packages/imas-alambic/src/imas_alambic/pulse_writer.py:71` does declare `IDS_NAMES = (\"pf_active\", \"pf_passive\", \"wall\", \"magnetics\", \"tf\")`, lacking `equilibrium` as the changed clause claims.",
+    "done_when": "pass \u2014 the new node's claim is carried by \u00a77's psi check, which declares a negative control (\"The same comparison with the binding's sign flipped must fail it\", :636-637), and the stamp's done-when keeps its must-fail control (loop 7's `channel_factor` flipped to +1 must raise the residual, :627-629).",
+    "evidence_paths": "pass \u2014 the changed units introduce no new gate path; \u00a77's evidence stays under `docs/evidence/fragments/jt60sa-machine-map/` and the stamp record on a SLURM compute node (:620-624).",
+    "naming": "pass \u2014 the changed text adds only the plan node id `jtmm-pulse-writer-equilibrium` and names the real `IDS_NAMES` constant; no plan label, stage name or ticket reference enters a code symbol or comment.",
+    "reasoning": "a finding \u2014 the referenced decision names a different PSRC quantity for the reference axis than \u00a77 does, and the split-out equilibrium-IDS node is given no caller in \u00a77.",
+    "single_goal": "pass \u2014 `jtmm-pulse-writer-equilibrium` carries the single deliverable \"settle how an equilibrium IDS is minted from mapped signals alone\" (:307-308).",
+    "wiring": "pass \u2014 the new node `jtmm-pulse-writer-equilibrium` is given an explicit relationship to the stamp (\"The stamp does not wait on it\", :308-309) and its cited decision `jt60sa-psi-q-source` resolves at :903; \u00a78's item-5 list (:658-660) already names only a subset of \u00a77's nodes (it omits the producer, registry and drive-map nodes), so the new node's absence there is not a broken edge."
+  },
+  "section_digests": {
+    "_document": "aeae9043f53534ca2bc015344ff6611bcb0f8f1fd2d90c733ffbe2bbfb65ca84",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "424b0098512338565f70a87854cbebfd10ca95a51550ab4c592da9ceb22186a2",
+    "s8": "acaa8e846bc7d30783f4709d0009ac816bf41baeed2fe1392b0574460f80e420"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T23:58:54.768172+00:00"
+}
