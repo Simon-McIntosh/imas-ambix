@@ -20,6 +20,7 @@ from imas.ids_metadata import IDSDataType
 from imas_alambic.machine_map import bundles_carrying
 from imas_ambix.data import selene_deck as sd
 from imas_ambix.data.paths import JT60SA_DESCRIPTION_DIR, JT60SA_MAP_DIR
+from tests.jt60sa_bundle import requires_jt60sa
 
 # The facility decks the converter reads live in the project description store,
 # not in any reckon reports directory.
@@ -30,10 +31,7 @@ REAL_COIL_VV = REAL_DECK_SOURCE / "coil_vv_OP2.dat"
 REAL_COIL_VV_OP1 = REAL_DECK_SOURCE / "coil_vv_OP1.dat"
 
 
-@pytest.mark.skipif(
-    not JT60SA_MAP_DIR.is_dir(),
-    reason="the private JT-60SA map directory is not present",
-)
+@requires_jt60sa
 def test_ambix_entry_point_finds_jt60sa_without_a_map_path(monkeypatch):
     """With no ``IMAS_ALAMBIC_MAP_PATH``, ambix's entry point carries jt-60sa."""
 
