@@ -1,0 +1,69 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed run declared no pytest suite; its manifest carries no baseline_suite or after_suite, and its gate logs control.log and verification.log both end EXIT=0 with no failing test id, so no added failures",
+  "base_log_revision": "9a9f2f82aafff0cc56294ddbfefe4b605989bca5",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-08T05:52:18.911Z",
+  "dispatched_at": "2026-10-08T05:37:05Z",
+  "findings": [
+    {
+      "file": "docs/figures/local-lane-occupancy/control.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the regenerated control.log attests revision=3c271afead4ac7763489452b2695a87f2291b250, the first commit, not the head 243db56e8021d958d82066abe467a48b68bc0189 that carries the log. This is the shape the brief asked for (the base log likewise named its parent), but a reader cannot tie the delivered control receipt to the head revision that carries it."
+    },
+    {
+      "file": "docs/figures/local-lane-occupancy/request_width_measure.py",
+      "line": "164",
+      "severity": "follow-on",
+      "text": "follow-on: control() exercises aggregate_knee alone; the per-request piecewise fit (piecewise_break) and the thrash onset (onset) carry no synthetic input, so \"no break detected\" and \"onset width 33\" remain uncalibrated. Preserved byte-identically from the reviewed width script, so this is inherited, not introduced by this run."
+    },
+    {
+      "file": "docs/figures/local-lane-occupancy/request_width_measure.py",
+      "line": "1226",
+      "severity": "follow-on",
+      "text": "follow-on: the recommendation remains structurally pinned to 16 \u2014 lower_supported requires request_break is not None, so proposed is 16 whenever no per-request break is found, regardless of the aggregate knee. Preserved from the reviewed width script; inherited, not introduced."
+    }
+  ],
+  "head_log_revision": "3c271afead4ac7763489452b2695a87f2291b250",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "the two scripts are measurement drivers under docs/figures/local-lane-occupancy/; no production module imports either, and the change is a file move plus a byte-identical restore, so no call sites are affected",
+    "diff": "read revision by revision; 3c271afe restores occupancy_measure.py to the cited KV reducer blob 4fd7ec02 and adds request_width_measure.py byte-identical to the reviewed width blob 185d7c3b, and 243db56e regenerates control.log against the new path; the diff from base c2208398 touches exactly the three granted paths",
+    "done_when": "all six brief conditions verified: cmp of the restored occupancy_measure.py against the 4c7dcc79 blob exits 0 (blob 4fd7ec02); diff of the reviewed width blob against request_width_measure.py is empty, so only self-path lines differ (there are none); git diff --stat c2208398..243db56e names exactly occupancy_measure.py, request_width_measure.py and control.log; control.log reports planted detected_width=12 and flat detected_width=null ending EXIT=0; ruff adds no findings; the preserved outputs measure.log, occupancy_stats.json and the five SVGs are untouched",
+    "goal": "the brief's goal was to keep the cited KV-occupancy reducer at its path and give the request-width measurement its own script; occupancy_measure.py is byte-identical to the cited KV reducer (interface --job/--json/--png/--control) and request_width_measure.py carries the reviewed width measurement (interface --control/--measure), so both the plan citations docs/plans/local-lane-admission-control.html:320 and docs/evidence/archive/local-lane-admission-control-landed.html:363 resolve again",
+    "manifest": "read; status complete, two revisions, three changed paths, verification.log and control.log both EXIT=0, baseline_suite and after_suite absent because this is a measurement node with no pytest suite; the manifest accurately states that the width script contains no self-path lines, which the empty DW2 diff confirms",
+    "write_paths": "all three changed paths are inside docs/figures/local-lane-occupancy/; no imas_ambix/, gate, router, serve job or plan path is modified, and the reviewed worktree is clean at 243db56e"
+  },
+  "justifications": {
+    "durability": "request_width_measure.py:164-179 asserts the aggregate reduction recovers a planted width of 12 within 1 and reports None on a flat curve, which I reproduced (planted detected_width 12, CI [12,12]; flat null), and restoring occupancy_measure.py re-establishes the producer for the artifacts occupancy.json, occupancy_control.json and synthetic_cliff.log that the landed record cites; points off because the piecewise per-request fit and the thrash onset carry no synthetic control, a gap inherited byte-for-byte from the reviewed width script rather than introduced here.",
+    "evidence": "the control reproduces identically under my independent run from the reviewed worktree, control.log's header names the revision, tree and command and ends EXIT=0, verification.log records all four comparison EXIT=0, and ruff passes with no findings; the residual is that the control log names the first commit 3c271afe rather than the head 243db56e, so a reader cannot tie the receipt to the head that carries it, which matches the base log's shape but is still a gap.",
+    "fit": "request_width_measure.py names itself by what it does, its module docstring and argparse usage describe the request-width measurement (not the KV reducer), it contains no self-path reference (only ROOT = Path(__file__).resolve().parent), so byte-identity with the reviewed blob is the correct outcome; occupancy_measure.py's restored docstring matches the KV reducer; ruff passes.",
+    "goal_fidelity": "every brief condition is met and independently verified: the cited reducer is restored byte-identical (cmp exit 0), the width measurement is delivered at its own path (empty DW2 diff), only the control was re-run and it passes, and --measure was not re-run so measure.log, occupancy_stats.json and the five SVGs stay byte-identical to the reviewed head, reversing the orphaning the earlier review flagged at occupancy.json.",
+    "reuse": "the restore re-uses imas_ambix.agent.decode_bins.parse_decode_lines and physical_lines and the telemetry index unchanged; no new capability is duplicated by this run, though the width script's receipt-derived per-request rate still overlaps imas_ambix/agent/receipt_bins.py summarise_receipt_rows as the earlier review noted, an inherited overlap this move does not worsen.",
+    "scope_discipline": "the diff from base c2208398 to head 243db56e touches exactly the three granted paths, the reviewed worktree is clean at 243db56e, and no imas_ambix/, gate, router or plan path is modified."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261008T052633281212-occupancy-script-split, head 243db56e8021d958d82066abe467a48b68bc0189 on base c22083989ec9477426bc1102f52e581d9b45c0f9.\n\nThe node repairs a scoping error: the prior run overwrote the cited KV-occupancy reducer at docs/figures/local-lane-occupancy/occupancy_measure.py with its own request-width measurement. This node restores the KV reducer byte-identical and moves the width measurement to its own script.\n\nREPRODUCTION (mine). In the reviewed worktree at 243db56e I ran the width control: python docs/figures/local-lane-occupancy/request_width_measure.py --control -> {\"flat\": {\"bootstrap_ci95\": null, \"detected_width\": null}, \"planted\": {\"bootstrap_ci95\": [12, 12], \"detected_width\": 12}}, EXIT=0. The planted knee is recovered exactly and the flat curve reports none, matching control.log. ruff check on request_width_measure.py: All checks passed.\n\nVERDICT goal: the brief's goal was to keep the cited KV-occupancy reducer at its path and give the request-width measurement its own script; occupancy_measure.py is byte-identical to the cited KV reducer (interface --job/--json/--png/--control) and request_width_measure.py carries the reviewed width measurement (interface --control/--measure), so both the plan citations docs/plans/local-lane-admission-control.html:320 and docs/evidence/archive/local-lane-admission-control-landed.html:363 resolve again.\nVERDICT done_when: all six brief conditions verified: cmp of the restored occupancy_measure.py against the 4c7dcc79 blob exits 0 (blob 4fd7ec02); diff of the reviewed width blob against request_width_measure.py is empty, so only self-path lines differ (there are none); git diff --stat c2208398..243db56e names exactly occupancy_measure.py, request_width_measure.py and control.log; control.log reports planted detected_width=12 and flat detected_width=null ending EXIT=0; ruff adds no findings; the preserved outputs measure.log, occupancy_stats.json and the five SVGs are untouched.\nVERDICT write_paths: all three changed paths are inside docs/figures/local-lane-occupancy/; no imas_ambix/, gate, router, serve job or plan path is modified, and the reviewed worktree is clean at 243db56e.\nVERDICT manifest: read; status complete, two revisions, three changed paths, verification.log and control.log both EXIT=0, baseline_suite and after_suite absent because this is a measurement node with no pytest suite.\nVERDICT diff: read revision by revision; 3c271afe restores occupancy_measure.py to the cited KV reducer blob 4fd7ec02 and adds request_width_measure.py byte-identical to the reviewed width blob 185d7c3b, and 243db56e regenerates control.log against the new path.\nCALL_SITES: none\n\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: every brief condition is met and independently verified: the cited reducer is restored byte-identical (cmp exit 0), the width measurement is delivered at its own path (empty DW2 diff), only the control was re-run and it passes, and --measure was not re-run so measure.log, occupancy_stats.json and the five SVGs stay byte-identical to the reviewed head, reversing the orphaning the earlier review flagged at occupancy.json.\nSCORE evidence: 17\nJUSTIFICATION evidence: the control reproduces identically under my independent run from the reviewed worktree, control.log's header names the revision, tree and command and ends EXIT=0, verification.log records all four comparison EXIT=0, and ruff passes with no findings; the residual is that the control log names the first commit 3c271afe rather than the head 243db56e, so a reader cannot tie the receipt to the head that carries it.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff from base c2208398 to head 243db56e touches exactly the three granted paths, the reviewed worktree is clean at 243db56e, and no imas_ambix/, gate, router or plan path is modified.\nSCORE durability: 17\nJUSTIFICATION durability: request_width_measure.py:164-179 asserts the aggregate reduction recovers a planted width of 12 within 1 and reports None on a flat curve, which I reproduced, and restoring occupancy_measure.py re-establishes the producer for the artifacts occupancy.json, occupancy_control.json and synthetic_cliff.log that the landed record cites; points off because the piecewise per-request fit and the thrash onset carry no synthetic control, a gap inherited byte-for-byte from the reviewed width script.\nSCORE fit: 18\nJUSTIFICATION fit: request_width_measure.py names itself by what it does, its module docstring and argparse usage describe the request-width measurement (not the KV reducer), it contains no self-path reference (only ROOT = Path(__file__).resolve().parent), so byte-identity with the reviewed blob is the correct outcome; occupancy_measure.py's restored docstring matches the KV reducer; ruff passes.\nSCORE reuse: 16\nJUSTIFICATION reuse: the restore re-uses imas_ambix.agent.decode_bins.parse_decode_lines and physical_lines and the telemetry index unchanged; no new capability is duplicated by this run, though the width script's receipt-derived per-request rate still overlaps imas_ambix/agent/receipt_bins.py summarise_receipt_rows, an inherited overlap this move does not worsen.\n\nFINDING docs/figures/local-lane-occupancy/control.log:1 follow-on: the regenerated control.log attests revision=3c271afead4ac7763489452b2695a87f2291b250, the first commit, not the head 243db56e8021d958d82066abe467a48b68bc0189 that carries the log. This is the shape the brief asked for, but a reader cannot tie the delivered control receipt to the head revision that carries it.\nFINDING docs/figures/local-lane-occupancy/request_width_measure.py:164 follow-on: control() exercises aggregate_knee alone; the per-request piecewise fit (piecewise_break) and the thrash onset (onset) carry no synthetic input. Preserved byte-identically from the reviewed width script, so this is inherited, not introduced.\nFINDING docs/figures/local-lane-occupancy/request_width_measure.py:1226 follow-on: the recommendation remains structurally pinned to 16 \u2014 lower_supported requires request_break is not None. Preserved from the reviewed width script; inherited, not introduced.",
+  "review_run_id": "r-20261008T053653846923-review-of-occupancy-script-split",
+  "reviewed_base_sha": "c22083989ec9477426bc1102f52e581d9b45c0f9",
+  "reviewed_head_sha": "243db56e8021d958d82066abe467a48b68bc0189",
+  "reviewed_run_id": "r-20261008T052633281212-occupancy-script-split",
+  "scores": {
+    "durability": 17,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 16,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T05:47:43.821556+00:00",
+  "total": 107
+}
