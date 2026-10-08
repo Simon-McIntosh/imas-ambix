@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.94">
-<meta name="plan-version" content="405">
+<meta name="plan-version" content="406">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -581,8 +581,10 @@
       own check, because the stamp reads only coil and magnetics data and cannot see it. E101011's
       psi, read through the binding at the time of its G-EQDSK, must agree on the G-EQDSK grid
       with the G-EQDSK psi from the same SELENE run (<code>load_geqdsk</code>). Both are compared in
-      the dictionary's COCOS 17, the G-EQDSK psi converted by the §6 sign report's coefficients,
-      and the normalised RMS difference must be under 1% of that psi's range. The same comparison
+      the dictionary's COCOS 17. The §6 sign report classifies the G-EQDSK psi as COCOS 1
+      (σ_Bp = +1, e_Bp = 0, per radian). Going to COCOS 17 flips σ_Bp and raises e_Bp to 1, so the
+      G-EQDSK psi is multiplied by −2π before the comparison. The normalised RMS difference must
+      be under 1% of that psi's range. The same comparison
       with the binding's sign flipped must fail it. Beyond those checks the first stamp is the
       baseline that later map corrections are judged against.
     </p>
