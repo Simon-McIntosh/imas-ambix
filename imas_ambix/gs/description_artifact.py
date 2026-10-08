@@ -12,6 +12,13 @@ different ``pf_passive`` and ``wall`` content, so each phase's physical digest
 is derived from its own geometry content and the two artifacts carry disjoint
 shot ranges but one shared registry digest.
 
+The geometry, registry and shot-range identity is derived, but the operator-
+ready evidence layer is not authored here: the producer supplies no field-
+evidence ledger and derives no channel drive map from the phase drive topology
+in ``machine_map.json``.  Each phase artifact is therefore created
+``complete=False``, its ``unresolved_gaps`` naming both absences, and it becomes
+``complete`` only when both are supplied -- which this producer does not do.
+
 For each phase the producer reads the phase's five IDSs from its description
 store through imas, writes them into a fresh IMAS HDF5 entry
 (``imas:hdf5?path=``, the directory form
@@ -39,6 +46,7 @@ from typing import TYPE_CHECKING, Any
 import imas
 import numpy as np
 
+from imas_ambix.data.paths import JT60SA_MAP_DIR
 from imas_ambix.gs.artifact_geometry import (
     read_artifact_limiter,
     read_artifact_magnetics,
@@ -47,7 +55,7 @@ from imas_ambix.gs.artifact_geometry import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
+    from collections.abc import Mapping, Sequence
 
 #: The machine identity these artifacts are authored as.
 MACHINE = "jt-60sa"
@@ -64,15 +72,29 @@ DD_VERSION = "4.1.1"
 #: The schema of the JT-60SA geometry registry this module builds.
 REGISTRY_SCHEMA = "imas-ambix-jt-60sa-geometry-registry"
 
-#: The in-checkout phase description stores, addressed absolutely because the
-#: maps tree reaches a worktree through a symlink to the main checkout.
-DEFAULT_DESCRIPTION_ROOT = Path(
-    "/home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/machine_description"
-)
+#: The in-checkout phase description stores.  The maps tree reaches a worktree
+#: through a symlink to the main checkout, so these derive from the repository's
+#: own map address rather than a hard-wired absolute path.
+DEFAULT_DESCRIPTION_ROOT = JT60SA_MAP_DIR / "machine_description"
 
 #: The packaged catalogue carrying each phase's first and last shot.
-DEFAULT_MACHINE_MAP = Path(
-    "/home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/machine_map.json"
+DEFAULT_MACHINE_MAP = JT60SA_MAP_DIR / "machine_map.json"
+
+#: Each phase's shot-range evidence, keyed by phase.  OP1 is ``observed`` because
+#: its description was checked against acquired OP1 pulses.  OP2 is
+#: ``inherited`` because EDDB holds no OP2 pulse, so its identity comes from the
+#: declared description alone.
+PHASE_SHOT_EVIDENCE: dict[str, str] = {
+    "OP1": "observed",
+    "OP2": "inherited",
+}
+
+#: The evidence the producer does not yet author.  Both absences are named on
+#: every phase artifact, so each is created incomplete until they are supplied.
+NO_FIELD_EVIDENCE_GAP = "no field evidence ledger is authored"
+DRIVE_TOPOLOGY_GAP = (
+    "the channel drive map is not authored from the {phase} drive topology "
+    "({drive_topology}) in machine_map.json"
 )
 
 
@@ -185,7 +207,7 @@ def build_jt60sa_registry(
     }
     ranges = tuple(
         {
-            "evidence": "observed",
+            "evidence": PHASE_SHOT_EVIDENCE[phase],
             "first_shot": int(shot_ranges[phase][0]),
             "last_shot": int(shot_ranges[phase][1]),
             "phase": phase,
@@ -239,6 +261,48 @@ def _phase_shot_ranges(
     return ranges
 
 
+def _phase_drive_topologies(
+    machine_map_path: Mapping[str, Any] | Path | str,
+) -> dict[str, str]:
+    """Return each phase's drive-topology key from the packaged catalogue."""
+    if isinstance(machine_map_path, (Path, str)):
+        payload = json.loads(Path(machine_map_path).read_text())
+    else:
+        payload = machine_map_path
+    topologies = {
+        str(row["name"]): str(row["drive_topology"]) for row in payload["maps"]
+    }
+    missing = [phase for phase in PHASES if phase not in topologies]
+    if missing:
+        raise ValueError(f"machine map names no drive topology for {missing}")
+    return topologies
+
+
+def _phase_completeness(
+    phase: str,
+    drive_topology: str,
+    *,
+    field_evidence: Sequence[Any] = (),
+    channel_drive: Sequence[Any] = (),
+) -> tuple[bool, tuple[str, ...]]:
+    """Derive one phase's completeness and the gaps it has not yet closed.
+
+    Completeness follows the evidence the phase carries rather than a constant.
+    The producer authors no field-evidence ledger and no channel drive map, so
+    both absences are named and the phase stays incomplete; it becomes complete
+    only when both are supplied.  The gap text is trimmed and canonically
+    ordered, so nova's manifest validator accepts it unchanged.
+    """
+    gaps: list[str] = []
+    if not field_evidence:
+        gaps.append(NO_FIELD_EVIDENCE_GAP)
+    if not channel_drive:
+        gaps.append(
+            DRIVE_TOPOLOGY_GAP.format(phase=phase, drive_topology=drive_topology)
+        )
+    return (not gaps, tuple(sorted(gaps)))
+
+
 def _write_phase_ids(ids: Mapping[str, Any], directory: Path) -> None:
     """Write a phase's five IDSs into an IMAS HDF5 entry in ``directory``."""
     directory.mkdir(parents=True, exist_ok=True)
@@ -270,6 +334,7 @@ def author_jt60sa_machine_artifacts(
 
     root = Path(description_root)
     shot_ranges = _phase_shot_ranges(machine_map_path)
+    drive_topologies = _phase_drive_topologies(machine_map_path)
 
     ids_by_phase = {phase: _read_phase_ids(root / phase) for phase in PHASES}
     geometries = {
@@ -280,12 +345,13 @@ def author_jt60sa_machine_artifacts(
     artifacts: dict[str, Any] = {}
     for phase in PHASES:
         physical_digest = registry.physical_digest(phase)
+        complete, gaps = _phase_completeness(phase, drive_topologies[phase])
         phase_ranges = (
             ArtifactShotRange(
                 first_shot=shot_ranges[phase][0],
                 last_shot=shot_ranges[phase][1],
                 physical_digest=physical_digest,
-                evidence="observed",
+                evidence=PHASE_SHOT_EVIDENCE[phase],
             ),
         )
         with tempfile.TemporaryDirectory() as work:
@@ -298,8 +364,8 @@ def author_jt60sa_machine_artifacts(
                 registry_digest=registry.registry_digest,
                 physical_digest=physical_digest,
                 shot_ranges=phase_ranges,
-                complete=True,
-                unresolved_gaps=(),
+                complete=complete,
+                unresolved_gaps=gaps,
             )
             materialize_machine_artifact(source, cache_directory, manifest)
         artifacts[phase] = resolve_machine_artifact(
@@ -307,6 +373,7 @@ def author_jt60sa_machine_artifacts(
             manifest.digest,
             expected_physical_digest=physical_digest,
             expected_registry_digest=registry.registry_digest,
+            allow_incomplete=not manifest.complete,
         )
     return artifacts
 
