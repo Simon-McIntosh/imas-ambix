@@ -1,0 +1,62 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T12:49:07.812Z",
+  "dispatched_at": "2026-10-08T12:32:44Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:604",
+      "id": "reasoning-1",
+      "reason": "the COCOS verdict and the gate outcome are unaffected; the wording only overstates how many rows the e_Bp measurement covers, and it is pre-existing text rather than something this change introduced.",
+      "text": "the gate evidence reads \"e_Bp = 0 measured on 17 rows including E101011's G-EQDSK\", but the fragment it cites scores the declared-flux-exponent check on row 101011 alone (\"scored on that row and unscored on the FAME rows, which carry no psi grid\"), so e_Bp is measured on one of the 17 rows",
+      "type": "reasoning",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "40ba251cd23b4c82b02caeafd65da32d66ab4cedc9ec800fe767668b276db947",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 373,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "finding": "reasoning-1",
+      "reason": "the passed gate evidence is a dated record and stays as written; plan v374 appends a correction comment stating e_Bp is measured on row 101011 alone; the verdict is unchanged",
+      "when": "2026-10-08T12:50:21.851432+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "declined",
+      "by": "c66d1ea6-525d-4cec-8114-013919000083",
+      "reason": "the passed gate evidence is a dated record and stays as written; plan v374 appends a correction comment stating e_Bp is measured on row 101011 alone; the verdict is unchanged",
+      "when": "2026-10-08T12:50:21.851432+00:00"
+    }
+  },
+  "review_run_id": "r-20261008T123214950143-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "b08c632defc81c68f6453a03da4c1dd40a2e05c3",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 the decision's cited fragment jtmm-sign-cohort.html and jtmm-sign-cohort-repair.html exist, the gate's evidence href resolves to jtmm-sign-cohort.html at 2aa0a799 (settled content), the cited loader module imas_ambix/challenge/loader.py exists, and the COCOS decision option value declare-cocos-1-geqdsk matches the chosen button.",
+    "done_when": "pass \u2014 \u00a77's done-when names a measurable floor (boundary RMS under 0.10 m) and a must-fail control (loop 7's channel_factor flipped to +1); loop 7's map entry is -1 (plan.html:1270), so the control mutates a real arm rather than restating the head.",
+    "evidence_paths": "pass \u2014 the changed text cites durable paths (the /work corpus copy at /work/projects/imas_gpu/jt60sa/101011.geqdsk and the fragment under docs/evidence/fragments/jt60sa-machine-map/), never a scratchpad.",
+    "naming": "pass \u2014 the changed \u00a77 sentences and the decision context carry no plan labels, stage names, ticket numbers or version tags into code; the node ids cited are the plan's own vocabulary.",
+    "reasoning": "pass \u2014 the changed \u00a77 mechanism runs on the real path (load_geqdsk \u2192 the reference loader seam), its reader exists and is reached by the sign cohort script, and the decision's stated cause (E101011's G-EQDSK measuring e_Bp = 0) is exactly what the fragment it relies on reports; one evidence-scope imprecision is reported below.",
+    "single_goal": "pass \u2014 \u00a77 carries one deliverable, the JT-60SA equilibrium map and its SELENE-as-comparator reconstruction gate; the changed sentences stay inside it.",
+    "wiring": "pass \u2014 the gate conventions-before-equilibrium (data-section/gated-sections s7) and the decision jt60sa-source-cocos (data-sections s6,s7) both reference existing sections, and \u00a77's dependency on \u00a76's sign report resolves to the landed jtmm-sign-cohort/jtmm-e101011-psi-row nodes."
+  },
+  "section_digests": {
+    "_document": "ee1a5b1a3ed9dfccb13a9e01ccdf1c46d299a599b1c8908b113d145cacf6c6fb",
+    "s1": "52731ac311aa8ac6ed57dc5f58a5868e5f9e2e34b4e132f297830fa912abbc0f",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "f87732f270d772f2c599bfc904c8b48efe191a83dca7bd675075fe303cd69213",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T12:50:21.786023+00:00"
+}
