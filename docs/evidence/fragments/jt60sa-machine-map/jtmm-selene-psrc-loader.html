@@ -1,0 +1,91 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-selene-psrc-loader">
+  <header>
+    <h3>The one SELENE PSRC reader returns the boundary above the X-point in metres</h3>
+    <p class="meta">
+      Node <code>jtmm-selene-psrc-loader</code> &middot;
+      date 2026-10-09 &middot;
+      plan <code>jt60sa-machine-map</code> &sect;7
+    </p>
+  </header>
+
+  <p>
+    <code>imas_ambix/data/selene_psrc.py</code> reads a shot's SELENE
+    reconstruction from the EDDB <code>PSRC</code> category and returns it as one
+    frozen value, <code>read_psrc_record</code>.  One
+    <code>PsrcRecord</code> carries the boundary above the X-point, the X-point
+    (<code>calRX</code>, <code>calZX</code>), the magnetic axis
+    (<code>calRp0</code>, <code>calZp0</code>) and the plasma current
+    (<code>calIp</code>), each with its own time base.  The boundary is a
+    <code>PsrcBoundary</code> holding one contour per time slice as a 1-D array
+    in metres.
+  </p>
+
+  <section id="jtmm-selene-psrc-loader-packing">
+    <h4>Packing and decode</h4>
+    <p>
+      <code>surfABVxp</code> is one packed record per slice in a 604-wide slot:
+      a type marker and a point count, a 300-slot R block in millimetres, a
+      second marker and count, a 300-slot Z block, the remainder zero fill.  The
+      decoder reads each block's count and keeps only the valid points, so no
+      fill entry survives into the returned contour, and divides each block by
+      1000 so the record is returned in metres.
+    </p>
+    <table>
+      <thead><tr><th>slot region</th><th>index</th><th>content</th></tr></thead>
+      <tbody>
+        <tr><td>R block header</td><td><code>0</code>&nbsp;&ndash;&nbsp;<code>1</code></td><td>marker <code>3.0</code>, R point count <code>nA</code></td></tr>
+        <tr><td>R vertices</td><td><code>2</code>&nbsp;&ndash;&nbsp;<code>301</code></td><td><code>nA</code> values in mm, then zero fill to 300</td></tr>
+        <tr><td>Z block header</td><td><code>302</code>&nbsp;&ndash;&nbsp;<code>303</code></td><td>marker <code>3.0</code>, Z point count</td></tr>
+        <tr><td>Z vertices</td><td><code>304</code>&nbsp;&ndash;&nbsp;<code>603</code></td><td>count values in mm, then zero fill to 300</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="jtmm-selene-psrc-loader-uniform-unit">
+    <h4>A uniform multi-entry unit list is served, a disagreeing one is refused</h4>
+    <p>
+      A packed multi-channel PSRC surface record returns a per-channel unit list
+      whose entries all name the same unit.  Both the client-side
+      <code>normalise_unit</code> and the reader script's <code>_unit</code>
+      inside <code>REMOTE_SCRIPT</code> now collapse a multi-entry list whose
+      entries all agree to that one unit, and still refuse a list naming several
+      distinct units.  The two are kept in step by executing
+      <code>REMOTE_SCRIPT</code> and running both over the same cases, so they
+      cannot drift: the client mirror raises <code>EddbRemoteError</code>, the
+      script raises a bare <code>RuntimeError</code>, and both name the
+      <code>multi-entry unit</code> refusal.
+    </p>
+  </section>
+
+  <section id="jtmm-selene-psrc-loader-gate">
+    <h4>Gate</h4>
+    <p>
+      <code>tests/data/test_selene_psrc.py</code> seeds a temporary on-demand
+      cache by copying the real cached PSRC arrays for shot 100599 read-only out
+      of <code>/work/projects/imas_gpu/jt60sa/100599.zarr</code>, and adds a
+      synthetic <code>surfABVxp</code> packed in millimetres with zero fill.  It
+      asserts the boundary is in metres with the fill entries dropped, that the
+      axis and X-point and current match the cached arrays at a sample time and
+      carry the source time bases, that a stub extractor serving
+      <code>surfABVxp</code> writes it through <code>fetch_channels</code> once
+      and the record then reads it, that a stub extractor refusing the channel
+      raises an error naming the shot and channel, and that an uncached channel
+      with no extractor is likewise refused.  Nothing under <code>/work</code> is
+      written, and no test opens ssh.
+    </p>
+    <p>
+      <code>tests/data/test_eddb_cache.py</code> runs both the client mirror and
+      the script's <code>_unit</code> over the agreeing and disagreeing cases,
+      and serves a uniform <code>["mm", "mm"]</code> unit list end to end through
+      the reader script.
+    </p>
+    <p>
+      The node's declared negative control returns <code>surfABVxp</code> without
+      the mm-to-m conversion.  Under it
+      <code>test_boundary_is_in_metres_with_fill_entries_dropped</code> fails
+      (the first contour reads <code>[1000., 1100., 1200.]</code> against the
+      expected <code>[1.0, 1.1, 1.2]</code>) at <code>EXIT=1</code>, while the
+      head arm passes the same gate at <code>EXIT=0</code>.
+    </p>
+  </section>
+</section>

@@ -193,10 +193,12 @@ def _signal_map(category: str, dname: str) -> SignalMap:
     )
 
 
-def _run_remote_script(tmp_path, requests: list[dict[str, str]]):
+def _run_remote_script(tmp_path, requests: list[dict[str, str]], wrapper=None):
     """Run the real REMOTE_SCRIPT locally against the fake eddb_pwrapper."""
 
-    (tmp_path / "eddb_pwrapper.py").write_text(FAKE_WRAPPER)
+    (tmp_path / "eddb_pwrapper.py").write_text(
+        FAKE_WRAPPER if wrapper is None else wrapper
+    )
     payload = json.dumps(
         {
             "api_path": str(tmp_path),
@@ -686,13 +688,87 @@ def test_the_cached_unit_is_the_eddb_unit_string_not_its_repr(tmp_path):
     assert stored.attrs["units"] == "A"
 
 
-def test_normalise_unit_takes_a_single_entry_and_refuses_a_multi_entry_list():
-    assert normalise_unit(["A"]) == "A"
-    assert normalise_unit("A") == "A"
-    assert normalise_unit(None) == ""
+def _remote_script_unit():
+    """The reader script's own ``_unit``, taken by exec of REMOTE_SCRIPT.
 
-    with pytest.raises(EddbRemoteError, match="multi-entry unit"):
-        normalise_unit(["A", "V"])
+    The script refuses a disagreeing unit list with a bare ``RuntimeError``,
+    while the client mirror raises ``EddbRemoteError``; executing the script's
+    source is how the two are compared without a second copy of the rule.
+    """
+
+    namespace: dict[str, object] = {"__name__": "eddb_remote_script"}
+    exec(REMOTE_SCRIPT, namespace)
+    return namespace["_unit"]
+
+
+# A unit list whose entries all agree yields that one unit; one that names
+# several distinct units is refused.  The client mirror and the reader script
+# must apply the same rule over the same cases so the two cannot drift.
+_UNIT_CASES = [
+    ("A", "A"),
+    (["A"], "A"),
+    (None, ""),
+    (["mm", "mm"], "mm"),
+    (["mm", "mm", "mm"], "mm"),
+]
+_UNIT_REFUSALS = [["A", "V"], ["mm", "m", "mm"]]
+
+
+def test_unit_rule_agrees_between_the_client_mirror_and_the_reader_script():
+    script_unit = _remote_script_unit()
+
+    for value, expected in _UNIT_CASES:
+        assert normalise_unit(value) == expected
+        assert script_unit(value) == expected
+
+    for value in _UNIT_REFUSALS:
+        with pytest.raises(EddbRemoteError, match="multi-entry unit"):
+            normalise_unit(value)
+        with pytest.raises(RuntimeError, match="multi-entry unit"):
+            script_unit(value)
+
+
+# A wrapper whose served channels carry a uniform per-channel unit list, the
+# shape a packed multi-channel PSRC surface record takes.
+UNIFORM_UNIT_WRAPPER = '''
+import numpy as np
+
+
+class eddbWrapper:
+    def __init__(self, lib_path):
+        self.lib_path = lib_path
+
+    def eddbOpen(self):
+        return True
+
+    def eddbClose(self):
+        return True
+
+    def eddbreadOne(self, *args, **kwargs):
+        return False, None
+
+    def eddbreadTime(self, shot, category, dname, t1, t2):
+        return True, {
+            "data": np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
+            "time": np.array([0.0, 0.5, 1.0]),
+            "unit": ["mm", "mm"],
+            "seq": 3,
+        }
+'''
+
+
+def test_remote_script_serves_a_uniform_multi_entry_unit(tmp_path):
+    completed = _run_remote_script(
+        tmp_path,
+        [{"shot": "E101154", "category": "PSRC", "dname": "surfABVxp"}],
+        wrapper=UNIFORM_UNIT_WRAPPER,
+    )
+
+    assert completed.returncode == 0, completed.stderr.decode()
+    record = decode_batch(completed.stdout).records[0]
+    assert record.unit == "mm"
+    assert record.nch == 2
+    assert np.array_equal(record.data, np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]))
 
 
 def test_envelope_round_trips_through_encode_and_decode():
