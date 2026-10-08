@@ -350,6 +350,10 @@ def _write_bundle_version(root: Path, version: str) -> None:
     try:
         with os.fdopen(fd, "w") as handle:
             handle.write(json.dumps(data, indent=2) + "\n")
+        # mkstemp creates its file mode 0600, and os.replace carries that mode
+        # onto the descriptor; give the replacement the descriptor's own bits so
+        # a published bundle keeps the mode it was written with.
+        os.chmod(tmp_name, os.stat(bundle).st_mode)
         os.replace(tmp_name, bundle)
     except BaseException:
         os.unlink(tmp_name)

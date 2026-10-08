@@ -11,6 +11,7 @@ module sorts it newest first before reading "the latest tag".
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -313,6 +314,27 @@ def test_release_leaves_the_bundle_bytes_intact_when_the_atomic_replace_fails(
 
     assert result.exit_code != 0
     assert (machine_dir / "bundle.json").read_bytes() == original
+
+
+def test_release_preserves_the_bundle_file_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    maps_dir = tmp_path / "maps"
+    machine_dir = maps_dir / "jt-60sa"
+    write_tree(machine_dir, version="2026.10.07")
+    bundle = machine_dir / "bundle.json"
+    os.chmod(bundle, 0o644)
+    monkeypatch.setattr(maps_cli, "MAPS_DIR", maps_dir)
+    registry = FakeRegistry(["2026.10.07", "v0.1.0"])
+    registry.install(monkeypatch)
+
+    result = CliRunner().invoke(
+        maps_cli.maps, ["release", "jt-60sa", "--bump", "minor"]
+    )
+
+    assert result.exit_code == 0, result.output
+    # mkstemp's 0600 must not become the published descriptor's mode.
+    assert (bundle.stat().st_mode & 0o777) == 0o644
 
 
 def test_release_skips_the_push_when_the_tree_digest_is_unchanged(
