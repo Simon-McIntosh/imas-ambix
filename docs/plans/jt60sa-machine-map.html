@@ -26,8 +26,8 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
-<meta name="plan-impl" content="0.92">
-<meta name="plan-version" content="387">
+<meta name="plan-impl" content="0.93">
+<meta name="plan-version" content="388">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -1068,6 +1068,9 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261008T131055200887-review-of-jtmm-shotset-table" data-who="reckon-build" data-when="2026-10-08T13:29:09.499Z">
     <div class="r-comment-body"><p>independent review of r-20261008T125122139684-jtmm-shotset-table: parsed six-dimension record stored at both scope paths -- goal_fidelity 20, evidence 20, scope_discipline 20, durability 19, fit 19, reuse 20, total 118, verdict pass -- reading cc8399f6 as reviewed_base_sha and 403aa7b6 as reviewed_head_sha, with added_failure_count 0 and added_failure_ids [] from reproduced base (101 passed) and head (110 passed) gate arms; one follow-on finding.</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-20261008T145400-eqdsk-dependency" data-who="reckon-build" data-when="2026-10-08T14:54:00Z">
+    <div class="r-comment-body"><p><code>jtmm-eqdsk-dependency</code> landed (09de3a2b): <code>eqdsk&gt;=0.8.0</code> is declared beside <code>torax</code> in <code>pyproject.toml</code>, and <code>uv.lock</code> gains only the two lines of the imas-ambix entry, with no resolved version moved. <code>uv lock</code> cannot resolve inside a reckon worktree, because the <code>../nova</code> and <code>../imas-ink</code> path sources are absent beside it. The worker therefore checked the lock in a mirror with the sibling layout (<code>uv lock --check</code> exit 0), and its control, the line removed with the lock kept, exits 1. The loader tests pass (5) and ruff is clean. Six named nodes remain: the per-phase artifact producer (running), the machine-keyed selection, the SELENE reference loader, the <code>profiles_2d</code> psi bindings, the reconstruction stamp, and the §2 tokamap export.</p></div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20261006T0430-gate-pass" data-who="reckon-build" data-when="2026-10-06T04:30:00Z">
     <div class="r-comment-body"><p>Gate g-jt60sa-machine-map-1 passed on the codex census receipt (imas-codex <code>docs/evidence/receipts/jt60sa-eddb-census-gate.json</code> at <code>9c1d3cef</code>). The graph's coverage is enough for a first-pass map. What it does not hold is which raw MDAC flux-loop and pickup-coil channel feeds which <code>geo.in</code> position. SELENE's input code holds that: the <code>#MAG</code> index arrays <code>JLOOP</code>, <code>JTPRB</code> and <code>JNPRB</code>, filled by <code>getseldata_v4.2</code>, which codex is now indexing under its plan's §14. The processed PSRC and raw MDAC flux loops already cached for E101154 give the per-channel scale and sign offline.</p></div>
