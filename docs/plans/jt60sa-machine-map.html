@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.94">
-<meta name="plan-version" content="402">
+<meta name="plan-version" content="404">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -277,9 +277,9 @@
       and §7 reads that copy. §6's <code>jtmm-e101011-psi-row</code>
       added the one G-EQDSK reader (<code>load_geqdsk</code> in
       <code>imas_ambix/challenge/loader.py</code>), which imports <code>eqdsk</code> through torax's
-      installed copy. The package is not yet declared directly in <code>pyproject.toml</code>:
-      <code>jtmm-eqdsk-dependency</code> declares it and updates <code>uv.lock</code>, on a lane whose
-      context fits the lock file, and §7 writes no G-EQDSK reader of its own. The reference loader is the existing seam's <code>loader</code> argument, so the reader adds
+      installed copy. <code>jtmm-eqdsk-dependency</code> has since declared it directly in
+      <code>pyproject.toml</code> (<code>eqdsk&gt;=0.8.0</code>, 09de3a2b) and recorded it in
+      <code>uv.lock</code>, and §7 writes no G-EQDSK reader of its own. The reference loader is the existing seam's <code>loader</code> argument, so the reader adds
       no public definition to ambix. §7 writes the SELENE map bindings into
       <code>equilibrium/time_slice/profiles_2d</code>, beginning with <code>psi</code>, once §6's
       sign report names the source COCOS, and adds no second reader of either source. The
@@ -354,23 +354,21 @@
       <code>resolve_shotset_version</code> already compares <code>(machine, shot_id, role)</code>, and
       <code>scripts/spine_benchmark.py</code> already requires <code>--machine</code> with
       <code>--shots</code>, with no default, so a list of bare shot ids is never read as MAST by
-      accident. Those landed and retire nothing beyond the implicit MAST default. What remains
-      for this section is the JT-60SA frozen set, a second named set in that module with its own
-      version label, so a JT-60SA shot whose digits coincide with a MAST id can never be stamped
-      under the MAST label; it is drawn from the 2023 OP1 shots on which SELENE ran. The set is a new shot-set identity
-      beside MAST's frozen set, not a replacement for it, so it retires and merges nothing. Adding it
-      means the two places that turn a set into its label stop being single-valued.
-      <code>resolve_shotset_version</code> (<code>imas_ambix/spine_bench/shots.py</code>) compares a
-      run's shots only against <code>FROZEN_SHOTSET</code> and returns the one
-      <code>SHOTSET_VERSION</code>. The parity guard (<code>imas_ambix/spine_bench/parity.py</code>)
-      rejects any stamp whose <code>shotset_version</code> is not that constant. Both become keyed by
-      machine, reading one table of frozen sets, each with its own version label. That machine-keyed
-      table is the one public addition in this section: the JT-60SA set and its label are a row of
-      it, MAST's <code>FROZEN_SHOTSET</code> and <code>SHOTSET_VERSION</code> stay as the names of
-      its MAST row, and nothing retires. MAST's entry reproduces today's label and parity verdicts
-      unchanged, so a JT-60SA run resolves to its own label rather than to
-      <code>AD_HOC_SHOTSET_VERSION</code>. Those two constants have further production readers, all
-      under <code>imas_ambix/spine_bench/</code>, and each is assigned here. One reads the declared
+      accident. Those landed and retire nothing beyond the implicit MAST default. The JT-60SA
+      frozen set has landed too (<code>jtmm-shotset-table</code>, 67424446), so this paragraph now
+      records it rather than scheduling it. <code>imas_ambix/spine_bench/shots.py</code> holds
+      <code>FROZEN_SHOTSETS</code>, one table of frozen sets keyed by machine, each with its own
+      version label. Its JT-60SA row is <code>JT60SA_FROZEN_SHOTSET</code>, the sixteen 2023 OP1
+      shots on which SELENE ran, labelled <code>JT60SA_SHOTSET_VERSION</code>
+      (<code>v0-jt60sa-op1-16</code>). A JT-60SA shot whose digits coincide with a MAST id is
+      therefore never stamped under the MAST label. MAST's <code>FROZEN_SHOTSET</code> and
+      <code>SHOTSET_VERSION</code> remain the names of its MAST row, and nothing retired.
+      <code>resolve_shotset_version</code> and the parity guard
+      (<code>imas_ambix/spine_bench/parity.py</code>) read the declared machine's row, and MAST's
+      labels and parity verdicts are unchanged. A JT-60SA run therefore resolves to its own label
+      rather than to <code>AD_HOC_SHOTSET_VERSION</code>. No node of this section edits that table
+      again. The MAST row's further production readers, all under
+      <code>imas_ambix/spine_bench/</code>, were each assigned when it landed. One reads the declared
       machine's row: <code>machine_artifact_arm.py</code> <code>resolve_geometry_source</code>
       takes its evidence shot and channel shots from the frozen set, and the JT-60SA stamp uses that
       source. The rest keep reading MAST's row unchanged, because each serves only MAST:
