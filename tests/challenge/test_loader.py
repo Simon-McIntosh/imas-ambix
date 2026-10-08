@@ -11,7 +11,7 @@ import pytest
 from imas_alambic.cocos import CANONICAL_COCOS
 from imas_ambix.challenge.convention import DIIID_CONVENTION
 from imas_ambix.challenge.facts import build_report
-from imas_ambix.challenge.loader import load_shot, validate_shot_schema
+from imas_ambix.challenge.loader import load_geqdsk, load_shot, validate_shot_schema
 
 
 def _real_slice() -> list[Path]:
@@ -59,6 +59,95 @@ def test_facts_report_covers_every_circulated_claim() -> None:
         "unreachable-from-slice",
     }
     assert report["measurements"]["shots"] == 100
+
+
+def _write_small_geqdsk(path: Path, *, psi_sign: float = 1.0) -> Path:
+    """Write one small G-EQDSK under a temporary path for the loader to read."""
+
+    from eqdsk import EQDSKInterface
+
+    size = 9
+    radius = np.linspace(2.0, 4.0, size)
+    height = np.linspace(-1.5, 1.5, size)
+    flux = psi_sign * np.transpose(
+        (radius[np.newaxis, :] - 3.0) ** 2 + height[:, np.newaxis] ** 2
+    )
+    angle = np.linspace(0.0, tau, 16, endpoint=False)
+    instance = EQDSKInterface(
+        bcentre=2.5,
+        cplasma=8.0e5,
+        dxc=np.zeros(0),
+        dzc=np.zeros(0),
+        ffprime=np.zeros(size),
+        fpol=np.full(size, 6.0),
+        Ic=np.zeros(0),
+        name="small",
+        nbdry=angle.size,
+        ncoil=0,
+        nlim=0,
+        nx=size,
+        nz=size,
+        pprime=np.zeros(size),
+        pressure=np.zeros(size),
+        psi=flux,
+        psibdry=float(flux[0, 0]),
+        psimag=float(flux[size // 2, size // 2]),
+        xbdry=3.0 + 0.6 * np.cos(angle),
+        xc=np.zeros(0),
+        xcentre=3.0,
+        xdim=2.0,
+        xgrid1=2.0,
+        xlim=np.zeros(0),
+        xmag=3.0,
+        zbdry=0.6 * np.sin(angle),
+        zc=np.zeros(0),
+        zdim=3.0,
+        zlim=np.zeros(0),
+        zmag=0.0,
+        zmid=0.0,
+        qpsi=np.linspace(2.0, 5.0, size),
+    )
+    instance.write(path, file_format="geqdsk")
+    return path
+
+
+def test_geqdsk_loader_reads_a_file_into_efit_labels(tmp_path: Path) -> None:
+    """A G-EQDSK reads into the typed record the convention audit consumes."""
+
+    path = _write_small_geqdsk(tmp_path / "small.geqdsk")
+
+    record = load_geqdsk(path, time_ms=2.5)
+
+    assert record.time_ms == pytest.approx([2.5])
+    assert record.psirz.shape == (1, 9, 9)
+    assert record.grid_r_m.shape == (9,)
+    assert record.grid_z_m.shape == (9,)
+    assert record.lcfs_r_m.shape == (1, 16)
+    assert record.cocos == 1
+    assert set(record.scalars) == {
+        "efit_q95",
+        "efit_r_axis",
+        "efit_z_axis",
+        "magnetics_bcoil",
+    }
+    assert record.scalars["efit_q95"][0] == pytest.approx(4.85)
+    assert record.scalars["efit_r_axis"][0] == pytest.approx(3.0)
+    assert record.scalars["magnetics_bcoil"][0] == pytest.approx(2.5)
+    assert record.psirz[0, 0, 0] - record.psirz[0, 4, 4] > 0.0
+
+
+def test_geqdsk_loader_keeps_the_files_psi_sign(tmp_path: Path) -> None:
+    """The record carries the file's own psi, not an assumed sign."""
+
+    positive = load_geqdsk(
+        _write_small_geqdsk(tmp_path / "positive.geqdsk"), time_ms=2.5
+    )
+    negative = load_geqdsk(
+        _write_small_geqdsk(tmp_path / "negative.geqdsk", psi_sign=-1.0), time_ms=2.5
+    )
+
+    assert positive.psirz[0, 0, 0] - positive.psirz[0, 4, 4] > 0.0
+    assert negative.psirz[0, 0, 0] - negative.psirz[0, 4, 4] < 0.0
 
 
 def test_loader_serves_diii_d_labels_in_the_canonical_convention() -> None:

@@ -158,6 +158,60 @@ def load_labels(path: str | Path) -> EfitLabels:
     return _build_labels(table)
 
 
+def load_geqdsk(path: str | Path, *, time_ms: float = 0.0) -> EfitLabels:
+    """Read one G-EQDSK file into a canonical :class:`EfitLabels` record.
+
+    The file is read through the ``eqdsk`` package's ``EQDSKInterface``, which
+    owns the format and its COCOS handling, so this loader carries no G-EQDSK
+    reader of its own.  EFIT writes its G-EQDSK with psi per radian
+    (``e_Bp = 0``), so the file is read as its declared COCOS 1 and the record
+    keeps the stored psi unchanged rather than converting it; the poloidal-flux
+    relation is then scored from the file's own values.  A G-EQDSK carries one
+    equilibrium snapshot and no time base, so the caller supplies the time the
+    snapshot belongs to and the record holds a single frame there.
+    """
+
+    from eqdsk import EQDSKInterface  # noqa: PLC0415
+
+    instance = EQDSKInterface.from_file(
+        path, clockwise_phi=False, volt_seconds_per_radian=True, to_cocos=None
+    )
+    radial = np.asarray(instance.x, dtype=np.float64)
+    vertical = np.asarray(instance.z, dtype=np.float64)
+    flux = np.asarray(instance.psi, dtype=np.float64)
+    if flux.shape != (radial.size, vertical.size):
+        raise ValueError(
+            f"G-EQDSK flux grid {flux.shape} does not match its "
+            f"{radial.size}x{vertical.size} coordinate vectors"
+        )
+    safety_factor = _geqdsk_safety_factor(instance)
+    return EfitLabels(
+        time_ms=np.asarray([float(time_ms)], dtype=np.float64),
+        psirz=np.transpose(flux, (1, 0))[np.newaxis, :, :],
+        grid_r_m=radial,
+        grid_z_m=vertical,
+        lcfs_r_m=np.asarray(instance.xbdry, dtype=np.float64)[np.newaxis, :],
+        lcfs_z_m=np.asarray(instance.zbdry, dtype=np.float64)[np.newaxis, :],
+        scalars={
+            "efit_q95": np.asarray([safety_factor], dtype=np.float64),
+            "efit_r_axis": np.asarray([instance.xmag], dtype=np.float64),
+            "efit_z_axis": np.asarray([instance.zmag], dtype=np.float64),
+            "magnetics_bcoil": np.asarray([instance.bcentre], dtype=np.float64),
+        },
+        cocos=int(instance.cocos.index),
+    )
+
+
+def _geqdsk_safety_factor(instance: object) -> float:
+    """Return q at 95 percent of the normalised flux from a G-EQDSK record."""
+
+    qpsi = getattr(instance, "qpsi", None)
+    psinorm = getattr(instance, "psinorm", None)
+    if qpsi is None or psinorm is None:
+        raise ValueError("G-EQDSK carries no q profile to read q95 from")
+    return float(np.interp(0.95, np.asarray(psinorm), np.asarray(qpsi)))
+
+
 def load_shot(path: str | Path, *, validate: bool = True) -> ChallengeShot:
     """Load one shot in the canonical convention with native time bases."""
 
