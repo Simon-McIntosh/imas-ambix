@@ -86,6 +86,7 @@ worktree exists and before the worker's first turn:
 ```bash
 W=<worktree>; ROOT=<main checkout>
 ln -s "$ROOT/.venv" "$W/.venv"                    # shared environment, never a copy
+ln -sfn "$ROOT/maps" "$W/maps"                    # shared map development copy
 while IFS= read -r rel; do                        # every .env in the checkout
   mkdir -p "$W/$(dirname "$rel")"
   ln -sfn "$ROOT/$rel" "$W/$rel"
@@ -94,6 +95,13 @@ for f in <the repo's gitignored generated files>; do   # copy, never link
   mkdir -p "$W/$(dirname "$f")"; cp -n "$ROOT/$f" "$W/$f"
 done
 ```
+
+**A shared map directory is a shared environment, for the same reason.** The
+private machine maps under `maps/` are developed in place and are gitignored, so
+a worktree that carried its own copy would let two workers edit the same map in
+two divergent trees. Every worktree therefore reaches the one development copy
+through a `maps` symlink into the main checkout, exactly as it reaches `.venv`
+and `.env`.
 
 **A symlink to an owner-only file is the secure form, and `chmod` on the link
 does nothing.** A symlink carries no meaningful mode of its own; access is
@@ -109,6 +117,7 @@ Never copy, print, stage or commit the file.
 |---|---|---|
 | every `.env` in the checkout | symlink | One owner-only secret on disk, identical everywhere, nothing left behind. |
 | `.venv` | symlink | ~70k filesystem entries and ~1.8 GiB per copy on GPFS. |
+| `maps/` | symlink | One private-map development copy, so two workers cannot diverge into two trees. |
 | gitignored generated files | `cp -n` | Derived from *that tree's* own sources, so a worktree's copy is legitimately different. |
 
 **Never symlink a generated file.** It fails in both directions. Reading, the
@@ -129,16 +138,20 @@ dispatch has not finished being provisioned:
 
 ```bash
 for w in <worktree-root>/*/*; do
-  printf '%-46s venv=%s env=%s\n' "$w" \
+  printf '%-46s venv=%s env=%s maps=%s\n' "$w" \
     "$(readlink "$w/.venv" >/dev/null 2>&1 && echo link \
        || (test -d "$w/.venv" && echo REAL-DIR-BAD) || echo none)" \
     "$(readlink "$w/.env" 2>/dev/null \
-       || (test -f "$w/.env" && echo REAL-FILE-BAD) || echo none)"
+       || (test -f "$w/.env" && echo REAL-FILE-BAD) || echo none)" \
+    "$(readlink "$w/maps" 2>/dev/null \
+       || (test -d "$w/maps" && echo REAL-DIR-BAD) || echo none)"
 done
 ```
 
 `REAL-DIR-BAD` and `REAL-FILE-BAD` are the two failures this check exists to
-catch: a duplicated environment, and a copied secret.
+catch: a duplicated environment, and a copied secret. A `maps` reading
+`REAL-DIR-BAD` is the third: a worktree that grew its own copy of the map tree
+instead of reaching the shared development copy.
 
 **Sandbox tier decides what a worker can self-provision, so pre-placement is
 mandatory rather than belt-and-braces for read-only roles.** A `review` or

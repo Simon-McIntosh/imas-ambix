@@ -23,6 +23,18 @@ BUNDLE_ROOT = Path(__file__).resolve().parent
 PACKAGED_MACHINE_MAP_ROOT = BUNDLE_ROOT / "machine_maps"
 PACKAGED_MAP_ROOT = BUNDLE_ROOT / "maps"
 
+# --- Map development directory ----------------------------------------
+#
+# Private machine maps are not tracked in git.  They live in ``maps/<machine>/``
+# at the repository root, which ``.gitignore`` excludes, and the map release CLI
+# publishes them to GHCR.  Ambix's ``imas_alambic.bundles`` entry point offers
+# every machine directory under here that carries a ``bundle.json`` to the
+# engine, so a checkout with this directory populated needs no
+# ``IMAS_ALAMBIC_MAP_PATH``.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+MAPS_DIR = REPO_ROOT / "maps"
+JT60SA_MAP_DIR = MAPS_DIR / "jt-60sa"
+
 # --- Endpoint ----------------------------------------------------------
 
 S3_ENDPOINT = "https://s3.echo.stfc.ac.uk"
@@ -42,8 +54,14 @@ MIRROR_ROOT = Path("/work/projects/imas_gpu/mast")
 # It sits on GPFS beside the MAST mirror so every ITER session and worker
 # reads the same bytes.
 JT60SA_ROOT = Path("/work/projects/imas_gpu/jt60sa")
-JT60SA_DESCRIPTION_DIR = JT60SA_ROOT / "machine_description"
 JT60SA_IDS_DIR = JT60SA_ROOT / "ids"
+
+# The description stores' ``source/`` and ``superseded/`` inputs sit beside the
+# converted store inside the machine directory, so the description directory is
+# the machine directory itself (``JT60SA_DESCRIPTION_DIR / "source"`` is the
+# SELENE deck source).  A clone that carries no map directory leaves this path
+# unpopulated rather than reaching a second copy under /work.
+JT60SA_DESCRIPTION_DIR = JT60SA_MAP_DIR
 LEVEL1_DIR = MIRROR_ROOT / "level1" / "shots"
 LEVEL2_DIR = MIRROR_ROOT / "level2" / "shots"
 MANIFEST_DIR = MIRROR_ROOT / "manifests"
