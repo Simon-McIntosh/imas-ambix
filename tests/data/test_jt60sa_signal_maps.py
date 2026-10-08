@@ -54,6 +54,21 @@ _IDENTITY_PROBES = tuple(f"magPbTC{i}" for i in range(1, 17))
 _SOURCE_ONLY_LOOPS = tuple(f"magFlxLp{i}" for i in (1, 2, 3, 4, 5, 6, 8, 9, 10, 11))
 _CORPUS_VALIDATED_LOOPS = (7, *range(12, 28))
 REFERENCE_FRAGMENT = "jtmm-loop-reference-rca.html"
+#: loop -> ((shot, slope, r), ...) for the vacuum shots on which that loop's
+#: per-shot differential fit (loop L against reference 7) falls outside the
+#: threshold (|slope + 1| <= 0.1 and |r| > 0.95), transcribed from the per-shot
+#: table in REFERENCE_FRAGMENT.  The median rule still fixes the loop's sign, so
+#: each rule stays corpus-validated, but the failing shot is recorded beside the
+#: verdict.
+_LOOP_PER_SHOT_OUTLIERS: dict[int, tuple[tuple[int, float, float], ...]] = {
+    12: ((100595, -0.341, -0.5920),),
+    13: ((100595, -0.513, -0.5578),),
+    14: ((100595, -0.416, -0.4192),),
+    15: ((100579, -1.156, -0.9940), (100595, -0.890, -0.9170)),
+    16: ((100579, -1.185, -0.9924), (100595, -0.929, -0.9497)),
+    17: ((100579, -1.127, -0.9875),),
+    27: ((100595, -0.856, -0.9017),),
+}
 _MEDIAN_SLOPE = re.compile(r"median slope [+-]\d+\.\d{3}")
 _MEDIAN_ABS_R = re.compile(r"median \|r\| \d+\.\d{3}")
 # A corroboration verb not negated by the immediately preceding "not": the
@@ -535,6 +550,28 @@ def test_magnetics_leaves_the_unmatched_loops_source_only():
         assert index[name].channel_factor == -1.0, name
         assert "E100642" in index[name].evidence, name
     assert index["magPbTC17"].channel_factor == 1.0
+
+
+def test_magnetics_records_the_differential_loop_per_shot_outliers():
+    """A loop whose per-shot fit fails names the failing shot, slope and r.
+
+    A differential loop rule keeps the reference-proven sign from the median
+    rule, so it stays corpus-validated.  A shot whose per-shot fit falls outside
+    the threshold is an outlier, and the rule records it beside the verdict so a
+    reader sees which shot the verdict rests less securely on.
+    """
+
+    by_loop = {
+        int(rule.source_array.removeprefix("magFlxLp")): rule
+        for rule in _rules_for(FLUX_LOOP_PATH)
+    }
+    for loop, outliers in _LOOP_PER_SHOT_OUTLIERS.items():
+        rule = by_loop[loop]
+        assert rule.validation_state == "corpus-validated", loop
+        for shot, slope, r in outliers:
+            assert f"E{shot}" in rule.evidence, (loop, shot)
+            assert f"{slope:+.3f}" in rule.evidence, (loop, shot, slope)
+            assert f"{r:+.4f}" in rule.evidence, (loop, shot, r)
 
 
 def test_magnetics_blocks_each_processed_psrc_alternate_naming_the_raw():
