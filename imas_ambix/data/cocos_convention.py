@@ -479,6 +479,7 @@ def _unscored_relations(
     than presenting a shorter list of violations as complete.
     """
 
+    flux_source = _flux_exponent_source(observations)
     unscored: list[tuple[int, str, str]] = []
     for row in observations:
         if row.poloidal_flux_sign is None:
@@ -491,17 +492,31 @@ def _unscored_relations(
                 )
             )
         if row.flux_exponent is None:
-            unscored.append(
-                (
-                    row.shot,
-                    "declared_flux_exponent",
-                    "the equilibrium source carries no psi grid, so the "
-                    "declared flux exponent is unmeasured and no row fixes "
-                    "e_Bp; E101011's G-EQDSK (section 7) is the source that "
-                    "would fix it",
+            if flux_source is None:
+                reason = (
+                    "no row in this cohort carries a psi grid, so the "
+                    "declared flux exponent is unmeasured"
                 )
-            )
+            else:
+                reason = (
+                    f"row {flux_source} carries a psi grid and fixes e_Bp, so "
+                    "this row's declared flux exponent is not measured"
+                )
+            unscored.append((row.shot, "declared_flux_exponent", reason))
     return tuple(unscored)
+
+
+def _flux_exponent_source(observations: Sequence[ShotSignObservation]) -> int | None:
+    """Return the shot whose psi grid lets the cohort score the flux exponent.
+
+    A row carrying a psi grid records a declared flux exponent, so it is the
+    one row that fixes ``e_Bp`` for the cohort and lets every other row's
+    declared-flux-exponent check be named rather than left open.
+    """
+
+    return next(
+        (row.shot for row in observations if row.flux_exponent is not None), None
+    )
 
 
 MAST_SOURCE_COCOS = 3
@@ -516,6 +531,49 @@ SOURCE_COCOS_RECOMMENDATION = "external-declaration"
 
 COCOS_3_4_MEASUREMENT_DISTINGUISHABLE = False
 """No measurement in the level-2 corpus distinguishes the two candidates."""
+
+
+@dataclass(frozen=True)
+class DeclaredSourceCocos:
+    """An equilibrium source whose COCOS an external decision declares.
+
+    The declaration is not a measurement.  It states the COCOS of one source's
+    equilibrium output and fixes the one coefficient no machine signal
+    measures -- the direction of positive toroidal angle -- which the machine,
+    sharing that source's coordinate frame, takes as its own geometric
+    handedness.  Every diagnostic's flux and current signs are still confirmed
+    per channel in the measured data, so nothing but the handedness is
+    inherited from the declaration.
+    """
+
+    machine: str
+    equilibrium: str
+    cocos: int
+    decision: str
+
+
+JT60SA_SOURCE_COCOS = 1
+"""SELENE's JT-60SA equilibrium-output COCOS, declared under
+``jt60sa-source-cocos``.
+
+E101011's psi row scores the poloidal-flux relation and the declared flux
+exponent, narrowing the JT-60SA cohort's surviving candidates to the pair
+(1, 2).  Those two differ only in ``sigma_R_phi_Z``, which no machine signal
+measures, so the declaration fixes it.  SELENE's ``efitout`` writes psi per
+radian, so ``e_Bp = 0`` holds and COCOS 1 is one of the pair the rows and the
+declaration together leave.
+"""
+
+JT60SA_SOURCE_COCOS_DECISION = "jt60sa-source-cocos"
+"""The decision that declares SELENE's equilibrium-output COCOS."""
+
+SELENE_OUTPUT_COCOS = DeclaredSourceCocos(
+    machine="JT-60SA",
+    equilibrium="SELENE",
+    cocos=JT60SA_SOURCE_COCOS,
+    decision=JT60SA_SOURCE_COCOS_DECISION,
+)
+"""The JT-60SA facility's declared SELENE equilibrium-output convention."""
 
 IP_LIKE_TARGETS = (
     "magnetics/ip",
@@ -1183,15 +1241,18 @@ def _common_sign(values: Iterable[int | None]) -> int | None:
 
 def _cohort_coefficient_classification(
     observations: Sequence[ShotSignObservation],
+    declared_source: DeclaredSourceCocos | None = None,
 ) -> tuple[CoefficientAssessment, ...]:
     """Classify the coefficients this cohort's own rows support.
 
     ``sigma_Bp`` is read from the raw absolute flux-loop response and
     ``sigma_rho_theta_phi`` from the q relation, so those two are measured from
-    the rows.  ``e_Bp`` and ``sigma_R_phi_Z`` are left to an external
-    declaration: no row measures the direction of positive toroidal angle, and
-    the cohort's equilibrium carries no psi grid, so E101011's G-EQDSK
-    (section 7) is the source that would fix the flux exponent.
+    the rows.  ``e_Bp`` is measured from the row whose equilibrium carries a psi
+    grid and records a declared flux exponent; absent such a row it is left
+    open.  ``sigma_R_phi_Z`` is not measurable from any machine signal -- no row
+    measures the direction of positive toroidal angle -- so it is either left
+    to an external declaration or read from the ``declared_source`` the caller
+    supplies, which names the surviving pair and the coefficient it fixes.
     """
 
     sigma_bp = _common_sign(row.raw_flux_loop_response_sign for row in observations)
@@ -1199,6 +1260,36 @@ def _cohort_coefficient_classification(
         row.safety_factor_sign * row.plasma_current_sign * row.toroidal_field_sign
         for row in observations
     )
+    flux_source = _flux_exponent_source(observations)
+    exponents = {
+        row.flux_exponent for row in observations if row.flux_exponent is not None
+    }
+    if len(exponents) == 1:
+        (e_bp,) = exponents
+        e_bp_classification: EvidenceClassification = "measurable-from-data"
+        e_bp_reasoning = (
+            f"row {flux_source} carries a psi grid, and its declared flux "
+            "exponent fixes e_Bp for the cohort"
+        )
+    else:
+        e_bp = None
+        e_bp_classification = "requires-an-external-declaration"
+        e_bp_reasoning = (
+            "no row in this cohort carries a psi grid, so the declared flux "
+            "exponent is unmeasured"
+        )
+
+    if declared_source is None:
+        r_phi_z = None
+        r_phi_z_reasoning = (
+            "no row measures the direction of positive toroidal angle"
+        )
+    else:
+        r_phi_z = CONVENTION_DIGITS[declared_source.cocos][2]
+        r_phi_z_reasoning = _declared_handedness_reasoning(
+            declared_source, observations
+        )
+
     return (
         CoefficientAssessment(
             coefficient="sigma_Bp",
@@ -1222,35 +1313,52 @@ def _cohort_coefficient_classification(
         ),
         CoefficientAssessment(
             coefficient="e_Bp",
-            classification="requires-an-external-declaration",
-            value=None,
-            reasoning=(
-                "the equilibrium carries no psi grid, so the declared flux "
-                "exponent is unmeasured; E101011's G-EQDSK (section 7) is the "
-                "source that would fix e_Bp"
-            ),
+            classification=e_bp_classification,
+            value=e_bp,
+            reasoning=e_bp_reasoning,
             sources=(),
         ),
         CoefficientAssessment(
             coefficient="sigma_R_phi_Z",
             classification="requires-an-external-declaration",
-            value=None,
-            reasoning="no row measures the direction of positive toroidal angle",
+            value=r_phi_z,
+            reasoning=r_phi_z_reasoning,
             sources=(),
         ),
     )
 
 
+def _declared_handedness_reasoning(
+    declared_source: DeclaredSourceCocos,
+    observations: Sequence[ShotSignObservation],
+) -> str:
+    """Name the declaration, the source COCOS it fixes and the pair it leaves."""
+
+    survivors = ", ".join(
+        str(candidate) for candidate in surviving_conventions(observations)
+    )
+    return (
+        f"declared under decision {declared_source.decision}, giving "
+        f"{declared_source.equilibrium}'s output COCOS {declared_source.cocos} "
+        f"from the surviving pair ({survivors})"
+    )
+
+
 def format_sign_report(
     observations: Sequence[ShotSignObservation] = MAST_LEVEL2_SIGN_TABLE,
+    *,
+    declared_source: DeclaredSourceCocos | None = None,
 ) -> str:
     """Format the cohort's classification, receipt, score and verdict.
 
     MAST's fixed blocks — the coefficient classification, the determinable
     relative-sign products and the Ip-like consequence — print only for MAST's
     own level-2 cohort.  Any other cohort reports the coefficients its own rows
-    measure, so a JT-60SA cohort leaves ``e_Bp`` and ``sigma_R_phi_Z`` to an
-    external declaration and lists every candidate its scored relations leave.
+    measure and lists every candidate its scored relations leave.  When a
+    ``declared_source`` is given, its decision context prints in place of the
+    open ``sigma_R_phi_Z`` the cohort cannot measure, together with the scope
+    the declaration covers: one equilibrium source's output convention, from
+    which the machine takes only its geometric handedness.
     """
 
     mast_cohort = _is_mast_level2_cohort(observations)
@@ -1263,7 +1371,7 @@ def format_sign_report(
     assessments = (
         COEFFICIENT_ASSESSMENTS
         if mast_cohort
-        else _cohort_coefficient_classification(observations)
+        else _cohort_coefficient_classification(observations, declared_source)
     )
     for assessment in assessments:
         value = "unknown" if assessment.value is None else f"{assessment.value:+d}"
@@ -1354,6 +1462,24 @@ def format_sign_report(
                 "IP-LIKE TARGETS: " + ", ".join(IP_LIKE_TARGETS),
             )
         )
+    if declared_source is not None:
+        lines.extend(
+            (
+                "",
+                "DECLARED SOURCE COCOS",
+                f"scope: this is the COCOS of {declared_source.equilibrium}'s "
+                "equilibrium output, not a COCOS for the whole machine.",
+                f"{declared_source.equilibrium}'s output is declared COCOS "
+                f"{declared_source.cocos} under decision "
+                f"{declared_source.decision}; the machine takes its geometric "
+                "handedness, the direction of positive phi, from that "
+                "declaration, because the coordinate frame is shared.",
+                "Flux and current signs are not inherited: each diagnostic's "
+                "flux and current signs are confirmed per channel in the "
+                "measured data, and its signal-map rule records that "
+                "confirmation.",
+            )
+        )
     return "\n".join(lines)
 
 
@@ -1374,15 +1500,19 @@ __all__ = [
     "COEFFICIENT_ASSESSMENTS",
     "IP_LIKE_CANDIDATE_FACTORS",
     "IP_LIKE_TARGETS",
+    "JT60SA_SOURCE_COCOS",
+    "JT60SA_SOURCE_COCOS_DECISION",
     "MAST_LEVEL2_ROOT",
     "MAST_LEVEL2_SIGN_TABLE",
     "MAST_SOURCE_COCOS",
     "MAST_TO_COCOS_17_FACTORS",
     "RELATIVE_SIGN_PRODUCTS",
+    "SELENE_OUTPUT_COCOS",
     "SIGN_SOURCE_PATHS",
     "SOURCE_COCOS_RECOMMENDATION",
     "CoefficientAssessment",
     "ConventionScore",
+    "DeclaredSourceCocos",
     "EvidenceSource",
     "RelativeSignProduct",
     "ShotSignObservation",

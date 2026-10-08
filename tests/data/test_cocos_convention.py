@@ -28,6 +28,7 @@ from imas_ambix.data.cocos_convention import (
     MAST_SOURCE_COCOS,
     MAST_TO_COCOS_17_FACTORS,
     RELATIVE_SIGN_PRODUCTS,
+    SELENE_OUTPUT_COCOS,
     SOURCE_COCOS_RECOMMENDATION,
     _absolute_flux_loop_rules,
     _differential_flux_loop_targets,
@@ -38,6 +39,7 @@ from imas_ambix.data.cocos_convention import (
     score_conventions,
     surviving_conventions,
 )
+from scripts.jt60sa_sign_cohort import load_psi_row
 
 
 def test_stored_sign_table_covers_two_shots_at_each_current_polarity():
@@ -1061,7 +1063,7 @@ def test_row_without_psi_leaves_the_flux_exponent_unscored():
 
     report = format_sign_report((row,))
     assert "declared_flux_exponent not scored" in report
-    assert "E101011's G-EQDSK (section 7)" in report
+    assert "no row in this cohort carries a psi grid" in report
 
 
 def test_foreign_cohort_report_states_only_its_own_measurements():
@@ -1100,7 +1102,7 @@ def test_foreign_cohort_report_states_only_its_own_measurements():
     assert "sigma_R_phi_Z: requires-an-external-declaration; value=unknown" in report
     assert "e_Bp: requires-an-external-declaration; value=unknown" in report
     assert "value=+0" not in report
-    assert "E101011's G-EQDSK (section 7)" in report
+    assert "no row in this cohort carries a psi grid" in report
     assert "DETERMINABLE RELATIVE-SIGN PRODUCTS" not in report
     assert "COCOS 3 versus COCOS 4" not in report
     assert "RECOMMENDATION" not in report
@@ -1122,3 +1124,81 @@ def test_mast_cohort_report_still_prints_its_fixed_blocks():
     assert "IP-LIKE TARGETS: magnetics/ip, pf_active/coil/current, " in report
     assert "e_Bp: requires-an-external-declaration; value=+0" in report
     assert "2 conventions survive: (3, 4)" in report
+
+
+def _psi_carrying_cohort():
+    """A cohort whose one psi row fixes e_Bp beside gridless FAME-style rows.
+
+    Both the psi row and its gridless neighbours carry the raw signs that fix
+    sigma_Bp and sigma_rho_theta_phi, so the psi row's declared flux exponent is
+    the only relation narrowing the survivors to the pair (1, 2).
+    """
+
+    gridless = tuple(
+        replace(
+            MAST_LEVEL2_SIGN_TABLE[0],
+            shot=shot,
+            plasma_current_a=8.0e5,
+            raw_flux_loop_response_wb_per_a=1.0e-6,
+            raw_flux_loop_channels=1,
+            raw_flux_loop_opposite_sign_channels=0,
+            toroidal_field_t=2.5,
+            poloidal_flux_edge_minus_axis_wb_per_rad=None,
+            poloidal_angle_signed_area_m2=None,
+            safety_factor=8.0,
+            flux_exponent=None,
+        )
+        for shot in (100595, 100579)
+    )
+    psi_row = replace(
+        gridless[0],
+        shot=101011,
+        poloidal_flux_edge_minus_axis_wb_per_rad=1.0,
+        poloidal_angle_signed_area_m2=1.0,
+        flux_exponent=0,
+    )
+    return (*gridless, psi_row)
+
+
+def test_psi_carrying_cohort_reports_the_declared_source_cocos():
+    """The psi row fixes e_Bp and the declaration fixes sigma_R_phi_Z.
+
+    With row 101011's flux exponent scored, the cohort measures e_Bp = 0 and
+    the surviving pair narrows to (1, 2); the SELENE declaration then fixes
+    sigma_R_phi_Z and states the scope the declaration covers.
+    """
+
+    cohort = _psi_carrying_cohort()
+
+    assert surviving_conventions(cohort) == (1, 2)
+
+    report = format_sign_report(cohort, declared_source=SELENE_OUTPUT_COCOS)
+
+    assert "e_Bp: measurable-from-data; value=+0" in report
+    assert "row 101011 carries a psi grid and fixes e_Bp" in report
+    assert "sigma_R_phi_Z: requires-an-external-declaration; value=+1" in report
+    assert "declared under decision jt60sa-source-cocos" in report
+    assert "giving SELENE's output COCOS 1 from the surviving pair (1, 2)" in report
+    assert "this is the COCOS of SELENE's equilibrium output" in report
+    assert "the machine takes its geometric handedness" in report
+    assert (
+        "each diagnostic's flux and current signs are confirmed per channel "
+        "in the measured data" in report
+    )
+
+
+def test_psi_row_geqdsk_is_read_from_the_row_root(tmp_path):
+    """--root moves the psi row's G-EQDSK with the zarr cohort.
+
+    The G-EQDSK is resolved under the root the caller passes rather than a
+    module-level corpus path, so a root that holds the file yields a psi row
+    while an empty root yields none.
+    """
+
+    _write_synthetic_geqdsk(tmp_path / "101011.geqdsk")
+
+    record = load_psi_row(tmp_path, time_ms=3.0)
+
+    assert record is not None
+    assert record.time_ms[0] == pytest.approx(3.0)
+    assert load_psi_row(tmp_path / "empty-root", time_ms=3.0) is None

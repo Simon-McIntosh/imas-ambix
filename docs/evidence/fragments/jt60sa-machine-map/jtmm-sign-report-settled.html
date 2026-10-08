@@ -1,0 +1,27 @@
+<section id="jtmm-sign-report-settled" data-reckon="fragment">
+<h2 id="jtmm-sign-report-settled-h">The sign report states SELENE's settled output COCOS</h2>
+
+<p id="jtmm-sign-report-settled-scope">
+The JT-60SA sign report now reads its classification from its own rows. Row
+101011's psi grid fixes e<sub>Bp</sub>, the surviving pair narrows to (1, 2), and
+&sigma;<sub>R&phi;Z</sub> — which no machine signal measures — is stated as
+declared under decision <code>jt60sa-source-cocos</code>, giving SELENE's output
+COCOS 1. The report carries the declaration's scope: the COCOS of SELENE's
+equilibrium output, from which the machine takes only its geometric handedness;
+each diagnostic's flux and current signs are confirmed per channel in the
+measured data.
+</p>
+
+<pre id="jtmm-sign-report-settled-report"><code>e_Bp: measurable-from-data; value=+0
+sigma_R_phi_Z: requires-an-external-declaration; value=+1
+  reasoning: declared under decision jt60sa-source-cocos, giving SELENE's output COCOS 1 from the surviving pair (1, 2)
+VERDICT: 2 conventions survive: (1, 2)</code></pre>
+
+<p id="jtmm-sign-report-settled-measure">
+<code>uv run --no-sync pytest tests/data/test_cocos_convention.py</code>: 36 passed,
+exit 0. <code>scripts/jt60sa_sign_cohort.py</code>: exit 0, fragment regenerated.
+<code>uv run --no-sync ruff check imas_ambix tests</code>: exit 0. The script's
+<code>--root</code> now moves row 101011's G-EQDSK with the zarr cohort; restoring
+the module-level path makes the new root test fail (exit 1).
+</p>
+</section>
