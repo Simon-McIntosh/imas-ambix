@@ -1,0 +1,110 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtpi-rewrite-renamed-loops">
+  <header>
+    <h3 id="jtpi-rewrite-renamed-loops-title">E101154 and E101031 rewritten so the differential entries carry FL&lt;L&gt;-FL7</h3>
+    <p class="meta" id="jtpi-rewrite-renamed-loops-meta">
+      Node <code>jtpi-rewrite-renamed-loops</code> &middot;
+      date 2026-10-08 &middot;
+      plan <code>jt60sa-pulse-ids</code> &sect;8 &middot;
+      base <code>033d84d6</code>
+    </p>
+  </header>
+
+  <p id="jtpi-rewrite-renamed-loops-command">
+    <strong>Command.</strong> Run in place on the fleet allocation (job
+    1281970, node <code>98dci4-clu-2002</code>), against the main checkout's
+    <code>maps/jt-60sa</code> bundle (<code>OP1</code> and <code>OP2</code>
+    <code>magnetics.nc</code> sha256
+    <code>0b089a3a734a8836&hellip;</code>; <code>machine_map.json</code>
+    <code>6a0f4b10b1bf0180&hellip;</code>). The expanded command, its first
+    lines in the gate log <code>logs/gate.log</code>:
+  </p>
+  <pre><code>/home/ITER/mcintos/Code/imas-ambix/.venv/bin/imas-alambic \
+  write E101154 E101031 --machine jt-60sa --run 0 --overwrite
+# ids_root /work/projects/imas_gpu/jt60sa/ids &ndash; writes
+#   /work/projects/imas_gpu/jt60sa/ids/101154_0.nc
+#   /work/projects/imas_gpu/jt60sa/ids/101031_0.nc</code></pre>
+  <p>
+    Exit 0. Each pulse reports 56 time-dependent leaves (45 magnetics, 10
+    <code>pf_active</code>, 1 <code>tf</code>) and 68 declared signals left out
+    &mdash; the same receipt as the &sect;7 writer run. <code>ssh</code> was
+    shimmed to record any remote EDDB call (<code>logs/ssh_invocations.log</code>),
+    and it stayed empty; the cache trees <code>101031.zarr</code> and
+    <code>101154.zarr</code> were byte-identical before and after
+    (<code>CACHE_UNCHANGED</code>, <code>logs/cache_pre.txt</code> vs
+    <code>logs/cache_post.txt</code>), so every channel was served from the cache
+    and nothing was refetched.
+  </p>
+
+  <p id="jtpi-rewrite-renamed-loops-baseline">
+    <strong>Baseline.</strong> Before the write, the &sect;7 run files were
+    copied into the run's own directory
+    (<code>gate/baseline/101154_0.nc</code> sha256
+    <code>3281536e99ac914c&hellip;</code>, <code>101031_0.nc</code> sha256
+    <code>1230452ccec4ba23&hellip;</code>), so the pre-rewrite content survives
+    the run.
+  </p>
+
+  <p id="jtpi-rewrite-renamed-loops-names">
+    <strong>Names.</strong> <code>check_differential_names.py</code>
+    (<code>logs/rewrite_names.log</code>) opens each new file and, for
+    <code>magnetics/flux_loop</code> indices 27&ndash;52, requires the name to be
+    <code>FL&lt;L&gt;-FL7</code> for the L in its
+    <code>indices_differential</code> <code>[7,&nbsp;L</code>. It exits 0:
+  </p>
+  <table id="jtpi-rewrite-renamed-loops-names-table">
+    <caption>Differential name check on the rewritten run files (26 entries per
+    pulse, loops 1&ndash;6 and 8&ndash;27, FL7 skipped).</caption>
+    <thead>
+      <tr><th>pulse</th><th>entries checked</th><th>mismatches</th>
+      <th>first name</th><th>last name</th><th>log</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>101154</td><td>26</td><td>0</td><td><code>FL1-FL7</code></td>
+      <td><code>FL27-FL7</code></td><td><code>logs/rewrite_names.log</code></td></tr>
+      <tr><td>101031</td><td>26</td><td>0</td><td><code>FL1-FL7</code></td>
+      <td><code>FL27-FL7</code></td><td><code>logs/rewrite_names.log</code></td></tr>
+    </tbody>
+  </table>
+
+  <p id="jtpi-rewrite-renamed-loops-compare">
+    <strong>Comparison.</strong> <code>compare_equality.py</code>
+    (<code>logs/equality.log</code>) opens the new file and the baseline copy
+    side by side and asserts, element for element on the same time base:
+    every <code>flux_loop[i]/flux</code> data and time (53 entries),
+    <code>magnetics/ip</code> data, time and <code>data_error_upper</code>,
+    every <code>b_field_pol_probe[i]/field</code> data and time, and every
+    <code>pf_active/coil[i]/current</code> data and time (12 coils).
+  </p>
+  <table id="jtpi-rewrite-renamed-loops-eq-table">
+    <caption>Elementwise equality against the baseline copies.</caption>
+    <thead>
+      <tr><th>pulse</th><th>arrays checked</th><th>mismatches</th>
+      <th>result</th><th>log</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>101154</td><td>167</td><td>0</td><td>PASS</td>
+      <td><code>logs/equality.log</code></td></tr>
+      <tr><td>101031</td><td>167</td><td>0</td><td>PASS</td>
+      <td><code>logs/equality.log</code></td></tr>
+    </tbody>
+  </table>
+
+  <p id="jtpi-rewrite-renamed-loops-negative">
+    <strong>Negative control.</strong> The same name check run against the
+    baseline copies (<code>logs/negative_control_names.log</code>) exits 1, with
+    a mismatch on every one of the 26 differential entries per pulse: their
+    names there read <code>FL7-FL1&hellip;FL7-FL27</code> while the check
+    expects <code>FL&lt;L&gt;-FL7</code>. So the check separates the pre- and
+    post-rename stores rather than passing on any input; the rename the write
+    applied is exactly the change the check measures.
+  </p>
+
+  <p id="jtpi-rewrite-renamed-loops-scope">
+    <strong>Scope.</strong> No product source or test changed. The rename
+    landed in the bundle's <code>maps/jt-60sa/machine_map.json</code> and the
+    OP1/OP2 description stores; this node re-ran the writer so the two run files
+    carry the new names. The only data written outside the repository are the
+    two run files and the run directory's baseline copies; every log is under
+    the run directory's <code>gate/logs/</code>.
+  </p>
+</section>
