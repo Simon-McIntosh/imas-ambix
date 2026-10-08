@@ -1,0 +1,211 @@
+<section id="jtmm-sign-cohort" data-reckon="fragment">
+<h2 id="jtmm-sign-cohort-h">JT-60SA magnetics sign cohort: the source COCOS the raw signs select</h2>
+
+<p id="jtmm-sign-cohort-scope">
+Read-only against the EDDB zarr cache under <code>/work/projects/imas_gpu/jt60sa</code>,
+through the staged signal-map bundle mounted at <code>IMAS_ALAMBIC_MAP_PATH</code>.
+Each row is one shot: the plasma current and the one absolute flux loop from
+<code>maps/magnetics.json</code>, the coil current from <code>maps/tf.json</code>,
+and the safety factor and field scalar from <code>maps/equilibrium.json</code>,
+all through <code>VirtualZarrView.raw_series</code>, so no assumed sign enters.
+No file outside this repository was written.
+</p>
+
+<h3 id="jtmm-sign-cohort-answer-h">Surviving candidates</h3>
+<p id="jtmm-sign-cohort-answer">
+Over 16 rows the surviving COCOS candidates are
+<strong>1, 2</strong>, out of 16 candidates.
+The raw absolute flux-loop response and the q relation over the FAME signs fix
+the pair; the poloidal-flux relation is unscored on every row because the FAME
+equilibrium carries no psi grid.
+</p>
+
+<h3 id="jtmm-sign-cohort-cohort-h">The cohort</h3>
+<table id="jtmm-sign-cohort-cohort-table">
+<thead><tr><th>shot</th><th>peak |Ip| [A]</th><th>pre-plasma baseline [A]</th>
+<th>retained slices</th><th>flux channels</th><th>q95</th>
+<th>F [T&middot;m]</th></tr></thead>
+<tbody>
+<tr><td>101154</td><td>998,576</td><td>10,315</td><td>1018</td><td>1</td><td>12.55</td><td>6.013</td></tr>
+<tr><td>100999</td><td>1,202,624</td><td>9,523</td><td>573</td><td>1</td><td>11.87</td><td>6.011</td></tr>
+<tr><td>101017</td><td>507,615</td><td>9,619</td><td>481</td><td>1</td><td>22.03</td><td>6.015</td></tr>
+<tr><td>101025</td><td>1,004,597</td><td>14,457</td><td>765</td><td>1</td><td>11.02</td><td>5.008</td></tr>
+<tr><td>101026</td><td>966,340</td><td>18,712</td><td>871</td><td>1</td><td>12.97</td><td>5.008</td></tr>
+<tr><td>101029</td><td>998,332</td><td>12,997</td><td>898</td><td>1</td><td>11.5</td><td>5.01</td></tr>
+<tr><td>101031</td><td>698,442</td><td>13,010</td><td>835</td><td>1</td><td>11.99</td><td>5.012</td></tr>
+<tr><td>101033</td><td>694,582</td><td>19,283</td><td>508</td><td>1</td><td>11.95</td><td>5.013</td></tr>
+<tr><td>101039</td><td>996,194</td><td>9,892</td><td>906</td><td>1</td><td>15.45</td><td>6.016</td></tr>
+<tr><td>101044</td><td>995,644</td><td>10,361</td><td>908</td><td>1</td><td>15.26</td><td>6.009</td></tr>
+<tr><td>101045</td><td>995,842</td><td>9,966</td><td>888</td><td>1</td><td>15.13</td><td>6.01</td></tr>
+<tr><td>101046</td><td>995,691</td><td>9,898</td><td>902</td><td>1</td><td>15.24</td><td>6.012</td></tr>
+<tr><td>101153</td><td>510,687</td><td>10,194</td><td>359</td><td>1</td><td>21.13</td><td>6.012</td></tr>
+<tr><td>101156</td><td>507,637</td><td>10,178</td><td>427</td><td>1</td><td>21.2</td><td>6.01</td></tr>
+<tr><td>101162</td><td>996,031</td><td>16,751</td><td>1226</td><td>1</td><td>14.12</td><td>6.01</td></tr>
+<tr><td>101163</td><td>996,207</td><td>16,395</td><td>429</td><td>1</td><td>12.46</td><td>6.01</td></tr>
+</tbody>
+</table>
+
+<figure id="jtmm-sign-cohort-figure">
+<img src="/imas-ambix/figures/jt60sa-machine-map/jtmm-sign-cohort/jt60sa-vacuum-channel-slope.svg" alt="Per-channel vacuum slope against correlation for the JT-60SA loop and probe channels">
+<figcaption>Each channel's median vacuum slope against its median absolute correlation over the three vacuum shots. The reference loop magFlxLp7 sits at slope near minus one and correlation near one; the channels the verdict could not decide cluster at low correlation.</figcaption>
+</figure>
+
+<h3 id="jtmm-sign-cohort-report-h">The sign report</h3>
+<pre id="jtmm-sign-cohort-report"><code>COEFFICIENT CLASSIFICATION
+sigma_Bp: measurable-from-data; value=-1
+  reasoning: Baseline-corrected flux-loop response has the opposite sign to measured plasma current in every usable channel-shot relation; the reconstructed edge-minus-axis flux sign independently agrees.
+  source: magnetics/time [measurement]
+  source: magnetics/ip [measurement]
+  source: magnetics/flux_loop_flux [measurement]
+  source: equilibrium/time [reconstruction-output]
+  source: equilibrium/psi [reconstruction-output]
+  source: equilibrium/major_radius [reconstruction-output]
+  source: equilibrium/z [reconstruction-output]
+  source: equilibrium/magnetic_axis_r [reconstruction-output]
+  source: equilibrium/magnetic_axis_z [reconstruction-output]
+  source: equilibrium/lcfs_r [reconstruction-output]
+  source: equilibrium/lcfs_z [reconstruction-output]
+e_Bp: requires-an-external-declaration; value=+0
+  reasoning: Array magnitudes do not distinguish flux from flux divided by 2pi; the value zero comes only from the declared Wb/rad units.
+  source: equilibrium/psi:units [reconstruction-metadata-declaration]
+sigma_R_phi_Z: requires-an-external-declaration; value=unknown
+  reasoning: No level-2 measurement declares whether positive phi makes (R, phi, Z) right-handed; ordered contour points are an output serialization choice, not a physical handedness measurement.
+  source: none in level-2
+sigma_rho_theta_phi: measurable-from-data; value=-1
+  reasoning: The q, plasma-current and vacuum-field relative signs give minus one for the convention written by EFIT.  Only plasma current is a raw measurement, so this characterizes reconstruction output.
+  source: magnetics/time [measurement]
+  source: magnetics/ip [measurement]
+  source: equilibrium/time [reconstruction-output]
+  source: equilibrium/bvac_rmag [reconstruction-output]
+  source: equilibrium/q95 [reconstruction-output]
+
+RAW AND RECONSTRUCTION SIGN RECEIPT
+shot  Ip  raw_flux/Ip  loops  Bphi  psi(edge-axis)  theta  q  eBp  retained
+101154  +1  +1  0/1  +1  n/a    n/a  +1  0  1018
+100999  +1  +1  0/1  +1  n/a    n/a  +1  0  573
+101017  +1  +1  0/1  +1  n/a    n/a  +1  0  481
+101025  +1  +1  0/1  +1  n/a    n/a  +1  0  765
+101026  +1  +1  0/1  +1  n/a    n/a  +1  0  871
+101029  +1  +1  0/1  +1  n/a    n/a  +1  0  898
+101031  +1  +1  0/1  +1  n/a    n/a  +1  0  835
+101033  +1  +1  0/1  +1  n/a    n/a  +1  0  508
+101039  +1  +1  0/1  +1  n/a    n/a  +1  0  906
+101044  +1  +1  0/1  +1  n/a    n/a  +1  0  908
+101045  +1  +1  0/1  +1  n/a    n/a  +1  0  888
+101046  +1  +1  0/1  +1  n/a    n/a  +1  0  902
+101153  +1  +1  0/1  +1  n/a    n/a  +1  0  359
+101156  +1  +1  0/1  +1  n/a    n/a  +1  0  427
+101162  +1  +1  0/1  +1  n/a    n/a  +1  0  1226
+101163  +1  +1  0/1  +1  n/a    n/a  +1  0  429
+
+UNSCORED RELATIONS
+101154: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+100999: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+101017: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+101025: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+101026: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+101029: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+101031: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+101033: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+101039: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+101044: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+101045: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+101046: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+101153: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+101156: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+101162: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+101163: reconstructed_poloidal_flux not scored — the equilibrium source carries no psi grid, so the edge-minus-axis flux has no measured value
+
+DETERMINABLE RELATIVE-SIGN PRODUCTS
+sigma_Bp*sigma_rho_theta_phi=+1; EFIT output relation; this adds no discriminator between COCOS 3 and COCOS 4
+  source: equilibrium/psi [reconstruction-output]
+  source: equilibrium/bvac_rmag [reconstruction-output]
+  source: equilibrium/q95 [reconstruction-output]
+sigma_R_phi_Z*sigma_rho_theta_phi=+1; ordered-LCFS serialization only; excluded from the physical facility-convention candidate score
+  source: equilibrium/lcfs_r [reconstruction-output]
+  source: equilibrium/lcfs_z [reconstruction-output]
+
+STRICT CANDIDATE SCORE
+
+COCOS  sigma_Bp  e_Bp  sigma_RphiZ  sigma_rhothetaphi  result
+    1        +1     0           +1                 +1  SURVIVES
+    2        +1     0           -1                 +1  SURVIVES
+    3        -1     0           +1                 -1  101154:raw_flux_loop_response,101154:reconstructed_safety_factor,100999:raw_flux_loop_response,100999:reconstructed_safety_factor,101017:raw_flux_loop_response,101017:reconstructed_safety_factor,101025:raw_flux_loop_response,101025:reconstructed_safety_factor,101026:raw_flux_loop_response,101026:reconstructed_safety_factor,101029:raw_flux_loop_response,101029:reconstructed_safety_factor,101031:raw_flux_loop_response,101031:reconstructed_safety_factor,101033:raw_flux_loop_response,101033:reconstructed_safety_factor,101039:raw_flux_loop_response,101039:reconstructed_safety_factor,101044:raw_flux_loop_response,101044:reconstructed_safety_factor,101045:raw_flux_loop_response,101045:reconstructed_safety_factor,101046:raw_flux_loop_response,101046:reconstructed_safety_factor,101153:raw_flux_loop_response,101153:reconstructed_safety_factor,101156:raw_flux_loop_response,101156:reconstructed_safety_factor,101162:raw_flux_loop_response,101162:reconstructed_safety_factor,101163:raw_flux_loop_response,101163:reconstructed_safety_factor
+    4        -1     0           -1                 -1  101154:raw_flux_loop_response,101154:reconstructed_safety_factor,100999:raw_flux_loop_response,100999:reconstructed_safety_factor,101017:raw_flux_loop_response,101017:reconstructed_safety_factor,101025:raw_flux_loop_response,101025:reconstructed_safety_factor,101026:raw_flux_loop_response,101026:reconstructed_safety_factor,101029:raw_flux_loop_response,101029:reconstructed_safety_factor,101031:raw_flux_loop_response,101031:reconstructed_safety_factor,101033:raw_flux_loop_response,101033:reconstructed_safety_factor,101039:raw_flux_loop_response,101039:reconstructed_safety_factor,101044:raw_flux_loop_response,101044:reconstructed_safety_factor,101045:raw_flux_loop_response,101045:reconstructed_safety_factor,101046:raw_flux_loop_response,101046:reconstructed_safety_factor,101153:raw_flux_loop_response,101153:reconstructed_safety_factor,101156:raw_flux_loop_response,101156:reconstructed_safety_factor,101162:raw_flux_loop_response,101162:reconstructed_safety_factor,101163:raw_flux_loop_response,101163:reconstructed_safety_factor
+    5        +1     0           +1                 -1  101154:reconstructed_safety_factor,100999:reconstructed_safety_factor,101017:reconstructed_safety_factor,101025:reconstructed_safety_factor,101026:reconstructed_safety_factor,101029:reconstructed_safety_factor,101031:reconstructed_safety_factor,101033:reconstructed_safety_factor,101039:reconstructed_safety_factor,101044:reconstructed_safety_factor,101045:reconstructed_safety_factor,101046:reconstructed_safety_factor,101153:reconstructed_safety_factor,101156:reconstructed_safety_factor,101162:reconstructed_safety_factor,101163:reconstructed_safety_factor
+    6        +1     0           -1                 -1  101154:reconstructed_safety_factor,100999:reconstructed_safety_factor,101017:reconstructed_safety_factor,101025:reconstructed_safety_factor,101026:reconstructed_safety_factor,101029:reconstructed_safety_factor,101031:reconstructed_safety_factor,101033:reconstructed_safety_factor,101039:reconstructed_safety_factor,101044:reconstructed_safety_factor,101045:reconstructed_safety_factor,101046:reconstructed_safety_factor,101153:reconstructed_safety_factor,101156:reconstructed_safety_factor,101162:reconstructed_safety_factor,101163:reconstructed_safety_factor
+    7        -1     0           +1                 +1  101154:raw_flux_loop_response,100999:raw_flux_loop_response,101017:raw_flux_loop_response,101025:raw_flux_loop_response,101026:raw_flux_loop_response,101029:raw_flux_loop_response,101031:raw_flux_loop_response,101033:raw_flux_loop_response,101039:raw_flux_loop_response,101044:raw_flux_loop_response,101045:raw_flux_loop_response,101046:raw_flux_loop_response,101153:raw_flux_loop_response,101156:raw_flux_loop_response,101162:raw_flux_loop_response,101163:raw_flux_loop_response
+    8        -1     0           -1                 +1  101154:raw_flux_loop_response,100999:raw_flux_loop_response,101017:raw_flux_loop_response,101025:raw_flux_loop_response,101026:raw_flux_loop_response,101029:raw_flux_loop_response,101031:raw_flux_loop_response,101033:raw_flux_loop_response,101039:raw_flux_loop_response,101044:raw_flux_loop_response,101045:raw_flux_loop_response,101046:raw_flux_loop_response,101153:raw_flux_loop_response,101156:raw_flux_loop_response,101162:raw_flux_loop_response,101163:raw_flux_loop_response
+   11        +1     1           +1                 +1  101154:declared_flux_exponent,100999:declared_flux_exponent,101017:declared_flux_exponent,101025:declared_flux_exponent,101026:declared_flux_exponent,101029:declared_flux_exponent,101031:declared_flux_exponent,101033:declared_flux_exponent,101039:declared_flux_exponent,101044:declared_flux_exponent,101045:declared_flux_exponent,101046:declared_flux_exponent,101153:declared_flux_exponent,101156:declared_flux_exponent,101162:declared_flux_exponent,101163:declared_flux_exponent
+   12        +1     1           -1                 +1  101154:declared_flux_exponent,100999:declared_flux_exponent,101017:declared_flux_exponent,101025:declared_flux_exponent,101026:declared_flux_exponent,101029:declared_flux_exponent,101031:declared_flux_exponent,101033:declared_flux_exponent,101039:declared_flux_exponent,101044:declared_flux_exponent,101045:declared_flux_exponent,101046:declared_flux_exponent,101153:declared_flux_exponent,101156:declared_flux_exponent,101162:declared_flux_exponent,101163:declared_flux_exponent
+   13        -1     1           +1                 -1  101154:raw_flux_loop_response,101154:reconstructed_safety_factor,101154:declared_flux_exponent,100999:raw_flux_loop_response,100999:reconstructed_safety_factor,100999:declared_flux_exponent,101017:raw_flux_loop_response,101017:reconstructed_safety_factor,101017:declared_flux_exponent,101025:raw_flux_loop_response,101025:reconstructed_safety_factor,101025:declared_flux_exponent,101026:raw_flux_loop_response,101026:reconstructed_safety_factor,101026:declared_flux_exponent,101029:raw_flux_loop_response,101029:reconstructed_safety_factor,101029:declared_flux_exponent,101031:raw_flux_loop_response,101031:reconstructed_safety_factor,101031:declared_flux_exponent,101033:raw_flux_loop_response,101033:reconstructed_safety_factor,101033:declared_flux_exponent,101039:raw_flux_loop_response,101039:reconstructed_safety_factor,101039:declared_flux_exponent,101044:raw_flux_loop_response,101044:reconstructed_safety_factor,101044:declared_flux_exponent,101045:raw_flux_loop_response,101045:reconstructed_safety_factor,101045:declared_flux_exponent,101046:raw_flux_loop_response,101046:reconstructed_safety_factor,101046:declared_flux_exponent,101153:raw_flux_loop_response,101153:reconstructed_safety_factor,101153:declared_flux_exponent,101156:raw_flux_loop_response,101156:reconstructed_safety_factor,101156:declared_flux_exponent,101162:raw_flux_loop_response,101162:reconstructed_safety_factor,101162:declared_flux_exponent,101163:raw_flux_loop_response,101163:reconstructed_safety_factor,101163:declared_flux_exponent
+   14        -1     1           -1                 -1  101154:raw_flux_loop_response,101154:reconstructed_safety_factor,101154:declared_flux_exponent,100999:raw_flux_loop_response,100999:reconstructed_safety_factor,100999:declared_flux_exponent,101017:raw_flux_loop_response,101017:reconstructed_safety_factor,101017:declared_flux_exponent,101025:raw_flux_loop_response,101025:reconstructed_safety_factor,101025:declared_flux_exponent,101026:raw_flux_loop_response,101026:reconstructed_safety_factor,101026:declared_flux_exponent,101029:raw_flux_loop_response,101029:reconstructed_safety_factor,101029:declared_flux_exponent,101031:raw_flux_loop_response,101031:reconstructed_safety_factor,101031:declared_flux_exponent,101033:raw_flux_loop_response,101033:reconstructed_safety_factor,101033:declared_flux_exponent,101039:raw_flux_loop_response,101039:reconstructed_safety_factor,101039:declared_flux_exponent,101044:raw_flux_loop_response,101044:reconstructed_safety_factor,101044:declared_flux_exponent,101045:raw_flux_loop_response,101045:reconstructed_safety_factor,101045:declared_flux_exponent,101046:raw_flux_loop_response,101046:reconstructed_safety_factor,101046:declared_flux_exponent,101153:raw_flux_loop_response,101153:reconstructed_safety_factor,101153:declared_flux_exponent,101156:raw_flux_loop_response,101156:reconstructed_safety_factor,101156:declared_flux_exponent,101162:raw_flux_loop_response,101162:reconstructed_safety_factor,101162:declared_flux_exponent,101163:raw_flux_loop_response,101163:reconstructed_safety_factor,101163:declared_flux_exponent
+   15        +1     1           +1                 -1  101154:reconstructed_safety_factor,101154:declared_flux_exponent,100999:reconstructed_safety_factor,100999:declared_flux_exponent,101017:reconstructed_safety_factor,101017:declared_flux_exponent,101025:reconstructed_safety_factor,101025:declared_flux_exponent,101026:reconstructed_safety_factor,101026:declared_flux_exponent,101029:reconstructed_safety_factor,101029:declared_flux_exponent,101031:reconstructed_safety_factor,101031:declared_flux_exponent,101033:reconstructed_safety_factor,101033:declared_flux_exponent,101039:reconstructed_safety_factor,101039:declared_flux_exponent,101044:reconstructed_safety_factor,101044:declared_flux_exponent,101045:reconstructed_safety_factor,101045:declared_flux_exponent,101046:reconstructed_safety_factor,101046:declared_flux_exponent,101153:reconstructed_safety_factor,101153:declared_flux_exponent,101156:reconstructed_safety_factor,101156:declared_flux_exponent,101162:reconstructed_safety_factor,101162:declared_flux_exponent,101163:reconstructed_safety_factor,101163:declared_flux_exponent
+   16        +1     1           -1                 -1  101154:reconstructed_safety_factor,101154:declared_flux_exponent,100999:reconstructed_safety_factor,100999:declared_flux_exponent,101017:reconstructed_safety_factor,101017:declared_flux_exponent,101025:reconstructed_safety_factor,101025:declared_flux_exponent,101026:reconstructed_safety_factor,101026:declared_flux_exponent,101029:reconstructed_safety_factor,101029:declared_flux_exponent,101031:reconstructed_safety_factor,101031:declared_flux_exponent,101033:reconstructed_safety_factor,101033:declared_flux_exponent,101039:reconstructed_safety_factor,101039:declared_flux_exponent,101044:reconstructed_safety_factor,101044:declared_flux_exponent,101045:reconstructed_safety_factor,101045:declared_flux_exponent,101046:reconstructed_safety_factor,101046:declared_flux_exponent,101153:reconstructed_safety_factor,101153:declared_flux_exponent,101156:reconstructed_safety_factor,101156:declared_flux_exponent,101162:reconstructed_safety_factor,101162:declared_flux_exponent,101163:reconstructed_safety_factor,101163:declared_flux_exponent
+   17        -1     1           +1                 +1  101154:raw_flux_loop_response,101154:declared_flux_exponent,100999:raw_flux_loop_response,100999:declared_flux_exponent,101017:raw_flux_loop_response,101017:declared_flux_exponent,101025:raw_flux_loop_response,101025:declared_flux_exponent,101026:raw_flux_loop_response,101026:declared_flux_exponent,101029:raw_flux_loop_response,101029:declared_flux_exponent,101031:raw_flux_loop_response,101031:declared_flux_exponent,101033:raw_flux_loop_response,101033:declared_flux_exponent,101039:raw_flux_loop_response,101039:declared_flux_exponent,101044:raw_flux_loop_response,101044:declared_flux_exponent,101045:raw_flux_loop_response,101045:declared_flux_exponent,101046:raw_flux_loop_response,101046:declared_flux_exponent,101153:raw_flux_loop_response,101153:declared_flux_exponent,101156:raw_flux_loop_response,101156:declared_flux_exponent,101162:raw_flux_loop_response,101162:declared_flux_exponent,101163:raw_flux_loop_response,101163:declared_flux_exponent
+   18        -1     1           -1                 +1  101154:raw_flux_loop_response,101154:declared_flux_exponent,100999:raw_flux_loop_response,100999:declared_flux_exponent,101017:raw_flux_loop_response,101017:declared_flux_exponent,101025:raw_flux_loop_response,101025:declared_flux_exponent,101026:raw_flux_loop_response,101026:declared_flux_exponent,101029:raw_flux_loop_response,101029:declared_flux_exponent,101031:raw_flux_loop_response,101031:declared_flux_exponent,101033:raw_flux_loop_response,101033:declared_flux_exponent,101039:raw_flux_loop_response,101039:declared_flux_exponent,101044:raw_flux_loop_response,101044:declared_flux_exponent,101045:raw_flux_loop_response,101045:declared_flux_exponent,101046:raw_flux_loop_response,101046:declared_flux_exponent,101153:raw_flux_loop_response,101153:declared_flux_exponent,101156:raw_flux_loop_response,101156:declared_flux_exponent,101162:raw_flux_loop_response,101162:declared_flux_exponent,101163:raw_flux_loop_response,101163:declared_flux_exponent
+
+VERDICT: 2 conventions survive: (1, 2)
+COCOS 3 versus COCOS 4: no level-2 measurement distinguishes them; they differ only in sigma_R_phi_Z.
+RECOMMENDATION: treat the MAST source COCOS as an explicit external declaration; COCOS 3 is an owner assumption pending a facility statement of positive-phi direction, not a measurement.
+IP-LIKE CONSEQUENCE: declaration 3 applies factor +1 to all 3 targets; declaration 4 applies factor -1 to all 3 targets.
+DECLARATION CHANGE: COCOS 4 to COCOS 3 moves factor -1 to +1 for each affected target.
+IP-LIKE TARGETS: magnetics/ip, pf_active/coil/current, pf_active/solenoid/current</code></pre>
+
+<h3 id="jtmm-sign-cohort-vacuum-h">Per-channel vacuum slope and correlation</h3>
+<table id="jtmm-sign-cohort-vacuum-table">
+<thead><tr><th>channel</th><th>verdict</th><th>median slope</th>
+<th>median |r|</th></tr></thead>
+<tbody>
+<tr><td>magFlxLp1</td><td>undecided</td><td>-0.0140</td><td>0.3910</td></tr>
+<tr><td>magFlxLp2</td><td>undecided</td><td>+0.0357</td><td>0.5890</td></tr>
+<tr><td>magFlxLp3</td><td>undecided</td><td>+0.0193</td><td>0.5543</td></tr>
+<tr><td>magFlxLp4</td><td>undecided</td><td>+0.0070</td><td>0.4741</td></tr>
+<tr><td>magFlxLp5</td><td>undecided</td><td>-0.0013</td><td>0.2517</td></tr>
+<tr><td>magFlxLp6</td><td>undecided</td><td>-0.0037</td><td>0.6358</td></tr>
+<tr><td>magFlxLp7</td><td>negate</td><td>-0.9925</td><td>0.9991</td></tr>
+<tr><td>magFlxLp8</td><td>undecided</td><td>-0.0027</td><td>0.5474</td></tr>
+<tr><td>magFlxLp9</td><td>undecided</td><td>-0.0015</td><td>0.1652</td></tr>
+<tr><td>magFlxLp10</td><td>undecided</td><td>+0.0034</td><td>0.1988</td></tr>
+<tr><td>magFlxLp11</td><td>undecided</td><td>+0.0157</td><td>0.2399</td></tr>
+<tr><td>magFlxLp12</td><td>undecided</td><td>+0.0115</td><td>0.1229</td></tr>
+<tr><td>magFlxLp13</td><td>undecided</td><td>-0.1073</td><td>0.7242</td></tr>
+<tr><td>magFlxLp14</td><td>undecided</td><td>-0.1531</td><td>0.7829</td></tr>
+<tr><td>magFlxLp15</td><td>undecided</td><td>-0.1848</td><td>0.5646</td></tr>
+<tr><td>magFlxLp16</td><td>undecided</td><td>-0.0979</td><td>0.6071</td></tr>
+<tr><td>magFlxLp17</td><td>undecided</td><td>-0.0831</td><td>0.5500</td></tr>
+<tr><td>magFlxLp18</td><td>undecided</td><td>-0.0948</td><td>0.4899</td></tr>
+<tr><td>magFlxLp19</td><td>undecided</td><td>-0.1053</td><td>0.4860</td></tr>
+<tr><td>magFlxLp20</td><td>undecided</td><td>-0.1257</td><td>0.5065</td></tr>
+<tr><td>magFlxLp21</td><td>undecided</td><td>-0.1517</td><td>0.6097</td></tr>
+<tr><td>magFlxLp22</td><td>undecided</td><td>-0.1522</td><td>0.6708</td></tr>
+<tr><td>magFlxLp23</td><td>undecided</td><td>-0.1498</td><td>0.8141</td></tr>
+<tr><td>magFlxLp24</td><td>undecided</td><td>-0.1467</td><td>0.7719</td></tr>
+<tr><td>magFlxLp25</td><td>undecided</td><td>-0.1386</td><td>0.7388</td></tr>
+<tr><td>magFlxLp26</td><td>undecided</td><td>-0.1311</td><td>0.6942</td></tr>
+<tr><td>magFlxLp27</td><td>undecided</td><td>-0.1664</td><td>0.6596</td></tr>
+<tr><td>magPbTC1</td><td>identity</td><td>+0.9712</td><td>0.9572</td></tr>
+<tr><td>magPbTC2</td><td>identity</td><td>+1.0035</td><td>0.9669</td></tr>
+<tr><td>magPbTC3</td><td>identity</td><td>+0.9948</td><td>0.9765</td></tr>
+<tr><td>magPbTC4</td><td>identity</td><td>+0.9957</td><td>0.9789</td></tr>
+<tr><td>magPbTC5</td><td>identity</td><td>+1.0610</td><td>0.9974</td></tr>
+<tr><td>magPbTC6</td><td>identity</td><td>+0.9970</td><td>0.9906</td></tr>
+<tr><td>magPbTC7</td><td>identity</td><td>+0.9995</td><td>0.9976</td></tr>
+<tr><td>magPbTC8</td><td>identity</td><td>+1.0173</td><td>0.9939</td></tr>
+<tr><td>magPbTC9</td><td>identity</td><td>+0.9898</td><td>0.9940</td></tr>
+<tr><td>magPbTC10</td><td>identity</td><td>+1.0283</td><td>0.9971</td></tr>
+<tr><td>magPbTC11</td><td>identity</td><td>+0.9960</td><td>0.9931</td></tr>
+<tr><td>magPbTC12</td><td>identity</td><td>+1.0065</td><td>0.9930</td></tr>
+<tr><td>magPbTC13</td><td>identity</td><td>+1.0419</td><td>0.9876</td></tr>
+<tr><td>magPbTC14</td><td>identity</td><td>+0.9900</td><td>0.9850</td></tr>
+<tr><td>magPbTC15</td><td>identity</td><td>+0.9742</td><td>0.9823</td></tr>
+<tr><td>magPbTC16</td><td>identity</td><td>+0.9717</td><td>0.9641</td></tr>
+<tr><td>magPbTC17</td><td>undecided</td><td>+0.9376</td><td>0.9481</td></tr>
+</tbody>
+</table>
+<p id="jtmm-sign-cohort-vacuum-note">
+Slope and correlation are read from <code>jtmm-vacuum-adjudication.json</code>
+over the same three vacuum shots; the verdicts and the swap control are that
+node's, not re-derived here.
+</p>
+</section>

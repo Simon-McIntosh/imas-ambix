@@ -39,10 +39,25 @@ MAST_LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
 _RAW_PLASMA_CURRENT_TARGETS = ("magnetics/ip",)
 _RAW_FLUX_LOOP_TARGETS = ("magnetics/flux_loop_flux", "magnetics/flux_loop/flux")
 _RAW_TF_COIL_TARGETS = ("tf/coil/current",)
+_RAW_SAFETY_FACTOR_TARGETS = ("equilibrium/time_slice/global_quantities/q_95",)
+_RAW_TOROIDAL_FIELD_TARGETS = ("equilibrium/vacuum_toroidal_field/b0",)
 
-#: The ``EfitLabels.scalars`` key carrying the equilibrium half's vacuum
-#: toroidal field, the same key the convention audit reads.
+#: The two plasma-current floors that separate plasma-on samples from the
+#: pre-plasma baseline, shared by every observation reader so a level-2 read
+#: and a signal-map read score the same window.
+_MINIMUM_CURRENT_A = 50_000.0
+_BASELINE_CURRENT_A = 10_000.0
+
+#: The equilibrium half's vacuum toroidal field, bound to the DD b0 leaf when it
+#: is read through a signal map rather than assembled into an ``EfitLabels``.
 _VACUUM_FIELD_KEY = "magnetics_bcoil"
+
+#: A flux-loop rule enters the raw response only when its sign and value are
+#: proven.  A ``source-only`` loop is left out: on JT-60SA every loop but the
+#: reference (loop 7) measures a difference to that reference and never fits its
+#: own absolute prediction, so only the reference carries an absolute flux a
+#: sign product can use.
+_PROVEN_VALIDATION_STATE = "corpus-validated"
 
 EvidenceClassification = Literal[
     "measurable-from-data",
@@ -203,8 +218,8 @@ class ShotSignObservation:
     raw_flux_loop_channels: int
     raw_flux_loop_opposite_sign_channels: int
     toroidal_field_t: float
-    poloidal_flux_edge_minus_axis_wb_per_rad: float
-    poloidal_angle_signed_area_m2: float
+    poloidal_flux_edge_minus_axis_wb_per_rad: float | None
+    poloidal_angle_signed_area_m2: float | None
     safety_factor: float
     flux_exponent: int
     retained_slices: int
@@ -234,18 +249,30 @@ class ShotSignObservation:
         return _finite_sign(self.toroidal_field_t, "toroidal field")
 
     @property
-    def poloidal_flux_sign(self) -> int:
-        """Sign of poloidal flux at the edge relative to the axis."""
+    def poloidal_flux_sign(self) -> int | None:
+        """Sign of poloidal flux at the edge relative to the axis.
 
+        ``None`` when the equilibrium source carries no psi grid: the edge
+        minus axis flux is then not measurable and no sign product can be
+        formed from it.
+        """
+
+        if self.poloidal_flux_edge_minus_axis_wb_per_rad is None:
+            return None
         return _finite_sign(
             self.poloidal_flux_edge_minus_axis_wb_per_rad,
             "poloidal flux edge minus axis",
         )
 
     @property
-    def poloidal_angle_direction(self) -> int:
-        """Return ``+1`` for counter-clockwise or ``-1`` for clockwise."""
+    def poloidal_angle_direction(self) -> int | None:
+        """Return ``+1`` for counter-clockwise or ``-1`` for clockwise.
 
+        ``None`` when no ordered LCFS was available to bound a signed area.
+        """
+
+        if self.poloidal_angle_signed_area_m2 is None:
+            return None
         return _finite_sign(
             self.poloidal_angle_signed_area_m2,
             "ordered LCFS signed area",
@@ -355,13 +382,23 @@ def score_convention(
     ``sign(q) = sign(Ip) * sign(B0) * sigma_rho_theta_phi``
 
     The raw flux-loop response corroborates ``sigma_bp`` without substituting
-    EFIT output for an available magnetics measurement.  The q relation
+    EFIT output for an available magnetics measurement.  The raw loop channels
+    are scored for unanimity rather than for a fixed sign: a well-formed store
+    either has every loop response on one side or is split, and which side is
+    read from the response itself, so a store that carries a single absolute
+    loop is scored on that loop's own sign instead of against another store's
+    sign convention.  The q relation
     characterizes the EFIT output convention because level-2 has no raw q or
     toroidal-field reference.  The source flux units declare ``e_bp``.
 
     ``sigma_r_phi_z`` is deliberately not scored.  The signed area of an
     ordered LCFS array constrains the writer's point ordering, not the physical
     direction of positive toroidal angle.
+
+    A row whose equilibrium source carries no psi grid has no measurable
+    edge-minus-axis flux, so the reconstructed-poloidal-flux relation is left
+    unscored for that row rather than failed; :func:`format_sign_report` names
+    each such relation beside its reason.
     """
 
     try:
@@ -375,9 +412,12 @@ def score_convention(
     for row in observations:
         if row.raw_flux_loop_response_sign != sigma_bp:
             violations.append(f"{row.shot}:raw_flux_loop_response")
-        if row.raw_flux_loop_opposite_sign_channels != row.raw_flux_loop_channels:
+        if 0 < row.raw_flux_loop_opposite_sign_channels < row.raw_flux_loop_channels:
             violations.append(f"{row.shot}:raw_flux_loop_channel_consensus")
-        if row.poloidal_flux_sign != row.plasma_current_sign * sigma_bp:
+        row_flux_sign = row.poloidal_flux_sign
+        if row_flux_sign is not None and row_flux_sign != (
+            row.plasma_current_sign * sigma_bp
+        ):
             violations.append(f"{row.shot}:reconstructed_poloidal_flux")
         if row.safety_factor_sign != (
             row.plasma_current_sign * row.toroidal_field_sign * sigma_rho_theta_phi
@@ -414,6 +454,30 @@ def surviving_conventions(
     return tuple(
         score.identifier for score in score_conventions(observations) if score.survives
     )
+
+
+def _unscored_relations(
+    observations: Sequence[ShotSignObservation],
+) -> tuple[tuple[int, str, str], ...]:
+    """Name every consistency relation a row cannot be scored against.
+
+    Returns ``(shot, relation, reason)`` for each relation the observations
+    leave unscored, so the report states what the cohort could not test rather
+    than presenting a shorter list of violations as complete.
+    """
+
+    unscored: list[tuple[int, str, str]] = []
+    for row in observations:
+        if row.poloidal_flux_sign is None:
+            unscored.append(
+                (
+                    row.shot,
+                    "reconstructed_poloidal_flux",
+                    "the equilibrium source carries no psi grid, so the "
+                    "edge-minus-axis flux has no measured value",
+                )
+            )
+    return tuple(unscored)
 
 
 MAST_SOURCE_COCOS = 3
@@ -574,38 +638,44 @@ def _observation_from_series(
     radial_grid = np.asarray(equilibrium.grid_r_m, dtype=np.float64)
     vertical_grid = np.asarray(equilibrium.grid_z_m, dtype=np.float64)
     flux = np.asarray(equilibrium.psirz, dtype=np.float64)
-    axis_r = np.asarray(equilibrium.scalars["efit_r_axis"], dtype=np.float64)
-    axis_z = np.asarray(equilibrium.scalars["efit_z_axis"], dtype=np.float64)
-    boundary_r = np.asarray(equilibrium.lcfs_r_m, dtype=np.float64)
-    boundary_z = np.asarray(equilibrium.lcfs_z_m, dtype=np.float64)
 
-    flux_differences: list[float] = []
-    signed_areas: list[float] = []
-    for index in retained_indices:
-        field = flux[index]
-        radial_index = int(np.argmin(np.abs(radial_grid - axis_r[index])))
-        vertical_index = int(np.argmin(np.abs(vertical_grid - axis_z[index])))
-        axis_flux = field[vertical_index, radial_index]
+    flux_difference: float | None = None
+    signed_area: float | None = None
+    if flux.size:
+        axis_r = np.asarray(equilibrium.scalars["efit_r_axis"], dtype=np.float64)
+        axis_z = np.asarray(equilibrium.scalars["efit_z_axis"], dtype=np.float64)
+        boundary_r = np.asarray(equilibrium.lcfs_r_m, dtype=np.float64)
+        boundary_z = np.asarray(equilibrium.lcfs_z_m, dtype=np.float64)
 
-        r_boundary = boundary_r[index]
-        z_boundary = boundary_z[index]
-        boundary_valid = (
-            np.isfinite(r_boundary) & np.isfinite(z_boundary) & (r_boundary > 0)
-        )
-        if not np.isfinite(axis_flux) or np.count_nonzero(boundary_valid) < 4:
-            continue
-        r_indices = np.abs(
-            radial_grid[:, np.newaxis] - r_boundary[boundary_valid]
-        ).argmin(axis=0)
-        z_indices = np.abs(
-            vertical_grid[:, np.newaxis] - z_boundary[boundary_valid]
-        ).argmin(axis=0)
-        edge_flux = float(np.nanmedian(field[z_indices, r_indices]))
-        flux_differences.append(edge_flux - float(axis_flux))
-        signed_areas.append(_ordered_polygon_area(r_boundary, z_boundary))
+        flux_differences: list[float] = []
+        signed_areas: list[float] = []
+        for index in retained_indices:
+            field = flux[index]
+            radial_index = int(np.argmin(np.abs(radial_grid - axis_r[index])))
+            vertical_index = int(np.argmin(np.abs(vertical_grid - axis_z[index])))
+            axis_flux = field[vertical_index, radial_index]
 
-    if not flux_differences or not signed_areas:
-        raise ValueError(f"shot {shot} has no usable flux-boundary slices")
+            r_boundary = boundary_r[index]
+            z_boundary = boundary_z[index]
+            boundary_valid = (
+                np.isfinite(r_boundary) & np.isfinite(z_boundary) & (r_boundary > 0)
+            )
+            if not np.isfinite(axis_flux) or np.count_nonzero(boundary_valid) < 4:
+                continue
+            r_indices = np.abs(
+                radial_grid[:, np.newaxis] - r_boundary[boundary_valid]
+            ).argmin(axis=0)
+            z_indices = np.abs(
+                vertical_grid[:, np.newaxis] - z_boundary[boundary_valid]
+            ).argmin(axis=0)
+            edge_flux = float(np.nanmedian(field[z_indices, r_indices]))
+            flux_differences.append(edge_flux - float(axis_flux))
+            signed_areas.append(_ordered_polygon_area(r_boundary, z_boundary))
+
+        if not flux_differences or not signed_areas:
+            raise ValueError(f"shot {shot} has no usable flux-boundary slices")
+        flux_difference = float(np.nanmedian(flux_differences))
+        signed_area = float(np.nanmedian(signed_areas))
 
     return ShotSignObservation(
         shot=int(shot),
@@ -614,8 +684,8 @@ def _observation_from_series(
         raw_flux_loop_channels=raw_flux_channels,
         raw_flux_loop_opposite_sign_channels=raw_flux_opposite,
         toroidal_field_t=float(np.nanmedian(aligned_toroidal_field[retained])),
-        poloidal_flux_edge_minus_axis_wb_per_rad=float(np.nanmedian(flux_differences)),
-        poloidal_angle_signed_area_m2=float(np.nanmedian(signed_areas)),
+        poloidal_flux_edge_minus_axis_wb_per_rad=flux_difference,
+        poloidal_angle_signed_area_m2=signed_area,
         safety_factor=float(np.nanmedian(safety_factor[retained])),
         flux_exponent=0,
         retained_slices=int(retained_indices.size),
@@ -634,21 +704,15 @@ def _equilibrium_labels_from_level2(equilibrium: object) -> EfitLabels:
 
     return EfitLabels(
         time_ms=np.asarray(equilibrium["time"], dtype=np.float64),
-        psirz=np.transpose(
-            np.asarray(equilibrium["psi"], dtype=np.float64), (2, 1, 0)
-        ),
+        psirz=np.transpose(np.asarray(equilibrium["psi"], dtype=np.float64), (2, 1, 0)),
         grid_r_m=np.asarray(equilibrium["major_radius"], dtype=np.float64),
         grid_z_m=np.asarray(equilibrium["z"], dtype=np.float64),
         lcfs_r_m=np.transpose(np.asarray(equilibrium["lcfs_r"], dtype=np.float64)),
         lcfs_z_m=np.transpose(np.asarray(equilibrium["lcfs_z"], dtype=np.float64)),
         scalars={
             "efit_q95": np.asarray(equilibrium["q95"], dtype=np.float64),
-            "efit_r_axis": np.asarray(
-                equilibrium["magnetic_axis_r"], dtype=np.float64
-            ),
-            "efit_z_axis": np.asarray(
-                equilibrium["magnetic_axis_z"], dtype=np.float64
-            ),
+            "efit_r_axis": np.asarray(equilibrium["magnetic_axis_r"], dtype=np.float64),
+            "efit_z_axis": np.asarray(equilibrium["magnetic_axis_z"], dtype=np.float64),
         },
         cocos=MAST_SOURCE_COCOS,
     )
@@ -658,8 +722,8 @@ def read_level2_observation(
     shot: int,
     root: Path | str = MAST_LEVEL2_ROOT,
     *,
-    minimum_current_a: float = 50_000.0,
-    baseline_current_a: float = 10_000.0,
+    minimum_current_a: float = _MINIMUM_CURRENT_A,
+    baseline_current_a: float = _BASELINE_CURRENT_A,
 ) -> ShotSignObservation:
     """Read one observation directly from an immutable FAIR-MAST level-2 store."""
 
@@ -742,6 +806,85 @@ def _one_rule(
     return selected[0]
 
 
+def _absolute_flux_loop_rules(
+    rules: Sequence[SignalRule],
+    targets: tuple[str, ...],
+    quantity: str,
+) -> tuple[SignalRule, ...]:
+    """Keep only the flux-loop rules whose sign and value a sign product may use.
+
+    A differential flux loop stores the difference between two loops
+    (``indices_differential``), so its raw channel is not an absolute flux and no
+    sign product over it is meaningful: on JT-60SA every loop but the reference
+    measures a difference against that reference and never fits its own absolute
+    prediction.  A ``source-only`` rule carries an assumed sign the reader exists
+    to measure, so it cannot enter either.  What survives is the rules whose
+    convention is already proven, which for JT-60SA is the absolute reference
+    loop alone.
+    """
+
+    selected = tuple(
+        rule
+        for rule in _rules_targeting(rules, targets, quantity)
+        if rule.validation_state == _PROVEN_VALIDATION_STATE
+    )
+    if not selected:
+        raise ValueError(
+            f"signal map declares no proven rule targeting {quantity} "
+            f"(expected at least one with validation_state "
+            f"{_PROVEN_VALIDATION_STATE!r})"
+        )
+    return selected
+
+
+def _equilibrium_half_from_signal_map(
+    machine: str,
+    pulse: Path,
+    shot: int,
+) -> tuple[EfitLabels, np.ndarray, np.ndarray]:
+    """Assemble a gridless equilibrium record from the machine's equilibrium map.
+
+    The safety factor (Q95) and the field-times-radius scalar (BTV) are read raw
+    through the machine's ``equilibrium`` signal map, so the reader owns no sign
+    of its own and reads the same source the equilibrium half would supply.
+    Neither the flux grid nor the boundary is present in this store, so the
+    record carries empty arrays and the kernel leaves every relation that needs
+    flux unscored.
+    """
+
+    from imas_ambix.challenge.loader import EfitLabels  # noqa: PLC0415
+
+    equilibrium_map = load_packaged_signal_map(machine, "equilibrium")
+    safety_factor_rule = _one_rule(
+        equilibrium_map.signals, _RAW_SAFETY_FACTOR_TARGETS, "the safety factor"
+    )
+    toroidal_field_rule = _one_rule(
+        equilibrium_map.signals,
+        _RAW_TOROIDAL_FIELD_TARGETS,
+        "the toroidal field",
+    )
+    view = VirtualZarrView.open(str(pulse), equilibrium_map, shot=shot)
+    q_values, q_time = view.raw_series(safety_factor_rule.semantic_id)
+    f_values, f_time = view.raw_series(toroidal_field_rule.semantic_id)
+    safety_factor = _raw_series(q_values, safety_factor_rule)
+    toroidal_field = _raw_series(f_values, toroidal_field_rule)
+    empty = np.empty(0, dtype=np.float64)
+    return (
+        EfitLabels(
+            time_ms=np.asarray(q_time, dtype=np.float64),
+            psirz=np.empty((0, 0, 0), dtype=np.float64),
+            grid_r_m=empty,
+            grid_z_m=empty,
+            lcfs_r_m=empty,
+            lcfs_z_m=empty,
+            scalars={"efit_q95": safety_factor},
+            cocos=equilibrium_map.target_cocos,
+        ),
+        np.asarray(f_time, dtype=np.float64),
+        toroidal_field,
+    )
+
+
 def _raw_series(values: object, rule: SignalRule) -> np.ndarray:
     """Collapse a rule's raw source values to its one time series."""
 
@@ -770,7 +913,11 @@ def _aligned_loop(
     instead, and a loop whose own time span does not cover the current's is
     refused rather than extrapolated: a flux-loop channel whose record starts
     after the plasma current has no measured value to contribute where the
-    current is defined.
+    current is defined.  The one allowance is a gap no wider than one sampling
+    interval of the loop's own record, which is inside the channel's own
+    resolution: a record opening one sample after the current does carry a
+    measured value there, and ``np.interp`` holds the nearest measured value
+    across the gap rather than inventing a trend.
     """
 
     finite = np.isfinite(loop_time) & np.isfinite(series)
@@ -792,7 +939,10 @@ def _aligned_loop(
     high = float(np.max(span_time))
     current_low = float(np.min(current_time[current_finite]))
     current_high = float(np.max(current_time[current_finite]))
-    if low > current_low or high < current_high:
+    intervals = np.diff(span_time)
+    resolution = float(np.median(intervals)) if intervals.size else 0.0
+    tolerance = resolution
+    if low > current_low + tolerance or high < current_high - tolerance:
         raise ValueError(
             f"flux-loop rule {rule.semantic_id!r} spans [{low}, {high}] s, "
             f"which does not cover the plasma-current time base "
@@ -804,11 +954,11 @@ def _aligned_loop(
 def read_signal_map_observation(
     shot: int,
     machine: str,
-    equilibrium: EfitLabels,
+    equilibrium: EfitLabels | None = None,
     *,
     root: Path | str,
-    minimum_current_a: float = 50_000.0,
-    baseline_current_a: float = 10_000.0,
+    minimum_current_a: float = _MINIMUM_CURRENT_A,
+    baseline_current_a: float = _BASELINE_CURRENT_A,
 ) -> ShotSignObservation:
     """Read one observation through a machine's packaged signal maps.
 
@@ -821,13 +971,19 @@ def read_signal_map_observation(
     to measure, so the reader takes the raw values and the raw time base and
     owns the alignment itself.  Each flux loop is interpolated onto the
     plasma-current time base, and a loop whose time span does not cover that
-    base is refused rather than extrapolated or index-aligned.  The equilibrium
-    half supplies the vacuum toroidal field, the same way MAST's reader takes
+    base is refused rather than extrapolated or index-aligned; only the rules
+    whose convention is already proven enter at all, because a differential
+    loop's raw channel is a difference to the reference rather than an absolute
+    flux (see :func:`_absolute_flux_loop_rules`).  The equilibrium half
+    supplies the vacuum toroidal field, the same way MAST's reader takes
     ``bvac_rmag`` from the level-2 equilibrium group, so the reader owns no
-    field-per-ampere relation.  The ``tf`` map's coil current is read raw the
-    same way and enters only as a polarity cross-check reported beside the
-    observation, by sign alone.  The three raw series and the
-    :class:`EfitLabels` record are handed to the shared kernel, so a
+    field-per-ampere relation.  When no equilibrium record is supplied the
+    safety factor and the field are read raw through the machine's
+    ``equilibrium`` signal map instead, which yields a gridless record and
+    leaves every flux-dependent relation unscored.  The ``tf`` map's coil
+    current is read raw the same way and enters only as a polarity cross-check
+    reported beside the observation, by sign alone.  The three raw series and
+    the :class:`EfitLabels` record are handed to the shared kernel, so a
     signal-map read and a level-2 read share one computation of the signs.
     """
 
@@ -837,7 +993,7 @@ def read_signal_map_observation(
     plasma_current_rule = _one_rule(
         magnetics_map.signals, _RAW_PLASMA_CURRENT_TARGETS, "the plasma current"
     )
-    flux_loop_rules = _rules_targeting(
+    flux_loop_rules = _absolute_flux_loop_rules(
         magnetics_map.signals, _RAW_FLUX_LOOP_TARGETS, "the flux-loop flux"
     )
     tf_coil_rule = _one_rule(
@@ -847,6 +1003,16 @@ def read_signal_map_observation(
     pulse = Path(root) / f"{normalised_shot(shot_id)}.zarr"
     magnetics_view = VirtualZarrView.open(str(pulse), magnetics_map, shot=shot_id)
     tf_view = VirtualZarrView.open(str(pulse), tf_map, shot=shot_id)
+
+    if equilibrium is None:
+        equilibrium, toroidal_field_time, toroidal_field = (
+            _equilibrium_half_from_signal_map(machine, pulse, shot_id)
+        )
+    else:
+        toroidal_field_time = np.asarray(equilibrium.time_ms, dtype=np.float64)
+        toroidal_field = np.asarray(
+            equilibrium.scalars[_VACUUM_FIELD_KEY], dtype=np.float64
+        )
 
     plasma_current_values, plasma_current_time = magnetics_view.raw_series(
         plasma_current_rule.semantic_id
@@ -876,10 +1042,8 @@ def read_signal_map_observation(
         plasma_current_time=plasma_current_time,
         plasma_current=plasma_current,
         flux_loops=flux_loops,
-        toroidal_field_time=np.asarray(equilibrium.time_ms, dtype=np.float64),
-        toroidal_field=np.asarray(
-            equilibrium.scalars[_VACUUM_FIELD_KEY], dtype=np.float64
-        ),
+        toroidal_field_time=toroidal_field_time,
+        toroidal_field=toroidal_field,
         equilibrium=equilibrium,
         minimum_current_a=minimum_current_a,
         baseline_current_a=baseline_current_a,
@@ -925,16 +1089,27 @@ def format_sign_report(
         )
     )
     for row in observations:
-        direction = "CCW" if row.poloidal_angle_direction > 0 else "CW"
+        angle = row.poloidal_angle_direction
+        direction = "n/a" if angle is None else ("CCW" if angle > 0 else "CW")
+        flux_sign = row.poloidal_flux_sign
+        flux_text = "n/a" if flux_sign is None else f"{flux_sign:+d}"
         lines.append(
             f"{row.shot:5d}  {row.plasma_current_sign:+d}  "
             f"{row.raw_flux_loop_response_sign:+d}  "
             f"{row.raw_flux_loop_opposite_sign_channels:d}/"
             f"{row.raw_flux_loop_channels:d}  "
-            f"{row.toroidal_field_sign:+d}  {row.poloidal_flux_sign:+d}  "
+            f"{row.toroidal_field_sign:+d}  {flux_text:>3s}  "
             f"{direction:>5s}  {row.safety_factor_sign:+d}  "
             f"{row.flux_exponent:d}  {row.retained_slices:d}"
         )
+
+    lines.extend(("", "UNSCORED RELATIONS"))
+    unscored = _unscored_relations(observations)
+    if unscored:
+        for shot, relation, reason in unscored:
+            lines.append(f"{shot}: {relation} not scored — {reason}")
+    else:
+        lines.append("none: every relation was scored on every row")
 
     lines.extend(("", "DETERMINABLE RELATIVE-SIGN PRODUCTS"))
     for product in RELATIVE_SIGN_PRODUCTS:
