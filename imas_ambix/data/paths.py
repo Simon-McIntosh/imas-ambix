@@ -35,6 +35,30 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MAPS_DIR = REPO_ROOT / "maps"
 JT60SA_MAP_DIR = MAPS_DIR / "jt-60sa"
 
+# --- Machine bundle overview --------------------------------------------
+#
+# Each machine's bundle is published as its own GHCR package, so each carries
+# its own release line: tags hold a version alone and never a machine name, and
+# the release state is read from that machine's package.  The package name is
+# the registry's, not the machine slug's -- the JT-60SA bundle is published as
+# ``imas-alambic-jt60sa`` while its machine slug is ``jt-60sa``.  This table is
+# the only place a package name is written.
+GHCR_OWNER = "simon-mcintosh"
+MACHINE_PACKAGES: dict[str, str] = {
+    "jt-60sa": "imas-alambic-jt60sa",
+}
+
+
+def package_for_machine(machine: str) -> str:
+    """Return the GHCR package name carrying ``machine``'s bundle.
+
+    Raises :class:`KeyError` for a machine no package is published for, so a
+    caller can name the machine it is rejected for.
+    """
+    if machine not in MACHINE_PACKAGES:
+        raise KeyError(machine)
+    return MACHINE_PACKAGES[machine]
+
 # --- Endpoint ----------------------------------------------------------
 
 S3_ENDPOINT = "https://s3.echo.stfc.ac.uk"
