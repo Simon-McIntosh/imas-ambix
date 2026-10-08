@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.94">
-<meta name="plan-version" content="404">
+<meta name="plan-version" content="405">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -74,8 +74,11 @@
     <p>
       <strong>Decision proposed and argued here, locked below:</strong> JT-60SA maps are
       persisted as versioned documents owned by ambix's machine-map substrate. They were first
-      packaged in the repository; since jt60sa-facility-mint §1 they live only in the private bundle
-      at <code>/work/projects/imas_gpu/jt60sa/maps</code>, as <code>machine_map.json</code>
+      packaged in the repository, then kept in a private bundle under
+      <code>/work/projects/imas_gpu/jt60sa/</code> (jt60sa-facility-mint §1). Since 2026-10-08 they
+      are developed in the repository's gitignored <code>maps/jt-60sa/</code> and released to GHCR as
+      <code>ghcr.io/simon-mcintosh/imas-alambic-jt60sa</code> by <code>imas-ambix maps release</code>, as
+      <code>machine_map.json</code>
       (description bindings) and <code>maps/&lt;system&gt;.json</code> (pulse signal maps), each
       carrying evidence receipts that point back at codex graph nodes, handbook pages and
       PIDs. Codex remains the place where candidates are discovered, where the handbook and
@@ -574,8 +577,14 @@
       distance against SELENE's PSRC boundary is under 0.10 m, a coarse floor that a wrong map or a
       wrong frame exceeds. And a must-fail control, the same run with loop 7's
       <code>channel_factor</code> flipped to +1, stamps a larger whitened magnetics residual than the
-      true map on every shot. Beyond those two checks the first stamp is the baseline that later map
-      corrections are judged against.
+      true map on every shot. The <code>equilibrium/time_slice/profiles_2d</code> psi binding has its
+      own check, because the stamp reads only coil and magnetics data and cannot see it. E101011's
+      psi, read through the binding at the time of its G-EQDSK, must agree on the G-EQDSK grid
+      with the G-EQDSK psi from the same SELENE run (<code>load_geqdsk</code>). Both are compared in
+      the dictionary's COCOS 17, the G-EQDSK psi converted by the §6 sign report's coefficients,
+      and the normalised RMS difference must be under 1% of that psi's range. The same comparison
+      with the binding's sign flipped must fail it. Beyond those checks the first stamp is the
+      baseline that later map corrections are judged against.
     </p>
 
     <h2 id="s8">§8 — Execution order</h2>
@@ -717,7 +726,7 @@
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="map-persistence-location" data-choice="ambix-packaged-maps" data-by="Simon McIntosh" data-when="2026-10-05T05:13:52+00:00">
     <p class="r-dec-q">Where are JT-60SA → IMAS maps persisted?</p>
-    <p class="r-dec-ctx">Codex has traditionally generated the facility and DD knowledge graph; ambix holds the executable machine-map substrate that MAST already runs through. Since jt60sa-facility-mint&#x27;s decision map-privacy (2026-10-06) the JT-60SA maps are no longer packaged in the ambix repository: they live only in the private bundle at /work/projects/imas_gpu/jt60sa/maps (machine_map.json and maps/), released as GHCR artifacts and changed through staged copies under reckon&#x27;s reports directory (section 6). The choice recorded here, maps owned by ambix&#x27;s machine-map substrate rather than by the codex graph or a third repository, stands.</p>
+    <p class="r-dec-ctx">Codex has traditionally generated the facility and DD knowledge graph; ambix holds the executable machine-map substrate that MAST already runs through. Since jt60sa-facility-mint&#x27;s decision map-privacy (2026-10-06) the JT-60SA maps are no longer packaged in the ambix repository: they were kept in a private bundle under /work/projects/imas_gpu/jt60sa/, and since 2026-10-08 they are developed in the repository&#x27;s gitignored maps/jt-60sa/ (machine_map.json and maps/) and released to GHCR as ghcr.io/simon-mcintosh/imas-alambic-jt60sa. The choice recorded here, maps owned by ambix&#x27;s machine-map substrate rather than by the codex graph or a third repository, stands.</p>
     <p class="r-dec-opts">
       <button class="r-opt chosen" data-value="ambix-packaged-maps">Packaged maps in ambix, codex supplies evidence</button>
       <button class="r-opt" data-value="codex-graph-mappings">IMASMapping nodes in the codex graph, ambix reads the graph</button>
@@ -1518,7 +1527,7 @@
     <div class="r-comment-body"><p>Independent review of r-20261007T114357275075-jtmm-fame-equilibrium-map-repair stored at reviewed run r-20261007T114357275075-jtmm-fame-equilibrium-map-repair: 6 dimensions scored (goal_fidelity 19, evidence 18, scope_discipline 19, durability 17, fit 17, reuse 19; total 109/120), one follow-on finding on the vacuous T.m/T hand-factor assertion, and the revision pair base 33620fcb head b26c8e32 recorded.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261007T105420160450-jtmm-differential-loop-consumers" data-who="reckon-build" data-when="2026-10-07T12:04:10.283Z">
-    <div class="r-comment-body"><p>/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-differential-loop-consumers/docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-consumers.html</p></div>
+    <div class="r-comment-body"><p>Landing record: <code>docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-consumers.html</code>.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261007T155353193562-review-of-jtmm-differential-loop-consumers" data-who="reckon-build" data-when="2026-10-07T16:26:28.945Z">
     <div class="r-comment-body"><p>review node — the outcome lands as a comment on imas-ambix:jt60sa-machine-map §6 by the coordinator from the stored record; total 109/120 (goal_fidelity 19, evidence 17, scope_discipline 20, durability 15, reuse 19, fit 19), reviewed_base_sha bff5f22e, reviewed_head_sha 8d75c8c7, added_failure_count 0, added_failure_ids [], two findings.</p></div>
