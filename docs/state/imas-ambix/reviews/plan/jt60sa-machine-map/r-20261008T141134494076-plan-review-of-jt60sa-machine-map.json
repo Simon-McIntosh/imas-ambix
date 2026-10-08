@@ -1,0 +1,37 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T14:20:59.531Z",
+  "dispatched_at": "2026-10-08T14:12:11Z",
+  "findings": [],
+  "plan_fingerprint": "50a8351a914c013719d4e42163604c265887cc420cd7b1c1a3bbc7500cb5a254",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 387,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261008T141134494076-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "e01e88262fe86ea13e571fda679b9886217f4644",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every file and symbol the three changed clauses name resolves: `imas_ambix/gs/artifact_resolution.py` (defines the three `PINNED_*` constants), `imas_ambix/spine_bench/machine_artifact_arm.py` (`MachineArtifactGeometrySource`, `expected_physical_digest = PINNED_PHYSICAL_DIGEST`), `imas_ambix/gs/machine_identity.py`, `imas_ambix/gs/machine_selection.py`, and `imas_ambix/gs/artifact_geometry.py` (`machine: str = \"mast\"`); the extensionless `docs/evidence/fragments/...` href is the house convention.",
+    "done_when": "pass \u2014 \u00a77's done-when (plan.html:513-523) names two falsifiable checks: a 0.10 m boundary-RMS floor and a must-fail control (loop 7's `channel_factor` flipped to +1 must stamp a larger whitened residual), so the gate can fail; `MachineArtifactGeometrySource.build` (machine_artifact_arm.py:144-149) does raise when the resolved identity digest differs, so the named provenance check is enforceable.",
+    "evidence_paths": "pass \u2014 \u00a77's evidence is the committed stamp record and the \u00a76 sign fragment; the changed clauses cite no scratch or node-local path.",
+    "naming": "pass \u2014 the changed clauses introduce no plan label, stage name, ticket number or version tag into a symbol or comment; the node ids that appear are plan-body references, which a plan may carry, and the code names remain mechanism terms (`artifact_resolution`, `machine_identity`).",
+    "reasoning": "pass \u2014 all three checks hold for the changed clauses. Root cause matches evidence: edit (3) asserts the frozen JT-60SA set is all OP1, and `shots.py:75-90` shows every one of the 16 rows is `op1 SELENE-ran`, so the OP1-row provenance is the correct expectation. Mechanism produces its done-when: the selector resolving the pin row from the machine plus the shot's registry digest is exactly what lets `MachineArtifactGeometrySource` (which compares `selected.identity.physical_digest` against its expected digest) measure \"the description the spine solves with\". Real caller named: `ArtifactMachineSelector` is the one production constructor of the reader (`machine_selection.py:176`), its three constructors are named (plan.html:387-388), and `read_acquisition_channels` already takes `machine: str = \"mast\"`, so passing the declared machine retires a live default rather than inventing one. No finding.",
+    "single_goal": "pass \u2014 the authoring node produces one artifact per phase (a single deliverable of one kind), and `jtmm-machine-keyed-selection` carries one coherent goal (key the selection route by machine); no node carries two unrelated deliverables.",
+    "wiring": "pass \u2014 the section's gate `conventions-before-equilibrium` is `data-section=\"s7\" data-gated-sections=\"s7\"` (plan.html:647), \u00a78 places the \u00a77 stamp after the COCOS/sign work (plan.html:540-545), and the two nodes \u00a77 names (`jtmm-jt60sa-artifact-producer` at 394/434, `jtmm-machine-keyed-selection` at 450) resolve to text the section supplies; no relationship points at a wrong node."
+  },
+  "section_digests": {
+    "_document": "1a041e1b69e7c648e3848440450d2aa25ac955ec54bdbca27a0558b3e2fb8c3a",
+    "s1": "52731ac311aa8ac6ed57dc5f58a5868e5f9e2e34b4e132f297830fa912abbc0f",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "4a6e570c1ef3467a20e299233e5ba8156d3ce03d14278edd01fb19e3ebe139d7",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T14:21:22.213599+00:00"
+}
