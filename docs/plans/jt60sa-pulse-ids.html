@@ -22,12 +22,12 @@
   <meta name="plan-tags" content="jt-60sa,machine-map,equilibrium,figures">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;jt60sa-machine-map#s7&quot;], &quot;s3&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;], &quot;s4&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;, &quot;imas-ink:geometry-figure-vessel-units#s5&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;}">
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="29">
-<meta name="plan-modified" content="2026-10-07">
+<meta name="plan-version" content="30">
+<meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
   <main class="plan-doc">
@@ -149,6 +149,10 @@
   <p class="landed-summary">E101154 rewritten and E101031 written in <code>/work/projects/imas_gpu/jt60sa/ids/</code> (merged <code>4def5114</code>, review 113/120): 10 coil currents, ip (0.9986 / 0.6984&nbsp;MA), 27 loops and 17 probes on their own time bases. Loops other than 7 are raw differences relative to loop 7 until jt60sa-machine-map's type-6 rules land. <a href="s6">full record</a></p>
 </section>
 
+    <h2 id="s7">§7 — E101154 and E101031 rewritten under the differential loop rules</h2>
+<section data-reckon="section" data-id="s7" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p>On 2026-10-08 jt60sa-machine-map landed its differential loop rules in the development bundle, <code>maps/jt-60sa/maps/magnetics.json</code>. The magnetics store now holds 53 loops: the 27 type-1 loops at indices 0–26 and 26 type-6 differential entries at indices 27–52. Each rule for loops 1–6 and 8–27 targets its type-6 entry, whose <code>indices_differential</code> is [7, L], with <code>channel_factor</code> −1. That stores the data dictionary's differential flux ψ<sub>L</sub> − ψ<sub>7</sub>, which is the negative of the raw difference. Loop 7 stays at index 6 and still stores −raw<sub>7</sub>. The type-1 entries of the other 26 loops carry geometry only and no flux. The two run files on disk, <code>/work/projects/imas_gpu/jt60sa/ids/101154_0.nc</code> and <code>101031_0.nc</code>, predate this: they hold the raw differences at the type-1 indices.</p><p>This section writes both pulses again through the writer, with nothing else changed: <code>imas-alambic write E101154 E101031 --run 0 --overwrite</code>. Pulses are named by their full EDDB token. The IDS root resolves from settings to <code>/work/projects/imas_gpu/jt60sa/ids</code>, and the bundle is the main checkout's <code>maps/jt-60sa/</code>, which the worktree reaches through its <code>maps</code> symlink. EDDB records are read from the cache and never refetched. Before overwriting, the node copies both run files into its own scratch directory, so the old and new values can be compared.</p><p><strong>Done when</strong> the write, run in place on the fleet allocation, rewrites both run files and its receipt is captured in the gate log. In each new file, <code>magnetics/flux_loop</code> has 53 entries. Entries 27–52 carry type index 6, <code>indices_differential</code> [7, L], and flux on their own time bases. Entry 6 (FL7) carries flux. The other 26 type-1 entries carry no flux. For every loop L in 1–6 and 8–27, the new type-6 flux equals −1 times the old file's type-1 flux for that loop, element for element on the same time base. FL7 and every <code>pf_active/coil/current</code> and <code>magnetics/ip</code> trace equal their old values element for element. The comparison log records the counts for both pulses. <strong>Negative control:</strong> the same comparison run with a factor of +1 fails on every one of the 26 differential loops, recorded in its own log.</p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="animation-content" data-choice="flux-surfaces-and-topology" data-by="Simon McIntosh" data-when="2026-10-06" data-sections="s2,s3,s4">
@@ -198,6 +202,11 @@
     <h4 class="r-fu-title">Mint E101154&#x27;s equilibrium with its topology</h4>
     <div class="r-fu-body"><p>§2 waits on jt60sa-machine-map §7's SELENE equilibrium rung and on the decision <code>topology-source</code>, which follows that plan's open question <code>eqdb-reader</code>. §4 then waits on §2; its imas-ink prerequisites (vessel drawing, sensor flags) have both shipped.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-pulse-ids §2</pre>
+    </article>
+<article class="r-fu" data-id="f-jpi-s7-rewrite" data-status="open" data-written-by="reckon-build" data-written-at="2026-10-08" data-recommends-skill="/reckon-build jt60sa-pulse-ids §7" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Rewrite E101154 and E101031 under the differential loop rules</h4>
+    <div class="r-fu-body"><p>jt60sa-machine-map's differential loop rules landed on 2026-10-08; jt60sa-signal-figures-from-ids §4 redraws the flux loops from these files.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-pulse-ids §7</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
