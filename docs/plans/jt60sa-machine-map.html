@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.86">
-<meta name="plan-version" content="362">
+<meta name="plan-version" content="363">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -703,7 +703,10 @@
       converted from mm), the X-point and the plasma centre (<code>calRp0</code>,
       <code>calZp0</code>), with plasma current beside them. The plasma centre is not read as the
       magnetic axis unless the source says so. The sign kernel's equilibrium half reads an
-      <code>EfitLabels</code>, so it has no JT-60SA source yet.
+      <code>EfitLabels</code>, and its one JT-60SA source is E101011's G-EQDSK, which
+      <code>jtmm-e101011-psi-row</code> reads into an <code>EfitLabels</code> and passes to
+      <code>read_signal_map_observation</code> as that row's equilibrium half (below); every other row
+      takes its equilibrium half from the FAME scalars.
       The sign report carries the raw-side products (plasma current against the sign of flux change,
       and toroidal-field polarity), and the q-handedness product comes from the EDDB <code>FAME</code> q scalars
       (<code>QAXIS</code>, <code>Q95</code>, <code>QSURF</code>). <code>jtmm-equilibrium-source-leads</code>
@@ -955,8 +958,9 @@
     </p>
     <p>
       Done-when: a sign report over at least three vacuum shots and three plasma shots,
-      with both TF polarities if the campaign offers them, that names the identified source
-      COCOS, the per-channel vacuum slope and correlation, and every channel left
+      with both TF polarities if the campaign offers them, that names the source COCOS, each
+      coefficient identified from data where the signals measure it and &sigma;<sub>R&phi;Z</sub>
+      declared under decision <code>jt60sa-source-cocos</code>, the per-channel vacuum slope and correlation, and every channel left
       unvalidated with its reason; and a unit audit in which every binding's source and
       target units resolve through the DD unit vocabulary with the derived factor asserted
       against one hand-computed value per unit pair.
@@ -1302,9 +1306,10 @@
     <section data-reckon="gates" id="gates" class="r-gates">
 <h2><span class="sec">§</span> Evidence gates</h2>
 <div class="r-gate" data-id="conventions-before-equilibrium" data-section="s7" data-gated-sections="s7" data-status="open" data-verdict="">
-    <h4 class="r-gate-measure">No equilibrium psi binding is written before the source COCOS is identified from data</h4>
-    <p class="r-gate-required-evidence">The §6 sign report naming the identified source COCOS for SELENE/FAME output and
-          for the raw acquisition, with per-channel vacuum slopes.</p>
+    <h4 class="r-gate-measure">No equilibrium psi binding is written before the source COCOS is settled: each coefficient identified from data where the signals measure it, and σ<sub>RφZ</sub> declared under decision jt60sa-source-cocos</h4>
+    <p class="r-gate-required-evidence">The §6 sign report naming SELENE's output COCOS (coefficients identified from data where
+          measurable, σ<sub>RφZ</sub> declared under jt60sa-source-cocos) and confirming the raw
+          acquisition's signs per channel, with per-channel vacuum slopes.</p>
     </div>
 <div class="r-gate" data-id="g-jt60sa-machine-map-1" data-section="s5" data-gated-sections="s5" data-status="closed" data-verdict="passed">
     <h4 class="r-gate-measure">FacilitySignal nodes for JT-60SA E101173 exist in the codex graph with class, shot range and handbook linkage, so the census can join channels to handbook entries and PIDs</h4>
