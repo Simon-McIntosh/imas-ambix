@@ -26,8 +26,8 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
-<meta name="plan-impl" content="0.83">
-<meta name="plan-version" content="359">
+<meta name="plan-impl" content="0.86">
+<meta name="plan-version" content="362">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -549,8 +549,9 @@
       names the two loops it subtracts, loop(second) &minus; loop(first), and leaves
       <code>position</code> and <code>area</code> empty. Each of the 27 physical loops keeps its type-1
       entry with its name, position and area, and only loop 7's carries flux: its measured absolute
-      flux. Each of the 26 measured differences becomes a type-6 entry naming loop 7 then loop L and
-      carrying &minus;raw<sub>L</sub>. No derived absolute flux is stored. Three nodes follow, in
+      flux. Each of the 26 measured differences becomes a type-6 entry with <code>indices_differential</code> [7, L],
+      named FL&lt;L&gt;-FL7 so that the name reads as the stored difference
+      &psi;<sub>L</sub> &minus; &psi;<sub>7</sub>, and carrying &minus;raw<sub>L</sub>. No derived absolute flux is stored. Three nodes follow, in
       order.
       <code>jtmm-differential-loop-store</code> makes the converter's <code>build_magnetics</code>
       (<code>imas_ambix/data/selene_deck.py</code>) append the 26 type-6 entries after the 27 type-1
@@ -581,22 +582,22 @@
       type-6 entry by its <code>indices_differential</code> in place of a position, with the JT-60SA
       map's flux-loop position bindings expanding over the type-1 entries only. It also makes
       <code>read_geometry_table</code> and <code>build_operator</code> predict a type-6 entry as its
-      second loop minus its first. Since jt60sa-facility-mint §1 (merge df3480f2) the JT-60SA map
-      lives only in the <code>/work</code> bundle (<code>/work/projects/imas_gpu/jt60sa/maps</code>).
-      Dispatch refuses a write path outside the repository and reckon's delivery directories, so every
-      node that changes the bundle edits a staged copy under
-      <code>~/.config/reckon/crew/reports/imas-ambix/maps-staging/&lt;node&gt;</code>, and the
-      coordinator copies a landed staged copy into the live bundle with the lead's authorisation,
-      since the bundle is shared. The consumers node stages its copy as
-      <code>maps-staging/jtmm-differential-loop-consumers</code>, points its tests at the copy through <code>IMAS_ALAMBIC_MAP_PATH</code>, and never touches the
-      live bundle. Its tests build the 53-loop store under their own temporary directory with the
+      second loop minus its first. The JT-60SA map is developed in the repository's gitignored
+      <code>maps/jt-60sa/</code> (jt60sa-facility-mint §17), which each worktree reaches through a
+      <code>maps</code> symlink. A node that changes it declares the absolute main-checkout path as its
+      write path, because the write fence resolves a relative path inside the worktree. Releases go
+      to GHCR through <code>imas-ambix maps release jt-60sa</code> (jt60sa-facility-mint §18): v0.1.0
+      is the 2026.10.07 artifact the facility runs, and each landing that changes the bundle cuts the
+      next release candidate. The consumers node predates that layout: it edited a staged copy under
+      reckon's reports directory and pointed its tests at the copy through
+      <code>IMAS_ALAMBIC_MAP_PATH</code>. Its tests build the 53-loop store under their own temporary directory with the
       merged <code>build_magnetics</code>. The six adapter tests and the operator's loop-7 fit pass
-      against both a 53-loop store and the live 27-loop store, and MAST is unchanged. Once it lands,
-      the coordinator copies the staged map and the 53-loop OP1 and OP2 stores into the live bundle
-      together, keeping the 27-loop copies as superseded, and
-      <code>jtmm-differential-loop-store-live</code> shows the seven consumer tests green against them. Only then does
-      <code>jtmm-differential-loop-rules</code> retarget the loop rules in the bundle's
-      <code>maps/magnetics.json</code>.
+      against both a 53-loop store and the live 27-loop store, and MAST is unchanged. The coordinator then
+      applied the staged map and the 53-loop OP1 and OP2 stores to the bundle together, keeping the
+      27-loop copies under <code>superseded/pre-differential-loops</code>, and
+      <code>jtmm-differential-loop-store-live</code> showed the seven consumer tests green against them.
+      <code>jtmm-differential-loop-rules</code> then retargeted the loop rules in
+      <code>maps/magnetics.json</code> (v0.2.0-rc1), and the entry rename followed (v0.2.0-rc2).
     </p>
     <p>
       The COCOS of the source is then identified rather than assumed. For the raw side,
@@ -636,8 +637,8 @@
       (merge 22bb8c39) then moved its raw read onto the view, so nothing in this paragraph remains
       open. The catalogue form read a machine-map catalogue's per-shot bindings, the
       way MAST's catalogue declares its pulse data. JT-60SA's pulse channels are not catalogue
-      bindings, though. They are the §5 signal-map rules under
-      <code>imas_ambix/data/maps/jt-60sa/</code>, read by <code>load_packaged_signal_map</code> and
+      bindings, though. They are the §5 signal-map rules in the bundle's
+      <code>maps/</code> directory, read by <code>load_packaged_signal_map</code> and
       <code>VirtualZarrView</code> over the EDDB cache. And <code>jt-60sa.json</code> declares a
       static-over-map description store, which the reader refuses. The catalogue form has no
       consumer, so the node <code>jtmm-observation-signal-maps</code> replaces it rather than add a
@@ -906,8 +907,9 @@
       unscored for such a row rather than failing it, and <code>format_sign_report</code> names each
       unscored relation with its reason. σ<sub>Bp</sub> is then fixed by the raw flux-loop response,
       which the MAST reader already scores, and σ<sub>ρθφ</sub> by the q relation over the signs of
-      FAME's q, the plasma current and F. E101011's G-EQDSK (§7) is the one row that scores the
-      poloidal-flux relation. The raw response reads only absolute flux: the other 26 loops measure
+      FAME's q, the plasma current and F. E101011's G-EQDSK is the one row that scores the
+      poloidal-flux relation and the flux exponent e<sub>Bp</sub>, and §6 reads it, as below, because
+      the sign report that §7's gate waits on needs it. The raw response reads only absolute flux: the other 26 loops measure
       their difference to loop 7, so loop 7 alone enters it, and the kernel's opposite-sign consensus
       is read over that one channel.
     </p>
@@ -926,6 +928,30 @@
       the equilibrium map's raw series. So the interface change is one argument and two observation
       fields made optional, with no new public definition. It passes JT-60SA's current floors
       explicitly, as above, and writes the sign report this section's done-when names.
+    </p>
+    <p>
+      The landed cohort (<code>jtmm-sign-cohort</code> and its repair) leaves COCOS 1, 2, 11 and 12:
+      the raw loop-7 response and the FAME q relation fix &sigma;<sub>Bp</sub> and
+      &sigma;<sub>&rho;&theta;&phi;</sub>, no row carries psi so e<sub>Bp</sub> is unscored, and
+      &sigma;<sub>R&phi;Z</sub> is not measurable from these signals. <code>jtmm-e101011-psi-row</code>
+      adds the one row that carries psi. It copies E101011's G-EQDSK once, read-only, from
+      <code>/home/d240034/fbequ/EFIT95.DATA</code> on the JT-60SA host to
+      <code>/work/projects/imas_gpu/jt60sa/101011.geqdsk</code>, the suffix
+      <code>EQDSKInterface.from_file</code> accepts. It caches E101011's plasma current, loop 7 and TF
+      coil current through <code>fetch_channels</code> in one ssh connection, reads psi, the boundary
+      and q through the <code>eqdsk</code> package into an <code>EfitLabels</code> record, and adds
+      that row to the cohort, so the poloidal-flux relation and e<sub>Bp</sub> are scored.
+    </p>
+    <p>
+      What that row settles is the COCOS of SELENE's equilibrium output, not a COCOS for the whole
+      machine. Under decision <code>jt60sa-source-cocos</code>, SELENE's output is declared COCOS 1,
+      the EFIT G-EQDSK convention its <code>efitout</code> writes, provided E101011's file reads psi
+      per radian, and the declaration fixes &sigma;<sub>R&phi;Z</sub>, which no signal measures. The
+      machine takes its geometric handedness, the direction of positive &phi;, from that
+      declaration, because the coordinate frame is shared. Flux and current signs are not inherited:
+      each diagnostic channel's sign (flux loops, probes, plasma, coil and TF currents) is confirmed
+      in the measured data, as the vacuum adjudication and the sign cohort already do, and its
+      signal-map rule records that confirmation.
     </p>
     <p>
       Done-when: a sign report over at least three vacuum shots and three plasma shots,
@@ -953,9 +979,10 @@
       The G-EQDSK is read through the <code>eqdsk</code> package's <code>EQDSKInterface</code>, which
       reads the format with its COCOS handling and is already in the project environment as a
       dependency of <code>torax</code> (<code>eqdsk</code> 0.8.0). <code>EQDSKInterface.from_file</code>
-      chooses its parser by file suffix and refuses <code>.DATA</code>, so §7 copies E101011's file
-      once, read-only, to <code>/work/projects/imas_gpu/jt60sa/101011.geqdsk</code> and reads that
-      copy. §7 declares it a direct dependency
+      chooses its parser by file suffix and refuses <code>.DATA</code>, so §6's <code>jtmm-e101011-psi-row</code> copies
+      E101011's file once, read-only, to <code>/work/projects/imas_gpu/jt60sa/101011.geqdsk</code>,
+      and §7 reads that copy. The first node to import the package, §6's
+      <code>jtmm-e101011-psi-row</code>, declares it a direct dependency
       in <code>pyproject.toml</code> because ambix now imports it, and writes no G-EQDSK reader of its
       own. The reference loader is the existing seam's <code>loader</code> argument, so the reader adds
       no public definition to ambix. §7 writes the SELENE map bindings into
@@ -1422,6 +1449,16 @@
       <button class="r-opt" data-value="selene-all-16">run SELENE for all 16 OP1 shots</button>
       </p>
     <p class="r-dec-rat">Lead&#x27;s choice 2026-10-07, after jtmm-equilibrium-source-leads: use what is reachable and run nothing on the JT-60SA server. The section 6 sign report takes the q-handedness from the EDDB FAME q scalars (QAXIS, Q95, QSURF), which are served for every listed shot that has a FAME index. Section 7 takes E101011&#x27;s G-EQDSK (/home/d240034/fbequ/EFIT95.DATA) as its one psi and q reference, and PSRC&#x27;s boundary, X-point, plasma centre and plasma current for every other shot. The FAME EQDB records sat on dbsvr17p, which the lead reported decommissioned, and no other reachable store holds psi and q for the list.</p>
+    </div>
+<div class="r-dec" data-key="jt60sa-source-cocos" data-choice="declare-cocos-1-geqdsk" data-by="Simon McIntosh" data-when="2026-10-08T07:44:59+00:00" data-sections="s6,s7">
+    <p class="r-dec-q">Which COCOS does SELENE&#x27;s equilibrium output follow, given that no JT-60SA measurement settles sigma_R_phi_Z?</p>
+    <p class="r-dec-ctx">The JT-60SA sign report (jtmm-sign-cohort and its repair, 2026-10-08) leaves COCOS 1, 2, 11 and 12: the raw loop-7 response fixes sigma_Bp = +1 and the FAME q relation fixes sigma_rho_theta_phi = +1, E101011&#x27;s G-EQDSK can fix e_Bp, but sigma_R_phi_Z (whether positive phi runs counter-clockwise from above, COCOS 1, or clockwise, COCOS 2) is not measurable from these signals, as for MAST.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="declare-cocos-1-geqdsk">Declare SELENE&#x27;s output COCOS 1 per the EFIT G-EQDSK convention its efitout writes, as an owner declaration pending a facility statement</button>
+      <button class="r-opt" data-value="ask-facility-hold-s7">Ask JT-60SA for the positive-phi direction and hold section 7 until it arrives</button>
+      <button class="r-opt" data-value="carry-both-through-s7">Leave sigma_R_phi_Z undetermined and carry both candidates through section 7</button>
+      </p>
+    <p class="r-dec-rat">Lead, 2026-10-08: option 1, scoped by the lead: this states the COCOS of SELENE&#x27;s reconstruction output, not a COCOS for the whole machine. COCOS 1 has (R, phi, Z) right-handed, positive phi counter-clockwise viewed from above, with sigma_Bp = +1, sigma_rho_theta_phi = +1 and e_Bp = 0, the convention of the EFIT G-EQDSK format SELENE&#x27;s efitout writes; it holds only if E101011&#x27;s G-EQDSK reads psi per radian (e_Bp = 0), which jtmm-e101011-psi-row checks. The machine may take the geometric handedness (sigma_R_phi_Z, the direction of positive phi) from it, since the coordinate frame is shared. Flux and current signs are not inherited: every diagnostic channel&#x27;s sign (flux loops, probes, plasma, coil and TF currents) is confirmed in the measured data, as the vacuum adjudication and the sign cohort do, and its signal-map rule records that confirmation. Recorded as an owner declaration pending a facility statement of the positive-phi direction, as MAST&#x27;s COCOS 3 is.</p>
     </div>
 </section>
 
@@ -2103,7 +2140,10 @@
     <div class="r-comment-body"><p>Renamed the 26 JT-60SA type-6 flux-loop entries to FL&lt;L&gt;-FL7 (FL1-FL7 ... FL27-FL7) in imas_ambix/data/selene_deck.py, regenerated the OP1/OP2 stores and the machine_map.json per-entry bindings, and kept pre-rename copies under superseded/differential-loop-names-pre-rename; gate 109 passed / 4 failed (all 4 base drift in tests/data/test_jt60sa_signal_maps.py, reported under follow_ons), ruff EXIT=0, negative control EXIT=1.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261008T071023882337-review-of-jtmm-differential-loop-names" data-who="reckon-build" data-when="2026-10-08T07:25:56.537Z">
-    <div class="r-comment-body"><p>Independent review of jtmm-differential-loop-names stored at reviewed_base_sha 09980cbe / reviewed_head_sha 6c4df923: six dimensions 0..20 (goal_fidelity 18, evidence 14, scope_discipline 20, durability 17, fit 17, reuse 18; total 104), added_failure_count 0 with added_failure_ids []; the rename is a verified pure rename (OP1/OP2 store arrays element-equal except the 26 type-6 names, every before/after sha256 matches on disk, negative control fires EXIT=1), with four follow-on/low findings (plan naming-order supersession, gate.log missing the required header, the &#x27;exits 0&#x27; clause unmet by proven base drift, and three historical fragments naming the old entry).</p></div>
+    <div class="r-comment-body"><p>Independent review of jtmm-differential-loop-names stored at reviewed_base_sha 09980cbe / reviewed_head_sha 6c4df923: six dimensions 0..20 (goal_fidelity 18, evidence 14, scope_discipline 20, durability 17, fit 17, reuse 18; total 104), added_failure_count 0 with added_failure_ids []; the rename is a verified pure rename (OP1/OP2 store arrays element-equal except the 26 type-6 names, every before/after sha256 matches on disk, negative control fires EXIT=1), with four follow-on/low findings (plan naming-order supersession, gate.log missing the required header, the 'exits 0' clause unmet by proven base drift, and three historical fragments naming the old entry).</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-20261008T074500-s6-differential-and-sign-landings" data-who="reckon-build" data-when="2026-10-08T07:45:00Z">
+    <div class="r-comment-body"><p><strong>Landed 2026-10-07/08.</strong> The differential flux-loop chain is complete: <code>jtmm-differential-loop-consumers</code> (109), its index repairs (114, 116), the bundle apply and <code>jtmm-differential-loop-store-live</code> (110), <code>jtmm-differential-loop-rules</code> with its repair (95 rejected, repair 115; the 12-27 corpus-validated split is the locked median rule), the entry rename to FL&lt;L&gt;-FL7 (104), and the per-shot verdict outliers (pending review). The sign report: <code>jtmm-fame-scalar-fetch</code> (112), <code>jtmm-fame-equilibrium-map</code> with repair (108, 109), <code>jtmm-sign-cohort</code> (115) and its repair (116) leave COCOS 1, 2, 11 and 12. Unit audit: <code>jtmm-unit-inventory-count</code> (101) and <code>-reach</code> (97). The bundle now lives in the repository's gitignored <code>maps/jt-60sa/</code> (jt60sa-facility-mint section 17) and released as v0.2.0-rc2 (section 18); v0.1.0 remains the facility's stable release.</p></div>
 </div>
 <div class="r-comment" data-section="_top" data-id="c-20261007T0000-jtfm-move" data-who="reckon-build (jt60sa-facility-mint)" data-when="2026-10-06T23:00:00Z">
     <div class="r-comment-body"><p><strong>Coordination, lead-approved 2026-10-06:</strong> <a href="jt60sa-facility-mint">jt60sa-facility-mint</a> §2 is now moving the mint engine into the workspace member <code>packages/imas-alambic/</code>. Moving: <code>imas_ambix/data/{machine_map,signal_map,transform_engine,virtual_zarr,eddb,eddb_remote,pulse_mint}.py</code>, <code>imas_ambix/cocos.py</code> and <code>machine_maps/schema.yaml</code>. Imports become <code>imas_alambic.&lt;module&gt;</code>, and <code>nova.io.cocos</code> becomes <code>nova_cocos</code>. <strong>Map JSON is not moving</strong>: <code>machine_maps/*.json</code> and <code>maps/&lt;machine&gt;/*.json</code> stay where they are, and the by-name loaders keep their names, so map-authoring nodes are unaffected. Please avoid dispatching nodes that edit the moving Python modules until the move merges. A node already in flight that touches them will need its imports rebased after the merge, and the facility-mint coordinator will do that rebase.</p></div>
