@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.9">
-<meta name="plan-version" content="371">
+<meta name="plan-version" content="373">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -274,10 +274,12 @@
       dependency of <code>torax</code> (<code>eqdsk</code> 0.8.0). <code>EQDSKInterface.from_file</code>
       chooses its parser by file suffix and refuses <code>.DATA</code>, so §6's <code>jtmm-e101011-psi-row</code> copies
       E101011's file once, read-only, to <code>/work/projects/imas_gpu/jt60sa/101011.geqdsk</code>,
-      and §7 reads that copy. The first node to import the package, §6's
-      <code>jtmm-e101011-psi-row</code>, declares it a direct dependency
-      in <code>pyproject.toml</code> because ambix now imports it, and writes no G-EQDSK reader of its
-      own. The reference loader is the existing seam's <code>loader</code> argument, so the reader adds
+      and §7 reads that copy. §6's <code>jtmm-e101011-psi-row</code>
+      added the one G-EQDSK reader (<code>load_geqdsk</code> in
+      <code>imas_ambix/challenge/loader.py</code>), which imports <code>eqdsk</code> through torax's
+      installed copy. The package is not yet declared directly in <code>pyproject.toml</code>:
+      <code>jtmm-eqdsk-dependency</code> declares it and updates <code>uv.lock</code>, on a lane whose
+      context fits the lock file, and §7 writes no G-EQDSK reader of its own. The reference loader is the existing seam's <code>loader</code> argument, so the reader adds
       no public definition to ambix. §7 writes the SELENE map bindings into
       <code>equilibrium/time_slice/profiles_2d</code>, beginning with <code>psi</code>, once §6's
       sign report names the source COCOS, and adds no second reader of either source. The
@@ -747,7 +749,7 @@
     </div>
 <div class="r-dec" data-key="jt60sa-source-cocos" data-choice="declare-cocos-1-geqdsk" data-by="Simon McIntosh" data-when="2026-10-08T07:44:59+00:00" data-sections="s6,s7">
     <p class="r-dec-q">Which COCOS does SELENE&#x27;s equilibrium output follow, given that no JT-60SA measurement settles sigma_R_phi_Z?</p>
-    <p class="r-dec-ctx">The JT-60SA sign report (jtmm-sign-cohort and its repair, 2026-10-08) leaves COCOS 1, 2, 11 and 12: the raw loop-7 response fixes sigma_Bp = +1 and the FAME q relation fixes sigma_rho_theta_phi = +1, E101011&#x27;s G-EQDSK can fix e_Bp, but sigma_R_phi_Z (whether positive phi runs counter-clockwise from above, COCOS 1, or clockwise, COCOS 2) is not measurable from these signals, as for MAST.</p>
+    <p class="r-dec-ctx">The JT-60SA sign report (jtmm-sign-cohort and its repair, 2026-10-08) first left COCOS 1, 2, 11 and 12: the raw loop-7 response fixes sigma_Bp = +1 and the FAME q relation fixes sigma_rho_theta_phi = +1. E101011&#x27;s G-EQDSK (jtmm-e101011-psi-row) then measured e_Bp = 0, psi per radian, so the report now leaves COCOS 1 and 2. sigma_R_phi_Z (whether positive phi runs counter-clockwise from above, COCOS 1, or clockwise, COCOS 2) is not measurable from these signals, as for MAST.</p>
     <p class="r-dec-opts">
       <button class="r-opt chosen" data-value="declare-cocos-1-geqdsk">Declare SELENE&#x27;s output COCOS 1 per the EFIT G-EQDSK convention its efitout writes, as an owner declaration pending a facility statement</button>
       <button class="r-opt" data-value="ask-facility-hold-s7">Ask JT-60SA for the positive-phi direction and hold section 7 until it arrives</button>
