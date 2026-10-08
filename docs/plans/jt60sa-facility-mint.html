@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="149">
+<meta name="plan-version" content="150">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -586,6 +586,9 @@
 </div>
 <div class="r-comment" data-section="s19" data-id="c-run-r-20261008T052454685220-review-of-jtfm-receipt-entry-index" data-who="reckon-build" data-when="2026-10-08T05:37:52.826Z">
     <div class="r-comment-body"><p>Reviewed r-20261008T042112780370-jtfm-receipt-entry-index (§19): stored a parsed review record (status parsed, 6/6 dimensions in 0..20, total 118, item_aggregate 6) keyed to base e7ea210b / head 108b6c31, carrying added_failure_count 0 and added_failure_ids [] derived from the reviewed run's own baseline_suite (1 failed: tests/data/test_pulse_writer.py::test_write_covers_every_description_ids_in_one_file) and after_suite (0 failed) gate logs; no blocking finding.</p></div>
+</div>
+<div class="r-comment" data-section="s18" data-id="c-run-r-20261008T045132368562-jtfm-map-release-cli" data-who="reckon-build" data-when="2026-10-08T05:38:51.379Z">
+    <div class="r-comment-body"><p>Added `imas-ambix maps release|pull|status`, which versions each machine bundle as semver and release-candidate tags in its own GHCR package, keyed by a tree digest that excludes the version field and the `source`/`superseded` development inputs; jt-60sa is migrated by tagging the legacy 2026.10.07 artifact v0.1.0 in place and releasing v0.2.0-rc1 (tree digest 565ed54f4abc8ed4c7740ec8900319ba9f582a85dd0ab953f6d4b37409373519), with 26 unit tests passing, `uv run --no-sync ruff check imas_ambix tests packages` exit 0, and the unchanged-digest skip caught red by its negative control.</p></div>
 </div>
 </section>
 </main>
