@@ -30,7 +30,7 @@ from imas_alambic.signal_map import SignalRule, load_packaged_signal_map
 from imas_alambic.virtual_zarr import VirtualZarrView
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Iterable, Mapping, Sequence
 
     from imas_ambix.challenge.loader import EfitLabels
 
@@ -221,7 +221,9 @@ class ShotSignObservation:
     poloidal_flux_edge_minus_axis_wb_per_rad: float | None
     poloidal_angle_signed_area_m2: float | None
     safety_factor: float
-    flux_exponent: int
+    flux_exponent: int | None
+    """The declared poloidal-flux exponent, or ``None`` when the source carries
+    no psi grid so the exponent is not measured."""
     retained_slices: int
     tf_coil_current_sign: int | None = None
     """Sign of the raw TF coil current, the polarity cross-check beside the
@@ -387,7 +389,7 @@ def score_convention(
     either has every loop response on one side or is split, and which side is
     read from the response itself, so a store that carries a single absolute
     loop is scored on that loop's own sign instead of against another store's
-    sign convention.  The q relation
+    sign convention, and a split store violates every candidate.  The q relation
     characterizes the EFIT output convention because level-2 has no raw q or
     toroidal-field reference.  The source flux units declare ``e_bp``.
 
@@ -396,8 +398,10 @@ def score_convention(
     direction of positive toroidal angle.
 
     A row whose equilibrium source carries no psi grid has no measurable
-    edge-minus-axis flux, so the reconstructed-poloidal-flux relation is left
-    unscored for that row rather than failed; :func:`format_sign_report` names
+    edge-minus-axis flux and no declared flux exponent, so both the
+    reconstructed-poloidal-flux relation and the declared-flux-exponent check
+    are left unscored for that row rather than failed; its ``flux_exponent`` is
+    ``None`` rather than a hard-coded zero, and :func:`format_sign_report` names
     each such relation beside its reason.
     """
 
@@ -423,7 +427,7 @@ def score_convention(
             row.plasma_current_sign * row.toroidal_field_sign * sigma_rho_theta_phi
         ):
             violations.append(f"{row.shot}:reconstructed_safety_factor")
-        if row.flux_exponent != e_bp:
+        if row.flux_exponent is not None and row.flux_exponent != e_bp:
             violations.append(f"{row.shot}:declared_flux_exponent")
 
     return ConventionScore(
@@ -475,6 +479,17 @@ def _unscored_relations(
                     "reconstructed_poloidal_flux",
                     "the equilibrium source carries no psi grid, so the "
                     "edge-minus-axis flux has no measured value",
+                )
+            )
+        if row.flux_exponent is None:
+            unscored.append(
+                (
+                    row.shot,
+                    "declared_flux_exponent",
+                    "the equilibrium source carries no psi grid, so the "
+                    "declared flux exponent is unmeasured and no row fixes "
+                    "e_Bp; E101011's G-EQDSK (section 7) is the source that "
+                    "would fix it",
                 )
             )
     return tuple(unscored)
@@ -687,7 +702,7 @@ def _observation_from_series(
         poloidal_flux_edge_minus_axis_wb_per_rad=flux_difference,
         poloidal_angle_signed_area_m2=signed_area,
         safety_factor=float(np.nanmedian(safety_factor[retained])),
-        flux_exponent=0,
+        flux_exponent=0 if flux.size else None,
         retained_slices=int(retained_indices.size),
     )
 
@@ -1060,25 +1075,123 @@ def read_level2_sign_table(
     return tuple(read_level2_observation(shot, root) for shot in shots)
 
 
+def _is_mast_level2_cohort(observations: Sequence[ShotSignObservation]) -> bool:
+    """Whether the observations are MAST's own level-2 receipt.
+
+    MAST's coefficient classification, relative-sign products and Ip-like
+    consequence are statements about MAST's level-2 layout, so they print only
+    when the cohort is that receipt.  A cohort read from another machine's maps
+    supports only the coefficients its own rows measure.
+    """
+
+    return tuple(observations) == MAST_LEVEL2_SIGN_TABLE
+
+
+def _common_sign(values: Iterable[int | None]) -> int | None:
+    """The single sign every value shares, or ``None`` when they disagree."""
+
+    signs = {sign for sign in values if sign is not None}
+    return signs.pop() if len(signs) == 1 else None
+
+
+def _cohort_coefficient_classification(
+    observations: Sequence[ShotSignObservation],
+) -> tuple[CoefficientAssessment, ...]:
+    """Classify the coefficients this cohort's own rows support.
+
+    ``sigma_Bp`` is read from the raw absolute flux-loop response and
+    ``sigma_rho_theta_phi`` from the q relation, so those two are measured from
+    the rows.  ``e_Bp`` and ``sigma_R_phi_Z`` are left to an external
+    declaration: no row measures the direction of positive toroidal angle, and
+    the cohort's equilibrium carries no psi grid, so E101011's G-EQDSK
+    (section 7) is the source that would fix the flux exponent.
+    """
+
+    sigma_bp = _common_sign(row.raw_flux_loop_response_sign for row in observations)
+    sigma_rho = _common_sign(
+        row.safety_factor_sign * row.plasma_current_sign * row.toroidal_field_sign
+        for row in observations
+    )
+    return (
+        CoefficientAssessment(
+            coefficient="sigma_Bp",
+            classification="measurable-from-data",
+            value=sigma_bp,
+            reasoning=(
+                "the raw absolute flux-loop response carries one sign over "
+                "every row, so this cohort's rows fix it"
+            ),
+            sources=(),
+        ),
+        CoefficientAssessment(
+            coefficient="sigma_rho_theta_phi",
+            classification="measurable-from-data",
+            value=sigma_rho,
+            reasoning=(
+                "the q relation sign(q) = sign(Ip)*sign(B0)*sigma_rho_theta_phi "
+                "holds on every row"
+            ),
+            sources=(),
+        ),
+        CoefficientAssessment(
+            coefficient="e_Bp",
+            classification="requires-an-external-declaration",
+            value=None,
+            reasoning=(
+                "the equilibrium carries no psi grid, so the declared flux "
+                "exponent is unmeasured; E101011's G-EQDSK (section 7) is the "
+                "source that would fix e_Bp"
+            ),
+            sources=(),
+        ),
+        CoefficientAssessment(
+            coefficient="sigma_R_phi_Z",
+            classification="requires-an-external-declaration",
+            value=None,
+            reasoning="no row measures the direction of positive toroidal angle",
+            sources=(),
+        ),
+    )
+
+
 def format_sign_report(
     observations: Sequence[ShotSignObservation] = MAST_LEVEL2_SIGN_TABLE,
 ) -> str:
-    """Format provenance, coefficient limits and the conditional declaration."""
+    """Format the cohort's classification, receipt, score and verdict.
+
+    MAST's fixed blocks — the coefficient classification, the determinable
+    relative-sign products and the Ip-like consequence — print only for MAST's
+    own level-2 cohort.  Any other cohort reports the coefficients its own rows
+    measure, so a JT-60SA cohort leaves ``e_Bp`` and ``sigma_R_phi_Z`` to an
+    external declaration and lists every candidate its scored relations leave.
+    """
+
+    mast_cohort = _is_mast_level2_cohort(observations)
 
     lines = [
-        "COEFFICIENT CLASSIFICATION",
+        "COEFFICIENT CLASSIFICATION"
+        if mast_cohort
+        else "COHORT COEFFICIENT CLASSIFICATION",
     ]
-    for assessment in COEFFICIENT_ASSESSMENTS:
+    assessments = (
+        COEFFICIENT_ASSESSMENTS
+        if mast_cohort
+        else _cohort_coefficient_classification(observations)
+    )
+    for assessment in assessments:
         value = "unknown" if assessment.value is None else f"{assessment.value:+d}"
         lines.append(
             f"{assessment.coefficient}: {assessment.classification}; value={value}"
         )
-        lines.append(f"  reasoning: {assessment.reasoning}")
         if assessment.sources:
+            lines.append(f"  reasoning: {assessment.reasoning}")
             for source in assessment.sources:
                 lines.append(f"  source: {source.path} [{source.kind}]")
-        else:
+        elif mast_cohort:
+            lines.append(f"  reasoning: {assessment.reasoning}")
             lines.append("  source: none in level-2")
+        else:
+            lines.append(f"  reasoning: {assessment.reasoning}")
 
     lines.extend(
         (
@@ -1093,6 +1206,8 @@ def format_sign_report(
         direction = "n/a" if angle is None else ("CCW" if angle > 0 else "CW")
         flux_sign = row.poloidal_flux_sign
         flux_text = "n/a" if flux_sign is None else f"{flux_sign:+d}"
+        exponent = row.flux_exponent
+        exponent_text = "n/a" if exponent is None else f"{exponent:d}"
         lines.append(
             f"{row.shot:5d}  {row.plasma_current_sign:+d}  "
             f"{row.raw_flux_loop_response_sign:+d}  "
@@ -1100,7 +1215,7 @@ def format_sign_report(
             f"{row.raw_flux_loop_channels:d}  "
             f"{row.toroidal_field_sign:+d}  {flux_text:>3s}  "
             f"{direction:>5s}  {row.safety_factor_sign:+d}  "
-            f"{row.flux_exponent:d}  {row.retained_slices:d}"
+            f"{exponent_text}  {row.retained_slices:d}"
         )
 
     lines.extend(("", "UNSCORED RELATIONS"))
@@ -1111,11 +1226,12 @@ def format_sign_report(
     else:
         lines.append("none: every relation was scored on every row")
 
-    lines.extend(("", "DETERMINABLE RELATIVE-SIGN PRODUCTS"))
-    for product in RELATIVE_SIGN_PRODUCTS:
-        lines.append(f"{product.expression}={product.value:+d}; {product.scope}")
-        for source in product.sources:
-            lines.append(f"  source: {source.path} [{source.kind}]")
+    if mast_cohort:
+        lines.extend(("", "DETERMINABLE RELATIVE-SIGN PRODUCTS"))
+        for product in RELATIVE_SIGN_PRODUCTS:
+            lines.append(f"{product.expression}={product.value:+d}; {product.scope}")
+            for source in product.sources:
+                lines.append(f"  source: {source.path} [{source.kind}]")
 
     scores = score_conventions(observations)
     lines.append("")
@@ -1135,22 +1251,22 @@ def format_sign_report(
         verdict = f"{len(survivors)} conventions survive: {survivors}"
     else:
         verdict = "0 conventions survive: observations are not COCOS-expressible"
-    lines.extend(
-        (
-            "",
-            f"VERDICT: {verdict}",
-            "COCOS 3 versus COCOS 4: no level-2 measurement distinguishes them; "
-            "they differ only in sigma_R_phi_Z.",
-            "RECOMMENDATION: treat the MAST source COCOS as an explicit external "
-            "declaration; COCOS 3 is an owner assumption pending a facility "
-            "statement of positive-phi direction, not a measurement.",
-            "IP-LIKE CONSEQUENCE: declaration 3 applies factor +1 to all 3 targets; "
-            "declaration 4 applies factor -1 to all 3 targets.",
-            "DECLARATION CHANGE: COCOS 4 to COCOS 3 moves factor -1 to +1 for "
-            "each affected target.",
-            "IP-LIKE TARGETS: " + ", ".join(IP_LIKE_TARGETS),
+    lines.extend(("", f"VERDICT: {verdict}"))
+    if mast_cohort:
+        lines.extend(
+            (
+                "COCOS 3 versus COCOS 4: no level-2 measurement distinguishes "
+                "them; they differ only in sigma_R_phi_Z.",
+                "RECOMMENDATION: treat the MAST source COCOS as an explicit "
+                "external declaration; COCOS 3 is an owner assumption pending a "
+                "facility statement of positive-phi direction, not a measurement.",
+                "IP-LIKE CONSEQUENCE: declaration 3 applies factor +1 to all 3 "
+                "targets; declaration 4 applies factor -1 to all 3 targets.",
+                "DECLARATION CHANGE: COCOS 4 to COCOS 3 moves factor -1 to +1 "
+                "for each affected target.",
+                "IP-LIKE TARGETS: " + ", ".join(IP_LIKE_TARGETS),
+            )
         )
-    )
     return "\n".join(lines)
 
 

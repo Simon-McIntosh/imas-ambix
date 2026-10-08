@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-sign-cohort-repair-landing">
+      <h3>JT-60SA sign report states only what its own cohort measures</h3>
+      <p id="jtmm-sign-cohort-repair-fence">The sign report in
+      <code>imas_ambix/data/cocos_convention.py</code> printed MAST's fixed
+      blocks — the coefficient classification, the determinable relative-sign
+      products, the COCOS 3 versus 4 note, the recommendation and the Ip-like
+      consequence — for any cohort, and modelled every row's declared
+      poloidal-flux exponent as MAST's hard-coded <code>0</code>. The
+      equilibrium JT-60SA reads through
+      <code>read_signal_map_observation</code> carries no psi grid, so that
+      exponent was never measured: the fixed <code>0</code> was an unwarranted
+      claim. The report now prints those blocks only for the MAST level-2
+      cohort. For any other cohort it states the classification its own rows
+      support, and a row whose equilibrium carries no psi records
+      <code>flux_exponent=None</code>, leaves the declared-flux-exponent check
+      unscored with that reason, and scopes the recommendation and the Ip-like
+      consequence to MAST.</p>
+      <p id="jtmm-sign-cohort-repair-verdict">Scored against the same 16 JT-60SA
+      rows, the repaired report's verdict is
+      <strong>4 conventions survive: (1, 2, 11, 12)</strong>, where the
+      hard-coded exponent had restricted it to <strong>(1, 11)</strong> by
+      claiming a flux exponent the source cannot carry. The two surviving
+      cohorts are the sigma_Bp and sigma_rho_theta_phi relations the raw
+      absolute flux-loop response and the q relation actually measure:
+      <code>sigma_Bp</code> fixed by the raw absolute flux-loop response,
+      <code>sigma_rho_theta_phi</code> fixed by
+      <code>sign(q) = sign(Ip)&middot;sign(B0)&middot;sigma_rho_theta_phi</code>,
+      and <code>sigma_R_phi_Z</code> and <code>e_Bp</code> left undetermined
+      because no row measures the direction of positive toroidal angle and the
+      equilibrium carries no psi grid. The report names E101011's
+      G-EQDSK/&sect;7 as the source that would fix <code>e_Bp</code>.</p>
+      <p id="jtmm-sign-cohort-repair-mast">MAST's report text and
+      <code>MAST_LEVEL2_SIGN_TABLE</code> scores are unchanged, pinned by a
+      test: the MAST cohort still reports <strong>2 conventions survive:
+      (3, 4)</strong> and the same coefficient classification and
+      recommendation lines it reported before this change. The change is
+      inert for MAST because the MAST level-2 cohort declares its own
+      exponent and is recognised as its own cohort.</p>
+      <p id="jtmm-sign-cohort-repair-tests">Two new tests pin the cohort
+      boundaries this repair rests on. The single-absolute-loop consensus
+      test confirms that a row with one agreeing absolute loop is not a
+      consensus violation, while a split two-channel row still is. The
+      interval-alignment test confirms that a loop series beginning one
+      sampling interval after the query time is accepted and a wider gap is
+      refused. A third test pins the no-psi row: the declared-flux-exponent
+      relation is unscored and the report names E101011's G-EQDSK/&sect;7 as
+      the fix.</p>
+      <p id="jtmm-sign-cohort-repair-artifact">The cohort script
+      <code>scripts/jt60sa_sign_cohort.py</code> regenerates
+      <a href="/imas-ambix/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort.html">
+      <code>jtmm-sign-cohort.html</code></a> and its figure
+      <a href="/imas-ambix/figures/jt60sa-machine-map/jtmm-sign-cohort/jt60sa-vacuum-channel-slope.svg">
+      its per-channel vacuum slope figure</a>, so the published artifact
+      carries the corrected verdict and the cohort's own statement. Reproduce
+      the fragment with <code>python scripts/jt60sa_sign_cohort.py</code> after
+      the map bundle is staged on <code>IMAS_ALAMBIC_MAP_PATH</code>, and the
+      report alone with
+      <code>uv run pytest tests/data/test_cocos_convention.py</code>. Run logs
+      and the negative control are in the run directory.</p>
+    </section>
+  </main>
+</body>
+</html>

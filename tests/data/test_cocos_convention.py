@@ -736,3 +736,162 @@ def test_signal_map_reader_refuses_a_map_with_no_proven_flux_loop(
         read_signal_map_observation(
             _SYNTHETIC_SHOT, "jt-60sa", _synthetic_equilibrium(), root=tmp_path
         )
+
+
+def test_single_absolute_loop_row_is_not_a_consensus_violation():
+    """An agreeing one-loop row fixes the sign, it is not a split consensus.
+
+    A store that carries a single absolute flux loop has one response and no
+    disagreement to report, so the consensus test stays silent for it rather
+    than flagging the every-channel-negative form a multi-loop store needs.
+    """
+
+    row = replace(
+        MAST_LEVEL2_SIGN_TABLE[0],
+        raw_flux_loop_channels=1,
+        raw_flux_loop_opposite_sign_channels=0,
+    )
+
+    for candidate in COCOS_CANDIDATES:
+        assert not any(
+            violation.endswith(":raw_flux_loop_channel_consensus")
+            for violation in score_convention(candidate, (row,)).violations
+        )
+
+
+def test_split_flux_loop_consensus_is_a_violation():
+    """A store whose loop responses are split violates every candidate."""
+
+    row = replace(
+        MAST_LEVEL2_SIGN_TABLE[0],
+        raw_flux_loop_channels=2,
+        raw_flux_loop_opposite_sign_channels=1,
+    )
+
+    assert any(
+        violation.endswith(":raw_flux_loop_channel_consensus")
+        for violation in score_convention(3, (row,)).violations
+    )
+
+
+def test_flux_loop_gap_of_one_sampling_interval_is_accepted(tmp_path, monkeypatch):
+    """A loop opening one sample after the current still covers it.
+
+    The loop's own sampling interval is its resolution, so a record that opens
+    one interval after the plasma current's start carries a measured value
+    there; the reader holds the nearest value across that gap rather than
+    refusing the channel.
+    """
+
+    _stub_signal_maps(monkeypatch, _single_loop_maps())
+    loop_time = np.arange(1.0, 9.0, 1.0)
+    _write_loop_store(tmp_path, loop_time, np.power(2.0, np.arange(loop_time.size)))
+
+    observation = read_signal_map_observation(
+        _SYNTHETIC_SHOT, "jt-60sa", _synthetic_equilibrium(), root=tmp_path
+    )
+
+    assert observation.raw_flux_loop_channels == 1
+
+
+def test_flux_loop_gap_wider_than_one_sampling_interval_is_refused(
+    tmp_path, monkeypatch
+):
+    """A gap wider than one interval is beyond the channel's resolution."""
+
+    _stub_signal_maps(monkeypatch, _single_loop_maps())
+    loop_time = np.arange(2.0, 10.0, 1.0)
+    _write_loop_store(tmp_path, loop_time, np.power(2.0, np.arange(loop_time.size)))
+
+    with pytest.raises(ValueError, match="does not cover"):
+        read_signal_map_observation(
+            _SYNTHETIC_SHOT, "jt-60sa", _synthetic_equilibrium(), root=tmp_path
+        )
+
+
+def test_row_without_psi_leaves_the_flux_exponent_unscored():
+    """No psi grid means no declared flux exponent to score either.
+
+    A row whose equilibrium carries no psi grid records ``None`` for the flux
+    exponent rather than MAST's declared zero, so the declared-flux-exponent
+    check is left unscored and the report names the relation and the source
+    that would fix it.
+    """
+
+    row = replace(
+        MAST_LEVEL2_SIGN_TABLE[0],
+        poloidal_flux_edge_minus_axis_wb_per_rad=None,
+        poloidal_angle_signed_area_m2=None,
+        flux_exponent=None,
+    )
+
+    assert row.flux_exponent is None
+    for candidate in COCOS_CANDIDATES:
+        assert not any(
+            violation.endswith(":declared_flux_exponent")
+            for violation in score_convention(candidate, (row,)).violations
+        )
+
+    report = format_sign_report((row,))
+    assert "declared_flux_exponent not scored" in report
+    assert "E101011's G-EQDSK (section 7)" in report
+
+
+def test_foreign_cohort_report_states_only_its_own_measurements():
+    """A non-MAST cohort reports the coefficients its own rows measure.
+
+    The raw absolute-loop response fixes sigma_Bp and the q relation fixes
+    sigma_rho_theta_phi; e_Bp and sigma_R_phi_Z stay undetermined, so the
+    verdict lists every candidate the scored relations leave — here
+    (1, 2, 11, 12) — and MAST's fixed blocks are suppressed.
+    """
+
+    cohort = tuple(
+        replace(
+            MAST_LEVEL2_SIGN_TABLE[0],
+            shot=shot,
+            plasma_current_a=8.0e5,
+            raw_flux_loop_response_wb_per_a=1.0e-6,
+            raw_flux_loop_channels=1,
+            raw_flux_loop_opposite_sign_channels=0,
+            toroidal_field_t=2.5,
+            poloidal_flux_edge_minus_axis_wb_per_rad=None,
+            poloidal_angle_signed_area_m2=None,
+            safety_factor=8.0,
+            flux_exponent=None,
+        )
+        for shot in (100595, 100579)
+    )
+
+    assert surviving_conventions(cohort) == (1, 2, 11, 12)
+
+    report = format_sign_report(cohort)
+    assert "4 conventions survive: (1, 2, 11, 12)" in report
+    assert "COHORT COEFFICIENT CLASSIFICATION" in report
+    assert "sigma_Bp: measurable-from-data; value=+1" in report
+    assert "sigma_rho_theta_phi: measurable-from-data; value=+1" in report
+    assert "sigma_R_phi_Z: requires-an-external-declaration; value=unknown" in report
+    assert "e_Bp: requires-an-external-declaration; value=unknown" in report
+    assert "value=+0" not in report
+    assert "E101011's G-EQDSK (section 7)" in report
+    assert "DETERMINABLE RELATIVE-SIGN PRODUCTS" not in report
+    assert "COCOS 3 versus COCOS 4" not in report
+    assert "RECOMMENDATION" not in report
+    assert "IP-LIKE CONSEQUENCE" not in report
+    assert "IP-LIKE TARGETS" not in report
+
+
+def test_mast_cohort_report_still_prints_its_fixed_blocks():
+    """MAST's report text is unchanged: its five blocks still print."""
+
+    report = format_sign_report()
+
+    assert "COEFFICIENT CLASSIFICATION" in report
+    assert "COHORT COEFFICIENT CLASSIFICATION" not in report
+    assert "DETERMINABLE RELATIVE-SIGN PRODUCTS" in report
+    assert "COCOS 3 versus COCOS 4" in report
+    assert "RECOMMENDATION" in report
+    assert "IP-LIKE CONSEQUENCE" in report
+    assert "IP-LIKE TARGETS: magnetics/ip, pf_active/coil/current, " in report
+    assert "e_Bp: requires-an-external-declaration; value=+0" in report
+    assert "2 conventions survive: (3, 4)" in report
