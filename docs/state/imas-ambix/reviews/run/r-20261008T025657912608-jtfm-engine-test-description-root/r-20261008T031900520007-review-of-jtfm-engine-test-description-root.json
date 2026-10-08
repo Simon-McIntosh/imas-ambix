@@ -1,0 +1,60 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "3ad048c71b751dea5599dcf4b70c1932d82646f4",
+  "completed_at": "2026-10-08T03:39:35.406Z",
+  "dispatched_at": "2026-10-08T03:19:31Z",
+  "findings": [
+    {
+      "file": "tests/data/test_transform_engine.py",
+      "line": "616",
+      "severity": "follow-on",
+      "text": "follow-on: the skip guard changed from a store-file check to bundle reachability. At base the test skipped on `not JT60SA_OP1_PF_ACTIVE.is_file()` -- a test of whether the converted OP1 store was present on disk. At head it skips on `requires_jt60sa`, which (tests/jt60sa_bundle.py) is true whenever any reachable bundle CARRIES jt-60sa, and the test body then unconditionally opens `store_root/'OP1'/'pf_active.nc'`. So a reachable bundle whose converted description store is absent now yields a hard FileNotFoundError rather than a skip; the node's own negative control shows exactly this shape (mutating OP1 -> OP9 gives 'FileNotFoundError ... OP9/pf_active.nc', 1 failed, EXIT=1). This is defensible -- a visible failure is preferable to the silent skip the follow-on complained about, and machine_description is part of the bundle layout section 17 fixes -- but it no longer distinguishes 'the description store is not installed here' from 'the description store is broken', the two cases tests/jt60sa_bundle.py's docstring says a module needing the store should separate by combining its own store check with SKIP_REASON."
+    },
+    {
+      "file": "tests/data/test_transform_engine.py",
+      "line": "608",
+      "severity": "follow-on",
+      "text": "follow-on: the two gate arms the manifest names are not the same command. baseline_suite cites logs/base-arm.log (base 3ad048c7, the single target test, 1 skipped, EXIT=0) while after_suite cites logs/head-file.log (head 0d70f7b4, the whole file, 19 passed, EXIT=0). Both end at a summary line with zero failures, so added_failure_count 0 is safe, but the delta rests on different commands rather than a same-command base/head pair; a full-file base arm is not recorded. Separately, logs/head-arm.log names 'REVISION: 3ad048c7 (worktree modified)' even though the arm exercised the uncommitted head change, so its header identifies the base revision, not the revision it read; the committed head run is correctly labelled in head-file.log."
+    }
+  ],
+  "head_log_revision": "0d70f7b4a9256e54c212e4ee6b3a98bd1a4322ca",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "Grep over imas_ambix, tests and packages finds JT60SA_DESCRIPTION_DIR used, in the reviewed tree, only by tests/data/test_selene_deck.py (for its own .../'source' input, which remains correct) -- this node removed the import from test_transform_engine.py. No other consumer pinned OP1 at the top level of the constant; the remaining consumer wants 'source', which is not the netcdf store. So no stale caller expects the old meaning.",
+    "diff": "One commit, 0d70f7b4, on base 3ad048c7, touching exactly two paths: tests/data/test_transform_engine.py (replace the JT60SA_DESCRIPTION_DIR derived constants and the file-existence skip with load_packaged_machine_map('jt-60sa').description_store_root_path() and the shared requires_jt60sa marker) and the new evidence fragment docs/evidence/fragments/jt60sa-facility-mint/jtfm-engine-test-description-root.html. No other path modified; no engine source touched.",
+    "done_when": "Met. The target test passes at head (1 passed, 12 coils, EXIT=0) where it skipped at base (1 skipped, EXIT=0); the full file is 19 passed (EXIT=0); ruff over imas_ambix tests packages exits 0. I independently resolved the store root and confirmed OP1/pf_active.nc exists (see goal). The node's negative control (OP1 -> OP9) fails with FileNotFoundError and EXIT=1, demonstrating the root now comes from the bundle declaration and reaches a real store.",
+    "goal": "Met and independently reproduced. With IMAS_ALAMBIC_MAP_PATH unset, in a scratch cwd with PYTHONPATH set to the reviewed worktree, load_packaged_machine_map('jt-60sa').description_store_root_path() returns <tree>/maps/jt-60sa/machine_description and (root/'OP1'/'pf_active.nc').is_file() is True; discover_bundles() yields ['ambix','imas-alambic-jt60sa']. The test therefore reads the converted OP1 store wherever the reachable jt-60sa bundle places it, which is the stated goal.",
+    "manifest": "Read; carries node, status complete, base_sha 3ad048c7, commit 0d70f7b4, and full baseline_suite/after_suite JSON with log paths. It is unusually complete for this fleet. The two notes below concern the arms it names, not its presence.",
+    "write_paths": "Exactly the two declared paths: tests/data/test_transform_engine.py and the evidence fragment. git status of the reviewed worktree is clean at 0d70f7b4 with no stray files. Nothing outside the declared fence is modified."
+  },
+  "justifications": {
+    "durability": "Points off once, for the guard change in finding 1: the test is now live (12 coils read, was silently skipped at base) and I confirmed the negative control produces a visible failure, but the skip no longer checks that the store it is about to read exists, so a machine carrying the bundle without the converted store sees a hard error rather than the module's documented store-absence skip. Otherwise this restores a lost real-store test, which is a durability gain.",
+    "evidence": "The base and head arms are logged on disk with headers naming revision, tree and command, and both end at a summary line: base-arm 1 skipped (EXIT=0), head-file 19 passed (EXIT=0), ruff EXIT=0. The negative control carries the strong form -- a non-zero EXIT and one failing id -- which the contract admits. Points off for the arm mismatch and the head-arm header naming the base revision (both in finding 2), so the zero-added delta is nominal rather than a same-command base/head comparison.",
+    "fit": "The test now uses the same idioms as the rest of the module -- load_packaged_machine_map is already imported and used at four other call sites in this file -- and the module docstring is added, the dead constants and the unused path import removed. One point off for the guard/store decoupling in finding 1.",
+    "goal_fidelity": "The section's follow-on asked for a real-store test that reads the converted OP1 netcdf store rather than silently skipping. The node resolves the store through the bundle declaration the engine itself uses (MachineMapCatalog.description_store_root_path, the same call the pulse writer makes), the test passes at head where it skipped at base, and I reproduced the resolution end to end. One point off only because the change is a test-side repair that leaves the underlying shared constant (JT60SA_DESCRIPTION_DIR = the machine directory) still unable to serve the OP1 consumer, should another one appears.",
+    "reuse": "No new guard and no fork: the test reuses the shared requires_jt60sa marker and the existing load_packaged_machine_map entry point rather than hand-rolling a path or a file check, and removes its bespoke JT60SA_OP1_PF_ACTIVE constant.",
+    "scope_discipline": "Exactly the declared paths, worktree clean, no plan or index edits, no engine source touched. No breach."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261008T025657912608-jtfm-engine-test-description-root (plan imas-ambix:jt60sa-facility-mint section 17), head 0d70f7b4a9256e54c212e4ee6b3a98bd1a4322ca on base 3ad048c71b751dea5599dcf4b70c1932d82646f4.\n\nThe node repairs the follow-on recorded by the previous section-17 review: tests/data/test_transform_engine.py::test_static_netcdf_store_selects_each_real_coil_by_name read its description root from the JT60SA_DESCRIPTION_DIR path constant and skipped whenever <root>/OP1/pf_active.nc was absent. After the maps moved into the repository, the constant names the machine directory while the converted store sits under machine_description/OP1, so the file was never at that path and the test skipped silently.\n\nREPRODUCTION (independent, cheap, no heavy data). In a scratch cwd, with IMAS_ALAMBIC_MAP_PATH unset and PYTHONPATH pointing at the reviewed worktree, load_packaged_machine_map('jt-60sa').description_store_root_path() returns <tree>/maps/jt-60sa/machine_description; (root/'OP1'/'pf_active.nc').is_file() is True; discover_bundles() yields ambix and imas-alambic-jt60sa. The test body therefore opens the real store and passes: the node logged head-arm 1 passed in 25.05s (EXIT=0) where base-arm was 1 skipped in 29.57s (EXIT=0), and the whole file head-file.log is 19 passed (EXIT=0). ruff check imas_ambix tests packages -> All checks passed, EXIT=0.\n\nNEGATIVE CONTROL. The node's declared mutation is OP1 -> OP9 in the resolved store root. The log shows the mutated test opening .../maps/jt-60sa/machine_description/OP9/pf_active.nc and failing with FileNotFoundError, 1 failed in 13.20s, EXIT=1 -- a genuine non-zero-EXIT, failing-id control demonstrating that the root now comes from the bundle declaration and reaches a real store rather than the file check. Caveat: the log header names revision 3ad048c7 (worktree modified) although the arm ran the uncommitted head change; the after_suite file arm (head-file.log) is correctly labelled 0d70f7b4.\n\nADDED FAILURES. Derived from the reviewed run's own gate logs, not my runs. baseline_suite: base-arm.log, base 3ad048c7, single target test, '1 skipped in 29.57s', EXIT=0 -> 0 failures. after_suite: head-file.log, head 0d70f7b4, whole file, '19 passed in 127.86s (0:02:07)', EXIT=0 -> 0 failures. added_failure_count = 0, added_failure_ids = []. The two arms are not the same command (single test vs whole file), so the zero-added result rests on the head file arm carrying no failures; noted, not fatal -- the base arm could not have failed since the test skipped there.\n\nFINDINGS. (1) The skip guard moved from a store-file check to bundle reachability: at base `not JT60SA_OP1_PF_ACTIVE.is_file()`, at head `requires_jt60sa` (bundle carries jt-60sa). A reachable bundle whose converted store is absent now hard-fails rather than skips -- visible, and arguably better, but no longer distinguishes store-absent from store-broken. (2) Evidence: the two arms differ across commands, and head-arm.log names the base revision while exercising the head change.\n\nSCORES (0..20): goal_fidelity 19, scope_discipline 20, fit 19, reuse 20, evidence 18, durability 19; total 115.\n\nBEFORE/AFTER. Before: the real-store netcdf test opened JT60SA_OP1_DESCRIPTION_ROOT/OP1/pf_active.nc (constant = maps/jt-60sa) and skipped permanently. After: it resolves the store through MachineMapCatalog.description_store_root_path() (-> maps/jt-60sa/machine_description), keyed on the shared jt-60sa bundle-reachability guard, and passes'",
+  "review_run_id": "r-20261008T031900520007-review-of-jtfm-engine-test-description-root",
+  "reviewed_base_sha": "3ad048c71b751dea5599dcf4b70c1932d82646f4",
+  "reviewed_head_sha": "0d70f7b4a9256e54c212e4ee6b3a98bd1a4322ca",
+  "reviewed_run_id": "r-20261008T025657912608-jtfm-engine-test-description-root",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T03:30:41.403862+00:00",
+  "total": 115
+}
