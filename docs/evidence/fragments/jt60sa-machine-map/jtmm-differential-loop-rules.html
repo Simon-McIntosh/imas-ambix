@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="reckon-type" content="doc">
+  <title>Differential flux-loop rule retarget — blocked on a read-only bundle</title>
+</head>
+<body>
+<main class="plan-doc">
+  <h2 id="jtmm-differential-loop-rules">The differential loop rules could not be retargeted: the shared maps directory is mounted read-only</h2>
+  <p id="jtmm-differential-loop-rules-summary">The retarget of the 26 JT-60SA loop rules onto their type-6 <code>[7, L]</code> entries was not written. The bundle <code>maps/jt-60sa</code> is reached through the worktree's <code>maps</code> symlink, whose target <code>/home/ITER/mcintos/Code/imas-ambix</code> is mounted <code>ro</code> for this session, so every write — the prior copy into <code>superseded/</code> and the rewritten <code>maps/magnetics.json</code> — fails with <code>Read-only file system</code> before any content changes. Reads succeed, so the live map and its digest were inspected; no rule was modified.</p>
+  <ul>
+    <li id="jtmm-differential-loop-rules-blocker"><strong>Blocker (external, not this node's scope)</strong>: <code>findmnt -T /home/ITER/mcintos/Code/imas-ambix</code> reports <code>HPC_T2 ... gpfs ro,nosuid,nodev,relatime</code>, while the worktree itself reads <code>rw</code>. <code>touch maps/jt-60sa/maps/.wtest</code> returns <code>Read-only file system</code>; <code>mkdir maps/jt-60sa/superseded/pre-differential-loops/maps</code> fails the same way. A prior node (<code>jtmm-differential-loop-store-live</code>) wrote into this same tree, so the read-only mount is a session-time condition, not the repository's designed state.</li>
+    <li id="jtmm-differential-loop-rules-live-digest"><strong>The live map is intact and unmodified</strong>: <code>maps/jt-60sa/maps/magnetics.json</code> sha256 <code>58d03762d278db439d20375b2895b8228d2b18b0a12ef0c2efbc89631c597516</code>, mtime <code>2026-10-07 05:53:24 +0200</code>. Its 27 loop rules still target loop <code>L</code>'s type-1 entry (<code>target_index = L - 1</code>); only loop 7 is <code>corpus-validated</code>. The superseded copy does not exist, because the copy is the first write this node attempted.</li>
+    <li id="jtmm-differential-loop-rules-script"><strong>The retarget is scripted, not hand-edited</strong>: <code>docs/figures/jt60sa-machine-map/jtmm-differential-loop-rules/retarget_differential_loop_rules.py</code> copies the prior map into <code>superseded/pre-differential-loops/maps/magnetics.json</code>, reads each <code>[7, L]</code> pair's entry index from the description store itself (so the entry order is never assumed), and rewrites every loop rule but loop 7 to that index with <code>channel_factor -1</code>, <code>corpus-validated</code> for loops 12-27 and <code>source-only</code> for 1-6 and 8-11, each with evidence citing <code>docs/evidence/fragments/jt60sa-machine-map/jtmm-loop-reference-rca.html</code>. It prints both sha256 digests. It has not been run: it cannot write.</li>
+    <li id="jtmm-differential-loop-rules-remaining"><strong>Remains, in order</strong>: (1) restore write access to the shared <code>maps</code> tree; (2) run the script, or have the coordinator run it; (3) change <code>_absolute_flux_loop_rules</code> in <code>imas_ambix/data/cocos_convention.py</code> to keep a proven rule only when its target entry carries no <code>indices_differential</code>; (4) pin the retarget in <code>tests/data/test_jt60sa_signal_maps.py</code> and the selector in <code>tests/data/test_cocos_convention.py</code>; (5) run the declared gate and negative control.</li>
+    <li id="jtmm-differential-loop-rules-evidence"><strong>Evidence for the retarget's content</strong> (unchanged by the blocker): the loop-reference fits record reference loop 7, all 26 loops passing on E100642 (<code>slope -0.913</code> to <code>-1.017</code>, <code>|r|</code> 0.971 to 0.999) with loops 12, 13, 14 and 18-27 also passing on E100579, while loops 1-6 and 8-11 fail on both earlier shots — the basis for <code>corpus-validated</code> on 12-27 and <code>source-only</code> on the rest.</li>
+  </ul>
+</main>
+</body>
+</html>
