@@ -1,0 +1,109 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtpi-rewrite-differential-loops">
+  <header>
+    <h3 id="jtpi-rewrite-differential-loops-title">E101154 and E101031 rewritten under the differential loop rules</h3>
+    <p class="meta" id="jtpi-rewrite-differential-loops-meta">
+      Node <code>jtpi-rewrite-differential-loops</code> &middot;
+      date 2026-10-08 &middot;
+      plan <code>jt60sa-pulse-ids</code> &sect;7 &middot;
+      base <code>07472fa2</code>
+    </p>
+  </header>
+
+  <p id="jtpi-rewrite-differential-loops-command">
+    <strong>Command.</strong> Run in place on the fleet allocation (job
+    1281970, node <code>98dci4-clu-2002</code>) from this worktree, against the
+    main checkout's <code>maps/jt-60sa</code> bundle (revision <code>07472fa2</code>):
+  </p>
+  <pre><code>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv \
+PYTHONPATH=&lt;worktree&gt;/packages/imas-alambic/src:&lt;worktree&gt; \
+  uv run --no-sync imas-alambic write E101154 E101031 \
+  --machine jt-60sa --run 0 --overwrite</code></pre>
+  <p>
+    Exit 0. Both pulses report 56 time-dependent leaves and 68 declared signals
+    left out, the same receipt the pre-change writer produced. The IDS root
+    resolved to <code>/work/projects/imas_gpu/jt60sa/ids</code> and the EDDB
+    cache to <code>/work/projects/imas_gpu/jt60sa</code> (the bundle's
+    <code>eddb_cache</code> role), so every channel was served from the cache
+    and no record was refetched. The gate log is
+    <code>logs/gate-write.log</code>. Before the write, both pre-rewrite run
+    files were copied to the node-local scratch
+    (<code>$TMPDIR/old-runs/{101154,101031}_0.nc</code>); the copies go with
+    the run.
+  </p>
+
+  <table id="jtpi-rewrite-differential-loops-files">
+    <caption>Rewritten run files: bytes, mtime, and the
+    <code>magnetics/flux_loop</code> store read back through
+    <code>imas.DBEntry</code> at DD 4.1.1.</caption>
+    <thead>
+      <tr><th>file</th><th>bytes</th><th>mtime (local)</th>
+      <th>flux_loop entries</th><th>type-1 with flux</th>
+      <th>type-6 with flux</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>ids/101154_0.nc</code></td><td>29954251</td>
+      <td>2026-10-08 07:48:59</td><td>53</td>
+      <td>1 (index 6, FL7)</td><td>26 (indices 27&ndash;52)</td></tr>
+      <tr><td><code>ids/101031_0.nc</code></td><td>29144304</td>
+      <td>2026-10-08 07:49:04</td><td>53</td>
+      <td>1 (index 6, FL7)</td><td>26 (indices 27&ndash;52)</td></tr>
+    </tbody>
+  </table>
+
+  <p id="jtpi-rewrite-differential-loops-store">
+    In each new file <code>magnetics/flux_loop</code> has 53 entries. Indices
+    0&ndash;26 are the type-1 loops <code>FL1&hellip;FL27</code>; entry 6
+    (<code>FL7</code>) carries flux, the other 26 carry geometry only and no
+    flux. Indices 27&ndash;52 are the type-6 differential entries
+    <code>FL7-FL1&hellip;FL7-FL27</code> (no entry for loop 7), each with
+    <code>type/index</code> 6, <code>indices_differential</code>
+    <code>[7,&nbsp;L]</code>, and flux on its own time base.
+  </p>
+
+  <p id="jtpi-rewrite-differential-loops-compare">
+    <strong>Comparison.</strong> <code>compare.py</code>
+    (<code>logs/compare.log</code>) opens both the pre-rewrite copy and the new
+    file for each pulse and asserts, for every loop L in 1&ndash;6 and
+    8&ndash;27, that the new type-6 flux entry equals &minus;1 times the old
+    file's type-1 flux at index L&minus;1, element for element and on the same
+    time base, and that FL7 (index 6), every <code>pf_active/coil/current</code>
+    trace (12 coils) and <code>magnetics/ip</code> equal their old values.
+  </p>
+
+  <table id="jtpi-rewrite-differential-loops-counts">
+    <caption>Per-pulse comparison counts (factor &minus;1).</caption>
+    <thead>
+      <tr><th>pulse</th><th>differential loops compared</th>
+      <th>flux equal to &minus;1&times;old</th><th>flux mismatches</th>
+      <th>time-base mismatches</th><th>FL7 = old</th><th>ip = old</th>
+      <th>coil mismatches</th><th>result</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>101154</td><td>26</td><td>26</td><td>[]</td><td>[]</td>
+      <td>True</td><td>True</td><td>[]</td><td>PASS</td></tr>
+      <tr><td>101031</td><td>26</td><td>26</td><td>[]</td><td>[]</td>
+      <td>True</td><td>True</td><td>[]</td><td>PASS</td></tr>
+    </tbody>
+  </table>
+
+  <p id="jtpi-rewrite-differential-loops-negative">
+    <strong>Negative control.</strong> The same comparison with the expected
+    factor set to <code>+1</code> (<code>logs/negative-control.log</code>) exits
+    1 for both pulses, reporting zero loops equal to
+    <code>+1&times;old</code> and a flux mismatch on every one of the 26
+    differential loops &mdash; <code>[1,&nbsp;2,&nbsp;3,&nbsp;4,&nbsp;5,&nbsp;6,&nbsp;8,&hellip;,&nbsp;27]</code>
+    &mdash; while FL7, <code>ip</code> and the coil traces still match. The
+    relation is therefore read as a sign-sensitive equality rather than a
+    comparison that passes on any input.
+  </p>
+
+  <p id="jtpi-rewrite-differential-loops-scope">
+    <strong>Scope.</strong> No product source or test changed. The differential
+    loop rules already landed in the bundle's
+    <code>maps/jt-60sa/maps/magnetics.json</code> and the 53-entry
+    <code>flux_loop</code> store in the OP1 description; this node re-ran the
+    writer so the two run files carry them. The only data written outside the
+    repository are the two run files
+    <code>/work/projects/imas_gpu/jt60sa/ids/{101154,101031}_0.nc</code>.
+  </p>
+</section>
