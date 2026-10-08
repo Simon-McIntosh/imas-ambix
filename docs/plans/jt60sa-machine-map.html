@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.93">
-<meta name="plan-version" content="421">
+<meta name="plan-version" content="422">
 <meta name="plan-modified" content="2026-10-09">
 </head>
 <body>
@@ -270,8 +270,10 @@
       SELENE's <code>efitout.f</code>) sits in <code>/home/d240034/fbequ/EFIT95.DATA</code> and its
       <code>LOCALDB</code>. For the rest of the list those fields sit in the decommissioned
       <code>dbsvr17p</code> stores. Under decision <code>jt60sa-psi-q-source</code>, §7 takes
-      E101011's G-EQDSK as its one psi and q reference, and PSRC's boundary, X-point, plasma centre
-      and plasma current for every other shot. Nothing runs on the JT-60SA server. §7's psi
+      E101011's G-EQDSK as its one psi grid and q-profile reference, and PSRC's boundary, X-point,
+      magnetic axis and plasma current for every other shot. The decision's q is the profile on a
+      psi grid. The per-shot q95 scalar comes from the EDDB FAME <code>Q95</code>, the same FAME q
+      scalars the decision has §6's sign report read for q-handedness. Nothing runs on the JT-60SA server. §7's psi
       bindings are scoped against E101011 alone, and the reference loader's boundary, X-point and
       axis come from PSRC for every frozen shot.
       The G-EQDSK is read through the <code>eqdsk</code> package's <code>EQDSKInterface</code>, which
@@ -549,9 +551,10 @@
       generic artifact layer, as above. Using only the mapped
       pf_active, pf_passive, tf and magnetics data, the ambix physics spine
       (<code>greens-matvec</code>, with <code>grid-delstar</code> as the check) recovers the
-      equilibrium for a frozen set of 2023 OP1 shots on which SELENE ran (PSRC populated, as on <code>E101154</code>), and the result is compared against SELENE on the
-      quantities SELENE reports: boundary distance, axis position, Ip, q95, and the whitened
-      magnetics residual. This is the MAST benchmark pattern with SELENE in EFIT's seat, and
+      equilibrium for a frozen set of 2023 OP1 shots on which SELENE ran (PSRC populated, as on <code>E101154</code>), and the result is compared against SELENE on
+      what SELENE's PSRC reports, which is boundary distance, axis position and Ip. q95 is compared
+      against FAME's <code>Q95</code> scalar, because PSRC carries no q, and the whitened magnetics
+      residual is reported beside them. This is the MAST benchmark pattern with SELENE in EFIT's seat, and
       it is scored by the owner of that pattern: <code>imas_ambix/eval/efit_referee.py</code>
       <code>judge_geometry</code> already scores model geometry against an injected reference
       equilibrium into a <code>GeometryVerdict</code> (axis position, X-point position and boundary RMS), so §7 adds
