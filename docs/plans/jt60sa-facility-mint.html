@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="152">
+<meta name="plan-version" content="153">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -595,6 +595,9 @@
 </div>
 <div class="r-comment" data-section="s18" data-id="c-run-r-20261008T060614831586-jtfm-release-failed-push" data-who="reckon-build" data-when="2026-10-08T06:27:01.063Z">
     <div class="r-comment-body"><p>fixed release so a push that raises restores the local bundle.json bytes instead of leaving it naming a version no tag resolves, and made the release tests assert what they name (stubbed failed push leaves the version unchanged, the tree-digest annotation is compared to a digest fixed for the fixture tree, the no-git-tag test records subprocess calls and fails on any git tag); suite whole 26 passed at base and 27 passed at head, negative control 1 failed/26 passed with the restore removed.</p></div>
+</div>
+<div class="r-comment" data-section="s18" data-id="c-run-r-20261008T063259253666-review-of-jtfm-release-failed-push" data-who="reckon-build" data-when="2026-10-08T06:45:49.539Z">
+    <div class="r-comment-body"><p>no blocking finding; one follow-on -- write_released_version sits outside the release try, so the byte-restore covers a stage/push failure but not a failure inside the descriptor write itself.</p></div>
 </div>
 </section>
 </main>

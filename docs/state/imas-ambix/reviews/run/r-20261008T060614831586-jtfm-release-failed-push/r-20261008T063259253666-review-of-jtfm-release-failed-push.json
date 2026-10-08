@@ -1,0 +1,57 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/maps_cli.py:410 (`release`, the only command that writes the released version into the local bundle.json; the landing trigger in AGENTS.md calls it)"
+  ],
+  "completed_at": "2026-10-08T06:45:49.539Z",
+  "dispatched_at": "2026-10-08T06:33:35Z",
+  "findings": [
+    {
+      "file": "imas_ambix/maps_cli.py",
+      "line": "443",
+      "severity": "follow-on",
+      "text": "follow-on: `write_released_version` at :443 is outside the try at :454, so the restore only covers a stage/push failure; a failure inside the descriptor write itself (a partial or unparsable bundle.json) leaves the local file mid-write with the captured `original_bundle` unused. Low risk -- the write is one `write_text` on a file that parses immediately before -- but moving the write inside the try would make the captured bytes guard it too."
+    }
+  ],
+  "item_aggregate": 4,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s): the release command writes the local version; no other command mutates bundle.json's version (pull writes it only through stage/pull of released bytes).",
+    "diff": "read against 09980cbe: dfda11d7 records the evidence fragment (+26), 6f44f898 carries the module and test changes (imas_ambix/maps_cli.py +13/-4, tests/test_maps_cli.py +51/-4); the module change wraps stage_bundle+push_tree in a try that restores the pre-call bundle.json bytes on any Exception and re-raises.",
+    "done_when": "the plan's gate for this repair is the maps_cli unit suite plus the whole-tree ruff; at head tests/test_maps_cli.py gives 27 passed, EXIT=0 and `uv run --no-sync ruff check imas_ambix tests packages` gives All checks passed, EXIT=0, both reproduced by this review in a scratch tree at 6f44f898.",
+    "goal": "the node's goal is to stop `release` leaving the local bundle.json naming a version the registry never received when the push fails; it is met at 6f44f898, where imas_ambix/maps_cli.py:442-464 capture the descriptor bytes before write_released_version and restore them in an except-Exception handler that re-raises.",
+    "manifest": "read at the run directory; status complete, commits 6f44f898 and dfda11d7 named, base/head and negative-control logs named, and a baseline_suite/after_suite pair present (both exit 0: 26 passed at 09980cbe, 27 at 6f44f898), so its added-failure count is measured from its own record.",
+    "write_paths": "the three changed paths -- imas_ambix/maps_cli.py, tests/test_maps_cli.py and docs/evidence/fragments/jt60sa-facility-mint/jtfm-release-failed-push.html -- sit inside the plan section's declared write paths for this repair; no scope creep."
+  },
+  "justifications": {
+    "durability": "the new guard reddens when removed: the reviewed run's negative-control log shows 1 failed/26 passed with the failed-push test alone, and this review independently reproduced red by running the head's test file against the base source (after['version']=='v0.2.0-rc1' != '2026.10.07'). Byte-exact bytes restore, docked one because write_released_version itself sits outside the try.",
+    "evidence": "the manifest carries a readable baseline_suite (09980cbe, 26 passed, exit 0) and after_suite (6f44f898, 27 passed, exit 0), so added_failure_count is 0 with no added ids; this review confirmed the arms by re-running both in a scratch tree and, beyond the manifest, showed the base arm is red once the new test is present.",
+    "fit": "the code comment at :460 states the mechanism (the registry never received the version, so the descriptor must not name it) with no plan or ticket reference, the module idiom (typed click command, mechanism docstrings) is preserved, and the whole-tree ruff gate exits 0.",
+    "goal_fidelity": "imas_ambix/maps_cli.py:442 reads the descriptor before the write at :443 and the except at :459 puts the bytes back before re-raising, so a refused push leaves the tree naming the version it found; the only closing gap is the descriptor write itself, which is not inside the try, which the plan's stated defect (a push that raises) does not cover.",
+    "reuse": "the fix reuses the existing write path (`write_released_version`) and the earlier review's own follow-on at maps_cli.py:441 as the target; the test reuses FakeRegistry, extended with a `fail_push` keyword rather than a new fake, and the no-git-tag test reuses `subprocess` already imported by the module.",
+    "scope_discipline": "all three changed paths sit inside the manifest's declared write paths and the evidence fragment is the landing record; the change is confined to release plus its tests and touches no other command."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is to stop `release` leaving the local bundle.json naming a version the registry never received when the push fails; it is met at 6f44f898, where imas_ambix/maps_cli.py:442-464 capture the descriptor bytes before write_released_version and restore them in an except-Exception handler that re-raises.\nVERDICT done_when: the plan's gate for this repair is the maps_cli unit suite plus the whole-tree ruff; at head tests/test_maps_cli.py gives 27 passed, EXIT=0 and `uv run --no-sync ruff check imas_ambix tests packages` gives All checks passed, EXIT=0, both reproduced by this review in a scratch tree at 6f44f898.\nVERDICT write_paths: the three changed paths -- imas_ambix/maps_cli.py, tests/test_maps_cli.py and docs/evidence/fragments/jt60sa-facility-mint/jtfm-release-failed-push.html -- sit inside the plan section's declared write paths for this repair; no scope creep.\nVERDICT manifest: read at the run directory; status complete, commits 6f44f898 and dfda11d7 named, base/head and negative-control logs named, and a baseline_suite/after_suite pair present (both exit 0: 26 passed at 09980cbe, 27 at 6f44f898), so its added-failure count is measured from its own record.\nVERDICT diff: read against 09980cbe: dfda11d7 records the evidence fragment (+26), 6f44f898 carries the module and test changes (imas_ambix/maps_cli.py +13/-4, tests/test_maps_cli.py +51/-4); the module change wraps stage_bundle+push_tree in a try that restores the pre-call bundle.json bytes on any Exception and re-raises.\nCALL_SITES: imas_ambix/maps_cli.py:410 (`release`, the only command that writes the released version into the local bundle.json)\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/maps_cli.py:442 reads the descriptor before the write at :443 and the except at :459 puts the bytes back before re-raising, so a refused push leaves the tree naming the version it found; the only closing gap is the descriptor write itself, which is not inside the try, which the plan's stated defect (a push that raises) does not cover.\nSCORE evidence: 18\nJUSTIFICATION evidence: the manifest carries a readable baseline_suite (09980cbe, 26 passed, exit 0) and after_suite (6f44f898, 27 passed, exit 0), so added_failure_count is 0 with no added ids; this review confirmed the arms by re-running both in a scratch tree and, beyond the manifest, showed the base arm is red once the new test is present.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: all three changed paths sit inside the manifest's declared write paths and the evidence fragment is the landing record; the change is confined to release plus its tests and touches no other command.\nSCORE durability: 18\nJUSTIFICATION durability: the new guard reddens when removed: the reviewed run's negative-control log shows 1 failed/26 passed with the failed-push test alone, and this review independently reproduced red by running the head's test file against the base source (after['version']=='v0.2.0-rc1' != '2026.10.07'). Byte-exact bytes restore, docked one because write_released_version itself sits outside the try.\nSCORE fit: 19\nJUSTIFICATION fit: the code comment at :460 states the mechanism (the registry never received the version, so the descriptor must not name it) with no plan or ticket reference, the module idiom (typed click command, mechanism docstrings) is preserved, and the whole-tree ruff gate exits 0.\nSCORE reuse: 19\nJUSTIFICATION reuse: the fix reuses the existing write path (`write_released_version`) and the earlier review's own follow-on at maps_cli.py:441 as the target; the test reuses FakeRegistry, extended with a `fail_push` keyword rather than a new fake.\nFINDING imas_ambix/maps_cli.py:443 follow-on: `write_released_version` at :443 is outside the try at :454, so the restore only covers a stage/push failure; a failure inside the descriptor write itself (a partial or unparsable bundle.json) leaves the local file mid-write with the captured `original_bundle` unused.\n",
+  "review_run_id": "r-20261008T063259253666-review-of-jtfm-release-failed-push",
+  "reviewed_base_sha": "09980cbe9568ddf84fc2d3c26edc2b6009eacd3d",
+  "reviewed_head_sha": "6f44f8980dc183fd52b62f06df352ee14ac8155d",
+  "reviewed_run_id": "r-20261008T060614831586-jtfm-release-failed-push",
+  "reviewer": "deepseek-v4.1-flash",
+  "rubric": "code",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T06:42:00+00:00",
+  "total": 112
+}
