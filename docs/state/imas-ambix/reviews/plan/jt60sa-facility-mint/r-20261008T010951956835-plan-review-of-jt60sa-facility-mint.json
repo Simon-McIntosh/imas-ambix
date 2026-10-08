@@ -1,0 +1,62 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T01:18:35.290Z",
+  "dispatched_at": "2026-10-08T01:10:09Z",
+  "findings": [
+    {
+      "anchor": "imas_codex/cli/release.py:153",
+      "id": "reuse_search-1",
+      "reason": "the plan must name the empty-tag bootstrap state and the semver filter the copied machine needs in order to release `v1.0.0` at all.",
+      "text": "\u00a718 says \"the same two-state machine\" and describes only stable\u2194RC plus \"the one departure from imas-codex, which refuses a bare call when stable\", but the copied `compute_next_version` (`imas_codex/cli/release.py:153`) has a third condition it names nowhere: when the tag list holds no semver tag it raises \"No existing version tags found. Create an initial tag first\" (release.py:177-181), and its `_get_latest_tag` filters `^v\\d+\\.\\d+\\.\\d+` (release.py:38-43) so the package's only existing tag, the legacy `2026.10.07`, is invisible \u2014 that is exactly the state \u00a718's migration must start from (\"the current content, GHCR `2026.10.07` ... is released as `v1.0.0`\") and the state its own done-when exercises (`release jt-60sa --bump major --final` publishes `v1.0.0`), so the copied machine raises on its first call and the bootstrap the plan asserts is unaddressed. The same reuse map misses the registry layer \u00a718 re-implements in the very codebase it copies from: `imas_codex/graph/ghcr.py:335 list_registry_tags` already runs `oras repo tags` with a token and returns `[]` on not-found, and `imas_codex/graph/ghcr.py:167 get_package_name` already resolves a package name; neither is cited.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/maps_cli.py",
+      "id": "thin_wrapper-1",
+      "reason": "either state why the automatic path needs a second name, or delete it until a caller exists.",
+      "text": "\u00a718 adds `release_if_changed(machine)` for \"a future map-writing command\", but no such command exists (\u00a718: \"No `--no-release` flag is added until such a command exists\") and the function carries no behaviour `release` does not already have, because the digest skip it is described as providing (\"When that digest equals the latest tag's, it pushes nothing, so automatic calls are free\") is already the no-flag automatic path of `release` itself; the plan names nothing it retires and gives no reason `release` cannot be called directly, and the section's done-when tests no caller of it.",
+      "type": "thin_wrapper",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "679bf13dd6ea8bd1f990e682bc53fb38bf90f9612b07b73791a6643568c1a367",
+  "plan_slug": "jt60sa-facility-mint",
+  "plan_version": 124,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261008T010951956835-plan-review-of-jt60sa-facility-mint",
+  "reviewed_blob_sha": "dc77d187f10fae1fd42e45e102319edd1ec0c8fc",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 one new `imas_ambix/maps_cli.py` hides the machine-to-package table, the tag reader, the version state machine, the tree digest and the push/pull behind a three-command CLI group plus one entry function.",
+    "duplicate_owner": "pass \u2014 the one machine-to-package table replaces the installer's hardcoded registry ref (`packages/imas-alambic/install/imasdb.sh:44`) and `imasdb.sh` calls `maps pull` instead of its own `oras pull`, so no second owner of the registry ref or the tag reader is created.",
+    "interface_budget": "pass \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; the section adds the `maps` group and one refusal, and its own accounting paragraph names the installer's private pull path retired by merger into `maps pull`, states `release`/`status` are new capabilities with no existing command to retire, and states the overwrite refusal cannot be retired because it guards work git does not hold.",
+    "reuse_search": "a finding \u2014 \u00a718 cites imas-codex's `compute_next_version` (`imas_codex/cli/release.py:153`) and calls it \"the same two-state machine\", but that function hard-errors on an empty tag list and reaches its registry layer through the uncited `imas_codex/graph/ghcr.py` (`list_registry_tags:335`, `get_package_name:167`), which already owns the `oras repo tags` listing \u00a718 re-implements.",
+    "thin_wrapper": "a finding \u2014 `release_if_changed(machine)` is added with no caller and no behaviour the flagless automatic `release` lacks, since the digest skip already lives inside `release`."
+  },
+  "section_digests": {
+    "_document": "88699358b3d2d92850ed703fcdff17e9843d3253cc3d2cd660a8dc6a2bd62b5c",
+    "s1": "9c7f16d6433487c622ba43b590d60de6ac6689995d01dfbcf8d4ab1d1d24f6c3",
+    "s10": "408c414f57af0e5446ef1546e2c5707726ff5a42feae45d420765dc4001b8264",
+    "s11": "40878323aab9328585648d85591fd96dc6fcd4f5beedd01abbe2f0b3b1e8e508",
+    "s12": "7dd2ae47a38480f8a23a4bd518d5e1b9f6772d559fde8fe9885a2c7095f8ea50",
+    "s13": "2741a581fa4af709b92ea8db4a8330d65807a7a8665bbbfd9b84a09145be00ba",
+    "s14": "00628004df0e643b97e5a73b8e6ec838a6a572c206b20aff261081968fae4bb6",
+    "s15": "2d28daaa30674a0926633cf0bde89e0177a31a0f037724f0631b6efb13df02ba",
+    "s16": "53ba0ba04529722b831f4846c272220c764bae0e8be3a17d7e2a02bfad4887c3",
+    "s17": "1c72b11004a93f7813cad93f7de13a1dd1d8f45bef1b0d7aca77b96851c0f1a3",
+    "s18": "c06edb789923ef5d29b677ab51c3e96aa1fbf8b8d45f537108045169380ded05",
+    "s2": "343a77d68d9c095dafa24357e59151b829141c57203ee4fe35d36cbabbc6e1c2",
+    "s3": "9f414f5b3fd7e3230af8b01f8a4292bbe56c0b3a809be36aef08a4c5ad56319c",
+    "s4": "ae4d4e4bf4e145c39afb71e12055ea344fb8c16fa86bf4864b976cc5df2c6738",
+    "s5": "b1fac0701ea703406fed882189756b422b8bb52294039078259ccc18acf7cef0",
+    "s6": "7d596f31b4c60f8f55c421e2bdcb0d3f6de538cc99713c8d9b99700aad5e07ae",
+    "s7": "37a4ca2297c368659d2e1c2509b75eb79284d61980a994ff8e1dc045b8566ef1",
+    "s8": "0d934ec479471ff9f711bc6e58ec9f2d0f07d4722593ff98c53426b2b509ecda",
+    "s9": "89370bd391a02051f63106d920e7bdce1fb6035bda747035aa86ef61fa52c846"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T01:19:17.540512+00:00"
+}
