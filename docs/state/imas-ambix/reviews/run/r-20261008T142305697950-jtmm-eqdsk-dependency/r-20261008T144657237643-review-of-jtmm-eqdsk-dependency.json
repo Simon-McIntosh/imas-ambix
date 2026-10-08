@@ -1,0 +1,79 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "backend": "local",
+  "base_log_revision": null,
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/challenge/loader.py:176"
+  ],
+  "completed_at": "2026-10-08T15:03:41.412Z",
+  "dimension_dispositions": {
+    "durability": {
+      "kind": "exempted",
+      "reason": "eqdsk is installed transitively through torax, so removing the direct declaration changes no installed package and no behaviour; a committed test could only pin the text of pyproject.toml, and the declared negative control (uv lock --check failing on a lock/pyproject mismatch) is the mechanical guard the lock workflow already runs",
+      "recorded_at": "2026-10-08T15:03:57.722540+00:00"
+    }
+  },
+  "dispatched_at": "2026-10-08T14:47:09Z",
+  "findings": [
+    {
+      "file": "pyproject.toml",
+      "line": "67",
+      "severity": "follow-on",
+      "text": "follow-on: the declaration is guarded by no committed test or CI step \u2014 removing eqdsk from pyproject.toml or reverting the lock line fails nothing in the suite, since eqdsk survives transitively through torax, so the only guard is the manual negative control in negative_control.log, which nothing re-runs."
+    },
+    {
+      "file": "uv.lock",
+      "line": "1141",
+      "severity": "follow-on",
+      "text": "follow-on: the done-when's named check uv lock --check was run in a scratch mirror under $TMPDIR, not in the reviewed worktree where it exits 2 on the absent ../imas-ink and ../nova path deps, so the recorded EXIT=0 measures an equivalent tree rather than the reviewed one; the deviation is forced by the worktree layout and is reported in the manifest."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdsk-dependency.html",
+      "line": "28",
+      "severity": "follow-on",
+      "text": "follow-on: the fragment's gate bullet quotes the pytest command without the -k deselection that actually ran, so a reader reproducing it would collect 7 tests rather than the 5 passed / 2 deselected it reports."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "Read commit 09de3a2b against base 3ea425d2; it declares eqdsk>=0.8.0 beside torax in pyproject.toml and adds { name = \"eqdsk\" } plus the requires-dist specifier to uv.lock's imas-ambix entry with no version change, and adds the fragment.",
+    "done_when": "The done-when names uv lock --check, then pytest tests/challenge/test_loader.py, then ruff, each exit 0, plus a landing fragment; the manifest records all four (gate.log) with the lock check run in a scratch mirror because the worktree cannot resolve the path deps.",
+    "goal": "The node's goal is to declare eqdsk a direct dependency of imas-ambix and record it in uv.lock; commit 09de3a2b adds \"eqdsk>=0.8.0\" to pyproject.toml:67 and two lines to uv.lock's imas-ambix entry, which is exactly that.",
+    "manifest": "The manifest reads status complete, names commit 09de3a2b, records the three gate results and their logs, and states both the worktree lock-resolution gap and the two deselected corpus tests.",
+    "write_paths": "The declared paths are pyproject.toml, uv.lock and docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdsk-dependency.html; the diff touches exactly those three and leaves docs/figures/jt60sa-machine-map/jtmm-eqdsk-dependency unused."
+  },
+  "justifications": {
+    "durability": "no committed test or CI step fails if the declaration regresses, because tests/challenge/test_loader.py:74 passes on the eqdsk copy torax still pulls in transitively.",
+    "evidence": "the named check uv lock --check cannot run in the reviewed worktree (it exits 2 on the absent ../imas-ink and ../nova path deps) and was run in a scratch mirror recorded in gate.log, so the recorded EXIT=0 is about an equivalent tree rather than the reviewed one.",
+    "fit": "the pyproject line follows the surrounding \"name>=version\" style and the fragment matches every sibling under docs/evidence/fragments/jt60sa-machine-map/, though it quotes the gate command without the -k filter that ran.",
+    "goal_fidelity": "pyproject.toml:67 adds \"eqdsk>=0.8.0\" beside the torax>=1.1.1 entry and uv.lock:1141 records { name = \"eqdsk\" } in the imas-ambix entry, which is exactly the goal.",
+    "reuse": "the change adds no definition; it extends the existing pyproject.toml and uv.lock owners of dependency declaration rather than forking a capability.",
+    "scope_discipline": "the diff's three files (pyproject.toml, uv.lock, docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdsk-dependency.html) are all inside the declared write paths and it changes no product source or test."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The node's goal is to declare eqdsk a direct dependency of imas-ambix and record it in uv.lock; commit 09de3a2b adds \"eqdsk>=0.8.0\" to pyproject.toml:67 and two lines to uv.lock's imas-ambix entry, which is exactly that.\nVERDICT done_when: The done-when names uv lock --check, then pytest tests/challenge/test_loader.py, then ruff, each exit 0, plus a landing fragment; the manifest records all four (gate.log) with the lock check run in a scratch mirror because the worktree cannot resolve the path deps.\nVERDICT write_paths: The declared paths are pyproject.toml, uv.lock and docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdsk-dependency.html; the diff touches exactly those three and leaves docs/figures/jt60sa-machine-map/jtmm-eqdsk-dependency unused.\nVERDICT manifest: The manifest reads status complete, names commit 09de3a2b, records the three gate results and their logs, and states both the worktree lock-resolution gap and the two deselected corpus tests.\nVERDICT diff: Read commit 09de3a2b against base 3ea425d2; it declares eqdsk>=0.8.0 beside torax in pyproject.toml and adds { name = \"eqdsk\" } plus the requires-dist specifier to uv.lock's imas-ambix entry with no version change, and adds the fragment.\nCALL_SITES: imas_ambix/challenge/loader.py:176\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: pyproject.toml:67 adds \"eqdsk>=0.8.0\" beside the torax>=1.1.1 entry and uv.lock:1141 records { name = \"eqdsk\" } in the imas-ambix entry, which is exactly the goal.\nSCORE evidence: 16\nJUSTIFICATION evidence: the named check uv lock --check cannot run in the reviewed worktree (it exits 2 on the absent ../imas-ink and ../nova path deps) and was run in a scratch mirror recorded in gate.log, so the recorded EXIT=0 is about an equivalent tree rather than the reviewed one.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff's three files (pyproject.toml, uv.lock, docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdsk-dependency.html) are all inside the declared write paths and it changes no product source or test.\nSCORE durability: 6\nJUSTIFICATION durability: no committed test or CI step fails if the declaration regresses, because tests/challenge/test_loader.py:74 passes on the eqdsk copy torax still pulls in transitively.\nSCORE fit: 17\nJUSTIFICATION fit: the pyproject line follows the surrounding \"name>=version\" style and the fragment matches every sibling under docs/evidence/fragments/jt60sa-machine-map/, though it quotes the gate command without the -k filter that ran.\nSCORE reuse: 20\nJUSTIFICATION reuse: the change adds no definition; it extends the existing pyproject.toml and uv.lock owners of dependency declaration rather than forking a capability.\nFINDING pyproject.toml:67 follow-on: the declaration is guarded by no committed test or CI step \u2014 removing eqdsk from pyproject.toml or reverting the lock line fails nothing in the suite, since eqdsk survives transitively through torax, so the only guard is the manual negative control in negative_control.log, which nothing re-runs.\nFINDING uv.lock:1141 follow-on: the done-when's named check uv lock --check was run in a scratch mirror under $TMPDIR, not in the reviewed worktree where it exits 2 on the absent ../imas-ink and ../nova path deps, so the recorded EXIT=0 measures an equivalent tree rather than the reviewed one; the deviation is forced by the worktree layout and is reported in the manifest.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-eqdsk-dependency.html:28 follow-on: the fragment's gate bullet quotes the pytest command without the -k deselection that actually ran, so a reader reproducing it would collect 7 tests rather than the 5 passed / 2 deselected it reports.\n",
+  "review_run_id": "r-20261008T144657237643-review-of-jtmm-eqdsk-dependency",
+  "reviewed_base_sha": "3ea425d23ace3a09c5a53a4d67a81688ac834fd5",
+  "reviewed_head_sha": "09de3a2b468261383ea83ad7482ca545de6ef1d5",
+  "reviewed_run_id": "r-20261008T142305697950-jtmm-eqdsk-dependency",
+  "scores": {
+    "durability": 6,
+    "evidence": 16,
+    "fit": 17,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T15:00:16.232019+00:00",
+  "total": 99
+}
