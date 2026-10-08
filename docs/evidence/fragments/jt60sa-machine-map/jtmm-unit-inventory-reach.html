@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-unit-inventory-reach-landing">
+      <p>The inventory test
+      <code>tests/data/test_jt60sa_unit_audit.py::test_audit_reports_the_declared_unit_pair_inventory</code>
+      replaces its two traversal-against-traversal count comparisons with
+      checks that can fail. The machine half's audited count is asserted equal
+      to the machine catalogue's own <code>bound_channel_count</code> property
+      rather than a re-summed inline total. The signal half no longer compares a
+      total: it asserts the set of systems the traversal yielded rules from
+      equals <code>SYSTEMS</code>, with every system contributing at least one
+      rule, so an audit that stops reaching a whole signal system reddens even
+      when the two traversals agree on their total. The check that the distinct
+      pair set equals <code>HAND_FACTORS</code> is kept.</p>
+      <p>Measured on the fleet allocation, gate 8 passed, <code>EXIT=0</code>.
+      The declared mutation — the signal traversal skipping the <code>tf</code>
+      system — reddens the test (<code>1 failed, 7 passed</code>,
+      <code>EXIT=1</code>, <code>test_audit_reports_the_declared_unit_pair_inventory</code>),
+      which the previous total-only comparison could not do because both
+      traversals dropped <code>tf</code> together.</p>
+    </section>
+  </main>
+</body>
+</html>
