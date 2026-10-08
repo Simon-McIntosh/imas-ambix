@@ -41,20 +41,19 @@ PROBE_FIELD_PATH = "magnetics/b_field_pol_probe/field/data"
 PLASMA_CURRENT_PATH = "magnetics/ip/data"
 UNIT_TABLE_PATH = BUNDLE.root / "eddb_units.json" if BUNDLE else Path()
 STORE_ROOT = BUNDLE.store_roots["description"] / "OP1" if BUNDLE else Path()
-DD_VERSION = "4.1.1"
-# The vacuum shots the magnetics sign verdicts rest on, and the adjudication
-# receipt those verdicts are copied from.
-VACUUM_SHOTS = (100579, 100595, 100642)
-ADJUDICATION_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "docs"
-    / "evidence"
-    / "fragments"
-    / "jt60sa-machine-map"
-    / "jtmm-vacuum-adjudication.json"
+DESCRIPTION_STORE = (
+    BUNDLE.store_roots["description"] / "OP1" / "magnetics.nc" if BUNDLE else Path()
 )
+DD_VERSION = "4.1.1"
+# The vacuum shots the magnetics sign verdicts rest on.
+VACUUM_SHOTS = (100579, 100595, 100642)
 _IDENTITY_PROBES = tuple(f"magPbTC{i}" for i in range(1, 17))
-_UNDECIDED_LOOPS = tuple(f"magFlxLp{i}" for i in range(1, 28) if i != 7)
+#: Loops 1-6 and 8-11 track reference 7 only on E100642, so their convention is
+#: not fixed and they stay source-only.  Reference loop 7 and loops 12-27 track on
+#: every shot the fits cover, so those are corpus-validated.
+_SOURCE_ONLY_LOOPS = tuple(f"magFlxLp{i}" for i in (1, 2, 3, 4, 5, 6, 8, 9, 10, 11))
+_CORPUS_VALIDATED_LOOPS = (7, *range(12, 28))
+REFERENCE_FRAGMENT = "jtmm-loop-reference-rca.html"
 _MEDIAN_SLOPE = re.compile(r"median slope [+-]\d+\.\d{3}")
 _MEDIAN_ABS_R = re.compile(r"median \|r\| \d+\.\d{3}")
 # A corroboration verb not negated by the immediately preceding "not": the
@@ -173,12 +172,30 @@ def _rule_index():
     return {rule.source_array: rule for rule in _magnetics().signals}
 
 
-def _adjudication():
-    return json.loads(ADJUDICATION_PATH.read_text(encoding="utf-8"))
-
-
 def _blocked_index():
     return {(row.source_group, row.source_array): row for row in _magnetics().blocked}
+
+
+def _differential_pairs():
+    """Map each type-6 flux-loop entry index to the loop pair it names.
+
+    The store holds its entries in Data Dictionary order, so the pairs are read
+    from it rather than assumed: a non-differential (type-1) entry carries the
+    int32 fill in place of a pair and is omitted.
+    """
+
+    import imas
+
+    pairs = {}
+    with imas.DBEntry(DESCRIPTION_STORE, "r") as entry:
+        flux_loop = entry.get("magnetics").flux_loop
+        for index, loop in enumerate(flux_loop):
+            values = np.asarray(
+                getattr(loop, "indices_differential", np.empty(0))
+            ).reshape(-1)
+            if values.size == 2 and not np.any(values == -2147483647):
+                pairs[index] = (int(values[0]), int(values[1]))
+    return pairs
 
 
 def _pearson(first: np.ndarray, second: np.ndarray) -> float:
@@ -382,18 +399,67 @@ def test_magnetics_binds_psrc_ip_in_amperes():
 def test_magnetics_binds_every_raw_mdac_flux_loop_in_order():
     loops = _rules_for(FLUX_LOOP_PATH)
     assert len(loops) == 27
-    assert sorted(rule.target_index for rule in loops) == list(range(27))
-    for rule in loops:
-        index = rule.target_index + 1
+    by_loop = {int(rule.source_array.removeprefix("magFlxLp")): rule for rule in loops}
+    assert sorted(by_loop) == list(range(1, 28))
+    for loop, rule in by_loop.items():
         assert rule.source_group == "MDAC"
-        assert rule.source_array == f"magFlxLp{index}", (
-            rule.target_index,
-            rule.source_array,
-        )
+        assert rule.source_array == f"magFlxLp{loop}"
         assert rule.source_unit == "Wb"
         assert rule.target_unit == "Wb"
         assert rule.unit_factor == 1.0
+        assert rule.channel_factor == -1.0
         assert rule.validation_state in ("source-only", "corpus-validated")
+
+
+def test_magnetics_retargets_every_loop_but_the_reference_onto_its_differential_entry():
+    """Each loop rule but loop 7 targets its type-6 ``[7, L]`` entry.
+
+    Once the store carries the differential pairs, loop ``L``'s own type-1 entry
+    holds geometry and no flux, so the rule must resolve to the type-6 entry
+    naming ``[7, L]`` -- the difference of loop ``L`` against reference loop 7.
+    Loop 7 is the reference and keeps its absolute type-1 entry.
+    """
+
+    by_loop = {
+        int(rule.source_array.removeprefix("magFlxLp")): rule
+        for rule in _rules_for(FLUX_LOOP_PATH)
+    }
+    pairs = _differential_pairs()
+    assert len(pairs) == 26
+
+    assert by_loop[7].target_index == 6
+    assert by_loop[7].target_index not in pairs
+    for loop, rule in by_loop.items():
+        if loop == 7:
+            continue
+        assert pairs[rule.target_index] == (7, loop), (loop, rule.target_index)
+
+
+def test_magnetics_marks_loop_seven_and_loops_12_to_27_corpus_validated():
+    """The loops that track reference 7 on every shot carry a proven sign.
+
+    Loops 12-27 fit the reference on E100579/E100595/E100642 or on E100642
+    alone with loop 7 as reference; loops 1-6 and 8-11 track only on E100642 and
+    stay source-only.
+    """
+
+    by_loop = {
+        int(rule.source_array.removeprefix("magFlxLp")): rule
+        for rule in _rules_for(FLUX_LOOP_PATH)
+    }
+    proven = sorted(
+        loop
+        for loop, rule in by_loop.items()
+        if rule.validation_state == "corpus-validated"
+    )
+    assert proven == list(_CORPUS_VALIDATED_LOOPS)
+
+    for loop in _CORPUS_VALIDATED_LOOPS:
+        if loop != 7:
+            assert REFERENCE_FRAGMENT in by_loop[loop].evidence, loop
+    for loop in (1, 2, 3, 4, 5, 6, 8, 9, 10, 11):
+        assert by_loop[loop].validation_state == "source-only", loop
+        assert "E100642" in by_loop[loop].evidence, loop
 
 
 def test_magnetics_binds_every_raw_mdac_probe_in_order():
@@ -438,32 +504,37 @@ def test_magnetics_authors_the_vacuum_sign_verdicts():
     for shot in VACUUM_SHOTS:
         assert str(shot) in loop7.evidence, shot
 
-    # Exactly the measured 17 carry a sign; probe 17 falls below the floor.
+    # The 16 identity probes and loop 7 carry a vacuum-adjudicated sign; the
+    # differential loops 12-27 carry a sign proven against the reference fits,
+    # so the measured set is 16 + 1 + 16.
     measured = [
         rule
         for rule in _magnetics().signals
         if rule.validation_state == "corpus-validated"
     ]
-    assert len(measured) == 17
+    assert len(measured) == 33
     assert index["magPbTC17"].validation_state == "source-only"
 
 
-def test_magnetics_leaves_the_undecided_channels_source_only():
-    """The 27 undecided channels keep channel_factor 1 and name their reason.
+def test_magnetics_leaves_the_unmatched_loops_source_only():
+    """Loops 1-6 and 8-11 and probe 17 keep their sign unproven.
 
-    Their evidence carries the adjudication's own reason string, so an
-    undecided verdict cannot be restated as a measured one.
+    Each source-only loop still negates its differential channel (the type-6
+    entry stores -raw_L), but its convention is not fixed: it tracks reference
+    7 only on E100642, so its evidence names that single shot rather than a
+    three-shot verdict.
     """
+
     index = _rule_index()
-    adjudication = _adjudication()["channels"]
-    undecided = list(_UNDECIDED_LOOPS) + ["magPbTC17"]
-    assert len(undecided) == 27
-    for name in undecided:
+    source_only = list(_SOURCE_ONLY_LOOPS) + ["magPbTC17"]
+    assert len(source_only) == 11
+    for name in source_only:
         rule = index[name]
         assert rule.validation_state == "source-only", name
-        assert rule.channel_factor == 1.0, name
-        assert adjudication[name]["verdict"] == "undecided", name
-        assert adjudication[name]["reason"] in rule.evidence, name
+    for name in _SOURCE_ONLY_LOOPS:
+        assert index[name].channel_factor == -1.0, name
+        assert "E100642" in index[name].evidence, name
+    assert index["magPbTC17"].channel_factor == 1.0
 
 
 def test_magnetics_blocks_each_processed_psrc_alternate_naming_the_raw():
@@ -528,11 +599,7 @@ def test_eddb_unit_spellings_resolve_to_each_bound_rule():
 @needs_cache
 def test_magnetics_raw_flux_loops_pin_to_the_processed_channels():
     for rule in _rules_for(FLUX_LOOP_PATH):
-        index = rule.target_index + 1
-        assert rule.source_array == f"magFlxLp{index}", (
-            rule.target_index,
-            rule.source_array,
-        )
+        index = int(rule.source_array.removeprefix("magFlxLp"))
         raw = _channel(101154, "MDAC", rule.source_array)
         processed = _channel(101154, "PSRC", f"magFluxLp{index}")
         assert raw is not None and processed is not None
