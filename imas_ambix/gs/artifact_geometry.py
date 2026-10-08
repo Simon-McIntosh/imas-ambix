@@ -692,6 +692,44 @@ def read_artifact_limiter(wall: Any) -> tuple[list[float], list[float], list[str
     return r.tolist(), z.tolist(), flags
 
 
+# --- representation digest --------------------------------------------------
+
+
+def representation_digest(
+    b_probes: Sequence[BProbe],
+    flux_loops: Sequence[FluxLoop],
+    filaments: Sequence[PFFilament],
+    limiter_r: Sequence[float],
+    limiter_z: Sequence[float],
+) -> str:
+    """Return the geometry digest that keys one machine configuration.
+
+    The digest is taken over the static position arrays a table carries -- each
+    probe's ``r``, ``z`` and sensitive-axis angle, each flux loop's ``r`` and
+    ``z``, each filament's ``r``, ``z``, ``width`` and ``height``, and the
+    limiter contour -- through :func:`~imas_ambix.gs.geometry.round_geometry_hash`,
+    so it is stable under repeat and sensitive to sub-centimetre drift.  The
+    reader and the registry producer call this one function over the same
+    extracted parts, so a representation alias and the signature the reader
+    stamps from the same artifact cannot drift apart.
+    """
+    return round_geometry_hash(
+        [
+            np.array([p.r for p in b_probes]),
+            np.array([p.z for p in b_probes]),
+            np.array([p.angle_deg for p in b_probes]),
+            np.array([f.r for f in flux_loops]),
+            np.array([f.z for f in flux_loops]),
+            np.array([f.r for f in filaments]),
+            np.array([f.z for f in filaments]),
+            np.array([f.width for f in filaments]),
+            np.array([f.height for f in filaments]),
+            np.array(limiter_r),
+            np.array(limiter_z),
+        ]
+    )
+
+
 # --- unresolved-turn guard --------------------------------------------------
 
 
@@ -856,20 +894,8 @@ class MachineArtifactGeometryReader:
             n_fluxloop=len(flux_loops),
             n_pf_filament=len(filaments),
             n_limiter=len(limiter_r),
-            digest=round_geometry_hash(
-                [
-                    np.array([p.r for p in b_probes]),
-                    np.array([p.z for p in b_probes]),
-                    np.array([p.angle_deg for p in b_probes]),
-                    np.array([f.r for f in flux_loops]),
-                    np.array([f.z for f in flux_loops]),
-                    np.array([f.r for f in filaments]),
-                    np.array([f.z for f in filaments]),
-                    np.array([f.width for f in filaments]),
-                    np.array([f.height for f in filaments]),
-                    np.array(limiter_r),
-                    np.array(limiter_z),
-                ]
+            digest=representation_digest(
+                b_probes, flux_loops, filaments, limiter_r, limiter_z
             ),
             machine=self.machine,
         )
@@ -970,6 +996,7 @@ __all__ = [
     "read_artifact_magnetics",
     "read_artifact_pf_active",
     "read_artifact_pf_passive",
+    "representation_digest",
     "require_resolved_turns",
     "resolve_drives",
     "sensor_position_arrays",

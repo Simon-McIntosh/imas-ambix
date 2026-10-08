@@ -285,3 +285,119 @@ def test_op1_shot_evidence_is_observed_and_op2_inherited(baseline) -> None:
     op2 = {row.evidence for row in baseline["OP2"].manifest.shot_ranges}
     assert op1 == {"observed"}, op1
     assert op2 == {"inherited"}, op2
+
+
+@pytest.fixture(scope="module")
+def registry():
+    """Build the registry from the packaged stores, without materializing."""
+    return da.build_jt60sa_registry_from_stores()
+
+
+def test_registry_selects_op1_observed_and_op2_inherited(baseline, registry) -> None:
+    """A shot inside a phase's range selects that phase with its evidence."""
+    op1 = registry.select(101173)
+    assert op1.evidence == "observed"
+    assert op1.configuration.physical_digest == registry.physical_digest("OP1")
+
+    op2 = registry.select(101174)
+    assert op2.evidence == "inherited"
+    assert op2.configuration.physical_digest == registry.physical_digest("OP2")
+
+
+def test_registry_select_rejects_a_shot_outside_both_ranges(registry) -> None:
+    """A shot no phase covers is refused rather than defaulted to one."""
+    with pytest.raises(KeyError):
+        registry.select(99999)
+
+
+def test_registry_configurations_are_keyed_by_physical_digest(registry) -> None:
+    """Every configuration is addressed by its own physical digest."""
+    for digest, configuration in registry.configurations.items():
+        assert digest == configuration.physical_digest
+    assert set(registry.configurations) == {
+        registry.physical_digest(phase) for phase in PHASES
+    }
+
+
+def test_registry_configuration_gaps_match_each_artifact(baseline, registry) -> None:
+    """Each configuration carries its phase artifact's unresolved gaps."""
+    for phase in PHASES:
+        digest = registry.physical_digest(phase)
+        assert (
+            registry.configurations[digest].authoring_gaps
+            == tuple(baseline[phase].manifest.unresolved_gaps)
+        ), phase
+
+
+def test_registry_digest_matches_every_authored_artifact(baseline, registry) -> None:
+    """Both phase artifacts share the registry digest built from the stores."""
+    for phase in PHASES:
+        assert baseline[phase].manifest.registry_digest == registry.registry_digest
+
+
+@pytest.mark.parametrize("phase", PHASES)
+def test_reader_signature_alias_resolves_to_its_phase(
+    baseline, registry, phase
+) -> None:
+    """The digest a reader stamps from an artifact aliases onto its phase.
+
+    The registry records one representation alias per phase, taken with the
+    same digest function the reader computes.  Reading the authored artifact
+    and resolving the stamped signature digest through that alias table must
+    yield the phase's own physical configuration, for both phases.
+    """
+    from imas_ambix.gs.artifact_geometry import MachineArtifactGeometryReader
+
+    manifest = baseline[phase].manifest
+    row = next(row for row in registry.ranges if row.phase == phase)
+    reader = MachineArtifactGeometryReader(
+        cache_directory=baseline[phase].directory.parent.parent,
+        digest=baseline[phase].digest,
+        shot=row.first_shot,
+        machine=da.MACHINE,
+        expected_physical_digest=manifest.physical_digest,
+        expected_registry_digest=manifest.registry_digest,
+        allow_incomplete=not manifest.complete,
+    )
+    table = reader.read()
+    resolved = registry.resolve_representation(table.signature.digest)
+    assert resolved.physical_digest == manifest.physical_digest, phase
+
+
+def test_registry_refuses_an_unknown_representation(registry) -> None:
+    """A digest no phase aliases is refused rather than answered wrongly."""
+    with pytest.raises(KeyError):
+        registry.resolve_representation("0000000000000000")
+
+
+def test_coil_weight_band_accepts_two_decimal_pair_and_refuses_wider() -> None:
+    """The agreement band is the catalogue's two-decimal rounding, absolute.
+
+    The FPPC coils declare per-element weights 3.83 and 3.84, one winding
+    rounded to the last digit, and must be accepted.  A 0.02 disagreement on a
+    connection is beyond that rounding and is refused by coil name.
+    """
+    from types import SimpleNamespace
+
+    rows, topologies, _ = _phase_map()
+    topology = topologies[rows["OP1"]["drive_topology"]]
+    fppc = [
+        SimpleNamespace(
+            turns=connection["turns"],
+            current_weight=connection["current_weight"],
+            direction=connection["direction"],
+        )
+        for connection in topology["connections"]
+        if connection["circuit_identifier"] == "jt60sa-op1-circuit-fppc-up"
+    ]
+    products = sorted(
+        {c.turns * c.current_weight * c.direction for c in fppc}
+    )
+    assert products == [3.83, 3.84], products
+    expected = sum(c.turns * c.current_weight * c.direction for c in fppc)
+    assert da._coil_drive_weight("FPPC", fppc) == pytest.approx(expected)
+
+    cs1 = [SimpleNamespace(turns=1.0, current_weight=13.725, direction=1.0)] * 39
+    cs1.append(SimpleNamespace(turns=1.0, current_weight=13.745, direction=1.0))
+    with pytest.raises(ValueError, match="CS1"):
+        da._coil_drive_weight("CS1", cs1)

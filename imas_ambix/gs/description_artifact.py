@@ -57,6 +57,7 @@ from imas_ambix.gs.artifact_geometry import (
     read_artifact_magnetics,
     read_artifact_pf_active,
     read_artifact_pf_passive,
+    representation_digest,
 )
 
 if TYPE_CHECKING:
@@ -94,11 +95,16 @@ PHASE_SHOT_EVIDENCE: dict[str, str] = {
     "OP2": "inherited",
 }
 
-#: The relative spread two elements of one coil may show on the per-element
-#: ampere-turns and still be one winding.  The catalogue declares turns to two
-#: decimals, so a uniform winding's last declared digit may differ between its
-#: elements; a larger spread is a genuine disagreement and is refused by name.
-_WEIGHT_AGREEMENT = 1e-2
+#: The absolute spread two elements of one coil may show on the per-element
+#: ampere-turns and still be one winding.  The catalogue declares each
+#: connection's weight rounded to two decimals, so two elements of one uniform
+#: winding differ on their last declared digit by at most 0.01; the band sits
+#: just above that so a pair rounded to the same winding (3.83 against 3.84)
+#: is accepted while any larger spread is a genuine disagreement refused by
+#: name.  The band is absolute rather than relative to the coil's scale, so a
+#: small-magnitude coil is judged by the catalogue's own resolution rather than
+#: by a fraction of its weight.
+_WEIGHT_AGREEMENT = 0.011
 
 #: The evidence the producer does not yet author: the geometry field ledger.
 #: The absence is named on every phase artifact, so each stays incomplete.
@@ -110,25 +116,111 @@ DRIVE_TOPOLOGY_GAP = (
 
 
 @dataclass(frozen=True)
+class Jt60saPhaseRange:
+    """One operating phase's closed shot range and the identity it selects.
+
+    The range is the phase's catalogue dates; the evidence state records how the
+    phase's identity was checked, ``observed`` where its description was tested
+    against acquired pulses and ``inherited`` where it comes from the declared
+    description alone.
+    """
+
+    phase: str
+    first_shot: int
+    last_shot: int
+    evidence: str
+    physical_digest: str
+
+    def contains(self, shot: int) -> bool:
+        """Return whether ``shot`` lies in this closed range."""
+        return self.first_shot <= shot <= self.last_shot
+
+
+@dataclass(frozen=True)
+class Jt60saConfiguration:
+    """One JT-60SA operating phase's physical configuration.
+
+    ``authoring_gaps`` is the phase artifact's ``unresolved_gaps``, so an
+    identity resolved from this configuration reports the same incompleteness
+    the artifact does, and a consumer can tell not-operator-ready from ready.
+    """
+
+    physical_digest: str
+    geometry: Mapping[str, Any]
+    authoring_gaps: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Jt60saSelection:
+    """The one phase a shot selects, with the evidence behind the selection."""
+
+    shot: int
+    configuration: Jt60saConfiguration
+    evidence: str
+
+
+@dataclass(frozen=True)
 class Jt60saGeometryRegistry:
     """A JT-60SA geometry registry built over both operating phases.
 
     One registry spans the two phases, so both phase artifacts carry one shared
     registry digest while each carries its own physical digest.  The registry is
     a frozen expectation of the geometry a phase stands for; it is derived from
-    the phase geometry content, never from the container bytes.
+    the phase geometry content, never from the container bytes.  It exposes the
+    five members the identity resolvers read from Nova's MAST registry:
+    ``registry_digest``, ``dd_version``, ``configurations`` keyed by physical
+    digest, :meth:`select` and :meth:`resolve_representation`.
     """
 
     schema: str
     machine: str
     dd_version: str
-    configurations: Mapping[str, Mapping[str, Any]]
-    ranges: tuple[Mapping[str, Any], ...]
+    configurations: Mapping[str, Jt60saConfiguration]
+    representation_aliases: Mapping[str, str]
+    ranges: tuple[Jt60saPhaseRange, ...]
     registry_digest: str
 
     def physical_digest(self, phase: str) -> str:
         """Return the physical digest the registry holds for ``phase``."""
-        return str(self.configurations[phase]["physical_digest"])
+        for row in self.ranges:
+            if row.phase == phase:
+                return row.physical_digest
+        raise KeyError(f"the registry holds no phase {phase!r}")
+
+    def select(self, shot: int) -> Jt60saSelection:
+        """Select the one phase whose range holds ``shot``.
+
+        Raises :class:`KeyError` when the shot lies outside both ranges; the
+        phases' ranges are disjoint, so a shot resolves to at most one phase.
+        """
+        matches = [row for row in self.ranges if row.contains(int(shot))]
+        if len(matches) != 1:
+            raise KeyError(
+                f"shot {shot} lies outside the JT-60SA phase ranges "
+                f"({self.registry_digest[:12]})"
+            )
+        row = matches[0]
+        return Jt60saSelection(
+            shot=int(shot),
+            configuration=self.configurations[row.physical_digest],
+            evidence=row.evidence,
+        )
+
+    def resolve_representation(self, digest: str) -> Jt60saConfiguration:
+        """Return the configuration a phase's representation alias names.
+
+        Raises :class:`KeyError` for any digest no phase aliases, so a setup
+        signature from another machine or another revision is refused rather
+        than answered with the wrong phase's geometry.
+        """
+        try:
+            physical = self.representation_aliases[digest]
+        except KeyError as error:
+            raise KeyError(
+                f"unknown JT-60SA setup representation {digest!r} "
+                f"(registry {self.registry_digest[:12]})"
+            ) from error
+        return self.configurations[physical]
 
 
 def _points(points: Any) -> list[list[float]]:
@@ -159,13 +251,45 @@ def _tf_geometry_payload(tf: Any) -> list[dict[str, Any]]:
     return coils
 
 
-def _phase_geometry_payload(ids: Mapping[str, Any]) -> dict[str, Any]:
-    """Return the geometry content of one phase's IDSs as canonical data.
+@dataclass(frozen=True)
+class _PhaseGeometry:
+    """One phase's canonical geometry payload and the parts it was taken from.
+
+    ``payload`` is the JSON-compatible snapshot hashed into the physical and
+    registry digests; the remaining fields are the reader's own extracted
+    objects, which the representation digest is computed over.  Both come from
+    one extraction, so the payload and the alias cannot be taken from different
+    reads of the store.
+    """
+
+    payload: Mapping[str, Any]
+    b_probes: tuple[Any, ...]
+    flux_loops: tuple[Any, ...]
+    filaments: tuple[Any, ...]
+    limiter_r: tuple[float, ...]
+    limiter_z: tuple[float, ...]
+
+    def representation_digest(self) -> str:
+        """Return the setup representation digest for this phase's geometry."""
+        return representation_digest(
+            self.b_probes,
+            self.flux_loops,
+            self.filaments,
+            self.limiter_r,
+            self.limiter_z,
+        )
+
+
+def _read_phase_geometry(ids: Mapping[str, Any]) -> _PhaseGeometry:
+    """Extract one phase's geometry payload and reader parts from its IDSs.
 
     The snapshot is taken through the same extractors the geometry reader uses,
     so it is the geometry a consumer of the artifact sees rather than the
     discretization the store happens to record.  Turns are carried as the
-    description records them; a moved conductor changes the payload.
+    description records them; a moved conductor changes the payload.  The
+    filament list joins the active and passive filaments in the order the reader
+    emits them, so the representation digest taken over it matches the digest a
+    reader stamps from the authored artifact.
     """
     active, _active_sections, _active_drives, _ = read_artifact_pf_active(
         ids["pf_active"]
@@ -175,7 +299,8 @@ def _phase_geometry_payload(ids: Mapping[str, Any]) -> dict[str, Any]:
     )
     limiter_r, limiter_z, _ = read_artifact_limiter(ids["wall"])
     probes, loops, _ = read_artifact_magnetics(ids["magnetics"])
-    return {
+    filaments = tuple(active) + tuple(passive)
+    payload = {
         "magnetics": {
             "b_probes": [[p.r, p.z, p.angle_deg, p.length] for p in probes],
             "flux_loops": [[f.r, f.z] for f in loops],
@@ -189,6 +314,14 @@ def _phase_geometry_payload(ids: Mapping[str, Any]) -> dict[str, Any]:
         "tf": _tf_geometry_payload(ids["tf"]),
         "wall": {"limiter_r": list(limiter_r), "limiter_z": list(limiter_z)},
     }
+    return _PhaseGeometry(
+        payload=payload,
+        b_probes=tuple(probes),
+        flux_loops=tuple(loops),
+        filaments=filaments,
+        limiter_r=tuple(limiter_r),
+        limiter_z=tuple(limiter_z),
+    )
 
 
 def _canonical_digest(payload: Any, *, length: int = 64) -> str:
@@ -207,30 +340,73 @@ def _physical_digest(geometry: Mapping[str, Any]) -> str:
 def build_jt60sa_registry(
     geometries: Mapping[str, Mapping[str, Any]],
     shot_ranges: Mapping[str, tuple[int, int]],
+    representations: Mapping[str, str],
+    authoring_gaps: Mapping[str, Sequence[str]],
 ) -> Jt60saGeometryRegistry:
-    """Build one registry over both phases' geometry content and shot ranges."""
+    """Build one registry over both phases' geometry, ranges and aliases.
+
+    ``representations`` is each phase's setup representation alias -- the
+    :func:`~imas_ambix.gs.artifact_geometry.representation_digest` a reader
+    stamps from that phase's artifact -- and ``authoring_gaps`` is each phase
+    artifact's unresolved gaps.  Both are hashed into the registry digest, so a
+    registry records the aliases and gaps it was built from rather than
+    accepting either later.
+    """
+    digests = {phase: _physical_digest(geometries[phase]) for phase in PHASES}
     configurations = {
-        phase: {
-            "physical_digest": _physical_digest(geometries[phase]),
-            "geometry": geometries[phase],
-        }
+        digests[phase]: Jt60saConfiguration(
+            physical_digest=digests[phase],
+            geometry=geometries[phase],
+            authoring_gaps=tuple(authoring_gaps[phase]),
+        )
         for phase in PHASES
     }
     ranges = tuple(
-        {
-            "evidence": PHASE_SHOT_EVIDENCE[phase],
-            "first_shot": int(shot_ranges[phase][0]),
-            "last_shot": int(shot_ranges[phase][1]),
-            "phase": phase,
-            "physical_digest": configurations[phase]["physical_digest"],
-        }
+        Jt60saPhaseRange(
+            phase=phase,
+            first_shot=int(shot_ranges[phase][0]),
+            last_shot=int(shot_ranges[phase][1]),
+            evidence=PHASE_SHOT_EVIDENCE[phase],
+            physical_digest=digests[phase],
+        )
         for phase in PHASES
     )
+    representation_aliases = {
+        representations[phase]: digests[phase] for phase in PHASES
+    }
+    if len(set(representation_aliases)) != len(PHASES):
+        raise ValueError(
+            "the two phases carry the same setup representation alias "
+            f"{sorted(representations.values())}; each phase must alias "
+            "distinctly"
+        )
+    for alias, digest in representation_aliases.items():
+        if digest not in configurations:
+            raise ValueError(
+                f"representation alias {alias!r} names unknown digest {digest!r}"
+            )
     payload = {
-        "configurations": configurations,
+        "configurations": {
+            digest: {
+                "authoring_gaps": list(configuration.authoring_gaps),
+                "geometry": configuration.geometry,
+                "physical_digest": configuration.physical_digest,
+            }
+            for digest, configuration in configurations.items()
+        },
         "dd_version": DD_VERSION,
         "machine": MACHINE,
-        "ranges": list(ranges),
+        "ranges": [
+            {
+                "evidence": row.evidence,
+                "first_shot": row.first_shot,
+                "last_shot": row.last_shot,
+                "phase": row.phase,
+                "physical_digest": row.physical_digest,
+            }
+            for row in ranges
+        ],
+        "representation_aliases": representation_aliases,
         "schema": REGISTRY_SCHEMA,
     }
     return Jt60saGeometryRegistry(
@@ -238,6 +414,7 @@ def build_jt60sa_registry(
         machine=MACHINE,
         dd_version=DD_VERSION,
         configurations=configurations,
+        representation_aliases=representation_aliases,
         ranges=ranges,
         registry_digest=_canonical_digest(payload),
     )
@@ -401,7 +578,7 @@ def _coil_drive_weight(coil: str, connections: Sequence[Any]) -> float:
         for connection in connections
     ]
     low, high = min(weights), max(weights)
-    if high - low > _WEIGHT_AGREEMENT * abs(high):
+    if high - low > _WEIGHT_AGREEMENT:
         raise ValueError(
             f"pf_active coil {coil!r} elements disagree on the ampere-turns per "
             f"ampere: {sorted(set(weights))}"
@@ -525,6 +702,72 @@ def _write_phase_ids(ids: Mapping[str, Any], directory: Path) -> None:
             entry.put(ids[name])
 
 
+def _registry_inputs(
+    ids_by_phase: Mapping[str, Mapping[str, Any]],
+    rows: Mapping[str, _PhaseMapRow],
+) -> tuple[
+    dict[str, _PhaseGeometry],
+    dict[str, tuple[list[Any], list[Any]]],
+    dict[str, tuple[str, ...]],
+    dict[str, str],
+    dict[str, tuple[int, int]],
+]:
+    """Derive, from the phase stores, everything the registry is built over.
+
+    Returns the per-phase geometry (with the reader parts its representation
+    digest is taken from), the authored channel drives and their evidence
+    records, the authoring gaps, the representation aliases and the shot ranges.
+    The gaps follow from the drives, so the drive authoring happens here once
+    and both the registry's payload and the artifacts read the same result.
+    """
+    geometries = {
+        phase: _read_phase_geometry(ids_by_phase[phase]) for phase in PHASES
+    }
+    drives_by_phase = {
+        phase: _phase_channel_drives(rows[phase], ids_by_phase[phase]["pf_active"])
+        for phase in PHASES
+    }
+    gaps_by_phase = {
+        phase: _phase_completeness(
+            phase, rows[phase].drive_topology, channel_drive=drives_by_phase[phase][0]
+        )[1]
+        for phase in PHASES
+    }
+    aliases = {phase: geometries[phase].representation_digest() for phase in PHASES}
+    shot_ranges = {
+        phase: (rows[phase].first_shot, rows[phase].last_shot) for phase in PHASES
+    }
+    return geometries, drives_by_phase, gaps_by_phase, aliases, shot_ranges
+
+
+def build_jt60sa_registry_from_stores(
+    *,
+    description_root: str | Path = DEFAULT_DESCRIPTION_ROOT,
+    machine_map_path: str | Path = DEFAULT_MACHINE_MAP,
+) -> Jt60saGeometryRegistry:
+    """Return the JT-60SA geometry registry built from the phase stores.
+
+    This is the entry a machine-keyed identity registry calls for JT-60SA: it
+    reads the two phase stores and the catalogue, derives the physical digests,
+    the representation aliases and the authoring gaps exactly as artifact
+    authoring does, and returns the registry without materializing an artifact.
+    Nothing is cached and no artifact cache is required, so a resolver can read
+    an identity the moment the stores are present.
+    """
+    root = Path(description_root)
+    rows = _phase_map_rows(machine_map_path)
+    ids_by_phase = {phase: _read_phase_ids(root / phase) for phase in PHASES}
+    geometries, _drives, gaps, aliases, shot_ranges = _registry_inputs(
+        ids_by_phase, rows
+    )
+    return build_jt60sa_registry(
+        {phase: geometries[phase].payload for phase in PHASES},
+        shot_ranges,
+        aliases,
+        gaps,
+    )
+
+
 def author_jt60sa_machine_artifacts(
     cache_directory: str | Path,
     *,
@@ -546,25 +789,23 @@ def author_jt60sa_machine_artifacts(
 
     root = Path(description_root)
     rows = _phase_map_rows(machine_map_path)
-    shot_ranges = {
-        phase: (rows[phase].first_shot, rows[phase].last_shot) for phase in PHASES
-    }
-
     ids_by_phase = {phase: _read_phase_ids(root / phase) for phase in PHASES}
-    geometries = {
-        phase: _phase_geometry_payload(ids_by_phase[phase]) for phase in PHASES
-    }
-    registry = build_jt60sa_registry(geometries, shot_ranges)
+    geometries, drives_by_phase, gaps_by_phase, aliases, shot_ranges = (
+        _registry_inputs(ids_by_phase, rows)
+    )
+    registry = build_jt60sa_registry(
+        {phase: geometries[phase].payload for phase in PHASES},
+        shot_ranges,
+        aliases,
+        gaps_by_phase,
+    )
 
     artifacts: dict[str, Any] = {}
     for phase in PHASES:
         physical_digest = registry.physical_digest(phase)
-        drives, drive_evidence = _phase_channel_drives(
-            rows[phase], ids_by_phase[phase]["pf_active"]
-        )
-        complete, gaps = _phase_completeness(
-            phase, rows[phase].drive_topology, channel_drive=drives
-        )
+        drives, drive_evidence = drives_by_phase[phase]
+        gaps = gaps_by_phase[phase]
+        complete = not gaps
         phase_ranges = (
             ArtifactShotRange(
                 first_shot=shot_ranges[phase][0],
@@ -599,4 +840,12 @@ def author_jt60sa_machine_artifacts(
     return artifacts
 
 
-__all__ = ["author_jt60sa_machine_artifacts"]
+__all__ = [
+    "Jt60saConfiguration",
+    "Jt60saGeometryRegistry",
+    "Jt60saPhaseRange",
+    "Jt60saSelection",
+    "author_jt60sa_machine_artifacts",
+    "build_jt60sa_registry",
+    "build_jt60sa_registry_from_stores",
+]
