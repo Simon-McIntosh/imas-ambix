@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="reckon-type" content="doc">
+  <title>JT-60SA phase channel drives authored from drive topology — landed</title>
+</head>
+<body>
+<main class="plan-doc">
+  <h2 id="jtmm-artifact-drive-map">Phase channel drives authored from the machine map's drive topology</h2>
+  <ul>
+    <li id="jtmm-artifact-drive-map-source">Each phase artifact's channel drive map is now authored from the drive topology its <code>maps</code> row in <code>machine_map.json</code> names &mdash; OP1 &rarr; <code>jt60sa-pf-drive-op1</code>, OP2 &rarr; <code>jt60sa-pf-drive-op2</code> &mdash; and the acquisition declaration that topology's <code>current_channel_declaration</code> resolves to.</li>
+    <li id="jtmm-artifact-drive-map-drive">One nova <code>ChannelDrive</code> per <code>pf_active</code> coil. Channel is the current channel the coil's geometry element identifiers stem to under <code>geometry_adapter.current_channel_from_conductors</code> (<code>CS1_1</code>&nbsp;&rarr;&nbsp;<code>CS1</code>, accepted only when the declaration lists it); container <code>pf_active</code>; conductor the coil name; elements the coil's element indices; circuit the topology's circuit identifier.</li>
+    <li id="jtmm-artifact-drive-map-weight">A drive's <code>ampere_turns_per_ampere</code> is its connections' <code>turns &times; current_weight &times; direction</code> &mdash; the per-element weight <code>read_artifact_pf_active</code> applies to every element. Coils whose elements agree to within <code>_WEIGHT_AGREEMENT</code> (1e-2 relative) are one winding and take that single value (FPPC&nbsp;=&nbsp;23/6&nbsp;=&nbsp;3.8333&nbsp;A&middot;turn/A, the map's declared total); a coil whose elements disagree is refused by name rather than averaged.</li>
+    <li id="jtmm-artifact-drive-map-evidence">Each drive's path points at a nova <code>EvidenceRecord</code> whose source cites the topology name and <code>machine_map.json</code> and whose shot support is the phase's range, so <code>create_machine_artifact_manifest</code> receives the drives and the field evidence they resolve against.</li>
+    <li id="jtmm-artifact-drive-map-helper">One helper reads the phase rows of <code>machine_map.json</code> once and serves shot ranges, drive topologies and drive authoring, replacing the duplicated load-and-index blocks in the former shot-range and drive-topology helpers.</li>
+    <li id="jtmm-artifact-drive-map-gaps">The channel-drive unresolved gap is removed. The geometry field-evidence ledger is still not authored, so each artifact remains <code>complete=False</code> with that single gap.</li>
+    <li id="jtmm-artifact-drive-map-gate">Gate <code>tests/gs/test_description_artifact.py tests/data/test_jt60sa_machine_map.py tests/data/test_machine_map.py</code>: 56 passed, EXIT=0; <code>ruff check imas_ambix tests</code> exits 0. Each phase carries twelve drives (CS1&ndash;CS4, EF1&ndash;EF6, FPPC_UP, FPPC_DOWN), every channel is in the phase's acquisition declaration, CS1 weights 13.725&nbsp;A&middot;turn/A, and <code>resolve_drives</code> resolves one drive per coil with no dropped coil.</li>
+    <li id="jtmm-artifact-drive-map-negative-control">Negative control: taking each drive's weight as the circuit's summed ampere turns instead of the per-element value makes <code>test_cs1_drive_weight_is_the_connections_per_element_weight</code> fail &mdash; obtained 549.0 (40&nbsp;&times;&nbsp;13.725) against the expected 13.725 (1 failed, EXIT=1).</li>
+    <li id="jtmm-artifact-drive-map-caveat">The per-element weight is read from the drive topology, not the coil's stored <code>xmult</code>; a description whose per-element fold disagreed with the topology would be indistinguishable here, and the geometry field-evidence node is what will arbitrate that.</li>
+  </ul>
+</main>
+</body>
+</html>
