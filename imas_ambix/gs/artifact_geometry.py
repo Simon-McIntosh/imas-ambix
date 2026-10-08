@@ -793,7 +793,7 @@ class MachineArtifactGeometryReader:
     cache_directory: str | Path
     digest: str
     shot: int
-    machine: str = "mast"
+    machine: str
     amb_channels: tuple[tuple[str, str], ...] = ()
     amc_current_channels: tuple[str, ...] = ()
     expected_physical_digest: str = ""
@@ -839,7 +839,7 @@ class MachineArtifactGeometryReader:
         )
 
         try:
-            return identity_for_shot(int(self.shot)).evidence
+            return identity_for_shot(int(self.shot), machine=self.machine).evidence
         except MachineIdentityError as error:
             return f"unavailable ({error})"
 

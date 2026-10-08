@@ -464,9 +464,10 @@ def test_the_sensor_arrays_are_presented_in_the_shape_the_mapper_reads():
 
 # --- integration against a published artifact --------------------------------
 
-_PHYSICAL_DIGEST = resolution.PINNED_PHYSICAL_DIGEST
-_REGISTRY_DIGEST = resolution.PINNED_REGISTRY_DIGEST
-_SEMANTIC_IDENTITY = resolution.PINNED_SEMANTIC_IDENTITY
+_MAST_ROW = resolution.pinned_rows("mast")[0]
+_PHYSICAL_DIGEST = _MAST_ROW.physical_digest
+_REGISTRY_DIGEST = _MAST_ROW.registry_digest
+_SEMANTIC_IDENTITY = _MAST_ROW.semantic_identity
 _SHOT = 21983
 
 
@@ -478,12 +479,13 @@ def described_machine():
     description, so a test asserting on it must be able to obtain that description
     anywhere rather than only where a cache has been exported by hand.
     """
-    return resolution.resolve_machine_description()
+    return resolution.resolve_machine_description("mast")
 
 
 @pytest.fixture(scope="module")
 def artifact_table(described_machine):
     return ag.MachineArtifactGeometryReader(
+        machine="mast",
         cache_directory=described_machine.cache_directory,
         digest=described_machine.digest,
         shot=_SHOT,
@@ -503,6 +505,7 @@ def carried_artifact_table(described_machine):
     acquisition = read_acquisition_channels((_SHOT,))
 
     return ag.MachineArtifactGeometryReader(
+        machine="mast",
         cache_directory=described_machine.cache_directory,
         digest=described_machine.digest,
         shot=_SHOT,
@@ -698,11 +701,13 @@ def test_a_campaign_channel_set_is_what_makes_the_table_drivable(described_machi
     assert channels
 
     bare = ag.MachineArtifactGeometryReader(
+        machine="mast",
         cache_directory=described_machine.cache_directory,
         digest=described_machine.digest,
         shot=_SHOT,
     ).read()
     driven = ag.MachineArtifactGeometryReader(
+        machine="mast",
         cache_directory=described_machine.cache_directory,
         digest=described_machine.digest,
         shot=_SHOT,
@@ -796,6 +801,7 @@ def test_the_supplied_conductors_are_the_ones_the_source_files_as_active(
 
     channels = read_acquisition_channels((_SHOT,)).currents
     table = ag.MachineArtifactGeometryReader(
+        machine="mast",
         cache_directory=described_machine.cache_directory,
         digest=described_machine.digest,
         shot=_SHOT,
@@ -829,6 +835,7 @@ def driven_operators(described_machine):
     efm = read_geometry_table(_SHOT)
     acquisition = read_acquisition_channels((_SHOT,))
     artifact = ag.MachineArtifactGeometryReader(
+        machine="mast",
         cache_directory=described_machine.cache_directory,
         digest=described_machine.digest,
         shot=_SHOT,

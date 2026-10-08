@@ -84,7 +84,7 @@ def test_the_frozen_shots_under_a_different_role_are_labelled_ad_hoc():
 def test_the_frozen_ids_and_roles_under_another_machine_are_labelled_ad_hoc():
     """A coincident shot id on another machine must never claim MAST's label."""
     other_machine = [
-        BenchShot(machine="jt60sa", shot_id=s.shot_id, role=s.role)
+        BenchShot(machine="jt-60sa", shot_id=s.shot_id, role=s.role)
         for s in FROZEN_SHOTSET
     ]
     assert resolve_shotset_version(other_machine) == AD_HOC_SHOTSET_VERSION
@@ -93,12 +93,27 @@ def test_the_frozen_ids_and_roles_under_another_machine_are_labelled_ad_hoc():
 
 def test_the_frozen_sets_are_keyed_by_machine_and_carry_their_own_labels():
     """MAST's names are its row; JT-60SA's row is a second set, not a relabel."""
-    assert set(FROZEN_SHOTSETS) == {"mast", "jt60sa"}
+    assert set(FROZEN_SHOTSETS) == {"mast", "jt-60sa"}
     assert FROZEN_SHOTSETS["mast"].shots == FROZEN_SHOTSET
     assert FROZEN_SHOTSETS["mast"].version == SHOTSET_VERSION
-    assert FROZEN_SHOTSETS["jt60sa"].shots == JT60SA_FROZEN_SHOTSET
-    assert FROZEN_SHOTSETS["jt60sa"].version == JT60SA_SHOTSET_VERSION
+    assert FROZEN_SHOTSETS["jt-60sa"].shots == JT60SA_FROZEN_SHOTSET
+    assert FROZEN_SHOTSETS["jt-60sa"].version == JT60SA_SHOTSET_VERSION
     assert JT60SA_SHOTSET_VERSION not in (SHOTSET_VERSION, AD_HOC_SHOTSET_VERSION)
+
+
+def test_every_shotset_key_is_the_machine_its_shots_declare():
+    """The key must name the machine its row is for, so a lookup cannot miss."""
+    for key, row in FROZEN_SHOTSETS.items():
+        assert row.machine == key
+        assert {shot.machine for shot in row.shots} == {key}
+
+
+def test_the_jt60sa_key_names_the_machine_the_artifact_layer_builds():
+    """One slug across the route: the shot set and the description artifact agree."""
+    from imas_ambix.gs import description_artifact
+
+    assert "jt-60sa" in FROZEN_SHOTSETS
+    assert description_artifact.MACHINE == "jt-60sa"
 
 
 def test_the_jt60sa_frozen_set_is_labelled_by_its_own_machine():
@@ -134,7 +149,7 @@ def test_a_jt60sa_shot_whose_digits_match_a_mast_id_is_not_labelled_mast():
     JT-60SA set resolves to the JT-60SA label rather than ad-hoc.
     """
     colliding = [
-        BenchShot(machine="jt60sa", shot_id=s.shot_id, role=s.role)
+        BenchShot(machine="jt-60sa", shot_id=s.shot_id, role=s.role)
         for s in FROZEN_SHOTSET
     ]
     assert resolve_shotset_version(colliding) == AD_HOC_SHOTSET_VERSION

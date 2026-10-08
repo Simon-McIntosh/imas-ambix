@@ -88,7 +88,7 @@ never computes or alters it.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import cache
 from typing import Any
 
 #: Group by :attr:`SetupSignature.key` -- the historical behaviour and the
@@ -141,17 +141,29 @@ class MachineIdentity:
         raise ValueError(f"unknown identity mode {mode!r}; expected {IDENTITY_MODES}")
 
 
-@lru_cache(maxsize=1)
-def default_registry() -> Any:
-    """Return the packaged Nova MAST geometry registry, loaded once.
+@cache
+def default_registry(machine: str) -> Any:
+    """Return the registry for ``machine``, loaded once per machine.
 
     Imported lazily and cached because loading validates the whole payload
     (re-hashing every configuration and the registry digest), which is wasted
     work on the many code paths that never ask about identity.
     """
-    from nova.catalog.mast_geometry import MachineGeometryRegistry  # noqa: PLC0415
+    if machine == "mast":
+        from nova.catalog.mast_geometry import (  # noqa: PLC0415
+            MachineGeometryRegistry,
+        )
 
-    return MachineGeometryRegistry.default()
+        return MachineGeometryRegistry.default()
+    if machine == "jt-60sa":
+        from imas_ambix.gs.description_artifact import (  # noqa: PLC0415
+            build_jt60sa_registry_from_stores,
+        )
+
+        return build_jt60sa_registry_from_stores()
+    raise MachineIdentityError(
+        f"no machine registry is available for machine {machine!r}"
+    )
 
 
 def _identity(
@@ -172,7 +184,7 @@ def _identity(
 
 
 def identity_for_representation(
-    signature, *, registry: Any | None = None
+    signature, *, machine: str | None = None, registry: Any | None = None
 ) -> MachineIdentity:
     """Resolve a :class:`SetupSignature` (or its digest) to a physical identity.
 
@@ -184,7 +196,15 @@ def identity_for_representation(
     the representation describes but says nothing about the source quality of any
     particular shot, which only :func:`identity_for_shot` can answer.
     """
-    registry = registry or default_registry()
+    if isinstance(signature, str):
+        if machine is None:
+            raise MachineIdentityError(
+                "resolving a bare representation digest needs the machine whose "
+                "registry holds it"
+            )
+        registry = registry or default_registry(machine)
+    else:
+        registry = registry or default_registry(signature.machine)
     digest = getattr(signature, "digest", signature)
     representation_key = getattr(signature, "key", digest)
     try:
@@ -205,7 +225,11 @@ def identity_for_representation(
 
 
 def identity_for_shot(
-    shot_id: int, representation_key: str = "", *, registry: Any | None = None
+    shot_id: int,
+    representation_key: str = "",
+    *,
+    machine: str,
+    registry: Any | None = None,
 ) -> MachineIdentity:
     """Resolve a shot to its physical identity and per-shot evidence state.
 
@@ -213,7 +237,7 @@ def identity_for_shot(
     shot (``observed``, ``inherited``, or ``missing`` where source coverage is
     incomplete), which the alias table cannot supply.
     """
-    registry = registry or default_registry()
+    registry = registry or default_registry(machine)
     try:
         selection = registry.select(int(shot_id))
     except KeyError as error:
@@ -238,11 +262,13 @@ def identity_for_table(table, *, registry: Any | None = None) -> MachineIdentity
     table otherwise.  A shot the registry does not cover falls back rather than
     failing, so a table remains usable when only its representation is known.
     """
-    registry = registry or default_registry()
     signature = table.signature
+    registry = registry or default_registry(signature.machine)
     for shot in getattr(table, "shots", ()) or ():
         try:
-            identity = identity_for_shot(int(shot), signature.key, registry=registry)
+            identity = identity_for_shot(
+                int(shot), signature.key, machine=signature.machine, registry=registry
+            )
         except (MachineIdentityError, TypeError, ValueError):
             continue
         return identity
@@ -256,7 +282,7 @@ def same_machine(left, right, *, registry: Any | None = None) -> bool:
     differ only by subdivision compare equal here and unequal by signature, which
     is the identity rule stated as a predicate.
     """
-    registry = registry or default_registry()
+    registry = registry or default_registry(left.signature.machine)
     return (
         identity_for_table(left, registry=registry).physical_digest
         == identity_for_table(right, registry=registry).physical_digest

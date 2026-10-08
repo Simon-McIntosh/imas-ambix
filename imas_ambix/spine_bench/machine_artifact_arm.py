@@ -64,8 +64,7 @@ from typing import Any
 from imas_ambix.gs.artifact_resolution import (
     CACHE_ENV,
     DIGEST_ENV,
-    PINNED_PHYSICAL_DIGEST,
-    PINNED_REGISTRY_DIGEST,
+    pinned_rows,
 )
 from imas_ambix.gs.machine_selection import ArtifactMachineSelector
 from imas_ambix.spine_bench.runner import run_stamp, write_yaml
@@ -73,20 +72,20 @@ from imas_ambix.spine_bench.shots import FROZEN_SHOTSETS
 
 logger = logging.getLogger(__name__)
 
-#: The machine this arm is written against, and the environment variables that
-#: name a description explicitly.  All four are re-exported from
+#: The environment variables that name a description explicitly, re-exported from
 #: :mod:`imas_ambix.gs.artifact_resolution`, which owns them: the arm selects a
 #: machine and must not be able to pin a different one than the resolution path
-#: verifies against.  The SEMANTIC identity is deliberately not enforced here:
-#: revisions that change what the description says about the same conductors (an
-#: evidence promotion, a refused calibration) are exactly what this arm exists to
-#: measure, so it must be able to run on any of them and record which one it read.
+#: verifies against.  The expected physical and registry digests are read from the
+#: pin table's row for the declared machine, so the arm cannot state an
+#: expectation the pin table does not hold.  The SEMANTIC identity is deliberately
+#: not enforced here: revisions that change what the description says about the
+#: same conductors (an evidence promotion, a refused calibration) are exactly what
+#: this arm exists to measure, so it must be able to run on any of them and record
+#: which one it read.
 __all__ = [
     "ARTIFACT_SOURCE_LABEL",
     "CACHE_ENV",
     "DIGEST_ENV",
-    "PINNED_PHYSICAL_DIGEST",
-    "PINNED_REGISTRY_DIGEST",
     "MachineArtifactGeometrySource",
     "main",
     "resolve_geometry_source",
@@ -111,6 +110,9 @@ class MachineArtifactGeometrySource:
     """
 
     evidence_shot: int
+    #: The machine this source reads, and whose pin row states the expected
+    #: physical and registry digests.
+    machine: str = "mast"
     #: Shots whose amb channel sets are unioned to address the artifact's sensors.
     #: Scanning the whole benchmark set rather than one shot keeps the channel set
     #: geometry-determined instead of an artifact of one shot's acquisition gaps.
@@ -120,11 +122,18 @@ class MachineArtifactGeometrySource:
     #: the arm to run.
     cache_directory: str | Path | None = None
     digest: str | None = None
-    expected_physical_digest: str = PINNED_PHYSICAL_DIGEST
-    expected_registry_digest: str = PINNED_REGISTRY_DIGEST
+    expected_physical_digest: str = ""
+    expected_registry_digest: str = ""
     label: str = ARTIFACT_SOURCE_LABEL
     _table: Any | None = field(default=None, init=False, repr=False)
     _provenance: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        row = pinned_rows(self.machine)[0]
+        if not self.expected_physical_digest:
+            self.expected_physical_digest = row.physical_digest
+        if not self.expected_registry_digest:
+            self.expected_registry_digest = row.registry_digest
 
     def build(self) -> Any:
         """Select the machine by physical identity, reading its table once."""
@@ -133,6 +142,7 @@ class MachineArtifactGeometrySource:
 
         shots = self.channel_shots or (self.evidence_shot,)
         selector = ArtifactMachineSelector(
+            machine=self.machine,
             channel_shots=tuple(int(s) for s in shots),
             amc_channel_shot=int(self.evidence_shot),
             cache_directory=(
@@ -215,6 +225,7 @@ def resolve_geometry_source(
         ) from None
     shots = tuple(int(s.shot_id) for s in row.shots)
     return MachineArtifactGeometrySource(
+        machine=machine,
         cache_directory=cache_directory,
         digest=digest,
         evidence_shot=int(evidence_shot if evidence_shot is not None else shots[0]),
@@ -228,6 +239,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--cache-directory", default=None)
     parser.add_argument("--digest", default=None)
     parser.add_argument("--evidence-shot", type=int, default=None)
+    parser.add_argument("--machine", default="mast")
     parser.add_argument("--max-slices", type=int, default=6)
     parser.add_argument("--sigma", type=float, default=0.02)
     parser.add_argument(
@@ -238,7 +250,10 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     source = resolve_geometry_source(
-        args.cache_directory, args.digest, evidence_shot=args.evidence_shot
+        args.cache_directory,
+        args.digest,
+        evidence_shot=args.evidence_shot,
+        machine=args.machine,
     )
     source.build()
     provenance = source.provenance()

@@ -45,9 +45,14 @@ from typing import TYPE_CHECKING, Any
 
 from imas_ambix.gs.artifact_resolution import (
     ResolvedArtifact,
+    pinned_rows,
     resolve_machine_description,
 )
-from imas_ambix.gs.machine_identity import IDENTITY_PHYSICAL, identity_for_shot
+from imas_ambix.gs.machine_identity import (
+    IDENTITY_PHYSICAL,
+    default_registry,
+    identity_for_shot,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -113,29 +118,41 @@ class ArtifactMachineSelector:
     channel set a property of the machine rather than of one shot's gaps.
     """
 
+    machine: str
     channel_shots: tuple[int, ...] = ()
     amc_channel_shot: int | None = None
     #: Name a description explicitly instead of resolving the pinned one.  Both
     #: must be given together; both left unset is the default resolution.
     cache_directory: str | None = None
     digest: str | None = None
-    _artifact: ResolvedArtifact | None = field(default=None, init=False, repr=False)
+    _artifacts: dict[str, ResolvedArtifact] = field(
+        default_factory=dict, init=False, repr=False
+    )
     _reads: dict[int, tuple[Any, dict[str, Any]]] = field(
         default_factory=dict, init=False, repr=False
     )
 
-    def artifact(self) -> ResolvedArtifact:
-        """Resolve the pinned description once."""
-        if self._artifact is None:
-            self._artifact = resolve_machine_description(
-                self.cache_directory, self.digest
+    def __post_init__(self) -> None:
+        pinned_rows(self.machine)
+        default_registry(self.machine)
+
+    def artifact(self, physical_digest: str) -> ResolvedArtifact:
+        """Resolve the description pinned for ``physical_digest``, once per identity."""
+        cached = self._artifacts.get(physical_digest)
+        if cached is None:
+            cached = resolve_machine_description(
+                self.machine,
+                physical_digest,
+                cache_directory=self.cache_directory,
+                digest=self.digest,
             )
-        return self._artifact
+            self._artifacts[physical_digest] = cached
+        return cached
 
     def select(self, shot: int) -> SelectedMachine:
         """Return what the shot's physical identity selects, and its table."""
-        artifact = self.artifact()
-        identity = identity_for_shot(int(shot))
+        identity = identity_for_shot(int(shot), machine=self.machine)
+        artifact = self.artifact(identity.physical_digest)
         if identity.physical_digest != artifact.physical_digest:
             raise MachineSelectionError(
                 f"shot {shot} resolves to physical identity "
@@ -170,10 +187,13 @@ class ArtifactMachineSelector:
             evidence_shot if self.amc_channel_shot is None else self.amc_channel_shot
         )
         sensor_acquisition = read_acquisition_channels(
-            int(s) for s in channel_shots
+            (int(s) for s in channel_shots), machine=self.machine
         )
-        current_acquisition = read_acquisition_channels((int(amc_shot),))
+        current_acquisition = read_acquisition_channels(
+            (int(amc_shot),), machine=self.machine
+        )
         reader = MachineArtifactGeometryReader(
+            machine=self.machine,
             cache_directory=artifact.cache_directory,
             digest=artifact.digest,
             shot=evidence_shot,
@@ -190,10 +210,15 @@ class ArtifactMachineSelector:
 
 
 def select_machine(
-    shot: int, *, channel_shots: Sequence[int] = (), amc_channel_shot: int | None = None
+    shot: int,
+    *,
+    machine: str,
+    channel_shots: Sequence[int] = (),
+    amc_channel_shot: int | None = None,
 ) -> SelectedMachine:
     """Select one shot's machine by physical identity and read its geometry table."""
     selector = ArtifactMachineSelector(
+        machine=machine,
         channel_shots=tuple(int(s) for s in channel_shots),
         amc_channel_shot=amc_channel_shot,
     )
