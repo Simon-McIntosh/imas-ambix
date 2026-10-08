@@ -1,0 +1,69 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T05:17:13.625Z",
+  "dispatched_at": "2026-10-08T04:58:55Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-pulse-ids.html:24",
+      "id": "wiring-1",
+      "reason": "the wait on \u00a72 lives only in followup prose f-jtpi-002, so a release driven by depends-on would send \u00a74 down the wrong path and the GIF would have nothing to draw.",
+      "text": "\u00a74's section derives the GIF from \"the written equilibrium\" and its done-when needs one frame per equilibrium time slice, but plan-section-depends-on lists only imas-ink#s1 and imas-ink#s5 for s4 and omits the s2 edge; with both s2 and s4 declared `implementable`, a release reading only the declarations sees \u00a74 unblocked and can dispatch it before \u00a72 has written any equilibrium",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-pulse-ids.html:95",
+      "id": "done_when-1",
+      "reason": "without a red arm the section's whole measure could pass on a topology computed wrongly, and the node would close on a green that proves nothing.",
+      "text": "\u00a72's done-when is a set of positive assertions (\u22651 X-point inside the vessel, two strike points within 1 cm of the first wall, O-point inside the last closed surface, psi matching within 1 %, extract_slice not falling back to an empty field) and declares no negative control, so nothing shows the guard can fail",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-pulse-ids.html:154",
+      "id": "evidence_paths-1",
+      "reason": "unnamed log locations resolve to the run's node-local scratch, so the comparison and the red-arm result a later reader must read would not survive the run.",
+      "text": "\u00a77's done-when and its negative control are recorded only as \"the gate log\", \"the comparison log\" and \"its own log\", and the section directs the node to stage the copied run files in \"its own scratch directory\", with no durable evidence path named",
+      "type": "evidence_paths",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-pulse-ids.html:54",
+      "id": "anchors_resolve-1",
+      "reason": "\u00a71 is landed and the forward-looking sections reach the writer through its own `pulse_path` and `imas-alambic write`, so no node is misdirected, though the record should be corrected.",
+      "text": "\u00a71's landed-summary cites `imas_ambix/data/pulse_mint.py` `mint_pulse` and `imas-ambix data mint`, but that module was carved out of imas-ambix into the imas-alambic workspace member and is no longer tracked in either tree, so the pointer resolves nowhere",
+      "type": "anchors_resolve",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "baa653fa148091533d3967d91840b4da9975f36f3cb7d21aec178c0c47468bb1",
+  "plan_slug": "jt60sa-pulse-ids",
+  "plan_version": 30,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261008T045843752692-plan-review-of-jt60sa-pulse-ids",
+  "reviewed_blob_sha": "3caaf13e174fde529ce3559827e394af0e41a01e",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 \u00a71's landed-summary cites `imas_ambix/data/pulse_mint.py`, which the alambic carve removed; the deleted pointer no longer resolves.",
+    "done_when": "a finding \u2014 \u00a72's done-when is all positive assertions and declares no negative control, so nothing shows the guard can fail.",
+    "evidence_paths": "a finding \u2014 \u00a77 names no durable path for its comparison log or its negative-control log, unlike \u00a74's docs/evidence/fragments/.",
+    "naming": "pass \u2014 no planned symbol, filename or comment carries a plan label, stage name, ticket number or version tag.",
+    "reasoning": "pass \u2014 \u00a77's negative-of-the-raw-difference mechanism is consistent with the landed map rules, and \u00a72/\u00a74/\u00a77 name the callers they rely on.",
+    "single_goal": "pass \u2014 \u00a72, \u00a74 and \u00a77 each name one deliverable; \u00a77's two pulses are one rewrite under one comparison.",
+    "wiring": "a finding \u2014 \u00a74's depends-on omits \u00a72, the equilibrium source \u00a74's own done-when requires."
+  },
+  "section_digests": {
+    "_document": "b81a74e3f381ff42135b603f47c8820d8c18421790c7da5392127d9cf059f37f",
+    "s1": "03eeaedd2c5502c88ec72ea09f8ea2eec7ce704b95be59fa080894ef4214bc98",
+    "s2": "8f78601f167dc255786cc9a8f6b49d0098d1f3ca14090d4106b14ccf2ed1d203",
+    "s3": "e0c752d72775115b7987ba7db0722d7fe24721ae7a504604a237ca7050f3775d",
+    "s4": "181a42b6bf8c74edb3710bd11a1bc408ce6d67da65064e96d0b7b7d5c47573e8",
+    "s5": "2fe78b8eaa57cdcf1ca2ee21a6164a26bd291494f76eced7774ae0f4e43b6efa",
+    "s6": "a01f31a138a09e8b6b39bf55196646418b937b800d2df12100db301174553acd",
+    "s7": "51c095446b1661051e3b6e27b155d6b8cbbd2e8a21b52d33e30b3652344a9315"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T05:19:29.458088+00:00"
+}
