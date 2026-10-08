@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type"  content="research">
+  <meta name="plan-slug"    content="local-lane-throughput-against-occupancy">
+  <meta name="plan-title"   content="Local-Lane Throughput Against Occupancy — the aggregate plateau, per-request decay, and the width-12 gate">
+  <meta name="plan-summary" content="Local-lane decode plateaus from about 10 running while per-request rate falls as 1/width; the router gate was cut from 16 to 12.">
+  <meta name="plan-tags"    content="agent-serving,gpu-deployment,benchmarking">
+  <title>Local-Lane Throughput Against Occupancy | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <p><em>This study reads one measurement, already taken. It re-runs nothing. Every
+    figure below comes from
+    <code>docs/figures/local-lane-occupancy/occupancy_stats.json</code>, which the
+    measurement node produced from four serve logs and the router receipt stream, and
+    from that measurement's five figures. It records why the router's global in-flight
+    gate was lowered from width 16 to width 12 on 2026-10-08.</em></p>
+
+    <h2 id="s1">§1 — The question</h2>
+    <p>The local DeepSeek-V4.1-Flash lane admits requests through a single global
+    first-in-first-out gate at the router, up to a width <em>W</em>. <em>W</em> had stood
+    at 16. The question this study answers is whether the lane's aggregate decode
+    throughput still rises at 16, or whether it has already plateaued, so that a lower
+    <em>W</em> would give each request more tokens per second without much aggregate
+    cost.</p>
+    <p>The answer is that aggregate decode plateaus from about 10 running. Aggregate
+    throughput at 12 and 16 sits within a few percent of its maximum, while the
+    per-request rate falls as <code>1/width</code> with no extra break. The width-16 bin
+    is additionally biased high by the gate itself: at a full gate of 16 no new request
+    is admitted, so its profile is not the profile a steady width of 16 would deliver.
+    On that evidence the gate was set to 12 at the lead's request.</p>
+
+    <h2 id="s2">§2 — Sources and method</h2>
+    <p>The measurement pools four engine serve jobs and the router receipt stream,
+    all on <code>98dci4-gpu-0003</code>. Decode throughput is binned by the engine's
+    exact instantaneous running-request width, from the SGLang decode log; per-request
+    rate is the same quantity divided by that width, and separately from the router's
+    own per-request receipts. Each bin reports a per-width median and a percentile
+    bootstrap 95% interval (400 resamples).</p>
+    <table>
+      <thead>
+        <tr><th>Source</th><th>Path</th><th>Bytes read</th><th>Rows</th><th>Span (UTC)</th><th>sha256</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Router receipts</td>
+          <td><code>~/public/imas-ambix/requests.jsonl</code></td>
+          <td>193,929,946</td>
+          <td>324,298 included of 344,604</td>
+          <td>2026-09-23 04:46 – 2026-10-08 04:38</td>
+          <td><code>8ab52406…ef7800</code></td>
+        </tr>
+        <tr>
+          <td>Serve job 1273253</td>
+          <td><code>…/deepseek-v4-1-flash-1273253.log</code></td>
+          <td>78,355,841</td>
+          <td>623,110 (79,436 decode intervals)</td>
+          <td>2026-09-17 20:01 – 2026-09-23 04:12</td>
+          <td><code>f6c970d8…6e6b0c651</code></td>
+        </tr>
+        <tr>
+          <td>Serve job 1276246</td>
+          <td><code>…/deepseek-v4-1-flash-1276246.log</code></td>
+          <td>16,796,167</td>
+          <td>142,356 (8,511 decode intervals)</td>
+          <td>2026-09-23 04:47 – 2026-09-24 05:19</td>
+          <td><code>f133f351…4a6370b7c</code></td>
+        </tr>
+        <tr>
+          <td>Serve job 1278105</td>
+          <td><code>…/deepseek-v4-1-flash-1278105.log</code></td>
+          <td>142,375,396</td>
+          <td>1,139,571 (148,365 decode intervals)</td>
+          <td>2026-09-27 07:23 – 2026-10-02 19:03</td>
+          <td><code>32d30fd5…c246a1107a9a</code></td>
+        </tr>
+        <tr>
+          <td>Serve job 1280470</td>
+          <td><code>…/deepseek-v4-1-flash-1280470.log</code></td>
+          <td>169,992,095</td>
+          <td>1,239,846 (236,478 decode intervals)</td>
+          <td>2026-10-02 19:12 – 2026-10-08 04:37</td>
+          <td><code>07a5c580…ecfca198e02f</code></td>
+        </tr>
+        <tr>
+          <td>Telemetry index</td>
+          <td><code>~/.cache/ambix/watch-index.sqlite3</code></td>
+          <td>284,863,831<br><small>canonical queried rows, not the live database file</small></td>
+          <td>241,596 samples</td>
+          <td>2026-09-22 15:22 – 2026-10-08 04:37</td>
+          <td><code>da7e8167…6d25b9a4a9</code><br><small>sha256 of the canonical queried rows, not the live database file</small></td>
+        </tr>
+      </tbody>
+    </table>
+    <p>All four serve jobs run the same profile: <code>max_running_requests = 36</code>,
+    <code>chunked_prefill_size = 16384</code>, radix cache enabled,
+    <code>tp_size = 4</code>, a 4M-token pool. The measurement's positive controls
+    confirm the instruments saw data: 472,790 decode intervals, 348,924 prefill batches,
+    324,298 completed model receipts and 241,596 telemetry samples parsed, and zero
+    malformed decode or prefill rows in any serve log. The router's receipt timestamps
+    were read as request start, the interpretation under which adjacent per-run intervals
+    overlap least (53,233 overlaps against 104,618, against 255,884 adjacent pairs).</p>
+
+    <h2 id="s3">§3 — Per-width figures</h2>
+    <p>Every column is the per-bin value from <code>occupancy_stats.json</code>. Bins are
+    the exact running width. The last five rows (24, 28, 32, 33, 36) are shown because
+    they carry the cache-collapse and cap behaviour discussed below.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Width</th>
+          <th>Time share</th>
+          <th>Decode aggregate<br>[tok/s]</th>
+          <th>Receipt<br>per request [tok/s]</th>
+          <th>Decode<br>per request [tok/s]</th>
+          <th>Prefill-active<br>fraction</th>
+          <th>Uncached prefill<br>[tok/s]</th>
+          <th>Cache-hit<br>fraction</th>
+          <th>KV<br>median</th>
+          <th>Context<br>median [tok]</th>
+          <th>Accept<br>length</th>
+        </tr>
+      </thead>
+            <tbody>
+        <tr><td>1</td><td>20.84%</td><td>118</td><td>125.0</td><td>117.6</td><td>0.174</td><td>599</td><td>0.970</td><td>0.03</td><td>127,232</td><td>3.15</td></tr>
+        <tr><td>2</td><td>14.78%</td><td>196</td><td>105.9</td><td>97.8</td><td>0.244</td><td>814</td><td>0.971</td><td>0.06</td><td>127,488</td><td>3.11</td></tr>
+        <tr><td>3</td><td>10.83%</td><td>262</td><td>94.8</td><td>87.2</td><td>0.344</td><td>1,128</td><td>0.970</td><td>0.09</td><td>125,696</td><td>3.12</td></tr>
+        <tr><td>4</td><td>8.44%</td><td>301</td><td>85.0</td><td>75.2</td><td>0.353</td><td>1,192</td><td>0.971</td><td>0.12</td><td>124,480</td><td>3.11</td></tr>
+        <tr><td>5</td><td>6.46%</td><td>346</td><td>77.0</td><td>69.2</td><td>0.471</td><td>1,500</td><td>0.972</td><td>0.16</td><td>124,672</td><td>3.12</td></tr>
+        <tr><td>6</td><td>5.38%</td><td>363</td><td>68.0</td><td>60.4</td><td>0.444</td><td>1,432</td><td>0.973</td><td>0.19</td><td>124,672</td><td>3.11</td></tr>
+        <tr><td>7</td><td>4.52%</td><td>383</td><td>61.0</td><td>54.8</td><td>0.571</td><td>1,821</td><td>0.972</td><td>0.22</td><td>124,453</td><td>3.12</td></tr>
+        <tr><td>8</td><td>3.69%</td><td>389</td><td>53.8</td><td>48.6</td><td>0.465</td><td>1,602</td><td>0.972</td><td>0.25</td><td>123,840</td><td>3.10</td></tr>
+        <tr><td>9</td><td>2.73%</td><td>395</td><td>49.2</td><td>43.9</td><td>0.628</td><td>2,037</td><td>0.974</td><td>0.28</td><td>125,028</td><td>3.14</td></tr>
+        <tr><td>10</td><td>2.50%</td><td>405</td><td>44.4</td><td>40.5</td><td>0.636</td><td>2,086</td><td>0.974</td><td>0.31</td><td>125,005</td><td>3.14</td></tr>
+        <tr><td>11</td><td>2.38%</td><td>401</td><td>39.9</td><td>36.5</td><td>0.692</td><td>2,359</td><td>0.972</td><td>0.34</td><td>125,393</td><td>3.15</td></tr>
+        <tr><td>12</td><td>2.36%</td><td>406</td><td>36.5</td><td>33.9</td><td>0.699</td><td>2,247</td><td>0.974</td><td>0.38</td><td>125,099</td><td>3.15</td></tr>
+        <tr><td>13</td><td>2.41%</td><td>406</td><td>33.9</td><td>31.2</td><td>0.733</td><td>2,370</td><td>0.974</td><td>0.41</td><td>125,873</td><td>3.14</td></tr>
+        <tr><td>14</td><td>2.65%</td><td>410</td><td>31.4</td><td>29.3</td><td>0.758</td><td>2,501</td><td>0.974</td><td>0.44</td><td>125,760</td><td>3.14</td></tr>
+        <tr><td>15</td><td>3.85%</td><td>411</td><td>30.4</td><td>27.4</td><td>0.840</td><td>2,600</td><td>0.975</td><td>0.47</td><td>124,518</td><td>3.14</td></tr>
+        <tr><td>16</td><td>1.61%</td><td>424</td><td>29.5</td><td>26.5</td><td>0.246</td><td>827</td><td>0.971</td><td>0.50</td><td>124,160</td><td>3.09</td></tr>
+        <tr><td>17</td><td>0.54%</td><td>369</td><td>29.0</td><td>21.7</td><td>0.792</td><td>2,571</td><td>0.972</td><td>0.42</td><td>98,861</td><td>3.71</td></tr>
+        <tr><td>18</td><td>0.49%</td><td>379</td><td>25.5</td><td>21.1</td><td>0.768</td><td>2,401</td><td>0.974</td><td>0.44</td><td>97,237</td><td>3.71</td></tr>
+        <tr><td>19</td><td>0.38%</td><td>377</td><td>22.2</td><td>19.8</td><td>0.734</td><td>2,726</td><td>0.968</td><td>0.46</td><td>97,624</td><td>3.71</td></tr>
+        <tr><td>20</td><td>0.36%</td><td>385</td><td>21.8</td><td>19.2</td><td>0.813</td><td>2,675</td><td>0.972</td><td>0.50</td><td>99,821</td><td>3.74</td></tr>
+        <tr><td>24</td><td>0.29%</td><td>385</td><td>17.6</td><td>16.0</td><td>0.816</td><td>2,631</td><td>0.973</td><td>0.59</td><td>98,027</td><td>3.69</td></tr>
+        <tr><td>28</td><td>0.15%</td><td>374</td><td>15.3</td><td>13.4</td><td>0.796</td><td>2,916</td><td>0.969</td><td>0.67</td><td>95,058</td><td>3.66</td></tr>
+        <tr><td>32</td><td>0.28%</td><td>369</td><td>12.5</td><td>11.5</td><td>0.955</td><td>4,693</td><td>0.980</td><td>0.76</td><td>94,600</td><td>3.67</td></tr>
+        <tr><td>33</td><td>0.06%</td><td>393</td><td>12.5</td><td>11.9</td><td>0.285</td><td>5,249</td><td>0.660</td><td>0.80</td><td>96,613</td><td>3.74</td></tr>
+        <tr><td>36</td><td>0.01%</td><td>425</td><td>12.3</td><td>11.8</td><td>0.000</td><td>0</td><td>—</td><td>0.85</td><td>94,596</td><td>3.73</td></tr>
+      </tbody>
+    </table>
+    <p>The aggregate knee, by the measurement's declared rule (smallest median within 5%
+    of the maximum, with at least a 15% rise above the first bin), is <strong>width 10,
+    95% interval 10–16</strong>. The per-request rate has no additionally steeper decay
+    segment below 32: the two-line fit finds no breakpoint, and its local share ratio at
+    width 17 is 0.87, above the less-than-one threshold a sharing break would require.</p>
+
+    <h2 id="s4">§4 — The figures</h2>
+    <p>The five figures below are the measurement node's own, with its captions.</p>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-occupancy/occupancy-histogram.svg" alt="Share of seconds carrying decode or prefill by running-request width and all router minutes by live worker count, split at the 2026-10-05 14:33 UTC gate change.">
+      <figcaption>Share of seconds carrying decode or prefill by running-request width and all router minutes by live worker count, split at the 2026-10-05 14:33 UTC gate change. Worker activity includes 120 seconds after a completed request.</figcaption>
+    </figure>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-occupancy/aggregate-throughput.svg" alt="Median aggregate decode throughput with 95% bootstrap intervals against running width; the gate of 16 and the first width within 5% of the maximum are marked.">
+      <figcaption>Median SGLang decode generation rate at each exact running width, with percentile bootstrap 95% intervals. The vertical references mark the current gate of 16 and the first width within 5% of the observed maximum; workloads and serve hours differ across widths.</figcaption>
+    </figure>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-occupancy/per-worker-throughput.svg" alt="Per-request decode rate against width, and completed tokens per worker per wall-clock second.">
+      <figcaption>Left: per-request decode rate from engine throughput divided by active requests. Right: completed tokens per worker per wall-clock second in router minutes, including tool-call idle time. Whiskers show percentile bootstrap intervals; the break requires a post-break slope steeper than proportional sharing.</figcaption>
+    </figure>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-occupancy/prefill-thrash.svg" alt="Uncached prefill, cache-hit fraction, and KV-pool usage against exact request occupancy.">
+      <figcaption>Uncached prefill, cache-hit fraction, and KV-pool usage against exact request occupancy. Prefill is counted from SGLang batches and divided by seconds with decode or prefill at that width; joint onset requires a five-point cache-hit fall and a 1.5-fold uncached rise above widths 2–8.</figcaption>
+    </figure>
+
+    <figure>
+      <img src="/imas-ambix/figures/local-lane-occupancy/fall-over-episodes.svg" alt="Representative 60-second fall-over episodes: decode rate falls at held or rising occupancy, with uncached prefill and KV usage beside the rate.">
+      <figcaption>Representative 60-second fall-over episodes in the serve logs: decode rate falls at held or rising occupancy. Time zero marks the first lower-rate window; each column keeps the same job and shows uncached prefill and KV usage beside the rate.</figcaption>
+    </figure>
+
+    <h2 id="s5">§5 — The decision: width 16 to 12</h2>
+    <p>The coordinator lowered the router gate from 16 to 12 on
+    2026-10-08T05:06:36Z (<code>imas-ambix agent width 12</code>; the router confirmed an
+    effective width of 12 at 05:07:03Z), on the lead's request. The reasoning, with the
+    figures behind each point:</p>
+    <ol>
+      <li><strong>Aggregate decode plateaus from about 10 running.</strong> Decode-step
+      medians are 405&nbsp;tok/s at width 10, 406 at 12 and 411 at 15. Receipt-derived
+      totals (per-request rate times width) are 444, 438 and 456&nbsp;tok/s. The run's
+      aggregate knee is 10 (95% interval 10–16). Nothing in the aggregate rate rewards a
+      width above about 10.</li>
+      <li><strong>The width-16 bin is biased high by the gate itself.</strong> At a full
+      gate of 16 no new request is admitted, so no new prefill runs there. Its
+      prefill-active second fraction is 0.25 against 0.84 at width 15, and its uncached
+      prefill is 827&nbsp;tok/s against 2,600 at 15. The prefill that width 16 avoids is
+      displaced into the bins below it. So the bin's 424 by decode steps and 472 by
+      receipts overstate what a steady width of 16 delivers — the aggregate figure at 16
+      is not a clean reading of the operating point.</li>
+      <li><strong>Per request falls as <code>1/width</code> with no extra break.</strong>
+      The per-request decode rate is 33.9&nbsp;tok/s at width 12 and 26.5 at 16 — a 28%
+      gain at 12 that a proportional-sharing decay predicts, not an additional cliff. The
+      two-line per-request fit finds no breakpoint below 32.</li>
+      <li><strong>The lead's prefill hypothesis is confirmed in its mechanism, but not as
+      cache thrash.</strong> Of 944 fall-over episodes, 763 coincide with an
+      uncached-prefill surge, and the episode traces show decode falling to zero while
+      uncached prefill spikes to 20–30k&nbsp;tok/s. But the cache-hit fraction holds at
+      about 0.97 up to width 32 and collapses only at 33 and above, where KV sits past
+      0.80. The fall-overs below that are <em>prefill interference</em>: a cold or new
+      context stalls decode for every request already running. Their frequency grows with
+      width — the prefill-active fraction is 0.64 at width 10 and 0.84 at 15 — so a lower
+      gate admits fewer of them.</li>
+      <li><strong>Why the run's own recommendation to keep 16 was overridden.</strong>
+      The measurement's rule, quoted from its
+      <code>recommendation.basis</code>: <em>"lower gate only if aggregate knee upper CI,
+      per-request break upper CI, and thrash onset all lie below 16; otherwise stay at
+      16."</em> The rule is conservative to a fault here. It required <em>three</em>
+      boundaries below 16, and one of them — the per-request break — does not exist: the
+      fit returns no breakpoint, so that condition could never be satisfied and the rule
+      always voted to stay. The second, the aggregate-knee upper interval, reached 16
+      because the biased width-16 bin pulled the spread open. Read with those two
+      artefacts removed, the aggregate knee (10), the per-request decay (no break, rate
+      simply falls as <code>1/width</code>) and the thrash onset (33) all argue for a
+      lower gate; only the rule's construction kept it at 16.</li>
+      <li><strong>The expected trade at 12.</strong> Roughly 4–7% of aggregate decode is
+      given up, in return for about 28% more tokens per second per request and fewer
+      prefill stalls. The occupancy histogram shows the lane spends most of its time at
+      1–5 running (61% of observed seconds), so the gate binds only in busy periods:
+      about 13% of observed time sat at widths 12–16. The common case is unchanged; the
+      busy case is cheaper per request.</li>
+      <li><strong>Causal limit.</strong> Every bin here is observational, pooling
+      different hours, contexts and accept lengths — the bins above width 16 come only
+      from the older jobs 1273253 and 1276246, with a median context near 97k tokens,
+      while the 1–16 range pools all four jobs including the live job 1280470 at about
+      125k. So the behaviour above 16 is partly a context effect as much as a width
+      effect. A controlled trial is the follow-on: alternate the gate between 12 and 16 in
+      fixed blocks under live load and compare the counter-derived aggregate against the
+      receipt per-request rate.</li>
+    </ol>
+    <p><strong>To revert:</strong> <code>imas-ambix agent width 16</code>. The gate reads
+    its width from an operator-editable file, so no router restart is needed.</p>
+
+    <h2 id="s6">§6 — What would falsify this</h2>
+    <p>The width-12 choice rests on the aggregate plateau holding under a controlled
+    alternation. If a block-comparison trial shows the counter-derived aggregate at 16
+    materially above 12 while the per-request rate does not recover, the plateau is an
+    artefact of pooled hours and the gate should return to 16. The revert above is the
+    action that measurement would call for.</p>
+
+  </main>
+</body>
+</html>
