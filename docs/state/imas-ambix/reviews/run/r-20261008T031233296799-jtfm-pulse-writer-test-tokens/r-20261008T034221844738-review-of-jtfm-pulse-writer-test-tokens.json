@@ -1,0 +1,54 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "f18db7f17cf6ff30fd461421691a4923e0b46e56",
+  "completed_at": "2026-10-08T04:01:53.844Z",
+  "dispatched_at": "2026-10-08T03:42:58Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T031233296799-jtfm-pulse-writer-test-tokens/logs/head.txt",
+      "line": "14",
+      "severity": "follow-on",
+      "text": "follow-on: the after_suite arm the manifest names is not readable from its own artefact. after_suite cites logs/head.txt with completed true and failure_count 1, but the stored file is 14 lines / 1435 bytes ending at 'tests/data/test_pulse_writer.py F.......' with no pytest summary line and no EXIT= line, where the comparable base.txt is complete (114 lines, '2 failed, 8 passed in 66.65s'). The job was killed by srun mid-run (CANCELLED 2026-10-08T05:36:56 local, the run's own deadline) during a re-run that overwrote an earlier complete head run ('1 failed, 9 passed in 29.06s' style), still visible in the transcript. The claimed result is corroborated by the transcript and by my own re-run of the target test, so it does not hold the node, but the named log no longer completes and a reader deriving the head arm from it finds nothing."
+    }
+  ],
+  "head_log_revision": "5152672e9162561420f543a8b5c1ac73044b8267",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "none in production: the change is test-only (tests/data/test_pulse_writer.py), and the production refusal it exercises, eddb_token in packages/imas-alambic/src/imas_alambic/eddb.py, was landed by section 16 and is not touched here.",
+    "diff": "One commit 5152672e on base f18db7f1, touching exactly tests/data/test_pulse_writer.py, +2/-2: the write_pulse call and the token message assertion. No other path; local-transport left unchanged, correctly, as it already uses the full token.",
+    "done_when": "The done-when names the target test passing and the local-transport file run at base. I ran the target test at head: 1 passed, EXIT=0; the reviewed run's base arm is 2 failed / 8 passed and its head arm 1 failed / 9 passed with the surviving failure pre-existing in base, so no failure is added; ruff exits 0. Met, except the head arm itself is unreadable from the named log (finding).",
+    "goal": "The node goal is to make the tests/data pulse-writer and local-transport tests name pulses by their full EDDB token. The landed change makes tests/data/test_pulse_writer.py::test_shot_without_cache_refuses_and_names_the_cache call write_pulse(MACHINE, 'E999999', tmp_path); tests/data/test_eddb_local_transport.py already names its pulse E101154. Goal met.",
+    "manifest": "Read; status complete, base f18db7f1, commit 5152672e, changed_paths [tests/data/test_pulse_writer.py], full baseline_suite/after_suite JSON with log paths, and a landing line. It is complete except that its after_suite log path does not carry a finished run (finding).",
+    "write_paths": "Declared paths tests/data/test_pulse_writer.py, tests/data/test_eddb_local_transport.py, the evidence fragment and the figures dir. The diff touches only tests/data/test_pulse_writer.py; git status of the reviewed worktree is clean. No engine source changed, no plan or index edited."
+  },
+  "justifications": {
+    "durability": "The test now fails if the fixture regresses: reinstating the bare 999999 (the node's own negative control, logs/negative_control.txt, EXIT=1) reddens test_shot_without_cache_refuses_and_names_the_cache with the pulse-token refusal, and the companion assertions on 'no EDDB cache' and JT60SA_ROOT / '999999.zarr' are independent of the token the test passes in, so the test guards that a lettered pulse reaches the cache branch rather than echoing its input.",
+    "evidence": "The base arm is a complete log with both failing ids; I independently reproduced the target test passing. Points off for the head arm: the after_suite log the manifest names (logs/head.txt) is truncated at 14 lines with no summary or EXIT=, overwritten by a re-run srun killed at the deadline, so the head failure ids cannot be read from the cited artefact and an earlier complete head run only appears in the transcript.",
+    "fit": "The edit is a two-line fixture repair in the test's own idiom, reuses write_pulse and the existing pytest.raises(PulseWriteError) pattern, and introduces no new symbol, so it adds no name the repository naming rules forbid (tests/data/test_pulse_writer.py:221).",
+    "goal_fidelity": "The goal is that the pulse-writer and local-transport tests name pulses by their full EDDB token; the missing-cache test now names E999999 and passes at head (reproduced, 1 passed), which is the goal, though the local-transport half needed no change because it already names E101154. One point off: only one of the two named tests required work.",
+    "reuse": "No new capability is added: the change reuses the existing write_pulse entry point and the module's production eddb_token refusal rather than forking a guard, and the search over tests/data found the pulse-naming idiom already owned by the test itself.",
+    "scope_discipline": "Every changed line is inside the declared path tests/data/test_pulse_writer.py; no engine source, plan, index or figure touched and the worktree is clean, so the diff carries nothing the goal does not imply."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261008T031233296799-jtfm-pulse-writer-test-tokens (plan imas-ambix:jt60sa-facility-mint section 16), head 5152672e9162561420f543a8b5c1ac73044b8267 on base f18db7f17cf6ff30fd461421691a4923e0b46e56.\n\nThe node repairs a test that the section-16 refusal change turned misleading. Section 16 makes write_pulse\nresolve the pulse through eddb_token before any fetch, so a token with no series letter is refused with the\npulse-token error instead of the late cache error. The old test tests/data/test_pulse_writer.py::\ntest_shot_without_cache_refuses_and_names_the_cache called write_pulse(MACHINE, 999999, tmp_path) and asserted\nthe 'no EDDB cache' branch, so it hit the pulse-token refusal instead and failed at base. The node changes the\ncall to write_pulse(MACHINE, 'E999999', tmp_path) and the message assertion from '999999' to 'E999999', leaving\nthe companion assertions on 'no EDDB cache' and on the integer cache directory JT60SA_ROOT / '999999.zarr' in place.\n\nDIFF. One commit, 5152672e9162561420f543a8b5c1ac73044b8267, on base f18db7f17cf6ff30fd461421691a4923e0b46e56; a single path, tests/data/test_pulse_writer.py, +2/-2.\nNo engine source touched. git status of the reviewed worktree is clean at 5152672e9162561420f543a8b5c1ac73044b8267. Local-transport\ntests/data/test_eddb_local_transport.py already names its pulse with the full token (PF_ACTIVE_SHOT E101154) and\npasses at base, so the node correctly left it unchanged, as the done-when directs.\n\nREPRODUCTION AND GATE. I ran the single target test at the reviewed head in the reviewed worktree:\npytest tests/data/test_pulse_writer.py::test_shot_without_cache_refuses_and_names_the_cache -> 1 passed, EXIT=0.\nThe reviewed run's own arms: base.txt (base f18db7f17cf6ff30fd461421691a4923e0b46e56) is 2 failed / 8 passed, EXIT=1, failing ids\ntest_write_covers_every_description_ids_in_one_file and test_shot_without_cache_refuses_and_names_the_cache; the head\narm is 1 failed / 9 passed (target test PASSED), the survivor being the pre-existing\ntest_write_covers_every_description_ids_in_one_file, which fails at base too. Both files add no failures.\nruff check imas_ambix tests packages -> All checks passed, EXIT=0 (I reproduced it, --no-cache).\n\nNEGATIVE CONTROL. Declared string: putting 999999 back as a bare number makes the target test fail with the\npulse-token refusal instead of the cache refusal. The log at logs/negative_control.txt shows EXIT=1 and the\nfailing id tests/data/test_pulse_writer.py::test_shot_without_cache_refuses_and_names_the_cache raising\nimas_alambic.eddb.EddbCacheError: 999999 is not an EDDB pulse token. The head arm does not fail that id, so the\ncontrol is admitted.\n\nFINDING. The head arm the manifest names is not readable from the artefact it cites. after_suite names\nlogs/head.txt with completed true, failure_count 1; the stored head.txt is 14 lines and 1435 bytes, ending at\n'tests/data/test_pulse_writer.py F.......' with no summary line and no EXIT= (pytest -rA prints the per-item\nlines then a one-line summary, as the complete base.txt does). The run's stderr and transcript show the worker\nre-ran the head arm several times and the final re-run was killed by srun ('srun: forcing job termination',\n'Killed', CANCELLED 2026-10-08T05:36:56 local = 03:36:59Z, the run's own deadline), overwriting the earlier\ncomplete run (visible in the transcript as '1 failed, 9 passed in 29.06s' style summary). So the claimed figure is\nreal but the named artefact cannot confirm it. My own re-run of the target test, and the head failing id recovered\nfrom the transcript, both corroborate the claim, so this does not hold the node.\n\nBEFORE/AFTER. Before: the missing-cache test called write_pulse with bare 999999 and, after section 16 added the\ntoken refusal, failed on the pulse-token error, naming the wrong cause. After: it calls write_pulse with\n'E999999'; the pulse is named by its full EDDB token, the refusal reaches the asserted 'no EDDB cache' branch,\nand the message still carries the integer cache directory JT60SA_ROOT / '999999.zarr' (the directory name keeps\naccepting bare digits). One test moved from failing to passing with no test added or lost.",
+  "review_run_id": "r-20261008T034221844738-review-of-jtfm-pulse-writer-test-tokens",
+  "reviewed_base_sha": "f18db7f17cf6ff30fd461421691a4923e0b46e56",
+  "reviewed_head_sha": "5152672e9162561420f543a8b5c1ac73044b8267",
+  "reviewed_run_id": "r-20261008T031233296799-jtfm-pulse-writer-test-tokens",
+  "scores": {
+    "durability": 18,
+    "evidence": 15,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T03:56:30.866627+00:00",
+  "total": 111
+}
