@@ -1,0 +1,73 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "not a two-arm measurement: the reviewed manifest carries baseline_suite null and after_suite null (no armed suite pair was declared on this node), so no added-failure delta is derivable from the reviewed run's own record. Recorded as 0 because the reviewed commit 53b6028d is docs-only (one fragment, 80 lines, no product source or test), so it cannot add a test failure; the single failure in the reviewed gate (tests/data/test_jt60sa_unit_audit.py::test_audit_reports_the_declared_unit_pair_inventory, 492 vs 230) is caused by the live bundle edit recorded in maps-apply/2026-10-08-differential-loops-and-fame-equilibrium.log, not by this node's commit, and the node reports it as a follow-on.",
+  "base_log_revision": "cbbce2b731f4891c6cd1c99ab2bebc8c9710aa94",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-08T03:29:51.875Z",
+  "dispatched_at": "2026-10-08T03:13:13Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store-live.html",
+      "line": "9",
+      "severity": "follow-on",
+      "text": "follow-on: the gate names no per-test output \u2014 the log records only file-level progress dots \u2014 so the claim that these specific seven named tests pass is inferred from the pass count of their files rather than read from the gate log; run the gate with -v so the record carries the test ids. Non-blocking: each named test exists in a file whose run is fully green."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T023749545348-jtmm-differential-loop-store-live/manifest.md",
+      "line": "9",
+      "severity": "follow-on",
+      "text": "follow-on: evidence_inputs states 104 indices_differential occurrences in the live machine_map.json; that is a substring count of per-entry source names (each 53-loop entry carries a flux_loop_indices_differential key), and the map carries 26 differential entries per phase, 52 across OP1 and OP2, so a reader can misread the count as a differential-entry total. Non-blocking: the fragment does not repeat the figure and 432 bindings is exact."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store-live.html",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the node's own landing contract states its done-when names no artifact and it writes no evidence prose, yet the node wrote an 80-line prose fragment; the declared write path does grant the fragment file, so the deliverable is in scope, but the contract clause and the fence disagree. Non-blocking and endemic \u2014 sibling fragments of the same shape carry far more prose."
+    }
+  ],
+  "head_log_revision": "53b6028df6c3085a42d9625e2412299df99405a1",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "one commit 53b6028d over base cbbce2b7, one file, 80 lines added \u2014 the evidence fragment only; no product source and no test changed.",
+    "done_when": "the measure is the seven consumer tests green against the live bundle; gate-jtmm-differential-loop-store-live.log records 1 failed, 118 passed, 1 skipped, EXIT=1, achieved by the reviewer reading the actual gate log rather than the manifest's account of it.",
+    "goal": "the node's goal is to show the consumer tests green against the live JT-60SA bundle carrying the 53-loop stores; the landed fragment docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store-live.html records that gate and the seven named consumer tests pass in the reviewed run's own gate log.",
+    "manifest": "read; it records the gate command, its summary 1 failed/118 passed/1 skipped EXIT=1, the six live-bundle hashes, and one out-of-scope failure as a follow-on; no manifest claim was found false.",
+    "write_paths": "the declared scope is the fragment file and its figures directory; the diff touches exactly docs/evidence/fragments/jtmm-differential-loop-store-live.html and nothing outside the fragments tree."
+  },
+  "justifications": {
+    "durability": "the record itself carries no assertion, but the seven tests it demonstrates exist in tests/data/test_jt60sa_machine_map.py and tests/gs/test_operator.py and already fail on a regressed store, so the demonstration rests on a live guard.",
+    "evidence": "the gate is recorded and its log confirms the seven-pass claim, but the log is file-level (no -v) so the seven named tests are inferred from per-file pass counts rather than recorded individually.",
+    "fit": "the fragment follows the sibling fragment shape (section data-reckon=evidence, node-prefixed element ids) and introduces no plan or ticket identifier.",
+    "goal_fidelity": "docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store-live.html records the live bundle gate, and every hash it names matches the apply log's after block and the live files.",
+    "reuse": "the node adds no code; it reuses the existing consumer tests and the repository maps tree, forking no mechanism.",
+    "scope_discipline": "the sole diff path docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store-live.html is inside the declared write paths; nothing outside it changed."
+  },
+  "project": "imas-ambix",
+  "raw_text": "reviewed_base_sha: cbbce2b731f4891c6cd1c99ab2bebc8c9710aa94\nreviewed_head_sha: 53b6028df6c3085a42d9625e2412299df99405a1\nVERDICT goal: the node's goal is to show the consumer tests green against the live JT-60SA bundle carrying the 53-loop stores; the landed fragment docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store-live.html records that gate and the seven named consumer tests pass in the reviewed run's own gate log.\nVERDICT done_when: the measure is the seven consumer tests green against the live bundle; gate-jtmm-differential-loop-store-live.log records 1 failed, 118 passed, 1 skipped, EXIT=1, achieved by the reviewer reading the actual gate log rather than the manifest's account of it.\nVERDICT write_paths: the declared scope is the fragment file and its figures directory; the diff touches exactly docs/evidence/fragments/jtmm-differential-loop-store-live.html and nothing outside the fragments tree.\nVERDICT manifest: read; it records the gate command, its summary 1 failed/118 passed/1 skipped EXIT=1, the six live-bundle hashes, and one out-of-scope failure as a follow-on; no manifest claim was found false.\nVERDICT diff: one commit 53b6028d over base cbbce2b7, one file, 80 lines added \u2014 the evidence fragment only; no product source and no test changed.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store-live.html records the live bundle gate, and every hash it names matches the apply log's after block and the live files.\nSCORE evidence: 17\nJUSTIFICATION evidence: the gate is recorded and its log confirms the seven-pass claim, but the log is file-level (no -v) so the seven named tests are inferred from per-file pass counts rather than recorded individually.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: the sole diff path docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store-live.html is inside the declared write paths; nothing outside it changed.\nSCORE durability: 15\nJUSTIFICATION durability: the record itself carries no assertion, but the seven tests it demonstrates exist in tests/data/test_jt60sa_machine_map.py and tests/gs/test_operator.py and already fail on a regressed store, so the demonstration rests on a live guard.\nSCORE fit: 20\nJUSTIFICATION fit: the fragment follows the sibling fragment shape (section data-reckon=evidence, node-prefixed element ids) and introduces no plan or ticket identifier.\nSCORE reuse: 20\nJUSTIFICATION reuse: the node adds no code; it reuses the existing consumer tests and the repository maps tree, forking no mechanism.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store-live.html:9 follow-on: the gate names no per-test output \u2014 the log records only file-level progress dots \u2014 so the claim that these specific seven named tests pass is inferred from the pass count of their files rather than read from the gate log; run the gate with -v so the record carries the test ids. Non-blocking: each named test exists in a file whose run is fully green.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T023749545348-jtmm-differential-loop-store-live/manifest.md:9 follow-on: evidence_inputs states 104 indices_differential occurrences in the live machine_map.json; that is a substring count of per-entry source names (each 53-loop entry carries a flux_loop_indices_differential key), and the map carries 26 differential entries per phase, 52 across OP1 and OP2, so a reader can misread the count as a differential-entry total. Non-blocking: the fragment does not repeat the figure and 432 bindings is exact.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-differential-loop-store-live.html:1 follow-on: the node's own landing contract states its done-when names no artifact and it writes no evidence prose, yet the node wrote an 80-line prose fragment; the declared write path does grant the fragment file, so the deliverable is in scope, but the contract clause and the fence disagree. Non-blocking and endemic \u2014 sibling fragments of the same shape carry far more prose.\n",
+  "review_run_id": "r-20261008T031246568328-review-of-jtmm-differential-loop-store-live",
+  "reviewed_base_sha": "cbbce2b731f4891c6cd1c99ab2bebc8c9710aa94",
+  "reviewed_head_sha": "53b6028df6c3085a42d9625e2412299df99405a1",
+  "reviewed_run_id": "r-20261008T023749545348-jtmm-differential-loop-store-live",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 15,
+    "evidence": 17,
+    "fit": 20,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T03:30:00Z",
+  "total": 110
+}
