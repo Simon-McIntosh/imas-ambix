@@ -24,7 +24,11 @@ from typing import Any
 import pytest
 from imas.dd_zip import dd_etree
 
-from imas_alambic.machine_map import load_packaged_machine_map
+from imas_alambic.machine_map import (
+    bundle_for_machine,
+    load_machine_map,
+    load_packaged_machine_map,
+)
 from imas_alambic.signal_map import load_packaged_signal_map
 from tests.jt60sa_bundle import BUNDLE, SKIP_REASON
 
@@ -249,11 +253,35 @@ def test_equilibrium_b0_channel_factor_is_the_hand_computed_radius_reciprocal():
 
 
 def test_audit_reports_the_declared_unit_pair_inventory():
-    """Both catalogues are reached and their distinct pairs are the audited set."""
+    """Both catalogues are reached and their distinct pairs are the audited set.
+
+    No catalogue's size is written here as a literal: each half's audited count
+    is asserted equal to the size the catalogue itself declares, so the audit
+    reddens when it stops reaching a whole catalogue, not when a map legitimately
+    grows.  The machine half is counted independently through the machine-map
+    loader from the live ``machine_map.json`` the bundle ships, and the signal
+    half from the rules the bundle's own signal maps declare.
+    """
     pairs = collections.Counter()
+    audited_machine = 0
     for _, source_unit, target_unit, _, _ in _machine_bindings():
         pairs[(source_unit, target_unit)] += 1
+        audited_machine += 1
+    audited_signal = 0
     for _, source_unit, target_unit, _, _ in _signal_rules():
         pairs[(source_unit, target_unit)] += 1
-    assert sum(pairs.values()) == 230
+        audited_signal += 1
+
+    declared_machine = sum(
+        len(bindings)
+        for bindings in load_machine_map(
+            bundle_for_machine(MACHINE).machine_map_path(MACHINE)
+        ).binding_sets.values()
+    )
+    declared_signal = sum(
+        len(load_packaged_signal_map(MACHINE, system).signals) for system in SYSTEMS
+    )
+
+    assert audited_machine == declared_machine, (audited_machine, declared_machine)
+    assert audited_signal == declared_signal, (audited_signal, declared_signal)
     assert set(pairs) == set(HAND_FACTORS)

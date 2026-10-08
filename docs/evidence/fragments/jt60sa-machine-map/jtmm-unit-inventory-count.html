@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-unit-inventory-count-landing">
+      <p>The inventory test
+      <code>tests/data/test_jt60sa_unit_audit.py::test_audit_reports_the_declared_unit_pair_inventory</code>
+      no longer asserts a hard-coded total. It counts the machine half through
+      the machine-map loader from the live <code>machine_map.json</code> and the
+      signal half from the bundle's signal maps, asserting each audited half
+      equals the size its own catalogue declares, and keeps the check that the
+      distinct pair set equals <code>HAND_FACTORS</code>. Before the change the
+      live catalogue had outgrown the literal (test red: <code>assert 492 ==
+      230</code>); after it the gate is 36 passed, <code>EXIT=0</code>, with 492
+      bindings over 7 distinct pairs.</p>
+    </section>
+  </main>
+</body>
+</html>
