@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.94">
-<meta name="plan-version" content="393">
+<meta name="plan-version" content="394">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -453,7 +453,30 @@
       for each phase's physical identity. It makes the selector look up the shot's identity first
       and resolve the artifact whose physical digest that identity names, rather than the one
       artifact it resolves today. It makes the geometry reader take the declared machine, and keys the identity
-      registry by machine, with the JT-60SA rows filled from the producer's two artifacts.
+      registry by machine, with the JT-60SA rows filled from the producer's two artifacts once the
+      drive-map node below has landed.
+    </p>
+    <p>
+      The producer's artifacts carry no channel drives, and the reconstruction stamp cannot run
+      without them. With no declared circuit drives, <code>imas_ambix/gs/operator.py</code> falls back
+      to matching each PF circuit by position against MAST's coil-centroid and channel tables
+      (<code>_PF_COIL_CENTROID</code>, <code>_PF_COIL_AMC</code>). No JT-60SA coil matches them, so
+      every JT-60SA PF circuit would be left inferred, with no measured current. So
+      <code>jtmm-artifact-drive-map</code> extends the producer to author each phase's channel drives,
+      before the selection node pins the JT-60SA rows. It reads that phase's drive topology in
+      <code>maps/jt-60sa/machine_map.json</code> (<code>jt60sa-pf-drive-op1</code>,
+      <code>jt60sa-pf-drive-op2</code>); OP1's holds 268 element connections over twelve circuits
+      (CS1 to CS4, EF1 to EF6, and the upper and lower FPPC coils). The reader keys drives by coil, so
+      the node authors one nova <code>ChannelDrive</code> per <code>pf_active</code> coil. Its channel
+      is the current channel the phase's acquisition declaration (<code>jt60sa-acquisition-op1</code>,
+      <code>jt60sa-acquisition-op2</code>) names for that circuit. Its elements are the coil's elements,
+      and its weight in ampere turns per ampere is the connection's turns times its current weight
+      times its direction. A coil whose elements disagree on that weight is refused by name rather
+      than averaged. Each drive's path points at an evidence record citing the drive topology. The
+      machine-keyed acquisition read takes its current-channel names from the same declaration, so a
+      drive's channel and the measured current it receives are spelled in one place. The drive map's
+      gap then closes. Field evidence for the geometry fields stays a named gap, so the artifacts
+      remain incomplete; the reader resolves incomplete artifacts already.
     </p>
     <p>
       The benchmark already holds a geometry source that reads the spine's own route:
