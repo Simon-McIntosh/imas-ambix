@@ -1,0 +1,64 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": null,
+  "completed_at": "2026-10-08T11:06:26.609Z",
+  "dispatched_at": "2026-10-08T10:47:04Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-sign-report-settled/scripts/jt60sa_sign_cohort.py",
+      "line": "318",
+      "severity": "follow-on",
+      "text": [
+        "follow-on: the regenerated fragment's own headline summary (the 'Surviving candidates' paragraph, composed by this script) still reads 'sigma_R_phi_Z is undetermined \u2014 no row measures the direction of positive toroidal angle \u2014', while the same fragment's classification block and the new DECLARED SOURCE COCOS block now state 'sigma_R_phi_Z: requires-an-external-declaration; value=+1' under decision jt60sa-source-cocos. The node parameterised the neighbouring e_Bp sentence on the psi row (flux_sentence, script lines 244-252) but left this sentence hard-coded, so the report's most-read paragraph does not state the one thing the node set out to state. Reproduced from the reviewed tree: running scripts/jt60sa_sign_cohort.py --no-figure emits both the stale summary line and the settled block in one report. The two are reconcilable (the rows cannot measure it; a declared source fixes it), but a reader meeting 'is undetermined' above 'value=+1' sees the report contradict itself. Repair by threading the declared source into this sentence when the fragment composer is next touched."
+      ]
+    },
+    {
+      "file": "/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/c66d1ea6-525d-4cec-8114-013919000083/jtmm-sign-report-settled/imas_ambix/data/cocos_convention.py",
+      "line": "1263",
+      "severity": "follow-on",
+      "text": [
+        "follow-on: _cohort_coefficient_classification (and _unscored_relations) name the flux-exponent reason 'no row in this cohort carries a psi grid, so the declared flux exponent is unmeasured' whenever len({row.flux_exponent}) != 1 -- a set that also contains the case of two or more psi rows that disagree on the exponent. Reproduced against the reviewed module: a cohort of two psi rows with flux_exponent 0 and 1 prints exactly that sentence, which is false (both rows carry a psi grid; they disagree). The current JT-60SA cohort has one psi row so the path is unreachable today; the message misstates the cause for any future multi-psi cohort. Branch on whether any psi row exists rather than on the exponent set having one element."
+      ]
+    }
+  ],
+  "head_log_revision": "c9afe007aa1ceb3ec8720a086c7170d06e6bcd2c",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "load_psi_row is new in scripts/jt60sa_sign_cohort.py, called once in main() at the psi-row read (line ~404) and by the node's own test tests/data/test_cocos_convention.py::test_psi_row_geqdsk_is_read_from_the_row_root. format_sign_report(declared_source=SELENE_OUTPUT_COCOS) has one production caller, the same script's main(); SELENE_OUTPUT_COCOS / DeclaredSourceCocos have no other production reference. _flux_exponent_source is called by _unscored_relations and _cohort_coefficient_classification.",
+    "diff": "One commit on base c9afe007: five files, +328/-63. The source change adds DeclaredSourceCocos, JT60SA_SOURCE_COCOS, JT60SA_SOURCE_COCOS_DECISION and SELENE_OUTPUT_COCOS to imas_ambix/data/cocos_convention.py, adds a declared_source parameter to format_sign_report and _cohort_coefficient_classification, and adds _flux_exponent_source and _declared_handedness_reasoning; scripts/jt60sa_sign_cohort.py gains load_psi_row(root) replacing the module-level E101011_EQDSK, and passes declared_source=SELENE_OUTPUT_COCOS to format_sign_report. No existing public signature changes; the added parameter is keyword-only and defaults to None, so MAST's cohort and every current caller are unaffected.",
+    "done_when": "This record is the dispatched measure, stored parsed at both fenced paths: all six dimensions in 0..20 (goal_fidelity 18, evidence 18, scope_discipline 20, durability 18, fit 17, reuse 19; total 110), reviewed_base_sha c9afe007, reviewed_head_sha a973ece4. added_failure_count 0 and added_failure_ids [] are derived from the reviewed run's own gate logs: its manifest names no baseline_suite and no after_suite pair (classification.json carries both null), and its head log gate-pytest.log records the focused suite '36 passed in 13.21s' with EXIT=0 and no failing id; its negative-control.log records the single governed failure at EXIT=1. Because no base/head suite pair exists the count is a reading of the passing head gate, and that is what 0 records here.",
+    "goal": "Met, independently verified. The node makes the JT-60SA sign report read its classification from its own rows: e_Bp becomes measurable-from-data and sigma_R_phi_Z is stated as declared under decision jt60sa-source-cocos. I regenerated the report from the reviewed tree against the real corpus (scripts/jt60sa_sign_cohort.py --no-figure --fragment <scratch>) and it reads verbatim 'e_Bp: measurable-from-data; value=+0 / reasoning: row 101011 carries a psi grid, and its declared flux exponent fixes e_Bp for the cohort'; the report's DECLARED SOURCE COCOS block names SELENE's output COCOS 1 under decision jt60sa-source-cocos and states the machine takes only its geometric handedness; the STRICT CANDIDATE SCORE table still leaves pair (1, 2). Row 101011's receipt reads q95 18.91 and B0 2.032 with eBp 0. The one gap is the fragment's own summary paragraph, which still says sigma_R_phi_Z is undetermined (finding).",
+    "manifest": "Read, complete; status 'complete' is a recognised value. Orientation base c9afe007 and the single commit a973ece4 reproduce; the worktree is clean at head 7f03374a is unrelated -- the reviewed commit is a973ece4 on base c9afe007. tests, test_logs, negative_control_log and evidence_inputs are named with real paths. Every evidence_inputs fact reproduces: the regenerated report carries 'e_Bp: measurable-from-data; value=+0', 'sigma_R_phi_Z: requires-an-external-declaration; value=+1' and the DECLARED SOURCE COCOS block, and the psi row's declared-flux-exponent skip reason names row 101011. retry_failures none. The psi row is read under --root through load_psi_row, which I falsified in a scratch tree.",
+    "write_paths": "The node wrote exactly five repo paths -- imas_ambix/data/cocos_convention.py, scripts/jt60sa_sign_cohort.py, tests/data/test_cocos_convention.py and the two evidence fragments -- plus its own run directory under ~/.config/reckon/crew/runs/. git diff --name-only c9afe007 a973ece4 lists exactly those five and nothing else; the worktree is clean at a973ece4. The manifest's changed_paths matches the diff one-for-one (unlike the sibling psi-row node it repairs). No plan, sprint or index mutation. This reviewer wrote only the two fenced record paths."
+  },
+  "justifications": {
+    "durability": "One real, kept commit with a body: the source change, the script refactor and the tests are committed, and both evidence fragments carry the regenerated report. The change is re-runnable from the corpus (the script regenerates the fragment; load_psi_row states the report's omission when no G-EQDSK is present). Points off because the fragment's summary sentence was left stale, so the regenerated artifact and the source that compiles it disagree on sigma_R_phi_Z.",
+    "evidence": "Strong and falsifiable. The head gate is 36 passed / EXIT=0 at a973ece4, reproduced independently; the cohort script re-runs to EXIT=0 and its report carries the asserted lines; and I falsified the load_psi_row guard in a scratch tree -- restoring the module-level path makes test_psi_row_geqdsk_is_read_from_the_row_root fail at EXIT=1 with the empty-root call returning an EfitLabels read from the default corpus. The negative-control.log the node recorded matches this. No base arm exists (the reviewed run names no baseline_suite), so the delta is read from the passing head gate. Points off for no full-suite arm.",
+    "fit": "Follows the plan's settling paragraph and decision jt60sa-source-cocos closely: the psi row fixes e_Bp, the surviving pair is (1, 2), the declaration fixes sigma_R_phi_Z and states the scope (the equilibrium source's output convention; the machine takes only geometric handedness; per-channel signs confirmed in the data). The DECLARED SOURCE COCOS block's wording tracks the plan. The departure is the stale summary sentence above, which the fitting change should have updated.",
+    "goal_fidelity": "The plan's settled-report deliverable lands and reproduces: the report states e_Bp measured from row 101011 (value +0) and sigma_R_phi_Z declared under decision jt60sa-source-cocos giving SELENE's output COCOS 1 from the surviving pair (1, 2), with the declaration's scope stated. Points off because the fragment's own headline summary paragraph still says sigma_R_phi_Z 'is undetermined', so the report's most-read sentence does not carry the settled statement the node set out to produce (finding 1).",
+    "reuse": "Good. It reads the G-EQDSK through the existing load_geqdsk and folds the previously inline psi-row resolution into one load_psi_row function that honours --root; the settling value is threaded through the existing format_sign_report as one keyword-only parameter and one small classification branch rather than a second formatter, and it reuses the existing CoefficientAssessment/CONVENTION_DIGITS machinery. No duplicated reader or parallel scorer.",
+    "scope_discipline": "Exactly the five declared repo paths plus the node's own run directory; git diff --name-only c9afe007 a973ece4 names nothing else and the worktree is clean at head. The manifest's changed_paths matches the diff exactly. No plan/index/sprint mutation. This reviewer wrote only the two fenced record paths."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261008T102108152619-jtmm-sign-report-settled (plan imas-ambix:jt60sa-machine-map section 6), head a973ece49bc0d005db75b3c9174e5096c9967a60 on base c9afe007aa1ceb3ec8720a086c7170d06e6bcd2c.\n\nREPRODUCTION (mine). Head gate in the reviewed tree: uv run --no-sync pytest tests/data/test_cocos_convention.py -> 36 passed, EXIT=0. Cohort script: python scripts/jt60sa_sign_cohort.py --no-figure --fragment <scratch> -> EXIT=0, and the regenerated report carries 'e_Bp: measurable-from-data; value=+0', 'sigma_R_phi_Z: requires-an-external-declaration; value=+1' with the jt60sa-source-cocos reasoning, the DECLARED SOURCE COCOS block, and 'VERDICT: 2 conventions survive: (1, 2)'; row 101011 receipt q95 18.91, B0 2.032, eBp 0. Negative control reproduced in a scratch tree: restoring the module-level G-EQDSK path in load_psi_row makes test_psi_row_geqdsk_is_read_from_the_row_root assert-fail at EXIT=1 (the empty-root call returns a record read from the default corpus).\n\nFINDING scripts/jt60sa_sign_cohort.py:318: follow-on: the fragment's summary paragraph still says sigma_R_phi_Z 'is undetermined' while its own classification block states value=+1 declared.\nFINDING imas_ambix/data/cocos_convention.py:1263: follow-on: the flux-exponent message says 'no row in this cohort carries a psi grid' for a cohort of two psi rows that disagree on the exponent.\n\nSCORE goal_fidelity: 18\nSCORE evidence: 18\nSCORE scope_discipline: 20\nSCORE durability: 18\nSCORE fit: 17\nSCORE reuse: 19",
+  "review_run_id": "r-20261008T104655702815-review-of-jtmm-sign-report-settled",
+  "reviewed_base_sha": "c9afe007aa1ceb3ec8720a086c7170d06e6bcd2c",
+  "reviewed_head_sha": "a973ece49bc0d005db75b3c9174e5096c9967a60",
+  "reviewed_run_id": "r-20261008T102108152619-jtmm-sign-report-settled",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 17,
+    "goal_fidelity": 18,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T11:22:00+00:00",
+  "total": 110
+}
