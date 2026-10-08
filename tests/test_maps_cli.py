@@ -243,6 +243,60 @@ def test_release_leaves_the_bundle_version_when_the_push_fails(
     assert after["version"] == before["version"] == "2026.10.07"
 
 
+def test_release_leaves_the_local_bundle_unpublished_while_the_push_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    maps_dir = tmp_path / "maps"
+    machine_dir = maps_dir / "jt-60sa"
+    write_tree(machine_dir, version="2026.10.07")
+    monkeypatch.setattr(maps_cli, "MAPS_DIR", maps_dir)
+    registry = FakeRegistry(["2026.10.07", "v0.1.0"])
+    registry.install(monkeypatch)
+    staged = maps_cli.push_tree
+    seen: list[str] = []
+
+    def observing_push(ref, staging, annotations, token):
+        seen.append(json.loads((machine_dir / "bundle.json").read_text())["version"])
+        staged(ref, staging, annotations, token)
+
+    monkeypatch.setattr(maps_cli, "push_tree", observing_push)
+
+    result = CliRunner().invoke(
+        maps_cli.maps, ["release", "jt-60sa", "--bump", "minor"]
+    )
+
+    assert result.exit_code == 0, result.output
+    # The local descriptor still names the deployed version while the push runs,
+    # so a reader concurrent with the push cannot see the unpublished one.
+    assert seen == ["2026.10.07"], seen
+    after = json.loads((machine_dir / "bundle.json").read_text())
+    assert after["version"] == "v0.2.0-rc1"
+
+
+def test_release_leaves_the_bundle_bytes_intact_when_the_atomic_replace_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    maps_dir = tmp_path / "maps"
+    machine_dir = maps_dir / "jt-60sa"
+    write_tree(machine_dir, version="2026.10.07")
+    monkeypatch.setattr(maps_cli, "MAPS_DIR", maps_dir)
+    registry = FakeRegistry(["2026.10.07", "v0.1.0"])
+    registry.install(monkeypatch)
+    original = (machine_dir / "bundle.json").read_bytes()
+
+    def failing_replace(src, dst):
+        raise OSError("cannot move the descriptor into place")
+
+    monkeypatch.setattr(maps_cli.os, "replace", failing_replace)
+
+    result = CliRunner().invoke(
+        maps_cli.maps, ["release", "jt-60sa", "--bump", "minor"]
+    )
+
+    assert result.exit_code != 0
+    assert (machine_dir / "bundle.json").read_bytes() == original
+
+
 def test_release_skips_the_push_when_the_tree_digest_is_unchanged(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

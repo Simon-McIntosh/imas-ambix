@@ -321,11 +321,24 @@ def stage_bundle(root: Path, dest: Path, version: str) -> None:
 
 
 def _write_bundle_version(root: Path, version: str) -> None:
-    """Write the released version into a bundle descriptor under ``root``."""
+    """Write the released version into a bundle descriptor under ``root``.
+
+    The descriptor is written to a sibling temporary file and moved over the
+    original with :func:`os.replace`, so a concurrent reader and an interrupted
+    write both see either the whole old descriptor or the whole new one, never a
+    partial one.
+    """
     bundle = root / BUNDLE_NAME
     data = json.loads(bundle.read_text())
     data["version"] = version
-    bundle.write_text(json.dumps(data, indent=2) + "\n")
+    fd, tmp_name = tempfile.mkstemp(dir=root, prefix=f"{BUNDLE_NAME}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as handle:
+            handle.write(json.dumps(data, indent=2) + "\n")
+        os.replace(tmp_name, bundle)
+    except BaseException:
+        os.unlink(tmp_name)
+        raise
 
 
 def write_released_version(machine_dir: Path, version: str) -> None:
@@ -438,9 +451,6 @@ def release(machine: str, bump: str | None, final: bool, message: str | None) ->
         return
 
     version = compute_next_version(bump, final=final, tags=tags)
-    bundle_path = machine_dir / BUNDLE_NAME
-    original_bundle = bundle_path.read_bytes()
-    write_released_version(machine_dir, version)
 
     annotations = {
         ANNOTATION_VERSION: version,
@@ -451,17 +461,16 @@ def release(machine: str, bump: str | None, final: bool, message: str | None) ->
     if message:
         annotations[ANNOTATION_DESCRIPTION] = message
 
-    try:
-        with tempfile.TemporaryDirectory(prefix="ambix-maps-release-") as staging_dir:
-            staging = Path(staging_dir)
-            stage_bundle(machine_dir, staging, version)
-            push_tree(_ref(registry, pkg_name, version), staging, annotations, token)
-    except Exception:
-        # The registry never received this version, so the local descriptor must
-        # not name it; put back the bytes the call found rather than a version
-        # that matches no released tag.
-        bundle_path.write_bytes(original_bundle)
-        raise
+    # The local descriptor is written only after the registry holds the version,
+    # so the tree it names is always one that was published: ``stage_bundle``
+    # carries the version into the staged copy, and nothing local changes while
+    # the push runs.  A push that fails therefore leaves the previous version in
+    # place with no bytes to restore.
+    with tempfile.TemporaryDirectory(prefix="ambix-maps-release-") as staging_dir:
+        staging = Path(staging_dir)
+        stage_bundle(machine_dir, staging, version)
+        push_tree(_ref(registry, pkg_name, version), staging, annotations, token)
+    write_released_version(machine_dir, version)
     click.echo(f"{machine}: released {version} ({registry}/{pkg_name}).")
     click.echo(f"  tree digest: {digest}")
 
