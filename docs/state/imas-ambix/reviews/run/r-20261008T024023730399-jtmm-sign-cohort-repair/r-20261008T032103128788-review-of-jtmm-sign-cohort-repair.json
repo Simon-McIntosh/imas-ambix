@@ -1,0 +1,67 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed run's manifest names no baseline_suite and no after_suite gate log, so the reviewed run's own two-arm pair is absent and the added-failure count was not taken; its single head gate (tests/data/test_cocos_convention.py, 28 passed, EXIT=0) is recorded under test_logs and reproduces at the reviewed head.",
+  "base_log_revision": null,
+  "call_site_count": 1,
+  "call_sites": "scripts/jt60sa_sign_cohort.py:355",
+  "completed_at": "2026-10-08T03:49:09.529Z",
+  "dispatched_at": "2026-10-08T03:21:36Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort-repair.html",
+      "line": "32",
+      "severity": "follow-on",
+      "text": "follow-on: the landing narrative and the manifest's landing line state the pre-repair hard-coded-exponent verdict was \"(1, 11)\", but the artifact it replaces records VERDICT: 2 conventions survive: (1, 2) at a8c1d7a3, and (1, 2, 11, 12) is a superset of (1, 2) rather than of (1, 11); the figure quoted is unsupported by the artifact the change supersedes."
+    },
+    {
+      "file": "logs/gate-cocos.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the reviewed run's own head gate log opens with \"# revision: a8c1d7a36a5ea5d9c9f1926d4ec74f064fd484c2\", but the run collected 28 items, a count only the head test file reaches, so the revision the log names does not describe the tree the suite measured and a later reader cannot tie the head result to the head commit from the log alone."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "read commit by commit against a8c1d7a3; 8c4d6e4a makes format_sign_report cohort-aware (cocos_convention.py:1157), adds _is_mast_level2_cohort (cocos_convention.py:1078), _common_sign (cocos_convention.py:1090) and _cohort_coefficient_classification (cocos_convention.py:1097), makes ShotSignObservation.flux_exponent int | None with 0 if flux.size else None at cocos_convention.py:705, guards the declared-flux-exponent violation in score_convention (cocos_convention.py:375), adds the unscored-relation reason in _unscored_relations (cocos_convention.py:463), adds seven tests, and regenerates the report and its narrative.",
+    "done_when": "the dispatched measure is that tests/data/test_cocos_convention.py exits 0 and the cohort script exits 0 with ruff clean, each logged; the manifest records all three (cocos 28 passed EXIT=0, ruff All checks passed, EXIT=0, script VERDICT 4 conventions survive: (1, 2, 11, 12) EXIT=0), and this reviewer re-ran tests/data/test_cocos_convention.py at the head commit, where it collected 28 items and reported 28 passed in 8.04s.",
+    "goal": "the node goal is that the JT-60SA sign report state only what its own cohort measures; imas_ambix/data/cocos_convention.py:1169 gates MAST's fixed blocks on _is_mast_level2_cohort (cocos_convention.py:1078) and imas_ambix/data/cocos_convention.py:1097 supplies the cohort's own classification otherwise, and the regenerated report at docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort.html prints \"COHORT COEFFICIENT CLASSIFICATION\" with sigma_Bp and sigma_rho_theta_phi measured and e_Bp/sigma_R_phi_Z left to an external declaration, so the goal is met.",
+    "manifest": "read; it records the three gate results, names its logs under test_logs (gate-cocos.log, gate-ruff.log, gate-cohort-script.log), records a negative control (negative-control.log, EXIT=1, 1 failed 27 passed), and states the run executed in place on the fleet allocation; it names no baseline_suite and no after_suite, so no two-arm suite delta is derivable from the reviewed run's own logs.",
+    "write_paths": "read the manifest's declared paths and diffed a8c1d7a3..8c4d6e4a; the commit touches imas_ambix/data/cocos_convention.py, tests/data/test_cocos_convention.py, scripts/jt60sa_sign_cohort.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort.html and docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort-repair.html alone, every one inside the node fence, with no figure file touched."
+  },
+  "justifications": {
+    "durability": "tests/data/test_cocos_convention.py:840 and :884 fail if format_sign_report reverts to printing MAST's blocks for a foreign cohort, and :812 fails if a no-psi row regains a hard-coded exponent; the negative control at negative-control.log mutates read_signal_map_observation and reddens test_negating_the_equilibrium_field_makes_the_q_relation_report_a_violation (1 failed, 27 passed, EXIT=1), so the guarded reader is shown to fire.",
+    "evidence": "the gate is the node's own done-when and its gate-cocos.log names 28 passed at revision a8c1d7a3, a count only the head test file reaches (the base had 21), and it reproduced here; but the log's own revision line names the base a8c1d7a3 rather than the measured head, so the header does not tie the recorded count to the commit it ran on.",
+    "fit": "the added helpers are mechanism-named (cocos_convention.py:1078, cocos_convention.py:1090, cocos_convention.py:1097) in the module's existing underscore style, extend the CoefficientAssessment shape at cocos_convention.py:82, and the whole-tree ruff check exits 0 with no naming finding.",
+    "goal_fidelity": "cocos_convention.py:1169 makes mast_cohort decide every MAST-only block, and the 16-row JT-60SA report at jtmm-sign-cohort.html now carries COHORT COEFFICIENT CLASSIFICATION with sigma_Bp and sigma_rho_theta_phi measured and e_Bp/sigma_R_phi_Z undetermined, which is exactly what the goal asks.",
+    "reuse": "_cohort_coefficient_classification reuses the CoefficientAssessment owner at cocos_convention.py:82 rather than forking it, _common_sign has no prior owner in cocos_convention.py, and the searched capability (a cohort-specific coefficient classification) exists only as the MAST-only COEFFICIENT_ASSESSMENTS constant, which the new function leaves intact.",
+    "scope_discipline": "git diff a8c1d7a3..8c4d6e4a changes five paths and every one is inside the manifest's declared write_paths, with no figure file touched and nothing outside the node's fence."
+  },
+  "project": "imas-ambix",
+  "raw_text": "reviewed_base_sha: a8c1d7a36a5ea5d9c9f1926d4ec74f064fd484c2\nreviewed_head_sha: 8c4d6e4a238246688f3e569afd5afbce7766119c\nVERDICT goal: the node goal is that the JT-60SA sign report state only what its own cohort measures; imas_ambix/data/cocos_convention.py:1169 gates MAST's fixed blocks on _is_mast_level2_cohort (cocos_convention.py:1078) and imas_ambix/data/cocos_convention.py:1097 supplies the cohort's own classification otherwise, and the regenerated report at docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort.html prints \"COHORT COEFFICIENT CLASSIFICATION\" with sigma_Bp and sigma_rho_theta_phi measured and e_Bp/sigma_R_phi_Z left to an external declaration, so the goal is met.\nVERDICT done_when: the dispatched measure is that tests/data/test_cocos_convention.py exits 0 and the cohort script exits 0 with ruff clean, each logged; the manifest records all three (cocos 28 passed EXIT=0, ruff All checks passed, EXIT=0, script VERDICT 4 conventions survive: (1, 2, 11, 12) EXIT=0), and this reviewer re-ran tests/data/test_cocos_convention.py at the head commit, where it collected 28 items and reported 28 passed in 8.04s.\nVERDICT write_paths: read the manifest's declared paths and diffed a8c1d7a3..8c4d6e4a; the commit touches imas_ambix/data/cocos_convention.py, tests/data/test_cocos_convention.py, scripts/jt60sa_sign_cohort.py, docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort.html and docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort-repair.html alone, every one inside the node fence, with no figure file touched.\nVERDICT manifest: read; it records the three gate results, names its logs under test_logs (gate-cocos.log, gate-ruff.log, gate-cohort-script.log), records a negative control (negative-control.log, EXIT=1, 1 failed 27 passed), and states the run executed in place on the fleet allocation; it names no baseline_suite and no after_suite, so no two-arm suite delta is derivable from the reviewed run's own logs.\nVERDICT diff: read commit by commit against a8c1d7a3; 8c4d6e4a makes format_sign_report cohort-aware (cocos_convention.py:1157), adds _is_mast_level2_cohort (cocos_convention.py:1078), _common_sign (cocos_convention.py:1090) and _cohort_coefficient_classification (cocos_convention.py:1097), makes ShotSignObservation.flux_exponent int | None with 0 if flux.size else None at cocos_convention.py:705, guards the declared-flux-exponent violation in score_convention (cocos_convention.py:375), adds the unscored-relation reason in _unscored_relations (cocos_convention.py:463), adds seven tests, and regenerates the report and its narrative.\nCALL_SITES: scripts/jt60sa_sign_cohort.py:355\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: cocos_convention.py:1169 makes mast_cohort decide every MAST-only block, and the 16-row JT-60SA report at jtmm-sign-cohort.html now carries COHORT COEFFICIENT CLASSIFICATION with sigma_Bp and sigma_rho_theta_phi measured and e_Bp/sigma_R_phi_Z undetermined, which is exactly what the goal asks.\nSCORE evidence: 18\nJUSTIFICATION evidence: the gate is the node's own done-when and its gate-cocos.log names 28 passed at revision a8c1d7a3, a count only the head test file reaches (the base had 21), and it reproduced here; but the log's own revision line names the base a8c1d7a3 rather than the measured head, so the header does not tie the recorded count to the commit it ran on.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff a8c1d7a3..8c4d6e4a changes five paths and every one is inside the manifest's declared write_paths, with no figure file touched and nothing outside the node's fence.\nSCORE durability: 18\nJUSTIFICATION durability: tests/data/test_cocos_convention.py:840 and :884 fail if format_sign_report reverts to printing MAST's blocks for a foreign cohort, and :812 fails if a no-psi row regains a hard-coded exponent; the negative control at negative-control.log mutates read_signal_map_observation and reddens test_negating_the_equilibrium_field_makes_the_q_relation_report_a_violation (1 failed, 27 passed, EXIT=1), so the guarded reader is shown to fire.\nSCORE fit: 20\nJUSTIFICATION fit: the added helpers are mechanism-named (cocos_convention.py:1078, cocos_convention.py:1090, cocos_convention.py:1097) in the module's existing underscore style, extend the CoefficientAssessment shape at cocos_convention.py:82, and the whole-tree ruff check exits 0 with no naming finding.\nSCORE reuse: 20\nJUSTIFICATION reuse: _cohort_coefficient_classification reuses the CoefficientAssessment owner at cocos_convention.py:82 rather than forking it, _common_sign has no prior owner in cocos_convention.py, and the searched capability (a cohort-specific coefficient classification) exists only as the MAST-only COEFFICIENT_ASSESSMENTS constant, which the new function leaves intact.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort-repair.html:32 follow-on: the landing narrative and the manifest's landing line state the pre-repair hard-coded-exponent verdict was \"(1, 11)\", but the artifact it replaces records VERDICT: 2 conventions survive: (1, 2) at a8c1d7a3, and (1, 2, 11, 12) is a superset of (1, 2) rather than of (1, 11); the figure quoted is unsupported by the artifact the change supersedes.\nFINDING logs/gate-cocos.log:1 follow-on: the reviewed run's own head gate log opens with \"# revision: a8c1d7a36a5ea5d9c9f1926d4ec74f064fd484c2\", but the run collected 28 items, a count only the head test file reaches, so the revision the log names does not describe the tree the suite measured and a later reader cannot tie the head result to the head commit from the log alone.\n",
+  "review_run_id": "r-20261008T032103128788-review-of-jtmm-sign-cohort-repair",
+  "reviewed_base_sha": "a8c1d7a36a5ea5d9c9f1926d4ec74f064fd484c2",
+  "reviewed_head_sha": "8c4d6e4a238246688f3e569afd5afbce7766119c",
+  "reviewed_run_id": "r-20261008T024023730399-jtmm-sign-cohort-repair",
+  "reviewer": {
+    "backend": "clive",
+    "effort": "high",
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T03:55:00+00:00",
+  "total": 116
+}
