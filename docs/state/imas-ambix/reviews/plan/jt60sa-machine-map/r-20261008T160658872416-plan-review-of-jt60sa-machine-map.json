@@ -1,0 +1,63 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T16:18:18.206Z",
+  "dispatched_at": "2026-10-08T16:07:35Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:404",
+      "id": "reasoning-1",
+      "reason": "as written a worker can deliver the registry node as code-plus-tests alone, leaving the on-disk artifacts on the pre-alias digest while the pin rows copy it, so the plan must name the artifact re-authoring in the registry node's scope (the drive-map node names its own re-authoring at plan.html:490-491, this node does not).",
+      "text": "the registry node \"writes only the producer module, the shared digest function in artifact_geometry.py and their tests\", but the plan states recording the per-phase representation aliases \"moves the registry digest\" (plan.html:415) and that the selection node's JT-60SA pin rows are \"copied from the two artifacts as they stand once that registry node has landed\" (plan.html:480-482); the landed producer bakes the registry digest into each artifact (imas_ambix/gs/description_artifact.py:364,375 author_jt60sa_machine_artifacts), so completing the registry changes every artifact's embedded digest and the artifacts must be re-authored at that node or the copied pin rows freeze a stale digest and the stamp fails \u2014 yet no node is assigned to re-run the producer",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "ade4c0d53f30921f77a2201f10bed0e998c787f302d79744c55c01f9eba139d2",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 399,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v401 (commit after 4e9fa13f): no artifact is stored between nodes; author_jt60sa_machine_artifacts authors both on demand, so the selection node authors them at its own base (carrying the drive-map and registry changes) and copies its pins from those, and one of its tests re-authors both and asserts each matches its pinned row.",
+      "when": "2026-10-08T16:18:33.507235+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v401 (commit after 4e9fa13f): no artifact is stored between nodes; author_jt60sa_machine_artifacts authors both on demand, so the selection node authors them at its own base (carrying the drive-map and registry changes) and copies its pins from those, and one of its tests re-authors both and asserts each matches its pinned row.",
+      "when": "2026-10-08T16:18:33.507235+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v399.json",
+  "review_run_id": "r-20261008T160658872416-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "3ed59ff30b3fe20cd0977935d69bacabba3640e1",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 jtmm-jt60sa-registry (plan.html:404,480), the producer module imas_ambix/gs/description_artifact.py (plan.html:402) and imas_ambix/gs/artifact_geometry.py (plan.html:413) all resolve in the tree, and every extensionless href in the unit resolves as `<path>.html`.",
+    "done_when": "pass \u2014 the changed units introduce no measure of their own, and the section done-when they serve keeps its 0.10 m boundary floor and its flipped-loop-7 must-fail control (plan.html:566-570).",
+    "evidence_paths": "pass \u2014 the changed units name no evidence path; no gate log or durable path is touched by them.",
+    "naming": "pass \u2014 the changed sentences carry node ids, file paths and registry members only; no plan label, ticket number or changelog prose reaches a code symbol.",
+    "reasoning": "a finding \u2014 the registry node's declared scope omits the artifact re-authoring that its own digest change forces, while the selection node's pin copy at plan.html:480-482 depends on the artifacts having been re-authored.",
+    "single_goal": "pass \u2014 cutting the registry completion out of the selection node leaves jtmm-jt60sa-registry, jtmm-machine-keyed-selection and jtmm-artifact-drive-map each carrying one deliverable.",
+    "wiring": "pass \u2014 the registry node is placed between the drive-map node and the selection node (plan.html:404) and the selection node's registry key calls the function that node adds (plan.html:479-480), so the declared ordering and the dependency the selection node depends on agree, and \"the drive-map node below\" resolves at plan.html:490."
+  },
+  "section_digests": {
+    "_document": "1a041e1b69e7c648e3848440450d2aa25ac955ec54bdbca27a0558b3e2fb8c3a",
+    "s1": "52731ac311aa8ac6ed57dc5f58a5868e5f9e2e34b4e132f297830fa912abbc0f",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "206107d628e7d80bcdc9d6b2bbc25de988e495600bfde60660441504038044c6",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T16:18:33.504938+00:00"
+}
