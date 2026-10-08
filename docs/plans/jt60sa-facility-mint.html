@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="150">
+<meta name="plan-version" content="151">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -589,6 +589,9 @@
 </div>
 <div class="r-comment" data-section="s18" data-id="c-run-r-20261008T045132368562-jtfm-map-release-cli" data-who="reckon-build" data-when="2026-10-08T05:38:51.379Z">
     <div class="r-comment-body"><p>Added `imas-ambix maps release|pull|status`, which versions each machine bundle as semver and release-candidate tags in its own GHCR package, keyed by a tree digest that excludes the version field and the `source`/`superseded` development inputs; jt-60sa is migrated by tagging the legacy 2026.10.07 artifact v0.1.0 in place and releasing v0.2.0-rc1 (tree digest 565ed54f4abc8ed4c7740ec8900319ba9f582a85dd0ab953f6d4b37409373519), with 26 unit tests passing, `uv run --no-sync ruff check imas_ambix tests packages` exit 0, and the unchanged-digest skip caught red by its negative control.</p></div>
+</div>
+<div class="r-comment" data-section="s18" data-id="c-run-r-20261008T054016944717-review-of-jtfm-map-release-cli" data-who="reckon-build" data-when="2026-10-08T06:06:39.309Z">
+    <div class="r-comment-body"><p>Independent review of run r-20261008T045132368562-jtfm-map-release-cli (plan imas-ambix:jt60sa-facility-mint §18), stored parsed at the fenced path: six dimensions scored 0..20 (goal_fidelity 19, evidence 17, scope_discipline 19, durability 18, fit 19, reuse 20; total 112), revision pair reviewed_base_sha=e4e6068d4fabf6f0d426c51f210a8e2acc15217c / reviewed_head_sha=2affc702b73b3dbb03c92f1e0dc20a7ed424ebd4, added_failure_count 0 with no added ids derived from the base arm at e4e6068d (2 passed) and the after arm at 2affc702 (28 passed), and no blocking finding (three follow-ons on test coupling and a pre-push local write).</p></div>
 </div>
 </section>
 </main>

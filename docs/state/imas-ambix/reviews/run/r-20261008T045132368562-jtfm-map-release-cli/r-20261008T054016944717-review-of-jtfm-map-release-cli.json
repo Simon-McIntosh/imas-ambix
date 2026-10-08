@@ -1,0 +1,70 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 2,
+  "call_sites": [
+    "imas_ambix/cli.py:79 (the `maps` lazy group registered on the main group)",
+    "packages/imas-alambic/install/imasdb.sh:70 (`imas-ambix maps pull \"$BUNDLE_MACHINE\" --dest \"$BUNDLE\"`)"
+  ],
+  "completed_at": "2026-10-08T06:06:39.309Z",
+  "dispatched_at": "2026-10-08T05:40:48Z",
+  "findings": [
+    {
+      "file": "tests/test_maps_cli.py",
+      "line": "209",
+      "severity": "follow-on",
+      "text": "follow-on: the tree-digest annotation is asserted equal to tree_digest(maps_dir/\"jt-60sa\") computed by the same function on the same directory, so the assertion moves with the code and cannot catch a tree_digest regression; the dedicated digest tests at :163-187 are what guard that capability."
+    },
+    {
+      "file": "tests/test_maps_cli.py",
+      "line": "241",
+      "severity": "follow-on",
+      "text": "follow-on: `assert all(\"git\" not in ref for ref, _ in registry.pushes)` is near-vacuous because a ghcr.io package ref can never contain \"git\", so the no-git-tag property the docstring names is not actually guarded by this line."
+    },
+    {
+      "file": "imas_ambix/maps_cli.py",
+      "line": "441",
+      "severity": "follow-on",
+      "text": "follow-on: release writes the released version into the local bundle.json before the push at :455, so a failed push leaves the local descriptor naming a version that was never published; it self-heals because the digest excludes the version field, but a reader of the file between the write and a successful retry sees an unpublished version."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 2 production call site(s)",
+    "diff": "read commit by commit against e4e6068d; 6a8cb511 adds maps_cli.py (+554) and the data/paths.py package table, registers the lazy `maps` group in imas_ambix/cli.py:79, and adds tests/test_maps_cli.py (+360); 44c60cd9 routes install/imasdb.sh:66 through `imas-ambix maps pull`; 2affc702 records the evidence fragment.",
+    "done_when": "the done-were gate is the new state-machine tests plus the whole-tree ruff; tests/test_maps_cli.py exercises every transition (14 tests at :95-157), the unchanged-digest skip at :213 and the refusals at :281/:323, and the rerun at 2affc702 gives 26 passed, EXIT=0, with `ims_ambix/maps_cli.py` the module under test.",
+    "goal": "the node's goal is a `imas-ambix maps release|pull|status` group that versions each machine bundle as semver and RC tags in its own GHCR package; it is met at 2affc702, where imas_ambix/maps_cli.py:207 compute_next_version drives every transition and the release/pull/status commands at :410/:474/:519 deliver them, with the legacy 2026.10.07 artifact retagged v0.1.0 in place and v0.2.0-rc1 released (recorded in the manifest's artifacts; the live registry itself is not reachable from this review).",
+    "manifest": "read at the run directory; status complete, the three commits named, both gate logs and the negative-control log named, and the negative-control path present on disk; it names no baseline_suite/after_suite pair, so this review ran the two arms itself.",
+    "write_paths": "every changed path is inside the declared fence -- imas_ambix/maps_cli.py, imas_ambix/data/paths.py, imas_ambix/cli.py, tests/test_maps_cli.py, packages/imas-alambic/install/imasdb.sh, AGENTS.md and the evidence fragment -- and the gitignored maps/jt-60sa/bundle.json write is disclosed in the manifest's evidence_inputs."
+  },
+  "justifications": {
+    "durability": "tests/test_maps_cli.py:213 reddens when the digest skip is removed (negative control reproduced: 1 failed, 25 passed) and :281/:323 guard the pull refusals, but :209 compares the pushed tree-digest annotation against tree_digest on the same directory and :241's \"git\" check is near-vacuous.",
+    "evidence": "the gate is recorded in logs/maps-cli-unit.log (26 passed, EXIT=0) and logs/ruff-gate.log (All checks passed!, EXIT=0) and the negative control at negative-control/digest-skip-removed.log reproduces red, but the manifest names no baseline_suite/after_suite pair so its added-failure count is unmeasured from its own record.",
+    "fit": "maps_cli.py follows the module idiom (module docstring at :1, typed click commands, mechanism docstrings) and `uv run --no-sync ruff check imas_ambix tests packages` exits 0; docked one for the double call to _format_replaced in pull at :504-506.",
+    "goal_fidelity": "imas_ambix/maps_cli.py:410 release / :474 pull / :519 status deliver the goal and the digest-excluding-version rule at :294 is carried, but the live GHCR state (v0.1.0 digest, v0.2.0-rc1 annotations) is not independently verifiable from this review.",
+    "reuse": "no owner for registry tag/release machinery exists in ambix (a search for oras/ghcr/tag-query terms finds only the installer, which this change merges), and the four ghcr helpers copied from imas_codex/graph/ghcr.py are justified in \u00a718 by the graph-stack import they avoid.",
+    "scope_discipline": "all seven changed paths sit inside the manifest's declared write paths and the gitignored bundle.json write is disclosed at evidence_inputs (3), though the evidence fragment at docs/evidence/fragments/jt60sa-facility-mint/jtfm-map-release-cli.html:5 asserts data-added-failures=\"0\" without a baseline arm behind it."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is a `imas-ambix maps release|pull|status` group that versions each machine bundle as semver and RC tags in its own GHCR package; it is met at 2affc702, where imas_ambix/maps_cli.py:207 compute_next_version drives every transition and the release/pull/status commands at :410/:474/:519 deliver them, with the legacy 2026.10.07 artifact retagged v0.1.0 in place and v0.2.0-rc1 released (recorded in the manifest's artifacts; the live registry itself is not reachable from this review).\nVERDICT done_when: the done-were gate is the new state-machine tests plus the whole-tree ruff; tests/test_maps_cli.py exercises every transition (14 tests at :95-157), the unchanged-digest skip at :213 and the refusals at :281/:323, and the rerun at 2affc702 gives 26 passed, EXIT=0, with `ims_ambix/maps_cli.py` the module under test.\nVERDICT write_paths: every changed path is inside the declared fence -- imas_ambix/maps_cli.py, imas_ambix/data/paths.py, imas_ambix/cli.py, tests/test_maps_cli.py, packages/imas-alambic/install/imasdb.sh, AGENTS.md and the evidence fragment -- and the gitignored maps/jt-60sa/bundle.json write is disclosed in the manifest's evidence_inputs.\nVERDICT manifest: read at the run directory; status complete, the three commits named, both gate logs and the negative-control log named, and the negative-control path present on disk; it names no baseline_suite/after_suite pair, so this review ran the two arms itself.\nVERDICT diff: read commit by commit against e4e6068d; 6a8cb511 adds maps_cli.py (+554) and the data/paths.py package table, registers the lazy `maps` group in imas_ambix/cli.py:79, and adds tests/test_maps_cli.py (+360); 44c60cd9 routes install/imasdb.sh:66 through `imas-ambix maps pull`; 2affc702 records the evidence fragment.\nCALL_SITES: imas_ambix/cli.py:79 (the `maps` lazy group registered on the main group), packages/imas-alambic/install/imasdb.sh:70 (`imas-ambix maps pull \"$BUNDLE_MACHINE\" --dest \"$BUNDLE\"`)\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/maps_cli.py:410 release / :474 pull / :519 status deliver the goal and the digest-excluding-version rule at :294 is carried, but the live GHCR state (v0.1.0 digest, v0.2.0-rc1 annotations) is not independently verifiable from this review.\nSCORE evidence: 17\nJUSTIFICATION evidence: the gate is recorded in logs/maps-cli-unit.log (26 passed, EXIT=0) and logs/ruff-gate.log (All checks passed!, EXIT=0) and the negative control at negative-control/digest-skip-removed.log reproduces red, but the manifest names no baseline_suite/after_suite pair so its added-failure count is unmeasured from its own record.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: all seven changed paths sit inside the manifest's declared write paths and the gitignored bundle.json write is disclosed at evidence_inputs (3), though the evidence fragment at docs/evidence/fragments/jt60sa-facility-mint/jtfm-map-release-cli.html:5 asserts data-added-failures=\"0\" without a baseline arm behind it.\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_maps_cli.py:213 reddens when the digest skip is removed (negative control reproduced: 1 failed, 25 passed) and :281/:323 guard the pull refusals, but :209 compares the pushed tree-digest annotation against tree_digest on the same directory and :241's \"git\" check is near-vacuous.\nSCORE fit: 19\nJUSTIFICATION fit: maps_cli.py follows the module idiom (module docstring at :1, typed click commands, mechanism docstrings) and `uv run --no-sync ruff check imas_ambix tests packages` exits 0; docked one for the double call to _format_replaced in pull at :504-506.\nSCORE reuse: 20\nJUSTIFICATION reuse: no owner for registry tag/release machinery exists in ambix (a search for oras/ghcr/tag-query terms finds only the installer, which this change merges), and the four ghcr helpers copied from imas_codex/graph/ghcr.py are justified in \u00a718 by the graph-stack import they avoid.\nFINDING tests/test_maps_cli.py:209 follow-on: the tree-digest annotation is asserted equal to tree_digest(maps_dir/\"jt-60sa\") computed by the same function on the same directory, so the assertion moves with the code and cannot catch a tree_digest regression; the dedicated digest tests at :163-187 are what guard that capability.\nFINDING tests/test_maps_cli.py:241 follow-on: `assert all(\"git\" not in ref for ref, _ in registry.pushes)` is near-vacuous because a ghcr.io package ref can never contain \"git\", so the no-git-tag property the docstring names is not actually guarded by this line.\nFINDING imas_ambix/maps_cli.py:441 follow-on: release writes the released version into the local bundle.json before the push at :455, so a failed push leaves the local descriptor naming a version that was never published; it self-heals because the digest excludes the version field, but a reader of the file between the write and a successful retry sees an unpublished version.",
+  "review_run_id": "r-20261008T054016944717-review-of-jtfm-map-release-cli",
+  "reviewed_base_sha": "e4e6068d4fabf6f0d426c51f210a8e2acc15217c",
+  "reviewed_head_sha": "2affc702b73b3dbb03c92f1e0dc20a7ed424ebd4",
+  "reviewed_run_id": "r-20261008T045132368562-jtfm-map-release-cli",
+  "reviewer": "deepseek-v4.1-flash",
+  "rubric": "code",
+  "scores": {
+    "durability": 18,
+    "evidence": 17,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T06:04:23.557734+00:00",
+  "total": 112
+}
