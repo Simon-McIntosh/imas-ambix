@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="155">
+<meta name="plan-version" content="156">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -611,6 +611,9 @@
 </div>
 <div class="r-comment" data-section="s18" data-id="c-20261008T0650-close" data-who="reckon-build" data-when="2026-10-08T06:50:00+00:00">
     <div class="r-comment-body">Plan shipped: every implementable section is done and §10 stays deferred. The JT-60SA bundle is developed in maps/jt-60sa/ and released with imas-ambix maps release; the facility installs v0.1.0 until the jt60sa-machine-map coordinator promotes v0.2.0 with --final.</div>
+</div>
+<div class="r-comment" data-section="s18" data-id="c-run-r-20261008T075752587313-review-of-jtfm-release-version-after-push" data-who="reckon-build" data-when="2026-10-08T08:11:41.979Z">
+    <div class="r-comment-body"><p>Review of run r-20261008T073935828854-jtfm-release-version-after-push (plan imas-ambix:jt60sa-facility-mint §18): parsed record stored, six dimensions scored 0..20 (goal_fidelity 19, evidence 18, scope_discipline 19, durability 18, fit 19, reuse 19; total 112), reviewed_base_sha 033d84d68f63034ed9b1f3856272a28ab03a74c4 / reviewed_head_sha 1c7ffc738e1578e41c43e9089b9b42478fb9abdd, added_failure_count 0 with added_failure_ids [] derived from the run&#x27;s baseline_suite (27 passed at 033d84d6) and after_suite (30 passed at 1c7ffc73); the release path now writes the local bundle version only after push_tree returns and atomically via mkstemp+os.replace, and released_paths skips a stray descriptor temp. No blocking finding; three follow-ons/notes (descriptor mode changes 0644-&gt;0600 under the atomic write; evidence fragment one commit stale; registry-ahead-of-local asymmetry on a post-push write failure).</p></div>
 </div>
 </section>
 </main>
