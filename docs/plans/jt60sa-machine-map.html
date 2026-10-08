@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.94">
-<meta name="plan-version" content="425">
+<meta name="plan-version" content="426">
 <meta name="plan-modified" content="2026-10-09">
 </head>
 <body>
@@ -270,10 +270,11 @@
       SELENE's <code>efitout.f</code>) sits in <code>/home/d240034/fbequ/EFIT95.DATA</code> and its
       <code>LOCALDB</code>. For the rest of the list those fields sit in the decommissioned
       <code>dbsvr17p</code> stores. Under decision <code>jt60sa-psi-q-source</code>, §7 takes
-      E101011's G-EQDSK as its one psi grid and q-profile reference, and PSRC's boundary, X-point,
-      magnetic axis and plasma current for every other shot. The decision's q is the profile on a
-      psi grid. The per-shot q95 scalar comes from the EDDB FAME <code>Q95</code>, the same FAME q
-      scalars the decision has §6's sign report read for q-handedness. Nothing runs on the JT-60SA server. §7's psi
+      E101011's G-EQDSK as its one psi grid reference, and PSRC's boundary, X-point, magnetic axis
+      and plasma current for every frozen shot. The decision also names that G-EQDSK as the one
+      q-profile source. No §7 measure consumes a q profile, so none is staged. The per-shot q95
+      scalar comes from the EDDB FAME <code>Q95</code>, the same FAME q scalars the decision has
+      §6's sign report read for q-handedness. Nothing runs on the JT-60SA server. §7's psi
       bindings are scoped against E101011 alone, and the reference loader's boundary, X-point and
       axis come from PSRC for every frozen shot.
       The G-EQDSK is read through the <code>eqdsk</code> package's <code>EQDSKInterface</code>, which
@@ -299,9 +300,13 @@
       outside any fetched EDDB category. One rule in <code>maps/jt-60sa/maps/equilibrium.json</code>
       binds it to <code>profiles_2d/psi</code> with <code>transformation="psi_like"</code> and
       <code>source_cocos=1</code>, whose convention factor the engine computes as −2π.
-      <code>packages/imas-alambic/src/imas_alambic/pulse_writer.py</code> <code>IDS_NAMES</code> gains
-      <code>equilibrium</code>, which the writer does not mint today. The node meets the psi check in
-      the done-when below. The
+      The node meets the psi check in the done-when below, read through the engine. Minting an
+      equilibrium IDS through <code>packages/imas-alambic/src/imas_alambic/pulse_writer.py</code>,
+      whose <code>IDS_NAMES</code> lacks <code>equilibrium</code>, is its own node,
+      <code>jtmm-pulse-writer-equilibrium</code>. The writer mints each IDS over a description
+      container that equilibrium does not have. So that node first settles how an equilibrium IDS
+      is minted from mapped signals alone, including the 2-D psi row. The stamp does not wait on
+      it, because the stamp reads coil and magnetics data. The
       section's interface change is the pin table below, which retires three public constants and
       their re-export.
     </p>
