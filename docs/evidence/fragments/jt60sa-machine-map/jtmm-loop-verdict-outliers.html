@@ -68,6 +68,28 @@
       </ul>
     </section>
 
+    <section id="jtmm-loop-verdict-outliers-thin-margin">
+      <h3>Loop 16's E100595 margin, made explicit for a future regeneration</h3>
+      <p>Loop 16 is the one outlier whose classification rests on a narrow
+      margin: its E100595 per-shot r of 0.9497 sits 0.0003 below the 0.95 floor,
+      the thinnest of the seven, so a regenerated per-shot fit could move it
+      across the threshold and change which loops carry an outlier. Loop 16's
+      <code>evidence</code> now records that margin and flags loop 16 for
+      re-check, so the warning travels with the data a regeneration reads. The
+      classification itself is unchanged &mdash; the loop-reference RCA's own
+      per-shot table does not mark this fit as passing, so the fail is the
+      source's own. The existing outlier test already guards it: it asserts loop
+      <code>L</code>'s evidence names each failing shot with its slope and r, so
+      a regeneration that drops loop 16's E100595 outlier reddens the test.</p>
+      <p>The bundle file sha256 before and after this disclosure:
+      <code>maps/jt-60sa/maps/magnetics.json</code> was
+      <code>29b94b281d9586a0a3e89bcaa75b1da3a03d07eb69075f2f09ac347124d07f9e</code>
+      and is now
+      <code>99bdc9688e482e501d408d66e30c18b92e015d9c5816422342e1452cbe2181de</code>.
+      The prior copy is at
+      <code>maps/jt-60sa/superseded/pre-loop16-margin-note/maps/magnetics.json</code>.</p>
+    </section>
+
   </main>
 </body>
 </html>
