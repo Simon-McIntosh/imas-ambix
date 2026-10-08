@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+
+    <section id="jtmm-differential-loop-names-landing">
+      <p>The 26 type-6 <code>magnetics/flux_loop</code> entries are now named
+      <code>FL&lt;L&gt;-FL7</code> (<code>FL1-FL7</code> &hellip;
+      <code>FL27-FL7</code>, no <code>FL7-FL7</code>) in place of
+      <code>FL7-FL&lt;L&gt;</code>, so the name reads as the difference the
+      entry stores. Every other field of every entry is unchanged: the order,
+      the <code>indices_differential</code> <code>[7, L]</code> pairs, the
+      values, and the empty position and area all stay as they were. The OP1 and
+      OP2 description stores and the <code>maps/jt-60sa/machine_map.json</code>
+      per-entry bindings are regenerated under the new names.</p>
+    </section>
+
+    <section id="jtmm-differential-loop-names-why">
+      <h3>Why the old name read backwards</h3>
+      <p>DD 4.1.1 defines <code>magnetics/flux_loop/indices_differential</code>
+      as <code>loop(second index) &minus; loop(first index)</code> over the
+      1-based <code>flux_loop</code> array. Loop 7 is the reference, so each
+      type-6 entry stores &psi;<sub>L</sub> &minus; &psi;<sub>7</sub> and carries
+      the indices <code>[7, L]</code> &mdash; reference written first. The old
+      name <code>FL7-FL&lt;L&gt;</code> spelled the pair in the opposite order,
+      so it read as &psi;<sub>7</sub> &minus; &psi;<sub>L</sub>, the negative of
+      the stored value; the new name <code>FL&lt;L&gt;-FL7</code> reads as the
+      stored difference itself. The rename moves no index, sign or value.</p>
+    </section>
+
+    <section id="jtmm-differential-loop-names-changed-files">
+      <h3>Changed bundle files, sha256 before and after</h3>
+      <p>Pre-rename copies are kept at
+      <code>maps/jt-60sa/superseded/differential-loop-names-pre-rename/</code>
+      (<code>OP1/</code>, <code>OP2/</code>, <code>machine_map.json</code>). The
+      four non-magnetics netCDF files of each phase are byte-identical after the
+      rewrite, so they are not listed.</p>
+      <ul>
+        <li><code>machine_description/OP1/magnetics.nc</code><br>
+        before <code>e543c0674272e38c46e1aa2f7036c9011387b621eb2c702365f7368fcc457ceb</code><br>
+        after <code>0b089a3a734a88364b10ccd1a73ed5d49f9da0d2033b719ba45a44a70622d968</code></li>
+        <li><code>machine_description/OP2/magnetics.nc</code><br>
+        before <code>e543c0674272e38c46e1aa2f7036c9011387b621eb2c702365f7368fcc457ceb</code><br>
+        after <code>0b089a3a734a88364b10ccd1a73ed5d49f9da0d2033b719ba45a44a70622d968</code></li>
+        <li><code>machine_description/OP1/receipt.json</code><br>
+        before <code>ee212aa5b4689cb678207b6e46b6d1744fdb5557711c25b475cf97fbf10d4958</code><br>
+        after <code>cbdee61aeef9db30accd83a5460c8930de2945616d6f530b79cd150f38215afc</code></li>
+        <li><code>machine_description/OP2/receipt.json</code><br>
+        before <code>8d39e430227ff5a7e39f637099ace95a2f3080b026c2a808bfc678e916de6ee7</code><br>
+        after <code>f564b1ca22202084718304c8181f9cddc5e25cdad1788156ad0a3557175948d9</code></li>
+        <li><code>machine_map.json</code><br>
+        before <code>b9c641d6553242437b738bde72fb3dcddfd0e9137c306a8ee7c75516e4aec256</code><br>
+        after <code>6a0e4b10b1bf01805e588f22a778efbf7f8319ec9c240eb4a4b395ed8a65efec</code></li>
+      </ul>
+    </section>
+
+    <section id="jtmm-differential-loop-names-regeneration">
+      <h3>Regeneration and the array-equality check</h3>
+      <p>The stores were rewritten in place through
+      <code>selene_deck.write_phase_description</code>, after verifying each
+      source deck's sha256 against the value its receipt records. The run
+      directory script <code>regenerate_jt60sa_store.py</code> then read every
+      <code>flux_loop</code> array back through <code>imas</code> at DD 4.1.1 and
+      compared it with the pre-rename store: <code>type</code>,
+      <code>indices_differential</code>, <code>position</code>, <code>area</code>
+      and <code>flux</code> are equal element for element, and the only changed
+      array is <code>name</code>, over indices 27&ndash;52, for both phases
+      (<code>regenerate_jt60sa_store.log</code>, <code>EXIT=0</code>). The four
+      non-magnetics netCDF files of each phase were hashed before and after and
+      are unchanged.</p>
+      <p>The per-entry bindings in <code>machine_map.json</code> were regenerated
+      with <code>rename_map_flux_loop_bindings.py</code> in the run directory
+      (an adaptation of the staged-map flux-loop binding builder, not a hand
+      edit). It rewrites the entry-name token <code>FL7-FL&lt;L&gt;</code>
+      &rarr; <code>FL&lt;L&gt;-FL7</code> and the binding-id token
+      <code>fl7-fl&lt;L&gt;</code> &rarr; <code>fl&lt;L&gt;-fl7</code> across the
+      live map, refuses if any old-pair token survives, and re-serialises the
+      JSON; it reports 26 entry tokens and 26 binding-id tokens rewritten
+      (<code>rename_map_flux_loop_bindings.log</code>, <code>EXIT=0</code>).
+      <code>maps/jt-60sa/maps/magnetics.json</code> is untouched: its flux-loop
+      rules select by index, so the rename does not reach them.</p>
+    </section>
+
+    <section id="jtmm-differential-loop-names-measure">
+      <h3>Measure and the negative control</h3>
+      <p><code>tests/data/test_selene_deck.py</code> and
+      <code>tests/gs/test_operator_differential_loops.py</code> pin the new
+      names, and a type-6 entry named <code>FL&lt;L&gt;-FL7</code> is asserted to
+      carry <code>indices_differential</code> <code>[7, L]</code>. The declared
+      negative control &mdash; restoring <code>FL7-FL&lt;L&gt;</code> in
+      <code>build_magnetics</code> &mdash; turns
+      <code>test_differential_flux_loops_follow_the_physical_loops</code> red
+      with <code>EXIT=1</code> (<code>negative-control.log</code>), and the
+      source is restored before the gate runs. The gate runs in place on the
+      fleet allocation (<code>SLURM_JOB_ID</code> set) with
+      <code>IMAS_ALAMBIC_MAP_PATH</code> unset and the worktree <code>maps</code>
+      symlinked to the main checkout: 109 passed, 4 failed
+      (<code>gate.log</code>).</p>
+      <p>The 4 failures are all in
+      <code>tests/data/test_jt60sa_signal_maps.py</code> and are base drift, not
+      this node's work: the dispatch base
+      (<code>09980cbe</code>) predates the differential-loop retarget the live
+      <code>maps/jt-60sa/maps/magnetics.json</code> already carries, so the
+      base's copy of that test expects <code>target_index</code>
+      <code>0..26</code> where the live map yields <code>6, 27..52</code>. This
+      node changes no file that test reads; the retarget is a separately landed
+      commit. Recorded under follow-ons in the manifest.</p>
+    </section>
+
+  </main>
+</body>
+</html>

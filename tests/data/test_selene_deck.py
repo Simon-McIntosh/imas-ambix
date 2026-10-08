@@ -415,8 +415,9 @@ def test_differential_flux_loops_follow_the_physical_loops():
     every loop L other than the reference loop 7.  Each type-6 entry's
     ``indices_differential`` names the reference then L, which the DD
     documents as ``loop(second index) - loop(first index)`` over the 1-based
-    ``flux_loop`` array of structures, and carries no position or area of its
-    own.
+    ``flux_loop`` array of structures, so the entry stores loop L minus the
+    reference.  Its name reads as that same difference, ``FL<L>-FL7``, and it
+    carries no position or area of its own.
     """
     if not (REAL_DECK_SOURCE.is_dir() and REAL_GEO.exists()):
         pytest.skip(f"project deck store absent: {REAL_DECK_SOURCE}")
@@ -432,11 +433,19 @@ def test_differential_flux_loops_follow_the_physical_loops():
     for i, f in enumerate(physical):
         assert float(f.position[0].r) == pytest.approx(geo.flux_loops[i].r)
         assert float(f.position[0].z) == pytest.approx(geo.flux_loops[i].z)
-    expected = [[7, L] for L in range(1, 28) if L != 7]
-    stored = [
-        [int(v) for v in np.asarray(f.indices_differential)] for f in differential
+
+    reference = sd.FLUX_LOOP_DIFFERENTIAL_REFERENCE
+    other_loops = [n for n in range(1, 28) if n != reference]
+    assert [str(f.name) for f in differential] == [
+        f"FL{L}-FL{reference}" for L in other_loops
     ]
-    assert stored == expected
+    answer = [
+        ([int(v) for v in np.asarray(f.indices_differential)], str(f.name))
+        for f in differential
+    ]
+    assert answer == [
+        ([reference, L], f"FL{L}-FL{reference}") for L in other_loops
+    ]
     for f in differential:
         assert len(f.position) == 0
         assert not f.area.has_value

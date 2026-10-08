@@ -152,9 +152,9 @@ def _row_of_loop(table, loop_slot):
 def test_rebuilt_store_carries_the_26_differential_entries(tmp_path):
     """The merged builder's store adapts to 27 positioned plus 26 differential.
 
-    Each type-6 entry names the reference loop and one other, in Data Dictionary
-    order, carries no position of its own, and is carried by the sensor map with
-    the two loops' geometry-table slots as raw DD indices less one.
+    Each type-6 entry is named ``FL<L>-FL7`` to read as loop L minus the
+    reference, carries no position of its own, and is carried by the sensor map
+    with the two loops' geometry-table slots as raw DD indices less one.
     """
     _build_53_loop_store(tmp_path)
     table = read_geometry_table(PHASE_SHOT, machine="jt-60sa", store_root=tmp_path)
@@ -170,8 +170,8 @@ def test_rebuilt_store_carries_the_26_differential_entries(tmp_path):
         assert not np.isfinite(mapping.r) and not np.isfinite(mapping.z)
         assert mapping.flag
     assert [m.amb_channel for m in differential][:2] == [
-        f"FL{REFERENCE}-FL1",
-        f"FL{REFERENCE}-FL2",
+        f"FL1-FL{REFERENCE}",
+        f"FL2-FL{REFERENCE}",
     ]
 
 
@@ -266,7 +266,7 @@ def test_position_declaration_naming_a_differential_loop_is_refused():
         for i in range(3)
     ]
     differential = SensorMapping(
-        amb_channel="FL7-FL1",
+        amb_channel="FL1-FL7",
         kind="flux_loop",
         efm_index=None,
         r=float("nan"),
@@ -274,11 +274,11 @@ def test_position_declaration_naming_a_differential_loop_is_refused():
         angle_deg=None,
         residual_m=0.0,
         flag="differential flux loop",
-        indices_differential=(0, 2),
+        indices_differential=(6, 0),
     )
     declaration = FluxLoopPositionDeclaration(
         name="declares the differential channel",
-        acquisition_address="FL7-FL1",
+        acquisition_address="FL1-FL7",
         range_first_shot=PHASE_SHOT,
         range_last_shot=PHASE_SHOT,
         position_verdict="nominal-table",
