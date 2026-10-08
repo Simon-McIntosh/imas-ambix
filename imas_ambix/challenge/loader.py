@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -156,6 +157,82 @@ def load_labels(path: str | Path) -> EfitLabels:
     if table.num_rows != 1:
         raise ValueError(f"expected one row per shot, found {table.num_rows} in {path}")
     return _build_labels(table)
+
+
+def load_geqdsk(path: str | Path, *, time_ms: float | None = None) -> EfitLabels:
+    """Read one G-EQDSK file into a canonical :class:`EfitLabels` record.
+
+    The file is read through the ``eqdsk`` package's ``EQDSKInterface``, which
+    owns the format and its COCOS handling, so this loader carries no G-EQDSK
+    reader of its own.  EFIT writes its G-EQDSK with psi per radian
+    (``e_Bp = 0``), so the file is read as its declared COCOS 1 and the record
+    keeps the stored psi unchanged rather than converting it; the poloidal-flux
+    relation is then scored from the file's own values.  A G-EQDSK carries one
+    equilibrium snapshot and no time base, so the record holds a single frame:
+    at ``time_ms`` when it is given, and otherwise at the snapshot time the
+    file's own header declares.
+    """
+
+    from eqdsk import EQDSKInterface  # noqa: PLC0415
+
+    instance = EQDSKInterface.from_file(
+        path, clockwise_phi=False, volt_seconds_per_radian=True, to_cocos=None
+    )
+    radial = np.asarray(instance.x, dtype=np.float64)
+    vertical = np.asarray(instance.z, dtype=np.float64)
+    flux = np.asarray(instance.psi, dtype=np.float64)
+    if time_ms is None:
+        time_ms = geqdsk_declared_time_ms(path)
+        if time_ms is None:
+            raise ValueError(
+                f"{path} declares no snapshot time in its header; pass time_ms"
+            )
+    if flux.shape != (radial.size, vertical.size):
+        raise ValueError(
+            f"G-EQDSK flux grid {flux.shape} does not match its "
+            f"{radial.size}x{vertical.size} coordinate vectors"
+        )
+    safety_factor = _geqdsk_safety_factor(instance)
+    return EfitLabels(
+        time_ms=np.asarray([float(time_ms)], dtype=np.float64),
+        psirz=np.transpose(flux, (1, 0))[np.newaxis, :, :],
+        grid_r_m=radial,
+        grid_z_m=vertical,
+        lcfs_r_m=np.asarray(instance.xbdry, dtype=np.float64)[np.newaxis, :],
+        lcfs_z_m=np.asarray(instance.zbdry, dtype=np.float64)[np.newaxis, :],
+        scalars={
+            "efit_q95": np.asarray([safety_factor], dtype=np.float64),
+            "efit_r_axis": np.asarray([instance.xmag], dtype=np.float64),
+            "efit_z_axis": np.asarray([instance.zmag], dtype=np.float64),
+            "magnetics_bcoil": np.asarray([instance.bcentre], dtype=np.float64),
+        },
+        cocos=int(instance.cocos.index),
+    )
+
+
+def geqdsk_declared_time_ms(path: str | Path) -> float | None:
+    """Return the snapshot time the file's comment header declares, if any.
+
+    A G-EQDSK has no time field in the format itself, so a writer that knows
+    when its snapshot belongs records it in the free-form header line —
+    ``4000ms`` for the four-second snapshot.  Absent that token there is no
+    declared time and the caller must supply one.
+    """
+
+    with open(path, encoding="latin-1") as handle:
+        header = handle.readline()
+    match = re.search(r"(\d+(?:\.\d+)?)\s*ms(?![A-Za-z])", header)
+    return None if match is None else float(match.group(1))
+
+
+def _geqdsk_safety_factor(instance: object) -> float:
+    """Return q at 95 percent of the normalised flux from a G-EQDSK record."""
+
+    qpsi = getattr(instance, "qpsi", None)
+    psinorm = getattr(instance, "psinorm", None)
+    if qpsi is None or psinorm is None:
+        raise ValueError("G-EQDSK carries no q profile to read q95 from")
+    return float(np.interp(0.95, np.asarray(psinorm), np.asarray(qpsi)))
 
 
 def load_shot(path: str | Path, *, validate: bool = True) -> ChallengeShot:

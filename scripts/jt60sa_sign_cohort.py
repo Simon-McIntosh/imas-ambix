@@ -23,6 +23,7 @@ import numpy as np
 from imas_alambic.eddb import normalised_shot
 from imas_alambic.signal_map import load_packaged_signal_map
 from imas_alambic.virtual_zarr import VirtualZarrView
+from imas_ambix.challenge.loader import geqdsk_declared_time_ms, load_geqdsk
 from imas_ambix.data.cocos_convention import (
     COCOS_CANDIDATES,
     format_sign_report,
@@ -49,6 +50,13 @@ FIGURE_NAME = "jt60sa-vacuum-channel-slope.svg"
 #: The catalogue's reference plasma shot, read beside the surveyed list because
 #: it carries the FAME equilibrium the equilibrium map was built from.
 REFERENCE_SHOT = 101154
+
+#: E101011 is the cohort's psi-carrying row.  Its EFIT G-EQDSK is the one
+#: source here that carries a poloidal-flux grid, so it is the only row on
+#: which the declared flux exponent is scored.  The file is copied read-only
+#: from the JT-60SA EFIT output into the same corpus root as the zarr cache.
+E101011_SHOT = 101011
+E101011_EQDSK = JT60SA_ROOT / f"{E101011_SHOT}.geqdsk"
 
 _PLASMA_CURRENT_TARGETS = ("magnetics/ip",)
 
@@ -225,8 +233,26 @@ def build_fragment(
     report: str,
     *,
     figure_src: str | None,
+    psi_row: int | None = None,
+    psi_cocos: int | None = None,
+    psi_exp_bp: int | None = None,
 ) -> str:
     """Compose the landing fragment carrying the sign report."""
+
+    if psi_row is None:
+        flux_sentence = (
+            "e_Bp is undetermined because the FAME equilibrium carries no psi "
+            "grid, so the declared-flux-exponent check is unscored on every "
+            "row, and E101011's G-EQDSK is the source that would fix it."
+        )
+    else:
+        exponent = "per radian (e_Bp = 0)" if psi_exp_bp == 0 else "per 2 pi (e_Bp = 1)"
+        flux_sentence = (
+            f"e_Bp is fixed by row {psi_row}, whose equilibrium is an EFIT "
+            f"G-EQDSK read as its own COCOS {psi_cocos} with psi {exponent}; "
+            "the declared-flux-exponent check is scored on that row and "
+            "unscored on the FAME rows, which carry no psi grid."
+        )
 
     survivors = surviving_conventions(observations)
     survivor_text = ", ".join(str(candidate) for candidate in survivors) or "none"
@@ -290,10 +316,7 @@ Over {len(observations)} rows the surviving COCOS candidates are
 The raw absolute flux-loop response fixes sigma_Bp and the q relation over the
 FAME signs fixes sigma_rho_theta_phi, so the scored relations leave every
 candidate that agrees on those two. sigma_R_phi_Z is undetermined — no row
-measures the direction of positive toroidal angle — and e_Bp is undetermined
-because the FAME equilibrium carries no psi grid, so the declared-flux-exponent
-check is unscored on every row; E101011's G-EQDSK (section 7) is the source that
-would fix e_Bp.
+measures the direction of positive toroidal angle — and {flux_sentence}
 </p>
 
 <h3 id="jtmm-sign-cohort-cohort-h">The cohort</h3>
@@ -337,7 +360,7 @@ def main(argv: list[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
 
     shots = cohort_shots()
-    observations = tuple(
+    observations = [
         read_signal_map_observation(
             shot,
             MACHINE,
@@ -346,7 +369,34 @@ def main(argv: list[str] | None = None) -> int:
             baseline_current_a=JT60SA_BASELINE_CURRENT_A,
         )
         for shot in shots
-    )
+    ]
+    psi_row = None
+    psi_cocos = None
+    psi_exp_bp = None
+    if E101011_EQDSK.is_file():
+        # The header writes the snapshot in milliseconds; the kernel compares
+        # an equilibrium's time against the raw EDDB series, which run in
+        # seconds, so the snapshot time is converted before it is carried.
+        declared_ms = geqdsk_declared_time_ms(E101011_EQDSK)
+        if declared_ms is None:
+            raise ValueError(f"{E101011_EQDSK} declares no snapshot time")
+        record = load_geqdsk(E101011_EQDSK, time_ms=declared_ms / 1000.0)
+        observations.append(
+            read_signal_map_observation(
+                E101011_SHOT,
+                MACHINE,
+                record,
+                root=arguments.root,
+                minimum_current_a=JT60SA_MINIMUM_CURRENT_A,
+                baseline_current_a=JT60SA_BASELINE_CURRENT_A,
+            )
+        )
+        psi_row = E101011_SHOT
+        psi_cocos = record.cocos
+        psi_exp_bp = 0 if record.cocos <= 8 else 1
+    else:
+        print(f"psi row omitted: {E101011_EQDSK} is absent from the corpus root")
+    observations = tuple(observations)
     envelopes = {
         observation.shot: plasma_current_envelope(
             observation.shot,
@@ -367,7 +417,14 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     fragment = build_fragment(
-        observations, envelopes, vacuum, report, figure_src=figure_src
+        observations,
+        envelopes,
+        vacuum,
+        report,
+        figure_src=figure_src,
+        psi_row=psi_row,
+        psi_cocos=psi_cocos,
+        psi_exp_bp=psi_exp_bp,
     )
     arguments.fragment.parent.mkdir(parents=True, exist_ok=True)
     arguments.fragment.write_text(fragment)

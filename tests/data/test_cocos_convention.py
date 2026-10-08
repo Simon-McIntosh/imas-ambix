@@ -15,7 +15,7 @@ from imas_alambic.signal_map import (
     SignalMap,
     SignalRule,
 )
-from imas_ambix.challenge.loader import EfitLabels
+from imas_ambix.challenge.loader import EfitLabels, load_geqdsk
 from imas_ambix.data.cocos_convention import (
     _RAW_FLUX_LOOP_TARGETS,
     COCOS_3_4_MEASUREMENT_DISTINGUISHABLE,
@@ -447,6 +447,61 @@ def _synthetic_equilibrium():
     )
 
 
+def _write_synthetic_geqdsk(path, *, psi_sign=1.0):
+    """Write one small G-EQDSK under a temporary path.
+
+    The flux is quadratic in the coordinates with its minimum on the axis, so
+    the edge-minus-axis flux carries the same sign as ``psi_sign`` and the
+    written file reproduces the shape and sign a real G-EQDSK carries.
+    """
+
+    from eqdsk import EQDSKInterface
+
+    size = 9
+    radius = np.linspace(2.0, 4.0, size)
+    height = np.linspace(-1.5, 1.5, size)
+    flux = psi_sign * np.transpose(
+        (radius[np.newaxis, :] - 3.0) ** 2 + height[:, np.newaxis] ** 2
+    )
+    angle = np.linspace(0.0, tau, 16, endpoint=False)
+    instance = EQDSKInterface(
+        bcentre=2.5,
+        cplasma=8.0e5,
+        dxc=np.zeros(0),
+        dzc=np.zeros(0),
+        ffprime=np.zeros(size),
+        fpol=np.full(size, 6.0),
+        Ic=np.zeros(0),
+        name="synthetic",
+        nbdry=angle.size,
+        ncoil=0,
+        nlim=0,
+        nx=size,
+        nz=size,
+        pprime=np.zeros(size),
+        pressure=np.zeros(size),
+        psi=flux,
+        psibdry=float(flux[0, 0]),
+        psimag=float(flux[size // 2, size // 2]),
+        xbdry=3.0 + 0.6 * np.cos(angle),
+        xc=np.zeros(0),
+        xcentre=3.0,
+        xdim=2.0,
+        xgrid1=2.0,
+        xlim=np.zeros(0),
+        xmag=3.0,
+        zbdry=0.6 * np.sin(angle),
+        zc=np.zeros(0),
+        zdim=3.0,
+        zlim=np.zeros(0),
+        zmag=0.0,
+        zmid=0.0,
+        qpsi=np.linspace(2.0, 5.0, size),
+    )
+    instance.write(path, file_format="geqdsk")
+    return path
+
+
 def _stub_signal_maps(monkeypatch, maps):
     monkeypatch.setattr(
         "imas_ambix.data.cocos_convention.load_packaged_signal_map",
@@ -606,6 +661,36 @@ def test_row_without_a_flux_half_scores_with_the_flux_relation_unscored():
     report = format_sign_report((row,))
     assert "UNSCORED RELATIONS" in report
     assert f"{row.shot}: reconstructed_poloidal_flux not scored — " in report
+
+
+def test_geqdsk_flux_row_scores_the_poloidal_flux_relation(tmp_path, monkeypatch):
+    """A G-EQDSK supplies the cohort's one row carrying a flux half.
+
+    The record carries psi on its grid, so the reconstructed-poloidal-flux
+    relation is scored rather than left unscored, and the row keeps the
+    file's own psi sign.  Negating the file's psi flips
+    ``poloidal_flux_sign`` and the relation stops matching the raw
+    flux-loop response, so a candidate with ``sigma_bp = -1`` is the one
+    that reports the violation here.
+    """
+
+    _stub_signal_maps(monkeypatch, _synthetic_maps())
+    _write_synthetic_store(tmp_path)
+    record = load_geqdsk(
+        _write_synthetic_geqdsk(tmp_path / "e101011.geqdsk"), time_ms=3.0
+    )
+
+    observation = read_signal_map_observation(
+        _SYNTHETIC_SHOT, "jt-60sa", record, root=tmp_path
+    )
+
+    assert observation.poloidal_flux_edge_minus_axis_wb_per_rad is not None
+    assert observation.poloidal_flux_sign == 1
+    assert observation.plasma_current_sign == 1
+    assert observation.raw_flux_loop_response_sign == 1
+    assert observation.flux_exponent == 0
+    violated = score_convention(4, (observation,))
+    assert f"{_SYNTHETIC_SHOT}:reconstructed_poloidal_flux" in violated.violations
 
 
 def test_signal_map_reader_supplies_the_equilibrium_half_from_the_map(
