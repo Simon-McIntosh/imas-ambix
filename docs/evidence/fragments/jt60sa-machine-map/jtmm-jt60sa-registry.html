@@ -1,0 +1,107 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-jt60sa-registry">
+  <header>
+    <h3>the JT-60SA geometry registry read interface and its moved representation digest</h3>
+    <p class="meta">
+      Node <code>jtmm-jt60sa-registry</code> &middot;
+      date 2026-10-08 &middot; plan <code>jt60sa-machine-map</code> &sect;7
+    </p>
+  </header>
+
+  <div id="jtmm-jt60sa-registry-interface">
+    <p>
+      <code>Jt60saGeometryRegistry</code>
+      (<code>imas_ambix/gs/description_artifact.py</code>) now exposes the five
+      members the identity resolvers read from Nova's
+      <code>MachineGeometryRegistry</code>:
+      <code>registry_digest</code> and <code>dd_version</code> (already
+      present); <code>configurations</code> keyed by <strong>physical
+      digest</strong>, each entry a <code>Jt60saConfiguration</code> carrying
+      that phase's <code>physical_digest</code>, its <code>geometry</code> and
+      its <code>authoring_gaps</code> (that phase artifact's
+      <code>unresolved_gaps</code>); <code>select(shot)</code>, which returns a
+      <code>Jt60saSelection</code> with <code>.configuration</code> and
+      <code>.evidence</code> for the one phase range holding the shot and raises
+      <code>KeyError</code> outside both ranges; and
+      <code>resolve_representation(digest)</code>, which returns the
+      configuration a phase's representation alias names and raises
+      <code>KeyError</code> for any other digest.
+    </p>
+    <p>
+      The two phase ranges are <code>OP1</code> 100001&ndash;101173
+      (<code>observed</code>) and <code>OP2</code> 101174&ndash;999999
+      (<code>inherited</code>). <code>select(101173)</code> returns OP1 with
+      evidence <code>observed</code>; <code>select(101174)</code> returns OP2
+      with evidence <code>inherited</code>; <code>select(99999)</code> raises
+      <code>KeyError</code>.
+    </p>
+  </div>
+
+  <div id="jtmm-jt60sa-registry-digest-function">
+    <p>
+      The setup representation digest formula that
+      <code>MachineArtifactGeometryReader.read</code> held inline is now the
+      public <code>representation_digest</code> in
+      <code>imas_ambix/gs/artifact_geometry.py</code>:
+      <code>round_geometry_hash</code> over the probe <code>r</code>,
+      <code>z</code> and <code>angle</code>, the flux-loop <code>r</code> and
+      <code>z</code>, the filament <code>r</code>, <code>z</code>,
+      <code>width</code> and <code>height</code>, and the limiter
+      <code>r</code> and <code>z</code>. The reader calls it with its output
+      unchanged and the producer calls it over the same extracted parts, so a
+      phase's alias cannot drift from the signature a reader stamps from the
+      authored artifact. The aliases are hashed into the registry payload, so
+      both phase artifacts carry the moved registry digest.
+    </p>
+  </div>
+
+  <div id="jtmm-jt60sa-registry-identities">
+    <p>Measured from the committed tree at <code>023cf347</code>:</p>
+    <table>
+      <thead>
+        <tr><th>phase</th><th>physical digest</th><th>representation alias</th><th>semantic identity</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>OP1</td>
+          <td><code>f4ba9a35aab22485</code></td>
+          <td><code>7111ca22fa49bbae</code></td>
+          <td><code>sha256:1ea4dac766f47ba01bb6f9e35d5ca74f47d816772006379076f466a51e58f372</code></td>
+        </tr>
+        <tr>
+          <td>OP2</td>
+          <td><code>08807c77e7b35487</code></td>
+          <td><code>ba9d3c2c85488e14</code></td>
+          <td><code>sha256:b3c079a077b818f1ecd51ee608653338b8d53b1a565f432d4250e8dd25685e49</code></td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      One shared registry digest
+      <code>058b377fda345c171706e94feb78a1e1a7694b3cf70a2b15cb0676adf16db742</code>,
+      carried by both phase artifacts' manifests. Each phase's alias is the
+      signature digest a <code>MachineArtifactGeometryReader</code> stamps from
+      that phase's authored artifact, and
+      <code>resolve_representation</code> maps it back to the phase's
+      configuration.
+    </p>
+  </div>
+
+  <div id="jtmm-jt60sa-registry-coil-band">
+    <p>
+      <code>_coil_drive_weight</code>'s agreement band is now the catalogue's
+      two-decimal rounding as an absolute <code>0.011</code> on the per-element
+      ampere-turns, replacing the relative 1% band. The FPPC coils' 3.83/3.84
+      pair (one winding rounded to its last digit) is accepted; a 0.02
+      disagreement on a CS1 connection is refused by coil name.
+    </p>
+  </div>
+
+  <div id="jtmm-jt60sa-registry-build-from-stores">
+    <p>
+      <code>build_jt60sa_registry_from_stores</code> returns the registry built
+      from the phase stores without materializing an artifact, so a
+      machine-keyed identity registry can obtain the JT-60SA registry at its
+      base rather than authoring artifacts first.
+    </p>
+  </div>
+</section>
