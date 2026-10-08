@@ -40,7 +40,7 @@ IMASDB=${IMASDB%/}
 
 SSH_HOST=${IMASDB_SSH_HOST:-jt-60sa}
 SSH_ARGS=${IMASDB_SSH_ARGS:-}
-MACHINE=${IMASDB_MACHINE:-jt-60sa}
+BUNDLE_MACHINE=${IMASDB_MACHINE:-jt-60sa}
 
 REPO_ROOT=$(git -C "$(dirname -- "$0")" rev-parse --show-toplevel)
 # nova-cocos is a sibling checkout of the repository, resolved from the main
@@ -65,11 +65,11 @@ ls -la "$WHEELS"
 # The registry, the authentication form and the artifact type have one owner,
 # the maps CLI: it defaults to the package's latest stable tag, so this script
 # names no version.
-say "pulling the $MACHINE bundle"
+say "pulling the $BUNDLE_MACHINE bundle"
 BUNDLE=$WORK/bundle
 mkdir -p "$BUNDLE"
 export GH_TOKEN=${GH_TOKEN:-$(gh auth token)}
-uv run --project "$MAIN_ROOT" imas-ambix maps pull "$MACHINE" --dest "$BUNDLE"
+uv run --project "$MAIN_ROOT" imas-ambix maps pull "$BUNDLE_MACHINE" --dest "$BUNDLE"
 BUNDLE_VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$BUNDLE/bundle.json")
 if [ -z "$BUNDLE_VERSION" ]; then
   echo "$PROG: $BUNDLE/bundle.json names no version" >&2
