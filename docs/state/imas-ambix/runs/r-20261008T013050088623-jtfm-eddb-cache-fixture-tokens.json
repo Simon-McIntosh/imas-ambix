@@ -1,0 +1,768 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "b693579e7cfd1acb2bb64e8315df87727f22ddc6",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 5335446,
+      "input_tokens_cumulative": 5335446,
+      "output_tokens": 32058,
+      "output_tokens_cumulative": 32058,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 68,
+    "files": 2,
+    "removed": 54
+  },
+  "clone_matches": [
+    {
+      "existing_function": {
+        "line": 66,
+        "name": "_probe_angle_binding",
+        "path": "tests/data/test_transform_engine.py"
+      },
+      "run_function": {
+        "line": 148,
+        "name": "_binding",
+        "path": "tests/data/test_eddb_cache.py"
+      },
+      "window_line": 153
+    },
+    {
+      "existing_function": {
+        "line": 43,
+        "name": "_map",
+        "path": "tests/data/test_signal_map.py"
+      },
+      "run_function": {
+        "line": 165,
+        "name": "_signal_map",
+        "path": "tests/data/test_eddb_cache.py"
+      },
+      "window_line": 182
+    },
+    {
+      "existing_function": {
+        "line": 13,
+        "name": "_map",
+        "path": "tests/data/test_virtual_zarr.py"
+      },
+      "run_function": {
+        "line": 165,
+        "name": "_signal_map",
+        "path": "tests/data/test_eddb_cache.py"
+      },
+      "window_line": 176
+    },
+    {
+      "existing_function": {
+        "line": 93,
+        "name": "_negative_map",
+        "path": "tests/data/test_virtual_zarr.py"
+      },
+      "run_function": {
+        "line": 165,
+        "name": "_signal_map",
+        "path": "tests/data/test_eddb_cache.py"
+      },
+      "window_line": 178
+    },
+    {
+      "existing_function": {
+        "line": 560,
+        "name": "test_remote_script_reads_the_return_code_from_the_wrappers_irc_field",
+        "path": "tests/data/test_eddb_cache.py"
+      },
+      "run_function": {
+        "line": 535,
+        "name": "test_remote_script_reports_a_refusal_per_channel_without_aborting_the_batch",
+        "path": "tests/data/test_eddb_cache.py"
+      },
+      "window_line": 542
+    },
+    {
+      "existing_function": {
+        "line": 535,
+        "name": "test_remote_script_reports_a_refusal_per_channel_without_aborting_the_batch",
+        "path": "tests/data/test_eddb_cache.py"
+      },
+      "run_function": {
+        "line": 560,
+        "name": "test_remote_script_reads_the_return_code_from_the_wrappers_irc_field",
+        "path": "tests/data/test_eddb_cache.py"
+      },
+      "window_line": 567
+    }
+  ],
+  "commit_resolution": null,
+  "commits": [
+    "45e99cfcc307f4516a8c4f644b14ab93e1a715f5"
+  ],
+  "completed_at": "2026-10-08T01:53:22.278Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-08T01:31:19Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": null,
+    "override": false,
+    "role": "implement",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/data/test_eddb_cache.py -q",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T013050088623-jtfm-eddb-cache-fixture-tokens/head.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.8247422680412371,
+    "plan": "jt60sa-facility-mint",
+    "reason": "corrective-run:repairs:r-20261007T223446909914-jtfm-write-arguments",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-08T02:01:00.330514+00:00",
+    "horizon_seconds": 1800,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": "clive",
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-08T01:31:00Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 5,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 7,
+    "headroom": 8,
+    "mean_context": 129231,
+    "observed_at": "2026-10-08T01:30:55Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 5,
+      "aggregate_tokens_per_second": 267.772,
+      "detail": "",
+      "mean_tokens_per_second": 32.655,
+      "observed_at": "2026-10-08T01:30:55Z",
+      "runs": 8.2,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-08T01:53:22.278Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T013050088623-jtfm-eddb-cache-fixture-tokens/manifest.md",
+  "member": "disposable-r-20261008T013050088623-jtfm-eddb-cache-fixture-tokens",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/data/test_eddb_cache.py::test_the_shot_token_is_normalised_to_its_int_form"
+    ],
+    "baseline_failure_ids": [
+      "test_a_cached_channel_causes_no_transport_call",
+      "test_a_refetch_completes_a_half_written_channel",
+      "test_an_unreadable_channel_node_is_refused_not_reported_not_cached",
+      "test_cached_store_opens_through_engine_and_view_with_no_transport_call",
+      "test_each_channel_lands_raw_with_eddb_attributes_and_its_time_base",
+      "test_one_transport_process_per_batch",
+      "test_read_channel_refuses_a_time_base_mismatched_with_the_data",
+      "test_read_channel_round_trips_data_time_base_and_unit",
+      "test_remote_command_loads_the_python_module_and_runs_niced",
+      "test_ssh_command_defaults_to_the_jt60sa_alias_and_is_configurable",
+      "test_ssh_config_path_is_expanded_to_an_absolute_path_at_call_time",
+      "test_the_cached_unit_is_the_eddb_unit_string_not_its_repr",
+      "test_the_shot_token_is_normalised_to_its_int_form",
+      "test_writing_over_an_existing_channel_is_refused"
+    ],
+    "comparison_arm": "after_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/data/test_eddb_cache.py::test_the_shot_token_is_normalised_to_its_int_form"
+    ],
+    "declaration": "reverting one fixture to a bare-digit shot makes that test fail with the pulse-token refusal, showing the fixtures are what carry the token",
+    "head_failure_ids": [],
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T013050088623-jtfm-eddb-cache-fixture-tokens/negative_control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T013050088623-jtfm-eddb-cache-fixture-tokens/negative_control.log",
+    "test_paths": [
+      "tests/data/test_eddb_cache.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "jtfm-eddb-cache-fixture-tokens",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 679,
+          "cached_input_tokens": 132878,
+          "input_tokens": 133559,
+          "output_tokens": 403,
+          "reasoning_output_tokens": 35,
+          "total_tokens": 133962,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+      "session_id": "fa77649b-bcc4-4cb6-b999-0d55d8d30042"
+    },
+    "done_when": "tests/data/test_eddb_cache.py goes from 14 failures at the base to 0: its fixtures build requests and records with full EDDB tokens carrying a series letter (for example E000001 in place of 1), so write_channel and fetch_channels receive the form EDDB addresses. Tests whose subject is the cache directory name, such as test_the_shot_token_is_normalised_to_its_int_form, keep a bare-digit input only where they exercise normalised_shot or the non-refusing read path, and still assert the integer directory name. No engine source changes; if a failure turns out to come from a real path rather than a fixture, it is reported as a blocker naming that path. The 14 base failure ids and the head result are each logged once, and packages/imas-alambic/tests still adds no failures. uv run --no-sync ruff check imas_ambix tests packages exits 0.",
+    "estimated_hours": null,
+    "goal": "make the tests/data/test_eddb_cache.py fixtures name pulses by their full EDDB token",
+    "id": "jtfm-eddb-cache-fixture-tokens",
+    "lane_declaration": {
+      "backend": "clive",
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-08T01:31:00Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 5,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 7,
+      "headroom": 8,
+      "mean_context": 129231,
+      "observed_at": "2026-10-08T01:30:55Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 5,
+        "aggregate_tokens_per_second": 267.772,
+        "detail": "",
+        "mean_tokens_per_second": 32.655,
+        "observed_at": "2026-10-08T01:30:55Z",
+        "runs": 8.2,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T013050088623-jtfm-eddb-cache-fixture-tokens/manifest.md",
+    "negative_control": "reverting one fixture to a bare-digit shot makes that test fail with the pulse-token refusal, showing the fixtures are what carry the token",
+    "plan": "jt60sa-facility-mint",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§16",
+    "spec_level": "exact",
+    "time_budget": "30m",
+    "token_budget": null,
+    "write_paths": [
+      "tests/data/test_eddb_cache.py",
+      "docs/evidence/fragments/jt60sa-facility-mint/jtfm-eddb-cache-fixture-tokens.html",
+      "docs/figures/jt60sa-facility-mint/jtfm-eddb-cache-fixture-tokens"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": 938349.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "jtfm-eddb-cache-fixture-tokens",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-08T01:31:06.580292+00:00",
+    "score": 0.41875,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "route",
+    "answering_model": "typesafe/jev-1.13-20260917",
+    "backend": "clive",
+    "comment": "",
+    "confidence": 0.66,
+    "decision_source": "jev",
+    "effort": "high",
+    "excluded": [
+      {
+        "availability": "not-probed",
+        "backend": "native",
+        "budget_age_s": null,
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "context": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "in-harness",
+        "local": false,
+        "model": null,
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "in-harness-backend"
+        ],
+        "resets_at": null,
+        "stale": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "fallback_reason": null,
+    "family": "local",
+    "jev_latency_ms": 480.106,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 1342.241,
+    "model": "deepseek-v4.1-flash",
+    "offered": [
+      {
+        "availability": "unknown",
+        "backend": "claude",
+        "budget_age_s": 1281834.21254,
+        "budget_reason": null,
+        "burn_multiple": 0.95,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 57334,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 0.0,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-sonnet-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.055000000000000056,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-09-27T06:00:00+00:00",
+        "stale": true,
+        "utilisation_pct": 95.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-haiku",
+        "budget_age_s": 1281834.21254,
+        "budget_reason": null,
+        "burn_multiple": 0.95,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 57334,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 0.0,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-haiku-4-5-20251001",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.055000000000000056,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-09-27T06:00:00+00:00",
+        "stale": true,
+        "utilisation_pct": 95.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-opus",
+        "budget_age_s": 1281834.21254,
+        "budget_reason": null,
+        "burn_multiple": 0.95,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 57334,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 0.0,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-opus-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.055000000000000056,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-09-27T06:00:00+00:00",
+        "stale": true,
+        "utilisation_pct": 95.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "served",
+        "backend": "clive",
+        "budget_age_s": null,
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": {
+          "admission_verdict": "open",
+          "running": 13,
+          "slots_state": "measured",
+          "stale": false,
+          "waiting": 0
+        },
+        "context": {
+          "estimated_tokens": 57334,
+          "headroom_pct": 75.1,
+          "peak_utilisation_p50_pct": 53.5,
+          "peak_utilisation_p90_pct": 76.7,
+          "peak_utilisation_runs": 563,
+          "window_tokens": 230144
+        },
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "local",
+        "local": true,
+        "model": "deepseek-v4.1-flash",
+        "outcomes": {
+          "failed": 3,
+          "not-run": 0,
+          "passed": 120,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "stale": null,
+        "utilisation_pct": null,
+        "worker_slots": 3
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex",
+        "budget_age_s": 2375.53054,
+        "budget_reason": null,
+        "burn_multiple": 0.9119801715487932,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 57334,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 6.15568024837963,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-sol",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 3,
+          "unknown": 0
+        },
+        "pace_allowance": 0.13267832325181889,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-14T05:14:59+00:00",
+        "stale": true,
+        "utilisation_pct": 11.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-astra",
+        "budget_age_s": 2375.53054,
+        "budget_reason": null,
+        "burn_multiple": 0.9119801715487932,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 57334,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 6.15568024837963,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-astra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.13267832325181889,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-14T05:14:59+00:00",
+        "stale": true,
+        "utilisation_pct": 11.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-luna",
+        "budget_age_s": 2375.53054,
+        "budget_reason": null,
+        "burn_multiple": 0.9119801715487932,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 57334,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 6.15568024837963,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-luna",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.13267832325181889,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-14T05:14:59+00:00",
+        "stale": true,
+        "utilisation_pct": 11.0,
+        "worker_slots": null
+      }
+    ],
+    "probabilities": {
+      "claude:claude-haiku-4-5-20251001": 0,
+      "claude:claude-opus-5-5": 0.01,
+      "claude:claude-sonnet-5-5": 0.01,
+      "codex:gpt-6-astra": 0.01,
+      "codex:gpt-6-luna": 0.04,
+      "codex:gpt-6-sol": 0.18,
+      "hold": 0.05,
+      "local:deepseek-v4.1-flash": 0.7
+    },
+    "rendered_token_estimate": 1910,
+    "usage": {
+      "cost": 0.000222978,
+      "input_tokens": 5309,
+      "output_tokens": 150
+    }
+  },
+  "plan": "jt60sa-facility-mint",
+  "plan_impl_at_dispatch": 0.8247422680412371,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "45e99cfcc307f4516a8c4f644b14ab93e1a715f5",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "b693579e7cfd1acb2bb64e8315df87727f22ddc6",
+    "reviewed_head_sha": "45e99cfcc307f4516a8c4f644b14ab93e1a715f5",
+    "scores": {
+      "durability": 19,
+      "evidence": 19,
+      "fit": 20,
+      "goal_fidelity": 20,
+      "reuse": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 118
+  },
+  "review_tier": "full",
+  "role": "implement",
+  "route_mode": "picker",
+  "run_id": "r-20261008T013050088623-jtfm-eddb-cache-fixture-tokens",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§16",
+  "session": "fa77649b-bcc4-4cb6-b999-0d55d8d30042",
+  "session_harness": "claude",
+  "session_id": "76d977a5-c00e-4d9b-ba83-06ab2e7a4d87",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "exact",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 5335446,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 1304.931,
+    "generated_tokens": 32058,
+    "generation_seconds": 1108.76,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 64.1,
+    "machine_seconds": 196.171,
+    "peak_input_tokens": 147518,
+    "tokens_per_second": 28.91,
+    "wall_tokens_per_second": 24.57
+  },
+  "time_budget": "30m",
+  "tool_steps": 48.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 1323,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-08T01:53:29Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-08T01:31:31Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261008T013050088623-jtfm-eddb-cache-fixture-tokens",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 7455,
+    "worker_pid": 3409104
+  },
+  "worker_seconds": 1281,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
