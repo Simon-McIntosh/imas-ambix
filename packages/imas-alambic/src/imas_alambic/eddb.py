@@ -118,6 +118,20 @@ def eddb_token(shot: object) -> str:
     return series.upper() + digits
 
 
+def _channel_label(shot: object) -> str:
+    """Name a channel in a cache message without demanding the series letter.
+
+    The cache addresses a pulse by the integer of its digits, so a bare integer
+    names a valid cache directory and a message about one must not raise the
+    full-token refusal the remote address requires.  A token carrying a series
+    letter is shown in its canonical form (:func:`eddb_token`); a bare integer
+    is shown as the integer of its digits (:func:`normalised_shot`).
+    """
+
+    series, digits = _split_token(shot)
+    return (series.upper() + digits) if series is not None else str(int(digits))
+
+
 def channel_path(
     cache_root: Path | str, shot: object, category: str, dname: str
 ) -> Path:
@@ -317,7 +331,7 @@ def read_channel(
         time_array = zarr.open_array(time_path, mode="r")
     except (KeyError, ValueError, OSError) as error:
         raise EddbCacheError(
-            f"channel {eddb_token(shot)}/{category}/{dname} is not cached at "
+            f"channel {_channel_label(shot)}/{category}/{dname} is not cached at "
             f"{data_path}"
         ) from error
 
@@ -327,7 +341,7 @@ def read_channel(
     time = np.asarray(time_array[...], dtype="<f8").reshape(-1)
     if time.shape[-1] != data.shape[-1]:
         raise EddbCacheError(
-            f"channel {eddb_token(shot)}/{category}/{dname} is half-written: "
+            f"channel {_channel_label(shot)}/{category}/{dname} is half-written: "
             f"time base length {time.shape[-1]} does not match data width "
             f"{data.shape[-1]}"
         )

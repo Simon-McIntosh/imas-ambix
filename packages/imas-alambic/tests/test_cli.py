@@ -47,3 +47,41 @@ def test_config_prints_each_setting_with_its_source(monkeypatch, tmp_path):
     assert str(bundle) in result.output
     assert str(home / "ids") in result.output
     assert "inferred" in result.output
+
+
+def test_write_refuses_a_bare_number_through_the_cli_before_any_transport(
+    tmp_path, monkeypatch
+):
+    from test_write_fetch import _prepare, _signal
+
+    machine = "synth-machine"
+    bundle, transport = _prepare(
+        tmp_path,
+        monkeypatch,
+        machine,
+        (_signal("ip", "plasma_current", "magnetics/ip/data"),),
+    )
+    cache = tmp_path / "cache"
+    out = tmp_path / "ids"
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "write",
+            "900001",
+            "--machine",
+            machine,
+            "--maps",
+            str(bundle),
+            "--cache",
+            str(cache),
+            "--out",
+            str(out),
+        ],
+    )
+
+    assert result.exit_code != 0, result.output
+    assert "E900001" in result.output
+    assert "series letter" in result.output
+    assert transport.calls == 0
+    assert not (cache / "900001.zarr").is_dir()
