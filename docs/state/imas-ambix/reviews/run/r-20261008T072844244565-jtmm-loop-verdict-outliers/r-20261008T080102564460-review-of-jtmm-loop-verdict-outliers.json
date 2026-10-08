@@ -1,0 +1,73 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "base_log_revision": "6839ec1f83d9a2d1e8387e71a70de34b1fca7c97",
+  "completed_at": "2026-10-08T08:22:16.816Z",
+  "dispatched_at": "2026-10-08T08:01:19Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T072844244565-jtmm-loop-verdict-outliers/apply_outliers.py",
+      "line": "1",
+      "severity": "follow-on",
+      "text": [
+        "follow-on: the map edit's producing mechanism is not durable. The evidence fragment cites the write script only by its path in the run directory (apply_outliers.py), which is run-scoped and not committed to the repository; the committed fragment and test cannot reproduce the exact write, and a later reader has no committed artifact recording how the seven evidence strings were composed (the clause wording, the uniqueness guard on the evidence token, and the non-evidence-field assertion all live only there). The map edit itself is preserved (soft-fact) by the superseded copy and the sha pair, so the loss is provenance of the transformation, not the data. Suggested follow-on: land the script under scripts/ (or fold its clause builder into the test module) so the transformation is reproducible from the tree."
+      ]
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T072844244565-jtmm-loop-verdict-outliers/manifest.md",
+      "line": "1",
+      "severity": "follow-on",
+      "text": [
+        "follow-on: the run's manifest records baseline_suite and after_suite as null while it produced both gate logs and lists them under test_logs (logs/baseline-gate.log at revision 6839ec1f, 38 passed EXIT=0; logs/head-gate.log at revision 27a38082, 39 passed EXIT=0). The done-when asks the review to derive added_failure_count/ids from the reviewed run's own baseline_suite and after_suite gate logs; those logs exist and are readable and complete (both reach their summary line), so this review derived them from test_logs instead, but a consumer that reads only the baseline_suite/after_suite keys sees an unreadable (null) arm. Record-shape follow-on for the coordinator: the manifest should carry the armed-only JSON for both arms."
+      ]
+    },
+    {
+      "file": "/home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/maps/magnetics.json",
+      "line": "1",
+      "severity": "follow-on",
+      "text": [
+        "follow-on: loop 16's E100595 outlier rests on r = 0.9497, which is 0.0003 inside the |r| > 0.95 pass boundary, so a regenerated per-shot fit could move the classification across the threshold and change which loops carry an outlier. The RCA table itself does not bold this fit (a fail), so the node's classification is the source's own and the fragment discloses the boundary case; no change is warranted now, but the tolerance is thin, so a future fit regeneration should re-check loop 16 specifically."
+      ]
+    }
+  ],
+  "head_log_revision": "27a380823c188e23bfa36df2704d6c2a8f4cd2e4",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "The new test is additive; it reads the same FLUX_LOOP_PATH rules through the existing _rules_for helper. No production code (imas_ambix, imas_alambix).",
+    "diff": "Element-wise comparison of the live maps/jt-60sa/maps/magnetics.json against its superseded/pre-verdict-outliers copy yields exactly 7 differing leaves, all evidence strings on signals 12,13,14,15,16,17,27; no target_index, channel_factor, validation_state, position, target or other field moved. The head map sha256 is 29b94b28.. (matches the fragment's after value and head-gate.log's header) and the superseded copy is 105c1842.. (matches the fragment's before value).",
+    "done_when": "This record is the dispatched measure. Stored parsed at both fenced paths with all six dimensions in 0..20 (goal_fidelity 19, evidence 18, scope_discipline 20, durability 18, fit 18, reuse 18; total 111), reviewed_base_sha 6839ec1f / reviewed_head_sha 27a38082, added_failure_count 0 and added_failure_ids [], derived from the reviewed run's own gate logs (baseline-gate.log 38 passed EXIT=0 at 6839ec1f, head-gate.log 39 passed EXIT=0 at 27a38082; the manifest's baseline_suite/after_suite keys are null, so the count is taken from its test_logs).",
+    "goal": "Met. The node records, in each corpus-validated differential loop rule's magnetics.json evidence, the vacuum shot(s) whose per-shot L-vs-7 fit falls outside the threshold, with slope and r, and pins them with a test. The seven rules carrying an outlier are loops 12,13,14,15,16,17 and 27 -- verified complete: the corpus-validated differential set is loops 12-27, loops 18-26 pass all three shots (RCA per-shot table), and loop 7 is the absolute reference, not a differential rule, so it correctly carries none.",
+    "manifest": "status complete; commits 27a38082; changed_paths as declared; test_logs names baseline-gate.log and head-gate.log with revisions in their headers; baseline_suite/after_suite null (see follow-on); negative_control_log set and its last line is EXIT=1.",
+    "review_independent": "Independent reproduction in a scratch tree under TMPDIR (git archive of 27a38082 from this worktree, PYTHONPATH=scratch, IMAS_ALAMBIC_MAP_PATH at the shared bundle): head arm 39 passed EXIT=0; negative control (loop 12's E100595 removed from a scratch copy of the map) reddens the new test EXIT=1 with AssertionError (12,100595). Both arms read the shared head map (sha 29b94b28).",
+    "scope_write_paths": "The node wrote exactly its declared paths: tests/data/test_jt60sa_signal_maps.py (+37 lines, one new test test_magnetics_records_the_differential_loop_per_shot_outliers), docs/evidence/fragments/jt60sa-machine-map/jtmm-loop-verdict-outliers.html (new fragment), the private bundle map /home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/maps/magnetics.json and its preserved prior map under superseded/pre-verdict-outliers. No write outside these."
+  },
+  "justifications": {
+    "durability": "The committed test and fragment are landed with a conventional subject and a substantive body; the superseded map copy is kept under superseded/pre-verdict-outliers with a sha256 matching the fragment's before value; the transform asserts every non-evidence field byte-identical. Held two points for the uncommitted producing script (finding 1) and because the map edit is a gitignored bundle edit whose release (imas-ambix maps release jt-60sa) is the coordinator's step and was not cut here, so the change is on-disk and superseded-safe but not yet in a release.",
+    "evidence": "Strong direct verification: every one of the seven transcriptions matches the RCA per-shot table exactly (L-7 columns, cols 4/8/12 of the interleaved absolute/reference layout, shot order E100579/E100595/E100642), the pass/fail classification matches the RCA's stated pass sets (13/26 E100579, 10/26 E100595, 26/26 E100642), the element-wise map diff shows only the 7 evidence strings changed, both sha256 claims match on disk, and the negative control fires (EXIT=1) and its head arm passes (EXIT=0) -- all reproduced independently in a scratch tree. Held below full because the producing script is not committed (finding 1) and because the reviewed run supplies no baseline_suite/after_suite keys, so the added-failure derivation rests on its test_logs (finding 2).",
+    "fit": "The node implements the plan's own decision vacuum-verdict-rule (section 6): 'Per-shot outliers are recorded beside each verdict rather than hidden.' It touches nothing the plan did not ask for, keeps every rule corpus-validated (the median rule fixes the sign over three shots), leaves names/COCOS/positions untouched, and its evidence wording ties the outlier to the reference-7 fit the RCA measured. One point off for a thin-threshold robustness note (finding 0.9497 vs 0.95 boundary, finding 3).",
+    "goal_fidelity": "The node does exactly its dispatched goal: the seven corpus-validated differential loop rules whose per-shot fit fails on a vacuum shot now name that shot with slope and r in their evidence, and a test asserts the transcription. The set is complete and correct (loops 18-26 pass all shots; loop 7 is the reference). Held one point off for two follow-ons noted in findings (the producing script is uncommitted; the manifest leaves both suite arms null), neither of which changes the delivered data.",
+    "reuse": "Reuses the RCA's per-shot table as the source and the existing test module and helpers (_rules_for, FLUX_LOOP_PATH, the corpus-validated loop tuple) rather than inventing a parallel path; the clause builder is a small dedicated function. Held two points because the (loop, shot, slope, r) table is duplicated as a literal in both the producing script and the test (a divergence risk), and the transform asserts I could not exercise (the source-of-truth is the map in both).",
+    "scope_discipline": "Exactly the declared write paths were written; the map diff is confined to seven evidence strings; the test file change is purely additive (+37, one function, no edits to existing assertions); the fragment is new. No production code, no unrelated bundle field, no committed regression guard disturbed. Full marks."
+  },
+  "model": "deepseek-v4.1-flash",
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261008T072844244565-jtmm-loop-verdict-outliers (plan imas-ambix:jt60sa-machine-map section 3; decision vacuum-verdict-rule), head 27a380823c188e23bfa36df2704d6c2a8f4cd2e4 on base 6839ec1f83d9a2d1e8387e71a70de34b1fca7c97.\n\nThe node records, in seven corpus-validated differential flux-loop rules of maps/jt-60sa/maps/magnetics.json, the vacuum shot(s) whose per-shot L-vs-7 fit falls outside the threshold (|slope+1|>0.1 or |r|<=0.95), naming the shot with slope and r in each rule's evidence, adds one test, and writes one evidence fragment. All figures below were reproduced independently.\n\nTRANSCRIPTION (mine). Per-shot reference-7 fits from the RCA table: loop12 E100595 (-0.341,-0.5920); loop13 E100595 (-0.513,-0.5578); loop14 E100595 (-0.416,-0.4192); loop15 E100595 (-0.890,-0.9170) and E100579 (-1.156,-0.9940); loop16 E100595 (-0.929,-0.9497) and E100579 (-1.185,-0.994) ... every value equals the test table and the map clause. Loops 18-26 pass all shots, loop 7 is the reference; the seven loops are exactly the union of per-shot failures.\n\nMAP DIFF (mine). Element-wise comparison of the live magnetics.json against superseded/pre-verdict-outliers/maps/magnetics.json gives exactly 7 differing leaves, all evidence strings on signals 12,13,14,15,16,17,27. Live sha256 29b94b28.. (matches head-gate.log header and the fragment after value); superseded 105c1842.. (matches the fragment before value).\n\nHEAD ARM + NEGATIVE CONTROL (mine). Scratch tree from git archive of 27a38082 under TMPDIR, PYTHONPATH=scratch, IMAS_ALAMBIC_MAP_PATH at the shared bundle: 39 passed EXIT=0. Removing loop 12's E100595 from a scratch copy of the map reddens test_magnetics_records_the_differential_loop_per_shot_outliers with AssertionError (12,100595), EXIT=1.\n\nADDED FAILURES. Reviewed run's own arms: baseline-gate.log rev 6839ec1f 38 passed EXIT=0; head-gate.log rev 27a38082 39 passed EXIT=0; both arms complete. added_failure_count 0, added_failure_ids [].\n\nSCORES: goal_fidelity 19, evidence 18, scope_discipline 20, durability 18, fit 18, reuse 18 = 111/120. Three findings: (1) the producing script apply_outliers.py lives only in the run directory (uncommitted) - provenance follow-on; (2) the manifest leaves baseline_suite/after_suite null though both gate logs exist; (3) minor: loop 16 E100595 r 0.9497 is 0.0003 inside the |r|>0.95 boundary.",
+  "review_run_id": "r-20261008T080102564460-review-of-jtmm-loop-verdict-outliers",
+  "reviewed_base_sha": "6839ec1f83d9a2d1e8387e71a70de34b1fca7c97",
+  "reviewed_head_sha": "27a380823c188e23bfa36df2704d6c2a8f4cd2e4",
+  "reviewed_run_id": "r-20261008T072844244565-jtmm-loop-verdict-outliers",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 18,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T08:16:00+00:00",
+  "total": 111
+}
