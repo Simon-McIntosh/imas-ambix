@@ -1,0 +1,56 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest names no base gate log, so the added-failure count was not taken",
+  "base_log_revision": null,
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-08T16:27:40.054Z",
+  "dispatched_at": "2026-10-08T16:14:41Z",
+  "findings": [
+    {
+      "file": "imas_ambix/gs/description_artifact.py",
+      "line": "402",
+      "severity": "follow-on",
+      "text": "follow-on: _coil_drive_weight returns the mean of the per-element weights; within the 1e-2 agreement band that value is not any connection's declared per-element weight, so a coil whose elements differ slightly takes a weight the plan's \"the connection's turns times its current weight times its direction\" does not name. Disclosed as a caveat in the docs fragment."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read both commits against base bde6fdaa; four files changed (+403/-51), the source change confined to the producer and the one geometry_adapter rename.",
+    "done_when": "the done_when names tests/gs/test_description_artifact.py and the three-file gate; the manifest and gate-pytest.log record 56 passed EXIT=0 with ruff EXIT=0, and the five assertions it names are present in that file.",
+    "goal": "read the goal (author each JT-60SA phase artifact's channel drives from the machine map's drive topology); imas_ambix/gs/description_artifact.py:405 _phase_channel_drives authors one nova ChannelDrive per pf_active coil from the phase row's drive topology, so the goal is met.",
+    "manifest": "read; it states the gate result, commits b8abb49f and c216fa3b, the negative control with its red log, and names both gate logs on disk.",
+    "write_paths": "read the five declared paths; the diff touches only imas_ambix/gs/description_artifact.py, imas_ambix/data/geometry_adapter.py, tests/gs/test_description_artifact.py and the docs fragment, all inside them."
+  },
+  "justifications": {
+    "durability": "tests/gs/test_description_artifact.py:207 compares the CS1 drive's weight to the catalogue product computed independently, and the negative control shows it fails when the weight is summed instead.",
+    "evidence": "the gate at .../runs/r-20261008T153846147981-jtmm-artifact-drive-map/gate-pytest.log records 56 passed EXIT=0 over the file the done-when names, and negative-control.log shows the weight guard reddens at EXIT=1.",
+    "fit": "the new helpers at imas_ambix/gs/description_artifact.py:282 and :380 follow the module's dataclass and local-import idiom and introduce no plan-labelled name.",
+    "goal_fidelity": "imas_ambix/gs/description_artifact.py:405 authors one drive per pf_active coil with the channel from current_channel_from_conductors and the weight from the topology, which is what the goal states.",
+    "reuse": "the channel rule is reused rather than restated (imas_ambix/data/geometry_adapter.py:478 promoted public, imported at imas_ambix/gs/description_artifact.py:52), while :402 recomputes turns*current_weight*direction already expressed at geometry_adapter.py:705-712 as a per-circuit sum.",
+    "scope_discipline": "every path in the diff is inside the declared write paths; no file outside the fence was touched."
+  },
+  "project": "imas-ambix",
+  "raw_text": "\nVERDICT goal: read the goal (author each JT-60SA phase artifact's channel drives from the machine map's drive topology); imas_ambix/gs/description_artifact.py:405 _phase_channel_drives authors one nova ChannelDrive per pf_active coil from the phase row's drive topology, so the goal is met.\nVERDICT done_when: the done_when names tests/gs/test_description_artifact.py and the three-file gate; the manifest and gate-pytest.log record 56 passed EXIT=0 with ruff EXIT=0, and the five assertions it names are present in that file.\nVERDICT write_paths: read the five declared paths; the diff touches only imas_ambix/gs/description_artifact.py, imas_ambix/data/geometry_adapter.py, tests/gs/test_description_artifact.py and the docs fragment, all inside them.\nVERDICT manifest: read; it states the gate result, commits b8abb49f and c216fa3b, the negative control with its red log, and names both gate logs on disk.\nVERDICT diff: read both commits against base bde6fdaa; four files changed (+403/-51), the source change confined to the producer and the one geometry_adapter rename.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/gs/description_artifact.py:405 authors one drive per pf_active coil with the channel from current_channel_from_conductors and the weight from the topology, which is what the goal states.\nSCORE evidence: 18\nJUSTIFICATION evidence: the gate at .../runs/r-20261008T153846147981-jtmm-artifact-drive-map/gate-pytest.log records 56 passed EXIT=0 over the file the done-when names, and negative-control.log shows the weight guard reddens at EXIT=1.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: every path in the diff is inside the declared write paths; no file outside the fence was touched.\nSCORE durability: 18\nJUSTIFICATION durability: tests/gs/test_description_artifact.py:207 compares the CS1 drive's weight to the catalogue product computed independently, and the negative control shows it fails when the weight is summed instead.\nSCORE fit: 18\nJUSTIFICATION fit: the new helpers at imas_ambix/gs/description_artifact.py:282 and :380 follow the module's dataclass and local-import idiom and introduce no plan-labelled name.\nSCORE reuse: 17\nJUSTIFICATION reuse: the channel rule is reused rather than restated (imas_ambix/data/geometry_adapter.py:478 promoted public, imported at imas_ambix/gs/description_artifact.py:52), while :402 recomputes turns*current_weight*direction already expressed at geometry_adapter.py:705-712 as a per-circuit sum.\nFINDING imas_ambix/gs/description_artifact.py:402 follow-on: _coil_drive_weight returns the mean of the per-element weights; within the 1e-2 agreement band that value is not any connection's declared per-element weight, so a coil whose elements differ slightly takes a weight the plan's \"the connection's turns times its current weight times its direction\" does not name. Disclosed as a caveat in the docs fragment.\nreviewed_base_sha: bde6fdaa5786af4e876cfb6206be771d9d321ab8\nreviewed_head_sha: c216fa3b10ec26aff03213d82fd2ac03526846a0\n",
+  "review_run_id": "r-20261008T161432420795-review-of-jtmm-artifact-drive-map",
+  "reviewed_base_sha": "bde6fdaa5786af4e876cfb6206be771d9d321ab8",
+  "reviewed_head_sha": "c216fa3b10ec26aff03213d82fd2ac03526846a0",
+  "reviewed_run_id": "r-20261008T153846147981-jtmm-artifact-drive-map",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 17,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T16:24:04.517435+00:00",
+  "total": 110
+}
