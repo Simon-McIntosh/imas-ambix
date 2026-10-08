@@ -1,0 +1,60 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed run is a read-only evidence node whose manifest records tests 'none (read-only evidence node; no test path in scope)' and baseline_suite=null, after_suite=null, so no base gate log and no head gate log exist and the added-failure count was not taken",
+  "base_log_revision": null,
+  "call_site_count": 2,
+  "call_sites": [
+    "imas_ambix/worldmodel/equilibrium_labels.py:451",
+    "packages/imas-alambic/src/imas_alambic/transform_engine.py:466"
+  ],
+  "completed_at": "2026-10-08T22:08:55.442Z",
+  "dispatched_at": "2026-10-08T22:00:52Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/jt60sa-machine-map/jtmm-reference-scope.html",
+      "line": "79",
+      "severity": "follow-on",
+      "text": "follow-on: the figure caption and alt text name a 'SELENE reconstruction boundary' overlaid on the left panel, while the limits paragraph at line 194 says PSRC's surfp boundary is absent from the cache and 'the figure shows the G-EQDSK boundary instead'; the two reconcile only if the G-EQDSK (written by SELENE's efitout.f) is meant, but a reader of the caption cannot tell which boundary is drawn."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 2 production call site(s)",
+    "diff": "read the single commit b44f2258 against base 19f1f189; it adds the fragment and the figure and changes no source file, matching the read-only charter.",
+    "done_when": "read-only evidence node: manifest tests 'none (read-only evidence node; no test path in scope)' and baseline_suite/after_suite both empty, so no gate log exists and the measure is that both section 7 design points are answered and each claim reproduces.",
+    "goal": "the node settles section 7's two open design points: the reference loader's axis source (pass PSRC calRp0/calZp0, never the geometric centre calCCSRc/calCCSZc) and the profiles_2d psi binding route (stage into a zarr/netcdf store, bind with a psi_like rule carrying source_cocos=1 whose factor -2 pi performs COCOS 1->17).",
+    "manifest": "read; status complete, commit b44f2258, tests 'none', baseline_suite and after_suite empty, so the added-failure count is unmeasured.",
+    "write_paths": "the diff 19f1f189..b44f2258 touches only the fragment and the svg, both inside the declared write paths."
+  },
+  "justifications": {
+    "durability": "committed HTML cites file:line and data paths and carries a committed figure, but no test reddens if the recommendation is later broken; the claim rests on re-running the cited checks.",
+    "evidence": "all load-bearing claims reproduced: PSRC cache shapes, the 4.0 s values and separation 0.113514 m, the quantisation counts, the G-EQDSK axis/range/grid, the engine refusal and the -2 pi factor; the absence claim carries a positive control (E101154 returns the arrays).",
+    "fit": "fragment convention and data-ink figure followed, no plan-labelled name; docked for the caption/limits boundary disagreement.",
+    "goal_fidelity": "both design points answered and grounded in build_geometry_from_arrays (no geometric-vs-magnetic flag; axis used as LCFS origin) and SignalRule.static_scale = unit_factor*channel_factor*convention_factor.",
+    "reuse": "reuses load_geqdsk, the transform engine and SignalRule rather than adding a second reader; the IDS_NAMES reach is recorded as a follow-on.",
+    "scope_discipline": "every path in the diff 19f1f189..b44f2258 is inside the declared write paths and no source file is touched."
+  },
+  "prior_review": null,
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is to settle section 7's two open design points; the fragment settles both, read-only and reproducibly. Axis: the reference loader must pass PSRC's magnetic-axis arrays calRp0/calZp0 to build_geometry_from_arrays, never the geometric centre calCCSRc/calCCSZc (0.113514 m away at 4.0 s and quantised to a 0.2 m grid), because build_geometry_from_arrays takes axis_r/axis_z with no geometric-versus-magnetic flag and uses them as the LCFS-radius origin at equilibrium_labels.py:508. psi binding: a signal map cannot bind a file-backed G-EQDSK, so psi must be staged into a zarr/netcdf store and bound with a psi_like rule carrying source_cocos=1, whose convention factor canonical_factor(\"psi_like\", source_cocos=1) = transform_factor(\"psi_like\", 1, 17) = -2 pi performs the COCOS 1->17 step. Both answers are grounded in the code and the cached data and reproduce in review, so the goal is met.\nVERDICT done_when: this is a read-only evidence node; the manifest records tests \"none (read-only evidence node; no test path in scope)\" and baseline_suite and after_suite both empty, so there is no gate log and no added-failure count to take. The single measure that applies is that both section 7 design points are answered and each load-bearing claim is independently reproducible: the PSRC cache shape (101011 holds only Ip/Ip_time; 101154 holds the axis and centre arrays), the values at 4.0 s (calRp0/calZp0 = (3.106028, 0.263676), calCCSRc/calCCSZc = (3.200000, 0.200000), separation 0.113514 m), the quantisation (calCCSRc 5 distinct values, calCCSZc 7, calRp0 5348 and calZp0 5539 unique), the G-EQDSK axis (3.274936, 0.216996, COCOS 1, 129x129, 301 boundary points, psi range -0.438183506..+0.959444888), the engine's refusal of a non-store format, and the -2 pi convention factor.\nVERDICT write_paths: the reviewed commit b44f2258 adds exactly two files, docs/evidence/fragments/jt60sa-machine-map/jtmm-reference-scope.html and docs/figures/jt60sa-machine-map/jtmm-reference-scope/psrc-centre-vs-axis.svg, both inside the node's declared write paths (the fragment and the figures directory); no source file and no path outside them is touched.\nVERDICT manifest: read; it states status complete, the single commit b44f2258, changed_paths the fragment and the svg, tests \"none (read-only evidence node; no test path in scope)\", and baseline_suite and after_suite both empty, so the added-failure count is unmeasurable and is recorded null.\nVERDICT diff: read the single commit b44f2258 against base 19f1f189; it adds the fragment and one figure and changes no source file, matching the node's read-only charter.\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: the fragment answers both of section 7's open design points and names the exact arrays and route a binding node needs; the axis choice is grounded in build_geometry_from_arrays (equilibrium_labels.py:465 taking axis_r/axis_z, used as the LCFS origin at :508, with no geometric-versus-magnetic flag) and the psi route in SignalRule.static_scale (signal_map.py:117-121 = unit_factor * channel_factor * convention_factor). Docked one because the figure caption names a boundary the limits section says is not overlaid.\nSCORE evidence: 19\nJUSTIFICATION evidence: every load-bearing claim reproduced in review against the same sources, with a positive control on the absence claim (the same read path returns the arrays on E101154 while 101011 carries only Ip/Ip_time); the engine's refusal line and the -2 pi factor are quoted and recomputed (canonical_factor(\"psi_like\", source_cocos=1) = -6.283185307179586). Docked one because, as a read-only node, it adds no executable guard, and its one internal caption inconsistency is disclosed only in the limits paragraph.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff 19f1f189..b44f2258 is exactly the two declared paths, both additions under the fragment and figures directories, and no source or out-of-fence file is modified.\nSCORE durability: 18\nJUSTIFICATION durability: the evidence is durable as committed HTML citing file:line and data paths with reproducible values and a committed figure, but as a read-only node it adds no test that would redden if a later map or engine change broke the recommendation, so the claim rests on a reader re-running the cited checks.\nSCORE fit: 18\nJUSTIFICATION fit: the fragment follows the repo's fragment convention (section data-reckon=\"fragment\", a project-absolute img src, a figure under docs/figures drawn in the data-ink style) and introduces no plan-labelled name; docked two because the left-panel caption and the limits paragraph disagree on which boundary is drawn.\nSCORE reuse: 19\nJUSTIFICATION reuse: the route reuses load_geqdsk, the registered transform engine and the existing SignalRule rather than adding a second reader of either source, and the fragment states that reuse explicitly; the one reach it names (extending pulse_writer.IDS_NAMES to include equilibrium) is recorded as a follow-on rather than done here.\nFINDING docs/evidence/fragments/jt60sa-machine-map/jtmm-reference-scope.html:79 follow-on: the figure caption and alt text name a \"SELENE reconstruction boundary\" overlaid on the left panel, while the limits paragraph at line 194 says PSRC's surfp boundary is not in the cache and \"the figure shows the G-EQDSK boundary instead\"; the two reconcile only if the G-EQDSK (written by SELENE's efitout.f) is meant, but a reader of the caption cannot tell which boundary is drawn.\nreviewed_base_sha: 19f1f189d5ab460d4df0d6a52f71c2658ab793ca\nreviewed_head_sha: b44f22587c28aebeb27a98f9c1d8e4ce36691624\n",
+  "review_run_id": "r-20261008T220043384279-review-of-jtmm-reference-scope",
+  "reviewed_base_sha": "19f1f189d5ab460d4df0d6a52f71c2658ab793ca",
+  "reviewed_head_sha": "b44f22587c28aebeb27a98f9c1d8e4ce36691624",
+  "reviewed_run_id": "r-20261008T170338890441-jtmm-reference-scope",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T22:07:05.917607+00:00",
+  "total": 113
+}
