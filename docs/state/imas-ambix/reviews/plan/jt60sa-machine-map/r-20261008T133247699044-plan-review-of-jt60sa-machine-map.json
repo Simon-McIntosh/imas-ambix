@@ -1,0 +1,63 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-08T13:40:12.148Z",
+  "dispatched_at": "2026-10-08T13:33:20Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:426",
+      "id": "reasoning-1",
+      "reason": "",
+      "text": "\u2014 the changed clause has the producer read \"the OP1 and OP2 description stores ... steps \u2014 and stages only their five IDS containers\", but OP1 and OP2 each hold the same five names (`magnetics.nc`, `pf_active.nc`, `pf_passive.nc`, `tf.nc`, `wall.nc`) and are legitimately different configurations (OP1/OP2 `pf_passive.nc` and `wall.nc` digest to different content; decision `operating-phase-of-existing-pulses` binds the two phases to different vessel descriptions). `nova.database.content_store.inventory_files` walks a single directory with `rglob(\"*\")`, keys members by relative POSIX name, and raises `duplicate artifact file` on a repeated name; `create_machine_artifact_manifest` calls it against one `source_directory`. The plan does not say how the two phases' identically-named containers coexist in the staged directory (flat staging raises; phase subdirectories would change the member names the selector and the registry read). The clause's own subject is that staging directory's contents \u2014 it adds the receipt.json exclusion for exactly this reason \u2014 so the phase layout is the load-bearing detail it omits.",
+      "type": "reasoning",
+      "would_change": null
+    }
+  ],
+  "plan_fingerprint": "3d1dc3eed0f4769f969c7414a0c0a39592d2a5405e8dcf784c9f4041fe4926e2",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 382,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v383/v384 (commit 71ab78e5): the producer authors one artifact per operating phase, each phase's five IDSs rewritten into its own IMAS HDF5 staging entry (the form the geometry reader opens via imas:hdf5), with a shared registry digest over both phases and per-phase physical digests and shot ranges; the selection node's pin table carries one JT-60SA row per phase and the selector resolves the artifact the shot's identity names.",
+      "when": "2026-10-08T13:46:19.008560+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v383/v384 (commit 71ab78e5): the producer authors one artifact per operating phase, each phase's five IDSs rewritten into its own IMAS HDF5 staging entry (the form the geometry reader opens via imas:hdf5), with a shared registry digest over both phases and per-phase physical digests and shot ranges; the selection node's pin table carries one JT-60SA row per phase and the selector resolves the artifact the shot's identity names.",
+      "when": "2026-10-08T13:46:19.008560+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v382.json",
+  "review_run_id": "r-20261008T133247699044-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "b9c945b48e97061906f23140b193529e00121677",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 the changed paragraph's anchors resolve: `maps/jt-60sa/machine_description` exists (OP1/ and OP2/ each hold five `.nc` IDS containers plus `receipt.json`), `nova/imas/machine_artifact.py` resolves and defines `create_machine_artifact_manifest`, `materialize_machine_artifact` and `resolve_machine_artifact` at 696/741/768, and the \"as above\" cross-reference (plan.html:453) now points at the producer description above it (plan.html:423-434). DIII-D's `publish_diiid_machine_artifact` resolves at `nova/nova/scripts/diiid_machine_artifact.py:336`.",
+    "done_when": "pass \u2014 \u00a77's done-when (plan.html:490-501) is a stamped spine-benchmark record with two falsifiable checks: every shot's boundary RMS against SELENE's PSRC boundary under 0.10 m, and a declared must-fail control (loop 7's `channel_factor` flipped to +1 must stamp a larger whitened magnetics residual on every shot). The control is a mutation of the same run, not an assertion that holds however the code behaves.",
+    "evidence_paths": "pass \u2014 the s7 gate evidence is a durable in-repo fragment (`docs/evidence/fragments/jt60sa-machine-map/jtmm-sign-cohort.html`), and \u00a77's stamp is required to run on a SLURM compute node with the machine/env block recorded, not in a scratchpad.",
+    "naming": "pass \u2014 the changed clause carries no plan label, ticket number or version tag into a proposed symbol; the `jtmm-*` strings are dispatch node ids used consistently as node references throughout the plan, and the clause names no new code symbol.",
+    "reasoning": "a finding \u2014 the changed clause states the producer \"stages only their five IDS containers\" from both the OP1 and OP2 stores, but nova's generic layer takes one directory and refuses duplicate member names, and the two stores carry the same five names.",
+    "single_goal": "pass \u2014 each named node in the section carries one deliverable (the eqdsk reader, the pyproject dependency, the machine-keyed selection route, the artifact producer, the frozen JT-60SA shot set, the reconstruction stamp), and the changed clause adds no second goal to the producer.",
+    "wiring": "pass \u2014 the s7 gate `conventions-before-equilibrium` carries data-section=\"s7\" and data-gated-sections=\"s7\" and is the one gate the changed clause serves; the decisions the section cites (`jt60sa-psi-q-source`, `operating-phase-of-existing-pulses aside`, `cryostat-in-both-phases`) each declare s7 among their data-sections, and no relationship points at a node that is absent."
+  },
+  "section_digests": {
+    "_document": "1a041e1b69e7c648e3848440450d2aa25ac955ec54bdbca27a0558b3e2fb8c3a",
+    "s1": "52731ac311aa8ac6ed57dc5f58a5868e5f9e2e34b4e132f297830fa912abbc0f",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "42e705a6f235eaae634ee4de93cd09000da6307df29828174c8cf25b83a45fe6",
+    "s8": "5ff492c00d1886f7cb7059525fc03050df1c4901b1c7f507f82746d197703bce"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T13:46:13.081475+00:00"
+}
