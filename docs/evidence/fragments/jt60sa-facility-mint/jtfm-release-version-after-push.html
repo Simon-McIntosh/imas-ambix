@@ -17,16 +17,26 @@
     changes before the push. <code>_write_bundle_version</code> writes to a
     sibling temporary file in the same directory and moves it over the original
     with <code>os.replace</code>, so neither a concurrent reader nor an
-    interrupted write sees a partial descriptor.
+    interrupted write sees a partial descriptor. The replacement takes the
+    descriptor's own permission bits before it is moved into place, so the
+    <code>0600</code> mode <code>mkstemp</code> gives it does not become the
+    published descriptor's mode. <code>released_paths</code> leaves out a stray
+    <code>bundle.json.*.tmp</code>, so a process killed between the
+    <code>mkstemp</code> and the <code>os.replace</code> cannot put that file
+    into the tree digest or the staged tree.
   </p>
   <p>
     Measure: <code>tests/test_maps_cli.py</code> runs whole at base
-    <code>033d84d6</code> (27 passed) and head <code>640ea2fc</code> (29 passed),
+    <code>033d84d6</code> (27 passed) and head <code>10173220</code> (31 passed),
     each to a log ending in the pytest summary and an <code>EXIT=</code> line;
-    the two added tests are a stubbed-<code>push_tree</code> test that reads the
-    local descriptor mid-push and asserts it still names the deployed version,
-    and a test whose <code>os.replace</code> raises and that asserts the original
-    bytes are intact. The existing failed-push test still passes.
+    the four added tests are a stubbed-<code>push_tree</code> test that reads the
+    local descriptor mid-push and asserts it still names the deployed version, a
+    test whose <code>os.replace</code> raises and that asserts the original
+    bytes are intact, a test that places a stray
+    <code>bundle.json.&lt;x&gt;.tmp</code> in the machine directory and asserts
+    the digest and the staged tree are unchanged by it, and a test that pins a
+    <code>0644</code> descriptor at <code>0644</code> after a release. The
+    existing failed-push test still passes.
   </p>
   <p>
     Negative control: moving the local write back before the push makes the
