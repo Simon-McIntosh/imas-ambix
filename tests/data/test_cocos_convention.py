@@ -787,6 +787,58 @@ def test_jt60sa_differential_loop_targets_are_the_type6_entries():
     assert _differential_flux_loop_targets("jt-60sa") == frozenset(range(27, 53))
 
 
+def _catalogue_with_maps(monkeypatch, machine_maps):
+    """Stub the packaged catalogue to carry the given machine maps."""
+
+    from imas_alambic.machine_map import load_packaged_machine_map
+
+    catalog = load_packaged_machine_map("jt-60sa")
+    monkeypatch.setattr(
+        "imas_ambix.data.cocos_convention.load_packaged_machine_map",
+        lambda machine: replace(catalog, maps=tuple(machine_maps)),
+    )
+    return catalog
+
+
+def test_differential_targets_resolve_when_the_first_map_is_not_magnetics(monkeypatch):
+    """The store is found by the declared magnetics system, not the first map.
+
+    The first declared map is renamed so its directory carries no magnetics
+    store; a resolver keyed on ``catalog.maps[0]`` would then find no such file
+    and admit every proven rule, but the magnetics IDS the catalogue declares is
+    still carried by the maps that remain, so the differential entries resolve.
+    """
+
+    from imas_alambic.machine_map import load_packaged_machine_map
+
+    catalog = load_packaged_machine_map("jt-60sa")
+    shadowed = replace(catalog.maps[0], name="no-magnetics-here")
+    _catalogue_with_maps(monkeypatch, (shadowed, *catalog.maps[1:]))
+
+    assert _differential_flux_loop_targets("jt-60sa") == frozenset(range(27, 53))
+
+
+def test_differential_targets_refuse_a_declared_store_with_no_magnetics_file(
+    monkeypatch,
+):
+    """A declared description store whose magnetics file is absent is refused.
+
+    A catalogue that declares a description store but whose declared maps carry
+    no ``magnetics.nc`` cannot resolve its differential entries; resolving that
+    to the empty set would admit every proven flux-loop rule as an absolute
+    loop, so the store is refused instead.
+    """
+
+    from imas_alambic.machine_map import load_packaged_machine_map
+
+    catalog = load_packaged_machine_map("jt-60sa")
+    absent = tuple(replace(item, name=f"absent-{item.name}") for item in catalog.maps)
+    _catalogue_with_maps(monkeypatch, absent)
+
+    with pytest.raises(ValueError, match="magnetics.nc"):
+        _differential_flux_loop_targets("jt-60sa")
+
+
 def test_signal_map_reader_drops_a_proven_differential_loop(tmp_path, monkeypatch):
     """A ``corpus-validated`` differential rule is still not an absolute flux.
 

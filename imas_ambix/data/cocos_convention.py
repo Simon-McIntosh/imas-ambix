@@ -33,6 +33,7 @@ from imas_alambic.virtual_zarr import VirtualZarrView
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping, Sequence
 
+    from imas_alambic.machine_map import MachineMapCatalog
     from imas_ambix.challenge.loader import EfitLabels
 
 MAST_LEVEL2_ROOT = Path("/work/projects/imas_gpu/mast/level2/shots")
@@ -829,6 +830,40 @@ def _one_rule(
     return selected[0]
 
 
+def _magnetics_description_store(
+    catalog: MachineMapCatalog, machine: str
+) -> Path | None:
+    """Locate the flux-loop description store the catalogue declares.
+
+    A ``static-over-map`` description store lays each IDS out under a directory
+    named by a declared map, so the magnetics store is
+    ``{store root}/{map name}/magnetics.nc``.  The map is found by the magnetics
+    IDS the catalogue declares -- every declared map is tried and the one that
+    carries ``magnetics.nc`` is taken -- rather than by the first declared map,
+    whose order is otherwise arbitrary.  The magnetics entry order is read from
+    the file, so the caller never assumes it.
+
+    A machine that declares no description store has no differential loops, and
+    yields ``None``.  A declared store whose magnetics file no declared map
+    carries is a defect, not an empty result: it is refused, because resolving
+    it to the empty set would admit every proven flux-loop rule as an absolute
+    loop.
+    """
+
+    if catalog.description_store_root is None:
+        return None
+    root = catalog.description_store_root_path()
+    for machine_map in catalog.maps:
+        store = root / machine_map.name / "magnetics.nc"
+        if store.is_file():
+            return store
+    raise ValueError(
+        f"machine {machine!r} declares a description store at {root!s} but no "
+        "declared map carries magnetics.nc, so the differential flux-loop "
+        "entries cannot be resolved"
+    )
+
+
 def _differential_flux_loop_targets(machine: str) -> frozenset[int]:
     """Return the flux-loop target indices whose store entry is a differential pair.
 
@@ -837,19 +872,17 @@ def _differential_flux_loop_targets(machine: str) -> frozenset[int]:
     rule targeting that entry is not an absolute flux.  The pairs are read from
     the machine's description store, whose entry order is therefore never
     assumed.  The pair assignment is structural, so any declared phase answers
-    it; a machine that declares no description store yields no differential
-    targets.
+    it.  The store is located through the catalogue's declared magnetics system
+    (see :func:`_magnetics_description_store`) rather than by the first declared
+    map: a machine that declares no description store yields no differential
+    targets, while a declared store whose magnetics file cannot be resolved is
+    refused instead of resolving to the empty set that would admit every proven
+    loop as an absolute one.
     """
 
     catalog = load_packaged_machine_map(machine)
-    if catalog.description_store_root is None or not catalog.maps:
-        return frozenset()
-    store = (
-        catalog.description_store_root_path()
-        / catalog.maps[0].name
-        / "magnetics.nc"
-    )
-    if not store.is_file():
+    store = _magnetics_description_store(catalog, machine)
+    if store is None:
         return frozenset()
 
     import imas

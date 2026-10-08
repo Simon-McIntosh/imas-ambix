@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+  <title>The absolute flux-loop selector fails closed</title>
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-differential-loop-rules-repair-landing">
+      <h2 id="jtmm-differential-loop-rules-repair-heading">The absolute flux-loop selector now fails closed</h2>
+      <p id="jtmm-differential-loop-rules-repair-summary">On the retargeted JT-60SA map the 26 non-reference loop rules resolve to their type-6
+      <code>[7, L]</code> entries, so the only absolute loop is the reference, loop 7. The selector that enforces
+      that kept a proven rule only when its <code>target_index</code> was absent from the differential set, but it
+      found the description store through <code>catalog.maps[0].name</code> and returned an empty differential set
+      whenever that inference failed — which would admit every proven loop as absolute. This node makes the store
+      resolution independent of map order and makes an unresolvable declared store raise rather than resolve to the
+      permissive set. This fragment answers the four review findings on the rejected commit
+      <code>11ee0362</code>.</p>
+
+      <h4 id="jtmm-differential-loop-rules-repair-finding-split">(1) The 12&ndash;27 corpus-validated split &mdash; declined</h4>
+      <p id="jtmm-differential-loop-rules-repair-split-decline">The split is the lead's locked median rule
+      (decision <code>vacuum-verdict-rule</code>: <em>identity</em> or <em>negate</em> when the median slope over the
+      shots is within 0.1 of &plusmn;1, the median <code>|r|</code> exceeds 0.95 and every shot has the same sign),
+      not a per-shot criterion. The loop-reference RCA states its result directly: under reference 7 the median rule
+      makes loops 12&ndash;27 <em>negate</em>. So the reviewer's premise &mdash; that a loop passing on one shot should
+      be <code>source-only</code> like loops 1&ndash;6 and 8&ndash;11 &mdash; applies a different test than the one the
+      lead fixed, and the split stands. The rule does, however, require that each per-shot outlier be recorded beside
+      its verdict, so this node checked that instead of restating the split.</p>
+      <p id="jtmm-differential-loop-rules-repair-outlier-check">Checking each loop rule's evidence string against the
+      loop-reference RCA's own pass sets (<code>E100579</code>: loops 12, 13, 14 and 18&ndash;27 pass, 15, 16 and 17
+      fail; <code>E100595</code>: only 17&ndash;26 pass, 12&ndash;16 and 27 fail; <code>E100642</code>: all 26 pass):
+      loop 7's evidence names its three vacua and the median slope and <code>|r|</code>; loops 1&ndash;6 and 8&ndash;11
+      name <code>E100642</code> alone and so state the two earlier shots as their per-shot outliers; but the
+      <code>corpus-validated</code> loops 12&ndash;27 each assert tracking on <code>E100579/E100595/E100642</code> as a
+      single three-shot result, without recording the per-shot failures the decision requires. The affected rules are
+      loops 12, 13, 14 and 27 (each fails <code>E100595</code>) and loops 15, 16 and 17 (15 and 16 fail both earlier
+      shots; 17 fails <code>E100579</code>). <strong>Follow-on for a later maps edit</strong>, recorded in the
+      manifest: rewrite those seven evidence strings to name their per-shot outliers beside the verdict. Nothing was
+      written under <code>maps/</code>.</p>
+
+      <h4 id="jtmm-differential-loop-rules-repair-finding-selector">(2) The fail-closed selector &mdash; repaired</h4>
+      <p id="jtmm-differential-loop-rules-repair-selector-change"><code>_differential_flux_loop_targets</code> now
+      resolves the description store through a new helper, <code>_magnetics_description_store</code>, which finds the
+      magnetics IDS the catalogue declares &mdash; every declared map's directory is tried and the one carrying
+      <code>magnetics.nc</code> answers &mdash; rather than assuming <code>catalog.maps[0]</code>. A machine that
+      declares no description store yields no differential targets; a catalogue that declares a store but whose
+      declared maps carry no <code>magnetics.nc</code> is refused with <code>ValueError</code>, so a store that cannot
+      be read can no longer resolve to the empty set that admits every proven rule.</p>
+      <p id="jtmm-differential-loop-rules-repair-selector-tests">Two tests pin it in
+      <code>tests/data/test_cocos_convention.py</code>: <code>test_differential_targets_resolve_when_the_first_map_is_not_magnetics</code>
+      renames the first declared map so its directory carries no store and asserts the differential set still resolves
+      to indices 27&ndash;52; <code>test_differential_targets_refuse_a_declared_store_with_no_magnetics_file</code>
+      renames every map and asserts <code>ValueError</code>. The second is the node's declared negative control: with
+      the empty-set return restored, it fails (<code>EXIT=1</code>,
+      <code>FAILED test_differential_targets_refuse_a_declared_store_with_no_magnetics_file</code>).</p>
+
+      <h4 id="jtmm-differential-loop-rules-repair-finding-gate">(3) A complete gate</h4>
+      <p id="jtmm-differential-loop-rules-repair-gate">The rejected run's gate log was truncated at a failing test and
+      sat at the parent revision. This node ran the whole gate to its summary at head
+      <code>0c62c8cf</code> with <code>IMAS_ALAMBIC_MAP_PATH</code> unset and the worktree's <code>maps</code> a symlink
+      to the main checkout: <code>uv run --no-sync pytest -p no:cacheprovider
+      tests/data/test_jt60sa_signal_maps.py tests/data/test_jt60sa_unit_audit.py
+      tests/data/test_jt60sa_machine_map.py tests/gs/test_operator_differential_loops.py
+      tests/data/test_cocos_convention.py</code> &mdash; <strong>90 passed in 197.71s</strong>,
+      <code>EXIT=0</code>. Whole-tree <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.
+      <code>scripts/jt60sa_sign_cohort.py</code> exits 0 over every surveyed shot with one flux channel and reports
+      surviving COCOS candidates <code>(1, 2, 11, 12)</code> &mdash; loop 7 alone, as the reference.</p>
+
+      <h4 id="jtmm-differential-loop-rules-repair-finding-inventory">(4) The unit-table inventory failure &mdash; already fixed on main</h4>
+      <p id="jtmm-differential-loop-rules-repair-inventory">The reviewer flagged
+      <code>test_audit_reports_the_declared_unit_pair_inventory</code> failing at both revisions on this lineage. It is
+      green in this base: <code>tests/data/test_jt60sa_unit_audit.py</code> passes all eight tests inside the gate above,
+      so the inventory repair is already carried and needs no change here.</p>
+    </section>
+  </main>
+</body>
+</html>
