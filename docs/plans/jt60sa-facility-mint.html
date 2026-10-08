@@ -26,7 +26,7 @@
   <title>JT-60SA Facility Mint: Public Engine, Private Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="151">
+<meta name="plan-version" content="152">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -592,6 +592,9 @@
 </div>
 <div class="r-comment" data-section="s18" data-id="c-run-r-20261008T054016944717-review-of-jtfm-map-release-cli" data-who="reckon-build" data-when="2026-10-08T06:06:39.309Z">
     <div class="r-comment-body"><p>Independent review of run r-20261008T045132368562-jtfm-map-release-cli (plan imas-ambix:jt60sa-facility-mint §18), stored parsed at the fenced path: six dimensions scored 0..20 (goal_fidelity 19, evidence 17, scope_discipline 19, durability 18, fit 19, reuse 20; total 112), revision pair reviewed_base_sha=e4e6068d4fabf6f0d426c51f210a8e2acc15217c / reviewed_head_sha=2affc702b73b3dbb03c92f1e0dc20a7ed424ebd4, added_failure_count 0 with no added ids derived from the base arm at e4e6068d (2 passed) and the after arm at 2affc702 (28 passed), and no blocking finding (three follow-ons on test coupling and a pre-push local write).</p></div>
+</div>
+<div class="r-comment" data-section="s18" data-id="c-run-r-20261008T060614831586-jtfm-release-failed-push" data-who="reckon-build" data-when="2026-10-08T06:27:01.063Z">
+    <div class="r-comment-body"><p>fixed release so a push that raises restores the local bundle.json bytes instead of leaving it naming a version no tag resolves, and made the release tests assert what they name (stubbed failed push leaves the version unchanged, the tree-digest annotation is compared to a digest fixed for the fixture tree, the no-git-tag test records subprocess calls and fails on any git tag); suite whole 26 passed at base and 27 passed at head, negative control 1 failed/26 passed with the restore removed.</p></div>
 </div>
 </section>
 </main>
