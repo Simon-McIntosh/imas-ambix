@@ -1,0 +1,63 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "derived from the reviewed run's own gate logs: baseline-gate.log (a72522ec) and gate.log (16a7fa4f) report the same failing id, so the run added no failing test",
+  "base_log_revision": null,
+  "call_site_count": 6,
+  "call_sites": [
+    "imas_ambix/gs/machine_selection.py:154",
+    "imas_ambix/gs/machine_selection.py:143",
+    "imas_ambix/gs/artifact_geometry.py:842",
+    "imas_ambix/gs/machine_geometry.py:274",
+    "imas_ambix/spine_bench/machine_artifact_arm.py:144",
+    "imas_ambix/spine_bench/machine_artifact_arm.py:252"
+  ],
+  "completed_at": "2026-10-08T23:35:43.439Z",
+  "dispatched_at": "2026-10-08T23:20:59Z",
+  "findings": [
+    {
+      "file": "tests/gs/test_artifact_resolution.py",
+      "line": "120",
+      "severity": "follow-on",
+      "text": "follow-on: the eight-module gate exits 1 rather than the 0 the done-when names, because test_re_authoring_reproduces_the_identity_the_package_pins fails; it fails identically at base a72522ec so the added-failure count is zero, but the measure's stated exit status is unmet and the pin and the installed Nova MAST producer have diverged (pin sha256:8df7a0a6c3f6162dbe0f226660bc069f37de8eb69f0f7c80bbfedc2bd4be220c, producer sha256:f20d64dbde63756150fecd5a41d34a0d7a055900877370aae40a594ca7d039d5)."
+    }
+  ],
+  "head_log_revision": "16a7fa4f24f224d505938bff5f4e6318303fea4d",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 6 production call site(s)",
+    "diff": "read commit by commit against base a72522ec; 16a7fa4f changes 14 source and test files on the resolution, identity and selection route, and 06099f0a adds the single evidence fragment docs/evidence/fragments/jt60sa-machine-map/jtmm-machine-keyed-selection.html, all inside the declared scope.",
+    "done_when": "the done-when names the eight-module pytest gate exiting 0 plus ruff exiting 0, with the base revision's failures recorded so added failures can be judged by delta; ruff.log records \"All checks passed!\" with EXIT=0, and gate.log records the gate at revision 16a7fa4f as \"1 failed, 191 passed\" with EXIT=1, the same failure id failing at base a72522ec (\"1 failed, 184 passed\"), so the manifest's added-failure count of zero is supported even though the literal \"exits 0\" is unmet.",
+    "goal": "the node's goal is to key the spine's machine-description selection route by machine with JT-60SA pinned per operating phase; the diff replaces the three PINNED_* constants with PINNED_DESCRIPTIONS (imas_ambix/gs/artifact_resolution.py:123) whose mast entry holds one row and whose jt-60sa entry holds OP1 and OP2 rows, and threads a required machine through resolve_machine_description, default_registry (imas_ambix/gs/machine_identity.py:144), identity_for_shot (imas_ambix/gs/machine_identity.py:227), ArtifactMachineSelector.select (imas_ambix/gs/machine_selection.py:153) and MachineArtifactGeometryReader (imas_ambix/gs/artifact_geometry.py:796), exactly as section 7's selection paragraphs specify.",
+    "manifest": "read; it states status complete, the two commits 16a7fa4f and 06099f0a, changed_paths matching the diff, tests \"1 failed, 191 passed (pre-existing failure ...; added-failure count 0)\", test_logs gate.log and ruff.log, and negative_control_log negative-control.log.",
+    "write_paths": "read the manifest's declared paths; every path in the diff a72522ec..06099f0a (15 files) is inside them, and the declared docs/figures/jt60sa-machine-map/jtmm-machine-keyed-selection directory is deliberately untouched because the done-when names no figure."
+  },
+  "justifications": {
+    "durability": "tests/gs/test_machine_selection.py:34 reddens when the pin resolves the wrong row (negative-control.log: assert 'f4ba9a35aab22485' == '08807c77e7b35487') and tests/gs/test_machine_selection.py:71 checks the pinned rows against freshly authored manifests.",
+    "evidence": "gate.log's first line records the revision 16a7fa4f, the tree and the command and its last line is EXIT=1, and the manifest records the added-failure count zero by delta against base a72522ec, but the done-when's stated exit status of 0 is unmet.",
+    "fit": "the PinRow frozen dataclass in imas_ambix/gs/artifact_resolution.py:84 follows the module's existing dataclass idiom beside ResolvedArtifact and introduces no version, plan or ticket identifier.",
+    "goal_fidelity": "imas_ambix/gs/artifact_resolution.py:123 PINNED_DESCRIPTIONS holds the per-machine rows (jt-60sa OP1 and OP2) and imas_ambix/gs/machine_selection.py:153 selects by the shot's own physical digest, which is the whole of section 7's selection-paragraph specification.",
+    "reuse": "author_jt60sa_machine_artifact (imas_ambix/gs/artifact_resolution.py:112) wraps description_artifact.author_jt60sa_machine_artifacts rather than adding a second producer, and imas_ambix/spine_bench/machine_artifact_arm.py:75 stops re-exporting the retired PINNED_* names.",
+    "scope_discipline": "the 15 paths in git diff --name-only a72522ec..06099f0a are all inside the manifest's declared write paths, and no path outside them is touched."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is to key the spine's machine-description selection route by machine with JT-60SA pinned per operating phase; the diff replaces the three PINNED_* constants with PINNED_DESCRIPTIONS (imas_ambix/gs/artifact_resolution.py:123) whose mast entry holds one row and whose jt-60sa entry holds OP1 and OP2 rows, and threads a required machine through resolve_machine_description, default_registry (imas_ambix/gs/machine_identity.py:144), identity_for_shot (imas_ambix/gs/machine_identity.py:227), ArtifactMachineSelector.select (imas_ambix/gs/machine_selection.py:153) and MachineArtifactGeometryReader (imas_ambix/gs/artifact_geometry.py:796), exactly as section 7's selection paragraphs specify.\nVERDICT done_when: the done-when names the eight-module pytest gate exiting 0 plus ruff exiting 0, with the base revision's failures recorded so added failures can be judged by delta; ruff.log records \"All checks passed!\" with EXIT=0, and gate.log records the gate at revision 16a7fa4f as \"1 failed, 191 passed\" with EXIT=1, the same failure id failing at base a72522ec (\"1 failed, 184 passed\"), so the manifest's added-failure count of zero is supported even though the literal \"exits 0\" is unmet.\nVERDICT write_paths: read the manifest's declared paths; every path in the diff a72522ec..06099f0a (15 files) is inside them, and the declared docs/figures/jt60sa-machine-map/jtmm-machine-keyed-selection directory is deliberately untouched because the done-when names no figure.\nVERDICT manifest: read; it states status complete, the two commits 16a7fa4f and 06099f0a, changed_paths matching the diff, tests \"1 failed, 191 passed (pre-existing failure ...; added-failure count 0)\", test_logs gate.log and ruff.log, and negative_control_log negative-control.log.\nVERDICT diff: read commit by commit against base a72522ec; 16a7fa4f changes 14 source and test files on the resolution, identity and selection route, and 06099f0a adds the single evidence fragment docs/evidence/fragments/jt60sa-machine-map/jtmm-machine-keyed-selection.html, all inside the declared scope.\nCALL_SITES: imas_ambix/gs/machine_selection.py:154, imas_ambix/gs/machine_selection.py:143, imas_ambix/gs/artifact_geometry.py:842, imas_ambix/gs/machine_geometry.py:274, imas_ambix/spine_bench/machine_artifact_arm.py:144, imas_ambix/spine_bench/machine_artifact_arm.py:252\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: imas_ambix/gs/artifact_resolution.py:123 PINNED_DESCRIPTIONS holds the per-machine rows (jt-60sa OP1 and OP2) and imas_ambix/gs/machine_selection.py:153 selects by the shot's own physical digest, which is the whole of section 7's selection-paragraph specification.\nSCORE evidence: 17\nJUSTIFICATION evidence: gate.log's first line records the revision 16a7fa4f, the tree and the command and its last line is EXIT=1, and the manifest records the added-failure count zero by delta against base a72522ec, but the done-when's stated exit status of 0 is unmet.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the 15 paths in git diff --name-only a72522ec..06099f0a are all inside the manifest's declared write paths, and no path outside them is touched.\nSCORE durability: 19\nJUSTIFICATION durability: tests/gs/test_machine_selection.py:34 reddens when the pin resolves the wrong row (negative-control.log: assert 'f4ba9a35aab22485' == '08807c77e7b35487') and tests/gs/test_machine_selection.py:71 checks the pinned rows against freshly authored manifests.\nSCORE fit: 19\nJUSTIFICATION fit: the PinRow frozen dataclass in imas_ambix/gs/artifact_resolution.py:84 follows the module's existing dataclass idiom beside ResolvedArtifact and introduces no version, plan or ticket identifier.\nSCORE reuse: 20\nJUSTIFICATION reuse: author_jt60sa_machine_artifact (imas_ambix/gs/artifact_resolution.py:112) wraps description_artifact.author_jt60sa_machine_artifacts rather than adding a second producer, and imas_ambix/spine_bench/machine_artifact_arm.py:75 stops re-exporting the retired PINNED_* names.\nFINDING tests/gs/test_artifact_resolution.py:120 follow-on: the eight-module gate exits 1 rather than the 0 the done-when names, because test_re_authoring_reproduces_the_identity_the_package_pins fails; it fails identically at base a72522ec so the added-failure count is zero, but the measure's stated exit status is unmet and the pin and the installed Nova MAST producer have diverged (pin sha256:8df7a0a6c3f6162dbe0f226660bc069f37de8eb69f0f7c80bbfedc2bd4be220c, producer sha256:f20d64dbde63756150fecd5a41d34a0d7a055900877370aae40a594ca7d039d5).\nreviewed_base_sha: a72522ec198f7f02601d72655ca2377d14a3bb72\nreviewed_head_sha: 06099f0a39ae95dc0c62b2701e1db94d28b65025",
+  "review_run_id": "r-20261008T232049962379-review-of-jtmm-machine-keyed-selection",
+  "reviewed_base_sha": "a72522ec198f7f02601d72655ca2377d14a3bb72",
+  "reviewed_head_sha": "06099f0a39ae95dc0c62b2701e1db94d28b65025",
+  "reviewed_run_id": "r-20261008T220016663777-jtmm-machine-keyed-selection",
+  "scores": {
+    "durability": 19,
+    "evidence": 17,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-08T23:32:44.378201+00:00",
+  "total": 115
+}
