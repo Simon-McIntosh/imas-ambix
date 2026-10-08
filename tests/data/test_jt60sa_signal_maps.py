@@ -100,6 +100,11 @@ EQ_FRAGMENT = (
     "jtmm-equilibrium-source-leads.html"
 )
 _FAME_BTV_SEMANTIC_ID = "equilibrium_toroidal_field_b0"
+#: The staged G-EQDSK flux rule beside the four FAME scalars: a 2-D grid, not an
+#: EDDB channel, carrying the COCOS 1 -> 17 psi_like convention factor.  This
+#: module checks its binding identity here; its numerical check against the
+#: G-EQDSK lives in tests/data/test_geqdsk_store.py.
+_EQ_PSI_SEMANTIC_ID = "equilibrium_psi"
 # semantic_id -> (source_group, source_array, source_unit, target_path,
 #                 target_unit).  The three identity scalars carry channel_factor
 # one; the BTV entry's channel factor is the reciprocal of the catalogue's
@@ -791,7 +796,7 @@ def test_equilibrium_map_binds_the_four_fame_scalars():
     assert source_map.target_dd_version == "4.1.1"
 
     index = _equilibrium_index()
-    assert set(index) == set(_EQ_RULES)
+    assert set(index) == set(_EQ_RULES) | {_EQ_PSI_SEMANTIC_ID}
     for semantic_id, (
         group,
         array,
@@ -813,12 +818,24 @@ def test_equilibrium_map_binds_the_four_fame_scalars():
         assert rule.validation_state == "source-only"
         assert EQ_FRAGMENT in rule.evidence
 
+    staged_flux = index[_EQ_PSI_SEMANTIC_ID]
+    assert staged_flux.transformation == "psi_like"
+    assert staged_flux.source_cocos == 1
+
 
 def test_equilibrium_map_compiles_and_reads_each_raw_series(tmp_path):
-    """Compile the map, then read every rule's raw series over the FAME store."""
+    """Compile the map, then read every FAME rule's raw series over the store.
+
+    The compiled map also carries the staged G-EQDSK flux rule, whose source is
+    absent from the synthetic FAME store, so only the four FAME scalars are read
+    back here; the psi rule's numerical check lives in
+    tests/data/test_geqdsk_store.py.
+    """
     source_map = _equilibrium()
     compiled = source_map.compile(101154)
-    assert sorted(signal.rule.semantic_id for signal in compiled) == sorted(_EQ_RULES)
+    assert sorted(signal.rule.semantic_id for signal in compiled) == sorted(
+        (*_EQ_RULES, _EQ_PSI_SEMANTIC_ID)
+    )
 
     path = _fame_store(tmp_path)
     view = VirtualZarrView.open(str(path), source_map, shot=101154)
