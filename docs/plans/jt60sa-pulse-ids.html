@@ -22,11 +22,11 @@
   <meta name="plan-tags" content="jt-60sa,machine-map,equilibrium,figures">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;jt60sa-machine-map#s7&quot;], &quot;s3&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;], &quot;s4&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;, &quot;imas-ink:geometry-figure-vessel-units#s5&quot;, &quot;jt60sa-pulse-ids#s2&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;deferred&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;}">
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="39">
+<meta name="plan-version" content="41">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -165,8 +165,8 @@
 </section>
 
     <h2 id="s8">§8 — E101154 and E101031 rewritten after the differential entries are renamed</h2>
-<section data-reckon="section" data-id="s8" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="deferred" data-links=""></section>
-<p>The machine-map coordinator is renaming the 26 differential flux-loop entries from <code>FL7-FL&lt;L&gt;</code> to <code>FL&lt;L&gt;-FL7</code>, so each name reads as the stored ψ<sub>L</sub> − ψ<sub>7</sub>. The rename regenerates the OP1/OP2 description stores and the per-entry name references in <code>maps/jt-60sa/machine_map.json</code>. It changes no rule, index, sign or value, and it waits for jt60sa-facility-mint §18's release to lift its hold on <code>maps/jt-60sa/</code>. Once it lands, this section writes both pulses once more with the same command as §7.</p><p><strong>Done when</strong> the write, run in place on the fleet allocation, rewrites both run files and exits 0. Before writing, it copies §7's two run files into the run's own directory under <code>~/.config/reckon/crew/runs/</code>, so the baseline survives the run. Every log's first lines record the expanded command that ran, with both file paths, and no placeholders. In each new file, entries 27–52 are named <code>FL1-FL7</code> … <code>FL27-FL7</code>, skipping FL7, matching their <code>indices_differential</code> [7, L]. Every flux, <code>magnetics/ip</code>, <code>pf_active/coil/current</code> and probe array equals the §7 baseline element for element. <strong>Negative control:</strong> the name check run against the §7 baseline fails on all 26 differential entries, recorded in its own log. Deferred until the machine-map coordinator signals that the rename is on main and the stores are regenerated.</p>
+<section data-reckon="section" data-id="s8" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p>The machine-map coordinator is renaming the 26 differential flux-loop entries from <code>FL7-FL&lt;L&gt;</code> to <code>FL&lt;L&gt;-FL7</code>, so each name reads as the stored ψ<sub>L</sub> − ψ<sub>7</sub>. The rename regenerates the OP1/OP2 description stores and the per-entry name references in <code>maps/jt-60sa/machine_map.json</code>. It changes no rule, index, sign or value, and it waits for jt60sa-facility-mint §18's release to lift its hold on <code>maps/jt-60sa/</code>. Once it lands, this section writes both pulses once more with the same command as §7.</p><p><strong>Done when</strong> the write, run in place on the fleet allocation, rewrites both run files and exits 0. Before writing, it copies §7's two run files into the run's own directory under <code>~/.config/reckon/crew/runs/</code>, so the baseline survives the run. Every log's first lines record the expanded command that ran, with both file paths, and no placeholders. In each new file, entries 27–52 are named <code>FL1-FL7</code> … <code>FL27-FL7</code>, skipping FL7, matching their <code>indices_differential</code> [7, L]. Every flux, <code>magnetics/ip</code>, <code>pf_active/coil/current</code> and probe array equals the §7 baseline element for element. <strong>Negative control:</strong> the name check run against the §7 baseline fails on all 26 differential entries, recorded in its own log. The rename landed on 2026-10-08 at merge <code>ca81ca18</code>, and the bundle is released as v0.2.0-rc2. The regenerated OP1 and OP2 <code>magnetics.nc</code> are both sha256 <code>0b089a3a734a8836…</code>, and <code>machine_map.json</code> is <code>6a0e4b10b1bf0180…</code>. Reading OP1 back, all 26 entries at indices 27–52 are named <code>FL&lt;L&gt;-FL7</code>, matching their <code>indices_differential</code>.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
@@ -223,6 +223,11 @@
     <div class="r-fu-body"><p>jt60sa-machine-map's differential loop rules landed on 2026-10-08; jt60sa-signal-figures-from-ids §4 redraws the flux loops from these files.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-pulse-ids §7</pre>
     <p class="r-fu-outcome">§7 landed (fragment 19cfac2b, review 106/120). The names-only rewrite after the FL<l>-FL7 rename is §8, deferred until the machine map's rename lands.</l></p>
+    </article>
+<article class="r-fu" data-id="f-jpi-s8-rename-rewrite" data-status="open" data-written-by="reckon-build" data-written-at="2026-10-08" data-recommends-skill="/reckon-build jt60sa-pulse-ids §8" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Rewrite E101154 and E101031 with the FL&lt;L&gt;-FL7 entry names</h4>
+    <div class="r-fu-body"><p>The machine map's rename landed at ca81ca18 (bundle v0.2.0-rc2); jt60sa-signal-figures-from-ids §4 redraws the flux loops once this rewrite lands.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-pulse-ids §8</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -287,7 +292,7 @@
     <div class="r-comment-body"><p>jtpi-rewrite-differential-loops: rewrote E101154 and E101031 through imas-alambic write under the differential loop rules; each file's magnetics/flux_loop is 53 entries with the 26 type-6 differential entries (indices 27-52, indices_differential [7,L]) carrying flux and FL7 flux unchanged, and the comparison shows all 26 loops' new type-6 flux equal to -1x the old type-1 flux on both pulses.</p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261008T055757388598-review-of-jtpi-rewrite-differential-loops" data-who="reckon-build" data-when="2026-10-08T06:26:33.290Z">
-    <div class="r-comment-body"><p>jtpi-ambix review-of-jtpi-rewrite-differential-loops: independent review stored at both fenced paths, six dimensions scored total 106 (goal_fidelity 19, evidence 16, scope_discipline 19, durability 17, fit 18, reuse 17); added_failure_count 0, added_failure_ids []; the rewrite&#x27;s claims (53-entry flux_loop, type-6 differentials 27-52 with indices_differential [7,L], FL7 at index 6, the -1 relation to the baseline) reproduced independently; two follow-on findings recorded.</p></div>
+    <div class="r-comment-body"><p>jtpi-ambix review-of-jtpi-rewrite-differential-loops: independent review stored at both fenced paths, six dimensions scored total 106 (goal_fidelity 19, evidence 16, scope_discipline 19, durability 17, fit 18, reuse 17); added_failure_count 0, added_failure_ids []; the rewrite's claims (53-entry flux_loop, type-6 differentials 27-52 with indices_differential [7,L], FL7 at index 6, the -1 relation to the baseline) reproduced independently; two follow-on findings recorded.</p></div>
 </div>
 </section>
 </main>
