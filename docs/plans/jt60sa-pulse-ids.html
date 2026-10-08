@@ -22,11 +22,11 @@
   <meta name="plan-tags" content="jt-60sa,machine-map,equilibrium,figures">
   <meta name="plan-informs" content="jt60sa-machine-map">
   <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;jt60sa-machine-map#s7&quot;], &quot;s3&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;], &quot;s4&quot;: [&quot;imas-ink:geometry-figure-vessel-units#s1&quot;, &quot;imas-ink:geometry-figure-vessel-units#s5&quot;, &quot;jt60sa-pulse-ids#s2&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;deferred&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;}">
   <title>JT-60SA Pulse IDSs and Equilibrium Animation | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="33">
+<meta name="plan-version" content="36">
 <meta name="plan-modified" content="2026-10-08">
 </head>
 <body>
@@ -55,13 +55,17 @@
 </section>
 
     <h2 id="s2">§2 — The equilibrium IDS, with its topology</h2>
-<section data-reckon="section" data-id="s2" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s2" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="deferred" data-links=""></section>
     <p>
-      The animation draws equilibria, and the machine map's §7 owns mapping them: its second rung
-      reads SELENE's equilibria from the facility's equilibrium database (EQDB) and maps psi on its
-      grid, the boundary and the profiles into <code>equilibrium</code>, after §6 has fixed the
-      source COCOS from data. This section does not read EQDB itself. It waits on that rung and
-      writes E101154's equilibria through the same writer as §1, <code>imas-alambic write</code>, so
+      The animation draws equilibria, and the machine map's §7 owns mapping them into
+      <code>equilibrium</code>. As of 2026-10-08 that section supplies no E101154 psi. Its psi bindings
+      and the reference loader's psi and axis reduction are scoped to E101011 alone, from a G-EQDSK file
+      copied under <code>/work</code>. From PSRC, which carries no flux grid, it takes only the boundary,
+      X-point, plasma centre and plasma current. Its search for an E101154 psi or signed-q source
+      (EDDB FAME, EQDB, EQRV, EQEFIT, LOCALDB, LCDB/MBDB, the Experiment DB Web API, SELENE outputs) is
+      still open. So this section is deferred until the machine map names a psi source that covers
+      E101154. This section reads no equilibrium database itself. Once that source exists, it writes
+      E101154's equilibria through the same writer as §1, <code>imas-alambic write</code>, so
       the equilibrium sits beside the pulse's description IDSs in the writer's output. The writer owns
       that layout; jt60sa-facility-mint §8 is moving it from one file per IDS to one run file per
       pulse. So this section reaches the output through the writer's own path rule and never names a
@@ -99,9 +103,10 @@
       the reported O-point and X-point matches <code>psi_axis</code> and <code>psi_boundary</code>
       within 1&nbsp;% of their difference. <code>imas_ink.extract.extract_slice</code> reads every
       slice without falling back to an empty field.
-      <strong>Negative control:</strong> the same topology test, run on one slice whose psi is replaced by the
-      vacuum field of that slice's coil currents (no plasma current), finds no O-point inside the vessel and
-      fails, recorded in its own log.
+      <strong>Negative control:</strong> the same topology test, run on a copy of one diverted slice whose
+      stored <code>constraints.x_point[0].position_reconstructed</code> is moved 0.5&nbsp;m outside the first
+      wall, fails the X-point-inside-the-vessel assertion. The result is recorded in its own log. The control
+      mutates a stored field the assertion reads, so it cannot pass through a recomputation.
     </p>
 
     <section class="section-landed">
