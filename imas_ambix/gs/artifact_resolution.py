@@ -126,10 +126,14 @@ def author_jt60sa_machine_artifact(phase: str) -> Callable[[Path], Any]:
 #: resolution path names a revision.  MAST holds one row; JT-60SA holds one per
 #: operating phase, ordered OP1 then OP2.
 PINNED_DESCRIPTIONS: dict[str, tuple[PinRow, ...]] = {
+    #: MAST's identity advances when the description's provenance advances: the
+    #: semantic identity covers every field's evidence path, so re-authoring the
+    #: wall as an indexed limiter-unit collection moves it while the physical and
+    #: registry identities, which name the machine, stay put.
     "mast": (
         PinRow(
             semantic_identity=(
-                "sha256:8df7a0a6c3f6162dbe0f226660bc069f37de8eb69f0f7c80bbfedc2bd4be220c"
+                "sha256:f20d64dbde63756150fecd5a41d34a0d7a055900877370aae40a594ca7d039d5"
             ),
             physical_digest="b55c5bb005a2cb67",
             registry_digest=(
