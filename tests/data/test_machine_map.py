@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import re
@@ -387,6 +388,31 @@ def test_sensor_identity_aliases_are_optional_and_validated(tmp_path):
     rule["member_aliases"] = {1: "FPPC_UP"}
     with pytest.raises(MachineMapError, match="member_aliases"):
         SensorIdentityRule.from_dict(rule, "sensor_identity_rule")
+
+
+def test_sensor_identity_rule_accepted_keys_are_schema_slots():
+    schema = load_linkml_schema()
+    declared_slots = set(schema["classes"]["SensorIdentityRule"]["slots"])
+
+    accepted_keys = {field.name for field in dataclasses.fields(SensorIdentityRule)}
+    payload = {
+        "name": "coil-identity",
+        "case_rule": "case-fold",
+        "numeric_token_rule": "integer-value",
+        "evidence": "Facility and description member names differ.",
+        "member_aliases": {"UFP": "FPPC_UP"},
+    }
+    SensorIdentityRule.from_dict(payload, "sensor_identity_rule")
+    with pytest.raises(MachineMapError, match="extra"):
+        SensorIdentityRule.from_dict(
+            {**payload, "unexpected_key": "x"}, "sensor_identity_rule"
+        )
+
+    missing = accepted_keys - declared_slots
+    assert not missing, (
+        "SensorIdentityRule.from_dict accepts "
+        f"{sorted(missing)}, which the schema class declares no slot for"
+    )
 
 
 def test_machine_map_refuses_an_incomplete_or_unknown_store_declaration(tmp_path):
