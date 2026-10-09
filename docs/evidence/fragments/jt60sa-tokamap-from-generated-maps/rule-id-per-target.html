@@ -1,0 +1,48 @@
+<section id="rule-id-per-target-result">
+  <h3>One rule per signal and target</h3>
+  <p>The import took each rule's <code>semantic_id</code> straight from the hand-off row's
+  <code>signal_id</code>, so one signal that binds several structures — <code>curEF6LKAT</code>
+  to both <code>pf_active/coil/current/data</code> and
+  <code>pf_active/circuit/current/data</code> — produced two rules sharing one id, which
+  <code>SignalMap.create</code> refuses with <em>semantic ids must be unique</em>. The import now
+  composes each rule's id from the hand-off <code>signal_id</code>, the rule's target path and its
+  element index (<code>_rule_id</code>, formatted
+  <code>&lt;signal_id&gt;::&lt;target_path&gt;[&lt;index&gt;]</code>), so rules for distinct
+  structures stay distinct while the imas-codex link survives in both the id and the rule's
+  evidence, which now carries <code>signal_id=&lt;hand-off signal_id&gt;</code>. A row that would
+  still collide — the same signal, target path and index — is reported in
+  <code>unresolved</code> with the reason <em>rule id … is already assigned</em> rather than
+  refusing the whole map.</p>
+  <p>Focused tests in <code>tests/data/test_generated_mapping_import.py</code>:
+  <code>test_one_signal_bound_to_two_structures_gets_distinct_rule_ids</code> imports one hand-off
+  signal bound to <code>pf_active/coil/current/data</code> and
+  <code>pf_active/circuit/current/data</code> as two rules whose ids differ and whose evidence
+  both name the hand-off <code>signal_id</code>;
+  <code>test_exact_duplicate_row_is_reported_not_refused</code> appends an exact duplicate row and
+  shows the map still imports with one rule while the duplicate is reported with the
+  <em>already assigned</em> reason. The full test file passes 25/25 in 0.25 s.</p>
+  <h4>score-handoff --json on the coils re-export</h4>
+  <p>Scoring <code>/work/projects/imas_gpu/jt60sa/handoff/jt-60sa-coils-handoff.json</code>
+  (<code>exported_at 2026-10-09T10:41:50Z</code>, IDSs <code>pf_active</code> and
+  <code>tf</code>) now gets <strong>past</strong> the <em>semantic ids must be unique</em>
+  refusal that blocked it before this change. The full command then aborts on a separate,
+  out-of-scope defect in the hand-off's <code>tf</code> IDS: one row targets the Data-Dictionary
+  -invalid path <code>tf/coil/conductor/current/data</code>, and the scorer's DD-label lookup
+  raises <code>KeyError: Invalid path 'coil/conductor/current/data'</code> before any row is
+  counted. That defect belongs to the hand-off generator / the scorer, not to this node's write
+  paths, and is recorded under follow-ons. The <code>pf_active</code> IDS — the coils the
+  uniqueness defect blocked — scores cleanly on its own:</p>
+  <table id="rule-id-per-target-pf-active-structure">
+    <caption>score-handoff jt-60sa on jt-60sa-coils-handoff.json (exported_at 2026-10-09T10:41:50Z), pf_active IDS alone; by_structure and total</caption>
+    <thead><tr><th>Structure</th><th>Exported</th><th>Imported</th><th>Agreeing</th><th>Conflicting</th><th>Unplaced</th><th>Refused</th></tr></thead>
+    <tbody>
+      <tr><td>pf_active/coil</td><td>19</td><td>16</td><td>6</td><td>6</td><td>3</td><td>0</td></tr>
+      <tr><td>pf_active/circuit</td><td>18</td><td>16</td><td>no reference</td><td>0</td><td>2</td><td>0</td></tr>
+      <tr><td>pf_active/supply</td><td>6</td><td>0</td><td>no reference</td><td>0</td><td>6</td><td>0</td></tr>
+      <tr><td>TOTAL (pf_active)</td><td>43</td><td>32</td><td>6</td><td>6</td><td>11</td><td>0</td></tr>
+    </tbody>
+  </table>
+  <p>The full-command error and the <code>pf_active</code> command JSON are kept in the run
+  directory as <code>score-handoff-coils.log</code> and
+  <code>score-handoff-pf_active.json</code>.</p>
+</section>
