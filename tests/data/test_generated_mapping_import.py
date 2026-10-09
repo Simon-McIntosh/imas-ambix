@@ -273,3 +273,137 @@ def test_time_property_cannot_be_imported_as_data():
         for rule in mapping.signals
     )
     assert any("source_property=time" in row.reason for row in imported.unresolved)
+
+
+def _labelled_document(label, source):
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    row = document["ids"][0]["signals"][0]
+    row["cocos_label"] = label
+    row["cocos_label_source"] = source
+    return document
+
+
+def _imported_rule(imported, source_array):
+    return next(
+        rule
+        for mapping in imported.maps
+        for rule in mapping.signals
+        if rule.source_array == source_array
+    )
+
+
+def test_one_like_label_imports_with_its_label_and_source_in_evidence():
+    imported = import_generated_mappings(
+        _labelled_document("one_like", "xml"), _catalogue(), DESCRIPTION_MEMBERS
+    )
+
+    rule = _imported_rule(imported, "magPbTC10")
+    assert "cocos_label=one_like" in rule.evidence
+    assert "cocos_label_source=xml" in rule.evidence
+    assert imported.pending == ()
+
+
+def test_none_label_imports_and_is_not_pending():
+    imported = import_generated_mappings(
+        _labelled_document("none", "none"), _catalogue(), DESCRIPTION_MEMBERS
+    )
+
+    assert "cocos_label=none" in _imported_rule(imported, "magPbTC10").evidence
+    assert imported.pending == ()
+
+
+def test_cocos_dependent_label_becomes_a_pending_rule_absent_from_the_maps():
+    imported = import_generated_mappings(
+        _labelled_document("ip_like", "inferred_forward"),
+        _catalogue(),
+        DESCRIPTION_MEMBERS,
+    )
+
+    assert len(imported.pending) == 1
+    pending = imported.pending[0]
+    assert pending.cocos_label == "ip_like"
+    assert pending.cocos_label_source == "inferred_forward"
+    assert pending.open_source_cocos is None
+    assert "ip_like" in pending.reason
+    assert "inferred_forward" in pending.reason
+    assert "undeclared source COCOS" in pending.reason
+    assert pending.rule.source_array == "magPbTC10"
+    assert pending.rule.validation_state == "draft"
+    assert all(
+        rule.source_array != "magPbTC10"
+        for mapping in imported.maps
+        for rule in mapping.signals
+    )
+
+
+def test_unknown_cocos_label_is_refused_by_name():
+    imported = import_generated_mappings(
+        _labelled_document("not_a_label", "xml"), _catalogue(), DESCRIPTION_MEMBERS
+    )
+
+    assert any(
+        row.source_array == "magPbTC10"
+        and row.reason == "unrecognised COCOS label 'not_a_label'"
+        for row in imported.unresolved
+    )
+    assert imported.pending == ()
+
+
+def test_null_cocos_label_keeps_the_unlabelled_behaviour():
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    assert document["ids"][0]["signals"][0]["cocos_label"] is None
+
+    imported = import_generated_mappings(document, _catalogue(), DESCRIPTION_MEMBERS)
+
+    assert "cocos_label" not in _imported_rule(imported, "magPbTC10").evidence
+    assert imported.pending == ()
+
+
+def test_declared_source_cocos_imports_a_dependent_label_into_the_maps():
+    catalogue = _catalogue()
+    catalogue.source_cocos = 17
+
+    imported = import_generated_mappings(
+        _labelled_document("ip_like", "xml"), catalogue, DESCRIPTION_MEMBERS
+    )
+
+    assert imported.pending == ()
+    assert "cocos_label=ip_like" in _imported_rule(imported, "magPbTC10").evidence
+
+
+def test_zero_source_cocos_is_undeclared_and_holds_the_row_pending():
+    catalogue = _catalogue()
+    catalogue.source_cocos = 0
+
+    imported = import_generated_mappings(
+        _labelled_document("psi_like", "inferred_forward"),
+        catalogue,
+        DESCRIPTION_MEMBERS,
+    )
+
+    assert len(imported.pending) == 1
+    assert imported.pending[0].open_source_cocos == 0
+    assert all(
+        rule.source_array != "magPbTC10"
+        for mapping in imported.maps
+        for rule in mapping.signals
+    )
+
+
+def test_time_row_binds_to_its_pending_cocos_value_placeholder():
+    document = _labelled_document("ip_like", "xml")
+    value = document["ids"][0]["signals"][0]
+    time = dict(value, source_property="time")
+    time["target_path"] = value["target_path"].replace("/data", "/time")
+    time["signal_id"] += ":time"
+    time["source_units"] = time["target_units"] = "s"
+    time["cocos_label"] = "none"
+    time["cocos_label_source"] = "none"
+    document["ids"][0]["signals"].insert(0, time)
+
+    imported = import_generated_mappings(document, _catalogue(), DESCRIPTION_MEMBERS)
+
+    assert len(imported.pending) == 1
+    assert len(imported.time_bindings) == 1
+    assert imported.time_bindings[0].value_rule is imported.pending[0].rule
+    assert all(row.target_path != time["target_path"] for row in imported.unresolved)

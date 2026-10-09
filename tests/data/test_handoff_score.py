@@ -140,3 +140,26 @@ def test_matching_target_with_a_different_source_array_does_not_agree():
     result = handoff_score.score_handoff(document, _catalogue(), MEMBERS, [reference])
 
     assert result["by_ids"]["magnetics"]["agreeing"] == 1
+
+
+def test_pending_cocos_rule_counts_as_imported_with_the_sign_unscored():
+    document, _ = _case()
+    document["ids"][0]["signals"][0]["cocos_label"] = "ip_like"
+    document["ids"][0]["signals"][0]["cocos_label_source"] = "xml"
+    imported = import_generated_mappings(document, _catalogue(None), MEMBERS)
+    assert len(imported.pending) == 1
+    reference = dataclasses.replace(
+        imported.maps[0],
+        signals=(
+            dataclasses.replace(imported.pending[0].rule, channel_factor=-1.0),
+        ),
+    )
+
+    result = handoff_score.score_handoff(
+        document, _catalogue(None), MEMBERS, [reference]
+    )
+
+    magnetics = result["by_ids"]["magnetics"]
+    assert magnetics["agreeing"] == 1
+    assert magnetics["sign_unscored"] == 1
+    assert magnetics["imported"] == 2
