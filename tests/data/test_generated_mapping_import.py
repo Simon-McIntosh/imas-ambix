@@ -57,6 +57,35 @@ def test_fixture_indices_follow_description_identity_not_handoff_order():
     )
 
 
+def test_facility_member_alias_resolves_to_description_index():
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    row = document["ids"][1]["signals"][0]
+    row["member_identifier"] = "UFP"
+    row["source_array"] = "curUFPLKAT"
+    members = dict(DESCRIPTION_MEMBERS)
+    members["pf_active/coil"] = ("02", "FPPC_UP")
+    catalogue = _catalogue()
+    rule = catalogue.sensor_identity_rules[0]
+    catalogue.sensor_identity_rules = (
+        SensorIdentityRule(
+            name=rule.name,
+            case_rule=rule.case_rule,
+            numeric_token_rule=rule.numeric_token_rule,
+            evidence=rule.evidence,
+            member_aliases={"UFP": "FPPC_UP"},
+        ),
+    )
+
+    imported = import_generated_mappings(document, catalogue, members)
+
+    assert any(
+        signal.source_array == "curUFPLKAT" and signal.target_index == 1
+        for mapping in imported.maps
+        for signal in mapping.signals
+    )
+    assert all(item.source_array != "curUFPLKAT" for item in imported.unresolved)
+
+
 def test_unresolvable_member_is_reported_without_an_index():
     document = json.loads(FIXTURE.read_text(encoding="utf-8"))
     missing = document["ids"][0]["signals"][0]
