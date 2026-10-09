@@ -24,9 +24,9 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="56">
+<meta name="plan-version" content="57">
 <meta name="plan-modified" content="2026-10-09">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;done&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;done&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -366,6 +366,12 @@
 <p>§12 added an optional <code>member_aliases</code> mapping to <code>SensorIdentityRule</code>, but the packaged LinkML contract, <code>packages/imas-alambic/src/imas_alambic/machine_maps/schema.yaml</code>, still describes the class as canonicalising identities "without enumerating aliases" and lists only <code>name</code>, <code>case_rule</code>, <code>numeric_token_rule</code> and <code>evidence</code>. The independent review of §12 found the contradiction. Add an optional <code>member_aliases</code> slot, a mapping from a facility member token to a machine-description member name, and rewrite the class description to say what the aliases are for.</p>
 <p><strong>Node</strong> <code>schema-member-aliases</code>, role implement, 0.25 h. Write paths: <code>packages/imas-alambic/src/imas_alambic/machine_maps/schema.yaml</code>, <code>tests/data/test_machine_map.py</code>. <strong>Done when</strong> the schema declares the optional slot with that description, and a test in <code>tests/data/test_machine_map.py</code> checks that every key <code>SensorIdentityRule.from_dict</code> accepts is a slot of the schema class.</p>
 
+    <h2 id="s15">§15 — One rule per signal and target</h2>
+<section data-reckon="section" data-id="s15" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p>Scoring imas-codex's coils re-export (exported 10:41:50Z) fails before it counts anything: <code>semantic ids must be unique</code>. The import takes each rule's <code>semantic_id</code> from the hand-off row's <code>signal_id</code>, and one coil current binds several structures, so <code>curEF6LKAT</code> to both <code>pf_active/coil/current/data</code> and <code>pf_active/circuit/current/data</code> gives two rules with one id in the same signal map, which <code>SignalMap.create</code> refuses.</p>
+<p>Make the import give each rule an id unique within its map, composed from the hand-off's <code>signal_id</code> and the rule's target path and index, and keep the hand-off's <code>signal_id</code> in the rule's evidence so the link back to imas-codex survives. Two rows that would still collide, the same signal, path and index, are reported with that reason rather than refusing the whole map. Then rescore the coils re-export.</p>
+<p><strong>Node</strong> <code>rule-id-per-target</code>, role implement, 0.5 h. Write paths: <code>imas_ambix/data/generated_mapping_import.py</code>, <code>tests/data/test_generated_mapping_import.py</code>, <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/rule-id-per-target.html</code>. <strong>Done when</strong> a test imports one signal bound to two structures as two rules with distinct ids that both name the hand-off <code>signal_id</code> in their evidence; a test reports an exact duplicate row rather than refusing the map; and the fragment quotes <code>score-handoff jt-60sa --json</code> on <code>/work/projects/imas_gpu/jt60sa/handoff/jt-60sa-coils-handoff.json</code> with its <code>exported_at</code> and the <code>by_structure</code> rows.</p>
+
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
 <article class="r-fu" data-id="f-jtgm-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-09" data-recommends-skill="/reckon-build jt60sa-tokamap-from-generated-maps" data-resolved-at="2026-10-09T04:10:35+00:00" data-resolved-by="reckon-build">
@@ -506,7 +512,7 @@
     <div class="r-comment-body"><p>§14 landed (merge <code>2310fb0e</code>): schema and loader agree on <code>member_aliases</code>, guarded by a test. <a href="/imas-ambix/evidence/archive/jt60sa-tokamap-from-generated-maps-landed.html#s14">evidence</a></p></div>
 </div>
 <div class="r-comment" data-section="s14" data-id="c-run-r-20261009T101229465681-schema-member-aliases" data-who="reckon-build" data-when="2026-10-09T10:19:41.161Z">
-    <div class="r-comment-body"><p>schema.yaml declares the optional member_aliases slot on SensorIdentityRule with a description of what aliases are for, and SensorIdentityRule.from_dict&#x27;s accepted keys are each a schema slot — the contract test passes 6/6 (EXIT=0) and the negative control (member_aliases dropped from the class slots) fails that test (EXIT=1)</p></div>
+    <div class="r-comment-body"><p>schema.yaml declares the optional member_aliases slot on SensorIdentityRule with a description of what aliases are for, and SensorIdentityRule.from_dict's accepted keys are each a schema slot — the contract test passes 6/6 (EXIT=0) and the negative control (member_aliases dropped from the class slots) fails that test (EXIT=1)</p></div>
 </div>
 </section>
 </main>
