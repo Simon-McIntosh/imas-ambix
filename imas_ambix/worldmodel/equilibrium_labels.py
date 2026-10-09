@@ -125,6 +125,13 @@ XPOINT_SENTINEL = -9.0
 XPOINT_VESSEL_R_RANGE = (0.1, 2.0)
 XPOINT_VESSEL_Z_ABS = 2.0
 
+#: MAST's measured limiter extent, quoted verbatim from the comment above
+#: :data:`XPOINT_VESSEL_R_RANGE`.  Held separately so the widening margin MAST's
+#: box carries over its own limiter can be measured rather than re-typed when a
+#: second machine's limiter is turned into a box.
+MAST_LIMITER_R_EXTENT = (0.20, 1.90)
+MAST_LIMITER_Z_ABS = 1.83
+
 #: Number of X-point null-set candidate slots (the store carries up to 2 nulls).
 N_XPOINT_SLOTS = 2
 
@@ -246,23 +253,71 @@ def _interp_1d_masked(
     return out
 
 
-def _null_in_vessel(r: float, z: float) -> bool:
+def _vessel_box(
+    box: tuple[float, float, float] | None,
+) -> tuple[float, float, float]:
+    """Resolve a box argument to ``(r_lo, r_hi, z_abs)``.
+
+    ``None`` is MAST's default (:data:`XPOINT_VESSEL_R_RANGE` /
+    :data:`XPOINT_VESSEL_Z_ABS`), so every existing caller and label is
+    unchanged.  A caller-supplied box overrides it.
+    """
+    if box is None:
+        r_lo, r_hi = XPOINT_VESSEL_R_RANGE
+        return r_lo, r_hi, XPOINT_VESSEL_Z_ABS
+    return float(box[0]), float(box[1]), float(box[2])
+
+
+def _widen_limiter_box(
+    limiter_r: np.ndarray | list[float], limiter_z: np.ndarray | list[float]
+) -> tuple[float, float, float]:
+    """Turn a limiter contour into a coarse in-vessel box.
+
+    The box is the contour's R extent and |Z| extent, widened by the margin
+    MAST's box carries over MAST's measured limiter extent
+    (:data:`MAST_LIMITER_R_EXTENT` / :data:`MAST_LIMITER_Z_ABS` against
+    :data:`XPOINT_VESSEL_R_RANGE` / :data:`XPOINT_VESSEL_Z_ABS`), so a genuine
+    edge null near the limiter is never wrongly rejected, exactly as for MAST.
+    No coordinate is typed by hand.  Returns ``(r_lo, r_hi, z_abs)``.
+    """
+    r = np.asarray(limiter_r, dtype=np.float64)
+    z = np.asarray(limiter_z, dtype=np.float64)
+    finite = np.isfinite(r) & np.isfinite(z)
+    if not finite.any():
+        raise ValueError("limiter contour carries no finite vertices")
+    r_lo_margin = MAST_LIMITER_R_EXTENT[0] - XPOINT_VESSEL_R_RANGE[0]
+    r_hi_margin = XPOINT_VESSEL_R_RANGE[1] - MAST_LIMITER_R_EXTENT[1]
+    z_margin = XPOINT_VESSEL_Z_ABS - MAST_LIMITER_Z_ABS
+    return (
+        float(r[finite].min() - r_lo_margin),
+        float(r[finite].max() + r_hi_margin),
+        float(np.abs(z[finite]).max() + z_margin),
+    )
+
+
+def _null_in_vessel(
+    r: float, z: float, box: tuple[float, float, float] | None
+) -> bool:
     """Coarse in-vessel sanity (NOT a public/private discriminator).
 
-    True iff ``(r, z)`` is finite, non-sentinel, and inside the coarse MAST
-    limiter bounding box — rejecting only a NaN / sentinel / wildly-displaced
+    True iff ``(r, z)`` is finite, non-sentinel, and inside the coarse limiter
+    bounding box — rejecting only a NaN / sentinel / wildly-displaced
     reconstruction artefact, never separating boundary from private-region nulls.
+    ``box`` is ``(r_lo, r_hi, z_abs)``; ``None`` is MAST's default box.
     """
     if not (np.isfinite(r) and np.isfinite(z)):
         return False
     if r <= XPOINT_SENTINEL or z <= XPOINT_SENTINEL:
         return False
-    r_lo, r_hi = XPOINT_VESSEL_R_RANGE
-    return r_lo <= r <= r_hi and abs(z) <= XPOINT_VESSEL_Z_ABS
+    r_lo, r_hi, z_abs = _vessel_box(box)
+    return r_lo <= r <= r_hi and abs(z) <= z_abs
 
 
 def xpoint_null_set(
-    x_point_r: np.ndarray, x_point_z: np.ndarray
+    x_point_r: np.ndarray,
+    x_point_z: np.ndarray,
+    *,
+    box: tuple[float, float, float] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Per native slice, the ORDER-INVARIANT set of ≤2 real in-vessel nulls.
 
@@ -273,6 +328,10 @@ def xpoint_null_set(
     ordering / topology meaning — the downstream loss is permutation-invariant).
     An absent slot is NaN.  No sign-of-Z split, no ψ filter, no continuity
     tracking — just the set of valid nulls at each slice.
+
+    ``box`` is the coarse in-vessel box ``(r_lo, r_hi, z_abs)``; ``None`` is
+    MAST's default (:data:`XPOINT_VESSEL_R_RANGE` / :data:`XPOINT_VESSEL_Z_ABS`),
+    so a caller on another machine passes its own derived box.
 
     Returns ``(set_r, set_z)`` each ``(N_XPOINT_SLOTS, nt)`` float64 (NaN where a
     slot is absent at that slice).
@@ -288,7 +347,7 @@ def xpoint_null_set(
             if slot >= N_XPOINT_SLOTS:
                 break
             r, z = float(xr[row, i]), float(xz[row, i])
-            if _null_in_vessel(r, z):
+            if _null_in_vessel(r, z, box):
                 set_r[slot, i] = r
                 set_z[slot, i] = z
                 slot += 1
@@ -474,6 +533,7 @@ def build_geometry_from_arrays(
     lcfs_r: np.ndarray,
     lcfs_z: np.ndarray,
     angles: np.ndarray = LCFS_ANGLES,
+    box: tuple[float, float, float] | None = None,
 ) -> EquilibriumGeometry:
     """Assemble the 14-D per-frame labels from raw equilibrium arrays.
 
@@ -487,6 +547,9 @@ def build_geometry_from_arrays(
     interpolation — that removes the flip/interp problem), with absent slots
     masked.  The slot index carries no ordering / topology meaning; the probe's
     permutation-invariant loss matches predictions to the present targets.
+
+    ``box`` is the coarse in-vessel X-point box ``(r_lo, r_hi, z_abs)`` threaded
+    to :func:`xpoint_null_set`; ``None`` is MAST's default box.
     """
     ft = np.asarray(frame_times, dtype=np.float64).ravel()
     n_frames = ft.size
@@ -498,7 +561,7 @@ def build_geometry_from_arrays(
     axis_z = np.asarray(axis_z, dtype=np.float64)
 
     # 1) X-point null SET on the native time base (≤2 unordered in-vessel nulls).
-    set_r_n, set_z_n = xpoint_null_set(x_point_r, x_point_z)
+    set_r_n, set_z_n = xpoint_null_set(x_point_r, x_point_z, box=box)
 
     # 2) LCFS control-point radii on the native time base, slice by slice.
     nt = t_eq.size

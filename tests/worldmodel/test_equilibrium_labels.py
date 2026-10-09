@@ -123,6 +123,19 @@ def test_xpoint_null_set_is_invariant_as_an_unordered_set():
     assert original == swapped
 
 
+def test_xpoint_null_set_explicit_box_keeps_null_the_default_rejects():
+    """A null outside MAST's default box survives an explicit machine box."""
+    xr = np.array([[2.60], [np.nan]])
+    xz = np.array([[0.05], [np.nan]])
+    # MAST's default box tops out at R=2.0, so the null is masked.
+    default_r, _ = xpoint_null_set(xr, xz)
+    assert np.all(np.isnan(default_r))
+    # An explicit wider box admits it.
+    set_r, set_z = xpoint_null_set(xr, xz, box=(1.60, 4.60, 3.20))
+    assert set_r[0, 0] == pytest.approx(2.60)
+    assert set_z[0, 0] == pytest.approx(0.05)
+
+
 # ---------------------------------------------------------------------------
 # Full label build: interpolation onto frame times + masking + units
 # ---------------------------------------------------------------------------

@@ -44,6 +44,7 @@ import threading
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -117,6 +118,39 @@ def _default_loader(
     return load_equilibrium_geometry(shot_id, frame_times, **kwargs)
 
 
+#: DD the JT-60SA description stores are written in.
+_JT60SA_DD_VERSION = "4.1.1"
+
+
+@lru_cache(maxsize=1)
+def _jt60sa_xpoint_vessel_box() -> tuple[float, float, float]:
+    """JT-60SA's coarse in-vessel X-point box, derived from the OP1 limiter.
+
+    The OP1 phase store's ``wall`` limiter contour, widened by the same margin
+    MAST's box carries over MAST's measured limiter extent (see
+    :func:`imas_ambix.worldmodel.equilibrium_labels._widen_limiter_box`), so a
+    JT-60SA X-point just inside the first wall is kept where MAST's default box
+    would null it.  The box is derived from the store, never typed by hand.
+    """
+    import imas  # noqa: PLC0415
+
+    from imas_ambix.data.paths import JT60SA_MAP_DIR  # noqa: PLC0415
+    from imas_ambix.gs.artifact_geometry import read_artifact_limiter  # noqa: PLC0415
+    from imas_ambix.worldmodel.equilibrium_labels import (  # noqa: PLC0415
+        _widen_limiter_box,
+    )
+
+    wall_path = JT60SA_MAP_DIR / "machine_description" / "OP1" / "wall.nc"
+    with imas.DBEntry(str(wall_path), "r", dd_version=_JT60SA_DD_VERSION) as entry:
+        wall = entry.get("wall", autoconvert=False)
+    limiter_r, limiter_z, flags = read_artifact_limiter(wall)
+    if not limiter_r:
+        raise ValueError(
+            f"OP1 wall store {wall_path} carries no limiter contour: {flags}"
+        )
+    return _widen_limiter_box(limiter_r, limiter_z)
+
+
 def _selene_psrc_loader(
     shot_id: int,
     frame_times: np.ndarray,
@@ -141,6 +175,11 @@ def _selene_psrc_loader(
     ``(n_bdy, nt)`` array the builder's per-slice resampling accepts.  PSRC's
     geometric centre (``calCCSRc``/``calCCSZc``), a coarse marker offset from
     the axis, is never read.
+
+    The in-vessel X-point box the builder applies is JT-60SA's, derived from
+    the OP1 limiter contour (:func:`_jt60sa_xpoint_vessel_box`); a caller may
+    override it with a ``box`` keyword.  Without it the builder would apply
+    MAST's default box and null every JT-60SA X-point.
     """
     import numpy as np  # noqa: PLC0415
 
@@ -170,6 +209,7 @@ def _selene_psrc_loader(
         lcfs_z[: z_slice.size, i] = z_slice
 
     build_kwargs = {"angles": kwargs["angles"]} if "angles" in kwargs else {}
+    box = kwargs["box"] if "box" in kwargs else _jt60sa_xpoint_vessel_box()
     return build_geometry_from_arrays(
         shot_id=shot_id,
         frame_times=np.asarray(frame_times, dtype=np.float64).ravel(),
@@ -180,6 +220,7 @@ def _selene_psrc_loader(
         x_point_z=np.asarray(xpt_z, dtype=np.float64).reshape(1, -1),
         lcfs_r=lcfs_r,
         lcfs_z=lcfs_z,
+        box=box,
         **build_kwargs,
     )
 

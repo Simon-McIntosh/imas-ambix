@@ -108,11 +108,30 @@ def cache(tmp_path: Path) -> Path:
     return _seed_cache(tmp_path)
 
 
-def _loader_output(cache_root: Path):
+def _set_xpoint(cache_root: Path, r: float, z: float) -> None:
+    """Overwrite the cache's PSRC X-point channels with a constant ``(r, z)``."""
+    category = zarr.open_group(str(cache_root / f"{_SHOT}.zarr"), mode="a")["PSRC"]
+    _, time = _read_source("calRX")
+    for dname, value in (("calRX", r), ("calZX", z)):
+        category.create_array(
+            dname, data=np.full(time.shape, value, dtype="<f8"), overwrite=True
+        )
+        category.create_array(f"{dname}_time", data=time, overwrite=True)
+
+
+#: Sentinel: no ``box`` keyword is passed, so the loader derives JT-60SA's own.
+_DERIVE_BOX = object()
+
+
+def _loader_output(cache_root: Path, box: object = _DERIVE_BOX):
+    """Run the loader; ``_DERIVE_BOX`` derives JT-60SA's, ``None`` uses MAST's."""
     frame_times = np.asarray(_FRAME_TIMES, dtype=np.float64)
     with evaluator_context():
+        kwargs = {"cache_root": cache_root}
+        if box is not _DERIVE_BOX:
+            kwargs["box"] = box
         return read_efit_geometry(
-            _SHOT, frame_times, loader=_selene_psrc_loader, cache_root=cache_root
+            _SHOT, frame_times, loader=_selene_psrc_loader, **kwargs
         )
 
 
@@ -157,3 +176,48 @@ def test_judge_scores_loader_output_against_itself_at_zero_boundary_rms(cache: P
     assert verdict.boundary_rms == pytest.approx(0.0)
     assert verdict.n_boundary_points == 8
     assert verdict.axis_error == pytest.approx(0.0, abs=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# Machine in-vessel X-point box: JT-60SA's own, not MAST's
+# ---------------------------------------------------------------------------
+
+
+def test_loader_keeps_xpoint_inside_jt60sa_limiter(cache: Path):
+    """An X-point inside JT-60SA's limiter survives the loader's own box.
+
+    R=2.6 m lies inside the OP1 limiter (R∈[1.705, 4.483]) but outside MAST's
+    default box (R≤2.0), which would null it.
+    """
+    _set_xpoint(cache, 2.60, 0.0)
+    geom = _loader_output(cache)
+    assert np.all(np.isfinite(geom.target[:, 2]))
+    assert np.all(np.isfinite(geom.target[:, 3]))
+    np.testing.assert_allclose(geom.target[:, 2], 2.60, atol=1e-3)
+    np.testing.assert_allclose(geom.target[:, 3], 0.0, atol=1e-3)
+
+
+def test_loader_nulls_xpoint_outside_jt60sa_limiter(cache: Path):
+    """An X-point outside JT-60SA's box is still nulled."""
+    _set_xpoint(cache, 5.20, 0.0)
+    geom = _loader_output(cache)
+    assert np.all(np.isnan(geom.target[:, 2]))
+    assert np.all(np.isnan(geom.target[:, 3]))
+
+
+def test_derived_box_contains_the_whole_op1_limiter_contour():
+    """The box the loader applies brackets the OP1 limiter contour."""
+    import imas
+
+    from imas_ambix.data.paths import JT60SA_MAP_DIR
+    from imas_ambix.eval.efit_referee import _jt60sa_xpoint_vessel_box
+    from imas_ambix.gs.artifact_geometry import read_artifact_limiter
+
+    wall_path = JT60SA_MAP_DIR / "machine_description" / "OP1" / "wall.nc"
+    with imas.DBEntry(str(wall_path), "r", dd_version="4.1.1") as entry:
+        wall = entry.get("wall", autoconvert=False)
+    limiter_r, limiter_z, _ = read_artifact_limiter(wall)
+    r_lo, r_hi, z_abs = _jt60sa_xpoint_vessel_box()
+    assert r_lo <= min(limiter_r)
+    assert max(limiter_r) <= r_hi
+    assert max(abs(z) for z in limiter_z) <= z_abs

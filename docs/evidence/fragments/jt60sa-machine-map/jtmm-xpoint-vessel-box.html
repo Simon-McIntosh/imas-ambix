@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="reckon-type" content="doc">
+  <title>Machine in-vessel X-point box — landed</title>
+</head>
+<body>
+<main class="plan-doc">
+  <h2 id="jtmm-xpoint-vessel-box">Machine in-vessel X-point box, passed to the shared equilibrium-label builder</h2>
+  <ul>
+    <li id="jtmm-xpoint-vessel-box-builder">The shared label builder now takes the coarse in-vessel box as an argument. <code>imas_ambix/worldmodel/equilibrium_labels.py</code> <code>xpoint_null_set</code> and <code>build_geometry_from_arrays</code> accept an optional <code>box=(r_lo, r_hi, z_abs)</code> threaded to <code>_null_in_vessel</code>. The default is MAST's <code>XPOINT_VESSEL_R_RANGE=(0.1, 2.0)</code> and <code>XPOINT_VESSEL_Z_ABS=2.0</code>, so every existing MAST caller and label is unchanged; a caller-supplied box overrides it.</li>
+    <li id="jtmm-xpoint-vessel-box-derivation">The box is derived, never typed. <code>_widen_limiter_box</code> takes a limiter contour's R extent and |Z| extent and widens them by the margin MAST's box carries over MAST's measured extent (R∈[0.20, 1.90], |Z|≤1.83 against 0.1/2.0/2.0): +0.10 m on each R side and +0.17 m on |Z|. The margins are computed from the named MAST constants, not re-typed.</li>
+    <li id="jtmm-xpoint-vessel-box-op1-extent">The OP1 phase store's wall limiter contour (<code>maps/jt-60sa/machine_description/OP1/wall.nc</code>, read through imas at DD <code>4.1.1</code> and reduced by <code>imas_ambix.gs.artifact_geometry.read_artifact_limiter</code>) spans R∈[1.705, 4.483] and |Z|≤3.0191 m (51 vertices).</li>
+    <li id="jtmm-xpoint-vessel-box-derived-box">The derived JT-60SA box is (<code>1.605</code>, <code>4.583</code>, <code>3.1891</code>) — R∈[1.605, 4.583] m, |Z|≤3.1891 m. It contains the whole OP1 limiter contour. An X-point at R=2.6 m, inside the limiter but outside MAST's R≤2.0 box, survives the loader where MAST's default would null it; an X-point at R=5.2 m, outside the limiter, is still nulled.</li>
+    <li id="jtmm-xpoint-vessel-box-loader">The SELENE reference loader (<code>imas_ambix/eval/efit_referee.py</code> <code>_selene_psrc_loader</code>) passes JT-60SA's box, derived once from the OP1 store via <code>_jt60sa_xpoint_vessel_box</code>. A caller may override it with a <code>box</code> keyword; the loader forwards it through the existing gated <code>read_efit_geometry</code> seam, so no second ungated read is added.</li>
+    <li id="jtmm-xpoint-vessel-box-tests">New tests: in <code>tests/eval/test_selene_reference.py</code>, an in-limiter synthetic X-point at R=2.6 m stays finite, an out-of-limiter X-point at R=5.2 m is nulled, and the derived box contains the whole OP1 limiter contour; in <code>tests/worldmodel/test_equilibrium_labels.py</code>, <code>xpoint_null_set</code> with an explicit box keeps a null the default box rejects.</li>
+    <li id="jtmm-xpoint-vessel-box-negative-control">Negative control: dropping the <code>box</code> argument from the loader's <code>build_geometry_from_arrays</code> call so MAST's default applies fails the in-limiter X-point test with a nulled slot (see the manifest's <code>negative_control_log</code>).</li>
+  </ul>
+</main>
+</body>
+</html>
