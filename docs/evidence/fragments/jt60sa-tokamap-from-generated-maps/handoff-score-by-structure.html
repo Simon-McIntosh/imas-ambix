@@ -1,0 +1,36 @@
+<section id="handoff-score-by-structure-result">
+  <h3>Score each system, not only each IDS</h3>
+  <p>The hand-off score now groups every row by structure as well as by IDS. A structure is the
+  target path's first segment after the IDS name, so <code>magnetics/b_field_pol_probe</code>,
+  <code>magnetics/ip</code> and <code>magnetics/flux_loop</code> score as separate rows under
+  one magnetics IDS, and <code>pf_active/coil</code> stays distinct from <code>tf/coil</code>
+  when the coils export arrives. <code>score_handoff</code> returns a
+  <code>by_structure</code> block beside <code>by_ids</code> and the <code>total</code>. Each
+  structure's agreement is compared against hand-built rules for that same structure, so a
+  structure with no hand-built rules reads <code>no reference</code>. The IDS-level rows are
+  unchanged and the structure rows reconcile to them: the structure <code>exported</code>,
+  <code>imported</code>, <code>unplaced</code> and <code>refused</code> counts sum to the IDS
+  row's, and a structure carrying rows but no values reads <code>no reference</code>.</p>
+  <p>Focused tests: <code>tests/data/test_handoff_score.py</code> splits one IDS's rows across
+  two structures (<code>test_one_ids_splits_into_separate_structure_rows</code>) with separate
+  five-number rows — <code>magnetics/b_field_pol_probe</code> at exported 4, imported 2,
+  agreeing 1, unplaced 1, refused 1, and <code>magnetics/flux_loop</code> at exported 1,
+  imported 0, agreeing <code>no reference</code>, unplaced 0, refused 1 — so a structure
+  without hand-built rules reads <code>no reference</code> rather than borrowing its sibling's
+  rules.</p>
+  <h4>score-handoff --json on the shared hand-off as restored (iteration-2 baseline)</h4>
+  <p>The shared hand-off <code>/work/projects/imas_gpu/jt60sa/handoff/jt-60sa-mapping-handoff.json</code>
+  carries <code>exported_at 2026-10-09T05:27:53Z</code> — the 05:27Z export as imas-codex
+  restored it — and is scored here as the <strong>iteration-2 baseline</strong>. Its command
+  JSON receipt names one structure:</p>
+  <table id="handoff-score-by-structure-baseline">
+    <caption>jt-60sa-mapping-handoff.json, exported_at 2026-10-09T05:27:53Z; by_structure and total</caption>
+    <thead><tr><th>Structure</th><th>Exported</th><th>Imported</th><th>Agreeing</th><th>Sign unscored</th><th>Unplaced</th><th>Refused</th></tr></thead>
+    <tbody>
+      <tr><td>magnetics/b_field_pol_probe</td><td>35</td><td>17</td><td>9</td><td>0</td><td>6</td><td>12</td></tr>
+      <tr><td>TOTAL</td><td>35</td><td>17</td><td>9</td><td>0</td><td>6</td><td>12</td></tr>
+    </tbody>
+  </table>
+  <p>The full command JSON is kept at
+  <code>handoff-score-iteration-2.json</code> in the run directory.</p>
+</section>

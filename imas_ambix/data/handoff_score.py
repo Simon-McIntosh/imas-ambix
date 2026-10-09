@@ -102,13 +102,58 @@ def _unplaced(reason: str) -> bool:
     )
 
 
+def _measure(
+    exported: int,
+    unresolved: Sequence[Any],
+    values: Sequence[SignalRule | tuple[SignalRule, bool]],
+    reference: Sequence[SignalRule] | None,
+    signals: Sequence[Mapping[str, Any]],
+    catalogue: MachineMapCatalog,
+    dd_version: str,
+) -> dict[str, Any]:
+    unplaced = sum(_unplaced(row.reason) for row in unresolved)
+    reasons = Counter(row.reason for row in unresolved if not _unplaced(row.reason))
+    matches: list[bool] = []
+    if reference is not None:
+        for rule, withheld in values:
+            label = _handoff_label(signals, rule, dd_version)
+            sign_unscored = withheld or (
+                catalogue.source_cocos in (None, 0) and _cocos_dependent(label)
+            )
+            if any(
+                _agrees(rule, prior, sign_unscored=sign_unscored)
+                for prior in reference
+            ):
+                matches.append(sign_unscored)
+    agreeing: int | str = "no reference" if reference is None else len(matches)
+    return {
+        "exported": exported,
+        "imported": exported - len(unresolved),
+        "agreeing": agreeing,
+        "unplaced": unplaced,
+        "refused": sum(reasons.values()),
+        "refused_reasons": dict(sorted(reasons.items())),
+        "sign_unscored": sum(matches),
+    }
+
+
+def _structure(target_path: str) -> str | None:
+    """The target path's first segment after the IDS name, or None if absent."""
+    parts = target_path.split("/")
+    return "/".join(parts[:2]) if len(parts) >= 2 else None
+
+
 def score_handoff(
     document: Mapping[str, Any],
     catalogue: MachineMapCatalog,
     description_members: Mapping[str, Sequence[str]],
     hand_built_maps: Sequence[SignalMap],
 ) -> dict[str, Any]:
-    """Count every hand-off row and compare imported values with hand-built rules."""
+    """Count every row and compare imported values with hand-built rules.
+
+    Rows are grouped by IDS and by structure, the target path's first segment
+    after the IDS name, so systems that share one IDS stay separate rows.
+    """
     imported = import_generated_mappings(document, catalogue, description_members)
     references = {mapping.system: mapping.signals for mapping in hand_built_maps}
     drafts = {mapping.system: mapping.signals for mapping in imported.maps}
@@ -116,37 +161,59 @@ def score_handoff(
     for item in imported.pending:
         pending.setdefault(item.ids_name, []).append(item.rule)
     by_ids: dict[str, dict[str, Any]] = {}
+    by_structure: dict[str, dict[str, Any]] = {}
     for item in document["ids"]:
         ids_name = item["ids_name"]
-        exported = len(item["signals"]) + len(item["unexpanded"])
+        rows = list(item["signals"]) + list(item["unexpanded"])
         unresolved = [row for row in imported.unresolved if row.ids_name == ids_name]
-        unplaced = sum(_unplaced(row.reason) for row in unresolved)
-        reasons = Counter(row.reason for row in unresolved if not _unplaced(row.reason))
         values = [(rule, False) for rule in drafts.get(ids_name, ())]
         values += [(rule, True) for rule in pending.get(ids_name, ())]
         reference = references.get(ids_name)
-        matches = []
-        if reference is not None:
-            for rule, withheld in values:
-                label = _handoff_label(item["signals"], rule, document["dd_version"])
-                sign_unscored = withheld or (
-                    catalogue.source_cocos in (None, 0) and _cocos_dependent(label)
-                )
-                if any(
-                    _agrees(rule, prior, sign_unscored=sign_unscored)
+        by_ids[ids_name] = _measure(
+            len(rows),
+            unresolved,
+            values,
+            reference,
+            item["signals"],
+            catalogue,
+            document["dd_version"],
+        )
+        structure_rows: dict[str, list[Mapping[str, Any]]] = {}
+        structure_unresolved: dict[str, list[Any]] = {}
+        structure_values: dict[str, list[tuple[SignalRule, bool]]] = {}
+        for row in rows:
+            structure = _structure(row["target_path"])
+            if structure is not None:
+                structure_rows.setdefault(structure, []).append(row)
+        for row in unresolved:
+            structure = _structure(row.target_path)
+            if structure is not None:
+                structure_unresolved.setdefault(structure, []).append(row)
+        for value in values:
+            structure = _structure(value[0].target_path)
+            if structure is not None:
+                structure_values.setdefault(structure, []).append(value)
+        names = set(structure_rows) | set(structure_unresolved) | set(
+            structure_values
+        )
+        for structure in names:
+            if reference is None:
+                structure_reference: Sequence[SignalRule] | None = None
+            else:
+                structure_reference = [
+                    prior
                     for prior in reference
-                ):
-                    matches.append(sign_unscored)
-        agreeing: int | str = "no reference" if reference is None else len(matches)
-        by_ids[ids_name] = {
-            "exported": exported,
-            "imported": exported - len(unresolved),
-            "agreeing": agreeing,
-            "unplaced": unplaced,
-            "refused": sum(reasons.values()),
-            "refused_reasons": dict(sorted(reasons.items())),
-            "sign_unscored": sum(matches),
-        }
+                    if _structure(prior.target_path) == structure
+                ] or None
+            by_structure[structure] = _measure(
+                len(structure_rows.get(structure, ())),
+                structure_unresolved.get(structure, ()),
+                structure_values.get(structure, ()),
+                structure_reference,
+                item["signals"],
+                catalogue,
+                document["dd_version"],
+            )
     total_reasons = Counter()
     for row in by_ids.values():
         total_reasons.update(row["refused_reasons"])
@@ -163,4 +230,9 @@ def score_handoff(
         "refused_reasons": dict(sorted(total_reasons.items())),
         "sign_unscored": sum(row["sign_unscored"] for row in by_ids.values()),
     }
-    return {"machine": document["facility"], "by_ids": by_ids, "total": total}
+    return {
+        "machine": document["facility"],
+        "by_ids": by_ids,
+        "by_structure": by_structure,
+        "total": total,
+    }
