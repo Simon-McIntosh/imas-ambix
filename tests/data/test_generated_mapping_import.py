@@ -47,7 +47,7 @@ def test_fixture_indices_follow_description_identity_not_handoff_order():
     }
     assert all(signal.validation_state == "draft" for signal in by_source.values())
     assert by_source["magPbTC10"].evidence == (
-        "imas-codex mapping_id=jt-60sa:magnetics:4.1.1; "
+        "imas-codex mapping_id=jt-60sa:magnetics; "
         "status=generated; EDAS MDAC pickup probe channel"
     )
     assert imported.unresolved[0].reason == (
@@ -117,4 +117,61 @@ def test_draft_rule_and_map_round_trip_through_serialisation():
     assert (
         SignalMap.from_dict(json.loads(imported.maps[0].canonical_bytes()))
         == (imported.maps[0])
+    )
+
+
+def test_value_expression_imports_as_identity():
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    document["ids"][0]["signals"][0]["transform_expression"] = "value"
+    document["ids"][0]["signals"][0]["evidence"] = ""
+
+    imported = import_generated_mappings(document, _catalogue(), DESCRIPTION_MEMBERS)
+
+    assert imported.maps[0].signals[0].transformation == "one_like"
+    assert imported.maps[0].signals[0].evidence == (
+        "imas-codex mapping_id=jt-60sa:magnetics; status=generated"
+    )
+    assert all(
+        row.target_path != "magnetics/b_field_pol_probe/field/data"
+        for row in imported.unresolved
+    )
+
+
+def test_derived_error_and_unqualified_time_rows_are_unresolved():
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    value = document["ids"][0]["signals"][0]
+    derived = []
+    for field in ("data_error_upper", "data_error_lower", "data_error_index", "time"):
+        row = dict(
+            value, target_path=value["target_path"].replace("/data", f"/{field}")
+        )
+        row["transform_expression"] = "value"
+        row["source_property"] = None
+        row["signal_id"] = f"{value['signal_id']}:{field}"
+        derived.append(row)
+    document["ids"][0]["signals"].extend(derived)
+
+    imported = import_generated_mappings(document, _catalogue(), DESCRIPTION_MEMBERS)
+
+    error_reason = (
+        "imas-codex derived error bounds from the value; no error signal exists"
+    )
+    time_reason = (
+        "handoff has no source_property; time-vector binding cannot be "
+        "distinguished from a value binding"
+    )
+    assert {
+        row.target_path.rsplit("/", 1)[-1]: row.reason
+        for row in imported.unresolved
+        if row.source_array == value["source_array"]
+    } == {
+        "data_error_upper": error_reason,
+        "data_error_lower": error_reason,
+        "data_error_index": error_reason,
+        "time": time_reason,
+    }
+    assert all(
+        signal.target_path.endswith("/data")
+        for mapping in imported.maps
+        for signal in mapping.signals
     )
