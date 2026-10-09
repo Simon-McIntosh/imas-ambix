@@ -147,6 +147,7 @@ def import_generated_mappings(
         used_targets: set[tuple[str, int]] = set()
         for row in ids["signals"]:
             field = row["target_path"].rsplit("/", maxsplit=1)[-1]
+            source_property = row.get("source_property")
             if field != "data":
                 if field in {
                     "data_error_upper",
@@ -157,11 +158,21 @@ def import_generated_mappings(
                         "imas-codex derived error bounds from the value; "
                         "no error signal exists"
                     )
-                elif field == "time" and row.get("source_property") is None:
-                    reason = (
-                        "handoff has no source_property; time-vector binding "
-                        "cannot be distinguished from a value binding"
-                    )
+                elif field == "time":
+                    if source_property is None:
+                        reason = (
+                            "handoff has no source_property; time-vector binding "
+                            "cannot be distinguished from a value binding"
+                        )
+                    elif source_property == "time":
+                        reason = (
+                            "source_property=time unresolved: installed tokamap "
+                            "mappings.schema.json DATA_SOURCE defines no time selector"
+                        )
+                    else:
+                        reason = (
+                            f"source_property={source_property!r} cannot target time"
+                        )
                 else:
                     reason = "target is not a data field"
                 unresolved.append(
@@ -175,6 +186,8 @@ def import_generated_mappings(
                 )
                 continue
             index, reason = _target_index(row, description_members, rule)
+            if reason is None and source_property not in (None, "value"):
+                reason = f"source_property={source_property} cannot target data"
             if reason is None and row["source_units"] != row["target_units"]:
                 reason = "source and target units differ without a conversion factor"
             expression = row["transform_expression"]

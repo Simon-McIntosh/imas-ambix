@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from importlib import resources
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -175,3 +176,44 @@ def test_derived_error_and_unqualified_time_rows_are_unresolved():
         for mapping in imported.maps
         for signal in mapping.signals
     )
+
+
+def test_source_property_value_imports_and_time_quotes_installed_schema():
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    value = document["ids"][0]["signals"][0]
+    assert value["source_property"] == "value"
+    time = dict(value, source_property="time")
+    time["target_path"] = value["target_path"].replace("/data", "/time")
+    time["signal_id"] += ":time"
+    time["source_units"] = time["target_units"] = "s"
+    document["ids"][0]["signals"].append(time)
+
+    schema = json.loads(
+        resources.files("tokamap").joinpath("schemas/mappings.schema.json").read_text()
+    )
+    data_source = schema["$defs"]["data_source"]["properties"]
+    assert "args" in data_source  # Check the installed schema was found.
+    assert "source_property" not in data_source
+    imported = import_generated_mappings(document, _catalogue(), DESCRIPTION_MEMBERS)
+    signals = imported.maps[0].signals
+    assert any(rule.source_array == value["source_array"] for rule in signals)
+    assert not any(rule.target_path.endswith("/time") for rule in signals)
+    assert any(
+        row.target_path == time["target_path"]
+        and "source_property=time" in row.reason
+        and "mappings.schema.json" in row.reason
+        and "DATA_SOURCE" in row.reason
+        for row in imported.unresolved
+    )
+
+
+def test_time_property_cannot_be_imported_as_data():
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    document["ids"][0]["signals"][0]["source_property"] = "time"
+    imported = import_generated_mappings(document, _catalogue(), DESCRIPTION_MEMBERS)
+    assert all(
+        rule.source_array != "magPbTC10"
+        for mapping in imported.maps
+        for rule in mapping.signals
+    )
+    assert any("source_property=time" in row.reason for row in imported.unresolved)
