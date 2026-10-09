@@ -24,9 +24,9 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="37">
+<meta name="plan-version" content="38">
 <meta name="plan-modified" content="2026-10-09">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -332,7 +332,7 @@
 <p><strong>Node</strong> <code>handoff-score-command</code>, role implement, 0.75 h. Write paths: <code>imas_ambix/data/handoff_score.py</code>, <code>tests/data/test_handoff_score.py</code>, <code>imas_ambix/maps_cli.py</code>, <code>tests/test_maps_cli.py</code>, <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/handoff-score-command.html</code>. <strong>Done when</strong> tests show each of the five categories counted on a hand-built test catalogue and map, <code>no reference</code> for an IDS without a hand-built map, and an <code>unscored</code> sign for a labelled target under an undeclared source COCOS; and the command, run on the 03:44Z JT-60SA hand-off, writes a JSON whose numbers the fragment quotes.</p>
 
     <h2 id="s9">§9 — Read the hand-off&#x27;s COCOS label as a Data Dictionary label</h2>
-<section data-reckon="section" data-id="s9" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s9" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="done" data-links=""></section>
 <p>imas-codex now fills the hand-off's <code>cocos_label</code> from its graph with the Data Dictionary transformation label of the target's nearest labelled ancestor (<code>one_like</code>, <code>ip_like</code>, <code>psi_like</code> and the rest), or with <code>none</code> when nothing is labelled, and adds <code>cocos_label_source</code> (<code>xml</code>, <code>inferred_forward</code>, <code>inferred_sign_flip</code> or <code>none</code>). The importer still reads <code>cocos_label</code> as a source COCOS number and refuses anything but a digit string, so every labelled row would be refused.</p>
 <p>Change <code>imas_ambix/data/generated_mapping_import.py</code> to read <code>cocos_label</code> as a label from the Data Dictionary vocabulary plus <code>none</code>, refusing any other value by name. A <code>one_like</code> or <code>none</code> row imports, with the label and its source recorded in the rule's evidence. A row with a COCOS-dependent label imports as a draft rule pending COCOS: the import returns it in its own collection, never in the draft signal maps, naming the label, its source and the machine's undeclared source COCOS as the open item. Its target, index, channel and scale are scored and its sign is not, because the lead ruled that no factor is ever assumed. <code>imas-ambix maps tokamap --draft-signals</code> lists every pending rule as withheld, so the tokamap never carries an assumed sign, while imas-codex's study still measures the mapping rather than the undeclared convention. A null or absent <code>cocos_label</code> keeps today's behaviour. The rule's own <code>transformation</code> vocabulary is <code>jt60sa-machine-map</code>'s change; until it lands, imported rows keep <code>one_like</code> there.</p>
 <p><strong>Node</strong> <code>handoff-cocos-labels</code>, role implement, 0.5 h. Write paths: <code>imas_ambix/data/generated_mapping_import.py</code>, <code>tests/data/test_generated_mapping_import.py</code>, <code>imas_ambix/maps_cli.py</code>, <code>tests/test_maps_cli.py</code>, <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/handoff-cocos-labels.html</code>. <strong>Done when</strong> tests show a <code>one_like</code> row imported with its label and source in the evidence, a <code>none</code> row imported, an <code>ip_like</code> row returned as a pending-COCOS draft rule naming label, source and the open source COCOS and absent from the draft signal maps, the tokamap command listing that rule as withheld, an unknown label refused by name, and a null label behaving as before; and the fragment lists the counts on the current shared JT-60SA hand-off.</p>
@@ -430,6 +430,9 @@
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261009T051834932850-handoff-score-command" data-who="reckon-build" data-when="2026-10-09T05:35:03Z">
     <div class="r-comment-body"><p>Corrected COCOS agreement scoring landed; eight focused tests passed; JT-60SA hand-off scored exported 35, imported 9, agreeing 9, sign_unscored 0, unplaced 6, refused 20.</p></div>
+</div>
+<div class="r-comment" data-section="s9" data-id="c-close-s9" data-who="reckon-build" data-when="2026-10-09T06:02:00Z">
+    <div class="r-comment-body"><p>§9 landed (merge <code>6ee135d1</code>): labels read as DD labels; COCOS-dependent rows pending, scored with sign unscored, withheld from the tokamap. The rescore waits for imas-codex's regenerated magnetics export. <a href="/imas-ambix/evidence/archive/jt60sa-tokamap-from-generated-maps-landed.html#s9">evidence</a></p></div>
 </div>
 </section>
 </main>
