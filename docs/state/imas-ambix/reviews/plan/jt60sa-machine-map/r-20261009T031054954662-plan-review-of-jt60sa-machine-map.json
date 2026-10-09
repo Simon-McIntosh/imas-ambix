@@ -1,0 +1,63 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-09T03:17:10.907Z",
+  "dispatched_at": "2026-10-09T03:11:46Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:195",
+      "id": "done_when-1",
+      "reason": "a node implementing this control would find the mutation does not move the cited rule's exported scale and would either stall on an unfalsifiable gate or ship a must-fail control that never fires, which is exactly the defect the earlier review's pinning-to-COCOS-1 was meant to remove.",
+      "text": "the must-fail control is pinned to \"the E101011 psi rule\", but that rule is a signal rule in `maps/jt-60sa/maps/equilibrium.json` (`semantic_id: equilibrium_psi`, `target_path: equilibrium/time_slice/profiles_2d/psi`, `transformation: psi_like`, `source_cocos: 1`) whose exported scale is `unit_factor \u00d7 channel_factor \u00d7 rule.convention_factor` (tokamap_export.py:278-281), where `convention_factor = canonical_factor(rule.transformation, source_cocos=rule.source_cocos)` (signal_map.py:108-114) reads the rule's own declared `transformation` field and never calls a DD-path resolver; the engine resolver the control mutates (`_target_cocos_transformation`, transform_engine.py:409) is reached only by `_catalogue_entry` (tokamap_export.py:226) and by the two withhold checks (tokamap_export.py:359,376), and no catalogue binding with a declared source COCOS of 1 exists to serve as the control instead (`maps/jt-60sa/machine_map.json` carries `source_cocos: 0` with no per-binding override), so mutating the resolver so the psi path reads as one_like leaves the rule's exported scale at \u22122\u03c0 \u00d7 1 \u00d7 1 and the control cannot fail",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "1a57f69fd927effd404a5b928038341b6c396123c7cb0d79e9531871a786bbae",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 453,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "done_when-1",
+      "reason": "Plan v454 (54a7aa72): the control is now a catalogue binding the test builds itself on a psi_like DD path with declared source COCOS 1, since the resolver reaches only catalogue bindings, a signal rule's factor comes from its own transformation, and no JT-60SA catalogue binding declares a source COCOS.",
+      "when": "2026-10-09T03:18:18.535886+00:00"
+    }
+  ],
+  "responses": {
+    "done_when-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v454 (54a7aa72): the control is now a catalogue binding the test builds itself on a psi_like DD path with declared source COCOS 1, since the resolver reaches only catalogue bindings, a signal rule's factor comes from its own transformation, and no JT-60SA catalogue binding declares a source COCOS.",
+      "when": "2026-10-09T03:18:18.535886+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v453.json",
+  "review_run_id": "r-20261009T031054954662-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "d3d0c30507fa66f21ea282215981a59a7404ad5e",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `packages/imas-alambic/src/imas_alambic/transform_engine.py`, `imas_ambix/data/tokamap_export.py` and `packages/imas-alambic/src/imas_alambic/cocos.py` all resolve, together with the cited `_cocos_transformation`, `_target_cocos_transformation`, `canonical_factor`, `_unit_factor` and `_leaf_mappings`.",
+    "done_when": "a finding \u2014 \u00a72's must-fail control is pinned to \"the E101011 psi rule\", whose exported scale is computed without ever consulting the engine resolver the control mutates, so the control cannot fail on that target.",
+    "evidence_paths": "pass \u2014 \u00a72's done-when names no session scratchpad or node-local temporary path; it asserts a test and a control, and the plan's evidence stays on the repository's evidence paths.",
+    "naming": "pass \u2014 \u00a72 introduces no plan label, stage name or ticket number into a symbol or comment; its node ids (`jtmm-tokamap-jt60sa`, `jt60sa-tokamap-from-generated-maps`) live only in plan prose.",
+    "reasoning": "pass \u2014 the stated root cause matches the cited code: the exporter's `_cocos_transformation` (tokamap_export.py:155), the engine's `_target_cocos_transformation` (transform_engine.py:409) and the test's own `_transformation` (test_tokamap_export.py:48) are three private copies of one DD-path lookup, and the round-trip test recomputes its expected scale from `canonical_factor` and never asks the engine, so the copies can drift with the suite green. The mechanism runs on the real catalogue-binding path with its caller named (`_catalogue_entry`, tokamap_export.py:226). The control's mismatch is the defect recorded under done_when.",
+    "single_goal": "pass \u2014 the node keeps one deliverable, the resolver split: promote the engine's private DD-path resolver to public and retire the exporter's private copy.",
+    "wiring": "pass \u2014 \u00a72's node `jtmm-tokamap-jt60sa` declares its dependency (it \"runs after that plan's \u00a71 merges\", repeated in \u00a78 item 7), and no relationship points at the wrong node."
+  },
+  "section_digests": {
+    "_document": "aeae9043f53534ca2bc015344ff6611bcb0f8f1fd2d90c733ffbe2bbfb65ca84",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "e1e8a864002b22a0f98f5e3c1d6a43174f9fc7ed96da182452fc71263ff0d791",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "08a72f0218880469fee6aa3ee829fb19c1063e931927357b4d10a6b45b692266",
+    "s8": "f2783c135c52eeca31e8457eaf39e60a5ac9e214c2f5d2daabca9fbbf9411211"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-09T03:18:18.531542+00:00"
+}
