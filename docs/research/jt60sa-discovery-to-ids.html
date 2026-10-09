@@ -1,0 +1,306 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="docs-project" content="imas-ambix"><meta name="reckon-type" content="research">
+<meta name="plan-slug" content="jt60sa-discovery-to-ids"><meta name="plan-title" content="From JT-60SA signal discovery to pulse IDS">
+<meta name="plan-summary" content="A fixture-driven generated mapping joins the JT-60SA catalogue, tokamap and pulse writer; promotion still requires validation.">
+<meta name="plan-status" content="reference"><meta name="plan-evidence-for" content="jt60sa-tokamap-from-generated-maps">
+<title>From JT-60SA signal discovery to pulse IDS | imas-ambix</title>
+<link rel="stylesheet" href="/_shared/foundation.css"><link rel="stylesheet" href="/_shared/dashboard.css">
+</head><body><main class="plan-doc">
+<header><p class="eyebrow">JT-60SA • discovery → mappings → IDS</p><h1>From signal discovery to pulse IDS</h1>
+<p class="lead">imas-codex proposes source-to-IDS mappings; imas-ambix combines them with the SELENE-derived machine description and writes an indexed tokamap. The generated examples here come from the committed contract fixture, so their draft state is a demonstration of the hand-off contract, not a validated JT-60SA map.</p></header>
+<section id="ownership"><h2>Two repositories, one hand-off</h2>
+<p><strong>imas-codex</strong> inventories facility signals, groups candidates and emits a hand-off JSON document with proposed Data Dictionary paths. Its <a href="/imas-codex/research/discovery-to-mapping-pipeline.html">companion discovery and mapping report</a> explains the candidate and mapping evidence. <strong>imas-ambix</strong> owns the machine catalogue and signal rules, resolves each hand-off member against the machine description, exports the tokamap and supplies the slim <code>imas-alambic</code> IDS writer.</p>
+<p>The fixture under <code>tests/fixtures/mapping_handoff_example.json</code> contains two IDS groups, four signals and one unexpanded flux-loop source. Each signal carries a source id, source group and array, member identifier, target path, units, transform, confidence and evidence. A generated status is not a validation verdict.</p>
+<figure><img src="/imas-codex/figures/discovery-to-mapping/pipeline.svg" alt="Discovery and mapping pipeline"><figcaption>imas-codex discovery proceeds from facility inventory through candidates to generated draft mappings.</figcaption></figure>
+<figure><img src="/imas-codex/figures/discovery-to-mapping/mapping-lifecycle.svg" alt="Mapping lifecycle"><figcaption>Promotion requires validation after the generated draft and its facility evidence are reviewed.</figcaption></figure>
+<figure><img src="/imas-codex/figures/discovery-to-mapping/pickup-probe.svg" alt="Generated pickup probe mapping"><figcaption>Companion imas-codex pickup-probe example; the presentation comparison below uses the committed hand-off fixture.</figcaption></figure>
+<figure><img src="/imas-codex/figures/discovery-to-mapping/pf-coil-current.svg" alt="Generated PF coil mapping"><figcaption>Companion imas-codex PF-current example; the presentation comparison below uses the committed hand-off fixture.</figcaption></figure>
+</section><section id="chain"><h2>The whole chain</h2>
+<figure><img src="/imas-ambix/figures/jt60sa-tokamap/chain.svg" alt="Discovery through hand-off, indexed import, bundle, validation, tokamap and writer"><figcaption>Dashed arrows mark the generated draft route. The bundle combines the catalogue and signal rules; corpus validation is required before promotion. The fixture-driven export shown here is not promoted.</figcaption></figure>
+<p>The import matches <code>member_identifier</code> to the machine description’s ordered members. Probe <code>magPbTC10</code> becomes <code>b_field_pol_probe[9]/field/data</code>; CS1 current becomes <code>coil[0]/current/data</code>. The index comes from the catalogue order, not hand-off row order. The draft rules retain <code>validation_state=draft</code> and the imas-codex mapping identity in their tokamap comments.</p>
+<p>The fixture export in <code>/work/projects/imas_gpu/jt60sa/tokamap/draft-fixture/</code> has six IDS groups across two phase partitions, twelve <code>mappings.json</code> files and 70 entries: 50 description entries and 20 signal entries. The two generated IDS groups replace the covered hand-built signal maps with four draft rules in each partition. Its one unexpanded flux-loop source remains explicit because no FacilitySignal member is linked.</p>
+<pre>draft-fixture/
+  globals.json; mappings.cfg.json
+  magnetics/{100001,101174}/{globals,mappings}.json
+  pf_active/{100001,101174}/{globals,mappings}.json
+  pf_passive, tf, wall, equilibrium / {100001,101174} / {globals,mappings}.json</pre>
+<p><code>imas-ambix maps tokamap jt-60sa --out /work/projects/imas_gpu/jt60sa/tokamap/draft-fixture/ --draft-signals tests/fixtures/mapping_handoff_example.json</code> is the fixture-driven export command. A real generated hand-off, when available under <code>/work/projects/imas_gpu/jt60sa/handoff/</code>, replaces that input for the next iteration.</p>
+</section><section id="systems"><h2>Seven system views</h2><p>Each image is regenerated from the checked-in catalogue or signal map and the hand-built <code>100001/mappings.json</code>. Probe 10 and CS1 current also show the fixture hand-off row and its indexed draft export. Every excerpt beneath an image is selectable text copied from the data used for that image.</p>
+<section id="system-pickup-probes"><h3>Pickup probe 10</h3>
+<figure><img src="/imas-ambix/figures/jt60sa-tokamap/pickup-probes.svg" alt="Pickup probe 10 JSON comparison"><figcaption>Pickup probe 10. OP1 source beside the hand-built tokamap entry; the third row, where present, is fixture-driven and remains draft.</figcaption></figure>
+<h4>Probe 10 field</h4><p>Source <code>maps/jt-60sa/maps/magnetics.json</code>; target <code>/work/projects/imas_gpu/jt60sa/tokamap/hand-built/magnetics/100001/mappings.json</code>, key <code>b_field_pol_probe[9]/field/data</code>.</p>
+<p>Catalogue or signal map</p><pre>{
+  &quot;semantic_id&quot;: &quot;magnetics_b_field_pol_probe_10_field&quot;,
+  &quot;source_group&quot;: &quot;MDAC&quot;,
+  &quot;source_array&quot;: &quot;magPbTC10&quot;,
+  &quot;target_path&quot;: &quot;magnetics/b_field_pol_probe/field/data&quot;,
+  &quot;target_index&quot;: 9,
+  &quot;source_unit&quot;: &quot;T&quot;,
+  &quot;target_unit&quot;: &quot;T&quot;,
+  &quot;transformation&quot;: &quot;one_like&quot;,
+  &quot;channel_factor&quot;: 1.0,
+  &quot;validation_state&quot;: &quot;corpus-validated&quot;
+}</pre>
+<p>Hand-built tokamap</p><pre>{
+  &quot;b_field_pol_probe[9]/field/data&quot;: {
+    &quot;map_type&quot;: &quot;DATA_SOURCE&quot;,
+    &quot;data_source&quot;: &quot;magPbTC10&quot;,
+    &quot;args&quot;: {
+      &quot;source_array&quot;: &quot;magPbTC10&quot;,
+      &quot;source_group&quot;: &quot;MDAC&quot;
+    },
+    &quot;scale&quot;: 1.0
+  }
+}</pre>
+<p>Fixture-driven hand-off <code>tests/fixtures/mapping_handoff_example.json</code> and indexed export <code>/work/projects/imas_gpu/jt60sa/tokamap/draft-fixture/magnetics/100001/mappings.json</code></p><pre>{
+  &quot;source_group&quot;: &quot;MDAC&quot;,
+  &quot;source_array&quot;: &quot;magPbTC10&quot;,
+  &quot;member_identifier&quot;: &quot;10&quot;,
+  &quot;target_path&quot;: &quot;magnetics/b_field_pol_probe/field/data&quot;,
+  &quot;source_units&quot;: &quot;T&quot;,
+  &quot;target_units&quot;: &quot;T&quot;,
+  &quot;confidence&quot;: 0.87,
+  &quot;indexed_target&quot;: &quot;b_field_pol_probe[9]/field/data&quot;,
+  &quot;validation_state&quot;: &quot;draft&quot;,
+  &quot;scale&quot;: 1.0
+}</pre>
+</section>
+<section id="system-flux-loops"><h3>Flux loops: FL7 absolute and FL1 differential</h3>
+<figure><img src="/imas-ambix/figures/jt60sa-tokamap/flux-loops.svg" alt="Flux loops: FL7 absolute and FL1 differential JSON comparison"><figcaption>Flux loops: FL7 absolute and FL1 differential. OP1 source beside the hand-built tokamap entry; the third row, where present, is fixture-driven and remains draft.</figcaption></figure>
+<h4>FL7 absolute</h4><p>Source <code>maps/jt-60sa/maps/magnetics.json</code>; target <code>/work/projects/imas_gpu/jt60sa/tokamap/hand-built/magnetics/100001/mappings.json</code>, key <code>flux_loop[6]/flux/data</code>.</p>
+<p>Catalogue or signal map</p><pre>{
+  &quot;semantic_id&quot;: &quot;magnetics_flux_loop_7_flux&quot;,
+  &quot;source_group&quot;: &quot;MDAC&quot;,
+  &quot;source_array&quot;: &quot;magFlxLp7&quot;,
+  &quot;target_path&quot;: &quot;magnetics/flux_loop/flux/data&quot;,
+  &quot;target_index&quot;: 6,
+  &quot;source_unit&quot;: &quot;Wb&quot;,
+  &quot;target_unit&quot;: &quot;Wb&quot;,
+  &quot;transformation&quot;: &quot;one_like&quot;,
+  &quot;channel_factor&quot;: -1.0,
+  &quot;validation_state&quot;: &quot;corpus-validated&quot;
+}</pre>
+<p>Hand-built tokamap</p><pre>{
+  &quot;flux_loop[6]/flux/data&quot;: {
+    &quot;map_type&quot;: &quot;DATA_SOURCE&quot;,
+    &quot;data_source&quot;: &quot;magFlxLp7&quot;,
+    &quot;args&quot;: {
+      &quot;source_array&quot;: &quot;magFlxLp7&quot;,
+      &quot;source_group&quot;: &quot;MDAC&quot;
+    },
+    &quot;scale&quot;: -1.0
+  }
+}</pre>
+<h4>FL1 differential</h4><p>Source <code>maps/jt-60sa/maps/magnetics.json</code>; target <code>/work/projects/imas_gpu/jt60sa/tokamap/hand-built/magnetics/100001/mappings.json</code>, key <code>flux_loop[27]/flux/data</code>.</p>
+<p>Catalogue or signal map</p><pre>{
+  &quot;semantic_id&quot;: &quot;magnetics_flux_loop_1_flux&quot;,
+  &quot;source_group&quot;: &quot;MDAC&quot;,
+  &quot;source_array&quot;: &quot;magFlxLp1&quot;,
+  &quot;target_path&quot;: &quot;magnetics/flux_loop/flux/data&quot;,
+  &quot;target_index&quot;: 27,
+  &quot;source_unit&quot;: &quot;Wb&quot;,
+  &quot;target_unit&quot;: &quot;Wb&quot;,
+  &quot;transformation&quot;: &quot;one_like&quot;,
+  &quot;channel_factor&quot;: -1.0,
+  &quot;validation_state&quot;: &quot;source-only&quot;
+}</pre>
+<p>Hand-built tokamap</p><pre>{
+  &quot;flux_loop[27]/flux/data&quot;: {
+    &quot;map_type&quot;: &quot;DATA_SOURCE&quot;,
+    &quot;data_source&quot;: &quot;magFlxLp1&quot;,
+    &quot;args&quot;: {
+      &quot;source_array&quot;: &quot;magFlxLp1&quot;,
+      &quot;source_group&quot;: &quot;MDAC&quot;
+    },
+    &quot;scale&quot;: -1.0
+  }
+}</pre>
+</section>
+<section id="system-pf-coils"><h3>PF coil current and CS1 geometry</h3>
+<figure><img src="/imas-ambix/figures/jt60sa-tokamap/pf-coils.svg" alt="PF coil current and CS1 geometry JSON comparison"><figcaption>PF coil current and CS1 geometry. OP1 source beside the hand-built tokamap entry; the third row, where present, is fixture-driven and remains draft.</figcaption></figure>
+<h4>CS1 current</h4><p>Source <code>maps/jt-60sa/maps/pf_active.json</code>; target <code>/work/projects/imas_gpu/jt60sa/tokamap/hand-built/pf_active/100001/mappings.json</code>, key <code>coil[0]/current/data</code>.</p>
+<p>Catalogue or signal map</p><pre>{
+  &quot;semantic_id&quot;: &quot;pf_active_coil_CS1_current&quot;,
+  &quot;source_group&quot;: &quot;MMSYS&quot;,
+  &quot;source_array&quot;: &quot;curCS1LKAT&quot;,
+  &quot;target_path&quot;: &quot;pf_active/coil/current/data&quot;,
+  &quot;target_index&quot;: 0,
+  &quot;source_unit&quot;: &quot;A&quot;,
+  &quot;target_unit&quot;: &quot;A&quot;,
+  &quot;transformation&quot;: &quot;one_like&quot;,
+  &quot;channel_factor&quot;: 1.0,
+  &quot;validation_state&quot;: &quot;source-only&quot;
+}</pre>
+<p>Hand-built tokamap</p><pre>{
+  &quot;coil[0]/current/data&quot;: {
+    &quot;map_type&quot;: &quot;DATA_SOURCE&quot;,
+    &quot;data_source&quot;: &quot;curCS1LKAT&quot;,
+    &quot;args&quot;: {
+      &quot;source_array&quot;: &quot;curCS1LKAT&quot;,
+      &quot;source_group&quot;: &quot;MMSYS&quot;
+    },
+    &quot;scale&quot;: 1.0
+  }
+}</pre>
+<p>Fixture-driven hand-off <code>tests/fixtures/mapping_handoff_example.json</code> and indexed export <code>/work/projects/imas_gpu/jt60sa/tokamap/draft-fixture/pf_active/100001/mappings.json</code></p><pre>{
+  &quot;source_group&quot;: &quot;MMSYS&quot;,
+  &quot;source_array&quot;: &quot;curCS1LKAT&quot;,
+  &quot;member_identifier&quot;: &quot;1&quot;,
+  &quot;target_path&quot;: &quot;pf_active/coil/current/data&quot;,
+  &quot;source_units&quot;: &quot;A&quot;,
+  &quot;target_units&quot;: &quot;A&quot;,
+  &quot;confidence&quot;: 0.83,
+  &quot;indexed_target&quot;: &quot;coil[0]/current/data&quot;,
+  &quot;validation_state&quot;: &quot;draft&quot;,
+  &quot;scale&quot;: 1.0
+}</pre>
+<h4>CS1 rectangle radius</h4><p>Source <code>maps/jt-60sa/machine_map.json</code>; target <code>/work/projects/imas_gpu/jt60sa/tokamap/hand-built/pf_active/100001/mappings.json</code>, key <code>coil[#]/element[#]/geometry/rectangle/r</code>.</p>
+<p>Catalogue or signal map</p><pre>{
+  &quot;name&quot;: &quot;jt60sa-op1-pf-active-cs1-r&quot;,
+  &quot;source_group&quot;: &quot;pf_active&quot;,
+  &quot;source_array&quot;: &quot;rectangle_r&quot;,
+  &quot;source_role&quot;: &quot;value&quot;,
+  &quot;dd_path&quot;: &quot;pf_active/coil/element/geometry/rectangle/r&quot;,
+  &quot;struct_array_entry&quot;: &quot;CS1&quot;,
+  &quot;source_unit&quot;: &quot;m&quot;,
+  &quot;target_unit&quot;: &quot;m&quot;,
+  &quot;sign_convention&quot;: &quot;identity&quot;
+}</pre>
+<p>Hand-built tokamap</p><pre>{
+  &quot;coil[#]/element[#]/geometry/rectangle/r&quot;: {
+    &quot;map_type&quot;: &quot;DATA_SOURCE&quot;,
+    &quot;args&quot;: {
+      &quot;source_array&quot;: &quot;rectangle_r&quot;,
+      &quot;source_group&quot;: &quot;pf_active&quot;,
+      &quot;source_role&quot;: &quot;value&quot;
+    },
+    &quot;scale&quot;: 1.0
+  }
+}</pre>
+</section>
+<section id="system-passive-structure"><h3>Passive vessel rectangle</h3>
+<figure><img src="/imas-ambix/figures/jt60sa-tokamap/passive-structure.svg" alt="Passive vessel rectangle JSON comparison"><figcaption>Passive vessel rectangle. OP1 source beside the hand-built tokamap entry; the third row, where present, is fixture-driven and remains draft.</figcaption></figure>
+<h4>Vessel rectangle radius</h4><p>Source <code>maps/jt-60sa/machine_map.json</code>; target <code>/work/projects/imas_gpu/jt60sa/tokamap/hand-built/pf_passive/100001/mappings.json</code>, key <code>loop[#]/element[#]/geometry/rectangle/r</code>.</p>
+<p>Catalogue or signal map</p><pre>{
+  &quot;name&quot;: &quot;jt60sa-op1-pf-passive-vv-r&quot;,
+  &quot;source_group&quot;: &quot;pf_passive&quot;,
+  &quot;source_array&quot;: &quot;rectangle_r&quot;,
+  &quot;source_role&quot;: &quot;value&quot;,
+  &quot;dd_path&quot;: &quot;pf_passive/loop/element/geometry/rectangle/r&quot;,
+  &quot;struct_array_entry&quot;: &quot;VV&quot;,
+  &quot;source_unit&quot;: &quot;m&quot;,
+  &quot;target_unit&quot;: &quot;m&quot;,
+  &quot;sign_convention&quot;: &quot;identity&quot;
+}</pre>
+<p>Hand-built tokamap</p><pre>{
+  &quot;loop[#]/element[#]/geometry/rectangle/r&quot;: {
+    &quot;map_type&quot;: &quot;DATA_SOURCE&quot;,
+    &quot;args&quot;: {
+      &quot;source_array&quot;: &quot;rectangle_r&quot;,
+      &quot;source_group&quot;: &quot;pf_passive&quot;,
+      &quot;source_role&quot;: &quot;value&quot;
+    },
+    &quot;scale&quot;: 1.0
+  }
+}</pre>
+</section>
+<section id="system-tf"><h3>Toroidal field coil</h3>
+<figure><img src="/imas-ambix/figures/jt60sa-tokamap/tf.svg" alt="Toroidal field coil JSON comparison"><figcaption>Toroidal field coil. OP1 source beside the hand-built tokamap entry; the third row, where present, is fixture-driven and remains draft.</figcaption></figure>
+<h4>TF current</h4><p>Source <code>maps/jt-60sa/maps/tf.json</code>; target <code>/work/projects/imas_gpu/jt60sa/tokamap/hand-built/tf/100001/mappings.json</code>, key <code>coil[0]/current/data</code>.</p>
+<p>Catalogue or signal map</p><pre>{
+  &quot;semantic_id&quot;: &quot;tf_coil_TF1_current&quot;,
+  &quot;source_group&quot;: &quot;MMSYS&quot;,
+  &quot;source_array&quot;: &quot;cur1TFLKAT&quot;,
+  &quot;target_path&quot;: &quot;tf/coil/current/data&quot;,
+  &quot;target_index&quot;: 0,
+  &quot;source_unit&quot;: &quot;A&quot;,
+  &quot;target_unit&quot;: &quot;A&quot;,
+  &quot;transformation&quot;: &quot;one_like&quot;,
+  &quot;channel_factor&quot;: 1.0,
+  &quot;validation_state&quot;: &quot;source-only&quot;
+}</pre>
+<p>Hand-built tokamap</p><pre>{
+  &quot;coil[0]/current/data&quot;: {
+    &quot;map_type&quot;: &quot;DATA_SOURCE&quot;,
+    &quot;data_source&quot;: &quot;cur1TFLKAT&quot;,
+    &quot;args&quot;: {
+      &quot;source_array&quot;: &quot;cur1TFLKAT&quot;,
+      &quot;source_group&quot;: &quot;MMSYS&quot;
+    },
+    &quot;scale&quot;: 1.0
+  }
+}</pre>
+</section>
+<section id="system-wall"><h3>Wall limiter outline</h3>
+<figure><img src="/imas-ambix/figures/jt60sa-tokamap/wall.svg" alt="Wall limiter outline JSON comparison"><figcaption>Wall limiter outline. OP1 source beside the hand-built tokamap entry; the third row, where present, is fixture-driven and remains draft.</figcaption></figure>
+<h4>Limiter radius</h4><p>Source <code>maps/jt-60sa/machine_map.json</code>; target <code>/work/projects/imas_gpu/jt60sa/tokamap/hand-built/wall/100001/mappings.json</code>, key <code>description_2d[#]/limiter/unit[#]/outline/r</code>.</p>
+<p>Catalogue or signal map</p><pre>{
+  &quot;name&quot;: &quot;jt60sa-op1-wall-limiter-outline-r&quot;,
+  &quot;source_group&quot;: &quot;wall&quot;,
+  &quot;source_array&quot;: &quot;outline_r&quot;,
+  &quot;source_role&quot;: &quot;value&quot;,
+  &quot;dd_path&quot;: &quot;wall/description_2d/limiter/unit/outline/r&quot;,
+  &quot;source_unit&quot;: &quot;m&quot;,
+  &quot;target_unit&quot;: &quot;m&quot;,
+  &quot;sign_convention&quot;: &quot;identity&quot;
+}</pre>
+<p>Hand-built tokamap</p><pre>{
+  &quot;description_2d[#]/limiter/unit[#]/outline/r&quot;: {
+    &quot;map_type&quot;: &quot;DATA_SOURCE&quot;,
+    &quot;args&quot;: {
+      &quot;source_array&quot;: &quot;outline_r&quot;,
+      &quot;source_group&quot;: &quot;wall&quot;,
+      &quot;source_role&quot;: &quot;value&quot;
+    },
+    &quot;scale&quot;: 1.0
+  }
+}</pre>
+</section>
+<section id="system-equilibrium"><h3>Equilibrium safety factor</h3>
+<figure><img src="/imas-ambix/figures/jt60sa-tokamap/equilibrium.svg" alt="Equilibrium safety factor JSON comparison"><figcaption>Equilibrium safety factor. OP1 source beside the hand-built tokamap entry; the third row, where present, is fixture-driven and remains draft.</figcaption></figure>
+<h4>Axis safety factor</h4><p>Source <code>maps/jt-60sa/maps/equilibrium.json</code>; target <code>/work/projects/imas_gpu/jt60sa/tokamap/hand-built/equilibrium/100001/mappings.json</code>, key <code>time_slice[#]/global_quantities/q_axis</code>.</p>
+<p>Catalogue or signal map</p><pre>{
+  &quot;semantic_id&quot;: &quot;equilibrium_q_axis&quot;,
+  &quot;source_group&quot;: &quot;FAME&quot;,
+  &quot;source_array&quot;: &quot;QAXIS&quot;,
+  &quot;target_path&quot;: &quot;equilibrium/time_slice/global_quantities/q_axis&quot;,
+  &quot;target_index&quot;: null,
+  &quot;source_unit&quot;: &quot;1&quot;,
+  &quot;target_unit&quot;: &quot;1&quot;,
+  &quot;transformation&quot;: &quot;one_like&quot;,
+  &quot;channel_factor&quot;: 1.0,
+  &quot;validation_state&quot;: &quot;source-only&quot;
+}</pre>
+<p>Hand-built tokamap</p><pre>{
+  &quot;time_slice[#]/global_quantities/q_axis&quot;: {
+    &quot;map_type&quot;: &quot;DATA_SOURCE&quot;,
+    &quot;data_source&quot;: &quot;QAXIS&quot;,
+    &quot;args&quot;: {
+      &quot;source_array&quot;: &quot;QAXIS&quot;,
+      &quot;source_group&quot;: &quot;FAME&quot;
+    },
+    &quot;scale&quot;: 1.0
+  }
+}</pre>
+</section>
+</section><section id="writer"><h2>Writing one pulse</h2>
+<figure><img src="/imas-ambix/figures/jt60sa-tokamap/writer-workflow.svg" alt="Phase description, signal maps and EDDB channels join into one pulse IDS and receipt"><figcaption>The writer selects phase netCDF descriptions from the bundle, joins mapped EDDB channels through VirtualZarrView and read_channel, then returns a WriteReceipt with each filled leaf and exclusion.</figcaption></figure>
+<p>The current bundle carries phase descriptions at <code>maps/jt-60sa/machine_description/OP1/*.nc</code> and <code>OP2/*.nc</code>; the catalogue records the converter source <code>/work/projects/imas_gpu/jt60sa/machine_description/</code>, which is absent on this host. The shared legacy HDF5 description at <code>~/public/imasdb/jt-60sa_md/</code> also exists, but the current writer reads the bundle’s phase netCDF files. The phase is selected from the shot and machine catalogue.</p>
+<pre>imas-alambic write E101154 --machine jt-60sa --maps maps/jt-60sa   --out ~/public/imasdb/jt-60sa/</pre>
+<p>The CLI uses a flag, then its <code>IMAS_ALAMBIC_*</code> environment variable, then <code>IMAS_ALAMBIC_HOME</code> or bundle store role, then the default where applicable. <code>pulse_writer.write_pulse</code> fetches mapped EDDB channels, opens the shot cache through <code>VirtualZarrView</code>, reads channels with <code>read_channel</code>, copies phase description IDSs and fills served time-dependent leaves. <code>pulse_path</code> names <code>{out_root}/{pulse}_{run}.nc</code>; for this command it is <code>~/public/imasdb/jt-60sa/101154_0.nc</code>. The alternative root <code>/work/projects/imas_gpu/jt60sa/ids/</code> already holds pulse netCDF files. The <code>WriteReceipt</code> records the path, phase, IDSs, leaves and excluded signals; the CLI prints a summary, while the Python return carries the detailed receipt.</p>
+</section><section id="geometry"><h2>Geometry and traces from the minted IDS</h2>
+<figure><img src="/imas-ambix/figures/jt60sa-geometry/op1-op2-overlay.svg" alt="JT-60SA OP1 and OP2 cross-section geometry"><figcaption>The existing imas-ink overlay shows probe and loop positions, coils, passive structure and wall in the two machine phases.</figcaption></figure>
+<figure><img src="/imas-ambix/figures/jt60sa-signals/jt60sa-E101154-pf-probes.svg" alt="JT-60SA E101154 probe traces"><figcaption>An existing imas-ink rendering of probe signals from the minted pulse IDS.</figcaption></figure>
+<figure><img src="/imas-ambix/figures/jt60sa-signals/jt60sa-E101154-pf-coil-currents.svg" alt="JT-60SA E101154 PF coil current traces"><figcaption>An existing imas-ink rendering of PF coil currents from the minted pulse IDS.</figcaption></figure>
+</section><section id="presentation"><h2>Presentation PNGs</h2><p>The same script writes each JSON render and flow chart as a PNG at twice the SVG canvas size under <code>/work/projects/imas_gpu/jt60sa/presentation/</code>.</p><table><thead><tr><th>Figure</th><th>Pixels</th><th>Bytes</th></tr></thead><tbody>
+<tr><td><code>/work/projects/imas_gpu/jt60sa/presentation/pickup-probes.png</code></td><td>2800 × 1404</td><td>258,594</td></tr>
+<tr><td><code>/work/projects/imas_gpu/jt60sa/presentation/flux-loops.png</code></td><td>2800 × 1462</td><td>319,001</td></tr>
+<tr><td><code>/work/projects/imas_gpu/jt60sa/presentation/pf-coils.png</code></td><td>2800 × 2056</td><td>403,773</td></tr>
+<tr><td><code>/work/projects/imas_gpu/jt60sa/presentation/passive-structure.png</code></td><td>2800 × 722</td><td>155,964</td></tr>
+<tr><td><code>/work/projects/imas_gpu/jt60sa/presentation/tf.png</code></td><td>2800 × 766</td><td>147,983</td></tr>
+<tr><td><code>/work/projects/imas_gpu/jt60sa/presentation/wall.png</code></td><td>2800 × 722</td><td>139,351</td></tr>
+<tr><td><code>/work/projects/imas_gpu/jt60sa/presentation/equilibrium.png</code></td><td>2800 × 766</td><td>163,414</td></tr>
+<tr><td><code>/work/projects/imas_gpu/jt60sa/presentation/chain.png</code></td><td>2800 × 1480</td><td>215,077</td></tr>
+<tr><td><code>/work/projects/imas_gpu/jt60sa/presentation/writer-workflow.png</code></td><td>2800 × 1320</td><td>164,525</td></tr>
+</tbody></table></section></main></body></html>
