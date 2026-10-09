@@ -1,0 +1,63 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-09T03:27:18.412Z",
+  "dispatched_at": "2026-10-09T03:19:46Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:200",
+      "id": "done_when-1",
+      "reason": "a control that cannot fail measures nothing, and the node would ship a done-when whose negative control is silently green; the fix is to pin the control's catalogue to a DD where psi_like exists or to use a DDv4-present class (e.g. ip_like on magnetics/ip at a source COCOS where its factor is -1, as the landed test already does on pf_active/coil/current/data at COCOS 6).",
+      "text": "the must-fail control is pinned to a DD path \"the resolver classes psi_like (such as magnetics/flux_loop/flux/data)\", but that path is psi_like only under DD 3.x; under the DD the JT-60SA map declares (4.1.1, machine_map.json:3) and the engine serves (DDv4), _target_cocos_transformation('4.1.1','magnetics/flux_loop/flux/data') returns None, and DD 4.0.0/4.1.1 carry zero psi_like labels at all (only ip_like on magnetics/ip and b0_like on magnetics/diamagnetic_flux exist), so mutating the resolver psi_like\u2192one_like cannot move any binding's exported scale and the control can never fail",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "58dc4f3bc4e527b51436fa5961ea7430c5afabc0578262af5f8455286078d29b",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 454,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "done_when-1",
+      "reason": "Plan v455: the control is now a DD 4.1.1 test-built catalogue binding with ip_like on pf_active/coil/current/data at source COCOS 6 (factor -1), as the landed round-trip test uses; the plan states DD 4.x carries no psi_like label.",
+      "when": "2026-10-09T03:28:13.768849+00:00"
+    }
+  ],
+  "responses": {
+    "done_when-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v455: the control is now a DD 4.1.1 test-built catalogue binding with ip_like on pf_active/coil/current/data at source COCOS 6 (factor -1), as the landed round-trip test uses; the plan states DD 4.x carries no psi_like label.",
+      "when": "2026-10-09T03:28:13.768849+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v454.json",
+  "review_run_id": "r-20261009T031852633251-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "96903a3795b7846c2bccc50a4a09424fbef1a09e",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 docs/plans/jt60sa-tokamap-from-generated-maps.html exists, merge 4bf5bf2f resolves (git cat-file -t \u2192 commit), tests/data/test_tokamap_export.py exists, and the cited modules imas_ambix/data/tokamap_export.py and packages/imas-alambic/src/imas_alambic/transform_engine.py both exist with the named symbols.",
+    "done_when": "a finding \u2014 the must-fail control rests on \"a DD path the resolver classes psi_like (such as magnetics/flux_loop/flux/data)\", which the resolver classes psi_like only under DD 3.x and classes None under the DD version the map uses (4.1.1), so the control cannot fail.",
+    "evidence_paths": "pass \u2014 the section names durable code paths (imas_ambix/data/tokamap_export.py, packages/imas-alambic/src/imas_alambic/transform_engine.py) and a sibling plan's on-disk measure, not a scratchpad or node-local temp.",
+    "naming": "pass \u2014 the new public resolver is named by mechanism (promoting _target_cocos_transformation); no plan label, stage name or ticket number is introduced, and the \"E101011 psi rule\" reference is a facility shot, not a plan label.",
+    "reasoning": "pass \u2014 the root cause the section names (tokamap_export.py resolves COCOS with its own _cocos_transformation beside the engine's _target_cocos_transformation, and its round-trip test recomputes the scale from canonical_factor and never asks the engine) matches the code, and the mechanism runs on the real export path with its caller named (export_tokamap_directory \u2192 _catalogue_entry / the two _leaf_mappings withhold checks); the only defect, the control's premise, is scored under done_when.",
+    "single_goal": "pass \u2014 s2 carries one deliverable, the COCOS-resolver split, and the JT-60SA export it once also measured was explicitly reassigned to jt60sa-tokamap-from-generated-maps \u00a71 (lines 208-210, 246-253).",
+    "wiring": "pass \u2014 s2's node (jtmm-tokamap-jt60sa) and its cross-plan ordering (\"runs after that plan's \u00a71 merges\", \u00a72 line 251) name the plan jt60sa-tokamap-from-generated-maps, which exists and declares \u00a71 done; no depends-on/informs/gates edge in the plan points at a wrong node."
+  },
+  "section_digests": {
+    "_document": "aeae9043f53534ca2bc015344ff6611bcb0f8f1fd2d90c733ffbe2bbfb65ca84",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "58570f7d927bfbcbb96017b34d4b0715fe568866fdd423633471c89bf6b62691",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "08a72f0218880469fee6aa3ee829fb19c1063e931927357b4d10a6b45b692266",
+    "s8": "f2783c135c52eeca31e8457eaf39e60a5ac9e214c2f5d2daabca9fbbf9411211"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-09T03:28:13.766715+00:00"
+}
