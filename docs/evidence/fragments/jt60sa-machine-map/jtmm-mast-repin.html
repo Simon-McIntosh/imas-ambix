@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="reckon-type" content="doc">
+  <title>MAST repin — the row adopts the identity its provenance now produces</title>
+</head>
+<body>
+<main class="plan-doc">
+  <h2 id="jtmm-mast-repin">MAST's pinned identity follows its corrected field evidence</h2>
+
+  <p id="jtmm-mast-repin-verdict">
+    <code>imas_ambix/gs/artifact_resolution.py</code> <code>PINNED_DESCRIPTIONS[&quot;mast&quot;]</code>
+    now pins semantic identity
+    <code>sha256:f20d64dbde63756150fecd5a41d34a0d7a055900877370aae40a594ca7d039d5</code> in place
+    of the stale <code>sha256:8df7a0a6c3f6162dbe0f226660bc069f37de8eb69f0f7c80bbfedc2bd4be220c</code>.
+    The physical digest <code>b55c5bb005a2cb67</code> and the registry digest
+    <code>2a26cc0a3a22e7fb…</code> are unchanged, so the row still names the same machine.
+  </p>
+
+  <h3 id="jtmm-mast-repin-mechanism">Why the identity moved and the row follows it</h3>
+  <p id="jtmm-mast-repin-mechanism-body">
+    A semantic identity covers the dictionary pin, the physical and registry identity, the shot
+    extent and every field's provenance, and excludes the file table. Nova began authoring the wall
+    as an indexed limiter-unit collection, so the wall limiter outline's evidence path gained an
+    explicit unit index. The identity covers each field's evidence path, so that one path moves the identity whole, and it moves it while leaving the physical and registry digests untouched. So
+    the stale pin was the drift the tripwire is meant to report — not a defect to revert. The
+    mechanism is recorded in a comment beside the row; it names no commit or ticket.
+  </p>
+
+  <h3 id="jtmm-mast-repin-measure">Measure</h3>
+  <p id="jtmm-mast-repin-measure-body">
+    <code>uv run --no-sync pytest -p no:cacheprovider tests/gs/test_artifact_resolution.py
+    tests/gs/test_machine_selection.py</code> reports <strong>24 passed</strong>, <code>EXIT=0</code>,
+    at committed revision <code>159375e0</code>. <code>uv run --no-sync ruff check imas_ambix
+    tests</code> reports <strong>All checks passed!</strong>, <code>EXIT=0</code>. Restoring the stale
+    pin as a negative control makes
+    <code>tests/gs/test_artifact_resolution.py::test_re_authoring_reproduces_the_identity_the_package_pins</code>
+    fail with <strong>1 failed</strong>, <code>EXIT=1</code>. The row is a tripwire against drift; the
+    control shows the guard fires.
+  </p>
+</main>
+</body>
+</html>
