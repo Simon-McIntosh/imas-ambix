@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from collections import Counter
 from functools import cache
@@ -109,9 +110,65 @@ def _unplaced(reason: str) -> bool:
         (
             "member identifier ",
             "no machine-description member array",
+            "no machine-description store for ",
             "target path, member identifier",
         )
     )
+
+
+# A row of an IDS whose machine description carries no store for that IDS. The
+# description cannot place any of the IDS's rows, so the cause is the missing
+# store rather than the row's own member pattern.
+_NO_STORE_REASON = "no machine-description store for {ids}"
+
+# A row that cannot be placed because it carries no member pattern to match,
+# named the same way the importer names it so the two causes stay separable.
+_MISSING_MEMBER_REASON = "target path, member identifier, and source array are required"
+
+
+def _no_store_ids(
+    description_members: Mapping[str, Sequence[str]],
+    document: Mapping[str, Any],
+) -> set[str]:
+    """The IDSs the hand-off names but the machine description holds no store for.
+
+    ``description_members`` is keyed by the structures the description store
+    provided, ``<ids>/<array>``, so an IDS absent from its keys has no store:
+    every row it carries is unplaceable for that reason alone.
+    """
+    covered = {key.partition("/")[0] for key in description_members}
+    return {
+        item["ids_name"] for item in document["ids"] if item["ids_name"] not in covered
+    }
+
+
+def _relabel_without_store(
+    ids_name: str, item: Mapping[str, Any], unresolved: Sequence[Any]
+) -> list[Any]:
+    """Name the missing store as the cause for every row of an IDS without one.
+
+    A row that carries a member pattern is unplaced by the missing store; a row
+    with no ``member_identifier`` keeps the missing-pattern reason, so a study
+    reading the score can tell the two apart.
+    """
+    patterns = {
+        (row.get("source_id"), row.get("target_path")): row
+        for row in item.get("signals", ())
+    }
+    relabelled: list[Any] = []
+    for row in unresolved:
+        pattern = patterns.get((row.source_id, row.target_path))
+        if pattern is None:
+            # An unexpanded row carries no member pattern and its target may not
+            # even be a member array; its own reason is the accurate one.
+            relabelled.append(row)
+            continue
+        if pattern.get("member_identifier") and pattern.get("source_array"):
+            reason = _NO_STORE_REASON.format(ids=ids_name)
+        else:
+            reason = _MISSING_MEMBER_REASON
+        relabelled.append(dataclasses.replace(row, reason=reason))
+    return relabelled
 
 
 def _measure(
@@ -123,7 +180,7 @@ def _measure(
     catalogue: MachineMapCatalog,
     dd_version: str,
 ) -> dict[str, Any]:
-    unplaced = sum(_unplaced(row.reason) for row in unresolved)
+    unplaced = [row for row in unresolved if _unplaced(row.reason)]
     reasons = Counter(row.reason for row in unresolved if not _unplaced(row.reason))
     matches: list[bool] = []
     conflicts: list[dict[str, Any]] = []
@@ -163,7 +220,10 @@ def _measure(
         "agreeing": agreeing,
         "conflicting": len(conflicts),
         "conflicts": conflicts,
-        "unplaced": unplaced,
+        "unplaced": len(unplaced),
+        "unplaced_reasons": dict(
+            sorted(Counter(row.reason for row in unplaced).items())
+        ),
         "refused": sum(reasons.values()),
         "refused_reasons": dict(sorted(reasons.items())),
         "sign_unscored": sum(matches),
@@ -188,6 +248,7 @@ def score_handoff(
     after the IDS name, so systems that share one IDS stay separate rows.
     """
     imported = import_generated_mappings(document, catalogue, description_members)
+    no_store = _no_store_ids(description_members, document)
     references = {mapping.system: mapping.signals for mapping in hand_built_maps}
     drafts = {mapping.system: mapping.signals for mapping in imported.maps}
     pending: dict[str, list[SignalRule]] = {}
@@ -199,6 +260,8 @@ def score_handoff(
         ids_name = item["ids_name"]
         rows = list(item["signals"]) + list(item["unexpanded"])
         unresolved = [row for row in imported.unresolved if row.ids_name == ids_name]
+        if ids_name in no_store:
+            unresolved = _relabel_without_store(ids_name, item, unresolved)
         values = [(rule, False) for rule in drafts.get(ids_name, ())]
         values += [(rule, True) for rule in pending.get(ids_name, ())]
         reference = references.get(ids_name)
@@ -248,8 +311,10 @@ def score_handoff(
                 document["dd_version"],
             )
     total_reasons = Counter()
+    total_unplaced_reasons = Counter()
     for row in by_ids.values():
         total_reasons.update(row["refused_reasons"])
+        total_unplaced_reasons.update(row["unplaced_reasons"])
     total = {
         "exported": sum(row["exported"] for row in by_ids.values()),
         "imported": sum(row["imported"] for row in by_ids.values()),
@@ -260,6 +325,7 @@ def score_handoff(
         ),
         "conflicting": sum(row["conflicting"] for row in by_ids.values()),
         "unplaced": sum(row["unplaced"] for row in by_ids.values()),
+        "unplaced_reasons": dict(sorted(total_unplaced_reasons.items())),
         "refused": sum(row["refused"] for row in by_ids.values()),
         "refused_reasons": dict(sorted(total_reasons.items())),
         "sign_unscored": sum(row["sign_unscored"] for row in by_ids.values()),

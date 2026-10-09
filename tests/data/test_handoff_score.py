@@ -306,3 +306,78 @@ def test_pending_cocos_rule_counts_as_imported_with_the_sign_unscored():
     assert magnetics["agreeing"] == 1
     assert magnetics["sign_unscored"] == 1
     assert magnetics["imported"] == 2
+
+
+def _launcher_document() -> dict:
+    """A hand-off for an IDS the machine description carries no store for."""
+    return {
+        "format": "imas-codex-mapping-handoff",
+        "format_version": 1,
+        "facility": "jt-60sa",
+        "dd_version": "4.1.1",
+        "exported_at": "2026-10-09T11:21:53Z",
+        "ids": [
+            {
+                "ids_name": "ec_launchers",
+                "mapping_id": "jt-60sa:ec_launchers",
+                "status": "generated",
+                "signals": [
+                    {
+                        "signal_id": "jt-60sa:general/ech_freu8",
+                        "source_id": "jt-60sa:ec_launchers:beam",
+                        "data_source": "edas",
+                        "source_group": "ECH",
+                        "source_array": "freU8",
+                        "member_identifier": "8",
+                        "source_property": "value",
+                        "target_path": "ec_launchers/beam/frequency/data",
+                        "transform_expression": None,
+                        "source_units": "Hz",
+                        "target_units": "Hz",
+                        "cocos_label": None,
+                        "confidence": 0.8,
+                        "evidence": "ECH beam frequency",
+                    },
+                    {
+                        "signal_id": "jt-60sa:general/ech_powu7omode",
+                        "source_id": "jt-60sa:ec_launchers:beam",
+                        "data_source": "edas",
+                        "source_group": "ECH",
+                        "source_array": "powU7Omode",
+                        "member_identifier": None,
+                        "source_property": "value",
+                        "target_path": "ec_launchers/beam/power_launched/data",
+                        "transform_expression": None,
+                        "source_units": "W",
+                        "target_units": "W",
+                        "cocos_label": None,
+                        "confidence": 0.8,
+                        "evidence": "ECH beam power",
+                    },
+                ],
+                "unexpanded": [],
+            }
+        ],
+    }
+
+
+def test_an_ids_without_a_description_store_is_reported_unplaced_by_name():
+    """Every row of an IDS the description holds no store for is unplaced.
+
+    The cause names the IDS, so a study reads the missing store apart from a
+    row that carries no member pattern of its own.
+    """
+    result = handoff_score.score_handoff(
+        _launcher_document(), _catalogue(), {}, []
+    )
+
+    launchers = result["by_ids"]["ec_launchers"]
+    assert launchers["agreeing"] == "no reference"
+    assert launchers["imported"] == 0
+    assert launchers["unplaced"] == 2
+    assert launchers["refused"] == 0
+    assert launchers["unplaced_reasons"] == {
+        "no machine-description store for ec_launchers": 1,
+        "target path, member identifier, and source array are required": 1,
+    }
+    assert result["total"]["unplaced_reasons"] == launchers["unplaced_reasons"]

@@ -236,9 +236,11 @@ def test_scoring_can_leave_an_ids_without_description_members_unplaced(tmp_path)
     from types import SimpleNamespace
 
     from imas_alambic.machine_map import SensorIdentityRule
+    from imas_ambix.data.handoff_score import score_handoff
 
     catalogue = SimpleNamespace(
         dd_version="4.1.1",
+        source_cocos=None,
         maps=(SimpleNamespace(name="phase"),),
         sensor_identity_rules=(
             SensorIdentityRule(
@@ -251,23 +253,52 @@ def test_scoring_can_leave_an_ids_without_description_members_unplaced(tmp_path)
         description_store_root_path=lambda **kwargs: tmp_path,
     )
     document = {
+        "format": "imas-codex-mapping-handoff",
+        "format_version": 1,
+        "facility": "jt-60sa",
+        "dd_version": "4.1.1",
+        "exported_at": "2026-10-09T11:22:02Z",
         "ids": [
             {
+                "ids_name": "gas_injection",
+                "mapping_id": "jt-60sa:gas_injection",
+                "status": "generated",
                 "signals": [
                     {
-                        "target_path": "gas_injection/pipe/flow_rate/data",
-                        "member_identifier": "1",
+                        "signal_id": "jt-60sa:general/n2gas_flwinleta",
+                        "source_id": "jt-60sa:gas_injection:pipe",
+                        "data_source": "edas",
+                        "source_group": "GAS",
                         "source_array": "gas1",
+                        "member_identifier": "1",
+                        "source_property": "value",
+                        "target_path": "gas_injection/pipe/flow_rate/data",
+                        "transform_expression": None,
+                        "source_units": "Pa m3/s",
+                        "target_units": "Pa m3/s",
+                        "cocos_label": None,
+                        "confidence": 0.7,
+                        "evidence": "gas pipe flow",
                     }
-                ]
+                ],
+                "unexpanded": [],
             }
-        ]
+        ],
     }
 
-    assert (
-        maps_cli._description_members(catalogue, tmp_path, document, allow_missing=True)
-        == {}
+    members = maps_cli._description_members(
+        catalogue, tmp_path, document, allow_missing=True
     )
+    assert members == {}
+
+    score = score_handoff(document, catalogue, members, [])
+    row = score["by_ids"]["gas_injection"]
+    assert row["agreeing"] == "no reference"
+    assert row["unplaced"] == 1
+    assert row["refused"] == 0
+    assert row["unplaced_reasons"] == {
+        "no machine-description store for gas_injection": 1,
+    }
 
 
 class FakeRegistry:
