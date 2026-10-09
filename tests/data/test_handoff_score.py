@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from imas_alambic.machine_map import SensorIdentityRule
+from imas_alambic.signal_map import AlternateSource
 from imas_ambix.data import handoff_score
 from imas_ambix.data.generated_mapping_import import (
     _rule_id,
@@ -252,6 +253,70 @@ def test_conflicting_counts_a_target_whose_source_array_differs():
     ]
     assert result["total"]["conflicting"] == 1
     assert result["by_structure"]["magnetics/b_field_pol_probe"]["conflicting"] == 1
+
+
+def _declared_alternate_reference(*, declared: bool):
+    """A hand-built rule on the draft's target, optionally declaring the draft chain.
+
+    The draft binds ``magPbTC11`` on the poloidal probe's field; the hand-built
+    rule serves the same target through the ``curEF1LKAT`` chain. Declaring the
+    draft's chain as an alternate makes the difference a chain choice.
+    """
+    document, reference = _case()
+    first, second = reference.signals
+    hand_built = dataclasses.replace(
+        second,
+        source_group="LKAT",
+        source_array="curEF1LKAT",
+        channel_factor=1.0,
+        alternate_sources=(
+            (
+                AlternateSource(
+                    source_group="MDAC",
+                    source_array="magPbTC11",
+                    evidence="LKAT on E101154 tracks the HiTe chain at corr>=0.994",
+                ),
+            )
+            if declared
+            else ()
+        ),
+    )
+    return document, dataclasses.replace(reference, signals=(first, hand_built))
+
+
+def test_a_declared_alternate_chain_is_counted_apart_from_conflicting():
+    """A draft source declared as an alternate of the target's rule is no conflict."""
+    document, reference = _declared_alternate_reference(declared=True)
+
+    result = handoff_score.score_handoff(document, _catalogue(), MEMBERS, [reference])
+
+    magnetics = result["by_ids"]["magnetics"]
+    assert magnetics["agreeing"] == 1
+    assert magnetics["conflicting"] == 0
+    assert magnetics["conflicts"] == []
+    assert magnetics["chain_differs"] == [
+        {
+            "target_path": "magnetics/b_field_pol_probe/field/data",
+            "target_index": reference.signals[1].target_index,
+            "imported_source_group": "MDAC",
+            "imported_source_array": "magPbTC11",
+            "hand_built_source_group": "LKAT",
+            "hand_built_source_array": "curEF1LKAT",
+        }
+    ]
+    assert result["total"]["chain_differs"] == magnetics["chain_differs"]
+
+
+def test_an_undeclared_different_source_is_still_conflicting():
+    """Without a declared alternate, the same different chain stays a conflict."""
+    document, reference = _declared_alternate_reference(declared=False)
+
+    result = handoff_score.score_handoff(document, _catalogue(), MEMBERS, [reference])
+
+    magnetics = result["by_ids"]["magnetics"]
+    assert magnetics["chain_differs"] == []
+    assert magnetics["conflicting"] == 1
+    assert result["total"]["chain_differs"] == []
 
 
 def test_a_target_without_a_hand_built_rule_is_not_conflicting():

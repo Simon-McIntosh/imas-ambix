@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-tokamap-from-generated-maps">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="alternate-chains-fragment" data-reckon="evidence">
+      <h2>Declared alternate acquisition chains</h2>
+      <p>A hand-built <code>SignalRule</code> may now carry an optional
+      <code>alternate_sources</code> array. Each entry names another acquisition chain
+      that measures the same quantity, as <code>source_group</code>, <code>source_array</code>
+      and <code>evidence</code>. The field is validated on load, and a rule without it
+      serialises byte-for-byte as before: <code>as_dict</code> omits the key when the list
+      is empty, so a map that declares no alternate round-trips unchanged.</p>
+      <p>The hand-off score gains a <code>chain_differs</code> count, beside
+      <code>conflicting</code>, on every IDS, structure and total row. An imported rule
+      on a hand-built target whose source matches a chain the target's rule declares as an
+      alternate is listed under <code>chain_differs</code> with both arrays — the imported
+      <code>(source_group, source_array)</code> and the hand-built
+      <code>(source_group, source_array)</code> — and is not counted under
+      <code>conflicting</code>. The match is on declared alternates only; nothing is
+      inferred from array names.</p>
+      <h3 id="alternate-chains-counts">Counts the focused gate demonstrates</h3>
+      <p>On the hand-off fixture, a draft rule bound to <code>MDAC/magPbTC11</code> on the
+      hand-built target <code>magnetics/b_field_pol_probe/field/data</code>, where the
+      hand-built rule serves that target through <code>LKAT/curEF1LKAT</code> and declares
+      the draft chain as an alternate, scores <code>chain_differs == 1</code> and
+      <code>conflicting == 0</code>. The same pair without the declaration scores
+      <code>conflicting == 1</code> and <code>chain_differs == []</code>. The focused gate
+      passes 33 tests.</p>
+      <p>No file under <code>maps/</code> is written by this node; declaring the JT-60SA
+      <code>pf_active</code> alternates and rescorning the coils belong to the following
+      node.</p>
+    </section>
+  </main>
+</body>
+</html>
