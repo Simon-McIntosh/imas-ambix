@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-tokamap-from-generated-maps">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="alternate-chains-jt60sa-fragment" data-reckon="evidence">
+      <h2>Declared JT-60SA coil-current alternates and the rescored coils hand-off</h2>
+      <p>The six <code>pf_active/coil</code> conflicts in the JT-60SA coils score are a
+      chain choice, not a mapping error: the imported draft binds the HiTe chain where
+      the hand-built map serves the LKAT chain (EF1&ndash;EF5), and the LKAT chain where
+      it serves the HiTe chain (EF6). Each JT-60SA <code>pf_active</code> coil-current
+      rule names the other chain in its evidence, so this node declares that chain as an
+      <code>alternate_source</code> on the rule, quoting the rule's existing evidence.</p>
+
+      <h3 id="alternate-chains-jt60sa-declared">Declared alternates</h3>
+      <p>Ten rules in
+      <code>maps/jt-60sa/maps/pf_active.json</code> carry one declared alternate each.
+      The map is the machine bundle the <code>score-handoff</code> command loads; it
+      loads with these declarations present.</p>
+      <table>
+        <thead>
+          <tr><th>Rule (semantic_id)</th><th>Served chain</th><th>Declared alternate</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>pf_active_coil_CS1_current</td><td>MMSYS/curCS1LKAT</td><td>MMSYS/curCS1HiTe</td></tr>
+          <tr><td>pf_active_coil_CS2_current</td><td>MMSYS/curCS2LKAT</td><td>MMSYS/curCS2HiTe</td></tr>
+          <tr><td>pf_active_coil_CS3_current</td><td>MMSYS/curCS3LKAT</td><td>MMSYS/curCS3HiTe</td></tr>
+          <tr><td>pf_active_coil_CS4_current</td><td>MMSYS/curCS4LKAT</td><td>MMSYS/curCS4HiTe</td></tr>
+          <tr><td>pf_active_coil_EF1_current</td><td>MMSYS/curEF1LKAT</td><td>MMSYS/curEF1HiTe</td></tr>
+          <tr><td>pf_active_coil_EF2_current</td><td>MMSYS/curEF2LKAT</td><td>MMSYS/curEF2HiTe</td></tr>
+          <tr><td>pf_active_coil_EF3_current</td><td>MMSYS/curEF3LKAT</td><td>MMSYS/curEF3HiTe</td></tr>
+          <tr><td>pf_active_coil_EF4_current</td><td>MMSYS/curEF4LKAT</td><td>MMSYS/curEF4HiTe</td></tr>
+          <tr><td>pf_active_coil_EF5_current</td><td>MMSYS/curEF5LKAT</td><td>MMSYS/curEF5HiTe</td></tr>
+          <tr><td>pf_active_coil_EF6_current</td><td>MMSYS/curEF6HiTe</td><td>MMSYS/curEF6LKAT</td></tr>
+        </tbody>
+      </table>
+
+      <h3 id="alternate-chains-jt60sa-rescore">Rescored coils hand-off</h3>
+      <p>Command:
+      <code>imas-ambix maps score-handoff jt-60sa
+      /work/projects/imas_gpu/jt60sa/handoff/jt-60sa-coils-handoff.json --json
+      /tmp/ac/after.json</code>. The hand-off's own <code>exported_at</code> is
+      <code>2026-10-09T10:41:50Z</code>.</p>
+      <pre>IDS                 exported imported agreeing conflicting chain_differs cross_structure sign_unscored unplaced refused
+pf_active                 43       32            6           0             6               6            31       11       0
+  pf_active/circuit       18       16 no reference           0             0               0            15        2       0
+  pf_active/coil          19       16            6           0             6               0            16        3       0
+  pf_active/supply         6        0 no reference           0             0               0             0        6       0
+tf                         3        1            1           0             0               0             0        1       1
+  tf/coil                  3        1            1           0             0               0             0        1       1
+TOTAL                     46       33            7           0             6               6            31       12       1</pre>
+      <p>The <code>pf_active/coil</code> row moved from <code>conflicting 6</code> to
+      <code>conflicting 0</code>, <code>chain_differs 6</code>: with the declarations
+      absent the same six rows score under <code>conflicting</code> (the node's negative
+      control applies exactly that mutation and this fragment's test refuses it). The six
+      <code>chain_differs</code> entries, from
+      <code>by_structure["pf_active/coil"]</code>, list both arrays:</p>
+      <pre>[
+  {"target_index": 4, "imported_source_group": "MMSYS", "imported_source_array": "curEF1HiTe", "hand_built_source_group": "MMSYS", "hand_built_source_array": "curEF1LKAT"},
+  {"target_index": 5, "imported_source_group": "MMSYS", "imported_source_array": "curEF2HiTe", "hand_built_source_group": "MMSYS", "hand_built_source_array": "curEF2LKAT"},
+  {"target_index": 6, "imported_source_group": "MMSYS", "imported_source_array": "curEF3HiTe", "hand_built_source_group": "MMSYS", "hand_built_source_array": "curEF3LKAT"},
+  {"target_index": 7, "imported_source_group": "MMSYS", "imported_source_array": "curEF4HiTe", "hand_built_source_group": "MMSYS", "hand_built_source_array": "curEF4LKAT"},
+  {"target_index": 8, "imported_source_group": "MMSYS", "imported_source_array": "curEF5HiTe", "hand_built_source_group": "MMSYS", "hand_built_source_array": "curEF5LKAT"},
+  {"target_index": 9, "imported_source_group": "MMSYS", "imported_source_array": "curEF6LKAT", "hand_built_source_group": "MMSYS", "hand_built_source_array": "curEF6HiTe"}
+]</pre>
+      <p><code>conflicts</code> for <code>pf_active/coil</code> is now <code>[]</code>,
+      against six array-mismatch entries before the declarations. The score's
+      <code>cross_structure</code> list is unchanged by this node at the
+      <code>pf_active/coil</code> row (<code>0</code>); the six recorded at the
+      <code>pf_active</code> and total rows are a pre-existing result for the
+      <code>pf_active/supply</code> structure and are not affected here.</p>
+
+      <h3 id="alternate-chains-jt60sa-table-columns">Table columns</h3>
+      <p><code>imas_ambix/maps_cli.py</code> now prints <code>chain_differs</code> and
+      <code>cross_structure</code> counts in the <code>score-handoff</code> table, beside
+      <code>conflicting</code>, so the chain choice is visible without reading the JSON.
+      <code>tests/test_maps_cli.py</code> asserts the header and the counts.</p>
+    </section>
+  </main>
+</body>
+</html>
