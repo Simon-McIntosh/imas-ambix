@@ -1,0 +1,105 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-09T03:00:43.815Z",
+  "dispatched_at": "2026-10-09T02:52:31Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:599-601",
+      "id": "reasoning-1",
+      "reason": "a coordinator reading \u00a77 takes `jtmm-selene-psrc-loader` for unbuilt work and redispatches a landed node while the section's stated remaining scope is wrong.",
+      "text": "\u00a77 says \"\u00a76 planned that reader but closed without it; no code reads `surfABVxp` or `calRp0` today. So \u00a77 adds it as `jtmm-selene-psrc-loader`\", yet that reader landed on 2026-10-08 (commit 6bab0ba2, merged 84f762ab; the plan's own comment at :1308 records the landing) and the section's interface account at :335 already lists `data/selene_psrc.py` behind its `__all__` \u2014 so \u00a77 presents delivered work as an open node",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:711-713",
+      "id": "wiring-1",
+      "reason": "the execution order is how the remaining \u00a77 work is sequenced, and an entry naming four landed nodes mis-directs the next dispatch and hides what actually remains (the vessel box, the multichannel read, the refetch and the stamp).",
+      "text": "\u00a78's execution-order item 6 lists \"the machine-keyed selection route, the PSRC SELENE reader (`jtmm-selene-psrc-loader` \u2026), the SELENE reference loader, and the E101011 psi store and its `profiles_2d` binding\" as \u00a77 work still to run, but all four have landed (16a7fa4f, 6bab0ba2, e589f030, f96cc0d1, each an ancestor of HEAD)",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:188-194",
+      "id": "done_when-1",
+      "reason": "without a control that reddens while the exporter keeps its private copy (or a mutation of the resolver that must move the exported scale), the node's whole measure rests on a test the unfixed code also passes.",
+      "text": "\u00a72's done-when measures the resolver split only by \"a round-trip test on every binding against that resolver\", which asserts the same product (engine resolver's COCOS factor \u00d7 the binding's sign \u00d7 the exporter's unit factor) the exporter itself computes with `_cocos_transformation` still in place, and the clause names no must-fail control, so the measure passes on the unfixed code and cannot show the exporter actually routes through the engine",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "bd2b62e82ddb8f270912b7be1f01e9e4365cab2f165758ef396aadc584e6ad81",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 451,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v452: section 7 now says jtmm-selene-psrc-loader landed on 2026-10-08 (6bab0ba2) rather than presenting it as open.",
+      "when": "2026-10-09T03:01:46.250637+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "wiring-1",
+      "reason": "Plan v452: section 8 item 6 now lists the landed section 7 nodes as landed and names the remaining ones in order: the vessel box, the multi-channel read and refetch (both awaiting the lead's tunnel and go-ahead), then the stamp.",
+      "when": "2026-10-09T03:01:46.252100+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "done_when-1",
+      "reason": "Plan v452: section 2's done-when gains a must-fail control: mutating the engine resolver so a psi_like path reads as one_like must move that binding's exported scale, which a private copy left in the exporter would not; both withhold checks also key on the resolver.",
+      "when": "2026-10-09T03:01:46.254002+00:00"
+    }
+  ],
+  "responses": {
+    "done_when-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v452: section 2's done-when gains a must-fail control: mutating the engine resolver so a psi_like path reads as one_like must move that binding's exported scale, which a private copy left in the exporter would not; both withhold checks also key on the resolver.",
+      "when": "2026-10-09T03:01:46.254002+00:00"
+    },
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v452: section 7 now says jtmm-selene-psrc-loader landed on 2026-10-08 (6bab0ba2) rather than presenting it as open.",
+      "when": "2026-10-09T03:01:46.250637+00:00"
+    },
+    "wiring-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v452: section 8 item 6 now lists the landed section 7 nodes as landed and names the remaining ones in order: the vessel box, the multi-channel read and refetch (both awaiting the lead's tunnel and go-ahead), then the stamp.",
+      "when": "2026-10-09T03:01:46.252100+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v451.json",
+  "review_run_id": "r-20261009T025136797566-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "92dd7632c0db4ebe575860aa5c4be3fe41283eae",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every file, symbol, decision and plan the changed units cite resolves (`imas_ambix/data/tokamap_export.py`, `transform_engine._target_cocos_transformation`, `gs/artifact_resolution.py` pin table, `data/selene_psrc.py`, `data/geqdsk_store.py`, `gs/description_artifact.py`, `spine_bench/shots.py` frozen sets, `worldmodel/equilibrium_labels.py` `xpoint_null_set`, `eval/efit_referee.judge_geometry`, and the `jt60sa-tokamap-from-generated-maps` plan all exist).",
+    "done_when": "a finding \u2014 \u00a72's done-when measures the COCOS-resolver split only by a round-trip test that passes while the exporter still calls its own private resolver, and names no must-fail control.",
+    "evidence_paths": "pass \u2014 \u00a77's gate logs, evidence fragments and the staged psi store sit under `docs/evidence/fragments/jt60sa-machine-map/` and the GPFS `/work/projects/imas_gpu/jt60sa/` root, not a session scratchpad.",
+    "naming": "pass \u2014 no plan labels, stage names or ticket numbers reach code; the node ids (`jtmm-*`) appear only in plan prose.",
+    "reasoning": "a finding \u2014 \u00a77 states as present fact that no code reads `surfABVxp`/`calRp0` and that it adds the reader, but the reader landed 2026-10-08 and the section's own interface account records it.",
+    "single_goal": "pass \u2014 \u00a72's closing node is the resolver split, and each \u00a77 node named (reader, reference loader, psi store, drive map, registry, selection, vessel box, multichannel read, refetch, stamp) carries one deliverable.",
+    "wiring": "a finding \u2014 `\u00a78`'s execution-order item 6 still lists four \u00a77 nodes as work to run, but all four have landed."
+  },
+  "section_digests": {
+    "_document": "aeae9043f53534ca2bc015344ff6611bcb0f8f1fd2d90c733ffbe2bbfb65ca84",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "029c55681981dbaa677c4ae8d20340d8f354e5ff374c31e7531b0095928ef82b",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "973dba7451ce12fec1b81281a6df87cec31da32a15e507f754dbeab37d94bbfa",
+    "s8": "a7f1357244c67d6b1d9bb52ba21b07d8c6e35e9f37aff344046940c5ed813b1a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-09T03:01:46.248204+00:00"
+}
