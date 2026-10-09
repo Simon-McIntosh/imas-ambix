@@ -10,6 +10,7 @@ module sorts it newest first before reading "the latest tag".
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import subprocess
@@ -99,7 +100,9 @@ def write_tree(root: Path, *, version: str = "2026.10.07") -> None:
         (root / excluded / "deck.txt").write_text("development input")
 
 
-def test_draft_signals_replace_covered_ids_and_keep_catalogue(tmp_path: Path) -> None:
+def test_draft_signals_replace_covered_ids_and_keep_catalogue(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The ordered description gives indices; covered hand-built rules disappear."""
     from imas_alambic.machine_map import load_machine_map
     from imas_alambic.signal_map import load_signal_map
@@ -120,6 +123,25 @@ def test_draft_signals_replace_covered_ids_and_keep_catalogue(tmp_path: Path) ->
         directory=tmp_path / "reference",
         withhold_undeclared_cocos=True,
     )
+    import imas_alambic.signal_map as signal_map_module
+
+    original_loader = signal_map_module.load_signal_map
+
+    def contaminated_loader(path: Path):
+        loaded = original_loader(path)
+        if loaded.system not in {"magnetics", "pf_active"}:
+            return loaded
+        return dataclasses.replace(
+            loaded,
+            signals=tuple(
+                dataclasses.replace(
+                    rule, source_array="hand-built-sentinel", target_index=500
+                )
+                for rule in loaded.signals
+            ),
+        )
+
+    monkeypatch.setattr(signal_map_module, "load_signal_map", contaminated_loader)
     draft_dir = tmp_path / "draft"
     result = CliRunner().invoke(
         maps_cli.maps,
