@@ -1,0 +1,113 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_basis": "derived from this review's two arms of the reviewed node's own declared gate (tests/test_maps_cli.py) because the reviewed run was dispatched unarmed: head arm (after_suite) at 96d50e7ce86ede2ccf70891fc8e4d5d84cf20c37 reports 0 failing ids, base arm (baseline_suite) at 51dc23fbc8d4f85e782ad6a094b3d9d50fba65be reports 2 failing ids, so the set difference (added_failure_count) is 0 with no added ids.",
+  "added_failures_note": "The reviewed run recorded no baseline_suite or after_suite gate logs (both absent from its manifest), so it carries no two-arm delta of its own. Its own head gate log (r-20261009T120429823041-alternate-chains-jt60sa/gate-test_maps_cli.log) names revision 96d50e7ce86ede2ccf70891fc8e4d5d84cf20c37 and reports 40 passed with zero FAILED/ERROR lines, so the added-failure set (head failures minus base failures) is empty; a reviewer-run base arm at 51dc23fbc8d4f85e782ad6a094b3d9d50fba65be over the reviewed test file failed the two new column tests and passed 38, EXIT=1.",
+  "after_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_maps_cli.py   (at the reviewed head, over a scratch extraction carrying the reviewed files with the machine maps linked)",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261009T121426863309-review-of-alternate-chains-jt60sa/review-head-gate.log",
+    "revision": "96d50e7ce86ede2ccf70891fc8e4d5d84cf20c37"
+  },
+  "baseline_suite": {
+    "command": "/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -m pytest -p no:cacheprovider -q tests/test_maps_cli.py   (the reviewed tests/test_maps_cli.py at head driven against a scratch extraction carrying the base revision's imas_ambix/maps_cli.py)",
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 2,
+    "failure_ids": [
+      "tests/test_maps_cli.py::test_score_handoff_prints_a_conflicting_column",
+      "tests/test_maps_cli.py::test_score_handoff_prints_a_chain_differs_column"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261009T121426863309-review-of-alternate-chains-jt60sa/review-base-gate.red.log",
+    "revision": "51dc23fbc8d4f85e782ad6a094b3d9d50fba65be"
+  },
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/maps_cli.py:640 score_handoff_command prints the chain_differs and cross_structure columns in the score-handoff table header and row"
+  ],
+  "completed_at": "2026-10-09T12:24:15.882Z",
+  "dispatched_at": "2026-10-09T12:14:35Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261009T120429823041-alternate-chains-jt60sa/manifest.md",
+      "line": "baseline_suite",
+      "severity": "follow-on",
+      "text": "follow-on: the reviewed manifest records neither baseline_suite nor after_suite, so the run carries no two-arm suite delta of its own; the added-failure count is derived from this review's arms -- a head arm at 96d50e7c (tests/test_maps_cli.py, 40 passed, EXIT=0) and a base arm at 51dc23fb with the head test file kept (2 failed, 38 passed, EXIT=1) -- whose set difference is empty, so added_failure_count is 0."
+    },
+    {
+      "file": "maps/jt-60sa/maps/pf_active.json",
+      "line": "rules",
+      "severity": "follow-on",
+      "text": "the node's core deliverable -- the ten declared alternate_source entries -- lives only in the gitignored machine bundle, so it is absent from commit 96d50e7c and the landing is not durable until a maps release for jt-60sa is performed; the manifest states this explicitly. The guarding test test_real_pf_active_map_rescores_coil_chain_alternates skips (not fails) when the bundle is absent, so a checkout without the map carries the node's tests but not the guard."
+    },
+    {
+      "file": "imas_ambix/maps_cli.py",
+      "line": "640",
+      "severity": "follow-on",
+      "text": "follow-on: the printed score-handoff table gains chain_differs and cross_structure columns, which is the plan's section-10 follow-on (a per-structure/score row in the printed table) and section-19's cross_structure surface rather than section 20's declared-alternate mechanism; the file is not among section 20's named write paths and is covered by this dispatch's grant alone."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/alternate-chains-jt60sa.html",
+      "line": "87",
+      "severity": "follow-on",
+      "text": "the committed fragment ends at </html> with no trailing newline, cosmetic and the only hygiene defect in the change."
+    }
+  ],
+  "follow_ons": [
+    "maps/jt-60sa release: the ten declared alternates in maps/jt-60sa/maps/pf_active.json are gitignored and must be published with `imas-ambix maps release jt-60sa` for the landing to be durable; the reviewed manifest records this.",
+    "imas_ambix/maps_cli.py:640 the chain_differs and cross_structure columns are section-10/19 printed-table follow-on surface; a coordinator may prefer them landed under that section rather than section 20."
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "one commit of 277 insertions and 1 deletion read in full: a new 87-line fragment, a four-line change adding the chain_differs and cross_structure columns to the score-handoff table header and row, and 187 lines of tests (a modified header assertion plus a synthetic chain_differs-column test and a real-map rescore test); the commit body states the chain-choice consequence and carries no plan or ticket identifier.",
+    "done_when": "the declared measure was re-run independently at the reviewed head -- tests/test_maps_cli.py, 40 passed, EXIT=0, module imas_ambix.maps_cli resolving to the scratch extraction of 96d50e7c -- and the falsification holds: the reviewed node's own negative-control log strips the alternates and reds test_real_pf_active_map_rescores_coil_chain_alternates at assert coil[conflicting] == 0 -> assert 6 == 0, and this review's base arm reds both column tests at 51dc23fb.",
+    "goal": "the plan's section-20 defect is removed at the exact site for this node: ten JT-60SA pf_active coil-current rules declare the counterpart chain as an alternate_source, and an imported draft bound to that chain scores under chain_differs (both arrays) rather than conflicting; the map was read and the ten declarations confirmed, and the head-arm test asserts coil conflicting 0 with the six chain_differs arrays.",
+    "manifest": "read whole; status complete with commit 96d50e7c, four changed paths, the gate reading, two log paths, the landing line, and a correctly bare negative_control_log path; it records no baseline_suite or after_suite arm, so the two-arm delta is unmeasured by the node and is supplied by this review.",
+    "write_paths": "git diff --name-status 51dc23fb..96d50e7c carries exactly docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/alternate-chains-jt60sa.html, imas_ambix/maps_cli.py and tests/test_maps_cli.py; the declared maps/jt-60sa/maps/pf_active.json is gitignored and therefore absent from the commit (the manifest states this and asks for a maps release), and no plan, index or sprint file moved."
+  },
+  "justifications": {
+    "durability": "the two new column assertions redden at the base revision with the reviewed tests in place (base arm 2 failed, 38 passed EXIT=1), so the maps_cli.py change is guarded rather than restated, and the map-reading test asserts both arrays and both source groups on each of the six chain_differs entries; the point is withheld because the map data the node's goal rests on is untracked and needs a maps release to become durable, and its guarding test skips rather than fails when the bundle is absent.",
+    "evidence": "the reviewed node's gate tests/test_maps_cli.py was re-run independently at the reviewed head 96d50e7c over a scratch extraction carrying the reviewed files, 40 passed EXIT=0, reproducing the manifest's own reading, and the node's red log opens with its declared mutation and reds test_real_pf_active_map_rescores_coil_chain_alternates at assert coil[conflicting] == 0 -> assert 6 == 0; the point is withheld because the reviewed run was dispatched unarmed -- its manifest names no baseline_suite or after_suite arm, so the added-failure count is supplied by this review's own two arms rather than by the node's evidence.",
+    "fit": "the change reuses the existing per-row print idiom in score_handoff_command and the ten already-computed row entries rather than adding a second table or a new score field, introduces no plan label or tracker reference, and the commit body states the chain-choice consequence; the point is withheld for the fragment's missing trailing newline at </html>.",
+    "goal_fidelity": "the node declares the counterpart acquisition chain as an alternate_source on all ten JT-60SA pf_active coil-current rules in /home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/maps/pf_active.json, quoting the rule's own evidence, and the rescore moves pf_active/coil from conflicting 6 to conflicting 0 / chain_differs 6, verified by reading the map (ten rules carry one alternate each, LKAT<->HiTe) and by the head-arm test; the point is withheld because the declarations live only in the gitignored machine bundle, so the goal is not visible in the committed tree and its guarding test skips when that bundle is absent.",
+    "reuse": "the change adds no new mechanism: the chain_differs and cross_structure lists are the ones handoff_score._measure already computes, and the table prints len() of those lists beside conflicting; the map declaration reuses the AlternateSource the prior node added, and nothing is inferred from array names.",
+    "scope_discipline": "git diff 51dc23fb..96d50e7c carries exactly three tracked paths -- the fragment, imas_ambix/maps_cli.py and tests/test_maps_cli.py -- no plan-version or plan-modified meta line moved, and the declared docs/figures directory was not created; the point is withheld because imas_ambix/maps_cli.py is not among the write paths the plan's section 20 names for this node (it is a section-10/19 printed-table follow-on), so that file is covered by the dispatch's grant rather than by the plan text."
+  },
+  "justifications_detail": {
+    "independent_receipts": "review-head-gate.log: the reviewed gate re-run at the reviewed head over a scratch extraction of 96d50e7c with the maps linked (module imas_ambix.maps_cli resolving to that extraction; 40 passed, EXIT=0). review-base-gate.red.log: the same test file over a scratch extraction of 51dc23fb carrying the base maps_cli.py (2 failed, 38 passed, EXIT=1). The map read shows ten rules each carrying one alternate_source.",
+    "limits": "No score-handoff command was run against the live /work handoff by this review; the fragment's rescore figures were read from the fragment and the reviewed node's tests, and the chain_differs mechanism itself (handoff_score._measure) was read rather than exercised end-to-end here.",
+    "measurement_cwd": "/tmp/reckon-crew-scratch/r-20261009T121426863309-review-of-alternate-chains-jt60sa/ac-review-3944005/head and .../base",
+    "review_basis": "Read plan section 20 with its two-node ordering comment, the prior node's merged mechanism, the reviewed dispatch and manifest, base 51dc23fbc8d4f85e782ad6a094b3d9d50fba65be and head 96d50e7ce86ede2ccf70891fc8e4d5d84cf20c37, the single commit with its complete diff, the reviewed node's gate and negative-control logs, the 87-line fragment, and the development map /home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/maps/pf_active.json."
+  },
+  "model": null,
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261009T120429823041-alternate-chains-jt60sa at head 96d50e7ce86ede2ccf70891fc8e4d5d84cf20c37 against base 51dc23fbc8d4f85e782ad6a094b3d9d50fba65be, the second of the plan section-20 nodes. The node declares, on each JT-60SA pf_active coil-current rule whose evidence names it, the counterpart acquisition chain as an alternate_source, so a draft bound to the LKAT chain where the hand-built map serves the HiTe chain (EF1-EF5), or the HiTe chain where it serves the LKAT chain (EF6), scores as a chain choice under chain_differs rather than as a mapping error under conflicting.\n\nGoal fidelity. Read plan section 20 and its two-node ordering comment, the prior node's merged mechanism (SignalRule.alternate_sources and handoff_score._measure's chain_differs branch), the reviewed dispatch and manifest, base 51dc23fb and head 96d50e7c, the single commit with its complete diff, the reviewed node's gate and negative-control logs, the fragment, and the development map /home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/maps/pf_active.json. All ten pf_active coil-current rules carry one alternate each (CS1-CS4, EF1-EF5 LKAT serving HiTe; EF6 HiTe serving LKAT), and the rescore the fragment quotes moves pf_active/coil from conflicting 6 to conflicting 0 / chain_differs 6, which the head-arm test asserts.\n\nIndependent verification. The reviewed node's declared gate tests/test_maps_cli.py was re-run by this review at the reviewed head over a scratch extraction of 96d50e7c with the machine maps linked: 40 passed, EXIT=0, module imas_ambix.maps_cli resolving to that extraction. A base arm over a scratch extraction of 51dc23fb with the reviewed node's test file at head kept drives the two new column tests red -- test_score_handoff_prints_a_conflicting_column and test_score_handoff_prints_a_chain_differs_column, 2 failed and 38 passed, EXIT=1 -- so the maps_cli.py change is guarded and not restated; the real-map rescore test passes at base too, because the chain_differs mechanism landed with the prior node.\n\nReachability. The map declaration is read through handoff_score._measure's alternate_targets lookup (the imported rule's (source_group, source_array) against prior.alternate_keys on the same target), so runtime code reaches it through the score rather than through a test alone; the printed columns read the row's own chain_differs and cross_structure lists.\n\nRecord. No blocking defect. Three follow-ons and a cosmetic: the reviewed run is unarmed, so this review supplies the two-arm delta (empty); the map deliverable is untracked and needs a maps release, and its guard skips when the bundle is absent; the maps_cli.py column change is section-10/19 surface granted by the dispatch; and the fragment has no trailing newline.\n\nSCORE goal_fidelity: 19\nSCORE evidence: 18\nSCORE scope_discipline: 19\nSCORE durability: 18\nSCORE fit: 19\nSCORE reuse: 20\nJUSTIFICATION goal_fidelity: the node declares the counterpart acquisition chain as an alternate_source on all ten JT-60SA pf_active coil-current rules in /home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/maps/pf_active.json, quoting the rule's own evidence, and the rescore moves pf_active/coil from conflicting 6 to conflicting 0 / chain_differs 6, verified by reading the map (ten rules carry one alternate each, LKAT<->HiTe) and by the head-arm test; the point is withheld because the declarations live only in the gitignored machine bundle, so the goal is not visible in the committed tree and its guarding test skips when that bundle is absent.\nJUSTIFICATION evidence: the reviewed node's gate tests/test_maps_cli.py was re-run independently at the reviewed head 96d50e7c over a scratch extraction carrying the reviewed files, 40 passed EXIT=0, reproducing the manifest's own reading, and the node's red log opens with its declared mutation and reds test_real_pf_active_map_rescores_coil_chain_alternates at assert coil[conflicting] == 0 -> assert 6 == 0; the point is withheld because the reviewed run was dispatched unarmed -- its manifest names no baseline_suite or after_suite arm, so the added-failure count is supplied by this review's own two arms rather than by the node's evidence.\nJUSTIFICATION scope_discipline: git diff 51dc23fb..96d50e7c carries exactly three tracked paths -- the fragment, imas_ambix/maps_cli.py and tests/test_maps_cli.py -- no plan-version or plan-modified meta line moved, and the declared docs/figures directory was not created; the point is withheld because imas_ambix/maps_cli.py is not among the write paths the plan's section 20 names for this node (it is a section-10/19 printed-table follow-on), so that file is covered by the dispatch's grant rather than by the plan text.\nJUSTIFICATION durability: the two new column assertions redden at the base revision with the reviewed tests in place (base arm 2 failed, 38 passed EXIT=1), so the maps_cli.py change is guarded rather than restated, and the map-reading test asserts both arrays and both source groups on each of the six chain_differs entries; the point is withheld because the map data the node's goal rests on is untracked and needs a maps release to become durable, and its guarding test skips rather than fails when the bundle is absent.\nJUSTIFICATION fit: the change reuses the existing per-row print idiom in score_handoff_command and the ten already-computed row entries rather than adding a second table or a new score field, introduces no plan label or tracker reference, and the commit body states the chain-choice consequence; the point is withheld for the fragment's missing trailing newline at </html>.\nJUSTIFICATION reuse: the change adds no new mechanism: the chain_differs and cross_structure lists are the ones handoff_score._measure already computes, and the table prints len() of those lists beside conflicting; the map declaration reuses the AlternateSource the prior node added, and nothing is inferred from array names.\n\nVERDICT goal: the plan's section-20 defect is removed at the exact site for this node -- ten JT-60SA pf_active coil-current rules declare the counterpart chain as an alternate_source, and an imported draft bound to that chain scores under chain_differs (both arrays) rather than conflicting.\nVERDICT done_when: the declared measure was re-run independently at the reviewed head -- tests/test_maps_cli.py, 40 passed, EXIT=0 -- and the falsification holds: the reviewed node's negative-control log strips the alternates and reds test_real_pf_active_map_rescores_coil_chain_alternates, and this review's base arm reds both column tests at 51dc23fb.\nVERDICT write_paths: git diff --name-status 51dc23fb..96d50e7c carries exactly the fragment, imas_ambix/maps_cli.py and tests/test_maps_cli.py; the declared map file is gitignored and absent from the commit; no plan or index file moved.\nVERDICT manifest: read whole; status complete with the commit, changed paths, gate results, log paths and the landing line, and a correctly bare negative_control_log path, but no baseline_suite or after_suite arm.\nVERDICT diff: one commit of 277 insertions and 1 deletion read in full: the 87-line fragment, the four-line table-column change and 187 lines of tests; the body states the chain-choice consequence and carries no plan or ticket identifier.\nCALL_SITES: imas_ambix/maps_cli.py:640 score_handoff_command prints the chain_differs and cross_structure columns in the score-handoff table header and row\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261009T120429823041-alternate-chains-jt60sa/manifest.md baseline_suite the reviewed manifest records neither baseline_suite nor after_suite, so the added-failure count is derived from this review's head arm (96d50e7c, 40 passed) and base arm (51dc23fb, 2 failed), a set difference of 0.\nFINDING maps/jt-60sa/maps/pf_active.json rules the ten declared alternate_source entries live only in the gitignored bundle, absent from commit 96d50e7c, so the landing needs a maps release to be durable and the guarding test skips when the bundle is absent.\nFINDING imas_ambix/maps_cli.py:640 the printed table columns are section-10/19 surface rather than section 20's mechanism and the file is not among section 20's named write paths.\nFINDING docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/alternate-chains-jt60sa.html:87 the committed fragment ends at </html> with no trailing newline.",
+  "review_run_id": "r-20261009T121426863309-review-of-alternate-chains-jt60sa",
+  "reviewed_base_sha": "51dc23fbc8d4f85e782ad6a094b3d9d50fba65be",
+  "reviewed_head_sha": "96d50e7ce86ede2ccf70891fc8e4d5d84cf20c37",
+  "reviewed_run_id": "r-20261009T120429823041-alternate-chains-jt60sa",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash",
+    "reviewer_run_id": "r-20261009T121426863309-review-of-alternate-chains-jt60sa"
+  },
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-09T12:21:30+00:00",
+  "total": 113,
+  "updated_at": "2026-10-09T12:21:30+00:00"
+}
