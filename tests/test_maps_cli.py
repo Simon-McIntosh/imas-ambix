@@ -33,6 +33,8 @@ from imas_ambix.maps_cli import (
     tree_digest,
 )
 
+HANDOFF_FIXTURE = Path(__file__).parent / "fixtures" / "mapping_handoff_example.json"
+
 
 class FakeRegistry:
     """A registry whose tags, annotations and pushes live in memory."""
@@ -95,6 +97,79 @@ def write_tree(root: Path, *, version: str = "2026.10.07") -> None:
     for excluded in ("source", "superseded"):
         (root / excluded).mkdir(parents=True, exist_ok=True)
         (root / excluded / "deck.txt").write_text("development input")
+
+
+def test_draft_signals_replace_covered_ids_and_keep_catalogue(tmp_path: Path) -> None:
+    """The ordered description gives indices; covered hand-built rules disappear."""
+    from imas_alambic.machine_map import load_machine_map
+    from imas_alambic.signal_map import load_signal_map
+    from imas_ambix.data.tokamap_export import export_tokamap_directory
+
+    machine_dir = maps_cli.MAPS_DIR / "jt-60sa"
+    if not (machine_dir / "machine_map.json").is_file():
+        import pytest
+
+        pytest.skip("JT-60SA development bundle is unavailable")
+    catalog = load_machine_map(machine_dir / "machine_map.json")
+    hand_built = [
+        load_signal_map(path) for path in sorted((machine_dir / "maps").glob("*.json"))
+    ]
+    reference = export_tokamap_directory(
+        catalog,
+        hand_built,
+        directory=tmp_path / "reference",
+        withhold_undeclared_cocos=True,
+    )
+    draft_dir = tmp_path / "draft"
+    result = CliRunner().invoke(
+        maps_cli.maps,
+        [
+            "tokamap",
+            "jt-60sa",
+            "--out",
+            str(draft_dir),
+            "--draft-signals",
+            str(HANDOFF_FIXTURE),
+            "--withhold-undeclared-cocos",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert "unresolved magnetics" in result.output
+    assert "No FacilitySignal member is linked" in result.output
+    assert "(50 machine description, 20 signal)" in result.output
+
+    expected = {
+        "magnetics": {
+            "b_field_pol_probe[9]/field/data": "magPbTC10",
+            "b_field_pol_probe[10]/field/data": "magPbTC11",
+        },
+        "pf_active": {
+            "coil[0]/current/data": "curCS1LKAT",
+            "coil[1]/current/data": "curCS2LKAT",
+        },
+    }
+    for ids_name, signal_sources in expected.items():
+        for partition in reference.partitions:
+            path = Path(ids_name) / str(partition) / "mappings.json"
+            written = json.loads((draft_dir / path).read_text())
+            original = json.loads((reference.directory / path).read_text())
+            drafts = {
+                key: value
+                for key, value in written.items()
+                if "validation_state=draft" in value.get("comment", "")
+            }
+            assert {
+                key: value["args"]["source_array"] for key, value in drafts.items()
+            } == signal_sources
+            assert all(value["scale"] == 1.0 for value in drafts.values())
+            assert set(written) == {
+                key
+                for key, value in original.items()
+                if "validation_state=" not in value.get("comment", "")
+            } | set(signal_sources)
+            for key, value in original.items():
+                if "validation_state=" not in value.get("comment", ""):
+                    assert written[key] == value
 
 
 # --- version state machine -------------------------------------------------
@@ -422,9 +497,7 @@ def test_pull_defaults_to_the_latest_stable_tag(
     registry.install(monkeypatch)
     dest = tmp_path / "out"
 
-    result = CliRunner().invoke(
-        maps_cli.maps, ["pull", "jt-60sa", "--dest", str(dest)]
-    )
+    result = CliRunner().invoke(maps_cli.maps, ["pull", "jt-60sa", "--dest", str(dest)])
 
     assert result.exit_code == 0, result.output
     assert (dest / "pulled-from").read_text().endswith(":v0.1.0")
