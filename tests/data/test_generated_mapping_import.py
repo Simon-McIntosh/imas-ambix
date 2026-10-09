@@ -75,6 +75,22 @@ def test_unresolvable_member_is_reported_without_an_index():
     )
 
 
+def test_member_identifier_must_match_the_source_array():
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    document["ids"][0]["signals"][0]["source_array"] = "magPbTC12"
+
+    imported = import_generated_mappings(document, _catalogue(), DESCRIPTION_MEMBERS)
+
+    assert imported.unresolved[0].reason == (
+        "member identifier '10' is absent from source array 'magPbTC12'"
+    )
+    assert all(
+        signal.source_array != "magPbTC12"
+        for mapping in imported.maps
+        for signal in mapping.signals
+    )
+
+
 def test_draft_rule_and_map_round_trip_through_serialisation():
     imported = import_generated_mappings(FIXTURE, _catalogue(), DESCRIPTION_MEMBERS)
     rule = imported.maps[0].signals[0]
