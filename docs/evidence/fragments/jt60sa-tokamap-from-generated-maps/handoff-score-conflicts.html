@@ -1,0 +1,45 @@
+<section id="handoff-score-conflicts-field">
+  <h3>Count conflicting rows in the hand-off score</h3>
+  <p>The score could not previously tell a genuine disagreement from a target the
+  hand-built maps simply do not cover: both read as an imported value rule that is not
+  <code>agreeing</code>. <code>score_handoff</code> now returns a
+  <code>conflicting</code> count on every IDS row, every structure row and the
+  <code>TOTAL</code>, and a <code>conflicts</code> list on each row naming the two
+  arrays.</p>
+  <p><strong>Definition.</strong> A conflict is an imported value rule (draft or
+  pending) whose <code>target_path</code> and <code>target_index</code> carry a
+  hand-built rule that it does not agree with. Agreement is the existing
+  <code>_agrees</code> predicate — same target path and index, same source group and
+  source array, and the same signed (or, when the sign is unscored, unsigned) scale.
+  A row on a target with no hand-built rule is <em>not</em> a conflict, and an
+  agreeing row is not a conflict. Each conflict entry carries
+  <code>target_path</code>, <code>target_index</code>, <code>imported_source_array</code>
+  and <code>hand_built_source_arrays</code>.</p>
+  <p>This is the case imas-codex flagged: MMSYS <code>curUFPdisr</code> and
+  <code>curLFPdisr</code> are disruption-induced currents sharing the <code>UFP</code>
+  and <code>LFP</code> identifiers, so one may bind to <code>pf_active/coil/current/data</code>
+  as if it were the coil current. Bound to the same target and index by a different
+  source array, it now reads as a conflict against the hand-built rule rather than as a
+  silent non-agreement.</p>
+
+  <h4>Demonstration</h4>
+  <p>In <code>tests/data/test_handoff_score.py</code>, a hand-built rule for
+  <code>magnetics/b_field_pol_probe/field/data</code> whose source array is
+  <code>other</code> against an imported row bound by <code>magPbTC11</code> yields
+  <code>conflicting == 1</code> with the entry
+  <code>{target_path: magnetics/b_field_pol_probe/field/data,
+  imported_source_array: magPbTC11, hand_built_source_arrays: ["other"]}</code>. A row
+  whose target carries no hand-built rule yields <code>conflicting == 0</code>, and an
+  agreeing row yields <code>conflicting == 0</code>.</p>
+  <p>The printed <code>score-handoff</code> table carries a <code>conflicting</code>
+  column; <code>tests/test_maps_cli.py</code> shows the header and the
+  <code>magnetics</code> row reading <code>1</code> on the same fixture.</p>
+
+  <h4>Gate</h4>
+  <p><code>tests/data/test_handoff_score.py</code> and <code>tests/test_maps_cli.py</code>
+  run green for this field (10 passed and 46 passed respectively, with two
+  <code>draft_signals</code> failures outside this node's scope — see the manifest's
+  <code>follow_ons</code>). The declared negative control — counting every imported
+  non-agreeing row as conflicting — fails
+  <code>test_a_target_without_a_hand_built_rule_is_not_conflicting</code>.</p>
+</section>

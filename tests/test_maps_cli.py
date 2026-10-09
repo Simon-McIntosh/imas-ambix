@@ -93,6 +93,78 @@ def test_score_handoff_prints_table_and_writes_json(tmp_path, monkeypatch):
     assert written["by_ids"]["pf_active"]["agreeing"] == "no reference"
 
 
+def test_score_handoff_prints_a_conflicting_column(tmp_path, monkeypatch):
+    """A row bound to a hand-built target by another array shows as conflicting."""
+    from types import SimpleNamespace
+
+    from imas_alambic.machine_map import SensorIdentityRule
+    from imas_ambix.data.generated_mapping_import import import_generated_mappings
+
+    root = tmp_path / "maps"
+    machine_dir = root / "jt-60sa"
+    (machine_dir / "maps").mkdir(parents=True)
+    (machine_dir / "machine_map.json").write_text("{}")
+    (machine_dir / "maps" / "magnetics.json").write_text("{}")
+    catalogue = SimpleNamespace(
+        source_cocos=1,
+        sensor_identity_rules=(
+            SensorIdentityRule(
+                name="identity",
+                case_rule="case-fold",
+                numeric_token_rule="integer-value",
+                evidence="description names",
+            ),
+        ),
+    )
+    members = {
+        "magnetics/b_field_pol_probe": ("011", "010"),
+        "pf_active/coil": ("02", "01"),
+    }
+    document = json.loads(HANDOFF_FIXTURE.read_text())
+    reference = import_generated_mappings(document, catalogue, members).maps[0]
+    first, second = reference.signals
+    reference = dataclasses.replace(
+        reference,
+        signals=(first, dataclasses.replace(second, source_array="other")),
+    )
+    import imas_alambic.machine_map as machine_map_module
+    import imas_alambic.signal_map as signal_map_module
+
+    monkeypatch.setattr(maps_cli, "MAPS_DIR", root)
+    monkeypatch.setattr(
+        maps_cli, "_description_members", lambda *args, **kwargs: members
+    )
+    monkeypatch.setattr(machine_map_module, "load_machine_map", lambda path: catalogue)
+    monkeypatch.setattr(signal_map_module, "load_signal_map", lambda path: reference)
+
+    result = CliRunner().invoke(
+        maps_cli.maps, ["score-handoff", "jt-60sa", str(HANDOFF_FIXTURE)]
+    )
+
+    assert result.exit_code == 0, result.output
+    header = next(
+        line for line in result.output.splitlines() if line.startswith("IDS")
+    )
+    assert header.split() == [
+        "IDS",
+        "exported",
+        "imported",
+        "agreeing",
+        "conflicting",
+        "sign_unscored",
+        "unplaced",
+        "refused",
+    ]
+    rows = {
+        line.split()[0]: line.split()
+        for line in result.output.splitlines()
+        if not line.startswith("IDS") and not line.startswith("refused ")
+    }
+    # columns: IDS exported imported agreeing conflicting sign_unscored ...
+    assert rows["magnetics"][4] == "1"
+    assert rows["TOTAL"][4] == "1"
+
+
 def test_score_handoff_prints_one_row_per_structure_under_its_ids(
     tmp_path, monkeypatch
 ):
