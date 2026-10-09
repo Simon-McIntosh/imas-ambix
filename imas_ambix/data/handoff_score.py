@@ -114,6 +114,7 @@ def _measure(
     unplaced = sum(_unplaced(row.reason) for row in unresolved)
     reasons = Counter(row.reason for row in unresolved if not _unplaced(row.reason))
     matches: list[bool] = []
+    conflicts: list[dict[str, Any]] = []
     if reference is not None:
         for rule, withheld in values:
             label = _handoff_label(signals, rule, dd_version)
@@ -125,11 +126,31 @@ def _measure(
                 for prior in reference
             ):
                 matches.append(sign_unscored)
+                continue
+            on_target = [
+                prior
+                for prior in reference
+                if prior.target_path == rule.target_path
+                and prior.target_index == rule.target_index
+            ]
+            if on_target:
+                conflicts.append(
+                    {
+                        "target_path": rule.target_path,
+                        "target_index": rule.target_index,
+                        "imported_source_array": rule.source_array,
+                        "hand_built_source_arrays": sorted(
+                            prior.source_array for prior in on_target
+                        ),
+                    }
+                )
     agreeing: int | str = "no reference" if reference is None else len(matches)
     return {
         "exported": exported,
         "imported": exported - len(unresolved),
         "agreeing": agreeing,
+        "conflicting": len(conflicts),
+        "conflicts": conflicts,
         "unplaced": unplaced,
         "refused": sum(reasons.values()),
         "refused_reasons": dict(sorted(reasons.items())),
@@ -225,6 +246,7 @@ def score_handoff(
             for row in by_ids.values()
             if isinstance(row["agreeing"], int)
         ),
+        "conflicting": sum(row["conflicting"] for row in by_ids.values()),
         "unplaced": sum(row["unplaced"] for row in by_ids.values()),
         "refused": sum(row["refused"] for row in by_ids.values()),
         "refused_reasons": dict(sorted(total_reasons.items())),

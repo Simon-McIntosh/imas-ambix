@@ -155,6 +155,66 @@ def test_matching_target_with_a_different_source_array_does_not_agree():
     assert result["by_ids"]["magnetics"]["agreeing"] == 1
 
 
+def test_conflicting_counts_a_target_whose_source_array_differs():
+    """A row on a hand-built target bound by another array is a conflict."""
+    document, reference = _case()
+    first, second = reference.signals
+    reference = dataclasses.replace(
+        reference,
+        signals=(
+            first,
+            dataclasses.replace(second, channel_factor=1.0, source_array="other"),
+        ),
+    )
+
+    result = handoff_score.score_handoff(document, _catalogue(), MEMBERS, [reference])
+
+    magnetics = result["by_ids"]["magnetics"]
+    assert magnetics["agreeing"] == 1
+    assert magnetics["conflicting"] == 1
+    assert magnetics["conflicts"] == [
+        {
+            "target_path": "magnetics/b_field_pol_probe/field/data",
+            "target_index": second.target_index,
+            "imported_source_array": "magPbTC11",
+            "hand_built_source_arrays": ["other"],
+        }
+    ]
+    assert result["total"]["conflicting"] == 1
+    assert (
+        result["by_structure"]["magnetics/b_field_pol_probe"]["conflicting"] == 1
+    )
+
+
+def test_a_target_without_a_hand_built_rule_is_not_conflicting():
+    """An imported row with no hand-built rule on its target is not a conflict."""
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    imported = import_generated_mappings(document, _catalogue(), MEMBERS)
+    probe = imported.maps[0]
+    reference = dataclasses.replace(probe, signals=(probe.signals[0],))
+
+    result = handoff_score.score_handoff(document, _catalogue(), MEMBERS, [reference])
+
+    magnetics = result["by_ids"]["magnetics"]
+    assert magnetics["agreeing"] == 1
+    assert magnetics["conflicting"] == 0
+    assert magnetics["conflicts"] == []
+
+
+def test_an_agreeing_row_is_not_conflicting():
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    imported = import_generated_mappings(document, _catalogue(), MEMBERS)
+
+    result = handoff_score.score_handoff(
+        document, _catalogue(), MEMBERS, [imported.maps[0]]
+    )
+
+    magnetics = result["by_ids"]["magnetics"]
+    assert magnetics["agreeing"] == 2
+    assert magnetics["conflicting"] == 0
+    assert magnetics["conflicts"] == []
+
+
 def test_pending_cocos_rule_counts_as_imported_with_the_sign_unscored():
     document, _ = _case()
     document["ids"][0]["signals"][0]["cocos_label"] = "ip_like"

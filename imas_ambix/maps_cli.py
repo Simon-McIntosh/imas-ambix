@@ -637,13 +637,13 @@ def score_handoff_command(machine: str, file: Path, json_file: Path | None) -> N
     width = max(len(label) for label, _ in rows)
     click.echo(
         f"{'IDS':<{width}} "
-        "exported imported agreeing sign_unscored unplaced refused"
+        "exported imported agreeing conflicting sign_unscored unplaced refused"
     )
     for label, row in rows:
         click.echo(
             f"{label:<{width}} {row['exported']:>8} {row['imported']:>8} "
-            f"{str(row['agreeing']):>12} {row['sign_unscored']:>13} "
-            f"{row['unplaced']:>8} {row['refused']:>7}"
+            f"{str(row['agreeing']):>12} {row['conflicting']:>11} "
+            f"{row['sign_unscored']:>13} {row['unplaced']:>8} {row['refused']:>7}"
         )
     for reason, count in score["total"]["refused_reasons"].items():
         click.echo(f"refused {count}: {reason}")
