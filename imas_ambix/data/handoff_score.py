@@ -184,6 +184,7 @@ def _measure(
     reasons = Counter(row.reason for row in unresolved if not _unplaced(row.reason))
     matches: list[bool] = []
     conflicts: list[dict[str, Any]] = []
+    chain_differs: list[dict[str, Any]] = []
     cross_structure: list[dict[str, Any]] = []
     sign_unscored = 0
     for rule, withheld in values:
@@ -206,6 +207,27 @@ def _measure(
             if prior.target_path == rule.target_path
             and prior.target_index == rule.target_index
         ]
+        # A hand-built rule may declare another acquisition chain that measures
+        # the same quantity. The imported rule's source matching a declared
+        # alternate is a chain choice, not a mapping error: name both arrays and
+        # count it apart from a conflict. Nothing is inferred from array names.
+        alternate_targets = [
+            prior
+            for prior in on_target
+            if (rule.source_group, rule.source_array) in prior.alternate_keys
+        ]
+        if alternate_targets:
+            chain_differs.append(
+                {
+                    "target_path": rule.target_path,
+                    "target_index": rule.target_index,
+                    "imported_source_group": rule.source_group,
+                    "imported_source_array": rule.source_array,
+                    "hand_built_source_group": alternate_targets[0].source_group,
+                    "hand_built_source_array": alternate_targets[0].source_array,
+                }
+            )
+            continue
         if on_target:
             conflicts.append(
                 {
@@ -261,6 +283,7 @@ def _measure(
         "agreeing": agreeing,
         "conflicting": len(conflicts),
         "conflicts": conflicts,
+        "chain_differs": chain_differs,
         "cross_structure": cross_structure,
         "unplaced": len(unplaced),
         "unplaced_reasons": dict(
@@ -364,6 +387,9 @@ def score_handoff(
             if isinstance(row["agreeing"], int)
         ),
         "conflicting": sum(row["conflicting"] for row in by_ids.values()),
+        "chain_differs": [
+            entry for row in by_ids.values() for entry in row["chain_differs"]
+        ],
         "cross_structure": [
             entry for row in by_ids.values() for entry in row["cross_structure"]
         ],

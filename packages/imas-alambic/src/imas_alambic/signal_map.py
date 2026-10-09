@@ -78,6 +78,51 @@ def _exact_keys(row: Mapping[str, Any], expected: set[str], label: str) -> None:
 
 
 @dataclass(frozen=True, order=True)
+class AlternateSource:
+    """Another acquisition chain that measures the rule's quantity.
+
+    A reviewed map may serve one quantity through more than one acquisition
+    chain, each measuring the same physical value from a different source
+    array.  Declaring the alternative here records that the two chains are
+    interchangeable references, so a consumer comparing a draft binding with
+    the served rule can read the difference as a chain choice rather than a
+    mapping error.  ``evidence`` names why the two chains measure the same
+    quantity.
+    """
+
+    source_group: str
+    source_array: str
+    evidence: str
+
+    @property
+    def source_key(self) -> tuple[str, str]:
+        return self.source_group, self.source_array
+
+    def validate(self) -> None:
+        for value, label in (
+            (self.source_group, "alternate source group"),
+            (self.source_array, "alternate source array"),
+            (self.evidence, "alternate source evidence"),
+        ):
+            _text(value, label)
+
+    def as_dict(self) -> dict[str, str]:
+        return {
+            "evidence": self.evidence,
+            "source_array": self.source_array,
+            "source_group": self.source_group,
+        }
+
+    @classmethod
+    def from_dict(cls, row: Mapping[str, Any]) -> AlternateSource:
+        expected = {"evidence", "source_array", "source_group"}
+        _exact_keys(row, expected, "alternate source")
+        alternate = cls(**{key: row[key] for key in expected})
+        alternate.validate()
+        return alternate
+
+
+@dataclass(frozen=True, order=True)
 class SignalRule:
     """One immutable source binding and its static source-to-DD conversion."""
 
@@ -95,10 +140,15 @@ class SignalRule:
     standard_name: str | None
     evidence: str
     validation_state: str
+    alternate_sources: tuple[AlternateSource, ...] = ()
 
     @property
     def source_key(self) -> tuple[str, str]:
         return self.source_group, self.source_array
+
+    @property
+    def alternate_keys(self) -> frozenset[tuple[str, str]]:
+        return frozenset(alternate.source_key for alternate in self.alternate_sources)
 
     @property
     def target_key(self) -> tuple[str, int | None]:
@@ -163,9 +213,11 @@ class SignalRule:
             _finite(self.convention_factor, "convention factor", nonzero=True)
         except ValueError as error:
             raise SignalMapError(str(error)) from error
+        for alternate in self.alternate_sources:
+            alternate.validate()
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        row: dict[str, Any] = {
             "channel_factor": float(self.channel_factor),
             "evidence": self.evidence,
             "semantic_id": self.semantic_id,
@@ -181,6 +233,11 @@ class SignalRule:
             "unit_factor": float(self.unit_factor),
             "validation_state": self.validation_state,
         }
+        if self.alternate_sources:
+            row["alternate_sources"] = [
+                alternate.as_dict() for alternate in self.alternate_sources
+            ]
+        return row
 
     @classmethod
     def from_dict(cls, row: Mapping[str, Any]) -> SignalRule:
@@ -200,7 +257,16 @@ class SignalRule:
             "unit_factor",
             "validation_state",
         }
-        _exact_keys(row, expected, "signal rule")
+        alternates_raw = row.get("alternate_sources", ())
+        _exact_keys(
+            {key: value for key, value in row.items() if key != "alternate_sources"},
+            expected,
+            "signal rule",
+        )
+        if isinstance(alternates_raw, (str, bytes)) or not isinstance(
+            alternates_raw, Sequence
+        ):
+            raise SignalMapError("alternate sources must be an array")
         rule = cls(
             semantic_id=row["semantic_id"],
             source_group=row["source_group"],
@@ -216,6 +282,9 @@ class SignalRule:
             standard_name=row["standard_name"],
             evidence=row["evidence"],
             validation_state=row["validation_state"],
+            alternate_sources=tuple(
+                AlternateSource.from_dict(item) for item in alternates_raw
+            ),
         )
         rule.validate()
         return rule
@@ -655,6 +724,7 @@ def load_packaged_signal_map(machine: str, system: str) -> SignalMap:
 
 __all__ = [
     "MAP_SCHEMA_VERSION",
+    "AlternateSource",
     "BlockedSignal",
     "CalibrationRule",
     "CompiledSignal",

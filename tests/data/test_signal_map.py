@@ -9,6 +9,7 @@ import pytest
 
 from imas_alambic.signal_map import (
     MAP_SCHEMA_VERSION,
+    AlternateSource,
     BlockedSignal,
     CalibrationRule,
     SignalMap,
@@ -176,6 +177,43 @@ def test_canonical_json_round_trip_loads_without_reading_source_data(tmp_path):
     loaded = load_signal_map(path)
     assert loaded.digest == source_map.digest
     assert json.loads(path.read_text())["discovery"]["producer"] == "imas-codex"
+
+
+def test_a_rule_without_alternate_sources_round_trips_unchanged():
+    """A map that declares no alternate chain serialises exactly as before."""
+    source_map = _map()
+    payload = json.loads(source_map.canonical_bytes())
+    assert "alternate_sources" not in payload["signals"][0]
+    reloaded = SignalMap.from_dict(payload)
+    assert reloaded.canonical_bytes() == source_map.canonical_bytes()
+
+
+def test_a_declared_alternate_source_round_trips():
+    alternate = AlternateSource(
+        source_group="LKAT",
+        source_array="curEF1LKAT",
+        evidence="LKAT on E101154 tracks curEF1HiTe at corr>=0.994",
+    )
+    rule = _signal(alternate_sources=(alternate,))
+    row = rule.as_dict()
+
+    assert row["alternate_sources"] == [
+        {
+            "evidence": "LKAT on E101154 tracks curEF1HiTe at corr>=0.994",
+            "source_array": "curEF1LKAT",
+            "source_group": "LKAT",
+        }
+    ]
+    restored = SignalRule.from_dict(row)
+    assert restored == rule
+    assert restored.alternate_keys == frozenset({("LKAT", "curEF1LKAT")})
+
+
+def test_a_malformed_alternate_source_is_refused():
+    row = _signal().as_dict()
+    row["alternate_sources"] = [{"source_group": "LKAT", "source_array": "curEF1LKAT"}]
+    with pytest.raises(SignalMapError, match="alternate source keys differ"):
+        SignalRule.from_dict(row)
 
 
 def test_packaged_mast_angle_map_serves_ddv4_radians_without_a_standard_name():
