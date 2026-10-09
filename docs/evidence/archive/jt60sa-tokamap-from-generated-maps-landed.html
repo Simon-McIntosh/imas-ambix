@@ -85,6 +85,16 @@
     <p><code>score-handoff</code> prints one row per target structure under its IDS, and its scoring reports a structure with no machine-description members as unplaced rather than aborting (merge <code>a632d115</code>). On imas-codex's coils hand-off (exported 09:32:06Z, sha256 <code>fd7d0374…bd18</code>), by structure, exported / imported / agreeing / sign unscored / unplaced / refused: <code>pf_active/coil</code> 22/0/0/0/18/4; <code>pf_active/circuit</code> 17/0/no reference/0/14/3; <code>pf_active/supply</code> 8/0/no reference/0/6/2; <code>tf/coil</code> 3/0/0/0/3/0; total 50/0/0/0/41/9. Cause: 49 of 50 rows carry <code>member_identifier</code> null, so no row can be placed; reported to imas-codex. The machine description holds 12 <code>pf_active</code> coil and 12 circuit members and no supply members, and the hand-off also targets <code>tf/coil/conductor/current/data</code>, which the catalogue does not model. 44 tests pass; printing one row per IDS only fails the table test. The worker's manifest named a full sha for its second commit that resolves to no object; the commit is <code>e563db46</code>. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/coils-handoff-score.html">coils-handoff-score</a>.</p>
   </section>
 
+  <section id="s12">
+    <h2>§12 — facility member aliases landed</h2>
+    <p><code>SensorIdentityRule</code> takes an optional <code>member_aliases</code> mapping, validated as text on both sides, and the import resolves a hand-off member through it before the case and numeric rules (merge <code>e736096a</code>). The JT-60SA identity rule in <code>maps/jt-60sa/machine_map.json</code> maps MMSYS <code>UFP</code> → <code>FPPC_UP</code> and <code>LFP</code> → <code>FPPC_DOWN</code>, with evidence. 24 focused tests pass; skipping the alias lookup fails the alias-resolution test; the JT-60SA catalogue loads with both aliases. Ran on the codex lane because writing the 556 KB catalogue exceeded the local lane's context window. The worker wrote the shared catalogue before its schema change merged, so <code>main</code> refused the catalogue from 11:52:56 to about 11:58 local; the merge closed it and imas-ambix-41 was told. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/member-aliases.html">member-aliases</a>.</p>
+  </section>
+
+  <section id="s13">
+    <h2>§13 — conflicting count in the hand-off score landed</h2>
+    <p><code>score-handoff</code> counts, per IDS, structure and total, imported value rules that land on a hand-built target and disagree with it, and lists each with the imported and hand-built source arrays; the printed table gains a <code>conflicting</code> column (merge <code>2baae51f</code>). 10 score tests pass; counting every imported non-agreeing row fails the no-hand-built-rule test. The worker's CLI gate recorded two draft-signals failures caused by the shared catalogue gap above, present at its base too; an independent test run at the merged head settles the gate. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/handoff-score-conflicts.html">handoff-score-conflicts</a>.</p>
+  </section>
+
 </main>
 </body>
 </html>
