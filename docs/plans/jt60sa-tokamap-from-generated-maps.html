@@ -24,9 +24,9 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="30">
+<meta name="plan-version" content="31">
 <meta name="plan-modified" content="2026-10-09">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -316,6 +316,20 @@
 <p>The lead ruled on 2026-10-09 that time vectors are resolved by imas-ambix, not judged by what tokamap's <code>DATA_SOURCE</code> schema can express. imas-alambic already does it: <code>pulse_writer</code> reads each signal's time base from the same channel as its values through <code>read_channel</code>, and writes it to the signal's <code>time</code> sibling, or to the IDS <code>time</code> when every signal shares one base. So a hand-off row with <code>source_property</code> <code>time</code> is resolved when a <code>value</code> row binds the same <code>source_group</code>, <code>source_array</code> and member to the same structure: it confirms that structure's time vector rather than adding a rule. §3's third iteration reported the 14 such rows unresolved for the wrong reason.</p>
 <p>Change <code>imas_ambix/data/generated_mapping_import.py</code> so the import returns these rows as resolved time bindings, each naming the value rule it confirms. A time row whose value partner is absent or unresolved stays unresolved, with that reason. Rerun the draft tokamap on the 03:44Z hand-off and record the new counts. Writing explicit time entries into the tokamap directory waits for <code>jt60sa-machine-map</code>'s COCOS-resolver split in <code>tokamap_export.py</code>, so this section does not touch the exporter.</p>
 <p><strong>Node</strong> <code>draft-time-bindings</code>, role implement, 0.5 h. Write paths: <code>imas_ambix/data/generated_mapping_import.py</code>, <code>tests/data/test_generated_mapping_import.py</code>, <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/draft-time-bindings.html</code>. <strong>Done when</strong> a test shows a <code>time</code> row resolved against its <code>value</code> partner and naming it; a test shows a <code>time</code> row without a resolved partner reported with that reason; the rerun on the 03:44Z hand-off reports the time rows of the 9 placed probes resolved; and the fragment gives the before-and-after counts.</p>
+
+    <h2 id="s8">§8 — Score a hand-off against the hand-built maps</h2>
+<section data-reckon="section" data-id="s8" data-effort-hours="0.75" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p>imas-codex's <code>jt60sa-mapping-study-expansion</code> widens the study to six systems, each exported on its own at <code>/work/projects/imas_gpu/jt60sa/handoff/jt-60sa-&lt;system&gt;-handoff.json</code>: coils (<code>pf_active</code> and <code>tf</code>), <code>ip</code>, flux loops, ECH, gas, and cryo as a negative control whose rows should mostly be refused. For each one it asks imas-ambix for five numbers. This section makes them one command rather than a hand count.</p>
+<p>Add <code>imas-ambix maps score-handoff MACHINE FILE</code> to the <code>maps</code> group, with the scoring in a new module <code>imas_ambix/data/handoff_score.py</code> that calls <code>import_generated_mappings</code> and adds nothing to it. It reports per IDS and in total:</p>
+<ul>
+<li><strong>exported</strong>: the hand-off's signal and unexpanded rows;</li>
+<li><strong>imported</strong>: rows that became draft rules or resolved time bindings;</li>
+<li><strong>agreeing</strong>: imported value rules whose target path and index, source group and array, and total scale and sign match the machine's hand-built signal map. The column reads <code>no reference</code> where that IDS has no hand-built map, and the sign reads <code>unscored</code> where the target's COCOS label is set and the machine's source COCOS is undeclared, which covers the flux loops;</li>
+<li><strong>unplaced</strong>: rows whose member the machine description cannot place;</li>
+<li><strong>refused</strong>: every other unresolved or unexpanded row, grouped by reason.</li>
+</ul>
+<p>It prints a table, and with <code>--json FILE</code> writes the same numbers with each refused reason, so a reply to imas-codex quotes a file rather than a transcription.</p>
+<p><strong>Node</strong> <code>handoff-score-command</code>, role implement, 0.75 h. Write paths: <code>imas_ambix/data/handoff_score.py</code>, <code>tests/data/test_handoff_score.py</code>, <code>imas_ambix/maps_cli.py</code>, <code>tests/test_maps_cli.py</code>, <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/handoff-score-command.html</code>. <strong>Done when</strong> tests show each of the five categories counted on a hand-built test catalogue and map, <code>no reference</code> for an IDS without a hand-built map, and an <code>unscored</code> sign for a labelled target under an undeclared source COCOS; and the command, run on the 03:44Z JT-60SA hand-off, writes a JSON whose numbers the fragment quotes.</p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
