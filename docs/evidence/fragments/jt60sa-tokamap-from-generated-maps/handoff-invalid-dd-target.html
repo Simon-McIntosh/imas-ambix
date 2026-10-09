@@ -1,0 +1,98 @@
+<section id="handoff-invalid-dd-target">
+<h3>Refuse a hand-off target the Data Dictionary does not define</h3>
+
+<p id="handoff-invalid-dd-target-context">
+The imas-codex coils re-export carries one row targeting
+<code>tf/coil/conductor/current/data</code>, a path DD 4.1.1 does not define
+(<code>conductor</code> has no <code>current</code> element). Before the change
+<code>score-handoff</code> aborted on that row with a <code>KeyError</code> raised
+from the COCOS-label lookup, hiding the score of every other row. The import now
+reports such a row as unresolved, naming the path and the hand-off's DD version,
+and the scorer's label lookup declines a path its dictionary does not define
+instead of raising from the walk.
+</p>
+
+<p id="handoff-invalid-dd-target-reproduction">
+Reproduction before the change, on
+<code>/work/projects/imas_gpu/jt60sa/handoff/jt-60sa-coils-handoff.json</code>:
+</p>
+<pre id="handoff-invalid-dd-target-repro-quote">
+$ imas-ambix maps score-handoff jt-60sa /work/projects/imas_gpu/jt60sa/handoff/jt-60sa-coils-handoff.json
+Error: "Invalid path 'coil/conductor/current/data', 'conductor' does not have a 'current' element."
+EXIT=1
+</pre>
+
+<p id="handoff-invalid-dd-target-result">
+After the change the score runs to completion and counts the row refused. The
+hand-off's <code>exported_at</code> is <code>2026-10-09T10:41:50Z</code>. Full
+<code>score-handoff jt-60sa --json</code> output:
+</p>
+<pre id="handoff-invalid-dd-target-json">
+{
+  "machine": "jt-60sa",
+  "by_ids": {
+    "pf_active": {
+      "exported": 43, "imported": 32, "agreeing": 6, "conflicting": 6,
+      "conflicts": [
+        {"target_path": "pf_active/coil/current/data", "target_index": 8,
+         "imported_source_array": "curEF5HiTe", "hand_built_source_arrays": ["curEF5LKAT"]},
+        {"target_path": "pf_active/coil/current/data", "target_index": 7,
+         "imported_source_array": "curEF4HiTe", "hand_built_source_arrays": ["curEF4LKAT"]},
+        {"target_path": "pf_active/coil/current/data", "target_index": 6,
+         "imported_source_array": "curEF3HiTe", "hand_built_source_arrays": ["curEF3LKAT"]},
+        {"target_path": "pf_active/coil/current/data", "target_index": 9,
+         "imported_source_array": "curEF6LKAT", "hand_built_source_arrays": ["curEF6HiTe"]},
+        {"target_path": "pf_active/coil/current/data", "target_index": 4,
+         "imported_source_array": "curEF1HiTe", "hand_built_source_arrays": ["curEF1LKAT"]},
+        {"target_path": "pf_active/coil/current/data", "target_index": 5,
+         "imported_source_array": "curEF2HiTe", "hand_built_source_arrays": ["curEF2LKAT"]}
+      ],
+      "unplaced": 11, "refused": 0, "refused_reasons": {}, "sign_unscored": 6
+    },
+    "tf": {
+      "exported": 3, "imported": 1, "agreeing": 1, "conflicting": 0, "conflicts": [],
+      "unplaced": 1, "refused": 1, "sign_unscored": 0,
+      "refused_reasons": {
+        "target path 'tf/coil/conductor/current/data' is not defined in Data Dictionary 4.1.1": 1
+      }
+    }
+  },
+  "by_structure": {
+    "pf_active/circuit": {"exported": 18, "imported": 16, "agreeing": "no reference",
+      "conflicting": 0, "unplaced": 2, "refused": 0, "sign_unscored": 0},
+    "pf_active/coil": {"exported": 19, "imported": 16, "agreeing": 6,
+      "conflicting": 6, "unplaced": 3, "refused": 0, "sign_unscored": 6},
+    "pf_active/supply": {"exported": 6, "imported": 0, "agreeing": "no reference",
+      "conflicting": 0, "unplaced": 6, "refused": 0, "sign_unscored": 0},
+    "tf/coil": {"exported": 3, "imported": 1, "agreeing": 1, "conflicting": 0,
+      "unplaced": 1, "refused": 1, "sign_unscored": 0}
+  },
+  "total": {
+    "exported": 46, "imported": 33, "agreeing": 7, "conflicting": 6,
+    "unplaced": 12, "refused": 1, "sign_unscored": 6,
+    "refused_reasons": {
+      "target path 'tf/coil/conductor/current/data' is not defined in Data Dictionary 4.1.1": 1
+    }
+  }
+}
+</pre>
+
+<p id="handoff-invalid-dd-target-detail">
+Every conflict is on <code>pf_active/coil/current/data</code> and carries both
+source arrays: the imported array (imas-codex) and the hand-built array
+(jt-60sa map) — six rows, indices 4&ndash;9. The single refused row is the
+undefined-DD-target row; the other <code>tf</code> and all <code>pf_active</code>
+rows import and score.
+</p>
+
+<p id="handoff-invalid-dd-target-gate">
+Gate: <code>pytest tests/data/test_generated_mapping_import.py tests/data/test_handoff_score.py</code>.
+The import test
+<code>test_undefined_target_path_is_unresolved_with_the_hand_off_dd_version</code>
+shows the undefined row reported unresolved with the path and version while the
+other rows still import; the scorer test
+<code>test_score_completes_with_a_row_the_dd_does_not_define_refused</code>
+shows the score completing with that row refused. Dropping the DD-path check
+makes both fail with the <code>KeyError</code>.
+</p>
+</section>

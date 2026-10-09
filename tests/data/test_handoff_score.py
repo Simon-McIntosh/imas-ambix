@@ -71,6 +71,30 @@ def test_counts_rows_and_requires_source_and_total_scale_for_agreement():
     assert result["total"]["sign_unscored"] == 0
 
 
+def test_score_completes_with_a_row_the_dd_does_not_define_refused():
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    value = document["ids"][0]["signals"][0]
+    undefined = dict(
+        value, target_path="magnetics/b_field_pol_probe/conductor/current/data"
+    )
+    undefined["signal_id"] += ":conductor"
+    document["ids"][0]["signals"].append(undefined)
+    imported = import_generated_mappings(document, _catalogue(), MEMBERS)
+
+    result = handoff_score.score_handoff(
+        document, _catalogue(), MEMBERS, [imported.maps[0]]
+    )
+
+    magnetics = result["by_ids"]["magnetics"]
+    assert magnetics["refused_reasons"] == {
+        "unexpanded: No FacilitySignal member is linked to this source": 1,
+        "target path 'magnetics/b_field_pol_probe/conductor/current/data' is not "
+        "defined in Data Dictionary 4.1.1": 1,
+    }
+    assert magnetics["agreeing"] == 2
+    assert magnetics["conflicting"] == 0
+
+
 def test_one_ids_splits_into_separate_structure_rows():
     document, reference = _case()
     result = handoff_score.score_handoff(document, _catalogue(), MEMBERS, [reference])
