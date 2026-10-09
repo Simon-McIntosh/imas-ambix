@@ -1,0 +1,669 @@
+{
+  "agent": {
+    "alias": "sol6",
+    "backend": "codex",
+    "effort": "high",
+    "launch": "cli",
+    "model": "gpt-6-sol",
+    "sandbox": "worktree-full"
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "codex",
+  "base_sha": "937eebf458b52686bf475449a59eb0b9f22ef667",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "detail": "backend reports token usage but no headroom",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_write_input_tokens": 0,
+      "cache_write_input_tokens_cumulative": 0,
+      "cached_input_tokens": 9405056,
+      "cached_input_tokens_cumulative": 9405056,
+      "input_tokens": 9563874,
+      "input_tokens_cumulative": 9563874,
+      "output_tokens": 35018,
+      "output_tokens_cumulative": 35018,
+      "reasoning_output_tokens": 11763,
+      "reasoning_output_tokens_cumulative": 11763
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 19566,
+    "files": 11,
+    "removed": 14460
+  },
+  "clone_matches": [],
+  "commit_resolution": null,
+  "commits": [
+    "599bcdfdce2761006c9dbfe226b022cad2f70cff",
+    "80139bba007e569fabe114821e51c0b18e2a1df9"
+  ],
+  "completed_at": "2026-10-09T03:30:17Z",
+  "completed_at_source": "stream_mtime",
+  "dispatched_at": "2026-10-09T03:15:45Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": {
+    "reason": "model_span_unavailable_at_promotion",
+    "status": "underivable"
+  },
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": null,
+    "override": false,
+    "role": "implement",
+    "status": "no-execution-measure"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "/work/projects/imas_gpu/jt60sa/handoff/jt-60sa-mapping-handoff.json",
+    "/work/projects/imas_gpu/jt60sa/tokamap/draft/",
+    "importer/exporter"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync python scripts/figures_jt60sa_tokamap.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261009T031519779033-discovery-to-ids-report/render-final.log"
+  },
+  "impl_move": {
+    "at_complete": 0.5,
+    "at_dispatch": 0.5555555555555556,
+    "plan": "jt60sa-tokamap-from-generated-maps",
+    "verdict": "moved"
+  },
+  "lane_advisory": {
+    "backend": "codex",
+    "burn_multiple": 2.51965004860436,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'codex' is projected to exhaust at 2026-10-11T03:40:21Z, which is after this node's 2400s horizon ending 2026-10-09T03:55:22.739048+00:00",
+    "horizon_ends_at": "2026-10-09T03:55:22.739048+00:00",
+    "horizon_seconds": 2400,
+    "metered": true,
+    "observed_at": "2026-10-09T03:15:21Z",
+    "precedes_horizon": false,
+    "projected_exhaustion_at": "2026-10-11T03:40:21Z",
+    "resets_at": "2026-10-14T05:14:59Z",
+    "seconds_until_reset": 439177,
+    "state": "quiet",
+    "utilisation_pct": 69.0
+  },
+  "lane_declaration": {
+    "backend": "codex",
+    "headroom": "known",
+    "metered": true,
+    "observed_at": "2026-10-09T03:15:21Z",
+    "read_at": "2026-10-09T03:15:22Z",
+    "resolved_backend": "codex",
+    "utilisation_pct": 69.0
+  },
+  "lane_reading": {
+    "age_seconds": null,
+    "binding_observed": "unknown",
+    "detail": "backend declares no lane document",
+    "generating": "unknown",
+    "headroom": "unknown",
+    "mean_context": "unknown",
+    "observed_at": null,
+    "state": "unknown",
+    "suggested_shelf_life_seconds": null,
+    "throughput": {
+      "age_seconds": null,
+      "aggregate_tokens_per_second": "unknown",
+      "detail": "backend declares no lane document",
+      "mean_tokens_per_second": "unknown",
+      "observed_at": null,
+      "runs": "unknown",
+      "state": "unknown"
+    },
+    "waiting": "unknown"
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-09T03:30:17Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "missing_rollout",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261009T031519779033-discovery-to-ids-report/manifest.md",
+  "member": "disposable-r-20261009T031519779033-discovery-to-ids-report",
+  "negative_control": {
+    "reason": "node-writes-no-test-path",
+    "verdict": "exempt"
+  },
+  "no_commit": null,
+  "node": "discovery-to-ids-report",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1469,
+          "cached_input_tokens": 284504,
+          "input_tokens": 285975,
+          "output_tokens": 1454,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 287429,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "af3c7bc7-5526-4eba-97df-50c7a1341e34",
+      "session_id": "af3c7bc7-5526-4eba-97df-50c7a1341e34"
+    },
+    "done_when": "reckon audit-doc passes on docs/research/jt60sa-discovery-to-ids.html (plan-evidence-for set to this plan); one run of scripts/figures_jt60sa_tokamap.py regenerates every figure, now in pygments style friendly, with the imas-codex draft row from /work/projects/imas_gpu/jt60sa/tokamap/draft-fixture/ and tests/fixtures/mapping_handoff_example.json added to the pickup-probe and PF-coil renders and labelled fixture-driven; seven system renders, the whole-chain chart with no arrow crossing a label, and the imas-alambic workflow chart naming real commands and existing paths; the report embeds the imas-codex figures by /imas-codex/figures/discovery-to-mapping/... and existing jt60sa-geometry and jt60sa-signals figures where they show geometry and traces; the PNG set under /work/projects/imas_gpu/jt60sa/presentation/ is listed with sizes",
+    "estimated_hours": null,
+    "goal": "write docs/research/jt60sa-discovery-to-ids.html presenting the discovery-to-JT-60SA-IDS chain, with its figures rendered by the extended scripts/figures_jt60sa_tokamap.py",
+    "id": "discovery-to-ids-report",
+    "lane_declaration": {
+      "backend": "codex",
+      "headroom": "known",
+      "metered": true,
+      "observed_at": "2026-10-09T03:15:21Z",
+      "read_at": "2026-10-09T03:15:22Z",
+      "resolved_backend": "codex",
+      "utilisation_pct": 69.0
+    },
+    "lane_reading": {
+      "age_seconds": null,
+      "binding_observed": "unknown",
+      "detail": "backend declares no lane document",
+      "generating": "unknown",
+      "headroom": "unknown",
+      "mean_context": "unknown",
+      "observed_at": null,
+      "state": "unknown",
+      "suggested_shelf_life_seconds": null,
+      "throughput": {
+        "age_seconds": null,
+        "aggregate_tokens_per_second": "unknown",
+        "detail": "backend declares no lane document",
+        "mean_tokens_per_second": "unknown",
+        "observed_at": null,
+        "runs": "unknown",
+        "state": "unknown"
+      },
+      "waiting": "unknown"
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261009T031519779033-discovery-to-ids-report/manifest.md",
+    "negative_control": "none: a report and figure script carry no behaviour a mutation could falsify short of deleting a figure, which the one-run regeneration count and audit-doc already catch",
+    "plan": "jt60sa-tokamap-from-generated-maps",
+    "requested_backend": "codex",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§4",
+    "spec_level": "guided",
+    "time_budget": "40m",
+    "token_budget": null,
+    "write_paths": [
+      "docs/research/jt60sa-discovery-to-ids.html",
+      "docs/figures/jt60sa-tokamap",
+      "scripts/figures_jt60sa_tokamap.py",
+      "docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/discovery-to-ids-report.html",
+      "docs/figures/jt60sa-tokamap-from-generated-maps/discovery-to-ids-report"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": null,
+  "outcome": "",
+  "pace": {
+    "allowance": {
+      "burn_multiple": 2.519516380428296,
+      "derived": 0.3012482895114088,
+      "drain_hours": 168.0,
+      "effective_limit": 0.3012482895114088,
+      "elapsed_fraction": 0.27386208137400797,
+      "elapsed_hours": 46.008829670833336,
+      "group": "codex-sub",
+      "limited_by": "allowance",
+      "observed_at": "2026-10-09T03:15:30+00:00",
+      "pace_multiple": 1.1,
+      "provider_ceiling": null,
+      "reason": null,
+      "remaining_budget": 0.31000000000000005,
+      "remaining_windows": null,
+      "resets_at": "2026-10-14T05:14:59Z",
+      "state": "observed",
+      "utilisation": 0.69,
+      "window_minutes": 10080
+    },
+    "bar": {
+      "bar": 0.7712819999999999,
+      "decided_by": "window",
+      "margin": 0.04121800000000009,
+      "name": "discovery-to-ids-report",
+      "score": 0.8125,
+      "state": "observed",
+      "verdict": "send-metered",
+      "window_fill": 0.69
+    },
+    "clocks": {
+      "five_hour": {
+        "age_seconds": 0.786815,
+        "observed_at": "2026-10-09T03:15:30+00:00",
+        "period": "primary",
+        "resets_at": "2026-10-14T05:14:59Z",
+        "state": "observed",
+        "utilisation": 0.69,
+        "window_minutes": 10080
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "not_published",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": "codex-sub",
+    "hold": null,
+    "lane": "codex",
+    "lift_id": null,
+    "member": "codex",
+    "node": "discovery-to-ids-report",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": null,
+    "recorded_at": "2026-10-09T03:15:30.786815+00:00",
+    "score": 0.8125,
+    "session": null,
+    "source": "recorded",
+    "state": "observed"
+  },
+  "picker_selection": {
+    "action": "route",
+    "answering_model": "typesafe/jev-1.13-20260917",
+    "backend": "clive",
+    "comment": "lead asked for the codex lane to deliver the prototype tokamaps within an hour",
+    "confidence": 0.86,
+    "decision_source": "jev",
+    "effort": "high",
+    "excluded": [
+      {
+        "availability": "not-probed",
+        "backend": "native",
+        "budget_age_s": null,
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "context": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "in-harness",
+        "local": false,
+        "model": null,
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "in-harness-backend"
+        ],
+        "resets_at": null,
+        "stale": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "fallback_reason": null,
+    "family": "local",
+    "jev_latency_ms": 525.654,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 2002.813,
+    "model": "deepseek-v4.1-flash",
+    "offered": [
+      {
+        "availability": "unknown",
+        "backend": "claude",
+        "budget_age_s": 1374540.861374,
+        "budget_reason": null,
+        "burn_multiple": 0.95,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 55020,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 0.0,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-sonnet-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.055000000000000056,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-09-27T06:00:00+00:00",
+        "stale": true,
+        "utilisation_pct": 95.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-haiku",
+        "budget_age_s": 1374540.861374,
+        "budget_reason": null,
+        "burn_multiple": 0.95,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 55020,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 0.0,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-haiku-4-5-20251001",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.055000000000000056,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-09-27T06:00:00+00:00",
+        "stale": true,
+        "utilisation_pct": 95.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-opus",
+        "budget_age_s": 1374540.861374,
+        "budget_reason": null,
+        "burn_multiple": 0.95,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 55020,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 0.0,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-opus-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.055000000000000056,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-09-27T06:00:00+00:00",
+        "stale": true,
+        "utilisation_pct": 95.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "served",
+        "backend": "clive",
+        "budget_age_s": null,
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": {
+          "admission_verdict": "open",
+          "running": 2,
+          "slots_state": "measured",
+          "stale": false,
+          "waiting": 0
+        },
+        "context": {
+          "estimated_tokens": 55020,
+          "headroom_pct": 76.1,
+          "peak_utilisation_p50_pct": 56.6,
+          "peak_utilisation_p90_pct": 79.6,
+          "peak_utilisation_runs": 649,
+          "window_tokens": 230144
+        },
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "local",
+        "local": true,
+        "model": "deepseek-v4.1-flash",
+        "outcomes": {
+          "failed": 7,
+          "not-run": 1,
+          "passed": 106,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "stale": null,
+        "utilisation_pct": null,
+        "worker_slots": 42
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex",
+        "budget_age_s": 137.422374,
+        "budget_reason": null,
+        "burn_multiple": 2.519153082852196,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 55020,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 5.0826866276157405,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-sol",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 5,
+          "unknown": 0
+        },
+        "pace_allowance": 0.3012917337840608,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-14T05:14:59+00:00",
+        "stale": false,
+        "utilisation_pct": 69.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-astra",
+        "budget_age_s": 137.422374,
+        "budget_reason": null,
+        "burn_multiple": 2.519153082852196,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 55020,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 5.0826866276157405,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-astra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.3012917337840608,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-14T05:14:59+00:00",
+        "stale": false,
+        "utilisation_pct": 69.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-luna",
+        "budget_age_s": 137.422374,
+        "budget_reason": null,
+        "burn_multiple": 2.519153082852196,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 55020,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 5.0826866276157405,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-luna",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.3012917337840608,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-14T05:14:59+00:00",
+        "stale": false,
+        "utilisation_pct": 69.0,
+        "worker_slots": null
+      }
+    ],
+    "probabilities": {
+      "claude:claude-haiku-4-5-20251001": 0,
+      "claude:claude-opus-5-5": 0,
+      "claude:claude-sonnet-5-5": 0,
+      "codex:gpt-6-astra": 0,
+      "codex:gpt-6-luna": 0,
+      "codex:gpt-6-sol": 0.11,
+      "hold": 0.01,
+      "local:deepseek-v4.1-flash": 0.88
+    },
+    "rendered_token_estimate": 1993,
+    "usage": {
+      "cost": 0.000229908,
+      "input_tokens": 5474,
+      "output_tokens": 150
+    }
+  },
+  "plan": "jt60sa-tokamap-from-generated-maps",
+  "plan_impl_at_dispatch": 0.5555555555555556,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "80139bba007e569fabe114821e51c0b18e2a1df9",
+  "resume_waiver": null,
+  "review": null,
+  "review_tier": "full",
+  "review_waiver": {
+    "reason": "lead asked to skip work reviews to deliver the prototype tokamaps within the hour; coordinator viewed the renders and checked the writer command against its --help"
+  },
+  "role": "implement",
+  "route_mode": "explicit",
+  "run_id": "r-20261009T031519779033-discovery-to-ids-report",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§4",
+  "session": "af3c7bc7-5526-4eba-97df-50c7a1341e34",
+  "session_harness": "codex",
+  "session_id": "01a11ea9-0f9b-7b40-a039-52dce1ff240d",
+  "session_model": "gpt-6-sol",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 0,
+  "throughput": {
+    "cumulative_cached_input_tokens": 9405056,
+    "cumulative_input_tokens": 18968930,
+    "detail": "turn tokens recorded, but no span was supplied to rate them",
+    "generated_tokens": 46781
+  },
+  "time_budget": "40m",
+  "tool_steps": 146.0,
+  "unplanned_reason": null,
+  "unreconciled_override": null,
+  "wall_seconds": 872,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-09T03:30:22Z",
+    "last_record_type": "turn.completed",
+    "launched_at": "2026-10-09T03:15:54Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261009T031519779033-discovery-to-ids-report",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 380,
+    "worker_pid": 2561089
+  },
+  "worker_seconds": 872,
+  "worker_seconds_source": "wall_fallback",
+  "worktree_retention": null
+}
