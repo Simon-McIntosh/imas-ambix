@@ -1,0 +1,76 @@
+<section id="score-flux-loops-cross-structure-result">
+  <h3>Score flux loops and cross-structure contradictions</h3>
+  <p>Three flux-loop rules on the <code>11:21:44Z</code> JT-60SA magnetics hand-off
+  (<code>jt-60sa-magnetics-handoff.json</code>, sha256
+  <code>2d6a95486c8777aacd380f04…</code>, facility <code>jt-60sa</code>,
+  <code>dd_version 4.1.1</code>) import as COCOS-pending and the hand-built
+  <code>magnetics.json</code> holds 27 flux-loop rules, yet before the fix the score read
+  0 agreeing, 0 conflicting and 0 sign-unscored for the structure. This node names the
+  cause and makes the score report it.</p>
+
+  <h4 id="score-flux-loops-cross-structure-cause">Cause: the raw channel binds to a
+  different store entry than the hand-built map uses</h4>
+  <p>The magnetics hand-off carries <code>psi_like</code> rows for
+  <code>magFlxLp1</code>, <code>magFlxLp2</code> and <code>magFlxLp6</code> targeting
+  <code>magnetics/flux_loop/flux/data</code>. The machine-description store
+  (<code>OP1/magnetics.nc</code>) orders <code>flux_loop</code> as the 27 single loops
+  <code>FL1…FL27</code> at indices 0–26, then 27 type-6 differential entries
+  <code>FL1-FL7 … FL27-FL7</code> at indices 27–53. The importer resolves each row's
+  <code>member_identifier</code> (<code>"1"</code>, <code>"2"</code>, <code>"6"</code>)
+  against the store member names, so it binds the raw channel to the single loop:
+  <code>magFlxLp1→0</code>, <code>magFlxLp2→1</code>, <code>magFlxLp6→5</code>. The
+  hand-built map instead binds the same raw channels to the differential entries the raw
+  MDAC channel actually carries (its own <code>evidence</code> records
+  <em>“Raw MDAC magFlxLp1 is SELENE flux loop 1, whose type-6 differential entry in the
+  53-loop store names [7, 1]”</em>): <code>magFlxLp1→27</code>,
+  <code>magFlxLp2→28</code>, <code>magFlxLp6→32</code>.</p>
+  <p>Agreement and conflict both key on the exact <code>(target_path, target_index)</code>
+  pair, so a rule whose index differs from every hand-built rule matches neither test and
+  was dropped with no trace. The scales agree in magnitude (the sign is unscored because
+  the row is COCOS-pending), so the index is the only separator:</p>
+  <table id="score-flux-loops-cross-structure-rules">
+    <thead><tr><th>channel</th><th>draft index</th><th>draft scale</th>
+    <th>hand-built index</th><th>hand-built scale</th></tr></thead>
+    <tbody>
+      <tr><td><code>magFlxLp1</code></td><td>0</td><td>+1.0</td><td>27</td><td>−1.0</td></tr>
+      <tr><tr><td><code>magFlxLp2</code></td><td>1</td><td>+1.0</td><td>28</td><td>−1.0</td></tr>
+      <tr><td><code>magFlxLp6</code></td><td>5</td><td>+1.0</td><td>32</td><td>−1.0</td></tr>
+    </tbody>
+  </table>
+  <p>The importer cannot repair this from the hand-off alone: the raw channel's identity
+  as a differential entry is facility knowledge the hand-off does not carry. The fix
+  therefore belongs in the score, which now names the case rather than dropping it.</p>
+
+  <h4 id="score-flux-loops-cross-structure-fix">Fix: <code>cross_structure</code> and a
+  full <code>sign_unscored</code></h4>
+  <p>Two changes in <code>imas_ambix/data/handoff_score.py</code>:</p>
+  <ul>
+    <li><code>sign_unscored</code> now counts every imported rule whose sign the import
+    leaves unscored, agreeing or not. It previously summed only the agreeing rules, so a
+    pending rule that did not agree left no trace. On this hand-off it moves the total
+    from 0 to 3.</li>
+    <li>A new <code>cross_structure</code> list (per IDS, per structure and in
+    <code>total</code>) records an imported rule whose source channel
+    <code>(source_group, source_array)</code> the hand-built map serves on a different
+    structure or element index, naming the imported target and every hand-built target.</li>
+  </ul>
+
+  <h4 id="score-flux-loops-cross-structure-receipt">Command receipt</h4>
+  <p><code>imas-ambix maps score-handoff jt-60sa
+  /work/projects/imas_gpu/jt60sa/handoff/jt-60sa-magnetics-handoff.json --json
+  magnetics-score.json</code> (full JSON kept in the run directory of run
+  <code>r-20261009T114027189171-score-flux-loops-cross-structure</code>):</p>
+  <pre><code>magnetics/flux_loop   6   6   0   0   3   0   0
+
+total.sign_unscored = 3
+total.cross_structure = [
+  {source_array: magFlxLp1, imported_target_index: 0,
+   hand_built_targets: [{target_index: 27}]},
+  {source_array: magFlxLp2, imported_target_index: 1,
+   hand_built_targets: [{target_index: 28}]},
+  {source_array: magFlxLp6, imported_target_index: 5,
+   hand_built_targets: [{target_index: 32}]}
+]</code></pre>
+  <p>All three target <code>magnetics/flux_loop/flux/data</code> on both sides, so the
+  difference is the element index alone.</p>
+</section>
