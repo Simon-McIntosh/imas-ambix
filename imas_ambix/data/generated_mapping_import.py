@@ -89,8 +89,11 @@ def _target_index(
     source_tokens = {
         rule.normalise(token) for token in re.findall(r"\d+", source_array)
     }
+    member_tokens = {rule.normalise(token) for token in re.findall(r"\d+", member)}
     present_in_source = (
-        identity in source_tokens if identity.isdigit() else identity in source_identity
+        identity in source_tokens
+        if identity.isdigit()
+        else identity in source_identity and member_tokens <= source_tokens
     )
     if not present_in_source:
         return None, (

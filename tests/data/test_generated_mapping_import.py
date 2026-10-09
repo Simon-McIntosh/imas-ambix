@@ -91,6 +91,24 @@ def test_member_identifier_must_match_the_source_array():
     )
 
 
+def test_alphanumeric_member_rejects_a_longer_numeric_token():
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    signal = document["ids"][1]["signals"][0]
+    signal["member_identifier"] = "CS1"
+    signal["source_array"] = "curCS11LKAT"
+    members = dict(DESCRIPTION_MEMBERS)
+    members["pf_active/coil"] = ("CS1", "CS11")
+
+    imported = import_generated_mappings(document, _catalogue(), members)
+
+    assert any(
+        item.source_array == "curCS11LKAT"
+        and item.reason
+        == "member identifier 'CS1' is absent from source array 'curCS11LKAT'"
+        for item in imported.unresolved
+    )
+
+
 def test_draft_rule_and_map_round_trip_through_serialisation():
     imported = import_generated_mappings(FIXTURE, _catalogue(), DESCRIPTION_MEMBERS)
     rule = imported.maps[0].signals[0]
