@@ -1,0 +1,88 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed manifest's baseline_suite and after_suite fields are both null, so its own arms support no base-vs-head delta and the module's derivation is unmeasured. The head arm is re-derived independently at the reviewed head aae8ae18 in a scratch tree (logs/review-head-gate.log: 10 passed, EXIT=0, no FAILED or ERROR id), so added failures are a subset of an empty head-failure set and the run provably added none. The one failure in the reviewed negative-control.log and in my reproduced control log (logs/negative-control-repro.log) is the declared keying mutation, not a gate arm.",
+  "base_log_revision": null,
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/maps_cli.py:456 tokamap -> export_tokamap_directory"
+  ],
+  "completed_at": "2026-10-09T02:58:26.580Z",
+  "dispatched_at": "2026-10-09T02:46:25Z",
+  "findings": [
+    {
+      "file": "imas_ambix/data/tokamap_export.py",
+      "line": "378",
+      "severity": "follow-on",
+      "text": "follow-on: the signal withholding path adds `and rule.transformation != \"one_like\"`, an exemption the plan prose does not state (\"skips each binding or rule that targets a COCOS-dependent path while its source COCOS is undeclared\"; \"An undeclared source COCOS is still a refusal by default\"). It is load-bearing: of the 61 JT-60SA signal rules, 32 target a COCOS-dependent path with undeclared source COCOS and every one declares transformation one_like, so the literal rule withholds 32 signals and the exemption withholds none, while the done-when demands exactly the two poloidal_angle bindings. The exemption is physically defensible (a one_like factor is 1.0, never assumed) but the plan text and the code now disagree."
+    },
+    {
+      "file": "imas_ambix/data/tokamap_export.py",
+      "line": "358",
+      "severity": "follow-on",
+      "text": "follow-on: the binding branch withholds on any COCOS-dependent target with undeclared COCOS, while the signal branch at :375 exempts one_like; a binding whose target carries a one_like COCOS label and an undeclared source COCOS would be dropped where the equivalent signal is kept. No JT-60SA binding reaches this case (the run withholds only the two pol_angle_like poloidal_angle bindings), so the asymmetry is latent rather than exercised."
+    },
+    {
+      "file": "tests/data/test_tokamap_export.py",
+      "line": "181",
+      "severity": "follow-on",
+      "text": "follow-on: _validator_command was changed from shutil.which(\"tokamap-validator\") with a \"python3\" fallback to always sys.executable -c \"from tokamap.validator.main import run; run()\". This alters an existing test mechanism, not only adding coverage; it is inside the write path and arguably a fix (the dropped import was otherwise unused), but it is beyond the goal's stated change."
+    },
+    {
+      "file": "imas_ambix/maps_cli.py",
+      "line": "399",
+      "severity": "follow-on",
+      "text": "follow-on: the commit removes two blank lines and at :581 reflows an existing raise click.ClickException, and imas_ambix/data/tokamap_export.py:236 reflows an existing canonical_factor call; pure formatting of untouched lines rides in a feature commit, adding review noise the goal does not imply."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/tokamap-export-command.html",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the manifest declares docs/figures/jt60sa-tokamap-from-generated-maps/tokamap-export-command as a write path but no figure was produced, and the evidence fragment carries none, contrary to the mandate that research and evidence documents be illustrated where a graphic aids understanding (the six-group, two-partition, 172-entry structure and the 17-probe resolution are natural candidates)."
+    }
+  ],
+  "head_log_revision": null,
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "read commit by commit against base 17c4df9eb176c9eef254fee0ee0f3b74ba00365b; three commits, four files, +359/-37.",
+    "done_when": "all seven done-when clauses hold; the manifest's `tests` line, the run's jt60sa-export-final.log (exactly two poloidal_angle bindings withheld), jt60sa-validator.log (EXIT=0), and the on-disk tree at /work/projects/imas_gpu/jt60sa/tokamap/hand-built agree.",
+    "goal": "the node goal is a `maps tokamap MACHINE --out DIR` command plus the _leaf_mappings collapse fix; imas_ambix/maps_cli.py:437 tokamap and imas_ambix/data/tokamap_export.py:324 _leaf_mappings deliver both, with the SDC withheld field at tokamap_export.py:81.",
+    "manifest": "read; status complete, commits 2a3b3f69/96856376/aae8ae18, focused gate 10 passed, declared negative control EXIT=1; baseline_suite and after_suite are both null.",
+    "write_paths": "read the manifest's declared paths; the four changed paths (imas_ambix/maps_cli.py, imas_ambix/data/tokamap_export.py, tests/data/test_tokamap_export.py, docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/tokamap-export-command.html) are all inside the grant."
+  },
+  "justifications": {
+    "durability": "the indexing guard is genuinely falsified \u2014 reintroducing wildcard keying at imas_ambix/data/tokamap_export.py:283 reddens tests/data/test_tokamap_export.py:161 with KeyError 'b_field_pol_probe[0]/field/data' (EXIT=1, log logs/negative-control-repro.log), and the withholding tests assert recorded withheld items; but the wildcard-shadow refusal at tokamap_export.py:392 and the binding-side withhold at :358 have no direct test.",
+    "evidence": "the gate is reproduced at the reviewed head aae8ae18 in a scratch tree (10 passed, EXIT=0, module.__file__ under the scratch copy, log logs/review-head-gate.log), the run's export/validator/content logs are read (exactly 2 withheld, validator EXIT=0, 17 probes), and the on-disk magnetics mappings are read directly (17 distinct magPbTC1..17, no wildcard field/data key); but the reviewed manifest names no baseline_suite or after_suite arm so the base-vs-head delta is unmeasured, and the cited gate log ran at 2a3b3f69 rather than the head.",
+    "fit": "the new dataclass and flag follow the frozen-dataclass and _-prefixed-helper idiom of imas_ambix/data/tokamap_export.py:77 and carry no plan or version label; the incidental reformatting noted under scope_discipline adds diff noise against the one-change-per-commit idiom.",
+    "goal_fidelity": "imas_ambix/maps_cli.py:437 tokamap loads the machine and signal maps and calls export_tokamap_directory, printing the group/partition/entry split and every withheld item; the concrete-index fix at imas_ambix/data/tokamap_export.py:283 emits each rule addressably and the indexed tests and on-disk output confirm it. The declared figures directory produced no file (finding 5), the only goal gap.",
+    "reuse": "the change extends the existing exporter and reuses _cocos_transformation (tokamap_export.py:147), catalog.cocos_for_binding (packages/imas-alambic/src/imas_alambic/machine_map.py:1258) and _tokamap_key (tokamap_export.py:166) rather than forking them; the search over imas_ambix and packages found no prior withhold mechanism, so the new TokamapWithheld is the first owner of that surface.",
+    "scope_discipline": "all four changed paths are inside the declared write paths and no plan file is touched; the diff also carries incidental reformatting of untouched lines (imas_ambix/maps_cli.py:399-402 and :581, tokamap_export.py:236, several test blocks) and a behavioural change to the existing validator helper (finding 4), which are outside the goal's minimal intent."
+  },
+  "project": "imas-ambix",
+  "raw_text": "Independent review of run r-20261009T022544832300-tokamap-export-command (node tokamap-export-command, plan imas-ambix:jt60sa-tokamap-from-generated-maps section 1).\n\nVERDICT goal: the node goal is a `maps tokamap MACHINE --out DIR` command plus the _leaf_mappings collapse fix; imas_ambix/maps_cli.py:437 tokamap and imas_ambix/data/tokamap_export.py:324 _leaf_mappings deliver both, with the SDC withheld field at tokamap_export.py:81.\nVERDICT done_when: all seven done-when clauses hold; the manifest's `tests` line, the run's jt60sa-export-final.log (exactly two poloidal_angle bindings withheld), jt60sa-validator.log (EXIT=0), and the on-disk tree at /work/projects/imas_gpu/jt60sa/tokamap/hand-built agree.\nVERDICT write_paths: read the manifest's declared paths; the four changed paths (imas_ambix/maps_cli.py, imas_ambix/data/tokamap_export.py, tests/data/test_tokamap_export.py, docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/tokamap-export-command.html) are all inside the grant.\nVERDICT manifest: read; status complete, commits 2a3b3f69/96856376/aae8ae18, focused gate 10 passed, declared negative control EXIT=1; baseline_suite and after_suite are both null.\nVERDICT diff: read commit by commit against base 17c4df9eb176c9eef254fee0ee0f3b74ba00365b; three commits, four files, +359/-37.\nCALL_SITES: imas_ambix/maps_cli.py:456 tokamap -> export_tokamap_directory\n\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/maps_cli.py:437 tokamap loads the machine and signal maps and calls export_tokamap_directory, printing the group/partition/entry split and every withheld item; the concrete-index fix at imas_ambix/data/tokamap_export.py:283 emits each rule addressably and the indexed tests and on-disk output confirm it. The declared figures directory produced no file (finding 5), the only goal gap.\nSCORE evidence: 15\nJUSTIFICATION evidence: the gate is reproduced at the reviewed head aae8ae18 in a scratch tree (10 passed, EXIT=0, module.__file__ under the scratch copy, log logs/review-head-gate.log), the run's export/validator/content logs are read (exactly 2 withheld, validator EXIT=0, 17 probes), and the on-disk magnetics mappings are read directly (17 distinct magPbTC1..17, no wildcard field/data key); but the reviewed manifest names no baseline_suite or after_suite arm so the base-vs-head delta is unmeasured, and the cited gate log ran at 2a3b3f69 rather than the head.\nSCORE scope_discipline: 17\nJUSTIFICATION scope_discipline: all four changed paths are inside the declared write paths and no plan file is touched; the diff also carries incidental reformatting of untouched lines (imas_ambix/maps_cli.py:399-402 and :581, tokamap_export.py:236, several test blocks) and a behavioural change to the existing validator helper (finding 4), which are outside the goal's minimal intent.\nSCORE durability: 17\nJUSTIFICATION durability: the indexing guard is genuinely falsified \u2014 reintroducing wildcard keying at imas_ambix/data/tokamap_export.py:283 reddens tests/data/test_tokamap_export.py:161 with KeyError 'b_field_pol_probe[0]/field/data' (EXIT=1, log logs/negative-control-repro.log), and the withholding tests assert recorded withheld items; but the wildcard-shadow refusal at tokamap_export.py:392 and the binding-side withhold at :358 have no direct test.\nSCORE fit: 16\nJUSTIFICATION fit: the new dataclass and flag follow the frozen-dataclass and _-prefixed-helper idiom of imas_ambix/data/tokamap_export.py:77 and carry no plan or version label; the incidental reformatting noted under scope_discipline adds diff noise against the one-change-per-commit idiom.\nSCORE reuse: 19\nJUSTIFICATION reuse: the change extends the existing exporter and reuses _cocos_transformation (tokamap_export.py:147), catalog.cocos_for_binding (packages/imas-alambic/src/imas_alambic/machine_map.py:1258) and _tokamap_key (tokamap_export.py:166) rather than forking them; the search over imas_ambix and packages found no prior withhold mechanism, so the new TokamapWithheld is the first owner of that surface.\n\nFINDING imas_ambix/data/tokamap_export.py:378 follow-on: the signal withholding path adds `and rule.transformation != \"one_like\"`, an exemption the plan prose does not state (\"skips each binding or rule that targets a COCOS-dependent path while its source COCOS is undeclared\"; \"An undeclared source COCOS is still a refusal by default\"). It is load-bearing: of the 61 JT-60SA signal rules, 32 target a COCOS-dependent path with undeclared source COCOS and every one declares transformation one_like, so the literal rule withholds 32 signals and the exemption withholds none, while the done-when demands exactly the two poloidal_angle bindings. The exemption is physically defensible (a one_like factor is 1.0, never assumed) but the plan text and the code now disagree.\nFINDING imas_ambix/data/tokamap_export.py:358 follow-on: the binding branch withholds on any COCOS-dependent target with undeclared COCOS, while the signal branch at :375 exempts one_like; a binding whose target carries a one_like COCOS label and an undeclared source COCOS would be dropped where the equivalent signal is kept. No JT-60SA binding reaches this case (the run withholds only the two pol_angle_like poloidal_angle bindings), so the asymmetry is latent rather than exercised.\nFINDING tests/data/test_tokamap_export.py:181 follow-on: _validator_command was changed from shutil.which(\"tokamap-validator\") with a \"python3\" fallback to always sys.executable -c \"from tokamap.validator.main import run; run()\". This alters an existing test mechanism, not only adding coverage; it is inside the write path and arguably a fix (the dropped import was otherwise unused), but it is beyond the goal's stated change.\nFINDING imas_ambix/maps_cli.py:399 follow-on: the commit removes two blank lines and at :581 reflows an existing raise click.ClickException, and imas_ambix/data/tokamap_export.py:236 reflows an existing canonical_factor call; pure formatting of untouched lines rides in a feature commit, adding review noise the goal does not imply.\nFINDING docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/tokamap-export-command.html:1 follow-on: the manifest declares docs/figures/jt60sa-tokamap-from-generated-maps/tokamap-export-command as a write path but no figure was produced, and the evidence fragment carries none, contrary to the mandate that research and evidence documents be illustrated where a graphic aids understanding (the six-group, two-partition, 172-entry structure and the 17-probe resolution are natural candidates).\n",
+  "review_run_id": "r-20261009T024611754513-review-of-tokamap-export-command",
+  "reviewed_base_sha": "17c4df9eb176c9eef254fee0ee0f3b74ba00365b",
+  "reviewed_head_sha": "aae8ae181e01909c76d418416784bca44d5177cf",
+  "reviewed_run_id": "r-20261009T022544832300-tokamap-export-command",
+  "reviewer": {
+    "backend": "clive",
+    "effort": null,
+    "model": "deepseek-v4.1-flash"
+  },
+  "rubric": "code",
+  "scores": {
+    "durability": 17,
+    "evidence": 15,
+    "fit": 16,
+    "goal_fidelity": 18,
+    "reuse": 19,
+    "scope_discipline": 17
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-09T02:59:49.472103+00:00",
+  "total": 102
+}
