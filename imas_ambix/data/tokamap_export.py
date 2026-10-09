@@ -375,6 +375,7 @@ def _leaf_mappings(
             if (
                 _cocos_transformation(catalog.dd_version, rule.target_path) is not None
                 and rule.source_cocos is None
+                and rule.transformation != "one_like"
             ):
                 reason = "COCOS-dependent target with no declared source COCOS"
                 if not withhold_undeclared_cocos:

@@ -63,15 +63,8 @@ def catalog():
 
 
 @pytest.fixture(scope="module")
-def signal_map(catalog):
-    reviewed = load_packaged_signal_map(MACHINE, SIGNAL_SYSTEM)
-    return dataclasses.replace(
-        reviewed,
-        signals=tuple(
-            dataclasses.replace(rule, source_cocos=catalog.source_cocos)
-            for rule in reviewed.signals
-        ),
-    )
+def signal_map():
+    return load_packaged_signal_map(MACHINE, SIGNAL_SYSTEM)
 
 
 def test_undeclared_cocos_refuses_by_default_and_can_be_withheld(catalog, tmp_path):
@@ -98,6 +91,42 @@ def test_undeclared_cocos_refuses_by_default_and_can_be_withheld(catalog, tmp_pa
     assert {item.name for item in result.withheld} == {target.name}
     assert {item.target_path for item in result.withheld} == {target.dd_path}
     assert all("COCOS" in item.reason for item in result.withheld)
+    assert not result.entries
+
+
+def test_signal_withholding_requires_a_convention_dependent_transform(
+    catalog, signal_map, tmp_path
+):
+    empty_catalog = dataclasses.replace(
+        catalog, binding_sets={name: () for name in catalog.binding_sets}
+    )
+    invariant = signal_map.signals[0]
+    assert invariant.source_cocos is None
+    invariant_result = export_tokamap_directory(
+        empty_catalog,
+        [signal_map],
+        directory=tmp_path / "invariant",
+    )
+    assert any(entry.kind == "signal" for entry in invariant_result.entries)
+
+    dependent = dataclasses.replace(
+        invariant,
+        semantic_id="undeclared_current",
+        target_path="magnetics/ip/data",
+        transformation="ip_like",
+    )
+    dependent_map = dataclasses.replace(signal_map, signals=(dependent,))
+    with pytest.raises(TokamapExportError, match="no declared source COCOS"):
+        export_tokamap_directory(
+            empty_catalog, [dependent_map], directory=tmp_path / "refused-signal"
+        )
+    result = export_tokamap_directory(
+        empty_catalog,
+        [dependent_map],
+        directory=tmp_path / "withheld-signal",
+        withhold_undeclared_cocos=True,
+    )
+    assert {item.name for item in result.withheld} == {dependent.semantic_id}
     assert not result.entries
 
 
