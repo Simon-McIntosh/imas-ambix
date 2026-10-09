@@ -24,9 +24,9 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="53">
+<meta name="plan-version" content="54">
 <meta name="plan-modified" content="2026-10-09">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;done&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;done&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -360,6 +360,11 @@
 <p>An imported row that does not agree is today either a disagreement or a target with no hand-built rule, and the score cannot tell them apart. imas-codex flagged the case that matters: MMSYS <code>curUFPdisr</code> and <code>curLFPdisr</code> are disruption-induced currents that share the <code>UFP</code> and <code>LFP</code> identifiers, so one may bind to <code>pf_active/coil/current/data</code> as if it were the coil current. That must read as a disagreement.</p>
 <p>Add <code>conflicting</code> to each IDS, structure and total row of <code>imas_ambix/data/handoff_score.py</code>: an imported value rule whose target path and index carry a hand-built rule that it does not agree with. The JSON lists each conflict with both source arrays, and the printed table shows the count.</p>
 <p><strong>Node</strong> <code>handoff-score-conflicts</code>, role implement, 0.25 h. Write paths: <code>imas_ambix/data/handoff_score.py</code>, <code>tests/data/test_handoff_score.py</code>, <code>imas_ambix/maps_cli.py</code>, <code>tests/test_maps_cli.py</code>, <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/handoff-score-conflicts.html</code>. <strong>Done when</strong> a test shows a row on a hand-built target with a different source array counted as conflicting and listed with both arrays, a row on a target with no hand-built rule not counted, and an agreeing row not counted.</p>
+
+    <h2 id="s14">§14 — Member aliases in the packaged machine-map schema</h2>
+<section data-reckon="section" data-id="s14" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p>§12 added an optional <code>member_aliases</code> mapping to <code>SensorIdentityRule</code>, but the packaged LinkML contract, <code>packages/imas-alambic/src/imas_alambic/machine_maps/schema.yaml</code>, still describes the class as canonicalising identities "without enumerating aliases" and lists only <code>name</code>, <code>case_rule</code>, <code>numeric_token_rule</code> and <code>evidence</code>. The independent review of §12 found the contradiction. Add an optional <code>member_aliases</code> slot, a mapping from a facility member token to a machine-description member name, and rewrite the class description to say what the aliases are for.</p>
+<p><strong>Node</strong> <code>schema-member-aliases</code>, role implement, 0.25 h. Write paths: <code>packages/imas-alambic/src/imas_alambic/machine_maps/schema.yaml</code>, <code>tests/data/test_machine_map.py</code>. <strong>Done when</strong> the schema declares the optional slot with that description, and a test in <code>tests/data/test_machine_map.py</code> checks that every key <code>SensorIdentityRule.from_dict</code> accepts is a slot of the schema class.</p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
