@@ -539,6 +539,10 @@ def _description_members(
                     continue
                 names = tuple(str(member.name) for member in entries)
             if not names or len(set(names)) != len(names):
+                if allow_missing:
+                    # An empty or ambiguous member list cannot index a row;
+                    # scoring reports those rows unplaced rather than aborting.
+                    continue
                 raise ValueError(f"{structure} has missing or duplicate member names")
             phase_members[structure] = names
         if allow_missing:
@@ -620,12 +624,24 @@ def score_handoff_command(machine: str, file: Path, json_file: Path | None) -> N
             json_file.write_text(json.dumps(score, indent=2) + "\n", encoding="utf-8")
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise click.ClickException(str(error)) from error
+    rows: list[tuple[str, dict]] = []
+    for name, row in score["by_ids"].items():
+        rows.append((name, row))
+        for structure in sorted(
+            key
+            for key in score["by_structure"]
+            if key.partition("/")[0] == name
+        ):
+            rows.append((f"  {structure}", score["by_structure"][structure]))
+    rows.append(("TOTAL", score["total"]))
+    width = max(len(label) for label, _ in rows)
     click.echo(
-        "IDS                 exported imported agreeing sign_unscored unplaced refused"
+        f"{'IDS':<{width}} "
+        "exported imported agreeing sign_unscored unplaced refused"
     )
-    for name, row in [*score["by_ids"].items(), ("TOTAL", score["total"])]:
+    for label, row in rows:
         click.echo(
-            f"{name:<19} {row['exported']:>8} {row['imported']:>8} "
+            f"{label:<{width}} {row['exported']:>8} {row['imported']:>8} "
             f"{str(row['agreeing']):>12} {row['sign_unscored']:>13} "
             f"{row['unplaced']:>8} {row['refused']:>7}"
         )
