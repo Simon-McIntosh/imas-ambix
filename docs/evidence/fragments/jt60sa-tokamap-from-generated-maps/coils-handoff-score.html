@@ -1,0 +1,72 @@
+<section id="coils-handoff-score-result">
+  <h3>Score the JT-60SA coils hand-off, one row per structure</h3>
+  <p>The printed <code>score-handoff</code> table now carries one row per structure under its
+  IDS, indented and sorted, in addition to the IDS row and the <code>TOTAL</code>. Each
+  structure row keeps the same seven columns as its IDS row, and the structure rows reconcile
+  to the IDS row: their <code>exported</code>, <code>imported</code>, <code>unplaced</code>
+  and <code>refused</code> counts sum to it. A structure whose IDS has hand-built rules but
+  which carries no matching hand-built rule reads <code>no reference</code>; a structure under
+  an IDS with hand-built rules reads a number.</p>
+
+  <h4>Command receipt — jt-60sa-coils-handoff.json</h4>
+  <p><code>imas-ambix maps score-handoff jt-60sa
+  /work/projects/imas_gpu/jt60sa/handoff/jt-60sa-coils-handoff.json --json
+  coils-handoff-score.json</code>, run against the shared hand-off written
+  <strong><code>exported_at 2026-10-09T09:32:06Z</code></strong> (facility <code>jt-60sa</code>,
+  <code>dd_version 4.1.1</code>, sha256 <code>fd7d0374268ac5bc…</code>). Full command JSON kept
+  at <code>coils-handoff-score.json</code> in the run directory.</p>
+  <table id="coils-handoff-score-by-structure">
+    <caption>by_structure on the 09:32:06Z coils hand-off; 50 exported rows over four structures</caption>
+    <thead><tr><th>Structure</th><th>Exported</th><th>Imported</th><th>Agreeing</th><th>Sign unscored</th><th>Unplaced</th><th>Refused</th></tr></thead>
+    <tbody>
+      <tr><td>pf_active/coil</td><td>22</td><td>0</td><td>0</td><td>0</td><td>18</td><td>4</td></tr>
+      <tr><td>pf_active/circuit</td><td>17</td><td>0</td><td>no reference</td><td>0</td><td>14</td><td>3</td></tr>
+      <tr><td>pf_active/supply</td><td>8</td><td>0</td><td>no reference</td><td>0</td><td>6</td><td>2</td></tr>
+      <tr><td>tf/coil</td><td>3</td><td>0</td><td>0</td><td>0</td><td>3</td><td>0</td></tr>
+      <tr><td>TOTAL</td><td>50</td><td>0</td><td>0</td><td>0</td><td>41</td><td>9</td></tr>
+    </tbody>
+  </table>
+  <p><code>pf_active/coil</code> and <code>tf/coil</code> are scored against the hand-built
+  rules (they have a reference, so <code>agreeing</code> reads a number);
+  <code>pf_active/circuit</code> and <code>pf_active/supply</code> read <code>no reference</code>,
+  matching the plan.</p>
+
+  <h4>Refused and unplaced reasons, per structure</h4>
+  <p>The refused rows come from the command JSON; the unplaced rows are the importer's
+  unresolved rows whose reason the scorer classifies as unplaced (<code>member identifier …</code>,
+  <code>no machine-description member array</code> or <code>target path, member identifier …</code>).</p>
+  <ul>
+    <li><strong>pf_active/coil</strong> — refused 4: <em>target is not a data field</em> (2),
+    <em>value partner unresolved: target path, member identifier, and source array are
+    required</em> (2); unplaced 18: <em>member identifier '4' has no identity match in
+    machine-description pf_active/coil</em> (1), <em>target path, member identifier, and source
+    array are required</em> (17).</li>
+    <li><strong>pf_active/circuit</strong> — refused 3: <em>target is not a data field</em>;
+    unplaced 14: <em>target path, member identifier, and source array are required</em>.</li>
+    <li><strong>pf_active/supply</strong> — refused 2: <em>target is not a data field</em>;
+    unplaced 6: <em>target path, member identifier, and source array are required</em>.</li>
+    <li><strong>tf/coil</strong> — refused 0; unplaced 3: <em>target path, member identifier, and
+    source array are required</em>.</li>
+  </ul>
+  <p>The dominant reason is that <code>member_identifier</code> is absent: <strong>49 of the 50
+  rows</strong> carry a null <code>member_identifier</code> (only one coil row, source array
+  <code>curEFCC4</code>, names a member, <code>"4"</code>). The importer refuses a row whose
+  member identity is missing (<code>target path, member identifier, and source array are
+  required</code>), so no row reaches the value/draft or pending stage and every structure
+  imports 0. This is the measured state of the 09:32:06Z coils export rather than a scoring
+  fault: it is the finding to report to imas-codex, whose magnetics hand-offs do carry member
+  identifiers (the shared baseline imported 17 of 35 probe rows) while this coils export does
+  not.</p>
+
+  <h4>COCOS label differences against the hand-built rules</h4>
+  <ul>
+    <li><strong>tf/coil</strong>: the hand-built TF rule reads <code>one_like</code>, while the
+    hand-off's <code>cocos_label</code> is <code>none</code> on all 3 rows — the difference the
+    plan names.</li>
+    <li><strong>pf_active/coil</strong>: the hand-built rule reads <code>one_like</code>, while
+    the hand-off labels 44 rows <code>ip_like</code> (from the DD XML) and 3 time rows
+    <code>none</code>. Had the rows placed, the <code>ip_like</code> label under JT-60SA's
+    undeclared source COCOS would have withheld their sign (<code>sign_unscored</code>); with
+    the rows unresolved no value rule is produced, so <code>sign_unscored</code> is 0.</li>
+  </ul>
+</section>
