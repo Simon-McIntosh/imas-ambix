@@ -1,0 +1,36 @@
+<section id="jt60sa-draft-tokamap-fixture">
+  <h3>Fixture-driven JT-60SA draft tokamap</h3>
+  <p>The handoff is the byte-for-byte fixture from imas-codex main commit <code>2a20afb7a</code>, not a JT-60SA discovery run. The exporter reads ordered names from the OP1 and OP2 IMAS machine descriptions: <code>MP10</code> and <code>MP11</code> are probe indices 9 and 10; <code>CS1</code> and <code>CS2</code> are coil indices 0 and 1. Covered IDS signal maps are replaced; the machine description and signal maps for other IDS stay from the catalogue bundle.</p>
+  <p>Output: <code>/work/projects/imas_gpu/jt60sa/tokamap/draft-fixture/</code>. Six groups, two shot partitions, 12 <code>mappings.json</code> files, 70 entries: 50 machine-description and 20 signal entries. Eight signal entries are draft (four distinct rules in each partition); 12 remain from the hand-built maps of uncovered IDS. Tokamap validator reported “Validation completed successfully.”</p>
+  <pre>draft-fixture/
+  mappings.cfg.json; globals.json
+  equilibrium/{100001,101174}/{globals.json,mappings.json}  0 description + 5 signals per partition
+  magnetics/{100001,101174}/{globals.json,mappings.json}    8 description + 2 draft signals per partition
+  pf_active/{100001,101174}/{globals.json,mappings.json}    5 description + 2 draft signals per partition
+  pf_passive/{100001,101174}/{globals.json,mappings.json}   5 description per partition
+  tf/{100001,101174}/{globals.json,mappings.json}           1 description + 1 signal per partition
+  wall/{100001,101174}/{globals.json,mappings.json}         6 description per partition</pre>
+  <p>One emitted draft entry, from <code>magnetics/100001/mappings.json</code>:</p>
+  <pre>"b_field_pol_probe[9]/field/data": {
+  "args": {"source_array": "magPbTC10", "source_group": "MDAC"},
+  "comment": "semantic_id=jt-60sa:general/mdac_magpbtc10; unit T-&gt;T; transformation one_like x1.0; validation_state=draft; imas-codex mapping_id=jt-60sa:magnetics; status=generated; EDAS MDAC pickup probe channel",
+  "data_source": "magPbTC10", "map_type": "DATA_SOURCE", "scale": 1.0
+}</pre>
+  <h4>Unresolved and unexpanded handoff rows</h4>
+  <table><thead><tr><th>IDS</th><th>Source id</th><th>Target</th><th>Reason</th></tr></thead><tbody>
+    <tr><td>magnetics</td><td>jt-60sa:magnetics:flux_loop</td><td>magnetics/flux_loop/flux/data</td><td>unexpanded: No FacilitySignal member is linked to this source</td></tr>
+  </tbody></table>
+  <p>No other handoff row is unresolved. The two catalogue poloidal-angle bindings remain withheld because their source COCOS is undeclared; neither is a handoff row.</p>
+  <h4>Fixture-driven comparison with the hand-built reference</h4>
+  <p>Reference: <code>/work/projects/imas_gpu/jt60sa/tokamap/hand-built/</code>. “Agree” compares source group, source array and effective scale for the same target. Draft transform and units are copied from the handoff; the hand-built tokamap records the effective scale.</p>
+  <table><thead><tr><th>Partition</th><th>Target path and index</th><th>Hand-built source</th><th>Hand-built scale</th><th>Draft source</th><th>Draft transform</th><th>Draft units</th><th>Agree</th></tr></thead><tbody>
+    <tr><td>100001</td><td>magnetics/b_field_pol_probe[9]/field/data</td><td>MDAC/magPbTC10</td><td>1.0</td><td>MDAC/magPbTC10</td><td>one_like</td><td>T → T</td><td>yes</td></tr>
+    <tr><td>100001</td><td>magnetics/b_field_pol_probe[10]/field/data</td><td>MDAC/magPbTC11</td><td>1.0</td><td>MDAC/magPbTC11</td><td>one_like</td><td>T → T</td><td>yes</td></tr>
+    <tr><td>100001</td><td>pf_active/coil[0]/current/data</td><td>MMSYS/curCS1LKAT</td><td>1.0</td><td>MMSYS/curCS1LKAT</td><td>one_like</td><td>A → A</td><td>yes</td></tr>
+    <tr><td>100001</td><td>pf_active/coil[1]/current/data</td><td>MMSYS/curCS2LKAT</td><td>1.0</td><td>MMSYS/curCS2LKAT</td><td>one_like</td><td>A → A</td><td>yes</td></tr>
+    <tr><td>101174</td><td>magnetics/b_field_pol_probe[9]/field/data</td><td>MDAC/magPbTC10</td><td>1.0</td><td>MDAC/magPbTC10</td><td>one_like</td><td>T → T</td><td>yes</td></tr>
+    <tr><td>101174</td><td>magnetics/b_field_pol_probe[10]/field/data</td><td>MDAC/magPbTC11</td><td>1.0</td><td>MDAC/magPbTC11</td><td>one_like</td><td>T → T</td><td>yes</td></tr>
+    <tr><td>101174</td><td>pf_active/coil[0]/current/data</td><td>MMSYS/curCS1LKAT</td><td>1.0</td><td>MMSYS/curCS1LKAT</td><td>one_like</td><td>A → A</td><td>yes</td></tr>
+    <tr><td>101174</td><td>pf_active/coil[1]/current/data</td><td>MMSYS/curCS2LKAT</td><td>1.0</td><td>MMSYS/curCS2LKAT</td><td>one_like</td><td>A → A</td><td>yes</td></tr>
+  </tbody></table>
+</section>

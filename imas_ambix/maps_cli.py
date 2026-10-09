@@ -434,10 +434,18 @@ def maps() -> None:
     is_flag=True,
     help="Record and omit COCOS-dependent targets with undeclared source COCOS.",
 )
-def tokamap(machine: str, out: Path, withhold_undeclared_cocos: bool) -> None:
+@click.option(
+    "--draft-signals",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Import generated signal mappings as draft for each covered IDS.",
+)
+def tokamap(
+    machine: str, out: Path, withhold_undeclared_cocos: bool, draft_signals: Path | None
+) -> None:
     """Export one machine's description and signal maps as a tokamap."""
     from imas_alambic.machine_map import load_machine_map
     from imas_alambic.signal_map import load_signal_map
+    from imas_ambix.data.generated_mapping_import import import_generated_mappings
     from imas_ambix.data.tokamap_export import (
         TokamapExportError,
         export_tokamap_directory,
@@ -453,6 +461,15 @@ def tokamap(machine: str, out: Path, withhold_undeclared_cocos: bool) -> None:
         signal_maps = [
             load_signal_map(path) for path in sorted(signal_dir.glob("*.json"))
         ]
+        if draft_signals is not None:
+            document = json.loads(draft_signals.read_text(encoding="utf-8"))
+            if document.get("facility") != machine:
+                raise ValueError("draft handoff facility differs from the machine")
+            covered = {item["ids_name"] for item in document["ids"]}
+            members = _description_members(catalog, machine_dir, document)
+            imported = import_generated_mappings(document, catalog, members)
+            signal_maps = [item for item in signal_maps if item.system not in covered]
+            signal_maps.extend(imported.maps)
         result = export_tokamap_directory(
             catalog,
             signal_maps,
@@ -470,6 +487,69 @@ def tokamap(machine: str, out: Path, withhold_undeclared_cocos: bool) -> None:
     )
     for item in result.withheld:
         click.echo(f"withheld {item.name}: {item.target_path}: {item.reason}")
+    if draft_signals is not None:
+        for item in imported.unresolved:
+            click.echo(
+                f"unresolved {item.ids_name} {item.source_id} "
+                f"{item.target_path}: {item.reason}"
+            )
+
+
+def _description_members(
+    catalog, machine_dir: Path, document: dict
+) -> dict[str, tuple[str, ...]]:
+    """Read ordered member names from every phase's IMAS description store."""
+    import imas
+
+    structures = {
+        "/".join(row["target_path"].split("/")[:2])
+        for item in document["ids"]
+        for row in item["signals"]
+    }
+    store = catalog.description_store_root_path(search_path=machine_dir)
+    members: dict[str, tuple[str, ...]] = {}
+    for machine_map in catalog.maps:
+        phase_members: dict[str, tuple[str, ...]] = {}
+        for structure in structures:
+            ids_name, array_name = structure.split("/", maxsplit=1)
+            path = store / machine_map.name / f"{ids_name}.nc"
+            with imas.DBEntry(path, "r", dd_version=catalog.dd_version) as entry:
+                ids = entry.get(ids_name, autoconvert=False)
+                if ids.ids_properties.homogeneous_time != 2:
+                    raise ValueError(f"{path} is not a static machine description")
+                names = tuple(str(member.name) for member in getattr(ids, array_name))
+            if not names or len(set(names)) != len(names):
+                raise ValueError(f"{structure} has missing or duplicate member names")
+            phase_members[structure] = names
+        if members and phase_members != members:
+            raise ValueError("machine-description member order differs by phase")
+        members = phase_members
+
+    # The handoff's member token can be shorter than the description name.
+    # Resolve an alias only when the source channel singles out one ordered member.
+    rule = catalog.sensor_identity_rules[0]
+    aliases = {key: list(names) for key, names in members.items()}
+    for item in document["ids"]:
+        for row in item["signals"]:
+            structure = "/".join(row["target_path"].split("/")[:2])
+            names = members.get(structure, ())
+            token = rule.normalise(row["member_identifier"])
+            channel = rule.normalise(row["source_array"])
+            candidates = [
+                index
+                for index, name in enumerate(names)
+                if rule.normalise(name) in channel
+            ]
+            if len(candidates) != 1:
+                candidates = [
+                    index
+                    for index, name in enumerate(names)
+                    if re.search(r"\d+$", name)
+                    and rule.normalise(re.search(r"\d+$", name).group()) == token
+                ]
+            if len(candidates) == 1:
+                aliases[structure][candidates[0]] = row["member_identifier"]
+    return {key: tuple(names) for key, names in aliases.items()}
 
 
 @maps.command()
