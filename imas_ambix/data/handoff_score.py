@@ -184,35 +184,76 @@ def _measure(
     reasons = Counter(row.reason for row in unresolved if not _unplaced(row.reason))
     matches: list[bool] = []
     conflicts: list[dict[str, Any]] = []
-    if reference is not None:
-        for rule, withheld in values:
-            label = _handoff_label(signals, rule, dd_version)
-            sign_unscored = withheld or (
-                catalogue.source_cocos in (None, 0) and _cocos_dependent(label)
+    cross_structure: list[dict[str, Any]] = []
+    sign_unscored = 0
+    for rule, withheld in values:
+        label = _handoff_label(signals, rule, dd_version)
+        unscored = withheld or (
+            catalogue.source_cocos in (None, 0) and _cocos_dependent(label)
+        )
+        if unscored:
+            # Every imported rule whose sign the import leaves unscored is
+            # counted here, whether or not a hand-built rule agrees with it.
+            sign_unscored += 1
+        if reference is None:
+            continue
+        if any(_agrees(rule, prior, sign_unscored=unscored) for prior in reference):
+            matches.append(unscored)
+            continue
+        on_target = [
+            prior
+            for prior in reference
+            if prior.target_path == rule.target_path
+            and prior.target_index == rule.target_index
+        ]
+        if on_target:
+            conflicts.append(
+                {
+                    "target_path": rule.target_path,
+                    "target_index": rule.target_index,
+                    "imported_source_array": rule.source_array,
+                    "hand_built_source_arrays": sorted(
+                        prior.source_array for prior in on_target
+                    ),
+                }
             )
-            if any(
-                _agrees(rule, prior, sign_unscored=sign_unscored)
-                for prior in reference
-            ):
-                matches.append(sign_unscored)
-                continue
-            on_target = [
-                prior
-                for prior in reference
-                if prior.target_path == rule.target_path
-                and prior.target_index == rule.target_index
-            ]
-            if on_target:
-                conflicts.append(
-                    {
-                        "target_path": rule.target_path,
-                        "target_index": rule.target_index,
-                        "imported_source_array": rule.source_array,
-                        "hand_built_source_arrays": sorted(
-                            prior.source_array for prior in on_target
+            continue
+        # The hand-built map serves this rule's source channel on a different
+        # structure or element index, so neither the exact-target match nor the
+        # same-target source-array conflict test above reaches it: name it here
+        # with both targets rather than drop it silently.
+        elsewhere = [
+            prior
+            for prior in reference
+            if prior.source_group == rule.source_group
+            and prior.source_array == rule.source_array
+            and (prior.target_path, prior.target_index)
+            != (rule.target_path, rule.target_index)
+        ]
+        if elsewhere:
+            cross_structure.append(
+                {
+                    "source_group": rule.source_group,
+                    "source_array": rule.source_array,
+                    "imported_target_path": rule.target_path,
+                    "imported_target_index": rule.target_index,
+                    "hand_built_targets": sorted(
+                        (
+                            {
+                                "target_path": prior.target_path,
+                                "target_index": prior.target_index,
+                            }
+                            for prior in elsewhere
                         ),
-                    }
-                )
+                        key=lambda target: (
+                            target["target_path"],
+                            target["target_index"]
+                            if target["target_index"] is not None
+                            else -1,
+                        ),
+                    ),
+                }
+            )
     agreeing: int | str = "no reference" if reference is None else len(matches)
     return {
         "exported": exported,
@@ -220,13 +261,14 @@ def _measure(
         "agreeing": agreeing,
         "conflicting": len(conflicts),
         "conflicts": conflicts,
+        "cross_structure": cross_structure,
         "unplaced": len(unplaced),
         "unplaced_reasons": dict(
             sorted(Counter(row.reason for row in unplaced).items())
         ),
         "refused": sum(reasons.values()),
         "refused_reasons": dict(sorted(reasons.items())),
-        "sign_unscored": sum(matches),
+        "sign_unscored": sign_unscored,
     }
 
 
@@ -289,9 +331,7 @@ def score_handoff(
             structure = _structure(value[0].target_path)
             if structure is not None:
                 structure_values.setdefault(structure, []).append(value)
-        names = set(structure_rows) | set(structure_unresolved) | set(
-            structure_values
-        )
+        names = set(structure_rows) | set(structure_unresolved) | set(structure_values)
         for structure in names:
             if reference is None:
                 structure_reference: Sequence[SignalRule] | None = None
@@ -324,6 +364,9 @@ def score_handoff(
             if isinstance(row["agreeing"], int)
         ),
         "conflicting": sum(row["conflicting"] for row in by_ids.values()),
+        "cross_structure": [
+            entry for row in by_ids.values() for entry in row["cross_structure"]
+        ],
         "unplaced": sum(row["unplaced"] for row in by_ids.values()),
         "unplaced_reasons": dict(sorted(total_unplaced_reasons.items())),
         "refused": sum(row["refused"] for row in by_ids.values()),
