@@ -1,0 +1,684 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 1,
+  "attempt_kind": "dispatch",
+  "backend": "clive",
+  "base_sha": "72b13fc7d46546c08c2bb6daf551ece88a583690",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 5557178,
+      "input_tokens_cumulative": 5557178,
+      "output_tokens": 42020,
+      "output_tokens_cumulative": 42020,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 314,
+    "files": 4,
+    "removed": 6
+  },
+  "clone_matches": [],
+  "commit_resolution": null,
+  "commits": [
+    "e589f030dac33614f42d0873ae2636f54024ace6",
+    "fac354d903ebba861b8d5c7da22ecb3013192699"
+  ],
+  "completed_at": "2026-10-09T02:12:37.846Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-09T01:55:55Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [
+    "2.0",
+    "equilibrium_labels.py"
+  ],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/eval/test_selene_reference.py tests/eval/test_efit_referee.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261009T015536628279-jtmm-selene-reference-loader/gate-ruff.log"
+  },
+  "impl_move": {
+    "at_complete": 0.96,
+    "at_dispatch": 0.96,
+    "plan": "jt60sa-machine-map",
+    "reason": "the same landing beat adds three section 7 nodes (vessel box, multi-channel cache fix, fetch rerun), so impl holds at 0.96",
+    "verdict": "waived"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-09T02:55:42.186616+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": "clive",
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-09T01:55:42Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 28,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 3,
+    "headroom": 9,
+    "mean_context": 91429,
+    "observed_at": "2026-10-09T01:55:14Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 28,
+      "aggregate_tokens_per_second": 324.714,
+      "detail": "",
+      "mean_tokens_per_second": 60.132,
+      "observed_at": "2026-10-09T01:55:14Z",
+      "runs": 5.4,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-09T02:12:37.846Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261009T015536628279-jtmm-selene-reference-loader/manifest.md",
+  "member": "disposable-r-20261009T015536628279-jtmm-selene-reference-loader",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/eval/test_selene_reference.py::test_axis_is_psrc_magnetic_axis_not_geometric_centre",
+      "tests/eval/test_selene_reference.py::test_both_slices_resample_to_finite_lcfs_radii"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/eval/test_selene_reference.py::test_axis_is_psrc_magnetic_axis_not_geometric_centre",
+      "tests/eval/test_selene_reference.py::test_both_slices_resample_to_finite_lcfs_radii"
+    ],
+    "declaration": "Passing PSRC's geometric centre calCCSRc/calCCSZc as the axis instead of calRp0/calZp0 makes the axis test fail, logged with a non-zero EXIT and the failing test id",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261009T015536628279-jtmm-selene-reference-loader/negative-control-centre-as-axis.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261009T015536628279-jtmm-selene-reference-loader/negative-control-centre-as-axis.log",
+    "test_paths": [
+      "tests/eval/test_efit_referee.py",
+      "tests/eval/test_selene_reference.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "jtmm-selene-reference-loader",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 1998,
+          "cached_input_tokens": 703383,
+          "input_tokens": 705383,
+          "output_tokens": 426,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 705809,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "c66d1ea6-525d-4cec-8114-013919000083",
+      "session_id": "c66d1ea6-525d-4cec-8114-013919000083"
+    },
+    "done_when": "§7's reference-loader paragraph is the specification. imas_ambix/eval/efit_referee.py gains one loader with the seam's signature, (shot_id, frame_times, **kwargs) -> EquilibriumGeometry, passed as read_efit_geometry(..., loader=...). It is not exported in __all__ and adds no public name. It reads the shot's record through imas_ambix/data/selene_psrc.py read_psrc_record, forwarding cache_root and extractor from its kwargs. It reduces the record through imas_ambix/worldmodel/equilibrium_labels.py build_geometry_from_arrays and re-derives nothing. t_eq is the boundary's time base. The magnetic axis (calRp0, calZp0) and the X-point (calRX, calZX) are interpolated onto t_eq, and the X-point is passed as a one-null set with time on the last axis. The boundary's per-slice contours are passed with time on the last axis, in a form the builder's per-slice LCFS resampling accepts even when slices hold different vertex counts. Read resample_lcfs_radii and handle NaN padding explicitly rather than assume it. PSRC's geometric centre calCCSRc/calCCSZc is never read. The read happens only inside evaluator_context: called outside it, read_efit_geometry raises FirewallViolation as for every loader. The static import guard in tests/eval/test_efit_referee.py, which asserts that no world-model or training source references efit_referee, also asserts that none references imas_ambix.data.selene_psrc. New tests in tests/eval/test_selene_reference.py use a tmp_path cache seeded read-only from /work/projects/imas_gpu/jt60sa/100599.zarr PSRC (calRX, calZX, calRp0, calZp0, calIp, and calCCSRc and calCCSZc for the control, with their time bases), plus a synthetic surfABVxp in mm with two slices of different vertex counts. They show four things: the loader's axis equals calRp0 and calZp0 interpolated at a frame time; both slices resample to finite LCFS radii; a call outside evaluator_context raises FirewallViolation; and judge_geometry scores a model geometry equal to the loader's output at zero boundary RMS. No test opens ssh, and nothing under /work is written. Write a landing fragment docs/evidence/fragments/jt60sa-machine-map/jtmm-selene-reference-loader.html. On the fleet allocation (SLURM_JOB_ID set), run in the foreground and capture once, to a log in the run directory whose first lines give the committed revision the tests ran at and the full command with its PYTHONPATH, and whose last line is EXIT=: uv run --no-sync pytest -p no:cacheprovider tests/eval/test_selene_reference.py tests/eval/test_efit_referee.py; it exits 0, and uv run --no-sync ruff check imas_ambix tests exits 0.",
+    "estimated_hours": null,
+    "goal": "Add the SELENE reference loader that reduces a PSRC record to the referee's EquilibriumGeometry behind its gated seam",
+    "id": "jtmm-selene-reference-loader",
+    "lane_declaration": {
+      "backend": "clive",
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-09T01:55:42Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 28,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 3,
+      "headroom": 9,
+      "mean_context": 91429,
+      "observed_at": "2026-10-09T01:55:14Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 28,
+        "aggregate_tokens_per_second": 324.714,
+        "detail": "",
+        "mean_tokens_per_second": 60.132,
+        "observed_at": "2026-10-09T01:55:14Z",
+        "runs": 5.4,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261009T015536628279-jtmm-selene-reference-loader/manifest.md",
+    "negative_control": "Passing PSRC's geometric centre calCCSRc/calCCSZc as the axis instead of calRp0/calZp0 makes the axis test fail, logged with a non-zero EXIT and the failing test id",
+    "plan": "jt60sa-machine-map",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§7",
+    "spec_level": "guided",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/eval/efit_referee.py",
+      "tests/eval/test_selene_reference.py",
+      "tests/eval/test_efit_referee.py",
+      "docs/evidence/fragments/jt60sa-machine-map/jtmm-selene-reference-loader.html",
+      "docs/figures/jt60sa-machine-map/jtmm-selene-reference-loader"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": 1961259.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "lift_id": null,
+    "member": null,
+    "node": "jtmm-selene-reference-loader",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-09T01:55:45.969173+00:00",
+    "score": 0.6625,
+    "session": null,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "route",
+    "answering_model": "typesafe/jev-1.13-20260917",
+    "backend": "clive",
+    "comment": "",
+    "confidence": 0.87,
+    "decision_source": "jev",
+    "effort": "high",
+    "excluded": [
+      {
+        "availability": "not-probed",
+        "backend": "native",
+        "budget_age_s": null,
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "context": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "in-harness",
+        "local": false,
+        "model": null,
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "in-harness-backend"
+        ],
+        "resets_at": null,
+        "stale": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "fallback_reason": null,
+    "family": "local",
+    "jev_latency_ms": 415.167,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 1007.938,
+    "model": "deepseek-v4.1-flash",
+    "offered": [
+      {
+        "availability": "unknown",
+        "backend": "claude",
+        "budget_age_s": 1369721.485141,
+        "budget_reason": null,
+        "burn_multiple": 0.95,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 56687,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 0.0,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-sonnet-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.055000000000000056,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-09-27T06:00:00+00:00",
+        "stale": true,
+        "utilisation_pct": 95.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-haiku",
+        "budget_age_s": 1369721.485141,
+        "budget_reason": null,
+        "burn_multiple": 0.95,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 56687,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 0.0,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-haiku-4-5-20251001",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.055000000000000056,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-09-27T06:00:00+00:00",
+        "stale": true,
+        "utilisation_pct": 95.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-opus",
+        "budget_age_s": 1369721.485141,
+        "budget_reason": null,
+        "burn_multiple": 0.95,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 56687,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 0.0,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-opus-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.055000000000000056,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-09-27T06:00:00+00:00",
+        "stale": true,
+        "utilisation_pct": 95.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "served",
+        "backend": "clive",
+        "budget_age_s": null,
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": {
+          "admission_verdict": "open",
+          "running": 3,
+          "slots_state": "measured",
+          "stale": false,
+          "waiting": 0
+        },
+        "context": {
+          "estimated_tokens": 56687,
+          "headroom_pct": 75.4,
+          "peak_utilisation_p50_pct": 56.7,
+          "peak_utilisation_p90_pct": 79.6,
+          "peak_utilisation_runs": 642,
+          "window_tokens": 230144
+        },
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "local",
+        "local": true,
+        "model": "deepseek-v4.1-flash",
+        "outcomes": {
+          "failed": 7,
+          "not-run": 1,
+          "passed": 104,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "stale": null,
+        "utilisation_pct": null,
+        "worker_slots": 22
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex",
+        "budget_age_s": 2101.812141,
+        "budget_reason": null,
+        "burn_multiple": 2.4442250352454944,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 56687,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 5.138466445127315,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-sol",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 1,
+          "unknown": 0
+        },
+        "pace_allowance": 0.2925262566620371,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-14T05:14:59+00:00",
+        "stale": true,
+        "utilisation_pct": 65.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-astra",
+        "budget_age_s": 2101.812141,
+        "budget_reason": null,
+        "burn_multiple": 2.4442250352454944,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 56687,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 5.138466445127315,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-astra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.2925262566620371,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-14T05:14:59+00:00",
+        "stale": true,
+        "utilisation_pct": 65.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-luna",
+        "budget_age_s": 2101.812141,
+        "budget_reason": null,
+        "burn_multiple": 2.4442250352454944,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 56687,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 5.138466445127315,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-luna",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.2925262566620371,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-14T05:14:59+00:00",
+        "stale": true,
+        "utilisation_pct": 65.0,
+        "worker_slots": null
+      }
+    ],
+    "probabilities": {
+      "claude:claude-haiku-4-5-20251001": 0,
+      "claude:claude-opus-5-5": 0.01,
+      "claude:claude-sonnet-5-5": 0,
+      "codex:gpt-6-astra": 0,
+      "codex:gpt-6-luna": 0.01,
+      "codex:gpt-6-sol": 0.07,
+      "hold": 0.02,
+      "local:deepseek-v4.1-flash": 0.89
+    },
+    "rendered_token_estimate": 2389,
+    "usage": {
+      "cost": 0.000245742,
+      "input_tokens": 5851,
+      "output_tokens": 150
+    }
+  },
+  "plan": "jt60sa-machine-map",
+  "plan_impl_at_dispatch": 0.96,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "fac354d903ebba861b8d5c7da22ecb3013192699",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "72b13fc7d46546c08c2bb6daf551ece88a583690",
+    "reviewed_head_sha": "fac354d903ebba861b8d5c7da22ecb3013192699",
+    "scores": {
+      "durability": 17,
+      "evidence": 17,
+      "fit": 20,
+      "goal_fidelity": 20,
+      "reuse": 20,
+      "scope_discipline": 20
+    },
+    "status": "parsed",
+    "total": 114
+  },
+  "review_tier": "full",
+  "role": "implement",
+  "route_mode": "picker",
+  "run_id": "r-20261009T015536628279-jtmm-selene-reference-loader",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§7",
+  "session": "c66d1ea6-525d-4cec-8114-013919000083",
+  "session_harness": "claude",
+  "session_id": "371cc4c3-47e9-4bf3-bb92-5a41aebaf49c",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 5,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 5557178,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 989.245,
+    "generated_tokens": 42020,
+    "generation_seconds": 831.556,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 65.4,
+    "machine_seconds": 157.689,
+    "peak_input_tokens": 150584,
+    "tokens_per_second": 50.53,
+    "wall_tokens_per_second": 42.48
+  },
+  "time_budget": "60m",
+  "tool_steps": 46.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 1002,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 1,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-09T02:12:43Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-09T01:56:03Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261009T015536628279-jtmm-selene-reference-loader",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 8993,
+    "worker_pid": 2247748
+  },
+  "worker_seconds": 970,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
