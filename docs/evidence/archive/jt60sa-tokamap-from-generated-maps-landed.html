@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-tokamap-from-generated-maps-landed">
+  <meta name="plan-title" content="JT-60SA Tokamap From Generated Maps — landed record">
+  <meta name="plan-summary" content="Closure synthesis for JT-60SA Tokamap From Generated Maps: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).">
+  <meta name="plan-evidence-for" content="jt60sa-tokamap-from-generated-maps">
+  <meta name="plan-verdict" content="qualified">
+  <title>JT-60SA Tokamap From Generated Maps — landed record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+ <main class="plan-doc">
+  <h1>JT-60SA Tokamap From Generated Maps — landed record</h1>
+  <p>Closure synthesis for JT-60SA Tokamap From Generated Maps: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).</p>
+
+
+   <section id="s1">
+    <h2>§1 — tokamap export command landed</h2>
+    <p><code>imas-ambix maps tokamap MACHINE --out DIR [--withhold-undeclared-cocos]</code> (merge <code>fa03c508</code>). Indexed signal rules now write one concrete key each (<code>b_field_pol_probe[3]/field/data</code> reads <code>magPbTC4</code>); a <code>[#]</code> key that would shadow concrete ones is refused, because libtokamap checks the wildcard first. JT-60SA hand-built tokamap at <code>/work/projects/imas_gpu/jt60sa/tokamap/hand-built/</code>: 6 groups, 2 partitions, 12 mapping files, 172 entries (50 machine description, 122 signal), 17 probes on their own channels in each partition, exactly 2 <code>poloidal_angle</code> bindings withheld; tokamap's validator passes on all 12 files. Focused gate 10 passed; the first-rule-wins mutation fails the indexed test. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/tokamap-export-command.html">tokamap-export-command</a>.</p>
+  </section>
+
+  <section id="s2">
+    <h2>§2 — generated-mapping importer landed</h2>
+    <p><code>imas_ambix/data/generated_mapping_import.py</code> (merge <code>283b530c</code>) turns the imas-codex hand-off fixture (copied from imas-codex <code>ed1c086c1</code>) into 2 draft SignalMaps with 4 indexed rules and 1 unexpanded row reported with its reason. Indices come from ordered machine-description member identities passed by the caller; assigning them by row order fails the identity test. <code>draft</code> joins the validation states. 5 tests pass. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/generated-mapping-import.html">generated-mapping-import</a>.</p>
+  </section>
+
+</main>
+</body>
+</html>
