@@ -40,6 +40,11 @@
     <p><code>imas-ambix maps tokamap jt-60sa --draft-signals FILE</code> (merge <code>ca73d20e</code>) replaces the hand-built signal map of every IDS the hand-off covers with imported draft rules, indexed from member order read from the machine-description IDS store through <code>imas.DBEntry</code>. On the contract fixture (refreshed from imas-codex <code>2a20afb7a</code>) it wrote <code>/work/projects/imas_gpu/jt60sa/tokamap/draft-fixture/</code>: 6 groups, 2 partitions, 12 mapping files, 70 entries (50 machine description, 20 signal), validator passing; the 4 draft rules in each partition agree with the hand-built reference on all 8 compared targets; 1 unexpanded row reported with its reason. 33 CLI tests pass; keeping the hand-built map for a covered IDS fails the replacement test. Fixture-driven: the second iteration reruns on imas-codex's live JT-60SA document. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/jt60sa-draft-tokamap.html">jt60sa-draft-tokamap</a>.</p>
   </section>
 
+  <section id="s4">
+    <h2>§4 — discovery-to-IDS report landed</h2>
+    <p><a href="/imas-ambix/research/jt60sa-discovery-to-ids.html">jt60sa-discovery-to-ids</a> (merge <code>ab0370b4</code>) presents the chain from imas-codex discovery through the hand-off, the draft import and the tokamap export to <code>imas-alambic write</code>. <code>scripts/figures_jt60sa_tokamap.py</code> now renders 9 SVGs and 9 slide PNGs: seven per-system renders in pygments <code>friendly</code>, the chain chart, and a writer-workflow chart whose command line matches <code>imas-alambic write --help</code>. The pickup-probe and PF-coil renders carry the fixture-driven draft row. <code>reckon audit-doc</code> 0 errors. Work review waived on the lead's instruction.</p>
+  </section>
+
 </main>
 </body>
 </html>

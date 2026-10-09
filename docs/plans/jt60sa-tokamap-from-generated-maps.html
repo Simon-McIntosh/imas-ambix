@@ -24,9 +24,9 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="18">
+<meta name="plan-version" content="20">
 <meta name="plan-modified" content="2026-10-09">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -216,7 +216,7 @@
     </ul>
 
     <h2 id="s4">§4 — Research report: from discovery to JT-60SA IDS</h2>
-<section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
     <p>
       Write <code>docs/research/jt60sa-discovery-to-ids.html</code>. It is a research document with
       <code>plan-evidence-for</code> set to this plan, and it is meant for the lead to present. It covers:
@@ -306,9 +306,10 @@
 
     <h2 id="s6">§6 — The target IDS beside every render</h2>
 <section data-reckon="section" data-id="s6" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
-<p>The lead read the §5 renders on 2026-10-09 and asked for two things. First, more detail about the target IDS: each render shows only the group-relative tokamap key, such as <code>coil[0]/current/data</code>. Second, the flux-loop render shows <code>one_like</code>, which is wrong: the Data Dictionary labels <code>magnetics/flux_loop/flux</code> <code>psi_like</code>. The hand-built map carries that mislabel and §1's export let it through; relabelling the map and keying the export on the Data Dictionary's label belong to <code>jt60sa-machine-map</code> and its COCOS-resolver split. This section makes the figures show such a disagreement rather than hide it.</p>
-<p>Extend <code>scripts/figures_jt60sa_tokamap.py</code> with a third panel on every system render: the target as the Data Dictionary defines it, read with imas-python's IDS metadata at the catalogue's DD version, never typed by hand. It gives the full IDS path, units, data type, coordinates, the first sentence of the documentation, and the Data Dictionary's COCOS transformation beside the rule's own <code>transformation</code> label. Where the two labels disagree, the panel marks the pair in the reserved red and the caption names both. The flux-loop render must show <code>psi_like</code> against <code>one_like</code>.</p>
-<p><strong>Node</strong> <code>tokamap-target-panels</code>, role implement, 0.5 h. Write paths: <code>scripts/figures_jt60sa_tokamap.py</code>, <code>docs/figures/jt60sa-tokamap</code>, and <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/tokamap-target-panels.html</code>. <strong>Done when</strong> one run of the script regenerates every figure; each of the seven system renders carries the Data Dictionary target panel; the flux-loop render marks <code>psi_like</code> against <code>one_like</code> in red; and the fragment lists every render's target path with its Data Dictionary and rule labels, naming each disagreement, and embeds each SVG by its project-absolute source.</p>
+<p>The lead read the §5 renders on 2026-10-09 and asked for two things. First, more detail about the target IDS: each render shows only the group-relative tokamap key, such as <code>coil[0]/current/data</code>. Second, the flux-loop render shows <code>one_like</code> where the lead expected <code>psi_like</code>. The Data Dictionary labelled <code>magnetics/flux_loop/flux</code> <code>psi_like</code> from 3.28.1 and removed the label in 4.0.0, so at the map's version, 4.1.1, the path carries none; imas-python's metadata and the engine's resolver agree. The map encodes each loop as measured flux in Wb with a per-channel factor adjudicated against the forward model, under <code>jt60sa-machine-map</code>'s ruling, so the rule is not relabelled here. The render must still make the distinction visible rather than leave a reader to assume a COCOS label. The lead also asked, the same day, for one figure of per-IDS statistics: a preliminary framework to build on.</p>
+<p>Extend <code>scripts/figures_jt60sa_tokamap.py</code> with a third panel on every system render: the target as the Data Dictionary defines it, read with imas-python's IDS metadata at the catalogue's DD version, never typed by hand. It gives the full IDS path, units, data type, coordinates, the first sentence of the documentation, and the Data Dictionary's COCOS transformation at that version beside the rule's own <code>transformation</code> label. A path the version leaves unlabelled reads <code>none at DD 4.1.1</code>, and where an earlier major version labelled it, the panel says so (for the flux loop: <code>psi_like in DD 3.28.1–3.42, removed in 4.0.0</code>). A rule label that differs from a present Data Dictionary label is marked in the reserved red, with the caption naming both.</p>
+<p>Add one statistics figure, <code>docs/figures/jt60sa-tokamap/ids-statistics.svg</code>, drawn by the same script. For each IDS group it counts, from the tokamap files on disk and never typed by hand: machine-description entries and signal entries in the hand-built tokamap; signal entries in the draft tokamap, read from <code>/work/projects/imas_gpu/jt60sa/tokamap/draft/</code> when it exists and from <code>draft-fixture/</code> otherwise, labelled with which; items withheld for an undeclared COCOS; and hand-off rows reported unresolved. One partition is counted, 101174, and the caption says so. Follow the data-ink rules: horizontal bars grouped per IDS, direct labels with the counts, no grid, one colour per count kind, held across the figure.</p>
+<p><strong>Node</strong> <code>tokamap-target-panels</code>, role implement, 0.5 h. Write paths: <code>scripts/figures_jt60sa_tokamap.py</code>, <code>docs/figures/jt60sa-tokamap</code>, and <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/tokamap-target-panels.html</code>. <strong>Done when</strong> one run of the script regenerates every figure; each of the seven system renders carries the Data Dictionary target panel read from imas-python metadata; the flux-loop panel reads none at DD 4.1.1 and names the 3.x <code>psi_like</code> label; <code>ids-statistics.svg</code> exists with its counts printed by the script; and the fragment lists every render's target path with its Data Dictionary and rule labels, gives the statistics as a table beside the figure, and embeds each SVG by its project-absolute source.</p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
@@ -357,6 +358,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261009T031519779033-discovery-to-ids-report" data-who="reckon-build" data-when="2026-10-09T03:30:17Z">
     <div class="r-comment-body"><p>Presented the fixture-driven discovery-to-IDS chain and writer workflow with seven system comparisons; one-pass render produced 9 SVGs and 9 PNGs, 2 indexed draft examples, 0 gaps; audit-doc exited 0 with 0 errors and 4 verified cross-project image warnings.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-close-s4" data-who="reckon-build" data-when="2026-10-09T03:36:00Z">
+    <div class="r-comment-body"><p>§4 landed: report and 9 figures (merge <code>ab0370b4</code>). Its draft rows are fixture-driven; §6 adds the Data Dictionary target panels and the per-IDS statistics figure, and the live-document counts follow §3's second iteration. <a href="/imas-ambix/evidence/archive/jt60sa-tokamap-from-generated-maps-landed.html#s4">evidence</a></p></div>
 </div>
 </section>
 </main>
