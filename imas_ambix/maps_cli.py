@@ -617,13 +617,13 @@ def score_handoff_command(machine: str, file: Path, json_file: Path | None) -> N
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise click.ClickException(str(error)) from error
     click.echo(
-        "IDS                 exported imported agreeing     unplaced refused sign"
+        "IDS                 exported imported agreeing sign_unscored unplaced refused"
     )
     for name, row in [*score["by_ids"].items(), ("TOTAL", score["total"])]:
         click.echo(
             f"{name:<19} {row['exported']:>8} {row['imported']:>8} "
-            f"{str(row['agreeing']):>12} {row['unplaced']:>8} {row['refused']:>7} "
-            f"{row['sign']}"
+            f"{str(row['agreeing']):>12} {row['sign_unscored']:>13} "
+            f"{row['unplaced']:>8} {row['refused']:>7}"
         )
     for reason, count in score["total"]["refused_reasons"].items():
         click.echo(f"refused {count}: {reason}")

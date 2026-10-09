@@ -83,11 +83,13 @@ def test_score_handoff_prints_table_and_writes_json(tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     assert "exported imported agreeing" in result.output
+    assert "sign_unscored" in result.output
     assert "no reference" in result.output
     written = json.loads(output.read_text())
     assert written["total"]["exported"] == 5
     assert written["total"]["imported"] == 4
     assert written["by_ids"]["magnetics"]["agreeing"] == 2
+    assert written["by_ids"]["magnetics"]["sign_unscored"] == 0
     assert written["by_ids"]["pf_active"]["agreeing"] == "no reference"
 
 

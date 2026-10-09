@@ -68,23 +68,62 @@ def test_counts_rows_and_requires_source_and_total_scale_for_agreement():
     assert result["by_ids"]["pf_active"]["agreeing"] == "no reference"
     assert (result["total"]["exported"], result["total"]["imported"]) == (7, 4)
     assert result["total"]["agreeing"] == 1
+    assert result["total"]["sign_unscored"] == 0
 
 
-def test_labelled_target_under_undeclared_source_has_unscored_sign(monkeypatch):
+def test_one_like_stays_sign_scored_without_source_cocos():
     document, reference = _case()
-    monkeypatch.setattr(
-        handoff_score,
-        "_target_cocos_label",
-        lambda version, path: "psi_like" if path.startswith("magnetics/") else None,
+    assert (
+        handoff_score._target_cocos_label(
+            "4.1.1", "magnetics/b_field_pol_probe/field/data"
+        )
+        == "one_like"
     )
 
     result = handoff_score.score_handoff(
         document, _catalogue(None), MEMBERS, [reference]
     )
 
-    assert result["by_ids"]["magnetics"]["sign"] == "unscored"
-    assert result["by_ids"]["magnetics"]["unscored_sign"] == 2
-    assert result["by_ids"]["magnetics"]["agreeing"] == 0
+    assert result["by_ids"]["magnetics"]["agreeing"] == 1
+    assert result["by_ids"]["magnetics"]["sign_unscored"] == 0
+
+
+def _graph_labelled_case(monkeypatch):
+    document, reference = _case()
+    imported = import_generated_mappings(document, _catalogue(), MEMBERS)
+    document["ids"][0]["signals"][0]["cocos_label"] = "psi_like"
+    monkeypatch.setattr(
+        handoff_score, "import_generated_mappings", lambda *args: imported
+    )
+    monkeypatch.setattr(handoff_score, "_target_cocos_label", lambda *args: None)
+    return document, reference
+
+
+def test_handoff_label_overrides_absent_dd_label(monkeypatch):
+    document, reference = _graph_labelled_case(monkeypatch)
+
+    result = handoff_score.score_handoff(
+        document, _catalogue(None), MEMBERS, [reference]
+    )
+
+    assert result["by_ids"]["magnetics"]["agreeing"] == 1
+    assert result["by_ids"]["magnetics"]["sign_unscored"] == 1
+
+
+def test_unscored_sign_agrees_on_scale_magnitude(monkeypatch):
+    document, reference = _graph_labelled_case(monkeypatch)
+    first, second = reference.signals
+    reference = dataclasses.replace(
+        reference,
+        signals=(dataclasses.replace(first, channel_factor=-1.0), second),
+    )
+
+    result = handoff_score.score_handoff(
+        document, _catalogue(None), MEMBERS, [reference]
+    )
+
+    assert result["by_ids"]["magnetics"]["agreeing"] == 1
+    assert result["by_ids"]["magnetics"]["sign_unscored"] == 1
 
 
 def test_matching_target_with_a_different_source_array_does_not_agree():
