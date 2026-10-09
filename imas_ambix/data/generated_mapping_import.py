@@ -202,6 +202,9 @@ def _target_index(
     return matches[0], None
 
 
+_RULE_ID_SEPARATOR = "::"
+
+
 def _rule_id(signal_id: str, target_path: str, index: int) -> str:
     """A rule id unique within its map: the hand-off signal plus its target slot.
 
@@ -212,7 +215,18 @@ def _rule_id(signal_id: str, target_path: str, index: int) -> str:
     the id and in the rule's evidence.
     """
 
-    return f"{signal_id}::{target_path}[{index}]"
+    return f"{signal_id}{_RULE_ID_SEPARATOR}{target_path}[{index}]"
+
+
+def handoff_signal_id(rule_id: str) -> str:
+    """The hand-off ``signal_id`` a composed rule id carries.
+
+    The id's prefix before the separator, so a reader that has only a rule's
+    ``semantic_id`` recovers the hand-off row it came from by the same
+    separator the composer uses rather than by a copy of it.
+    """
+
+    return rule_id.split(_RULE_ID_SEPARATOR, 1)[0]
 
 
 def _partner_key(
