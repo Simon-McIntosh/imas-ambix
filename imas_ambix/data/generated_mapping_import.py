@@ -325,8 +325,12 @@ def import_generated_mappings(
             )
             signal.validate()
             key = _partner_key(row)
-            if cocos is not None and _cocos_dependent_label(str(cocos)):
-                open_source_cocos = getattr(catalogue, "source_cocos", None)
+            open_source_cocos = getattr(catalogue, "source_cocos", None)
+            if (
+                cocos is not None
+                and _cocos_dependent_label(str(cocos))
+                and open_source_cocos in (None, 0)
+            ):
                 pending_reason = _pending_reason(str(cocos), cocos_label_source)
                 pending.append(
                     PendingCocosRule(
@@ -341,7 +345,7 @@ def import_generated_mappings(
                         rule=signal,
                     )
                 )
-                value_reasons[key] = pending_reason
+                value_rules[key] = signal
                 continue
             signals.append(signal)
             value_rules[key] = signal

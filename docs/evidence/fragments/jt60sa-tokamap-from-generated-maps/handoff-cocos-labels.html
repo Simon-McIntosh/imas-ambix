@@ -6,24 +6,30 @@
   <code>cocos_label_source</code> appended to the rule's evidence. A COCOS-dependent label
   (<code>ip_like</code>, <code>b0_like</code>, <code>psi_like</code>, <code>q_like</code>,
   <code>pol_angle_like</code>, <code>tor_angle_like</code>, <code>dodpsi_like</code> or a
-  <code>grid_type</code> label) imports as a draft rule held out of the draft signal maps as
-  pending, naming the label, its source and the machine's undeclared source COCOS as the open
-  item; <code>maps tokamap --draft-signals</code> lists it as withheld, so no sign is assumed.
-  Any other value is refused by name. A null or absent <code>cocos_label</code> keeps the
-  previous behaviour.</p>
+  <code>grid_type</code> label) is held out of the draft signal maps as pending only while the
+  machine's source COCOS is undeclared; it is named with its source and the open source COCOS,
+  and <code>maps tokamap --draft-signals</code> lists it as withheld, so no sign is assumed.
+  Where the source COCOS is declared the row imports into the maps as usual, and a time row
+  always binds to its value partner, pending or not, because a time coordinate is never
+  COCOS-transformed. Any other value is refused by name. A null or absent
+  <code>cocos_label</code> keeps the previous behaviour.</p>
   <p>Focused tests: <code>tests/data/test_generated_mapping_import.py</code> covers the
   <code>one_like</code> evidence, the <code>none</code> import, the pending-<code>ip_like</code>
-  rule absent from the maps, the unknown label refused by name, and the null label unchanged;
+  rule absent from the maps, a declared source COCOS importing the dependent label instead, a
+  zero source COCOS still holding it pending, the time row binding to a pending value partner,
+  the unknown label refused by name, and the null label unchanged;
   <code>tests/test_maps_cli.py</code> shows the tokamap command listing the pending rule as
   withheld; <code>tests/data/test_handoff_score.py</code> counts a pending rule as imported,
   scored on target, index, channel and |scale| with the sign unscored.</p>
-  <h4>score-handoff --json on the shared hand-off as it stands</h4>
+  <h4>score-handoff --json on the shared hand-off as it stands (provisional)</h4>
   <p><code>/work/projects/imas_gpu/jt60sa/handoff/jt-60sa-mapping-handoff.json</code> still
   carries a null <code>cocos_label</code> on all 29 signal rows and no
   <code>cocos_label_source</code> key, so every row takes the unchanged null-label path and no
-  rule is pending. The command's JSON total:</p>
+  rule is pending. <strong>These counts are provisional:</strong> imas-codex is regenerating
+  the shared hand-off with graph-filled labels and a fresh export follows, so this table will
+  change. The command's JSON total on the hand-off as it stands:</p>
   <table id="handoff-cocos-labels-pending-score">
-    <caption>jt-60sa-mapping-handoff.json, exported_at 2026-10-09T03:44:34Z; source COCOS undeclared</caption>
+    <caption>jt-60sa-mapping-handoff.json, exported_at 2026-10-09T03:44:34Z; source COCOS undeclared (provisional)</caption>
     <thead><tr><th>Exported</th><th>Imported</th><th>Agreeing</th><th>Sign unscored</th><th>Unplaced</th><th>Refused</th></tr></thead>
     <tbody><tr><td>35</td><td>17</td><td>9</td><td>0</td><td>6</td><td>12</td></tr></tbody>
   </table>

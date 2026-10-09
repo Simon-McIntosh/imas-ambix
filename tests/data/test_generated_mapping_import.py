@@ -357,3 +357,53 @@ def test_null_cocos_label_keeps_the_unlabelled_behaviour():
 
     assert "cocos_label" not in _imported_rule(imported, "magPbTC10").evidence
     assert imported.pending == ()
+
+
+def test_declared_source_cocos_imports_a_dependent_label_into_the_maps():
+    catalogue = _catalogue()
+    catalogue.source_cocos = 17
+
+    imported = import_generated_mappings(
+        _labelled_document("ip_like", "xml"), catalogue, DESCRIPTION_MEMBERS
+    )
+
+    assert imported.pending == ()
+    assert "cocos_label=ip_like" in _imported_rule(imported, "magPbTC10").evidence
+
+
+def test_zero_source_cocos_is_undeclared_and_holds_the_row_pending():
+    catalogue = _catalogue()
+    catalogue.source_cocos = 0
+
+    imported = import_generated_mappings(
+        _labelled_document("psi_like", "inferred_forward"),
+        catalogue,
+        DESCRIPTION_MEMBERS,
+    )
+
+    assert len(imported.pending) == 1
+    assert imported.pending[0].open_source_cocos == 0
+    assert all(
+        rule.source_array != "magPbTC10"
+        for mapping in imported.maps
+        for rule in mapping.signals
+    )
+
+
+def test_time_row_binds_to_its_pending_cocos_value_placeholder():
+    document = _labelled_document("ip_like", "xml")
+    value = document["ids"][0]["signals"][0]
+    time = dict(value, source_property="time")
+    time["target_path"] = value["target_path"].replace("/data", "/time")
+    time["signal_id"] += ":time"
+    time["source_units"] = time["target_units"] = "s"
+    time["cocos_label"] = "none"
+    time["cocos_label_source"] = "none"
+    document["ids"][0]["signals"].insert(0, time)
+
+    imported = import_generated_mappings(document, _catalogue(), DESCRIPTION_MEMBERS)
+
+    assert len(imported.pending) == 1
+    assert len(imported.time_bindings) == 1
+    assert imported.time_bindings[0].value_rule is imported.pending[0].rule
+    assert all(row.target_path != time["target_path"] for row in imported.unresolved)
