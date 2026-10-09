@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.96">
-<meta name="plan-version" content="451">
+<meta name="plan-version" content="452">
 <meta name="plan-modified" content="2026-10-09">
 </head>
 <body>
@@ -191,7 +191,12 @@
       range, or where a description's store and probe angles are read from, never by a
       JT-60SA name), and the <code>tokamap</code> exporter takes each DD path's COCOS factor from the
       transform engine's public resolver, with the collapse of unit, sign and COCOS factors into
-      <code>scale</code> asserted by a round-trip test on every binding against that resolver. Since
+      <code>scale</code> asserted by a round-trip test on every binding against that resolver. A
+      must-fail control shows the exporter routes through the engine. Mutating the engine resolver
+      so that a psi_like path reads as one_like must move that binding's exported scale. A private
+      copy left in the exporter would not move it. Both of <code>_leaf_mappings</code>' withhold
+      checks, for bindings and for signal rules, key on the resolver's answer. So a one_like
+      binding with an undeclared source COCOS is kept, as the equivalent signal rule already is. Since
       2026-10-09 the JT-60SA export directory and its <code>tokamap-validator</code> pass for the
       first-pass groups are <code>jt60sa-tokamap-from-generated-maps</code> §1's measure, not this
       section's. The exporter writes the directory from a catalogue and its signal maps
@@ -597,8 +602,8 @@
       read path gated by <code>evaluator_context</code>. The loader does not read SELENE itself:
       it takes the PSRC record returned by the one SELENE reader and reduces its boundary, X-point
       and magnetic axis to the <code>EquilibriumGeometry</code> that seam already returns. §6
-      planned that reader but closed without it; no code reads <code>surfABVxp</code> or
-      <code>calRp0</code> today. So §7 adds it as <code>jtmm-selene-psrc-loader</code>. It reads a
+      planned that reader but closed without it, so §7 added it as
+      <code>jtmm-selene-psrc-loader</code>, which landed on 2026-10-08 (6bab0ba2). It reads a
       shot's PSRC boundary above the X-point (<code>surfABVxp</code>, stored in mm and returned in
       m), X-point (<code>calRX</code>, <code>calZX</code>), magnetic axis (<code>calRp0</code>,
       <code>calZp0</code>) and plasma current (<code>calIp</code>), with their time bases. It reads
@@ -708,9 +713,13 @@
       <li>Vacuum-shot adjudication and COCOS identification (§6); replace every
         <code>unknown-unvalidated</code> description sign and every <code>source-only</code>
         signal rule that the data settles.</li>
-      <li>FAME scalar bindings (§6); then, in §7, the machine-keyed selection route, the PSRC
-        SELENE reader (<code>jtmm-selene-psrc-loader</code>, which §6 closed without), the SELENE
-        reference loader, and the E101011 psi store and its <code>profiles_2d</code> binding.</li>
+      <li>FAME scalar bindings (§6). In §7, landed by 2026-10-09: the per-phase artifacts and
+        their drives, the registry, the machine-keyed selection route, the PSRC SELENE reader, the
+        SELENE reference loader, and the E101011 psi store and its <code>profiles_2d</code> binding.
+        Remaining in §7, in order: the X-point vessel box (<code>jtmm-xpoint-vessel-box</code>), the
+        multi-channel EDDB read (<code>jtmm-eddb-multichannel-read</code>) and the boundary refetch
+        (<code>jtmm-psrc-boundary-refetch</code>), both of which need the lead's tunnel and go-ahead,
+        then the stamp.</li>
       <li>Stamp the reconstruction baseline on the spine with SELENE as comparator (§7);
         the JT-60SA tokamap export and its validation are
         <code>jt60sa-tokamap-from-generated-maps</code> §1, after which §2's COCOS-resolver split
