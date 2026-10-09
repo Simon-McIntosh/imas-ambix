@@ -27,6 +27,7 @@ FRAGMENT = (
     "tokamap-system-figures.html"
 )
 NODE = "tokamap-system-figures"
+matplotlib.rcParams["svg.hashsalt"] = "jt60sa-tokamap"
 
 
 @dataclass(frozen=True)
@@ -257,7 +258,7 @@ def _save(fig, name: str) -> tuple[Path, Path]:
     PNG_DIR.mkdir(parents=True, exist_ok=True)
     svg = SVG_DIR / f"{name}.svg"
     png = PNG_DIR / f"{name}.png"
-    fig.savefig(svg, format="svg", facecolor="white")
+    fig.savefig(svg, format="svg", facecolor="white", metadata={"Date": None})
     fig.savefig(png, format="png", dpi=200, facecolor="white")
     plt.close(fig)
     return svg, png
