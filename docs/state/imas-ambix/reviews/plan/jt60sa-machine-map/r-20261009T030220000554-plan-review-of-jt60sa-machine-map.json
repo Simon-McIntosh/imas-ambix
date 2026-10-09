@@ -1,0 +1,84 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-09T03:09:11.014Z",
+  "dispatched_at": "2026-10-09T03:03:10Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/jt60sa-machine-map/r-20261009T030220000554-plan-review-of-jt60sa-machine-map/plan.html:195",
+      "id": "done_when-1",
+      "reason": "the control must be pinned to a binding whose declared source COCOS makes the two classes differ (e.g. source COCOS 1, as the map's E101011 psi binding uses), which the plan does not name.",
+      "text": "the must-fail control is stated unconditionally but canonical_factor('psi_like', source_cocos=s) == canonical_factor('one_like', source_cocos=s) == 1.0 for s in {12,13,16,17}, so mutating the resolver psi_like\u2192one_like leaves the exported scale unchanged on any binding whose declared source COCOS is in that set, and the control then passes however the code behaves",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/jt60sa-machine-map/r-20261009T030220000554-plan-review-of-jt60sa-machine-map/plan.html:197",
+      "id": "reasoning-1",
+      "reason": "a node implementing the plan as written (\"both checks key on the resolver\") still refuses that binding, so the plan must state the binding check gains the same one_like exemption the signal check carries.",
+      "text": "the binding withhold check in _leaf_mappings tests only `resolver(path) is not None and cocos_for_binding(binding) is None`, with no one_like exemption (the exemption exists only on the signal-rule check), so a one_like binding with an undeclared source COCOS is refused today and keying the check on the resolver does not keep it \u2014 the \"So a one_like binding ... is kept\" claim does not follow from the stated mechanism",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "b6ca8e01b691659268ea62cd73c3cf349b7f0553105aa602c3570c5f0bb1bbff",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 452,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "done_when-1",
+      "reason": "Plan v453 (4dc0dd92): the must-fail control is pinned to a binding with declared source COCOS 1, such as the E101011 psi rule, where psi_like's factor is -2 pi against one_like's 1; the plan names the COCOS where both are 1 and the control could not fail.",
+      "when": "2026-10-09T03:10:20.335819+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v453 (4dc0dd92): the binding withhold check now gains the one_like exemption the signal-rule check carries, stated explicitly, so a one_like binding with an undeclared source COCOS is kept.",
+      "when": "2026-10-09T03:10:20.345910+00:00"
+    }
+  ],
+  "responses": {
+    "done_when-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v453 (4dc0dd92): the must-fail control is pinned to a binding with declared source COCOS 1, such as the E101011 psi rule, where psi_like's factor is -2 pi against one_like's 1; the plan names the COCOS where both are 1 and the control could not fail.",
+      "when": "2026-10-09T03:10:20.335819+00:00"
+    },
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v453 (4dc0dd92): the binding withhold check now gains the one_like exemption the signal-rule check carries, stated explicitly, so a one_like binding with an undeclared source COCOS is kept.",
+      "when": "2026-10-09T03:10:20.345910+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v452.json",
+  "review_run_id": "r-20261009T030220000554-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "8f89ac244973d2aaf6857782e3dedc4736a4ef91",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 merge 4bf5bf2f resolves and at that merge tokamap_export.py's __all__ holds exactly the seven names \u00a72 lists; transform_engine.py:409 (_target_cocos_transformation), cocos.py:64 (canonical_factor(transformation, *, source_cocos)), and the token-level entry points all exist.",
+    "done_when": "a finding \u2014 \u00a72's added must-fail control (\"Mutating the engine resolver so that a psi_like path reads as one_like must move that binding's exported scale\", snapshot plan.html:195-196) cannot fail on a binding whose declared source COCOS collapses the two classes to the same factor.",
+    "evidence_paths": "pass \u2014 \u00a72 cites durable code paths (imas_ambix/data/tokamap_export.py, packages/imas-alambic/src/imas_alambic/{transform_engine,cocos}.py) and the merge 4bf5bf2f, not a scratchpad.",
+    "naming": "pass \u2014 the changed unit names symbols by mechanism (_leaf_mappings, _cocos_transformation, _target_cocos_transformation) with no plan labels, stage names or ticket numbers.",
+    "reasoning": "a finding \u2014 the added sentence \"Both of _leaf_mappings' withhold checks ... key on the resolver's answer. So a one_like binding with an undeclared source COCOS is kept\" (snapshot plan.html:197-199) asserts an outcome the named mechanism does not produce.",
+    "single_goal": "pass \u2014 jtmm-tokamap-jt60sa carries one deliverable (the COCOS-resolver split); the JT-60SA export and its validator were removed to jt60sa-tokamap-from-generated-maps \u00a71.",
+    "wiring": "pass \u2014 \u00a72 states its cross-plan ordering (\"runs after that plan's \u00a71 merges\") against jt60sa-tokamap-from-generated-maps \u00a71, which exists, and the entry points it names (get_transform_engine, transform_machine_description) resolve in transform_engine.py."
+  },
+  "section_digests": {
+    "_document": "aeae9043f53534ca2bc015344ff6611bcb0f8f1fd2d90c733ffbe2bbfb65ca84",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "3cf5aa2b25e9b3478f6faf9d97cab34e004a4962f7a065ddd4aef9c406afa4d7",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "08a72f0218880469fee6aa3ee829fb19c1063e931927357b4d10a6b45b692266",
+    "s8": "f2783c135c52eeca31e8457eaf39e60a5ac9e214c2f5d2daabca9fbbf9411211"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-09T03:10:20.332981+00:00"
+}
