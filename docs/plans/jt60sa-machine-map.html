@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.96">
-<meta name="plan-version" content="450">
+<meta name="plan-version" content="451">
 <meta name="plan-modified" content="2026-10-09">
 </head>
 <body>
@@ -189,11 +189,12 @@
       machine-name branch (any new slot is justified by a structure the catalogue must
       describe, such as a SELENE-deck conductor element, a store that is static over a shot
       range, or where a description's store and probe angles are read from, never by a
-      JT-60SA name), and a
-      <code>tokamap</code> exporter writes a directory that passes
-      <code>tokamap-validator</code> for the five first-pass groups, with the collapse of
-      unit, sign and COCOS factors into <code>scale</code> asserted by a round-trip test on
-      every binding. The exporter writes the directory from a catalogue and its signal maps
+      JT-60SA name), and the <code>tokamap</code> exporter takes each DD path's COCOS factor from the
+      transform engine's public resolver, with the collapse of unit, sign and COCOS factors into
+      <code>scale</code> asserted by a round-trip test on every binding against that resolver. Since
+      2026-10-09 the JT-60SA export directory and its <code>tokamap-validator</code> pass for the
+      first-pass groups are <code>jt60sa-tokamap-from-generated-maps</code> §1's measure, not this
+      section's. The exporter writes the directory from a catalogue and its signal maps
       through one public function. As landed (merge 4bf5bf2f), <code>imas_ambix/data/tokamap_export.py</code>
       exports seven names:
       <code>export_tokamap_directory</code>; two value types, <code>TokamapEntry</code> and
@@ -207,8 +208,7 @@
       not learn tokamap's.
     </p>
     <p>
-      The JT-60SA export that closes this section also removes a second owner the landed exporter
-      carries. <code>tokamap_export.py</code> resolves each DD path's COCOS label with its own
+      The node that closes this section removes a second owner the landed exporter carries. <code>tokamap_export.py</code> resolves each DD path's COCOS label with its own
       <code>_cocos_transformation</code>, beside the transform engine's
       <code>_target_cocos_transformation</code>, the lookup the engine uses to compile the same
       unit, sign and COCOS factor the exporter collapses into <code>scale</code>. Its round-trip test
@@ -683,7 +683,11 @@
       (σ_Bp = +1, e_Bp = 0, per radian). Going to COCOS 17 flips σ_Bp and raises e_Bp to 1, so the
       G-EQDSK psi is multiplied by −2π before the comparison. The normalised RMS difference must
       be under 1% of that psi's range. The same comparison
-      with the binding's sign flipped must fail it. Beyond those checks the first stamp is the
+      with the binding's sign flipped must fail it. The X-point is scored too. For every slice whose
+      PSRC X-point lies inside JT-60SA's limiter box, the stamp's <code>GeometryVerdict</code> reports
+      an X-point error rather than marking it unavailable. The same stamp built with MAST's default
+      vessel box must mark those X-points unavailable, which shows the box is what admits them.
+      Beyond those checks the first stamp is the
       baseline that later map corrections are judged against.
     </p>
 
@@ -708,7 +712,9 @@
         SELENE reader (<code>jtmm-selene-psrc-loader</code>, which §6 closed without), the SELENE
         reference loader, and the E101011 psi store and its <code>profiles_2d</code> binding.</li>
       <li>Stamp the reconstruction baseline on the spine with SELENE as comparator (§7);
-        export tokamap and validate it (§2).</li>
+        the JT-60SA tokamap export and its validation are
+        <code>jt60sa-tokamap-from-generated-maps</code> §1, after which §2's COCOS-resolver split
+        runs.</li>
     </ol>
     <p>
       Items 2 and 3 are blocked only by the IFERC link being up; everything in item 4 can
