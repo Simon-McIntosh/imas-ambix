@@ -95,6 +95,11 @@
     <p><code>score-handoff</code> counts, per IDS, structure and total, imported value rules that land on a hand-built target and disagree with it, and lists each with the imported and hand-built source arrays; the printed table gains a <code>conflicting</code> column (merge <code>2baae51f</code>). 10 score tests pass; counting every imported non-agreeing row fails the no-hand-built-rule test. The worker's CLI gate recorded two draft-signals failures caused by the shared catalogue gap above, present at its base too; an independent test run at the merged head settles the gate. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/handoff-score-conflicts.html">handoff-score-conflicts</a>.</p>
   </section>
 
+  <section id="s14">
+    <h2>§14 — member aliases in the packaged schema landed</h2>
+    <p>The packaged LinkML schema <code>packages/imas-alambic/src/imas_alambic/machine_maps/schema.yaml</code> declares the optional <code>member_aliases</code> slot on <code>SensorIdentityRule</code>, mapping a facility member token to a machine-description member name, and the class description now says what aliases are for (merge <code>2310fb0e</code>). <code>test_sensor_identity_rule_accepted_keys_are_schema_slots</code> checks that every field the loader accepts is a schema slot; dropping the slot fails it. Focused gate 6 passed. The worker's evidence fragment is an empty stub; this record carries the evidence. Work review waived on the lead's instruction.</p>
+  </section>
+
 </main>
 </body>
 </html>
