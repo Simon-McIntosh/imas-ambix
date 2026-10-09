@@ -146,11 +146,39 @@ def import_generated_mappings(
         signals: list[SignalRule] = []
         used_targets: set[tuple[str, int]] = set()
         for row in ids["signals"]:
+            field = row["target_path"].rsplit("/", maxsplit=1)[-1]
+            if field != "data":
+                if field in {
+                    "data_error_upper",
+                    "data_error_lower",
+                    "data_error_index",
+                }:
+                    reason = (
+                        "imas-codex derived error bounds from the value; "
+                        "no error signal exists"
+                    )
+                elif field == "time" and row.get("source_property") is None:
+                    reason = (
+                        "handoff has no source_property; time-vector binding "
+                        "cannot be distinguished from a value binding"
+                    )
+                else:
+                    reason = "target is not a data field"
+                unresolved.append(
+                    UnresolvedMapping(
+                        ids_name=ids_name,
+                        source_id=row["source_id"],
+                        source_array=row.get("source_array"),
+                        target_path=row["target_path"],
+                        reason=reason,
+                    )
+                )
+                continue
             index, reason = _target_index(row, description_members, rule)
             if reason is None and row["source_units"] != row["target_units"]:
                 reason = "source and target units differ without a conversion factor"
             expression = row["transform_expression"]
-            if reason is None and expression not in (None, "one_like"):
+            if reason is None and expression not in (None, "one_like", "value"):
                 reason = f"unsupported transform expression {expression!r}"
             cocos = row["cocos_label"]
             if (
@@ -181,7 +209,9 @@ def import_generated_mappings(
                 target_path=row["target_path"],
                 target_unit=row["target_units"],
                 target_index=index,
-                transformation=expression or "one_like",
+                transformation=(
+                    "one_like" if expression in (None, "value") else expression
+                ),
                 source_cocos=int(cocos) if cocos is not None else None,
                 unit_factor=1.0,
                 channel_factor=1.0,
