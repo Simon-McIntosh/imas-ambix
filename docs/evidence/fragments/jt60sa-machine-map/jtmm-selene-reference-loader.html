@@ -1,0 +1,77 @@
+<section class="evidence-fragment" data-reckon="evidence" id="jtmm-selene-reference-loader">
+  <header>
+    <h3>the SELENE PSRC reference loader behind the referee's gated seam</h3>
+    <p class="meta">
+      Node <code>jtmm-selene-reference-loader</code> &middot;
+      date 2026-10-09 &middot; plan <code>jt60sa-machine-map</code> &sect;7
+    </p>
+  </header>
+
+  <div id="jtmm-selene-reference-loader-seam">
+    <p>
+      The firewalled referee (<code>imas_ambix/eval/efit_referee.py</code>) gains
+      one private loader, <code>_selene_psrc_loader</code>, with the seam's
+      signature <code>(shot_id, frame_times, **kwargs) -&gt;
+      EquilibriumGeometry</code>. It is reached only through
+      <code>read_efit_geometry(..., loader=_selene_psrc_loader)</code>, so it
+      inherits the <code>evaluator_context</code> firewall unchanged: a call
+      outside the context raises <code>FirewallViolation</code> before the
+      loader runs. The loader adds no public name &mdash; <code>__all__</code>
+      is unchanged &mdash; and opens no second read path: it reads the shot
+      through <code>imas_ambix/data/selene_psrc.py</code>
+      <code>read_psrc_record</code>, forwarding <code>cache_root</code> and
+      <code>extractor</code> from its kwargs, and reduces the record through
+      <code>imas_ambix/worldmodel/equilibrium_labels.py</code>
+      <code>build_geometry_from_arrays</code>, deriving no geometry of its own.
+    </p>
+  </div>
+
+  <div id="jtmm-selene-reference-loader-reduction">
+    <p>
+      The boundary's own time base is the reduction base <code>t_eq</code>. The
+      magnetic axis (<code>calRp0</code>, <code>calZp0</code>) and the X-point
+      (<code>calRX</code>, <code>calZX</code>) are interpolated onto
+      <code>t_eq</code> with the builder's own
+      <code>_interp_1d_masked</code> (so an out-of-range frame masks rather than
+      clamps), the X-point is passed as a one-null set with time on the last
+      axis, and the boundary's per-slice contours &mdash; which carry different
+      vertex counts &mdash; are NaN-padded into one <code>(n_bdy, nt)</code>
+      array the builder's <code>resample_lcfs_radii</code> accepts. PSRC's
+      geometric centre <code>calCCSRc</code>/<code>calCCSZc</code> is never read.
+    </p>
+  </div>
+
+  <div id="jtmm-selene-reference-loader-measure">
+    <p>
+      Measured at <code>e589f030</code> on the fleet allocation: the gate
+      <code>uv run --no-sync pytest -p no:cacheprovider
+      tests/eval/test_selene_reference.py tests/eval/test_efit_referee.py</code>
+      passes 15/15 (<code>EXIT=0</code>), and
+      <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.
+      The new tests seed a <code>tmp_path</code> cache read-only from
+      <code>100599.zarr</code> PSRC plus a synthetic two-slice
+      <code>surfABVxp</code> in millimetres; they show the axis equals
+      <code>calRp0</code>/<code>calZp0</code> interpolated at a frame time (and
+      is not the geometric centre), both differing-vertex slices resample to
+      finite LCFS radii recovering the 0.4&nbsp;m synthetic circle, a read
+      outside <code>evaluator_context</code> raises
+      <code>FirewallViolation</code>, and <code>judge_geometry</code> scores a
+      geometry equal to the loader output at zero boundary RMS over 8 points.
+      The static import guard now also refuses any world-model / training
+      reference to <code>imas_ambix.data.selene_psrc</code>.
+    </p>
+  </div>
+
+  <div id="jtmm-selene-reference-loader-negative-control">
+    <p>
+      Negative control: passing PSRC's geometric centre
+      <code>calCCSRc</code>/<code>calCCSZc</code> as the axis in place of
+      <code>calRp0</code>/<code>calZp0</code> turns the axis test &mdash; and,
+      through the mis-centred contour, the LCFS-radius test &mdash; red:
+      <code>2 failed, 2 passed</code>, <code>EXIT=1</code>
+      (<code>test_axis_is_psrc_magnetic_axis_not_geometric_centre</code>,
+      <code>test_both_slices_resample_to_finite_lcfs_radii</code>), against a
+      green head arm.
+    </p>
+  </div>
+</section>
