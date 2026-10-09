@@ -7,7 +7,7 @@
   <meta name="reckon-type" content="plan">
   <meta name="plan-slug" content="jt60sa-tokamap-from-generated-maps">
   <meta name="plan-title" content="JT-60SA Tokamap From Generated Maps">
-  <meta name="plan-summary" content="Write JT-60SA tokamap directories carrying the machine description and signal mappings, with imas-codex's generated signal mappings imported as draft">
+  <meta name="plan-summary" content="Write JT-60SA tokamap directories carrying the machine description and signal mappings, with imas-codex&#x27;s generated signal mappings imported as draft">
   <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="4.0">
@@ -24,7 +24,7 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 <meta name="plan-modified" content="2026-10-09">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
 </head>
@@ -277,13 +277,16 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-jtgm-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-09" data-recommends-skill="/reckon-build jt60sa-tokamap-from-generated-maps">
-    <h4 class="r-fu-title">Export JT-60SA's tokamap, then import imas-codex's draft signals into it</h4>
+<article class="r-fu" data-id="f-jtgm-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-09" data-recommends-skill="/reckon-build jt60sa-tokamap-from-generated-maps" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Export JT-60SA&#x27;s tokamap, then import imas-codex&#x27;s draft signals into it</h4>
     <div class="r-fu-body"><p>§1 is ready now. §2 starts when <code>imas-codex:generated-map-handoff</code> §1 commits its fixture. §3 waits on that plan's §4. §4 waits on §3 and on that plan's §5.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-tokamap-from-generated-maps</pre>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s1" data-id="c-20261009-jtgm-coordination" data-who="reckon-create" data-when="2026-10-09T02:30:00Z">
+    <div class="r-comment-body"><p>Coordination agreed on 2026-10-09 before this plan's first session. imas-ambix-41 ran <code>jt60sa-machine-map</code> §2. It stopped its worker in <code>tokamap_export.py</code> before that worker committed, and it dropped the JT-60SA export and validator from its own section.</p><p>imas-ambix-41 still owes the COCOS-resolver split: a public resolver from <code>transform_engine</code>, called by the exporter, with <code>tokamap_export._cocos_transformation</code> retired. It will not touch <code>tokamap_export.py</code>, its test or <code>transform_engine.py</code> until §1 merges. When §1 merges, message imas-ambix-41. §1 therefore keeps <code>_cocos_transformation</code> in place.</p><p>JT-60SA's undeclared source COCOS belongs to <code>jt60sa-machine-map</code>; §1 never assumes one. On the imas-codex side, the generated-map-handoff session is started fresh by the lead. Find it with ListAgents for the §2 fixture and the §4 hand-off document.</p></div>
+</div>
 </section>
 </main>
 </body>
