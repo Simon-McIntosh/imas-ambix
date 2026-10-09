@@ -496,10 +496,11 @@ def tokamap(
 
 
 def _description_members(
-    catalog, machine_dir: Path, document: dict
+    catalog, machine_dir: Path, document: dict, *, allow_missing: bool = False
 ) -> dict[str, tuple[str, ...]]:
     """Read ordered member names from every phase's IMAS description store."""
     import imas
+    from imas.ids_struct_array import IDSStructArray
 
     structures = {
         "/".join(row["target_path"].split("/")[:2])
@@ -508,19 +509,46 @@ def _description_members(
     }
     store = catalog.description_store_root_path(search_path=machine_dir)
     members: dict[str, tuple[str, ...]] = {}
+    first_phase = True
     for machine_map in catalog.maps:
         phase_members: dict[str, tuple[str, ...]] = {}
         for structure in structures:
             ids_name, array_name = structure.split("/", maxsplit=1)
             path = store / machine_map.name / f"{ids_name}.nc"
+            if allow_missing and not path.is_file():
+                continue
             with imas.DBEntry(path, "r", dd_version=catalog.dd_version) as entry:
                 ids = entry.get(ids_name, autoconvert=False)
                 if ids.ids_properties.homogeneous_time != 2:
                     raise ValueError(f"{path} is not a static machine description")
-                names = tuple(str(member.name) for member in getattr(ids, array_name))
+                array = (
+                    getattr(ids, array_name, None)
+                    if allow_missing
+                    else getattr(ids, array_name)
+                )
+                if allow_missing and not isinstance(array, IDSStructArray):
+                    continue
+                entries = tuple(array)
+                if allow_missing and any(
+                    not hasattr(member, "name") for member in entries
+                ):
+                    continue
+                names = tuple(str(member.name) for member in entries)
             if not names or len(set(names)) != len(names):
                 raise ValueError(f"{structure} has missing or duplicate member names")
             phase_members[structure] = names
+        if allow_missing:
+            members = (
+                phase_members
+                if first_phase
+                else {
+                    key: names
+                    for key, names in members.items()
+                    if phase_members.get(key) == names
+                }
+            )
+            first_phase = False
+            continue
         if members and phase_members != members:
             raise ValueError("machine-description member order differs by phase")
         members = phase_members
@@ -533,8 +561,12 @@ def _description_members(
         for row in item["signals"]:
             structure = "/".join(row["target_path"].split("/")[:2])
             names = members.get(structure, ())
-            token = rule.normalise(row["member_identifier"])
-            channel = rule.normalise(row["source_array"])
+            member = row.get("member_identifier")
+            source_array = row.get("source_array")
+            if allow_missing and (not member or not source_array):
+                continue
+            token = rule.normalise(member)
+            channel = rule.normalise(source_array)
             candidates = [
                 index
                 for index, name in enumerate(names)
@@ -548,8 +580,53 @@ def _description_members(
                     and rule.normalise(re.search(r"\d+$", name).group()) == token
                 ]
             if len(candidates) == 1:
-                aliases[structure][candidates[0]] = row["member_identifier"]
+                aliases[structure][candidates[0]] = member
     return {key: tuple(names) for key, names in aliases.items()}
+
+
+@maps.command("score-handoff")
+@click.argument("machine")
+@click.argument("file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--json", "json_file", type=click.Path(dir_okay=False, path_type=Path))
+def score_handoff_command(machine: str, file: Path, json_file: Path | None) -> None:
+    """Score one generated hand-off against a machine's hand-built maps."""
+    from imas_alambic.machine_map import load_machine_map
+    from imas_alambic.signal_map import load_signal_map
+    from imas_ambix.data.handoff_score import score_handoff
+
+    machine_dir = MAPS_DIR / machine
+    catalogue_path = machine_dir / "machine_map.json"
+    if not catalogue_path.is_file():
+        raise click.ClickException(f"No machine map at {catalogue_path}.")
+    try:
+        document = json.loads(file.read_text(encoding="utf-8"))
+        if document.get("facility") != machine:
+            raise ValueError("handoff facility differs from the machine")
+        catalogue = load_machine_map(catalogue_path)
+        signal_maps = [
+            load_signal_map(path)
+            for path in sorted((machine_dir / "maps").glob("*.json"))
+        ]
+        members = _description_members(
+            catalogue, machine_dir, document, allow_missing=True
+        )
+        score = score_handoff(document, catalogue, members, signal_maps)
+        if json_file is not None:
+            json_file.parent.mkdir(parents=True, exist_ok=True)
+            json_file.write_text(json.dumps(score, indent=2) + "\n", encoding="utf-8")
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise click.ClickException(str(error)) from error
+    click.echo(
+        "IDS                 exported imported agreeing     unplaced refused sign"
+    )
+    for name, row in [*score["by_ids"].items(), ("TOTAL", score["total"])]:
+        click.echo(
+            f"{name:<19} {row['exported']:>8} {row['imported']:>8} "
+            f"{str(row['agreeing']):>12} {row['unplaced']:>8} {row['refused']:>7} "
+            f"{row['sign']}"
+        )
+    for reason, count in score["total"]["refused_reasons"].items():
+        click.echo(f"refused {count}: {reason}")
 
 
 @maps.command()
