@@ -60,6 +60,11 @@
     <p>Every JT-60SA system render carries the target as the Data Dictionary defines it at 4.1.1, read from imas-python metadata: full path, units, type, coordinates, a documentation line, and the COCOS label beside the rule's own; the flux-loop panel reads none at 4.1.1 and names the 3.x <code>psi_like</code> label removed in 4.0.0 (merge <code>c2e758e1</code>). <code>docs/figures/jt60sa-tokamap/ids-statistics.svg</code> counts per IDS group, for partition 101174, the hand-built machine-description and signal entries, the draft signal entries, COCOS-withheld items and unresolved hand-off rows, from disk (magnetics: 8 description, 45 hand-built signal, 9 draft signal, 1 withheld, 26 unresolved). On the lead's direction the script now writes SVGs only and the report embeds the statistics figure as preliminary (merge <code>efe53cc9</code>); 10 SVGs, <code>reckon audit-doc</code> 0 errors. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/tokamap-target-panels.html">tokamap-target-panels</a>.</p>
   </section>
 
+  <section id="s7">
+    <h2>§7 — hand-off time bindings landed</h2>
+    <p>The import returns a <code>source_property</code> <code>time</code> row as a <code>ResolvedTimeBinding</code> naming the value rule on the same channel, member and structure, since imas-alambic reads the time base from that channel (merge <code>3d1e083c</code>). On the 03:44Z JT-60SA hand-off, 8 of 14 time rows resolve; the other 6 belong to members 18–23, whose value rows are themselves unplaced, and say so; unresolved rows fall from 26 to 18. <code>magPbTC5</code> has a placed value rule but no time row in the hand-off. 14 importer tests pass; dropping the partner match fails the partner-absent test. Tokamap validator passes on the rerun draft. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/draft-time-bindings.html">draft-time-bindings</a>.</p>
+  </section>
+
 </main>
 </body>
 </html>

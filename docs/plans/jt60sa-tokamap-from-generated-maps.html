@@ -24,9 +24,9 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="31">
+<meta name="plan-version" content="32">
 <meta name="plan-modified" content="2026-10-09">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -312,7 +312,7 @@
 <p><strong>Node</strong> <code>tokamap-target-panels</code>, role implement, 0.5 h. Write paths: <code>scripts/figures_jt60sa_tokamap.py</code>, <code>docs/figures/jt60sa-tokamap</code>, and <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/tokamap-target-panels.html</code>. <strong>Done when</strong> one run of the script regenerates every figure; each of the seven system renders carries the Data Dictionary target panel read from imas-python metadata; the flux-loop panel reads none at DD 4.1.1 and names the 3.x <code>psi_like</code> label; <code>ids-statistics.svg</code> exists with its counts printed by the script; and the fragment lists every render's target path with its Data Dictionary and rule labels, gives the statistics as a table beside the figure, and embeds each SVG by its project-absolute source.</p>
 
     <h2 id="s7">§7 — Time vectors resolved by imas-ambix, not by the tokamap format</h2>
-<section data-reckon="section" data-id="s7" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s7" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
 <p>The lead ruled on 2026-10-09 that time vectors are resolved by imas-ambix, not judged by what tokamap's <code>DATA_SOURCE</code> schema can express. imas-alambic already does it: <code>pulse_writer</code> reads each signal's time base from the same channel as its values through <code>read_channel</code>, and writes it to the signal's <code>time</code> sibling, or to the IDS <code>time</code> when every signal shares one base. So a hand-off row with <code>source_property</code> <code>time</code> is resolved when a <code>value</code> row binds the same <code>source_group</code>, <code>source_array</code> and member to the same structure: it confirms that structure's time vector rather than adding a rule. §3's third iteration reported the 14 such rows unresolved for the wrong reason.</p>
 <p>Change <code>imas_ambix/data/generated_mapping_import.py</code> so the import returns these rows as resolved time bindings, each naming the value rule it confirms. A time row whose value partner is absent or unresolved stays unresolved, with that reason. Rerun the draft tokamap on the 03:44Z hand-off and record the new counts. Writing explicit time entries into the tokamap directory waits for <code>jt60sa-machine-map</code>'s COCOS-resolver split in <code>tokamap_export.py</code>, so this section does not touch the exporter.</p>
 <p><strong>Node</strong> <code>draft-time-bindings</code>, role implement, 0.5 h. Write paths: <code>imas_ambix/data/generated_mapping_import.py</code>, <code>tests/data/test_generated_mapping_import.py</code>, <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/draft-time-bindings.html</code>. <strong>Done when</strong> a test shows a <code>time</code> row resolved against its <code>value</code> partner and naming it; a test shows a <code>time</code> row without a resolved partner reported with that reason; the rerun on the 03:44Z hand-off reports the time rows of the 9 placed probes resolved; and the fragment gives the before-and-after counts.</p>
@@ -412,6 +412,9 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-20261009-jtgm-labels" data-who="reckon-build" data-when="2026-10-09T04:30:00Z">
     <div class="r-comment-body"><p>Lead ruling, same day: COCOS labels follow the Data Dictionary convention, taking imas-codex's graph labels for paths DD 4.x left unlabelled (<code>cocos_label_source</code> <code>inferred_forward</code>) and <code>none</code> where a path carries no label; 10 of the 36 paths the JT-60SA maps target carry one. The map's <code>one_like</code> labels come from <code>SignalRule.validate</code>, which refuses an undeclared source COCOS on any other label. That change belongs to <code>jt60sa-machine-map</code>; imas-codex is asked to fill the hand-off's <code>cocos_label</code> from the graph. The draft importer adopts the same vocabulary once it lands.</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-close-s7" data-who="reckon-build" data-when="2026-10-09T05:35:00Z">
+    <div class="r-comment-body"><p>§7 landed (merge <code>3d1e083c</code>): 8 of 14 time rows resolved against their value partners; unresolved 26 → 18. Explicit time entries in the tokamap directory wait for <code>jt60sa-machine-map</code>'s COCOS-resolver split in <code>tokamap_export.py</code>. <a href="/imas-ambix/evidence/archive/jt60sa-tokamap-from-generated-maps-landed.html#s7">evidence</a></p></div>
 </div>
 </section>
 </main>
