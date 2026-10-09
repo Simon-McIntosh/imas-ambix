@@ -24,9 +24,9 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="40">
+<meta name="plan-version" content="41">
 <meta name="plan-modified" content="2026-10-09">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;done&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -338,7 +338,7 @@
 <p><strong>Node</strong> <code>handoff-cocos-labels</code>, role implement, 0.5 h. Write paths: <code>imas_ambix/data/generated_mapping_import.py</code>, <code>tests/data/test_generated_mapping_import.py</code>, <code>imas_ambix/maps_cli.py</code>, <code>tests/test_maps_cli.py</code>, <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/handoff-cocos-labels.html</code>. <strong>Done when</strong> tests show a <code>one_like</code> row imported with its label and source in the evidence, a <code>none</code> row imported, an <code>ip_like</code> row returned as a pending-COCOS draft rule naming label, source and the open source COCOS and absent from the draft signal maps, the tokamap command listing that rule as withheld, an unknown label refused by name, and a null label behaving as before; and the fragment lists the counts on the current shared JT-60SA hand-off.</p>
 
     <h2 id="s10">§10 — Score each system, not only each IDS</h2>
-<section data-reckon="section" data-id="s10" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s10" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
 <p>imas-codex now writes pickup probes, plasma current and flux loops in one magnetics run, because all three write the magnetics IDS and separate runs would clear each other. Its study asks for the five numbers per system, so <code>score-handoff</code> must split an IDS by the structure each row targets: <code>magnetics/b_field_pol_probe</code>, <code>magnetics/ip</code> and <code>magnetics/flux_loop</code> as separate rows, and likewise <code>pf_active/coil</code> against <code>tf/coil</code> when the coils export arrives. A structure is the target path's first segment after the IDS name.</p>
 <p>Add that grouping to <code>imas_ambix/data/handoff_score.py</code>: the JSON carries a <code>by_structure</code> block beside <code>by_ids</code> and the total, and the printed table shows one row per structure under its IDS. Each structure's agreement compares against hand-built rules for the same structure, and reads <code>no reference</code> when there are none. Then score the shared hand-off as imas-codex restored it, the 05:27Z export, as the iteration-2 baseline, and keep the JSON as evidence.</p>
 <p><strong>Node</strong> <code>handoff-score-by-structure</code>, role implement, 0.5 h. Write paths: <code>imas_ambix/data/handoff_score.py</code>, <code>tests/data/test_handoff_score.py</code>, <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/handoff-score-by-structure.html</code>. <strong>Done when</strong> a test splits one IDS's rows across two structures with separate five-number rows, and gives <code>no reference</code> for a structure without hand-built rules; and the fragment quotes the <code>--json</code> output on <code>/work/projects/imas_gpu/jt60sa/handoff/jt-60sa-mapping-handoff.json</code>, naming the file's <code>exported_at</code>, as the iteration-2 baseline.</p>
@@ -442,6 +442,9 @@
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20261009T053609340145-handoff-cocos-labels-pending" data-who="reckon-build" data-when="2026-10-09T06:00:11.500Z">
     <div class="r-comment-body"><p>Hand-off cocos_label now imports as a Data Dictionary label: one_like/none rows import with label and source in the evidence; a COCOS-dependent row is held out of the draft maps as a pending-COCOS draft rule while the machine's source COCOS is undeclared (declared COCOS imports it as usual), named with label, source and the open source COCOS and listed as withheld by maps tokamap --draft-signals, with its time partner binding to it as a resolved time binding; an unknown label is refused by name; a null label is unchanged; score-handoff counts a pending rule as imported with the sign unscored; focused gate 64 passed, negative control EXIT=1.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-close-s10" data-who="reckon-build" data-when="2026-10-09T06:20:00Z">
+    <div class="r-comment-body"><p>§10 landed (merge <code>c11cb212</code>): five numbers per structure in the JSON; iteration-2 baseline probes 35 / 17 / 9 / 6 / 12. A per-structure row in the printed table is the remaining follow-on, in <code>imas_ambix/maps_cli.py</code>. <a href="/imas-ambix/evidence/archive/jt60sa-tokamap-from-generated-maps-landed.html#s10">evidence</a></p></div>
 </div>
 </section>
 </main>
