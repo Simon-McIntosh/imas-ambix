@@ -645,6 +645,8 @@ def score_handoff_command(machine: str, file: Path, json_file: Path | None) -> N
             f"{str(row['agreeing']):>12} {row['conflicting']:>11} "
             f"{row['sign_unscored']:>13} {row['unplaced']:>8} {row['refused']:>7}"
         )
+    for reason, count in score["total"]["unplaced_reasons"].items():
+        click.echo(f"unplaced {count}: {reason}")
     for reason, count in score["total"]["refused_reasons"].items():
         click.echo(f"refused {count}: {reason}")
 

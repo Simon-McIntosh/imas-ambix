@@ -1,0 +1,103 @@
+<section id="score-magnetics-ech-gas-result">
+  <h3>Score the JT-60SA magnetics, ECH and gas hand-offs</h3>
+  <p>Three more imas-codex re-enrichment exports were scored with
+  <code>imas-ambix maps score-handoff jt-60sa &lt;file&gt; --json &lt;out&gt;</code>. The JT-60SA
+  machine description holds a store only for <code>magnetics</code>, <code>pf_active</code>,
+  <code>pf_passive</code>, <code>tf</code> and <code>wall</code>, so the
+  <code>ec_launchers</code> and <code>gas_injection</code> IDSs have no store to place their
+  rows against. The scorer now names that cause per IDS — <code>no machine-description store
+  for &lt;ids&gt;</code> — as an unplaced reason, and reports it apart from a row that carries no
+  member pattern at all. The score JSON gained an <code>unplaced_reasons</code> counter (per IDS,
+  per structure and in <code>total</code>), which the printed table now lists alongside the
+  refused reasons.</p>
+
+  <h4>Command receipts</h4>
+  <p>Each command ran against the shared hand-off under
+  <code>/work/projects/imas_gpu/jt60sa/handoff/</code>; full command JSON kept in the run
+  directory of run <code>r-20261009T112326766798-score-magnetics-ech-gas</code>.</p>
+  <ul>
+    <li><code>jt-60sa-magnetics-handoff.json</code> —
+    <strong><code>exported_at 2026-10-09T11:21:44Z</code></strong>, sha256
+    <code>2d6a95486c8777aacd380f04…</code>, JSON <code>magnetics.json</code>.</li>
+    <li><code>jt-60sa-ech-handoff.json</code> —
+    <strong><code>exported_at 2026-10-09T11:21:53Z</code></strong>, sha256
+    <code>a24b4a1c8a98ff9e33377d57…</code>, JSON <code>ech.json</code>.</li>
+    <li><code>jt-60sa-gas-handoff.json</code> —
+    <strong><code>exported_at 2026-10-09T11:22:02Z</code></strong>, sha256
+    <code>2550e706fe8612ade51e46cc…</code>, JSON <code>gas.json</code>.</li>
+  </ul>
+  <p>All three carry facility <code>jt-60sa</code> and <code>dd_version 4.1.1</code>.</p>
+
+  <h4 id="score-magnetics-ech-gas-by-structure">by_structure rows</h4>
+  <table id="score-magnetics-ech-gas-magnetics-table">
+    <caption>jt-60sa-magnetics-handoff.json, exported_at 11:21:44Z; 26 exported rows</caption>
+    <thead><tr><th>Structure</th><th>Exported</th><th>Imported</th><th>Agreeing</th><th>Sign unscored</th><th>Unplaced</th><th>Refused</th></tr></thead>
+    <tbody>
+      <tr><td>magnetics/b_field_pol_probe</td><td>17</td><td>11</td><td>10</td><td>0</td><td>6</td><td>0</td></tr>
+      <tr><td>magnetics/flux_loop</td><td>6</td><td>6</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+      <tr><td>magnetics/b_field_phi_probe</td><td>2</td><td>0</td><td>no reference</td><td>0</td><td>1</td><td>1</td></tr>
+      <tr><td>magnetics/time</td><td>1</td><td>0</td><td>no reference</td><td>0</td><td>0</td><td>1</td></tr>
+      <tr><td>TOTAL</td><td>26</td><td>17</td><td>10</td><td>0</td><td>7</td><td>2</td></tr>
+    </tbody>
+  </table>
+  <table id="score-magnetics-ech-gas-ech-table">
+    <caption>jt-60sa-ech-handoff.json, exported_at 11:21:53Z; 21 exported rows (18 signals, 3 unexpanded)</caption>
+    <thead><tr><th>Structure</th><th>Exported</th><th>Imported</th><th>Agreeing</th><th>Sign unscored</th><th>Unplaced</th><th>Refused</th></tr></thead>
+    <tbody>
+      <tr><td>ec_launchers/beam</td><td>18</td><td>0</td><td>no reference</td><td>0</td><td>15</td><td>3</td></tr>
+      <tr><td>ec_launchers/mirror</td><td>3</td><td>0</td><td>no reference</td><td>0</td><td>3</td><td>0</td></tr>
+      <tr><td>TOTAL</td><td>21</td><td>0</td><td>0</td><td>0</td><td>18</td><td>3</td></tr>
+    </tbody>
+  </table>
+  <table id="score-magnetics-ech-gas-gas-table">
+    <caption>jt-60sa-gas-handoff.json, exported_at 11:22:02Z; 5 exported rows</caption>
+    <thead><tr><th>Structure</th><th>Exported</th><th>Imported</th><th>Agreeing</th><th>Sign unscored</th><th>Unplaced</th><th>Refused</th></tr></thead>
+    <tbody>
+      <tr><td>gas_injection/pipe</td><td>3</td><td>0</td><td>no reference</td><td>0</td><td>3</td><td>0</td></tr>
+      <tr><td>gas_injection/valve</td><td>2</td><td>0</td><td>no reference</td><td>0</td><td>2</td><td>0</td></tr>
+      <tr><td>TOTAL</td><td>5</td><td>0</td><td>0</td><td>0</td><td>5</td><td>0</td></tr>
+    </tbody>
+  </table>
+
+  <h4 id="score-magnetics-ech-gas-conflicts">Conflicts, with both source arrays</h4>
+  <p>None of the three hand-offs carries a conflicting row:
+  <code>conflicting</code> is <code>0</code> in every <code>by_ids</code>,
+  <code>by_structure</code> and <code>total</code> entry, so every <code>conflicts</code> array
+  is empty. <code>magnetics/flux_loop</code> imports all 6 rows but agrees with 0 hand-built
+  loops (the hand-built flux_loop rules bind other members), and
+  <code>magnetics/b_field_pol_probe</code> agrees on 10 of its 11 imported rows; neither
+  disagreement is a conflict, which is reserved for an imported row whose target the hand-built
+  rows already bind to a different source array.</p>
+
+  <h4 id="score-magnetics-ech-gas-unplaced">Unplaced reasons, counted</h4>
+  <p>The unplaced rows are classified by the scorer as the importer's unresolved rows whose reason
+  the scorer reads as unplaced (<code>member identifier …</code>,
+  <code>no machine-description member array</code>, <code>no machine-description store for …</code>
+  or <code>target path, member identifier …</code>).</p>
+  <ul id="score-magnetics-ech-gas-unplaced-list">
+    <li><strong>magnetics</strong> — unplaced 7:
+    <em>member identifier '18'…'23' has no identity match in machine-description
+    magnetics/b_field_pol_probe</em> (6, one reason per member),
+    <em>no machine-description member array covers magnetics/b_field_phi_probe/field/data</em> (1).
+    Refused 2: <em>source_property='value' cannot target time</em> (1),
+    <em>value partner unresolved: no machine-description member array covers
+    magnetics/b_field_phi_probe/field/data</em> (1).</li>
+    <li><strong>ec_launchers</strong> — unplaced 18 split between the two causes:
+    <em>no machine-description store for ec_launchers</em> (7 — rows carrying a member
+    identifier) and <em>target path, member identifier, and source array are required</em>
+    (11 — rows whose <code>member_identifier</code> is null). Refused 3:
+    <em>unexpanded: ec_launchers/beam/o_mode_fraction was deprecated in DD 4.1.0 and is not
+    part of DD 4.1.1</em> (3).</li>
+    <li><strong>gas_injection</strong> — unplaced 5, all
+    <em>target path, member identifier, and source array are required</em> (every gas row carries
+    a null <code>member_identifier</code>, so the missing-pattern cause names them before the
+    missing store does). Refused 0.</li>
+  </ul>
+  <p>The split is what lets imas-codex's study read the two causes apart: on
+  <code>ec_launchers</code> the 7 member-carrying rows are held by the absent store, while
+  <code>gas_injection</code>'s 5 rows are held by the missing member pattern. The unit test
+  <code>test_an_ids_without_a_description_store_is_reported_unplaced_by_name</code> pins the
+  split; the CLI-path test
+  <code>test_scoring_can_leave_an_ids_without_description_members_unplaced</code> pins that a
+  store-less IDS does not abort the score.</p>
+</section>
