@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-tokamap-from-generated-maps">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="tokamap-export-command-landing">
+      <h2>JT-60SA hand-built tokamap export</h2>
+      <p><code>imas-ambix maps tokamap jt-60sa --out /work/projects/imas_gpu/jt60sa/tokamap/hand-built --withhold-undeclared-cocos</code>
+      wrote 6 IDS groups, 2 shot partitions (100001 and 101174), 12 mapping files and 172 entries:
+      50 machine-description and 122 signal entries. Exactly two bindings were withheld:
+      <code>jt60sa-op1-magnetics-b-field-pol-probe-poloidal-angle</code> and
+      <code>jt60sa-op2-magnetics-b-field-pol-probe-poloidal-angle</code>, both targeting
+      <code>magnetics/b_field_pol_probe/poloidal_angle</code> without a declared source COCOS.
+      The tokamap validator reported “Validation completed successfully” for the configuration,
+      root globals and every partition's globals and mappings file.</p>
+      <p>Both magnetics partitions carry 17 concrete probe keys
+      <code>b_field_pol_probe[0..16]/field/data</code>; their <code>data_source</code> values match
+      <code>magPbTC1..magPbTC17</code> respectively. Neither partition carries a wildcard
+      <code>b_field_pol_probe[#]/field/data</code>.</p>
+      <p>libtokamap expects zero-based indices. Its
+      <a href="https://github.com/ukaea/libtokamap/blob/main/src/utils/indices.cpp">index parser</a>
+      uses <code>indices.push_back(std::stoi(num));</code> with no offset, so a request for
+      <code>[0]</code> means the first entry. Its
+      <a href="https://github.com/ukaea/libtokamap/blob/main/src/handlers/mapping_handler.cpp">mapping lookup</a>
+      tests <code>mappings.contains(path)</code> on the generalised <code>[#]</code> path before
+      substituting the concrete index. A wildcard would therefore shadow these probe keys.</p>
+      <h3 id="tokamap-export-command-tree">Directory tree</h3>
+      <pre>hand-built/
+  mappings.cfg.json
+  globals.json
+  equilibrium/
+    100001/
+      globals.json
+      mappings.json
+    101174/
+      globals.json
+      mappings.json
+  magnetics/
+    100001/
+      globals.json
+      mappings.json
+    101174/
+      globals.json
+      mappings.json
+  pf_active/
+    100001/
+      globals.json
+      mappings.json
+    101174/
+      globals.json
+      mappings.json
+  pf_passive/
+    100001/
+      globals.json
+      mappings.json
+    101174/
+      globals.json
+      mappings.json
+  tf/
+    100001/
+      globals.json
+      mappings.json
+    101174/
+      globals.json
+      mappings.json
+  wall/
+    100001/
+      globals.json
+      mappings.json
+    101174/
+      globals.json
+      mappings.json</pre>
+      <h3 id="tokamap-export-command-entries">Entries from the first magnetics partition</h3>
+      <p>Machine-description entry:</p>
+      <pre>{
+  &quot;b_field_pol_probe[#]/length&quot;: {
+    &quot;args&quot;: {
+      &quot;source_array&quot;: &quot;probe_length&quot;,
+      &quot;source_group&quot;: &quot;magnetics&quot;,
+      &quot;source_role&quot;: &quot;value&quot;
+    },
+    &quot;comment&quot;: &quot;sign_convention=identity (sign applied); unit m-&gt;m; cocos none x1.0; JT-60SA SELENE-deck machine description (OP1), binding jt60sa-op1-magnetics-b-field-pol-probe-length.&quot;,
+    &quot;data_source&quot;: &quot;file:///work/projects/imas_gpu/jt60sa/machine_description/OP1/magnetics.nc&quot;,
+    &quot;map_type&quot;: &quot;DATA_SOURCE&quot;,
+    &quot;scale&quot;: 1.0
+  }
+}</pre>
+      <p>Signal entry:</p>
+      <pre>{
+  &quot;b_field_pol_probe[0]/field/data&quot;: {
+    &quot;args&quot;: {
+      &quot;source_array&quot;: &quot;magPbTC1&quot;,
+      &quot;source_group&quot;: &quot;MDAC&quot;
+    },
+    &quot;comment&quot;: &quot;semantic_id=magnetics_b_field_pol_probe_1_field; unit T-&gt;T; transformation one_like x1.0; validation_state=corpus-validated; Raw MDAC magPbTC1 is SELENE tangential probe 1: getseldata reads probe 1 as channel 1 of PID record 1626 S006 and takes its angle from geo.in row 485; on E101154 it tracks its processed PSRC partner magPbTC1 at Pearson r=0.99999. The vacuum adjudication on E100595, E100579 and E100642 measures median slope +0.971 and median |r| 0.957 over quasi-static samples (every shot the same slope sign), so the rule is identity with channel_factor +1 in this map&#x27;s target COCOS 17.&quot;,
+    &quot;data_source&quot;: &quot;magPbTC1&quot;,
+    &quot;map_type&quot;: &quot;DATA_SOURCE&quot;,
+    &quot;scale&quot;: 1.0
+  }
+}</pre>
+    </section>
+  </main>
+</body>
+</html>
