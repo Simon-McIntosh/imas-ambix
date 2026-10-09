@@ -37,6 +37,100 @@ from imas_ambix.maps_cli import (
 HANDOFF_FIXTURE = Path(__file__).parent / "fixtures" / "mapping_handoff_example.json"
 
 
+def test_score_handoff_prints_table_and_writes_json(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from imas_alambic.machine_map import SensorIdentityRule
+    from imas_ambix.data.generated_mapping_import import import_generated_mappings
+
+    root = tmp_path / "maps"
+    machine_dir = root / "jt-60sa"
+    (machine_dir / "maps").mkdir(parents=True)
+    (machine_dir / "machine_map.json").write_text("{}")
+    (machine_dir / "maps" / "magnetics.json").write_text("{}")
+    catalogue = SimpleNamespace(
+        source_cocos=1,
+        sensor_identity_rules=(
+            SensorIdentityRule(
+                name="identity",
+                case_rule="case-fold",
+                numeric_token_rule="integer-value",
+                evidence="description names",
+            ),
+        ),
+    )
+    members = {
+        "magnetics/b_field_pol_probe": ("011", "010"),
+        "pf_active/coil": ("02", "01"),
+    }
+    document = json.loads(HANDOFF_FIXTURE.read_text())
+    reference = import_generated_mappings(document, catalogue, members).maps[0]
+    import imas_alambic.machine_map as machine_map_module
+    import imas_alambic.signal_map as signal_map_module
+
+    monkeypatch.setattr(maps_cli, "MAPS_DIR", root)
+    monkeypatch.setattr(
+        maps_cli, "_description_members", lambda *args, **kwargs: members
+    )
+    monkeypatch.setattr(machine_map_module, "load_machine_map", lambda path: catalogue)
+    monkeypatch.setattr(signal_map_module, "load_signal_map", lambda path: reference)
+    output = tmp_path / "score.json"
+
+    result = CliRunner().invoke(
+        maps_cli.maps,
+        ["score-handoff", "jt-60sa", str(HANDOFF_FIXTURE), "--json", str(output)],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "exported imported agreeing" in result.output
+    assert "sign_unscored" in result.output
+    assert "no reference" in result.output
+    written = json.loads(output.read_text())
+    assert written["total"]["exported"] == 5
+    assert written["total"]["imported"] == 4
+    assert written["by_ids"]["magnetics"]["agreeing"] == 2
+    assert written["by_ids"]["magnetics"]["sign_unscored"] == 0
+    assert written["by_ids"]["pf_active"]["agreeing"] == "no reference"
+
+
+def test_scoring_can_leave_an_ids_without_description_members_unplaced(tmp_path):
+    from types import SimpleNamespace
+
+    from imas_alambic.machine_map import SensorIdentityRule
+
+    catalogue = SimpleNamespace(
+        dd_version="4.1.1",
+        maps=(SimpleNamespace(name="phase"),),
+        sensor_identity_rules=(
+            SensorIdentityRule(
+                name="identity",
+                case_rule="case-fold",
+                numeric_token_rule="integer-value",
+                evidence="description names",
+            ),
+        ),
+        description_store_root_path=lambda **kwargs: tmp_path,
+    )
+    document = {
+        "ids": [
+            {
+                "signals": [
+                    {
+                        "target_path": "gas_injection/pipe/flow_rate/data",
+                        "member_identifier": "1",
+                        "source_array": "gas1",
+                    }
+                ]
+            }
+        ]
+    }
+
+    assert (
+        maps_cli._description_members(catalogue, tmp_path, document, allow_missing=True)
+        == {}
+    )
+
+
 class FakeRegistry:
     """A registry whose tags, annotations and pushes live in memory."""
 
@@ -527,9 +621,7 @@ def test_pull_defaults_to_the_latest_stable_tag(
     registry.install(monkeypatch)
     dest = tmp_path / "out"
 
-    result = CliRunner().invoke(
-        maps_cli.maps, ["pull", "jt-60sa", "--dest", str(dest)]
-    )
+    result = CliRunner().invoke(maps_cli.maps, ["pull", "jt-60sa", "--dest", str(dest)])
 
     assert result.exit_code == 0, result.output
     assert (dest / "pulled-from").read_text().endswith(":v0.1.0")
