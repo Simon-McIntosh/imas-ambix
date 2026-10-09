@@ -652,6 +652,9 @@ def _statistics(
     handoff_path = LIVE_HANDOFF if draft.name == "draft" else HANDOFF
     handoff = json.loads(handoff_path.read_text())
     handoff_groups = {item["ids_name"]: item for item in handoff["ids"]}
+    input_rows = sum(
+        len(item["signals"]) + len(item["unexpanded"]) for item in handoff["ids"]
+    )
     rows = []
     for group_dir in sorted(TOKAMAP.iterdir()):
         hand_path = group_dir / partition / "mappings.json"
@@ -660,6 +663,13 @@ def _statistics(
         group = group_dir.name
         hand = json.loads(hand_path.read_text())
         draft_path = draft / group / partition / "mappings.json"
+        if (
+            draft.name == "draft"
+            and draft_path.stat().st_mtime_ns < handoff_path.stat().st_mtime_ns
+        ):
+            raise ValueError(
+                f"{draft_path} predates {handoff_path}; regenerate the draft"
+            )
         drafted = json.loads(draft_path.read_text())
 
         def machine(item: dict) -> bool:
@@ -690,14 +700,22 @@ def _statistics(
             if binding["dd_path"].startswith(group + "/")
         )
         handoff_group = handoff_groups.get(group, {})
-        generated = sum(
-            "validation_state=draft" in str(item.get("comment", ""))
-            for item in drafted.values()
+        input_group_rows = len(handoff_group.get("signals", [])) + len(
+            handoff_group.get("unexpanded", [])
         )
-        reported = len(handoff_group.get("signals", []))
-        if generated > reported:
-            raise ValueError(f"{group}: draft export exceeds hand-off signal rows")
-        unresolved = reported - generated + len(handoff_group.get("unexpanded", []))
+        generated = [
+            item
+            for item in drafted.values()
+            if "validation_state=draft" in str(item.get("comment", ""))
+        ]
+        signal_ids = {item["signal_id"] for item in handoff_group.get("signals", [])}
+        for item in generated:
+            identity = re.search(r"semantic_id=([^;]+)", item["comment"])
+            if identity is None or identity.group(1) not in signal_ids:
+                raise ValueError(f"{group}: draft entry is absent from the hand-off")
+        if len(generated) > input_group_rows:
+            raise ValueError(f"{group}: draft entries exceed hand-off rows")
+        unresolved = input_group_rows - len(generated)
         rows.append(
             dict(
                 group=group,
@@ -710,10 +728,7 @@ def _statistics(
         )
     if not rows or sum(row["description"] + row["signals"] for row in rows) == 0:
         raise ValueError("hand-built partition is empty; cannot interpret zero counts")
-    if (
-        not handoff_groups
-        or sum(len(item.get("signals", [])) for item in handoff_groups.values()) == 0
-    ):
+    if input_rows == 0:
         raise ValueError(
             "hand-off has no signal rows; cannot interpret unresolved zero"
         )
