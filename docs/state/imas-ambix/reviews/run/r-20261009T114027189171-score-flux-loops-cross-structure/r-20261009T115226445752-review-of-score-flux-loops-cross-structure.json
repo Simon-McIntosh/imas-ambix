@@ -1,0 +1,73 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed run recorded no baseline_suite or after_suite gate logs (both null in its manifest and classification.json), so it carries no two-arm delta of its own. Its own head gate log (r-20261009T114027189171-score-flux-loops-cross-structure/gate-score-tests.log) names revision 1a41b484 and reports 42 passed with zero FAILED/ERROR lines, so the added-failure set (head failures minus base failures) is empty; a reviewer-run base arm at ca4c7e4c0c4d53a1c976d50801c778958e4c2b6e over tests/data/test_handoff_score.py and tests/data/test_generated_mapping_import.py passed 39 tests EXIT=0.",
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/maps_cli.py:621 score_handoff in score_handoff_command"
+  ],
+  "completed_at": "2026-10-09T12:02:29.044Z",
+  "dispatched_at": "2026-10-09T11:52:35Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261009T114027189171-score-flux-loops-cross-structure/manifest.md",
+      "line": "baseline_suite",
+      "severity": "follow-on",
+      "text": "follow-on: the reviewed manifest records neither baseline_suite nor after_suite (both null in its classification.json), so the run carries no two-arm suite delta; the added-failure count is derived from its own head gate log (42 passed, zero FAILED lines) plus a reviewer-run base arm at ca4c7e4c over the same files (39 passed, EXIT=0), both green."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/score-flux-loops-cross-structure.html",
+      "line": "table",
+      "severity": "follow-on",
+      "text": "follow-on: the flux-loop rule table nests one </tr> short -- the magFlxLp2 row opens '<tr><tr>' and closes once (score-flux-loops-cross-structure.html:36) -- a rendering typo in the evidence fragment, non-blocking."
+    },
+    {
+      "file": "imas_ambix/maps_cli.py",
+      "line": "621",
+      "severity": "follow-on",
+      "text": "follow-on: the printed score-handoff table (imas_ambix/maps_cli.py:630-640) renders exported/imported/agreeing/conflicting/sign_unscored/unplaced/refused only, so the new total.cross_structure list reaches the --json file but not the console table; maps_cli.py is outside this node's write scope so the node could not add it."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site(s)",
+    "diff": "read against base ca4c7e4c; 09e7ee49 and 1a41b484 are the node's whole change and both reach main HEAD 825bdb9d (merge-base --is-ancestor clean). The diff rewrites the per-rule loop in _measure so sign_unscored counts every unscored imported rule (withheld or cocos-dependent) rather than sum(matches); adds a cross_structure branch listing an imported rule whose (source_group,source_array) the hand-built map serves at a different (target_path,target_index), naming imported and every hand-built target; and threads a total.cross_structure key beside total.sign_unscored.",
+    "done_when": "docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/score-flux-loops-cross-structure.html states the cause with the draft and hand-built index and scale of each of the three flux-loop rules (draft 0/1/5 at +1.0; hand-built 27/28/32 at -1.0); tests/data/test_handoff_score.py adds test_a_channel_served_elsewhere_is_listed_under_cross_structure and test_a_channel_served_on_another_index_is_listed_under_cross_structure (cross_structure) and test_sign_unscored_counts_a_non_agreeing_pending_rule (sign_unscored); and the fragment quotes the rescored magnetics hand-off, which matches the run receipt magnetics-score.json (total.sign_unscored 3; total.cross_structure 3 entries magFlxLp1/2/6 index 0/1/5 -> 27/28/32).",
+    "goal": "the node names why the three psi_like flux-loop rules (magFlxLp1/2/6) neither agreed nor conflicted on the 11:21:44Z magnetics hand-off -- the importer binds the raw channel to the single-loop store index (0/1/5) while the hand-built map binds the type-6 differential entry (27/28/32), and agreement and conflict both key on the exact (target_path,target_index) pair -- and makes imas_ambix/data/handoff_score.py report the case: sign_unscored now counts every unscored imported rule and a new cross_structure list carries the rule and both targets; confirmed against docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/score-flux-loops-cross-structure.html and the diff.",
+    "manifest": "read; status complete, commits 1a41b484 and 09e7ee49, changed_paths and test_logs present, a negative_control_log path with a reproducing note, retry_failures empty, blockers none. It records baseline_suite and after_suite as absent (null in classification.json), so it carries no two-arm suite delta of its own, and its own head gate log names revision 1a41b484 with 42 passed and zero FAILED lines.",
+    "write_paths": "git diff --numstat ca4c7e4c0c4d53a1c976d50801c778958e4c2b6e 09e7ee49e912eb13675b0a8b1036aa63688795b0 lists exactly three paths -- imas_ambix/data/handoff_score.py (74/31), tests/data/test_handoff_score.py (101/9) and docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/score-flux-loops-cross-structure.html (76/0) -- each inside the node's five declared paths; imas_ambix/data/generated_mapping_import.py and its test were declared but are untouched, and no plan file or plan meta line is edited."
+  },
+  "justifications": {
+    "durability": "tests/data/test_handoff_score.py:360 fails if sign_unscored regresses to sum(matches) (the reviewed negative control shows 'assert 0 == 1'), and tests/data/test_handoff_score.py:388 and :419 fail if the cross_structure branch is removed or its targets change, asserting output against literal expected targets rather than a passed-in value.",
+    "evidence": "the head gate ran green (42 passed, EXIT=0, r-20261009T114027189171-score-flux-loops-cross-structure/gate-score-tests.log) and the declared negative control reproduces (reverting sign_unscored to sum(matches) fails test_sign_unscored_counts_a_non_agreeing_pending_rule, 'assert 0 == 1'); deducted because the reviewed manifest records no baseline_suite or after_suite, so the added-failure count rests on its head log alone.",
+    "fit": "the change extends _measure and score_handoff in place (imas_ambix/data/handoff_score.py:184-270) in the module's existing per-rule loop idiom, and adds no name the repository naming rules forbid.",
+    "goal_fidelity": "imas_ambix/data/handoff_score.py:187-259 makes sign_unscored count every unscored imported rule and adds the cross_structure branch the goal asks for, and docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/score-flux-loops-cross-structure.html names the cause with both indices and scales.",
+    "reuse": "no new module or helper is introduced; the added cross_structure and sign_unscored logic extend the owner of the capability, imas_ambix/data/handoff_score.py, whose _measure already holds the per-rule comparison.",
+    "scope_discipline": "git diff --numstat ca4c7e4c0c4d53a1c976d50801c778958e4c2b6e 09e7ee49e912eb13675b0a8b1036aa63688795b0 touches only imas_ambix/data/handoff_score.py, tests/data/test_handoff_score.py and docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/score-flux-loops-cross-structure.html, all inside the node's declared write paths, and no plan or peer path."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node names why the three psi_like flux-loop rules (magFlxLp1/2/6) neither agreed nor conflicted on the 11:21:44Z magnetics hand-off -- the importer binds the raw channel to the single-loop store index (0/1/5) while the hand-built map binds the type-6 differential entry (27/28/32), and agreement and conflict both key on the exact (target_path,target_index) pair -- and makes imas_ambix/data/handoff_score.py report the case: sign_unscored now counts every unscored imported rule and a new cross_structure list carries the rule and both targets; confirmed against docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/score-flux-loops-cross-structure.html and the diff.\nVERDICT done_when: docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/score-flux-loops-cross-structure.html states the cause with the draft and hand-built index and scale of each of the three flux-loop rules (draft 0/1/5 at +1.0; hand-built 27/28/32 at -1.0); tests/data/test_handoff_score.py adds test_a_channel_served_elsewhere_is_listed_under_cross_structure and test_a_channel_served_on_another_index_is_listed_under_cross_structure (cross_structure) and test_sign_unscored_counts_a_non_agreeing_pending_rule (sign_unscored); and the fragment quotes the rescored magnetics hand-off, which matches the run receipt magnetics-score.json (total.sign_unscored 3; total.cross_structure 3 entries magFlxLp1/2/6 index 0/1/5 -> 27/28/32).\nVERDICT write_paths: git diff --numstat ca4c7e4c0c4d53a1c976d50801c778958e4c2b6e 09e7ee49e912eb13675b0a8b1036aa63688795b0 lists exactly three paths -- imas_ambix/data/handoff_score.py (74/31), tests/data/test_handoff_score.py (101/9) and docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/score-flux-loops-cross-structure.html (76/0) -- each inside the node's five declared paths; imas_ambix/data/generated_mapping_import.py and its test were declared but are untouched, and no plan file or plan meta line is edited.\nVERDICT manifest: read; status complete, commits 1a41b484 and 09e7ee49, changed_paths and test_logs present, a negative_control_log path with a reproducing note, retry_failures empty, blockers none. It records baseline_suite and after_suite as absent (null in classification.json), so it carries no two-arm suite delta of its own, and its own head gate log names revision 1a41b484 with 42 passed and zero FAILED lines.\nVERDICT diff: read against base ca4c7e4c; 09e7ee49 and 1a41b484 are the node's whole change and both reach main HEAD 825bdb9d (merge-base --is-ancestor clean). The diff rewrites the per-rule loop in _measure so sign_unscored counts every unscored imported rule (withheld or cocos-dependent) rather than sum(matches); adds a cross_structure branch listing an imported rule whose (source_group,source_array) the hand-built map serves at a different (target_path,target_index), naming imported and every hand-built target; and threads a total.cross_structure key beside total.sign_unscored.\nCALL_SITES: imas_ambix/maps_cli.py:621 score_handoff in score_handoff_command\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/data/handoff_score.py:187-259 makes sign_unscored count every unscored imported rule and adds the cross_structure branch the goal asks for, and docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/score-flux-loops-cross-structure.html names the cause with both indices and scales.\nSCORE evidence: 18\nJUSTIFICATION evidence: the head gate ran green (42 passed, EXIT=0, r-20261009T114027189171-score-flux-loops-cross-structure/gate-score-tests.log) and the declared negative control reproduces (reverting sign_unscored to sum(matches) fails test_sign_unscored_counts_a_non_agreeing_pending_rule, 'assert 0 == 1'); deducted because the reviewed manifest records no baseline_suite or after_suite, so the added-failure count rests on its head log alone.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --numstat ca4c7e4c0c4d53a1c976d50801c778958e4c2b6e 09e7ee49e912eb13675b0a8b1036aa63688795b0 touches only imas_ambix/data/handoff_score.py, tests/data/test_handoff_score.py and docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/score-flux-loops-cross-structure.html, all inside the node's declared write paths, and no plan or peer path.\nSCORE durability: 19\nJUSTIFICATION durability: tests/data/test_handoff_score.py:360 fails if sign_unscored regresses to sum(matches) (the reviewed negative control shows 'assert 0 == 1'), and tests/data/test_handoff_score.py:388 and :419 fail if the cross_structure branch is removed or its targets change, asserting output against literal expected targets rather than a passed-in value.\nSCORE fit: 19\nJUSTIFICATION fit: the change extends _measure and score_handoff in place (imas_ambix/data/handoff_score.py:184-270) in the module's existing per-rule loop idiom, and adds no name the repository naming rules forbid.\nSCORE reuse: 20\nJUSTIFICATION reuse: no new module or helper is introduced; the added cross_structure and sign_unscored logic extend the owner of the capability, imas_ambix/data/handoff_score.py, whose _measure already holds the per-rule comparison.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261009T114027189171-score-flux-loops-cross-structure/manifest.md:baseline_suite follow-on: the reviewed manifest records neither baseline_suite nor after_suite (both null in its classification.json), so the run carries no two-arm suite delta; the added-failure count is derived from its own head gate log (42 passed, zero FAILED lines) plus a reviewer-run base arm at ca4c7e4c over the same files (39 passed, EXIT=0), both green.\nFINDING docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/score-flux-loops-cross-structure.html:table follow-on: the flux-loop rule table nests one </tr> short -- the magFlxLp2 row opens '<tr><tr>' and closes once (score-flux-loops-cross-structure.html:36) -- a rendering typo in the evidence fragment, non-blocking.\nFINDING imas_ambix/maps_cli.py:621 follow-on: the printed score-handoff table (imas_ambix/maps_cli.py:630-640) renders exported/imported/agreeing/conflicting/sign_unscored/unplaced/refused only, so the new total.cross_structure list reaches the --json file but not the console table; maps_cli.py is outside this node's write scope so the node could not add it.\nreviewed_base_sha: ca4c7e4c0c4d53a1c976d50801c778958e4c2b6e\nreviewed_head_sha: 09e7ee49e912eb13675b0a8b1036aa63688795b0",
+  "review_run_id": "r-20261009T115226445752-review-of-score-flux-loops-cross-structure",
+  "reviewed_base_sha": "ca4c7e4c0c4d53a1c976d50801c778958e4c2b6e",
+  "reviewed_head_sha": "09e7ee49e912eb13675b0a8b1036aa63688795b0",
+  "reviewed_run_id": "r-20261009T114027189171-score-flux-loops-cross-structure",
+  "reviewer": {
+    "backend": "clive",
+    "model": "deepseek-v4.1-flash",
+    "reviewer_run_id": "r-20261009T115226445752-review-of-score-flux-loops-cross-structure"
+  },
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-09T12:00:07.553524+00:00",
+  "total": 115
+}

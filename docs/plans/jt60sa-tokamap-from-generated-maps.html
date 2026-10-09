@@ -24,7 +24,7 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="72">
+<meta name="plan-version" content="73">
 <meta name="plan-modified" content="2026-10-09">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;done&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;done&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;implementable&quot;}">
 </head>
@@ -579,6 +579,9 @@
 </div>
 <div class="r-comment" data-section="s19" data-id="c-run-r-20261009T114027189171-score-flux-loops-cross-structure" data-who="reckon-build" data-when="2026-10-09T11:51:16.826Z">
     <div class="r-comment-body"><p>flux-loop hand-off rules whose source channel the hand-built map serves on another index are now named under cross_structure instead of dropped (magFlxLp1/2/6 draft indices 0/1/5 vs hand-built 27/28/32), and sign_unscored counts every unscored imported rule, moving the magnetics total 0 -&gt; 3 with cross_structure listing all three.</p></div>
+</div>
+<div class="r-comment" data-section="s19" data-id="c-run-r-20261009T115226445752-review-of-score-flux-loops-cross-structure" data-who="reckon-build" data-when="2026-10-09T12:02:29.044Z">
+    <div class="r-comment-body"><p>independent review of run r-20261009T114027189171-score-flux-loops-cross-structure stored as a parsed record at both granted paths — all six dimensions scored (goal_fidelity 19, evidence 18, scope_discipline 20, durability 19, fit 19, reuse 20; total 115), reviewed_base_sha ca4c7e4c0c4d53a1c976d50801c778958e4c2b6e and reviewed_head_sha 09e7ee49e912eb13675b0a8b1036aa63688795b0, added_failure_count 0 with added_failure_ids [], three follow-on findings and no blocker.</p></div>
 </div>
 <div class="r-comment" data-section="s20" data-id="c-20261009-jtgm-s20-order" data-who="reckon-build" data-when="2026-10-09T12:02:00Z">
     <div class="r-comment-body"><p>§20 runs as two nodes in order. <code>alternate-chains</code> changes <code>SignalRule</code>, the score and their tests and writes no map. <code>alternate-chains-jt60sa</code> declares the JT-60SA alternates in <code>maps/jt-60sa/maps/pf_active.json</code> and rescores the coils only after the first has merged. The shared map tree is read by every session on <code>main</code>, and §12 showed that writing a key into it before the schema accepting it has merged leaves <code>main</code> unable to load the map.</p></div>
