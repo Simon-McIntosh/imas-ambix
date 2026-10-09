@@ -1,0 +1,63 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-09T01:36:47.772Z",
+  "dispatched_at": "2026-10-09T01:20:36Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/jt60sa-machine-map/r-20261009T011951917414-plan-review-of-jt60sa-machine-map/plan.html:312",
+      "id": "reasoning-1",
+      "reason": "the interface accounts in this plan are load-bearing for reviewers and for the nodes' declared write scopes, and an account that omits an added public symbol misled nothing yet but will not match the section's delivered surface.",
+      "text": "\u00a77 states \"The section's interface change is the pin table below, which retires three public constants and their re-export\", but the psi-store node the changed comment records as landed added `write_geqdsk_store` (public, in `imas_ambix/data/geqdsk_store.py` `__all__`), a second public addition beside the pin table and the resolver already enumerated in this section, so the section-level interface account is now understated",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "810d35c454f749362de5fd6da0acb0103505ab5bfa201cef8ff761317b4fe297",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 434,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v436 (commit f7f07d68): section 7's interface account now lists the pin table, the three new modules (description_artifact, selene_psrc, geqdsk_store) behind their __all__, current_channel_from_conductors made public, and the inline digest formula made the public representation_digest; the reference loader adds no public name.",
+      "when": "2026-10-09T01:37:59.190919+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v436 (commit f7f07d68): section 7's interface account now lists the pin table, the three new modules (description_artifact, selene_psrc, geqdsk_store) behind their __all__, current_channel_from_conductors made public, and the inline digest formula made the public representation_digest; the reference loader adds no public name.",
+      "when": "2026-10-09T01:37:59.190919+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v434.json",
+  "review_run_id": "r-20261009T011951917414-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "e12b643661ed18449f792b75b79fb40b0c878148",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `imas_ambix/data/geqdsk_store.py` `write_geqdsk_store`, `imas_ambix/challenge/loader.py` `load_geqdsk`, `tests/data/test_geqdsk_store.py` and the rule `equilibrium_psi` all exist as claimed; the psi rule carries `psi_like`, `source_cocos=1` and `source_group=GEQDSK`, matching the comment.",
+    "done_when": "pass \u2014 the section's done-when names a measurable floor (boundary RMS < 0.10 m; psi NRMS < 1% of the flux range) and a must-fail control for both the stamp and the psi check (plan.html:627-640), and the landed psi rule reproduces a failing flipped arm (0.146 vs the 1% bound).",
+    "evidence_paths": "pass \u2014 the changed units cite repository files, four resolving commits (88d302b4, eba48b28, 96adf113, 95388a50 all `git cat-file -t` = commit) and `maps/jt-60sa/maps/equilibrium.json`, which resolves in the main checkout; no session-scratchpad or node-local path appears in the changed units.",
+    "naming": "pass \u2014 the changed units carry no plan labels, stage names, ticket numbers or version tags into code, and state mechanism (staging layout, rule factor) rather than changelog prose.",
+    "reasoning": "a finding \u2014 the section's stated interface account (plan.html:312) claims the pin table is the section's interface change, but the psi-store landing the changed unit records added the public `write_geqdsk_store`, so the account is incomplete.",
+    "single_goal": "pass \u2014 each \u00a77 node carries one deliverable, and the psi store is a single staging-and-binding node.",
+    "wiring": "pass \u2014 the psi store, the SELENE PSRC reader, the reference loader and the equilibrium binding are ordered consistently with the \u00a78 execution order (plan.html:660-663) and with the pin-table/registry/selection sequence (plan.html:428, :503-507)."
+  },
+  "section_digests": {
+    "_document": "aeae9043f53534ca2bc015344ff6611bcb0f8f1fd2d90c733ffbe2bbfb65ca84",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "1e6879a7167012d9b3ee2b1b95ebf22df5e17ca3fa972d088536220473cfe64a",
+    "s8": "acaa8e846bc7d30783f4709d0009ac816bf41baeed2fe1392b0574460f80e420"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-09T01:37:39.561890+00:00"
+}
