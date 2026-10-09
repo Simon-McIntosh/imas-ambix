@@ -24,9 +24,9 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="26">
+<meta name="plan-version" content="27">
 <meta name="plan-modified" content="2026-10-09">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -305,7 +305,7 @@
 <p><strong>Node</strong> <code>tokamap-system-figures</code>, role implement, 0.5 h. Write paths: <code>scripts/figures_jt60sa_tokamap.py</code>, <code>docs/figures/jt60sa-tokamap</code>, and <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/tokamap-system-figures.html</code>. <strong>Done when</strong> the script regenerates every figure in one run; there is one JSON render for each of the seven systems plus the chain flow chart; and the fragment embeds each SVG by its project-absolute <code>/imas-ambix/figures/jt60sa-tokamap/...</code> source with a caption, gives each excerpt as selectable text in a <code>&lt;pre&gt;</code>, and lists the PNG set with its sizes.</p>
 
     <h2 id="s6">§6 — The target IDS beside every render</h2>
-<section data-reckon="section" data-id="s6" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s6" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
 <p>The lead read the §5 renders on 2026-10-09 and asked for two things. First, more detail about the target IDS: each render shows only the group-relative tokamap key, such as <code>coil[0]/current/data</code>. Second, the flux-loop render shows <code>one_like</code> where the lead expected <code>psi_like</code>. The Data Dictionary labelled <code>magnetics/flux_loop/flux</code> <code>psi_like</code> from 3.28.1 and removed the label in 4.0.0, so at the map's version, 4.1.1, the path carries none; imas-python's metadata and the engine's resolver agree. The map encodes each loop as measured flux in Wb with a per-channel factor adjudicated against the forward model, under <code>jt60sa-machine-map</code>'s ruling, so the rule is not relabelled here. The render must still make the distinction visible rather than leave a reader to assume a COCOS label. The lead also asked, the same day, for one figure of per-IDS statistics: a preliminary framework to build on.</p>
 <p>Extend <code>scripts/figures_jt60sa_tokamap.py</code> with a third panel on every system render: the target as the Data Dictionary defines it, read with imas-python's IDS metadata at the catalogue's DD version, never typed by hand. It gives the full IDS path, units, data type, coordinates, the first sentence of the documentation, and the Data Dictionary's COCOS transformation at that version beside the rule's own <code>transformation</code> label. A path the version leaves unlabelled reads <code>none at DD 4.1.1</code>, and where an earlier major version labelled it, the panel says so (for the flux loop: <code>psi_like in DD 3.28.1–3.42, removed in 4.0.0</code>). A rule label that differs from a present Data Dictionary label is marked in the reserved red, with the caption naming both.</p>
 <p>Add one statistics figure, <code>docs/figures/jt60sa-tokamap/ids-statistics.svg</code>, drawn by the same script. For each IDS group it counts, from the tokamap files on disk and never typed by hand: machine-description entries and signal entries in the hand-built tokamap; signal entries in the draft tokamap, read from <code>/work/projects/imas_gpu/jt60sa/tokamap/draft/</code> when it exists and from <code>draft-fixture/</code> otherwise, labelled with which; items withheld for an undeclared COCOS; and hand-off rows reported unresolved. One partition is counted, 101174, and the caption says so. Follow the data-ink rules: horizontal bars grouped per IDS, direct labels with the counts, no grid, one colour per count kind, held across the figure.</p>
@@ -313,10 +313,11 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-jtgm-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-09" data-recommends-skill="/reckon-build jt60sa-tokamap-from-generated-maps" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-jtgm-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-09" data-recommends-skill="/reckon-build jt60sa-tokamap-from-generated-maps" data-resolved-at="2026-10-09T04:10:35+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Export JT-60SA&#x27;s tokamap, then import imas-codex&#x27;s draft signals into it</h4>
     <div class="r-fu-body"><p>§1 is ready now. §2 starts when <code>imas-codex:generated-map-handoff</code> §1 commits its fixture. §3 waits on that plan's §4. §4 waits on §3 and on that plan's §5.</p></div>
     <pre class="r-fu-prompt">/reckon-build jt60sa-tokamap-from-generated-maps</pre>
+    <p class="r-fu-outcome">done</p>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -366,7 +367,7 @@
     <div class="r-comment-body"><p>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/jt60sa-draft-tokamap-handoff-v2.html records the 03:44Z revised hand-off: nine draft probe rules, 18/18 agreeing entries across two partitions, 26 unresolved rows, 100 exported entries, passing validator and 9 passing importer tests.</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261009T035813907876-review-of-jt60sa-draft-tokamap-handoff-v2" data-who="reckon-build" data-when="2026-10-09T04:03:49.394Z">
-    <div class="r-comment-body"><p>Review of run r-20261009T034515207024-jt60sa-draft-tokamap-handoff-v2 stored: six dimensions scored (goal_fidelity 18, evidence 17, scope_discipline 20, durability 18, fit 18, reuse 18; total 109/120), reviewed_base_sha 32af5772 and reviewed_head_sha 1c090396, added_failure_count 0 of the reviewed run&#x27;s baseline/after gate logs, two follow-on findings (hardcoded time-selector reason; manifest baseline_suite null).</p></div>
+    <div class="r-comment-body"><p>Review of run r-20261009T034515207024-jt60sa-draft-tokamap-handoff-v2 stored: six dimensions scored (goal_fidelity 18, evidence 17, scope_discipline 20, durability 18, fit 18, reuse 18; total 109/120), reviewed_base_sha 32af5772 and reviewed_head_sha 1c090396, added_failure_count 0 of the reviewed run's baseline/after gate logs, two follow-on findings (hardcoded time-selector reason; manifest baseline_suite null).</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261009T031519779033-discovery-to-ids-report" data-who="reckon-build" data-when="2026-10-09T03:30:17Z">
     <div class="r-comment-body"><p>Presented the fixture-driven discovery-to-IDS chain and writer workflow with seven system comparisons; one-pass render produced 9 SVGs and 9 PNGs, 2 indexed draft examples, 0 gaps; audit-doc exited 0 with 0 errors and 4 verified cross-project image warnings.</p></div>
@@ -379,6 +380,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-20261009-jtgm-svg-only" data-who="reckon-build" data-when="2026-10-09T04:01:00Z">
     <div class="r-comment-body"><p>The lead directed on 2026-10-09: stop generating the slide PNGs; the SVGs are the deliverable. The figure script drops its PNG output, and the presentation PNGs are no longer a done-when anywhere in this plan.</p></div>
+</div>
+<div class="r-comment" data-section="s6" data-id="c-close-s6" data-who="reckon-build" data-when="2026-10-09T04:12:00Z">
+    <div class="r-comment-body"><p>§6 landed: Data Dictionary target panels on all seven system renders and the per-IDS statistics figure, SVG only (merges <code>c2e758e1</code>, <code>efe53cc9</code>). <a href="/imas-ambix/evidence/archive/jt60sa-tokamap-from-generated-maps-landed.html#s6">evidence</a></p></div>
 </div>
 </section>
 </main>
