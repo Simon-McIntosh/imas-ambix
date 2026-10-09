@@ -6,8 +6,11 @@ import json
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+import imas
 
 from imas_alambic.signal_map import MAP_SCHEMA_VERSION, SignalMap, SignalRule
 
@@ -17,6 +20,28 @@ if TYPE_CHECKING:
 
 class GeneratedMappingImportError(ValueError):
     """The handoff or the identity context cannot be interpreted safely."""
+
+
+@cache
+def _ids_metadata(dd_version: str, ids_name: str) -> Any:
+    return imas.IDSFactory(dd_version).new(ids_name).metadata
+
+
+def dd_path_defined(dd_version: str, target_path: str) -> bool:
+    """Whether the Data Dictionary ``dd_version`` defines ``target_path``.
+
+    A hand-off names the DD version it was generated against, and a row may
+    target a path that version does not carry; the lookup raises for such a
+    path, so callers ask this before resolving anything from the path.
+    """
+    ids_name, separator, relative = target_path.partition("/")
+    if not separator:
+        return False
+    try:
+        _ids_metadata(dd_version, ids_name)[relative]
+    except (KeyError, ValueError):
+        return False
+    return True
 
 
 # The Data Dictionary's cocos_label_transformation vocabulary. A label whose
@@ -277,6 +302,11 @@ def import_generated_mappings(
                 )
                 continue
             index, reason = _target_index(row, description_members, rule)
+            if not dd_path_defined(document["dd_version"], row["target_path"]):
+                reason = (
+                    f"target path {row['target_path']!r} is not defined in "
+                    f"Data Dictionary {document['dd_version']}"
+                )
             if reason is None and source_property not in (None, "value"):
                 reason = f"source_property={source_property} cannot target data"
             if reason is None and row["source_units"] != row["target_units"]:

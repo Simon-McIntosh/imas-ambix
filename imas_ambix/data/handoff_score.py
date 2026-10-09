@@ -9,7 +9,10 @@ from typing import TYPE_CHECKING, Any
 
 import imas
 
-from imas_ambix.data.generated_mapping_import import import_generated_mappings
+from imas_ambix.data.generated_mapping_import import (
+    dd_path_defined,
+    import_generated_mappings,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -20,6 +23,14 @@ if TYPE_CHECKING:
 
 @cache
 def _target_cocos_label(dd_version: str, path: str) -> str | None:
+    """The COCOS label the DD assigns to ``path``, or None when it assigns none.
+
+    A path the hand-off's DD version does not define has no label to read and
+    no entry to walk, so it is refused by name here rather than raising from
+    the dictionary walk.
+    """
+    if not dd_path_defined(dd_version, path):
+        return None
     ids_name, relative_path = path.split("/", maxsplit=1)
     metadata = imas.IDSFactory(dd_version).new(ids_name).metadata
     parts = relative_path.split("/")

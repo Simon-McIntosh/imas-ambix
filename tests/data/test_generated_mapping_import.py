@@ -87,6 +87,37 @@ def test_facility_member_alias_resolves_to_description_index():
     assert all(item.source_array != "curUFPLKAT" for item in imported.unresolved)
 
 
+def test_undefined_target_path_is_unresolved_with_the_hand_off_dd_version():
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    value = document["ids"][0]["signals"][0]
+    undefined = dict(
+        value, target_path="magnetics/b_field_pol_probe/conductor/current/data"
+    )
+    undefined["signal_id"] += ":conductor"
+    document["ids"][0]["signals"].append(undefined)
+
+    imported = import_generated_mappings(document, _catalogue(), DESCRIPTION_MEMBERS)
+
+    refused = next(
+        row
+        for row in imported.unresolved
+        if row.target_path == undefined["target_path"]
+    )
+    assert refused.reason == (
+        "target path 'magnetics/b_field_pol_probe/conductor/current/data' is not "
+        "defined in Data Dictionary 4.1.1"
+    )
+    assert refused.ids_name == "magnetics"
+    assert {
+        rule.target_path
+        for mapping in imported.maps
+        for rule in mapping.signals
+    } == {
+        "magnetics/b_field_pol_probe/field/data",
+        "pf_active/coil/current/data",
+    }
+
+
 def test_unresolvable_member_is_reported_without_an_index():
     document = json.loads(FIXTURE.read_text(encoding="utf-8"))
     missing = document["ids"][0]["signals"][0]
