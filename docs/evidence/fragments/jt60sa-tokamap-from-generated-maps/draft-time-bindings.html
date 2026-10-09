@@ -1,0 +1,17 @@
+<section id="draft-time-bindings-result">
+  <h3>Time rows follow their accepted value rules</h3>
+  <p>The 03:44Z hand-off has 15 value rows and 14 qualified time rows. The machine description places nine values; eight of those channels have a time row. The ninth, <code>magPbTC5</code>, has no time row in the hand-off. Import now confirms each time row against an accepted value rule with the same source group, array, member and target structure. It returns that rule as the time binding's partner; the tokamap export still writes the nine value rules, not separate time entries.</p>
+  <table>
+    <thead><tr><th>Hand-off result or reason</th><th>Before</th><th>After</th></tr></thead>
+    <tbody>
+      <tr><td>Draft value rules</td><td>9</td><td>9</td></tr>
+      <tr><td>Resolved time bindings</td><td>0</td><td>8</td></tr>
+      <tr><td>Time unresolved: tokamap schema has no time selector</td><td>14</td><td>0</td></tr>
+      <tr><td>Time unresolved: value partner lacks machine-description identity</td><td>0</td><td>6</td></tr>
+      <tr><td>Value unresolved: machine-description identity absent</td><td>6</td><td>6</td></tr>
+      <tr><td>Error row unexpanded: no error signal</td><td>6</td><td>6</td></tr>
+      <tr><td>All unresolved rows</td><td>26</td><td>18</td></tr>
+    </tbody>
+  </table>
+  <p>The positive control counted all 14 qualified time rows before comparing the original importer with the changed importer using the same hand-off and description members. The focused importer gate passed 14 tests. Dropping the value-partner match failed <code>test_time_row_without_a_resolved_value_partner_reports_why</code> (1 failure, 9 passes in the control run). The draft export produced six groups, two partitions, 12 mapping files and 100 entries; <code>tokamap.validator</code> reported “Validation completed successfully.”</p>
+</section>
