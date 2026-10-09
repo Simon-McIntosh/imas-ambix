@@ -35,6 +35,11 @@
     <p><code>scripts/figures_jt60sa_tokamap.py</code> (merge <code>da283a3e</code>) renders, for pickup probes, flux loops, PF coils, passive structure, TF, wall and equilibrium, the stored catalogue binding or signal rule beside the <code>mappings.json</code> entry the hand-built export wrote for it, plus the chain flow chart with the draft path dashed. 8 SVGs under <code>docs/figures/jt60sa-tokamap/</code>, 8 slide PNGs under <code>/work/projects/imas_gpu/jt60sa/presentation/</code>, 0 gaps; regeneration is byte-stable. Example: <code>pf_active/coil/current/data</code> index 0 reads MMSYS <code>curCS1LKAT</code> as <code>coil[0]/current/data</code>. Open for §4: the renders use a hand-picked palette rather than pygments "friendly", which imas-codex's renders use; one chain arrow crosses the export label. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/tokamap-system-figures.html">tokamap-system-figures</a>.</p>
   </section>
 
+  <section id="s3-fixture">
+    <h2>§3 — fixture-driven draft tokamap landed (first iteration)</h2>
+    <p><code>imas-ambix maps tokamap jt-60sa --draft-signals FILE</code> (merge <code>ca73d20e</code>) replaces the hand-built signal map of every IDS the hand-off covers with imported draft rules, indexed from member order read from the machine-description IDS store through <code>imas.DBEntry</code>. On the contract fixture (refreshed from imas-codex <code>2a20afb7a</code>) it wrote <code>/work/projects/imas_gpu/jt60sa/tokamap/draft-fixture/</code>: 6 groups, 2 partitions, 12 mapping files, 70 entries (50 machine description, 20 signal), validator passing; the 4 draft rules in each partition agree with the hand-built reference on all 8 compared targets; 1 unexpanded row reported with its reason. 33 CLI tests pass; keeping the hand-built map for a covered IDS fails the replacement test. Fixture-driven: the second iteration reruns on imas-codex's live JT-60SA document. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/jt60sa-draft-tokamap.html">jt60sa-draft-tokamap</a>.</p>
+  </section>
+
 </main>
 </body>
 </html>
