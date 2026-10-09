@@ -50,6 +50,7 @@ def test_fixture_indices_follow_description_identity_not_handoff_order():
     assert all(signal.validation_state == "draft" for signal in by_source.values())
     assert by_source["magPbTC10"].evidence == (
         "imas-codex mapping_id=jt-60sa:magnetics; "
+        "signal_id=jt-60sa:general/mdac_magpbtc10; "
         "status=generated; EDAS MDAC pickup probe channel"
     )
     assert imported.unresolved[0].reason == (
@@ -160,7 +161,8 @@ def test_value_expression_imports_as_identity():
 
     assert imported.maps[0].signals[0].transformation == "one_like"
     assert imported.maps[0].signals[0].evidence == (
-        "imas-codex mapping_id=jt-60sa:magnetics; status=generated"
+        "imas-codex mapping_id=jt-60sa:magnetics; "
+        "signal_id=jt-60sa:general/mdac_magpbtc10; status=generated"
     )
     assert all(
         row.target_path != "magnetics/b_field_pol_probe/field/data"
@@ -227,7 +229,8 @@ def test_time_row_resolves_to_its_value_rule_even_when_first():
     assert len(imported.time_bindings) == 1
     assert imported.time_bindings[0].target_path == time["target_path"]
     assert imported.time_bindings[0].value_rule is partner
-    assert partner.semantic_id == value["signal_id"]
+    assert value["signal_id"] in partner.semantic_id
+    assert f"signal_id={value['signal_id']}" in partner.evidence
     assert all(row.target_path != time["target_path"] for row in imported.unresolved)
 
 
@@ -417,6 +420,61 @@ def test_zero_source_cocos_is_undeclared_and_holds_the_row_pending():
         for mapping in imported.maps
         for rule in mapping.signals
     )
+
+
+def _two_structure_document():
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    coil = document["ids"][1]["signals"][0]
+    assert coil["target_path"] == "pf_active/coil/current/data"
+    circuit = dict(coil)
+    circuit["target_path"] = "pf_active/circuit/current/data"
+    document["ids"][1]["signals"].append(circuit)
+    members = dict(DESCRIPTION_MEMBERS)
+    members["pf_active/circuit"] = ("02", "01")
+    return document, members, coil
+
+
+def test_one_signal_bound_to_two_structures_gets_distinct_rule_ids():
+    document, members, coil = _two_structure_document()
+
+    imported = import_generated_mappings(document, _catalogue(), members)
+
+    rules = [
+        rule
+        for mapping in imported.maps
+        for rule in mapping.signals
+        if rule.source_array == coil["source_array"]
+    ]
+    assert {rule.target_path for rule in rules} == {
+        "pf_active/coil/current/data",
+        "pf_active/circuit/current/data",
+    }
+    assert len({rule.semantic_id for rule in rules}) == len(rules) == 2
+    assert all(coil["signal_id"] in rule.semantic_id for rule in rules)
+    assert all(f"signal_id={coil['signal_id']}" in rule.evidence for rule in rules)
+    assert all(row.source_array != coil["source_array"] for row in imported.unresolved)
+
+
+def test_exact_duplicate_row_is_reported_not_refused():
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    row = document["ids"][1]["signals"][0]
+    document["ids"][1]["signals"].append(dict(row))
+
+    imported = import_generated_mappings(document, _catalogue(), DESCRIPTION_MEMBERS)
+
+    assert any(mapping.system == "pf_active" for mapping in imported.maps)
+    rules = [
+        rule
+        for mapping in imported.maps
+        for rule in mapping.signals
+        if rule.source_array == row["source_array"]
+    ]
+    assert len(rules) == 1
+    duplicate = next(
+        item for item in imported.unresolved if item.source_array == row["source_array"]
+    )
+    assert "already assigned" in duplicate.reason
+    assert row["signal_id"] in duplicate.reason
 
 
 def test_time_row_binds_to_its_pending_cocos_value_placeholder():

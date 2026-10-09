@@ -177,6 +177,19 @@ def _target_index(
     return matches[0], None
 
 
+def _rule_id(signal_id: str, target_path: str, index: int) -> str:
+    """A rule id unique within its map: the hand-off signal plus its target slot.
+
+    One hand-off signal can bind several structures, so the row's ``signal_id``
+    alone names more than one rule. The composed id keeps the signal_id as its
+    prefix and appends the rule's own target path and element index, so rules
+    for distinct structures stay distinct while the imas-codex link survives in
+    the id and in the rule's evidence.
+    """
+
+    return f"{signal_id}::{target_path}[{index}]"
+
+
 def _partner_key(
     row: Mapping[str, Any],
 ) -> tuple[str | None, str | None, str | None, str]:
@@ -224,6 +237,7 @@ def import_generated_mappings(
         value_reasons: dict[tuple[str | None, str | None, str | None, str], str] = {}
         time_rows: list[Mapping[str, Any]] = []
         used_targets: set[tuple[str, int]] = set()
+        used_ids: set[str] = set()
         for row in ids["signals"]:
             field = row["target_path"].rsplit("/", maxsplit=1)[-1]
             source_property = row.get("source_property")
@@ -279,6 +293,12 @@ def import_generated_mappings(
                 ):
                     reason = f"unrecognised COCOS label {cocos!r}"
             target = (row["target_path"], index)
+            rule_id = _rule_id(row["signal_id"], row["target_path"], index)
+            if reason is None and rule_id in used_ids:
+                reason = (
+                    f"rule id {rule_id!r} is already assigned; the same signal "
+                    f"targets the same path and index twice"
+                )
             if reason is None and target in used_targets:
                 reason = f"target {target!r} is already assigned"
             if reason is not None:
@@ -294,7 +314,7 @@ def import_generated_mappings(
                 )
                 continue
             signal = SignalRule(
-                semantic_id=row["signal_id"],
+                semantic_id=rule_id,
                 source_group=row["source_group"],
                 source_array=row["source_array"],
                 source_unit=row["source_units"],
@@ -312,6 +332,7 @@ def import_generated_mappings(
                     part
                     for part in (
                         f"imas-codex mapping_id={mapping_id}",
+                        f"signal_id={row['signal_id']}",
                         f"status={ids['status']}",
                         f"cocos_label={cocos}" if cocos is not None else "",
                         (
@@ -326,6 +347,7 @@ def import_generated_mappings(
                 validation_state="draft",
             )
             signal.validate()
+            used_ids.add(rule_id)
             key = _partner_key(row)
             open_source_cocos = getattr(catalogue, "source_cocos", None)
             if (
