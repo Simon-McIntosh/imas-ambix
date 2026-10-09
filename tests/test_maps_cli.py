@@ -151,6 +151,8 @@ def test_score_handoff_prints_a_conflicting_column(tmp_path, monkeypatch):
         "imported",
         "agreeing",
         "conflicting",
+        "chain_differs",
+        "cross_structure",
         "sign_unscored",
         "unplaced",
         "refused",
@@ -163,6 +165,191 @@ def test_score_handoff_prints_a_conflicting_column(tmp_path, monkeypatch):
     # columns: IDS exported imported agreeing conflicting sign_unscored ...
     assert rows["magnetics"][4] == "1"
     assert rows["TOTAL"][4] == "1"
+
+
+def test_score_handoff_prints_a_chain_differs_column(tmp_path, monkeypatch):
+    """A draft on a chain the hand-built rule declares an alternate is no conflict."""
+    from types import SimpleNamespace
+
+    from imas_alambic.machine_map import SensorIdentityRule
+    from imas_alambic.signal_map import AlternateSource
+    from imas_ambix.data.generated_mapping_import import import_generated_mappings
+
+    root = tmp_path / "maps"
+    machine_dir = root / "jt-60sa"
+    (machine_dir / "maps").mkdir(parents=True)
+    (machine_dir / "machine_map.json").write_text("{}")
+    (machine_dir / "maps" / "magnetics.json").write_text("{}")
+    catalogue = SimpleNamespace(
+        source_cocos=1,
+        sensor_identity_rules=(
+            SensorIdentityRule(
+                name="identity",
+                case_rule="case-fold",
+                numeric_token_rule="integer-value",
+                evidence="description names",
+            ),
+        ),
+    )
+    members = {
+        "magnetics/b_field_pol_probe": ("011", "010"),
+        "pf_active/coil": ("02", "01"),
+    }
+    document = json.loads(HANDOFF_FIXTURE.read_text())
+    reference = import_generated_mappings(document, catalogue, members).maps[0]
+    first, second = reference.signals
+    # The hand-built rule serves the target through a different array and
+    # declares the draft's array an alternate: the two chains measure the same
+    # quantity, so the draft is a chain choice rather than a conflict.
+    reference = dataclasses.replace(
+        reference,
+        signals=(
+            first,
+            dataclasses.replace(
+                second,
+                source_array="other",
+                alternate_sources=(
+                    AlternateSource(
+                        source_group="MDAC",
+                        source_array="magPbTC11",
+                        evidence="the alternate chain measures the same field",
+                    ),
+                ),
+            ),
+        ),
+    )
+    import imas_alambic.machine_map as machine_map_module
+    import imas_alambic.signal_map as signal_map_module
+
+    monkeypatch.setattr(maps_cli, "MAPS_DIR", root)
+    monkeypatch.setattr(
+        maps_cli, "_description_members", lambda *args, **kwargs: members
+    )
+    monkeypatch.setattr(machine_map_module, "load_machine_map", lambda path: catalogue)
+    monkeypatch.setattr(signal_map_module, "load_signal_map", lambda path: reference)
+
+    result = CliRunner().invoke(
+        maps_cli.maps, ["score-handoff", "jt-60sa", str(HANDOFF_FIXTURE)]
+    )
+
+    assert result.exit_code == 0, result.output
+    rows = {
+        line.split()[0]: line.split()
+        for line in result.output.splitlines()
+        if not line.startswith("IDS") and not line.startswith("refused ")
+    }
+    # columns: IDS exported imported agreeing conflicting chain_differs ...
+    assert rows["magnetics"][4] == "0"
+    assert rows["magnetics"][5] == "1"
+    assert rows["TOTAL"][4] == "0"
+    assert rows["TOTAL"][5] == "1"
+
+
+def test_real_pf_active_map_rescores_coil_chain_alternates(tmp_path):
+    """The declared JT-60SA alternates put the coil chain pairs under chain_differs.
+
+    The HiTe and LKAT chains measure the same coil current, so a draft bound to
+    the chain the hand-built rule names as an alternate is a chain choice: it is
+    counted under chain_differs with both arrays, not under conflicting.  The
+    declarations live in the map file, so dropping them moves the six coil pairs
+    back under conflicting -- the mutation this test refuses.
+    """
+    from types import SimpleNamespace
+
+    from imas_alambic.machine_map import SensorIdentityRule
+    from imas_alambic.signal_map import load_signal_map
+    from imas_ambix.data.handoff_score import score_handoff
+    from imas_ambix.data.paths import JT60SA_MAP_DIR
+
+    map_path = JT60SA_MAP_DIR / "maps" / "pf_active.json"
+    if not map_path.is_file():
+        import pytest
+
+        pytest.skip("the JT-60SA development map bundle is not present")
+
+    reference = load_signal_map(map_path)
+    catalogue = SimpleNamespace(
+        source_cocos=17,
+        sensor_identity_rules=(
+            SensorIdentityRule(
+                name="identity",
+                case_rule="case-fold",
+                numeric_token_rule="integer-value",
+                evidence="description names",
+            ),
+        ),
+    )
+    members = {
+        "pf_active/coil": (
+            "CS1",
+            "CS2",
+            "CS3",
+            "CS4",
+            "EF1",
+            "EF2",
+            "EF3",
+            "EF4",
+            "EF5",
+            "EF6",
+        )
+    }
+    # The draft binds EF1-EF5 on the HiTe chain and EF6 on the LKAT chain, the
+    # chains counter to the hand-built rules, which serve the LKAT chain for
+    # EF1-EF5 and the HiTe chain for EF6.
+    chain_of = {
+        "EF1": "curEF1HiTe",
+        "EF2": "curEF2HiTe",
+        "EF3": "curEF3HiTe",
+        "EF4": "curEF4HiTe",
+        "EF5": "curEF5HiTe",
+        "EF6": "curEF6LKAT",
+    }
+    signals = [
+        {
+            "signal_id": f"jt-60sa:general/mmsys_{array.lower()}",
+            "source_id": "jt-60sa:pf_active:coil_current",
+            "data_source": "edas",
+            "source_group": "MMSYS",
+            "source_array": array,
+            "member_identifier": member,
+            "source_property": "value",
+            "target_path": "pf_active/coil/current/data",
+            "transform_expression": None,
+            "source_units": "A",
+            "target_units": "A",
+            "cocos_label": "one_like",
+            "confidence": 0.8,
+            "evidence": "MMSYS coil current channel",
+        }
+        for member, array in chain_of.items()
+    ]
+    document = {
+        "format": "imas-codex-mapping-handoff",
+        "format_version": 1,
+        "facility": "jt-60sa",
+        "dd_version": "4.1.1",
+        "exported_at": "2026-10-09T00:00:00Z",
+        "ids": [
+            {
+                "ids_name": "pf_active",
+                "mapping_id": "jt-60sa:pf_active",
+                "status": "generated",
+                "signals": signals,
+                "unexpanded": [],
+            }
+        ],
+    }
+    score = score_handoff(document, catalogue, members, [reference])
+    coil = score["by_structure"]["pf_active/coil"]
+    assert coil["conflicting"] == 0
+    assert {entry["imported_source_array"] for entry in coil["chain_differs"]} == set(
+        chain_of.values()
+    )
+    assert all(
+        entry["hand_built_source_array"].endswith(("LKAT", "HiTe"))
+        and entry["hand_built_source_group"] == "MMSYS"
+        for entry in coil["chain_differs"]
+    )
 
 
 def test_score_handoff_prints_one_row_per_structure_under_its_ids(
