@@ -18,6 +18,7 @@ from imas.ids_struct_array import IDSStructArray
 from imas_alambic.machine_map import (
     LINKML_SCHEMA_PATH,
     MachineMapError,
+    SensorIdentityRule,
     assert_transition_alignment,
     load_linkml_schema,
     load_machine_map,
@@ -356,6 +357,36 @@ def test_machine_catalogs_declare_description_store_addressing():
     assert diii_d.probe_angle_source == "description"
     with pytest.raises(MachineMapError):
         diii_d.description_store_root_path()
+
+
+def test_sensor_identity_aliases_are_optional_and_validated(tmp_path):
+    mast = load_packaged_machine_map("mast")
+    assert all(not rule.member_aliases for rule in mast.sensor_identity_rules)
+
+    document = _plasma_current_catalog_document(3)
+    rule = {
+        "name": "coil-identity",
+        "case_rule": "case-fold",
+        "numeric_token_rule": "integer-value",
+        "evidence": "Facility and description coil names differ.",
+        "member_aliases": {"UFP": "FPPC_UP"},
+    }
+    document["sensor_identity_rules"] = [rule]
+    path = tmp_path / "catalog.json"
+    path.write_text(json.dumps(document))
+    assert (
+        load_machine_map(path).sensor_identity_rules[0].member_aliases["UFP"]
+        == "FPPC_UP"
+    )
+
+    for aliases in ({"UFP": 1}, {"UFP": " "}):
+        rule["member_aliases"] = aliases
+        path.write_text(json.dumps(document))
+        with pytest.raises(MachineMapError, match="member_aliases"):
+            load_machine_map(path)
+    rule["member_aliases"] = {1: "FPPC_UP"}
+    with pytest.raises(MachineMapError, match="member_aliases"):
+        SensorIdentityRule.from_dict(rule, "sensor_identity_rule")
 
 
 def test_machine_map_refuses_an_incomplete_or_unknown_store_declaration(tmp_path):

@@ -143,21 +143,23 @@ def _target_index(
     if not matching_paths:
         return None, f"no machine-description member array covers {path}"
     structure = max(matching_paths, key=len)
-    identity = rule.normalise(member)
+    source_member_identity = rule.normalise(member)
     source_identity = rule.normalise(source_array)
     source_tokens = {
         rule.normalise(token) for token in re.findall(r"\d+", source_array)
     }
     member_tokens = {rule.normalise(token) for token in re.findall(r"\d+", member)}
     present_in_source = (
-        identity in source_tokens
-        if identity.isdigit()
-        else identity in source_identity and member_tokens <= source_tokens
+        source_member_identity in source_tokens
+        if source_member_identity.isdigit()
+        else source_member_identity in source_identity
+        and member_tokens <= source_tokens
     )
     if not present_in_source:
         return None, (
             f"member identifier {member!r} is absent from source array {source_array!r}"
         )
+    identity = rule.normalise(rule.member_aliases.get(member, member))
     names = description_members[structure]
     matches = [
         index for index, name in enumerate(names) if rule.normalise(name) == identity

@@ -13,7 +13,7 @@ import json
 import os
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from importlib.metadata import entry_points
 from pathlib import Path
 from types import MappingProxyType
@@ -623,11 +623,21 @@ class SensorIdentityRule:
     case_rule: str
     numeric_token_rule: str
     evidence: str
+    member_aliases: Mapping[str, str] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any], label: str) -> SensorIdentityRule:
         required = {"name", "case_rule", "numeric_token_rule", "evidence"}
-        _exact_keys(payload, required, set(), label)
+        _exact_keys(payload, required, {"member_aliases"}, label)
+        aliases = _object(payload.get("member_aliases", {}), f"{label}.member_aliases")
+        member_aliases = {
+            _text(source, f"{label}.member_aliases source"): _text(
+                target, f"{label}.member_aliases[{source!r}]"
+            )
+            for source, target in aliases.items()
+        }
         case_rule = _text(payload["case_rule"], f"{label}.case_rule")
         numeric_token_rule = _text(
             payload["numeric_token_rule"], f"{label}.numeric_token_rule"
@@ -646,6 +656,7 @@ class SensorIdentityRule:
             case_rule=case_rule,
             numeric_token_rule=numeric_token_rule,
             evidence=_text(payload["evidence"], f"{label}.evidence"),
+            member_aliases=MappingProxyType(member_aliases),
         )
 
     def normalise(self, identity: str) -> str:
