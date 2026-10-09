@@ -399,8 +399,6 @@ def pull_tree(ref: str, dest: Path, token: str | None) -> None:
         raise click.ClickException(f"oras pull failed: {result.stderr}")
 
 
-
-
 def git_commit() -> str:
     """The current HEAD commit, or an empty string when unresolvable."""
     result = subprocess.run(
@@ -421,6 +419,57 @@ def _format_replaced(root: Path) -> list[str]:
 @click.group(name="maps")
 def maps() -> None:
     """Publish and fetch machine map bundles through GHCR."""
+
+
+@maps.command()
+@click.argument("machine")
+@click.option(
+    "--out",
+    type=click.Path(file_okay=False, path_type=Path),
+    required=True,
+    help="Directory to write the tokamap into.",
+)
+@click.option(
+    "--withhold-undeclared-cocos",
+    is_flag=True,
+    help="Record and omit COCOS-dependent targets with undeclared source COCOS.",
+)
+def tokamap(machine: str, out: Path, withhold_undeclared_cocos: bool) -> None:
+    """Export one machine's description and signal maps as a tokamap."""
+    from imas_alambic.machine_map import load_machine_map
+    from imas_alambic.signal_map import load_signal_map
+    from imas_ambix.data.tokamap_export import (
+        TokamapExportError,
+        export_tokamap_directory,
+    )
+
+    machine_dir = MAPS_DIR / machine
+    catalog_path = machine_dir / "machine_map.json"
+    signal_dir = machine_dir / "maps"
+    if not catalog_path.is_file() or not signal_dir.is_dir():
+        raise click.ClickException(f"No machine and signal maps under {machine_dir}.")
+    try:
+        catalog = load_machine_map(catalog_path)
+        signal_maps = [
+            load_signal_map(path) for path in sorted(signal_dir.glob("*.json"))
+        ]
+        result = export_tokamap_directory(
+            catalog,
+            signal_maps,
+            directory=out,
+            withhold_undeclared_cocos=withhold_undeclared_cocos,
+        )
+    except (OSError, ValueError, TokamapExportError) as error:
+        raise click.ClickException(str(error)) from error
+    description_count = sum(entry.kind == "catalogue" for entry in result.entries)
+    signal_count = sum(entry.kind == "signal" for entry in result.entries)
+    click.echo(
+        f"{machine}: {len(result.groups)} groups, {len(result.partitions)} partitions, "
+        f"{result.mappings_file_count} mapping files, {len(result.entries)} entries "
+        f"({description_count} machine description, {signal_count} signal)"
+    )
+    for item in result.withheld:
+        click.echo(f"withheld {item.name}: {item.target_path}: {item.reason}")
 
 
 @maps.command()
@@ -529,9 +578,7 @@ def pull(machine: str, version: str | None, dest: Path | None, force: bool) -> N
             f"{registry}/{pkg_name} carries no released tag to pull."
         )
     if not tag_exists(tags, wanted):
-        raise click.ClickException(
-            f"{registry}/{pkg_name} carries no tag {wanted}."
-        )
+        raise click.ClickException(f"{registry}/{pkg_name} carries no tag {wanted}.")
 
     dest = Path(dest) if dest is not None else MAPS_DIR / machine
     if dest.exists() and any(dest.iterdir()):
