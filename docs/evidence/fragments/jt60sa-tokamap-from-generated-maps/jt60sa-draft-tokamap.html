@@ -87,3 +87,68 @@
     <tr><td>17</td><td>16</td><td>MDAC/magPbTC17</td><td>1.0</td><td>MDAC/magPbTC17</td><td>one_like</td><td>T → T</td><td>yes</td></tr>
   </tbody></table>
 </section>
+
+<section id="jt60sa-draft-tokamap-handoff-v2-iteration">
+  <h3>Iteration 3 — 03:44Z revised JT-60SA hand-off: source properties</h3>
+  <p>The revised hand-off was exported at <code>2026-10-09T03:44:34Z</code>. It has 15 <code>source_property=value</code> rows, 14 <code>source_property=time</code> rows and six unexpanded derived-error rows. The importer drafted nine value rows. The installed tokamap <code>mappings.schema.json</code> defines <code>DATA_SOURCE</code> with arbitrary scalar <code>args</code> but no time selector; all 14 qualified time rows remain unresolved. The 03:23Z section above records the earlier input and remains as the previous iteration.</p>
+  <p>Output: <code>/work/projects/imas_gpu/jt60sa/tokamap/draft/</code>. Six groups, two partitions, 12 <code>mappings.json</code> files and 100 entries: 50 machine description and 50 signals. Eighteen entries are the nine drafted magnetics probe values in both partitions; 32 signals are catalogue rules for uncovered IDS. The two poloidal-angle description bindings remain withheld for undeclared source COCOS. <code>tokamap-validator</code> reported “Validation completed successfully.”</p>
+  <pre>draft/
+  mappings.cfg.json; globals.json
+  equilibrium/{100001,101174}/{globals.json,mappings.json}  0 description + 5 signals per partition
+  magnetics/{100001,101174}/{globals.json,mappings.json}    8 description + 9 draft signals per partition
+  pf_active/{100001,101174}/{globals.json,mappings.json}    5 description + 10 signals per partition
+  pf_passive/{100001,101174}/{globals.json,mappings.json}   5 description per partition
+  tf/{100001,101174}/{globals.json,mappings.json}           1 description + 1 signal per partition
+  wall/{100001,101174}/{globals.json,mappings.json}         6 description per partition</pre>
+  <p>A newly placed value entry from <code>magnetics/100001/mappings.json</code>, <code>b_field_pol_probe[4]/field/data</code>:</p>
+  <pre>{
+  &quot;args&quot;: {
+    &quot;source_array&quot;: &quot;magPbTC5&quot;,
+    &quot;source_group&quot;: &quot;MDAC&quot;
+  },
+  &quot;comment&quot;: &quot;semantic_id=jt-60sa:general/mdac_magpbtc5; unit T-&gt;T; transformation one_like x1.0; validation_state=draft; imas-codex mapping_id=jt-60sa:magnetics; status=generated&quot;,
+  &quot;data_source&quot;: &quot;magPbTC5&quot;,
+  &quot;map_type&quot;: &quot;DATA_SOURCE&quot;,
+  &quot;scale&quot;: 1.0
+}</pre>
+  <h4>Unresolved rows by reason</h4>
+  <table><thead><tr><th>Reason</th><th>Rows</th><th>Members or targets</th></tr></thead><tbody>
+    <tr><td>Qualified time; installed <code>DATA_SOURCE</code> has no time selector</td><td>14</td><td><code>field/time</code>, members 10–23</td></tr>
+    <tr><td>No identity match in the SELENE machine-description catalogue</td><td>6</td><td><code>magPbTC18</code>–<code>magPbTC23</code>, <code>field/data</code>; all remain unplaced</td></tr>
+    <tr><td>Unexpanded derived error; no error signal exists</td><td>6</td><td>Two source templates × <code>data_error_lower</code>, <code>data_error_upper</code>, <code>data_error_index</code></td></tr>
+  </tbody></table>
+  <h4>Per-probe comparison against the hand-built tokamap</h4>
+  <p>Reference: <code>/work/projects/imas_gpu/jt60sa/tokamap/hand-built/</code>. The entries below are identical in partitions 100001 and 101174. Agreement requires source group, source array and effective scale to match; the transformation and units come from the hand-off. Probes 18–23 have neither a catalogue placement nor a hand-built entry, so no index was guessed.</p>
+  <table><thead><tr><th>Probe</th><th>Index</th><th>Hand-built source</th><th>Scale</th><th>Draft source</th><th>Transform</th><th>Units</th><th>Result</th></tr></thead><tbody>
+    <tr><td>1</td><td>0</td><td>MDAC/magPbTC1</td><td>1.0</td><td>—</td><td>—</td><td>—</td><td>no hand-off data row</td></tr>
+    <tr><td>2</td><td>1</td><td>MDAC/magPbTC2</td><td>1.0</td><td>—</td><td>—</td><td>—</td><td>no hand-off data row</td></tr>
+    <tr><td>3</td><td>2</td><td>MDAC/magPbTC3</td><td>1.0</td><td>—</td><td>—</td><td>—</td><td>no hand-off data row</td></tr>
+    <tr><td>4</td><td>3</td><td>MDAC/magPbTC4</td><td>1.0</td><td>—</td><td>—</td><td>—</td><td>no hand-off data row</td></tr>
+    <tr><td>5</td><td>4</td><td>MDAC/magPbTC5</td><td>1.0</td><td>MDAC/magPbTC5</td><td>one_like</td><td>T → T</td><td>agree</td></tr>
+    <tr><td>6</td><td>5</td><td>MDAC/magPbTC6</td><td>1.0</td><td>—</td><td>—</td><td>—</td><td>no hand-off data row</td></tr>
+    <tr><td>7</td><td>6</td><td>MDAC/magPbTC7</td><td>1.0</td><td>—</td><td>—</td><td>—</td><td>no hand-off data row</td></tr>
+    <tr><td>8</td><td>7</td><td>MDAC/magPbTC8</td><td>1.0</td><td>—</td><td>—</td><td>—</td><td>no hand-off data row</td></tr>
+    <tr><td>9</td><td>8</td><td>MDAC/magPbTC9</td><td>1.0</td><td>—</td><td>—</td><td>—</td><td>no hand-off data row</td></tr>
+    <tr><td>10</td><td>9</td><td>MDAC/magPbTC10</td><td>1.0</td><td>MDAC/magPbTC10</td><td>one_like</td><td>T → T</td><td>agree</td></tr>
+    <tr><td>11</td><td>10</td><td>MDAC/magPbTC11</td><td>1.0</td><td>MDAC/magPbTC11</td><td>one_like</td><td>T → T</td><td>agree</td></tr>
+    <tr><td>12</td><td>11</td><td>MDAC/magPbTC12</td><td>1.0</td><td>MDAC/magPbTC12</td><td>one_like</td><td>T → T</td><td>agree</td></tr>
+    <tr><td>13</td><td>12</td><td>MDAC/magPbTC13</td><td>1.0</td><td>MDAC/magPbTC13</td><td>one_like</td><td>T → T</td><td>agree</td></tr>
+    <tr><td>14</td><td>13</td><td>MDAC/magPbTC14</td><td>1.0</td><td>MDAC/magPbTC14</td><td>one_like</td><td>T → T</td><td>agree</td></tr>
+    <tr><td>15</td><td>14</td><td>MDAC/magPbTC15</td><td>1.0</td><td>MDAC/magPbTC15</td><td>one_like</td><td>T → T</td><td>agree</td></tr>
+    <tr><td>16</td><td>15</td><td>MDAC/magPbTC16</td><td>1.0</td><td>MDAC/magPbTC16</td><td>one_like</td><td>T → T</td><td>agree</td></tr>
+    <tr><td>17</td><td>16</td><td>MDAC/magPbTC17</td><td>1.0</td><td>MDAC/magPbTC17</td><td>one_like</td><td>T → T</td><td>agree</td></tr>
+    <tr><td>18</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>unplaced: no catalogue member</td></tr>
+    <tr><td>19</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>unplaced: no catalogue member</td></tr>
+    <tr><td>20</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>unplaced: no catalogue member</td></tr>
+    <tr><td>21</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>unplaced: no catalogue member</td></tr>
+    <tr><td>22</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>unplaced: no catalogue member</td></tr>
+    <tr><td>23</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>unplaced: no catalogue member</td></tr>
+  </tbody></table>
+  <h4>Iteration counts</h4>
+  <p>“Drafted” counts distinct hand-off rules; “agreeing” counts emitted entries across both partitions; “unresolved” counts hand-off signal and unexpanded rows.</p>
+  <table><thead><tr><th>Input</th><th>Drafted</th><th>Agreeing</th><th>Unresolved</th></tr></thead><tbody>
+    <tr><td>Contract fixture</td><td>4</td><td>8/8</td><td>1</td></tr>
+    <tr><td>03:23Z JT-60SA document</td><td>8</td><td>16/16</td><td>66</td></tr>
+    <tr><td>03:44Z revised JT-60SA document</td><td>9</td><td>18/18</td><td>26</td></tr>
+  </tbody></table>
+</section>
