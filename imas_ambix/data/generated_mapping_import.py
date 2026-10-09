@@ -216,9 +216,14 @@ def import_generated_mappings(
                 unit_factor=1.0,
                 channel_factor=1.0,
                 standard_name=None,
-                evidence=(
-                    f"imas-codex mapping_id={mapping_id}; "
-                    f"status={ids['status']}; {row['evidence']}"
+                evidence="; ".join(
+                    part
+                    for part in (
+                        f"imas-codex mapping_id={mapping_id}",
+                        f"status={ids['status']}",
+                        row["evidence"].strip(),
+                    )
+                    if part
                 ),
                 validation_state="draft",
             )

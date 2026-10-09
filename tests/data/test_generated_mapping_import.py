@@ -123,10 +123,14 @@ def test_draft_rule_and_map_round_trip_through_serialisation():
 def test_value_expression_imports_as_identity():
     document = json.loads(FIXTURE.read_text(encoding="utf-8"))
     document["ids"][0]["signals"][0]["transform_expression"] = "value"
+    document["ids"][0]["signals"][0]["evidence"] = ""
 
     imported = import_generated_mappings(document, _catalogue(), DESCRIPTION_MEMBERS)
 
     assert imported.maps[0].signals[0].transformation == "one_like"
+    assert imported.maps[0].signals[0].evidence == (
+        "imas-codex mapping_id=jt-60sa:magnetics; status=generated"
+    )
     assert all(
         row.target_path != "magnetics/b_field_pol_probe/field/data"
         for row in imported.unresolved
