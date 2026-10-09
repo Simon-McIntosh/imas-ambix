@@ -112,6 +112,9 @@ def score_handoff(
     imported = import_generated_mappings(document, catalogue, description_members)
     references = {mapping.system: mapping.signals for mapping in hand_built_maps}
     drafts = {mapping.system: mapping.signals for mapping in imported.maps}
+    pending: dict[str, list[SignalRule]] = {}
+    for item in imported.pending:
+        pending.setdefault(item.ids_name, []).append(item.rule)
     by_ids: dict[str, dict[str, Any]] = {}
     for item in document["ids"]:
         ids_name = item["ids_name"]
@@ -119,16 +122,16 @@ def score_handoff(
         unresolved = [row for row in imported.unresolved if row.ids_name == ids_name]
         unplaced = sum(_unplaced(row.reason) for row in unresolved)
         reasons = Counter(row.reason for row in unresolved if not _unplaced(row.reason))
-        values = drafts.get(ids_name, ())
+        values = [(rule, False) for rule in drafts.get(ids_name, ())]
+        values += [(rule, True) for rule in pending.get(ids_name, ())]
         reference = references.get(ids_name)
         matches = []
         if reference is not None:
-            for rule in values:
+            for rule, withheld in values:
                 label = _handoff_label(item["signals"], rule, document["dd_version"])
-                sign_unscored = catalogue.source_cocos in (
-                    None,
-                    0,
-                ) and _cocos_dependent(label)
+                sign_unscored = withheld or (
+                    catalogue.source_cocos in (None, 0) and _cocos_dependent(label)
+                )
                 if any(
                     _agrees(rule, prior, sign_unscored=sign_unscored)
                     for prior in reference

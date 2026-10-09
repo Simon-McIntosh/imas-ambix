@@ -296,6 +296,39 @@ def test_draft_signals_replace_covered_ids_and_keep_catalogue(
                     assert written[key] == value
 
 
+def test_draft_signals_list_a_pending_cocos_rule_as_withheld(tmp_path: Path) -> None:
+    """A COCOS-dependent hand-off row is withheld rather than given a sign."""
+    import pytest
+
+    machine_dir = maps_cli.MAPS_DIR / "jt-60sa"
+    if not (machine_dir / "machine_map.json").is_file():
+        pytest.skip("JT-60SA development bundle is unavailable")
+    document = json.loads(HANDOFF_FIXTURE.read_text(encoding="utf-8"))
+    row = document["ids"][0]["signals"][0]
+    row["cocos_label"] = "ip_like"
+    row["cocos_label_source"] = "inferred_forward"
+    handoff = tmp_path / "handoff.json"
+    handoff.write_text(json.dumps(document), encoding="utf-8")
+
+    result = CliRunner().invoke(
+        maps_cli.maps,
+        [
+            "tokamap",
+            "jt-60sa",
+            "--out",
+            str(tmp_path / "draft"),
+            "--draft-signals",
+            str(handoff),
+            "--withhold-undeclared-cocos",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "withheld magnetics" in result.output
+    assert "ip_like" in result.output
+    assert "inferred_forward" in result.output
+
+
 # --- version state machine -------------------------------------------------
 
 

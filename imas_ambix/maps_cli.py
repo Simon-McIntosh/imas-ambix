@@ -488,6 +488,10 @@ def tokamap(
     for item in result.withheld:
         click.echo(f"withheld {item.name}: {item.target_path}: {item.reason}")
     if draft_signals is not None:
+        for item in imported.pending:
+            click.echo(
+                f"withheld {item.ids_name} {item.target_path}: {item.reason}"
+            )
         for item in imported.unresolved:
             click.echo(
                 f"unresolved {item.ids_name} {item.source_id} "

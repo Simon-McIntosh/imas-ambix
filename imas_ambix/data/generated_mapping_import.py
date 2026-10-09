@@ -19,6 +19,37 @@ class GeneratedMappingImportError(ValueError):
     """The handoff or the identity context cannot be interpreted safely."""
 
 
+# The Data Dictionary's cocos_label_transformation vocabulary. A label whose
+# value changes under a COCOS transformation leaves the target's sign
+# undetermined while the machine's source COCOS is undeclared; such a row is
+# held out of the draft maps as pending. A neutral label carries no
+# transformation, so the row imports as the hand-off stands.
+COCOS_NEUTRAL_LABELS = frozenset({"none", "one_like"})
+COCOS_DEPENDENT_LABELS = frozenset(
+    {
+        "b0_like",
+        "dodpsi_like",
+        "ip_like",
+        "pol_angle_like",
+        "psi_like",
+        "q_like",
+        "tor_angle_like",
+    }
+)
+
+
+def _cocos_dependent_label(label: str) -> bool:
+    return label in COCOS_DEPENDENT_LABELS or label.startswith("grid_type")
+
+
+def _pending_reason(label: str, source: str | None) -> str:
+    origin = source if source is not None else "a source it does not name"
+    return (
+        f"COCOS-dependent label {label!r} from {origin} is withheld pending "
+        f"an undeclared source COCOS"
+    )
+
+
 @dataclass(frozen=True)
 class UnresolvedMapping:
     """A handoff row withheld from a draft map, with its specific reason."""
@@ -42,12 +73,28 @@ class ResolvedTimeBinding:
 
 
 @dataclass(frozen=True)
+class PendingCocosRule:
+    """A COCOS-dependent row held out of the draft maps until COCOS is declared."""
+
+    ids_name: str
+    source_id: str
+    source_array: str
+    target_path: str
+    cocos_label: str
+    cocos_label_source: str | None
+    open_source_cocos: int | None
+    reason: str
+    rule: SignalRule
+
+
+@dataclass(frozen=True)
 class GeneratedMappingImport:
-    """Draft maps, confirmed time vectors, and rows without safe targets."""
+    """Draft maps, confirmed time vectors, pending-COCOS rules, and withheld rows."""
 
     maps: tuple[SignalMap, ...]
     time_bindings: tuple[ResolvedTimeBinding, ...]
     unresolved: tuple[UnresolvedMapping, ...]
+    pending: tuple[PendingCocosRule, ...] = ()
 
 
 def _document(source: Path | str | Mapping[str, Any]) -> Mapping[str, Any]:
@@ -162,6 +209,7 @@ def import_generated_mappings(
     maps: list[SignalMap] = []
     time_bindings: list[ResolvedTimeBinding] = []
     unresolved: list[UnresolvedMapping] = []
+    pending: list[PendingCocosRule] = []
     for ids in ids_rows:
         if not isinstance(ids, Mapping):
             raise GeneratedMappingImportError("each ids entry must be an object")
@@ -220,13 +268,14 @@ def import_generated_mappings(
             expression = row["transform_expression"]
             if reason is None and expression not in (None, "one_like", "value"):
                 reason = f"unsupported transform expression {expression!r}"
-            cocos = row["cocos_label"]
-            if (
-                reason is None
-                and cocos is not None
-                and (isinstance(cocos, bool) or not str(cocos).isdigit())
-            ):
-                reason = f"unrecognised COCOS label {cocos!r}"
+            cocos = row.get("cocos_label")
+            cocos_label_source = row.get("cocos_label_source")
+            if reason is None and cocos is not None:
+                label = str(cocos)
+                if label not in COCOS_NEUTRAL_LABELS and not _cocos_dependent_label(
+                    label
+                ):
+                    reason = f"unrecognised COCOS label {cocos!r}"
             target = (row["target_path"], index)
             if reason is None and target in used_targets:
                 reason = f"target {target!r} is already assigned"
@@ -253,7 +302,7 @@ def import_generated_mappings(
                 transformation=(
                     "one_like" if expression in (None, "value") else expression
                 ),
-                source_cocos=int(cocos) if cocos is not None else None,
+                source_cocos=None,
                 unit_factor=1.0,
                 channel_factor=1.0,
                 standard_name=None,
@@ -262,6 +311,12 @@ def import_generated_mappings(
                     for part in (
                         f"imas-codex mapping_id={mapping_id}",
                         f"status={ids['status']}",
+                        f"cocos_label={cocos}" if cocos is not None else "",
+                        (
+                            f"cocos_label_source={cocos_label_source}"
+                            if cocos is not None and cocos_label_source is not None
+                            else ""
+                        ),
                         row["evidence"].strip(),
                     )
                     if part
@@ -269,8 +324,27 @@ def import_generated_mappings(
                 validation_state="draft",
             )
             signal.validate()
+            key = _partner_key(row)
+            if cocos is not None and _cocos_dependent_label(str(cocos)):
+                open_source_cocos = getattr(catalogue, "source_cocos", None)
+                pending_reason = _pending_reason(str(cocos), cocos_label_source)
+                pending.append(
+                    PendingCocosRule(
+                        ids_name=ids_name,
+                        source_id=row["source_id"],
+                        source_array=row["source_array"],
+                        target_path=row["target_path"],
+                        cocos_label=str(cocos),
+                        cocos_label_source=cocos_label_source,
+                        open_source_cocos=open_source_cocos,
+                        reason=pending_reason,
+                        rule=signal,
+                    )
+                )
+                value_reasons[key] = pending_reason
+                continue
             signals.append(signal)
-            value_rules[_partner_key(row)] = signal
+            value_rules[key] = signal
             used_targets.add(target)
         for row in time_rows:
             key = _partner_key(row)
@@ -329,4 +403,6 @@ def import_generated_mappings(
                     signals=signals,
                 )
             )
-    return GeneratedMappingImport(tuple(maps), tuple(time_bindings), tuple(unresolved))
+    return GeneratedMappingImport(
+        tuple(maps), tuple(time_bindings), tuple(unresolved), tuple(pending)
+    )
