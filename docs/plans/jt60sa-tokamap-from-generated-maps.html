@@ -19,14 +19,14 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-sprint" content="S20">
   <meta name="plan-tags" content="jt-60sa,machine-map">
-  <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;imas-codex:generated-map-handoff#s1&quot;], &quot;s3&quot;: [&quot;jt60sa-tokamap-from-generated-maps#s1&quot;, &quot;jt60sa-tokamap-from-generated-maps#s2&quot;, &quot;imas-codex:generated-map-handoff#s4&quot;], &quot;s4&quot;: [&quot;jt60sa-tokamap-from-generated-maps#s3&quot;, &quot;imas-codex:generated-map-handoff#s5&quot;]}">
+  <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;imas-codex:generated-map-handoff#s1&quot;], &quot;s3&quot;: [&quot;jt60sa-tokamap-from-generated-maps#s1&quot;, &quot;jt60sa-tokamap-from-generated-maps#s2&quot;, &quot;imas-codex:generated-map-handoff#s4&quot;], &quot;s4&quot;: [&quot;jt60sa-tokamap-from-generated-maps#s3&quot;, &quot;jt60sa-tokamap-from-generated-maps#s5&quot;, &quot;imas-codex:generated-map-handoff#s5&quot;], &quot;s5&quot;: [&quot;jt60sa-tokamap-from-generated-maps#s1&quot;]}">
   <meta name="plan-informs" content="imas-codex:jt60sa-imas-maps,jt60sa-machine-map">
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="4">
 <meta name="plan-modified" content="2026-10-09">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -275,6 +275,13 @@
       <li>the PNG set is listed with its sizes.</li>
     </ul>
 
+    <h2 id="s5">§5 — Per-system figures from the hand-built tokamap</h2>
+<section data-reckon="section" data-id="s5" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p>The lead asked on 2026-10-09 to see prototype tokamaps for a selection of systems within the hour. §4's report waits on imas-codex's JT-60SA hand-off, so the figures that need only §1's output are drawn first, as the first iteration of the chain: catalogue and signal map in, tokamap entry out. §4 later adds the second iteration, the imas-codex draft row, to the same figures.</p>
+<p>Write <code>scripts/figures_jt60sa_tokamap.py</code>. For each of the seven systems §4 names (pickup probes, flux loops with FL7 absolute and one differential loop, PF coil current and coil geometry, passive structure, TF, wall and equilibrium), it renders one syntax-coloured JSON figure with <code>pygments</code>, setting side by side for one target the machine-map binding or signal-map rule as imas-ambix stores it, read from <code>maps/jt-60sa/</code>, and the <code>mappings.json</code> entry §1 wrote for it under <code>/work/projects/imas_gpu/jt60sa/tokamap/hand-built/</code>. Each excerpt is trimmed to 10 to 20 lines and uses one colour theme legible on white. A system the hand-built tokamap does not cover is drawn with the catalogue side only and a caption naming the gap, never skipped silently.</p>
+<p>It also draws the chain flow chart §4 describes, with the draft branch drawn dashed and labelled as awaiting the imas-codex hand-off. Figures go to <code>docs/figures/jt60sa-tokamap/</code>, one SVG each, following the data-ink rules; a PNG at twice the SVG's size for each goes to <code>/work/projects/imas_gpu/jt60sa/presentation/</code>.</p>
+<p><strong>Node</strong> <code>tokamap-system-figures</code>, role implement, 0.5 h. Write paths: <code>scripts/figures_jt60sa_tokamap.py</code>, <code>docs/figures/jt60sa-tokamap</code>, and <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/tokamap-system-figures.html</code>. <strong>Done when</strong> the script regenerates every figure in one run; there is one JSON render for each of the seven systems plus the chain flow chart; and the fragment embeds each SVG by its project-absolute <code>/imas-ambix/figures/jt60sa-tokamap/...</code> source with a caption, gives each excerpt as selectable text in a <code>&lt;pre&gt;</code>, and lists the PNG set with its sizes.</p>
+
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
 <article class="r-fu" data-id="f-jtgm-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-09" data-recommends-skill="/reckon-build jt60sa-tokamap-from-generated-maps" data-resolved-at="" data-resolved-by="">
@@ -286,6 +293,9 @@
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s1" data-id="c-20261009-jtgm-coordination" data-who="reckon-create" data-when="2026-10-09T02:30:00Z">
     <div class="r-comment-body"><p>Coordination agreed on 2026-10-09 before this plan's first session. imas-ambix-41 ran <code>jt60sa-machine-map</code> §2. It stopped its worker in <code>tokamap_export.py</code> before that worker committed, and it dropped the JT-60SA export and validator from its own section.</p><p>imas-ambix-41 still owes the COCOS-resolver split: a public resolver from <code>transform_engine</code>, called by the exporter, with <code>tokamap_export._cocos_transformation</code> retired. It will not touch <code>tokamap_export.py</code>, its test or <code>transform_engine.py</code> until §1 merges. When §1 merges, message imas-ambix-41. §1 therefore keeps <code>_cocos_transformation</code> in place.</p><p>JT-60SA's undeclared source COCOS belongs to <code>jt60sa-machine-map</code>; §1 never assumes one. On the imas-codex side, the generated-map-handoff session is started fresh by the lead. Find it with ListAgents for the §2 fixture and the §4 hand-off document.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20261009-jtgm-split-figures" data-who="reckon-build" data-when="2026-10-09T02:35:00Z">
+    <div class="r-comment-body"><p>Split from §4 so the per-system renders start when §1 lands rather than after imas-codex's hand-off. §4 keeps the report and adds the draft row to these figures. Plan and work reviews are waived for this plan's nodes on the lead's instruction to deliver within the hour.</p></div>
 </div>
 </section>
 </main>
