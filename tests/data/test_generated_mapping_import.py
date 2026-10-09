@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
-from importlib import resources
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from imas_alambic.machine_map import SensorIdentityRule
 from imas_alambic.signal_map import SignalMap, SignalRule
@@ -178,7 +179,7 @@ def test_derived_error_and_unqualified_time_rows_are_unresolved():
     )
 
 
-def test_source_property_value_imports_and_time_quotes_installed_schema():
+def test_time_row_resolves_to_its_value_rule_even_when_first():
     document = json.loads(FIXTURE.read_text(encoding="utf-8"))
     value = document["ids"][0]["signals"][0]
     assert value["source_property"] == "value"
@@ -186,23 +187,78 @@ def test_source_property_value_imports_and_time_quotes_installed_schema():
     time["target_path"] = value["target_path"].replace("/data", "/time")
     time["signal_id"] += ":time"
     time["source_units"] = time["target_units"] = "s"
-    document["ids"][0]["signals"].append(time)
+    document["ids"][0]["signals"].insert(0, time)
 
-    schema = json.loads(
-        resources.files("tokamap").joinpath("schemas/mappings.schema.json").read_text()
-    )
-    data_source = schema["$defs"]["data_source"]["properties"]
-    assert "args" in data_source  # Check the installed schema was found.
-    assert "source_property" not in data_source
     imported = import_generated_mappings(document, _catalogue(), DESCRIPTION_MEMBERS)
     signals = imported.maps[0].signals
-    assert any(rule.source_array == value["source_array"] for rule in signals)
+    partner = next(
+        rule for rule in signals if rule.source_array == value["source_array"]
+    )
     assert not any(rule.target_path.endswith("/time") for rule in signals)
+    assert len(imported.time_bindings) == 1
+    assert imported.time_bindings[0].target_path == time["target_path"]
+    assert imported.time_bindings[0].value_rule is partner
+    assert partner.semantic_id == value["signal_id"]
+    assert all(row.target_path != time["target_path"] for row in imported.unresolved)
+
+
+def test_time_row_without_a_resolved_value_partner_reports_why():
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    value = document["ids"][0]["signals"][0]
+    time = dict(value, source_property="time")
+    time["target_path"] = value["target_path"].replace("/data", "/time")
+    time["source_units"] = time["target_units"] = "s"
+    document["ids"][0]["signals"].append(time)
+
+    value["source_array"] = "magPbTC99"
+    imported = import_generated_mappings(document, _catalogue(), DESCRIPTION_MEMBERS)
+    assert imported.time_bindings == ()
+    assert (
+        next(
+            row.reason
+            for row in imported.unresolved
+            if row.target_path == time["target_path"]
+        )
+        == "value partner absent for the same channel, member, and target structure"
+    )
+
+    value["source_array"] = time["source_array"]
+    value["source_units"] = "not-tesla"
+    imported = import_generated_mappings(document, _catalogue(), DESCRIPTION_MEMBERS)
+    assert imported.time_bindings == ()
+    assert (
+        next(
+            row.reason
+            for row in imported.unresolved
+            if row.target_path == time["target_path"]
+        )
+        == "value partner unresolved: source and target units differ "
+        "without a conversion factor"
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "different"),
+    [
+        ("source_group", "OTHER"),
+        ("source_array", "magPbTC11"),
+        ("member_identifier", "11"),
+        ("target_path", "magnetics/b_field_pol_probe/other/time"),
+    ],
+)
+def test_time_partner_requires_same_channel_member_and_structure(field, different):
+    document = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    value = document["ids"][0]["signals"][0]
+    time = dict(value, source_property="time")
+    time["target_path"] = value["target_path"].replace("/data", "/time")
+    time[field] = different
+    document["ids"][0]["signals"].append(time)
+
+    imported = import_generated_mappings(document, _catalogue(), DESCRIPTION_MEMBERS)
+    assert imported.time_bindings == ()
     assert any(
         row.target_path == time["target_path"]
-        and "source_property=time" in row.reason
-        and "mappings.schema.json" in row.reason
-        and "DATA_SOURCE" in row.reason
+        and row.reason.startswith("value partner absent")
         for row in imported.unresolved
     )
 

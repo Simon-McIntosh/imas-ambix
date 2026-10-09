@@ -31,10 +31,22 @@ class UnresolvedMapping:
 
 
 @dataclass(frozen=True)
+class ResolvedTimeBinding:
+    """A handoff time row confirmed by a draft value rule for its channel."""
+
+    ids_name: str
+    source_id: str
+    source_array: str
+    target_path: str
+    value_rule: SignalRule
+
+
+@dataclass(frozen=True)
 class GeneratedMappingImport:
-    """Draft maps and all rows that could not be assigned a safe target."""
+    """Draft maps, confirmed time vectors, and rows without safe targets."""
 
     maps: tuple[SignalMap, ...]
+    time_bindings: tuple[ResolvedTimeBinding, ...]
     unresolved: tuple[UnresolvedMapping, ...]
 
 
@@ -116,6 +128,17 @@ def _target_index(
     return matches[0], None
 
 
+def _partner_key(
+    row: Mapping[str, Any],
+) -> tuple[str | None, str | None, str | None, str]:
+    return (
+        row.get("source_group"),
+        row.get("source_array"),
+        row.get("member_identifier"),
+        row["target_path"].rsplit("/", maxsplit=1)[0],
+    )
+
+
 def import_generated_mappings(
     source: Path | str | Mapping[str, Any],
     catalogue: MachineMapCatalog,
@@ -137,6 +160,7 @@ def import_generated_mappings(
         raise GeneratedMappingImportError("mapping handoff ids must be an array")
     rule = _identity_rule(catalogue, identity_rule_name)
     maps: list[SignalMap] = []
+    time_bindings: list[ResolvedTimeBinding] = []
     unresolved: list[UnresolvedMapping] = []
     for ids in ids_rows:
         if not isinstance(ids, Mapping):
@@ -144,10 +168,18 @@ def import_generated_mappings(
         ids_name = ids["ids_name"]
         mapping_id = ids["mapping_id"]
         signals: list[SignalRule] = []
+        value_rules: dict[
+            tuple[str | None, str | None, str | None, str], SignalRule
+        ] = {}
+        value_reasons: dict[tuple[str | None, str | None, str | None, str], str] = {}
+        time_rows: list[Mapping[str, Any]] = []
         used_targets: set[tuple[str, int]] = set()
         for row in ids["signals"]:
             field = row["target_path"].rsplit("/", maxsplit=1)[-1]
             source_property = row.get("source_property")
+            if field == "time" and source_property == "time":
+                time_rows.append(row)
+                continue
             if field != "data":
                 if field in {
                     "data_error_upper",
@@ -163,11 +195,6 @@ def import_generated_mappings(
                         reason = (
                             "handoff has no source_property; time-vector binding "
                             "cannot be distinguished from a value binding"
-                        )
-                    elif source_property == "time":
-                        reason = (
-                            "source_property=time unresolved: installed tokamap "
-                            "mappings.schema.json DATA_SOURCE defines no time selector"
                         )
                     else:
                         reason = (
@@ -204,6 +231,7 @@ def import_generated_mappings(
             if reason is None and target in used_targets:
                 reason = f"target {target!r} is already assigned"
             if reason is not None:
+                value_reasons[_partner_key(row)] = reason
                 unresolved.append(
                     UnresolvedMapping(
                         ids_name=ids_name,
@@ -242,7 +270,40 @@ def import_generated_mappings(
             )
             signal.validate()
             signals.append(signal)
+            value_rules[_partner_key(row)] = signal
             used_targets.add(target)
+        for row in time_rows:
+            key = _partner_key(row)
+            partner = value_rules.get(key)
+            if partner is not None:
+                time_bindings.append(
+                    ResolvedTimeBinding(
+                        ids_name=ids_name,
+                        source_id=row["source_id"],
+                        source_array=row["source_array"],
+                        target_path=row["target_path"],
+                        value_rule=partner,
+                    )
+                )
+            else:
+                detail = value_reasons.get(key)
+                reason = (
+                    f"value partner unresolved: {detail}"
+                    if detail is not None
+                    else (
+                        "value partner absent for the same channel, member, "
+                        "and target structure"
+                    )
+                )
+                unresolved.append(
+                    UnresolvedMapping(
+                        ids_name=ids_name,
+                        source_id=row["source_id"],
+                        source_array=row["source_array"],
+                        target_path=row["target_path"],
+                        reason=reason,
+                    )
+                )
         for row in ids["unexpanded"]:
             unresolved.append(
                 UnresolvedMapping(
@@ -268,4 +329,4 @@ def import_generated_mappings(
                     signals=signals,
                 )
             )
-    return GeneratedMappingImport(tuple(maps), tuple(unresolved))
+    return GeneratedMappingImport(tuple(maps), tuple(time_bindings), tuple(unresolved))
