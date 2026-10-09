@@ -65,6 +65,11 @@
     <p>The import returns a <code>source_property</code> <code>time</code> row as a <code>ResolvedTimeBinding</code> naming the value rule on the same channel, member and structure, since imas-alambic reads the time base from that channel (merge <code>3d1e083c</code>). On the 03:44Z JT-60SA hand-off, 8 of 14 time rows resolve; the other 6 belong to members 18–23, whose value rows are themselves unplaced, and say so; unresolved rows fall from 26 to 18. <code>magPbTC5</code> has a placed value rule but no time row in the hand-off. 14 importer tests pass; dropping the partner match fails the partner-absent test. Tokamap validator passes on the rerun draft. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/draft-time-bindings.html">draft-time-bindings</a>.</p>
   </section>
 
+  <section id="s8">
+    <h2>§8 — hand-off score command landed</h2>
+    <p><code>imas-ambix maps score-handoff MACHINE FILE [--json OUT]</code> (merge <code>b4902ae0</code>, scoring in <code>imas_ambix/data/handoff_score.py</code>). Agreement needs target path and index, source group and array, and total scale; the sign is unscored only where the label is COCOS-dependent (<code>one_like</code> and <code>none</code> are scored) and the machine's source COCOS is undeclared, and the label is read from the hand-off's <code>cocos_label</code> before imas-python's DD metadata. On the 03:44Z JT-60SA hand-off, at the run's base without §7's time bindings: exported 35, imported 9, agreeing 9 (sign unscored 0), unplaced 6, refused 20. 8 focused tests pass; path-only agreement fails five. A first cut read <code>one_like</code> as COCOS-dependent and the DD metadata only, scoring agreeing 0; corrected by resume. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/handoff-score-command.html">handoff-score-command</a>.</p>
+  </section>
+
 </main>
 </body>
 </html>

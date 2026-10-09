@@ -24,9 +24,9 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="35">
+<meta name="plan-version" content="36">
 <meta name="plan-modified" content="2026-10-09">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -318,7 +318,7 @@
 <p><strong>Node</strong> <code>draft-time-bindings</code>, role implement, 0.5 h. Write paths: <code>imas_ambix/data/generated_mapping_import.py</code>, <code>tests/data/test_generated_mapping_import.py</code>, <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/draft-time-bindings.html</code>. <strong>Done when</strong> a test shows a <code>time</code> row resolved against its <code>value</code> partner and naming it; a test shows a <code>time</code> row without a resolved partner reported with that reason; the rerun on the 03:44Z hand-off reports the time rows of the 9 placed probes resolved; and the fragment gives the before-and-after counts.</p>
 
     <h2 id="s8">§8 — Score a hand-off against the hand-built maps</h2>
-<section data-reckon="section" data-id="s8" data-effort-hours="0.75" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s8" data-effort-hours="0.75" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
 <p>imas-codex's <code>jt60sa-mapping-study-expansion</code> widens the study to six systems, each exported on its own at <code>/work/projects/imas_gpu/jt60sa/handoff/jt-60sa-&lt;system&gt;-handoff.json</code>: coils (<code>pf_active</code> and <code>tf</code>), <code>ip</code>, flux loops, ECH, gas, and cryo as a negative control whose rows should mostly be refused. For each one it asks imas-ambix for five numbers. This section makes them one command rather than a hand count.</p>
 <p>Add <code>imas-ambix maps score-handoff MACHINE FILE</code> to the <code>maps</code> group, with the scoring in a new module <code>imas_ambix/data/handoff_score.py</code> that calls <code>import_generated_mappings</code> and adds nothing to it. It reports per IDS and in total:</p>
 <ul>
@@ -424,6 +424,9 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261009T051346217046-draft-time-bindings" data-who="reckon-build" data-when="2026-10-09T05:21:11Z">
     <div class="r-comment-body"><p>Qualified hand-off time rows now bind to matching accepted value rules; on the live hand-off 8 of 14 time rows resolved, six remain unresolved for rejected value partners, and all unresolved rows fell from 26 to 18; 14 importer tests and the tokamap validator passed.</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-close-s8" data-who="reckon-build" data-when="2026-10-09T05:40:00Z">
+    <div class="r-comment-body"><p>§8 landed (merge <code>b4902ae0</code>): five-number score per hand-off, JSON output; JT-60SA 35 / 9 / 9 / 6 / 20 at its base. Pending-COCOS rules from §9 count as imported with the sign unscored. <a href="/imas-ambix/evidence/archive/jt60sa-tokamap-from-generated-maps-landed.html#s8">evidence</a></p></div>
 </div>
 </section>
 </main>
