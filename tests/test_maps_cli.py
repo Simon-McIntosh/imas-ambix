@@ -131,12 +131,20 @@ def test_draft_signals_replace_covered_ids_and_keep_catalogue(
         loaded = original_loader(path)
         if loaded.system not in {"magnetics", "pf_active"}:
             return loaded
+        covered_paths = {
+            "magnetics/b_field_pol_probe/field/data",
+            "pf_active/coil/current/data",
+        }
         return dataclasses.replace(
             loaded,
             signals=tuple(
                 dataclasses.replace(
-                    rule, source_array="hand-built-sentinel", target_index=500
+                    rule,
+                    source_array=f"hand-built-{rule.source_array}",
+                    target_index=500 + (rule.target_index or 0),
                 )
+                if rule.target_path in covered_paths
+                else rule
                 for rule in loaded.signals
             ),
         )
@@ -519,7 +527,9 @@ def test_pull_defaults_to_the_latest_stable_tag(
     registry.install(monkeypatch)
     dest = tmp_path / "out"
 
-    result = CliRunner().invoke(maps_cli.maps, ["pull", "jt-60sa", "--dest", str(dest)])
+    result = CliRunner().invoke(
+        maps_cli.maps, ["pull", "jt-60sa", "--dest", str(dest)]
+    )
 
     assert result.exit_code == 0, result.output
     assert (dest / "pulled-from").read_text().endswith(":v0.1.0")
