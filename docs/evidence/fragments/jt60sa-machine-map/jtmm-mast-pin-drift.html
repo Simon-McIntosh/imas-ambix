@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="reckon-type" content="doc">
+  <title>MAST pin drift — one evidence path moved</title>
+</head>
+<body>
+<main class="plan-doc">
+  <h2 id="jtmm-mast-pin-drift">Why re-authoring MAST no longer reproduces the pinned identity</h2>
+
+  <p id="jtmm-mast-pin-drift-verdict">
+    <code>tests/gs/test_artifact_resolution.py::test_re_authoring_reproduces_the_identity_the_package_pins</code>
+    fails on <code>main</code> because re-authoring MAST's description yields semantic identity
+    <code>sha256:f20d64dbde63756150fecd5a41d34a0d7a055900877370aae40a594ca7d039d5</code>,
+    while <code>imas_ambix/gs/artifact_resolution.py</code> <code>PINNED_DESCRIPTIONS[&quot;mast&quot;]</code>
+    pins <code>sha256:8df7a0a6c3f6162dbe0f226660bc069f37de8eb69f0f7c80bbfedc2bd4be220c</code>.
+    Exactly one semantic field differs, in one entry, and it is a deliberate nova change — so the
+    pin is stale, not the code broken.
+  </p>
+
+  <h3 id="jtmm-mast-pin-drift-method">What was compared</h3>
+  <p id="jtmm-mast-pin-drift-method-body">
+    MAST's description was authored afresh with the package's own route,
+    <code>nova.imas.mast_geometry.publish_refined_artifact</code> (what
+    <code>author_mast_machine_artifact</code> calls), into a cache under this run's directory, never
+    <code>~/.cache</code>. The pinned artifact was read read-only from
+    <code>~/.cache/imas-ambix/machine-artifact/sha256/16cb20357da22dac498813c7953c380871e3429648f793d6c87aad6c09937ebc</code>
+    (the object the failing test resolved; its own semantic identity recomputes to the pin,
+    <code>8df7a0a6…</code>, confirmed by parsing its <code>manifest.json</code>). The two manifests were
+    compared over every field <code>MachineArtifactManifest.semantic_identity()</code> covers — the
+    method hashes <code>as_dict()</code> minus <code>files</code> and <code>oci</code>, i.e.
+    <code>schema</code>, <code>dd_version</code>, <code>physical_digest</code>, <code>registry_digest</code>,
+    <code>complete</code>, <code>unresolved_gaps</code>, <code>shot_ranges</code> and
+    <code>field_evidence</code>/<code>channel_drive</code>. The comparison is anchored to that
+    computation rather than to field names, so no field is judged by name alone.
+  </p>
+
+  <h3 id="jtmm-mast-pin-drift-fields">Field-by-field result</h3>
+  <ul>
+    <li id="jtmm-mast-pin-drift-field-equal"><code>schema</code> = <code>nova-mast-machine-artifact</code>; <code>dd_version</code> = <code>4.1.1</code>; <code>physical_digest</code> = <code>b55c5bb005a2cb67</code>; <code>registry_digest</code> = <code>2a26cc0a3a22e7fb…</code>; <code>complete</code> = <code>false</code>; <code>unresolved_gaps</code> (6 entries); <code>shot_ranges</code> (3 rows, 11695–30473) — <strong>all equal</strong> on both sides.</li>
+    <li id="jtmm-mast-pin-drift-field-drive"><code>channel_drive</code> — <strong>equal</strong>: 31 entries on both sides, identical.</li>
+    <li id="jtmm-mast-pin-drift-field-evidence"><code>field_evidence</code> — <strong>differs</strong>: 124 entries on both sides; entries <code>0..122</code> identical, entry <code>123</code> is the only difference. Pinned: <code>{&quot;path&quot;: &quot;wall/description_2d/limiter/unit/outline&quot;, …}</code>. Fresh: <code>{&quot;path&quot;: &quot;wall/description_2d/limiter/unit[0]/outline&quot;, …}</code>. Every other key of that record (<code>evidence=&quot;measured&quot;</code>, <code>first_shot=11695</code>, <code>last_shot=30473</code>, the same <code>source</code> and <code>statement</code>) is identical.</li>
+  </ul>
+  <p id="jtmm-mast-pin-drift-causality">
+    The single difference is sufficient and necessary. Taking the fresh manifest and reverting only
+    that one path back to <code>wall/description_2d/limiter/unit/outline</code> and recomputing
+    <code>semantic_identity()</code> restores <code>sha256:8df7a0a6…</code> exactly; the untouched fresh
+    manifest recomputes to <code>sha256:f20d64db…</code>. So no other semantic field moved, and no
+    second change contributes to the drift.
+  </p>
+
+  <h3 id="jtmm-mast-pin-drift-cause">The commit that changed it</h3>
+  <p id="jtmm-mast-pin-drift-cause-body">
+    <code>git -C /home/ITER/mcintos/Code/nova blame -L 786,794 --date=short nova/imas/mast_seed_parameters.py</code>
+    attributes the changed line to
+    <strong>nova commit <code>494088d3f</code></strong>, <em>&quot;feat(imas): preserve limiter unit collections&quot;</em>,
+    2026-09-08, at <code>nova/imas/mast_seed_parameters.py:790</code> — the evidence record's
+    <code>path</code> was edited from <code>wall/description_2d/limiter/unit/outline</code> to
+    <code>wall/description_2d/limiter/unit[0]/outline</code>. That commit is an ancestor of nova HEAD
+    <code>450f3d2b7cbb3acbe3e3de0f20604a780da267e0</code>. It is not only a label edit: the same commit
+    changed <code>nova/imas/mast_geometry.py</code> <code>_author_wall</code> to write every typed
+    limiter unit as a collection (<code>description.limiter.unit.resize(len(units))</code>), so the
+    wall now carries indexed units and its evidence binding says so. The test's own docstring calls
+    the pin &quot;a tripwire against drift&quot;; the tripwire fired correctly.
+  </p>
+  <p id="jtmm-mast-pin-drift-suspects">
+    The plan's named suspects are ruled out. <code>aff62b24</code> (&quot;lift content-addressed store out of
+    machine_artifact&quot;) touches only <code>nova/database/content_store.py</code>,
+    <code>nova/imas/machine_artifact.py</code> and its tests; <code>28a8247b</code> (&quot;compose verified
+    object publication&quot;) touches <code>nova/database/content_store.py</code> and
+    <code>nova/database/layer_fetch.py</code> only. Neither changes <code>mast_seed_parameters.py</code>,
+    <code>mast_geometry.py</code> or any evidence path, so neither can move a semantic identity. The
+    drift predates both by a month: the pinned object was authored 2026-08-21, before the 2026-09-08
+    commit, and <code>494088d3f</code> is the only seed/geometry commit that edits the wall binding.
+  </p>
+
+  <h3 id="jtmm-mast-pin-drift-recommendation">Recommendation</h3>
+  <p id="jtmm-mast-pin-drift-recommendation-body">
+    <strong>Repin MAST.</strong> The identity moved because nova intentionally made the wall limiter
+    evidence binding explicit and began writing the limiter as a typed unit collection — an intended
+    change to the description's content and provenance, not a regression. The physical and registry
+    digests are unchanged, so the description still names the same machine; only its recorded
+    semantics advanced. Set <code>PINNED_DESCRIPTIONS[&quot;mast&quot;]</code>'s row
+    <code>semantic_identity</code> in <code>imas_ambix/gs/artifact_resolution.py</code> to
+    <code>sha256:f20d64dbde63756150fecd5a41d34a0d7a055900877370aae40a594ca7d039d5</code>. No nova file
+    needs a fix. Note for the coordinator: the stale durable object
+    <code>16cb2035…</code> will keep answering <code>resolve_machine_description(&quot;mast&quot;)</code> until
+    the pin is moved, at which point resolution authors fresh.
+  </p>
+</main>
+</body>
+</html>
