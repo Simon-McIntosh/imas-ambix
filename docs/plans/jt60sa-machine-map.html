@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.96">
-<meta name="plan-version" content="454">
+<meta name="plan-version" content="455">
 <meta name="plan-modified" content="2026-10-09">
 </head>
 <body>
@@ -197,11 +197,11 @@
       rule's own declared transformation, so the E101011 psi rule cannot serve as the control. No
       JT-60SA catalogue binding declares a source COCOS, because <code>machine_map.json</code>
       carries <code>source_cocos</code> 0. So the control is a catalogue binding the test builds itself,
-      on a DD path the resolver classes psi_like (such as <code>magnetics/flux_loop/flux/data</code>),
-      with a declared source COCOS of 1. There psi_like's factor is −2π and one_like's is 1. At
-      source COCOS 12, 13, 16 or 17 both are 1, and the control could not fail. Mutating the engine
-      resolver so that path reads as one_like must move that binding's exported scale, which a
-      private copy left in the exporter would not.
+      under DD 4.1.1, on a path the resolver gives a transformation class whose factor is not 1 at
+      the binding's declared source COCOS. DD 4.x carries no psi_like label. The landed round-trip
+      test's case serves: ip_like on <code>pf_active/coil/current/data</code> at source COCOS 6, where
+      the factor is −1. Mutating the engine resolver so that path reads as one_like must move that
+      binding's exported scale from −1 to 1, which a private copy left in the exporter would not.
       Both of <code>_leaf_mappings</code>' withhold checks, for bindings and for signal rules, call
       the resolver. The binding check also gains the one_like exemption the signal-rule check
       already carries, so a one_like binding with an undeclared source COCOS is kept, as the
