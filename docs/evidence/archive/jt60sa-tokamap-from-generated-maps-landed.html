@@ -100,6 +100,11 @@
     <p>The packaged LinkML schema <code>packages/imas-alambic/src/imas_alambic/machine_maps/schema.yaml</code> declares the optional <code>member_aliases</code> slot on <code>SensorIdentityRule</code>, mapping a facility member token to a machine-description member name, and the class description now says what aliases are for (merge <code>2310fb0e</code>). <code>test_sensor_identity_rule_accepted_keys_are_schema_slots</code> checks that every field the loader accepts is a schema slot; dropping the slot fails it. Focused gate 6 passed. The worker's evidence fragment is an empty stub; this record carries the evidence. Work review waived on the lead's instruction.</p>
   </section>
 
+  <section id="s15">
+    <h2>§15 — one rule per signal and target landed</h2>
+    <p>Imported rules take the id <code>&lt;signal_id&gt;::&lt;target_path&gt;[&lt;index&gt;]</code>, with <code>signal_id=</code> kept in the rule's evidence, so one coil current bound to several <code>pf_active</code> structures imports as several rules; an exact duplicate is reported instead of refusing the map (merge <code>9020701a</code>). 25 import tests pass; taking the id from <code>signal_id</code> alone fails the two-structures test. The coils re-export (10:41:50Z) scored on <code>pf_active</code> alone: exported 43, imported 32, agreeing 6, conflicting 6, sign unscored 6, unplaced 11, refused 0. The full score aborts on a hand-off row targeting <code>tf/coil/conductor/current/data</code>, which DD 4.1.1 does not define; §16 makes the score refuse such a row. The earlier rescore of the same file is on the ledger as a correct refusal (<code>semantic ids must be unique</code>). Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/rule-id-per-target.html">rule-id-per-target</a>.</p>
+  </section>
+
 </main>
 </body>
 </html>

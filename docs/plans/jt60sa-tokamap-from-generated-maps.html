@@ -24,9 +24,9 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="58">
+<meta name="plan-version" content="59">
 <meta name="plan-modified" content="2026-10-09">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;done&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;done&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;implementable&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -367,10 +367,16 @@
 <p><strong>Node</strong> <code>schema-member-aliases</code>, role implement, 0.25 h. Write paths: <code>packages/imas-alambic/src/imas_alambic/machine_maps/schema.yaml</code>, <code>tests/data/test_machine_map.py</code>. <strong>Done when</strong> the schema declares the optional slot with that description, and a test in <code>tests/data/test_machine_map.py</code> checks that every key <code>SensorIdentityRule.from_dict</code> accepts is a slot of the schema class.</p>
 
     <h2 id="s15">§15 — One rule per signal and target</h2>
-<section data-reckon="section" data-id="s15" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s15" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
 <p>Scoring imas-codex's coils re-export (exported 10:41:50Z) fails before it counts anything: <code>semantic ids must be unique</code>. The import takes each rule's <code>semantic_id</code> from the hand-off row's <code>signal_id</code>, and one coil current binds several structures, so <code>curEF6LKAT</code> to both <code>pf_active/coil/current/data</code> and <code>pf_active/circuit/current/data</code> gives two rules with one id in the same signal map, which <code>SignalMap.create</code> refuses.</p>
 <p>Make the import give each rule an id unique within its map, composed from the hand-off's <code>signal_id</code> and the rule's target path and index, and keep the hand-off's <code>signal_id</code> in the rule's evidence so the link back to imas-codex survives. Two rows that would still collide, the same signal, path and index, are reported with that reason rather than refusing the whole map. Then rescore the coils re-export.</p>
 <p><strong>Node</strong> <code>rule-id-per-target</code>, role implement, 0.5 h. Write paths: <code>imas_ambix/data/generated_mapping_import.py</code>, <code>tests/data/test_generated_mapping_import.py</code>, <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/rule-id-per-target.html</code>. <strong>Done when</strong> a test imports one signal bound to two structures as two rules with distinct ids that both name the hand-off <code>signal_id</code> in their evidence; a test reports an exact duplicate row rather than refusing the map; and the fragment quotes <code>score-handoff jt-60sa --json</code> on <code>/work/projects/imas_gpu/jt60sa/handoff/jt-60sa-coils-handoff.json</code> with its <code>exported_at</code> and the <code>by_structure</code> rows.</p>
+
+    <h2 id="s16">§16 — Refuse a hand-off target the Data Dictionary does not define</h2>
+<section data-reckon="section" data-id="s16" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p>imas-codex's coils re-export carries rows targeting <code>tf/coil/conductor/current/data</code>, which DD 4.1.1 does not define (<code>conductor</code> has no <code>current</code>). <code>score-handoff</code> aborts on it with a <code>KeyError</code> from the COCOS-label lookup instead of counting the row, so one bad row hides the score of every other.</p>
+<p>Make the import report a row whose target path the hand-off's DD version does not define as unresolved, naming the path and the version, before anything looks the path up; and make the scorer's label lookup refuse such a path by name rather than raise. Then score the coils re-export in full and list every conflicting row with both source arrays.</p>
+<p><strong>Node</strong> <code>handoff-invalid-dd-target</code>, role implement, 0.5 h. Write paths: <code>imas_ambix/data/generated_mapping_import.py</code>, <code>tests/data/test_generated_mapping_import.py</code>, <code>imas_ambix/data/handoff_score.py</code>, <code>tests/data/test_handoff_score.py</code>, <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/handoff-invalid-dd-target.html</code>. <strong>Done when</strong> a test shows a row on an undefined DD path reported unresolved with the path and version while the other rows still import and score; and the fragment quotes the full <code>score-handoff jt-60sa --json</code> on <code>/work/projects/imas_gpu/jt60sa/handoff/jt-60sa-coils-handoff.json</code> with its <code>exported_at</code>, the <code>by_structure</code> rows, and every conflict with both source arrays.</p>
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
@@ -516,6 +522,9 @@
 </div>
 <div class="r-comment" data-section="s14" data-id="c-run-r-20261009T101229465681-schema-member-aliases" data-who="reckon-build" data-when="2026-10-09T10:19:41.161Z">
     <div class="r-comment-body"><p>schema.yaml declares the optional member_aliases slot on SensorIdentityRule with a description of what aliases are for, and SensorIdentityRule.from_dict's accepted keys are each a schema slot — the contract test passes 6/6 (EXIT=0) and the negative control (member_aliases dropped from the class slots) fails that test (EXIT=1)</p></div>
+</div>
+<div class="r-comment" data-section="s15" data-id="c-close-s15" data-who="reckon-build" data-when="2026-10-09T11:05:00Z">
+    <div class="r-comment-body"><p>§15 landed (merge <code>9020701a</code>): rule ids unique per signal and target; <code>pf_active</code> coils score 43 / 32 / 6 agreeing / 6 conflicting / 11 unplaced. <a href="/imas-ambix/evidence/archive/jt60sa-tokamap-from-generated-maps-landed.html#s15">evidence</a></p></div>
 </div>
 </section>
 </main>
