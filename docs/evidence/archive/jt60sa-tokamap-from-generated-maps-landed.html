@@ -45,6 +45,11 @@
     <p><a href="/imas-ambix/research/jt60sa-discovery-to-ids.html">jt60sa-discovery-to-ids</a> (merge <code>ab0370b4</code>) presents the chain from imas-codex discovery through the hand-off, the draft import and the tokamap export to <code>imas-alambic write</code>. <code>scripts/figures_jt60sa_tokamap.py</code> now renders 9 SVGs and 9 slide PNGs: seven per-system renders in pygments <code>friendly</code>, the chain chart, and a writer-workflow chart whose command line matches <code>imas-alambic write --help</code>. The pickup-probe and PF-coil renders carry the fixture-driven draft row. <code>reckon audit-doc</code> 0 errors. Work review waived on the lead's instruction.</p>
   </section>
 
+  <section id="s3">
+    <h2>§3 — live JT-60SA draft tokamap landed (second iteration)</h2>
+    <p>Run on imas-codex's live hand-off <code>/work/projects/imas_gpu/jt60sa/handoff/jt-60sa-mapping-handoff.json</code> (03:23Z, magnetics only, 74 rows) with <code>--withhold-undeclared-cocos --draft-signals</code> (merge <code>d5b7ad4d</code>). The importer now reads <code>value</code> as identity and reports error-bound and time rows unresolved. <code>/work/projects/imas_gpu/jt60sa/tokamap/draft/</code>: 6 groups, 2 partitions, 12 mapping files, 98 entries (50 machine description, 48 signal); validator passes. 8 pickup-probe data rows became draft rules; all 16 entries (8 probes × 2 partitions) agree with the hand-built channel and scale. 66 rows unresolved: 45 derived error bounds (imas-codex mapped the value onto <code>data_error_*</code>; no error signal exists), 14 time rows (the hand-off carries no <code>source_property</code>), 7 data rows whose member the description cannot place (<code>magPbTC5</code>, <code>magPbTC18</code>–<code>23</code>). Hand-built probes absent from the hand-off: 1–4 and 6–9. Negative control: importing error rows like data fails the error-row test. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/jt60sa-draft-tokamap.html">jt60sa-draft-tokamap</a>.</p>
+  </section>
+
 </main>
 </body>
 </html>
