@@ -1,0 +1,63 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-09T01:54:43.577Z",
+  "dispatched_at": "2026-10-09T01:47:51Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/jt60sa-machine-map/r-20261009T014706830856-plan-review-of-jt60sa-machine-map/plan.html:312",
+      "id": "reasoning-1",
+      "reason": "the adjacent \u00a77 prose paragraph already records each of these signature changes (the selector gains a required machine, the reader's machine becomes required, and all four public resolvers of default_registry change), so the plan's content stays correct and no node's work or downstream reliance would change.",
+      "text": "the interface account says it was \"computed from every __all__ and public definition the section's nodes changed (base 046d1a7b~1 to HEAD)\", but the recomputation captured name additions/retirements only: within that same range node 16a7fa4f changed public definitions whose names did not move \u2014 gs/machine_geometry.py MachineGeometryService.__init__ gains a machine parameter (in machine_geometry.__all__), gs/machine_selection.py ArtifactMachineSelector gains a machine field and its artifact() now takes a physical_digest (in machine_selection.__all__), gs/machine_identity.py default_registry now takes a required machine, and spine_bench/parity.py evaluate and check_admissibility each gain a machine parameter \u2014 none of which the account lists, so its stated scope overstates what it enumerates",
+      "type": "reasoning",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "913f6d8a1e5edb7e0f7352a359779c91680b8e25aa27f61bed6f405caa4f7744",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 437,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "declined",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "The account inventories names added to or retired from a public surface; the signature changes the finding lists (machine parameters on MachineGeometryService, ArtifactMachineSelector, default_registry, parity's evaluate and check_admissibility) are each recorded in section 7's adjacent prose, as the finding itself states, and the reviewer marks it as not changing the plan.",
+      "when": "2026-10-09T01:54:54.906729+00:00"
+    }
+  ],
+  "responses": {
+    "reasoning-1": {
+      "action": "declined",
+      "by": "reckon-build",
+      "reason": "The account inventories names added to or retired from a public surface; the signature changes the finding lists (machine parameters on MachineGeometryService, ArtifactMachineSelector, default_registry, parity's evaluate and check_admissibility) are each recorded in section 7's adjacent prose, as the finding itself states, and the reviewer marks it as not changing the plan.",
+      "when": "2026-10-09T01:54:54.906729+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v437.json",
+  "review_run_id": "r-20261009T014706830856-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "cab6eed3119bca95607bfd897e7c843aad5ba60f",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every symbol the changed account names resolves in the code (PINNED_DESCRIPTIONS, PinRow, pinned_row, pinned_rows, author_mast_machine_artifact, author_jt60sa_machine_artifact in gs/artifact_resolution.py; FROZEN_SHOTSETS, FrozenShotset, JT60SA_FROZEN_SHOTSET, JT60SA_SHOTSET_VERSION in spine_bench/shots.py; DEFAULT_MACHINE in spine_bench/parity.py; representation_digest; current_channel_from_conductors; and each new module's __all__), the three retired constants are gone, and the changed unit carries no href to resolve.",
+    "done_when": "pass \u2014 \u00a77's done-when names two declared negative controls that can fail: loop 7's channel_factor flipped to +1 must stamp a larger whitened magnetics residual on every shot, and the psi-binding comparison with the binding's sign flipped must fail the <1% check.",
+    "evidence_paths": "pass \u2014 \u00a77's evidence follows the established durable convention under docs/evidence/fragments/jt60sa-machine-map/ (verified present in the repository), and the changed unit sends no evidence to a scratchpad.",
+    "naming": "pass \u2014 the changed unit names real code identifiers and introduces no plan label, stage name, ticket number or version tag into a symbol or comment; the plan-level node ids it cites live in the plan document, not in code.",
+    "reasoning": "a finding \u2014 the account claims to be \"computed from every __all__ and public definition the section's nodes changed\", but it enumerates only name additions/retirements and omits public-signature changes the same \u00a77 node (16a7fa4f) made to definitions whose names did not change.",
+    "single_goal": "pass \u2014 the changed unit is one interface account for \u00a77, and the nodes it describes are single-deliverable; it introduces no node carrying two goals.",
+    "wiring": "pass \u2014 the changed unit (the \u00a77 interface account) declares no depends-on/informs/gates relationships of its own, and every \u00a77 node it names (jtmm-reference-scope, jtmm-e101011-psi-row, jtmm-eqdsk-dependency, jtmm-geqdsk-psi-store, jtmm-selene-reference-loader) and the decision jt60sa-psi-q-source resolve elsewhere in the plan."
+  },
+  "section_digests": {
+    "_document": "aeae9043f53534ca2bc015344ff6611bcb0f8f1fd2d90c733ffbe2bbfb65ca84",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "0c362e55e98d56b1a1701685202d60721858152192939364cea287ff8da0f396",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "7594158abafb79502d735ef6aebe26c0b8d5d1e2e66697ceaa69d7f7fb60e7f9",
+    "s8": "acaa8e846bc7d30783f4709d0009ac816bf41baeed2fe1392b0574460f80e420"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-09T01:54:54.904078+00:00"
+}
