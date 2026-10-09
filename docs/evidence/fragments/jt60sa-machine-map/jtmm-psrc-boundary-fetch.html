@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="jt60sa-machine-map">
+  <meta name="plan-evidence-for" content="jt60sa-machine-map">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="jtmm-psrc-boundary-fetch-landing" data-reckon="evidence">
+      <h3>PSRC surfABVxp for the sixteen frozen JT-60SA shots: 0 of 16 cached</h3>
+      <p id="jtmm-psrc-boundary-fetch-method">Read 2026-10-09 from the fleet allocation (job 1281970, node 98dci4-clu-2002), read-only, one <code>ssh jt-60sa</code> session at a time. For each shot, <code>read_psrc_record(token, extractor=RemoteEddbExtractor())</code> ran once with the default cache root <code>/work/projects/imas_gpu/jt60sa</code>; only <code>surfABVxp</code> and its time base are uncached for these shots, so the extractor requests only that channel. The EDDB pulse token carries the series letter (<code>E100599</code>); the frozen set holds bare integers, so the token is composed at the call site. No source file changed. The gate log is the run's <code>fetch.log</code>; its command and head revision are its first lines.</p>
+      <p id="jtmm-psrc-boundary-fetch-outcome">0 of 16 shots cached <code>surfABVxp</code>. Two independent causes. <strong>(1) A deterministic cache-write refusal.</strong> For the two shots that reached the server, the extractor returned <code>surfABVxp</code> as a flattened time-major record and the cache's write path refused it: the boundary arrives as one flat block (data width = time-samples &times; 604) whose width does not equal the time-base length, so <code>write_channel</code> raises before writing and nothing is cached. This reproduces on every shot that reaches the server and is independent of the tunnel. <strong>(2) The ssh route closed mid-run.</strong> After the second shot the route returned <code>kex_exchange_identification: Connection closed by remote host</code> for the remaining fourteen. The loop stops on the first connection-level failure and reports blocked, so shots three to sixteen were not attempted.</p>
+    </section>
+
+    <section id="jtmm-psrc-boundary-fetch-table" data-reckon="evidence">
+      <h3>Per-shot outcome</h3>
+      <p id="jtmm-psrc-boundary-fetch-note">Slice count, valid-vertex range and time span are read back through <code>read_psrc_record</code> from the cache with no extractor; they are unavailable because no boundary was cached. Two shots demonstrate the shape refusal with exact arithmetic: <code>E100599</code> width 97848 = 162 &times; 604, <code>E100999</code> width 4208672 = 6968 &times; 604.</p>
+      <table>
+        <thead><tr><th>shot</th><th>surfABVxp cached</th><th>slices</th><th>valid-vertex range</th><th>time span [s]</th><th>fetch outcome</th></tr></thead>
+        <tbody>
+          <tr><td><code>E100599</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>EddbCacheError: time base length 162 does not match data width 97848 for E100599/PSRC/surfABVxp</td></tr>
+          <tr><td><code>E100999</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>EddbCacheError: time base length 6968 does not match data width 4208672 for E100999/PSRC/surfABVxp</td></tr>
+          <tr><td><code>E101017</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>connection-level: remote EDDB command exited 255 (module shell teardown)</td></tr>
+          <tr><td><code>E101025</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>connection-level: remote EDDB command exited 255</td></tr>
+          <tr><td><code>E101026</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>connection-level: kex_exchange_identification: Connection closed by remote host</td></tr>
+          <tr><td><code>E101029</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>connection-level: kex_exchange_identification: Connection closed by remote host</td></tr>
+          <tr><td><code>E101031</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>connection-level: kex_exchange_identification: Connection closed by remote host</td></tr>
+          <tr><td><code>E101033</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>connection-level: kex_exchange_identification: Connection closed by remote host</td></tr>
+          <tr><td><code>E101039</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>connection-level: kex_exchange_identification: Connection closed by remote host</td></tr>
+          <tr><td><code>E101044</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>connection-level: kex_exchange_identification: Connection closed by remote host</td></tr>
+          <tr><td><code>E101045</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>connection-level: kex_exchange_identification: Connection closed by remote host</td></tr>
+          <tr><td><code>E101046</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>connection-level: kex_exchange_identification: Connection closed by remote host</td></tr>
+          <tr><td><code>E101153</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>connection-level: kex_exchange_identification: Connection closed by remote host</td></tr>
+          <tr><td><code>E101156</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>connection-level: kex_exchange_identification: Connection closed by remote host</td></tr>
+          <tr><td><code>E101162</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>connection-level: kex_exchange_identification: Connection closed by remote host</td></tr>
+          <tr><td><code>E101163</code></td><td>no</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>connection-level: kex_exchange_identification: Connection closed by remote host</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="jtmm-psrc-boundary-fetch-cause" data-reckon="evidence">
+      <h3>Why the shape refusal blocks the goal</h3>
+      <p id="jtmm-psrc-boundary-fetch-cause-shape">The EDDB wrapper returns a multi-channel array flattened time-major, and the extractor's remote reader folds a one-dimensional record to one flat row, so <code>surfABVxp</code> arrives as data width <code>n_time &times; 604</code> with a time base of <code>n_time</code>. The on-demand cache's write path requires the data width to equal the time-base length, and the PSRC reader's decoder expects a <code>(604, n_time)</code> block. Neither matches the flat record, so <code>fetch_channels</code> raises before writing and the reader cannot cache <code>surfABVxp</code> through the extractor. This is the same reach the &sect;6 inventory recorded: those multi-channel arrays "were read instead by a direct eddb_pwrapper probe", because the sanctioned reader could not reach them. The unit-test stub for the reader supplies a <code>(604, n_time)</code> record directly, so the suite passes while the live extractor produces a different shape.</p>
+      <p id="jtmm-psrc-boundary-fetch-cause-note">Every quantity the reference loader needs beyond the boundary &mdash; the X-point (<code>calRX</code>, <code>calZX</code>), the magnetic axis (<code>calRp0</code>, <code>calZp0</code>) and the plasma current (<code>calIp</code>) &mdash; is already cached for these shots; only <code>surfABVxp</code> is outstanding, and it is the one the extractor cannot cache. No partial node was written by the refused attempts: the cache directory for each shot is unchanged after the run.</p>
+    </section>
+  </main>
+</body>
+</html>
