@@ -1,0 +1,64 @@
+<section data-reckon="fragment" id="jtmm-geqdsk-psi-store">
+  <h2>G-EQDSK psi bound into <code>profiles_2d/psi</code></h2>
+
+  <p>
+    E101011's G-EQDSK is a 2-D poloidal-flux grid, so the EDDB channel fetch a
+    signal map normally drives cannot serve it. <code>write_geqdsk_store</code>
+    in <code>imas_ambix/data/geqdsk_store.py</code> reads the file through
+    <code>load_geqdsk</code> and stages it into a per-shot Zarr group laid out
+    exactly as <code>imas_alambic.eddb</code>'s cache writer lays a fetched
+    channel &mdash; <code>{shot}.zarr/GEQDSK/PSI</code> with a
+    <code>PSI_time</code> sibling and the R, Z grid-coordinate arrays &mdash; so
+    <code>VirtualZarrView</code> reads it like any cached channel. The store
+    keeps the file's own COCOS 1 flux (Wb/rad) unchanged; the COCOS 1 &rarr; 17
+    conversion is owned by the map rule, so a reader can measure the source
+    without the map's assumed factor.
+  </p>
+
+  <p>One rule in <code>maps/jt-60sa/maps/equilibrium.json</code> binds it:</p>
+
+  <pre><code>{
+  "semantic_id": "equilibrium_psi",
+  "source_group": "GEQDSK",
+  "source_array": "PSI",
+  "source_unit": "Wb/rad",
+  "source_cocos": 1,
+  "transformation": "psi_like",
+  "unit_factor": 1.0,
+  "channel_factor": 1.0,
+  "target_path": "equilibrium/time_slice/profiles_2d/psi",
+  "target_unit": "Wb",
+  "validation_state": "source-only"
+}</code></pre>
+
+  <p>
+    <code>equilibrium_psi</code>'s <code>convention_factor</code> is
+    &minus;6.283185307179586 (&minus;2&pi;), the COCOS 1 &rarr; 17
+    <code>psi_like</code> factor. The rule system carries no separate
+    coordinate slot, so the grid coordinates are bound by the store's own
+    <code>GRID_R</code>/<code>GRID_Z</code> arrays rather than by a second rule.
+  </p>
+
+  <h3>Measured difference</h3>
+
+  <p>
+    The served psi (minted through the engine at the G-EQDSK's declared
+    &equiv;&nbsp;4000&nbsp;ms snapshot) equals the G-EQDSK psi times
+    &minus;2&pi; on the file's own (Z, R) grid. Normalised RMS difference over
+    the flux range (8.7816&nbsp;Wb):
+  </p>
+
+  <table>
+    <thead><tr><th>rule</th><th>factor</th><th>NRMS</th></tr></thead>
+    <tbody>
+      <tr><td><code>equilibrium_psi</code> (source_cocos 1)</td><td>&minus;2&pi;</td><td>0.0</td></tr>
+      <tr><td>source_cocos 17 (negative control)</td><td>1.0</td><td>0.14646</td></tr>
+    </tbody>
+  </table>
+
+  <p>
+    The negative control was applied and logged:
+    <code>negative_control.log</code>, EXIT=1, failing
+    <code>tests/data/test_geqdsk_store.py::test_engine_psi_matches_the_geqdsk_flux_times_minus_two_pi</code>.
+  </p>
+</section>
