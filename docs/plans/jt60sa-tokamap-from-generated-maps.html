@@ -24,7 +24,7 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="73">
+<meta name="plan-version" content="74">
 <meta name="plan-modified" content="2026-10-09">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;done&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;done&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;implementable&quot;}">
 </head>
@@ -585,6 +585,9 @@
 </div>
 <div class="r-comment" data-section="s20" data-id="c-20261009-jtgm-s20-order" data-who="reckon-build" data-when="2026-10-09T12:02:00Z">
     <div class="r-comment-body"><p>§20 runs as two nodes in order. <code>alternate-chains</code> changes <code>SignalRule</code>, the score and their tests and writes no map. <code>alternate-chains-jt60sa</code> declares the JT-60SA alternates in <code>maps/jt-60sa/maps/pf_active.json</code> and rescores the coils only after the first has merged. The shared map tree is read by every session on <code>main</code>, and §12 showed that writing a key into it before the schema accepting it has merged leaves <code>main</code> unable to load the map.</p></div>
+</div>
+<div class="r-comment" data-section="s20" data-id="c-run-r-20261009T115431002769-alternate-chains" data-who="reckon-build" data-when="2026-10-09T12:03:05.584Z">
+    <div class="r-comment-body"><p>SignalRule gains an optional alternate_sources list (source_group, source_array, evidence) that validates on load and serialises only when non-empty, so a map without it round-trips byte-identically; the hand-off score gains a chain_differs count on every IDS, structure and total row, listing an imported rule on a hand-built target whose source matches a declared alternate with both arrays, counted apart from conflicting; focused gate tests/data/test_signal_map.py + tests/data/test_handoff_score.py 33 passed (EXIT=0), and a draft on MDAC/magPbTC11 against a hand-built LKAT/curEF1LKAT rule declaring it scores chain_differs 1 / conflicting 0, with the same pair undeclared scoring conflicting 1 / chain_differs [].</p></div>
 </div>
 </section>
 </main>
