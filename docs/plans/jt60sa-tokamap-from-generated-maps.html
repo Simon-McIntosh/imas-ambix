@@ -24,7 +24,7 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="13">
+<meta name="plan-version" content="14">
 <meta name="plan-modified" content="2026-10-09">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;}">
 </head>
@@ -342,6 +342,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261009T024633019818-review-of-generated-mapping-import" data-who="reckon-build" data-when="2026-10-09T02:58:47.641Z">
     <div class="r-comment-body"><p>Independent review of run r-20261009T022959528115-generated-mapping-import stored at reviews/imas-ambix/r-20261009T022959528115-generated-mapping-import.json (and its .at-5c98ac82 sibling), reviewed_base_sha 29c6201d / reviewed_head_sha 5c98ac82, all six dimensions scored (goal_fidelity 18, evidence 18, scope_discipline 20, durability 18, fit 19, reuse 19; total 112), added_failure_count 0 with added_failure_ids []; the node adds a draft validation state and a reader that turns the committed handoff fixture into draft SignalMaps whose target_index comes from ordered description members, not handoff row order, and the guard fires (row-order indexing fails the identity-index test). Two non-blocking follow-ons: the fixture is pinned to imas-codex ed1c086c1 (upstream main has since changed its mapping_id), and the reviewed manifest records baseline_suite/after_suite as null.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20261009T025704815673-jt60sa-draft-tokamap" data-who="reckon-build" data-when="2026-10-09T03:13:37Z">
+    <div class="r-comment-body"><p>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/jt60sa-draft-tokamap.html records a fixture-driven export with 6 groups, 2 partitions, 12 mapping files and 70 entries (50 description, 20 signal); four draft rules replace covered IDS signals in each partition, eight target comparisons agree with the hand-built reference, validator passes and the CLI gate passes 33 tests.</p></div>
 </div>
 </section>
 </main>
