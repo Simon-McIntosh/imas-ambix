@@ -26,9 +26,8 @@ ROOT = Path(__file__).resolve().parents[1]
 MAP = ROOT / "maps/jt-60sa"
 TOKAMAP = Path("/work/projects/imas_gpu/jt60sa/tokamap/hand-built")
 DRAFT_ROOT = Path("/work/projects/imas_gpu/jt60sa/tokamap")
-DRAFT_TOKAMAP = DRAFT_ROOT / "draft-fixture"
-HANDOFF = ROOT / "tests/fixtures/mapping_handoff_example.json"
-LIVE_HANDOFF = Path(
+DRAFT_TOKAMAP = DRAFT_ROOT / "draft"
+HANDOFF = Path(
     "/work/projects/imas_gpu/jt60sa/handoff/jt-60sa-mapping-handoff.json"
 )
 SVG_DIR = ROOT / "docs/figures/jt60sa-tokamap"
@@ -303,6 +302,8 @@ def _draft(example: Example, handoff: dict) -> tuple[str | None, str | None]:
         if ids["ids_name"] == example.group
         for row in ids["signals"]
         if row["source_array"] == example.identifier
+        and row["target_path"]
+        == f"{example.group}/{re.sub(r'\[(?:#|\d+)\]', '', example.key)}"
     ]
     if not rows:
         return None, None
@@ -440,7 +441,7 @@ def _render_json(
             ax.text(
                 28,
                 draft_top,
-                "Fixture-driven hand-off + indexed draft",
+                "JT-60SA hand-off + indexed draft",
                 fontsize=12,
                 va="top",
                 color=COLORS["muted"],
@@ -547,11 +548,11 @@ def _render_chain() -> Path:
     label(30, 675, "imas-codex discovery", "facility signals")
     label(380, 675, "Candidates", "source ↔ DD path")
     label(720, 675, "Generated mapping", "status=generated")
-    label(1070, 675, "Hand-off JSON", "fixture-driven input")
+    label(1070, 675, "Hand-off JSON", "live JT-60SA draft input")
     ax.text(
         1070,
         620,
-        "tests/fixtures/mapping_handoff_example.json",
+        "jt-60sa-mapping-handoff.json",
         fontsize=10,
         color=COLORS["muted"],
     )
@@ -576,7 +577,7 @@ def _render_chain() -> Path:
         30,
         105,
         "Draft tokamap export",
-        "/work/projects/imas_gpu/jt60sa/tokamap/draft-fixture/",
+        "/work/projects/imas_gpu/jt60sa/tokamap/draft/",
     )
     label(625, 105, "Pulse IDS + WriteReceipt", "~/public/imasdb/jt-60sa/")
     _arrow(ax, (240, 245), (240, 145), True)
@@ -646,10 +647,8 @@ def _statistics(
     catalogue: dict, factories: dict[str, imas.IDSFactory]
 ) -> tuple[list[dict], str]:
     partition = "101174"
-    draft = DRAFT_ROOT / "draft"
-    if not draft.is_dir():
-        draft = DRAFT_TOKAMAP
-    handoff_path = LIVE_HANDOFF if draft.name == "draft" else HANDOFF
+    draft = DRAFT_TOKAMAP
+    handoff_path = HANDOFF
     handoff = json.loads(handoff_path.read_text())
     handoff_groups = {item["ids_name"]: item for item in handoff["ids"]}
     input_rows = sum(
@@ -663,10 +662,7 @@ def _statistics(
         group = group_dir.name
         hand = json.loads(hand_path.read_text())
         draft_path = draft / group / partition / "mappings.json"
-        if (
-            draft.name == "draft"
-            and draft_path.stat().st_mtime_ns < handoff_path.stat().st_mtime_ns
-        ):
+        if draft_path.stat().st_mtime_ns < handoff_path.stat().st_mtime_ns:
             raise ValueError(
                 f"{draft_path} predates {handoff_path}; regenerate the draft"
             )
@@ -811,7 +807,7 @@ def main() -> None:
                 gaps.append(f"{slug}: {example.key}")
             if draft is not None:
                 draft_count += 1
-                print(f"fixture-driven {slug}: {source_path}")
+                print(f"JT-60SA draft {slug}: {source_path}")
                 print(f"  hand-built: {entry_path}")
                 print(f"  indexed draft: {draft_path}")
         svgs.append(_render_json(slug, title, pairs))
@@ -821,7 +817,7 @@ def main() -> None:
     print(
         f"rendered {len(SYSTEMS)} system figures, 2 flow charts and 1 statistics figure"
     )
-    print(f"SVGs={len(svgs)} gaps={len(gaps)} fixture_draft_rows={draft_count}")
+    print(f"SVGs={len(svgs)} gaps={len(gaps)} indexed_draft_rows={draft_count}")
     print(f"partition=101174 draft_source={draft_name}")
     for row in rows:
         print(
