@@ -117,6 +117,73 @@ def _default_loader(
     return load_equilibrium_geometry(shot_id, frame_times, **kwargs)
 
 
+def _selene_psrc_loader(
+    shot_id: int,
+    frame_times: np.ndarray,
+    **kwargs,
+) -> EquilibriumGeometry:
+    """Reduce a SELENE PSRC record to the seam's reference geometry.
+
+    Not exported (``__all__`` is unchanged) — it is one ``loader`` for the
+    gated seam, reached only through :func:`read_efit_geometry`, so it inherits
+    the firewall rather than opening a second, ungated read of a reference
+    equilibrium.  It reads the shot's SELENE reconstruction through
+    :func:`imas_ambix.data.selene_psrc.read_psrc_record` — forwarding
+    ``cache_root`` and ``extractor`` — and reduces the record through
+    :func:`imas_ambix.worldmodel.equilibrium_labels.build_geometry_from_arrays`,
+    deriving no geometry of its own.
+
+    The boundary's own time base is the reduction's base ``t_eq``.  The
+    magnetic axis (``calRp0``/``calZp0``) and the X-point (``calRX``/``calZX``)
+    are interpolated onto it; the X-point is passed as a ONE-null set with time
+    on the last axis, and the per-slice boundary contours are padded to a common
+    vertex count (NaN fill) so slices of differing vertex counts share one
+    ``(n_bdy, nt)`` array the builder's per-slice resampling accepts.  PSRC's
+    geometric centre (``calCCSRc``/``calCCSZc``), a coarse marker offset from
+    the axis, is never read.
+    """
+    import numpy as np  # noqa: PLC0415
+
+    from imas_ambix.data.selene_psrc import read_psrc_record  # noqa: PLC0415
+    from imas_ambix.worldmodel.equilibrium_labels import (  # noqa: PLC0415
+        _interp_1d_masked,
+        build_geometry_from_arrays,
+    )
+
+    read_kwargs = {k: kwargs[k] for k in ("cache_root", "extractor") if k in kwargs}
+    record = read_psrc_record(shot_id, **read_kwargs)
+
+    t_eq = np.asarray(record.boundary.time, dtype=np.float64)
+    axis_r = _interp_1d_masked(record.magnetic_axis_time, record.magnetic_axis_r, t_eq)
+    axis_z = _interp_1d_masked(record.magnetic_axis_time, record.magnetic_axis_z, t_eq)
+    xpt_r = _interp_1d_masked(record.x_point_time, record.x_point_r, t_eq)
+    xpt_z = _interp_1d_masked(record.x_point_time, record.x_point_z, t_eq)
+
+    n_slices = t_eq.size
+    n_bdy = max((len(s) for s in record.boundary.r), default=0)
+    lcfs_r = np.full((n_bdy, n_slices), np.nan, dtype=np.float64)
+    lcfs_z = np.full((n_bdy, n_slices), np.nan, dtype=np.float64)
+    for i in range(n_slices):
+        r_slice = np.asarray(record.boundary.r[i], dtype=np.float64)
+        z_slice = np.asarray(record.boundary.z[i], dtype=np.float64)
+        lcfs_r[: r_slice.size, i] = r_slice
+        lcfs_z[: z_slice.size, i] = z_slice
+
+    build_kwargs = {"angles": kwargs["angles"]} if "angles" in kwargs else {}
+    return build_geometry_from_arrays(
+        shot_id=shot_id,
+        frame_times=np.asarray(frame_times, dtype=np.float64).ravel(),
+        t_eq=t_eq,
+        axis_r=axis_r,
+        axis_z=axis_z,
+        x_point_r=np.asarray(xpt_r, dtype=np.float64).reshape(1, -1),
+        x_point_z=np.asarray(xpt_z, dtype=np.float64).reshape(1, -1),
+        lcfs_r=lcfs_r,
+        lcfs_z=lcfs_z,
+        **build_kwargs,
+    )
+
+
 def read_efit_geometry(
     shot_id: int,
     frame_times: np.ndarray,

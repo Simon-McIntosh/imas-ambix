@@ -115,10 +115,12 @@ def test_gate_closes_even_after_exception():
 
 
 def test_training_tree_does_not_reference_referee():
-    """No world-model / training source references ``efit_referee``.
+    """No world-model / training source references a gated read.
 
-    This is the proof the referee is off the training input path: a leak would
-    show up as an import or symbol reference in the model / training tree.
+    This is the proof the reference reads are off the training input path: a
+    leak would show up as an import or symbol reference in the model / training
+    tree.  The referee itself and the SELENE PSRC reader it consumes are both
+    evaluator-only, so neither may appear in that tree.
     """
     repo_root = Path(__file__).resolve().parents[2]
     # Directories that hold model definitions and training loops.
@@ -127,7 +129,10 @@ def test_training_tree_does_not_reference_referee():
         repo_root / "imas_ambix" / "tokenizer",
         repo_root / "imas_ambix" / "statespace",
     ]
-    pattern = re.compile(r"efit_referee")
+    patterns = {
+        "efit_referee": re.compile(r"efit_referee"),
+        "selene_psrc": re.compile(r"selene_psrc"),
+    }
     hits: list[str] = []
     for root in search_roots:
         if not root.exists():
@@ -135,9 +140,9 @@ def test_training_tree_does_not_reference_referee():
         for py in root.rglob("*.py"):
             text = py.read_text(encoding="utf-8", errors="ignore")
             for lineno, line in enumerate(text.splitlines(), start=1):
-                if pattern.search(line):
+                if any(p.search(line) for p in patterns.values()):
                     hits.append(f"{py}:{lineno}: {line.strip()}")
-    assert not hits, "training/model tree references efit_referee:\n" + "\n".join(hits)
+    assert not hits, "training/model tree references a gated read:\n" + "\n".join(hits)
 
 
 def test_referee_does_not_import_worldmodel_at_module_load():
