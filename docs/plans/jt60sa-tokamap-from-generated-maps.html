@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="jt60sa-tokamap-from-generated-maps">
+  <meta name="plan-title" content="JT-60SA Tokamap From Generated Maps">
+  <meta name="plan-summary" content="Write JT-60SA tokamap directories carrying the machine description and signal mappings, with imas-codex's generated signal mappings imported as draft">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="4.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-reasoning" content="standard">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="low">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-sprint" content="S20">
+  <meta name="plan-tags" content="jt-60sa,machine-map">
+  <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;imas-codex:generated-map-handoff#s1&quot;], &quot;s3&quot;: [&quot;jt60sa-tokamap-from-generated-maps#s1&quot;, &quot;jt60sa-tokamap-from-generated-maps#s2&quot;, &quot;imas-codex:generated-map-handoff#s4&quot;], &quot;s4&quot;: [&quot;jt60sa-tokamap-from-generated-maps#s3&quot;, &quot;imas-codex:generated-map-handoff#s5&quot;]}">
+  <meta name="plan-informs" content="imas-codex:jt60sa-imas-maps,jt60sa-machine-map">
+  <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-version" content="1">
+<meta name="plan-modified" content="2026-10-09">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;}">
+</head>
+<body>
+  <main class="plan-doc">
+    <header>
+      <p class="eyebrow">imas-codex generates, imas-ambix validates and writes</p>
+      <h1>JT-60SA Tokamap From Generated Maps</h1>
+      <p class="lead">
+        The lead asked on 2026-10-09 for a working prototype of the whole chain, from discovery to a tokamap
+        directory. The tokamap must carry both the machine description and the signal mappings, with the signal
+        mappings at draft. The work is split between two repositories, and each runs in its own session:
+      </p>
+      <ul>
+        <li><strong>imas-codex</strong> discovers signals and generates mappings from facility signals to Data Dictionary paths. Its plan, <code>imas-codex:generated-map-handoff</code>, exports them in one hand-off document per facility, defined in that plan.</li>
+        <li><strong>imas-ambix</strong> owns the machine description, which is its catalogue built from the SELENE deck. It resolves each draft signal to its probe or coil index, checks rules against data, and writes the tokamap directory and the IDS.</li>
+      </ul>
+      <p class="lead">
+        The two sessions coordinate by message.
+      </p>
+      <p class="lead">
+        The lead also ruled that a map is never promoted by default without a validation step. In imas-ambix this
+        means two things:
+      </p>
+      <ul>
+        <li>a rule built from an imas-codex mapping carries the validation state <code>draft</code>, and the tokamap comment carries that state;</li>
+        <li>such a rule becomes <code>corpus-validated</code> only through imas-ambix's existing checks against pulse data.</li>
+      </ul>
+      <p class="lead">
+        The exporter already exists: <code>imas_ambix/data/tokamap_export.py</code>
+        <code>export_tokamap_directory</code>, with tests in <code>tests/data/test_tokamap_export.py</code>, but no
+        command calls it.
+      </p>
+      <p class="lead">
+        A probe on 2026-10-09 ran it on <code>maps/jt-60sa/machine_map.json</code> and the four signal maps in
+        <code>maps/jt-60sa/maps/</code>. Its output carries both halves. Machine-description entries such as
+        <code>b_field_pol_probe[#]/length</code> read
+        <code>/work/projects/imas_gpu/jt60sa/machine_description/OP2/magnetics.nc</code>. Signal entries such as
+        <code>b_field_pol_probe[#]/field/data</code> read MDAC <code>magPbTC10</code>.
+      </p>
+      <p class="lead">
+        It refused correctly on one point. Two of the 432 catalogue bindings target
+        <code>magnetics/b_field_pol_probe/poloidal_angle</code>, which is COCOS-dependent, and the JT-60SA catalogue
+        declares <code>source_cocos: 0</code>. The JT-60SA COCOS is undetermined: the plasma current has been seen
+        with one polarity only, and the handedness is undeclared. Declaring it is <code>jt60sa-machine-map</code>'s
+        work, not this plan's.
+      </p>
+      <p class="lead">
+        With those two held out, the probe wrote 6 groups, 2 shot partitions (100001 and 101174), 12
+        <code>mappings.json</code> files and 70 entries.
+      </p>
+    </header>
+
+    <h2 id="s1">§1 — A command that exports a machine's tokamap</h2>
+<section data-reckon="section" data-id="s1" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+    <p>
+      Add <code>imas-ambix maps tokamap MACHINE --out DIR</code> to the existing <code>maps</code> group in
+      <code>imas_ambix/maps_cli.py</code>. It loads the machine's catalogue with
+      <code>imas_alambic.machine_map.load_machine_map</code> and its signal maps with
+      <code>imas_alambic.signal_map.load_signal_map</code>, then calls <code>export_tokamap_directory</code>. It
+      prints the group, partition and entry counts, split between machine-description entries and signal entries.
+    </p>
+    <p>
+      An undeclared source COCOS is still a refusal by default. Add one opt-in keyword to
+      <code>export_tokamap_directory</code> itself, exposed as <code>--withhold-undeclared-cocos</code>. It skips
+      each binding or rule that targets a COCOS-dependent path while its source COCOS is undeclared, and records
+      that item in the returned <code>TokamapExport</code> under a new field such as <code>withheld</code>, with its
+      name, target path and reason. The command prints every withheld item. No entry is ever written with an
+      assumed factor. Extend the exporter itself rather than filtering the catalogue outside it.
+    </p>
+    <p>
+      The probe also exposed a silent defect that §1 must fix first. <code>_leaf_mappings</code> keys each entry by its
+      tokamap path, in which every structure array is written <code>[#]</code>, and keeps only the first rule for a
+      key. So the 17 pickup-probe rules collapse into one entry, <code>b_field_pol_probe[#]/field/data</code>, which
+      reads <code>magPbTC10</code>. The magnetics leaf holds 11 keys for 45 signal rules, and a reader would give
+      every probe probe 10's signal.
+    </p>
+    <p>
+      The tokamap schema is installed at <code>.venv/lib/python3.14/site-packages/tokamap/schemas/mappings.schema.json</code>.
+      Its <code>DATA_SOURCE</code> entries take <code>args</code>, <code>scale</code>, <code>offset</code> and
+      <code>slice</code>, and the schema also defines <code>DIMENSION</code>, <code>EXPR</code> and
+      <code>CUSTOM</code>. Find out from the tokamap package how an entry under a <code>[#]</code> key selects its
+      source per index, and emit every rule addressably. If tokamap cannot express a case, the export refuses and
+      names it. Two rules must never collapse silently into one.
+    </p>
+    <p>
+      Validate every written file with tokamap's own validator, <code>tokamap.validator</code>.
+    </p>
+    <p>
+      Run the command for <code>jt-60sa</code> with the flag. Write the output to
+      <code>/work/projects/imas_gpu/jt60sa/tokamap/hand-built/</code>, which is the reference that §3 compares
+      against. That directory is data and is not committed.
+    </p>
+    <p>
+      <strong>Node</strong> <code>tokamap-export-command</code>, role implement, 0.5 h. Write paths:
+      <code>imas_ambix/maps_cli.py</code>, <code>imas_ambix/data/tokamap_export.py</code>,
+      <code>tests/data/test_tokamap_export.py</code>, and
+      <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/tokamap-export-command.html</code>.
+      <strong>Done when</strong> all of the following hold:
+    </p>
+    <ul>
+      <li>a test shows the default export still raises on an undeclared COCOS;</li>
+      <li>a test shows the flag withholds and records the binding instead;</li>
+      <li>the JT-60SA run lists exactly the two <code>poloidal_angle</code> bindings as withheld;</li>
+      <li>a test shows that two rules sharing a <code>[#]</code> key with different indices both survive, or that the export refuses;</li>
+      <li>the JT-60SA magnetics leaf resolves all 17 pickup probes to their own channels;</li>
+      <li>every written file passes tokamap's validator;</li>
+      <li>the fragment gives the directory tree and the counts, and quotes one machine-description entry and one signal entry from <code>mappings.json</code>.</li>
+    </ul>
+
+    <h2 id="s2">§2 — Import imas-codex's generated mappings as a draft signal map</h2>
+<section data-reckon="section" data-id="s2" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+    <p>
+      Add <code>draft</code> to the validation-state vocabulary, <code>_VALIDATION_STATES</code> in
+      <code>packages/imas-alambic/src/imas_alambic/machine_map.py</code>. Then add a reader in a new module,
+      <code>imas_ambix/data/generated_mapping_import.py</code>. It turns one imas-codex hand-off document into a
+      draft <code>SignalMap</code> per IDS.
+    </p>
+    <p>
+      For each hand-off row, the reader fills <code>source_group</code>, <code>source_array</code>, units,
+      <code>target_path</code> and <code>transformation</code> from the row. It sets <code>validation_state</code>
+      to <code>draft</code>, and its <code>evidence</code> names the imas-codex mapping id, its status and the row's
+      own evidence.
+    </p>
+    <p>
+      <code>target_index</code> comes from imas-ambix's machine description, not from the hand-off. The reader
+      resolves it by matching the row's <code>member_identifier</code> and <code>source_array</code> through the
+      catalogue's <code>sensor_identity_rules</code> to a machine-description element. It must not read the index
+      from the hand-built signal maps, because §3 compares against those, and taking indices from them would make
+      the comparison circular.
+    </p>
+    <p>
+      A row the identity rules do not resolve, and every <code>unexpanded</code> row, is reported with its reason,
+      never guessed. Those gaps define what the hand-off contract still has to carry.
+    </p>
+    <p>
+      Build and test against imas-codex's committed fixture, <code>tests/fixtures/mapping_handoff_example.json</code>
+      from <code>imas-codex:generated-map-handoff</code> §1. Copy it here as
+      <code>tests/fixtures/mapping_handoff_example.json</code>.
+    </p>
+    <p>
+      <strong>Node</strong> <code>generated-mapping-import</code>, role implement, 1.0 h. Write paths:
+      <code>packages/imas-alambic/src/imas_alambic/machine_map.py</code>,
+      <code>imas_ambix/data/generated_mapping_import.py</code>,
+      <code>tests/data/test_generated_mapping_import.py</code>,
+      <code>tests/fixtures/mapping_handoff_example.json</code>, and
+      <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/generated-mapping-import.html</code>.
+      <strong>Done when</strong> all of the following hold:
+    </p>
+    <ul>
+      <li>a test turns the fixture into draft rules whose indices come from a test catalogue's identity rules;</li>
+      <li>a test shows that an unresolvable member is reported, not indexed;</li>
+      <li>a test shows that a <code>draft</code> rule round-trips through <code>SignalRule</code> serialisation.</li>
+    </ul>
+
+    <h2 id="s3">§3 — The JT-60SA tokamap with draft signals</h2>
+<section data-reckon="section" data-id="s3" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+    <p>
+      Wire the importer into the <code>maps</code> group as
+      <code>imas-ambix maps tokamap MACHINE --out DIR --draft-signals FILE</code>. With that option, the command
+      takes the machine description from the catalogue as before. For each IDS the hand-off covers, it takes the
+      signals from the imported draft rules in place of the hand-built signal map.
+    </p>
+    <p>
+      Run it on the JT-60SA hand-off document that <code>imas-codex:generated-map-handoff</code> §4 writes to
+      <code>/work/projects/imas_gpu/jt60sa/handoff/</code>. Write the result to
+      <code>/work/projects/imas_gpu/jt60sa/tokamap/draft/</code>.
+    </p>
+    <p>
+      <strong>Node</strong> <code>jt60sa-draft-tokamap</code>, role implement, 0.5 h. Write paths:
+      <code>imas_ambix/maps_cli.py</code>, its test, and
+      <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/jt60sa-draft-tokamap.html</code>.
+      <strong>Done when</strong> the fragment gives all of the following:
+    </p>
+    <ul>
+      <li>the draft directory's tree and counts, split between machine description and signals;</li>
+      <li>one quoted draft signal entry, whose comment shows <code>validation_state=draft</code>;</li>
+      <li>the unresolved and unexpanded rows with their reasons;</li>
+      <li>a table with one row per target path and index, giving the hand-built source and scale from §1's reference beside the draft source, transform and units, and marking agreement.</li>
+    </ul>
+
+    <h2 id="s4">§4 — Research report: from discovery to JT-60SA IDS</h2>
+<section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+    <p>
+      Write <code>docs/research/jt60sa-discovery-to-ids.html</code>. It is a research document with
+      <code>plan-evidence-for</code> set to this plan, and it is meant for the lead to present. It covers:
+    </p>
+    <ul>
+      <li>what each repository does;</li>
+      <li>what the hand-off carries;</li>
+      <li>how a draft signal becomes an indexed rule;</li>
+      <li>how the tokamap directory is laid out;</li>
+      <li>how imas-alambic, imas-ambix's slim write engine, writes pulse IDS.</li>
+    </ul>
+    <p>
+      It links to imas-codex's companion report on the discovery and mapping pipeline,
+      <code>imas-codex:generated-map-handoff</code> §5, and may embed that report's figures by their
+      project-absolute <code>/imas-codex/figures/...</code> source.
+    </p>
+    <p>
+      The figures go under <code>docs/figures/jt60sa-tokamap/</code>, one SVG each, and follow the data-ink rules.
+    </p>
+    <ul>
+      <li><strong>The whole chain.</strong> A flow chart from imas-codex discovery, candidates and generated mapping
+      at draft, through the hand-off document and imas-ambix's import with indices taken from the machine
+      description, to the bundle. From the bundle it branches to the tokamap export and to <code>imas-alambic
+      write</code>. Draft and validated paths are told apart by line style, and the validation step that promotion
+      requires is drawn.</li>
+      <li><strong>The imas-alambic workflow for JT-60SA.</strong> A flow chart of producing a pulse's IDS into the lead's
+      shared folder. Its inputs are the machine description for the shot's phase (the converter's netCDF under
+      <code>/work/projects/imas_gpu/jt60sa/machine_description/</code> and the shared
+      <code>~/public/imasdb/jt-60sa_md/</code>), the bundle's signal maps, and EDDB channels read through
+      <code>VirtualZarrView</code> and <code>read_channel</code>. Then comes the <code>imas-alambic write</code>
+      command with its settings precedence. Its outputs are <code>pulse_path</code>,
+      <code>{out_root}/{pulse}_{run}.nc</code>, under <code>~/public/imasdb/jt-60sa/</code>, and the
+      <code>WriteReceipt</code>. Name the real command line and the real paths.</li>
+      <li><strong>Coloured JSON renders, one figure per system, for presentation.</strong> This is the lead's explicit
+      request, so these render text as images: a syntax-coloured render of real JSON, made with
+      <code>pygments</code>, which is in the environment.
+        <ul>
+          <li>Cover pickup probes, flux loops (FL7 absolute and one differential loop), PF coil current and coil geometry, passive structure, TF, wall and equilibrium.</li>
+          <li>Each figure sets side by side, for one target: the machine-map binding or signal-map rule as imas-ambix stores it, the tokamap <code>mappings.json</code> entry written for it, and, where §3 produced one, the imas-codex hand-off row at draft.</li>
+          <li>Trim each excerpt to a readable 10 to 20 lines.</li>
+          <li>Use one colour theme across all figures and keep it legible on white.</li>
+          <li>Under each render, give the same excerpt as selectable text in a <code>&lt;pre&gt;</code>.</li>
+        </ul>
+      </li>
+      <li><strong>Geometry and traces.</strong> What the maps produce, drawn through imas-ink from the minted pulse IDS:
+      probe and loop positions, coils, passive structure and wall in one cross-section, and one probe and one coil
+      trace. Embed the existing figures in <code>docs/figures/jt60sa-geometry/</code> and
+      <code>docs/figures/jt60sa-signals/</code> where they already show this, rather than redrawing them.</li>
+    </ul>
+    <p>
+      Also write a PNG at twice the SVG's size for each JSON render and flow chart, to drop into slides. Put them in
+      <code>/work/projects/imas_gpu/jt60sa/presentation/</code>, not beside the SVGs and not in the repository.
+    </p>
+    <p>
+      <strong>Node</strong> <code>discovery-to-ids-report</code>, role implement, 1.5 h. Write paths:
+      <code>docs/research/jt60sa-discovery-to-ids.html</code>, <code>docs/figures/jt60sa-tokamap</code>, and
+      <code>scripts/figures_jt60sa_tokamap.py</code>, which renders every figure. <strong>Done when</strong> all of
+      the following hold:
+    </p>
+    <ul>
+      <li><code>reckon audit-doc</code> passes on the report;</li>
+      <li>every figure is generated by the script;</li>
+      <li>there is one JSON render for each of the seven systems;</li>
+      <li>both flow charts name real commands and paths that exist;</li>
+      <li>the PNG set is listed with its sizes.</li>
+    </ul>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-jtgm-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-09" data-recommends-skill="/reckon-build jt60sa-tokamap-from-generated-maps">
+    <h4 class="r-fu-title">Export JT-60SA's tokamap, then import imas-codex's draft signals into it</h4>
+    <div class="r-fu-body"><p>§1 is ready now. §2 starts when <code>imas-codex:generated-map-handoff</code> §1 commits its fixture. §3 waits on that plan's §4. §4 waits on §3 and on that plan's §5.</p></div>
+    <pre class="r-fu-prompt">/reckon-build jt60sa-tokamap-from-generated-maps</pre>
+    </article>
+</section>
+  <section data-reckon="comments" id="comments" class="r-comments">
+</section>
+</main>
+</body>
+</html>
