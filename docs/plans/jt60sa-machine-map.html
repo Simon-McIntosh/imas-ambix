@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.96">
-<meta name="plan-version" content="445">
+<meta name="plan-version" content="446">
 <meta name="plan-modified" content="2026-10-09">
 </head>
 <body>
@@ -1316,6 +1316,9 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261009T015536628279-jtmm-selene-reference-loader" data-who="reckon-build" data-when="2026-10-09T02:12:37.846Z">
     <div class="r-comment-body"><p>Added the gated SELENE PSRC reference loader (private _selene_psrc_loader in imas_ambix/eval/efit_referee.py) reducing a PSRC record through build_geometry_from_arrays with no public name; 15/15 gate tests pass at e589f030 and the centre-as-axis mutation fails 2.</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-run-r-20261009T020735840300-jtmm-mast-repin" data-who="reckon-build" data-when="2026-10-09T02:15:14.344Z">
+    <div class="r-comment-body"><p>Repinned MAST&#x27;s PINNED_DESCRIPTIONS row to semantic identity sha256:f20d64dbde63756150fecd5a41d34a0d7a055900877370aae40a594ca7d039d5 (physical b55c5bb005a2cb67 and registry 2a26cc0a… unchanged) with a mechanism comment beside the row; gate 24 passed EXIT=0, ruff All checks passed EXIT=0, and the restored stale pin fails test_re_authoring_reproduces_the_identity_the_package_pins (1 failed EXIT=1)</p></div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20261006T0430-gate-pass" data-who="reckon-build" data-when="2026-10-06T04:30:00Z">
     <div class="r-comment-body"><p>Gate g-jt60sa-machine-map-1 passed on the codex census receipt (imas-codex <code>docs/evidence/receipts/jt60sa-eddb-census-gate.json</code> at <code>9c1d3cef</code>). The graph's coverage is enough for a first-pass map. What it does not hold is which raw MDAC flux-loop and pickup-coil channel feeds which <code>geo.in</code> position. SELENE's input code holds that: the <code>#MAG</code> index arrays <code>JLOOP</code>, <code>JTPRB</code> and <code>JNPRB</code>, filled by <code>getseldata_v4.2</code>, which codex is now indexing under its plan's §14. The processed PSRC and raw MDAC flux loops already cached for E101154 give the per-channel scale and sign offline.</p></div>
