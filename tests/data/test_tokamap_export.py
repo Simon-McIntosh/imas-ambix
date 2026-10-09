@@ -5,8 +5,8 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
-import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import imas
@@ -18,6 +18,7 @@ from imas_alambic.signal_map import load_packaged_signal_map
 from imas_ambix.data.tokamap_export import (
     PARTITION_ATTRIBUTE,
     PARTITION_SELECTOR,
+    TokamapExportError,
     export_tokamap_directory,
 )
 
@@ -62,8 +63,81 @@ def catalog():
 
 
 @pytest.fixture(scope="module")
-def signal_map():
-    return load_packaged_signal_map(MACHINE, SIGNAL_SYSTEM)
+def signal_map(catalog):
+    reviewed = load_packaged_signal_map(MACHINE, SIGNAL_SYSTEM)
+    return dataclasses.replace(
+        reviewed,
+        signals=tuple(
+            dataclasses.replace(rule, source_cocos=catalog.source_cocos)
+            for rule in reviewed.signals
+        ),
+    )
+
+
+def test_undeclared_cocos_refuses_by_default_and_can_be_withheld(catalog, tmp_path):
+    binding_set_name, bindings = next(iter(catalog.binding_sets.items()))
+    target = dataclasses.replace(
+        bindings[0],
+        dd_path="magnetics/b_field_pol_probe/poloidal_angle",
+        source_cocos_override=None,
+    )
+    undeclared = dataclasses.replace(
+        catalog,
+        source_cocos=None,
+        binding_sets={binding_set_name: (target,)},
+    )
+    with pytest.raises(TokamapExportError, match="no declared source COCOS"):
+        export_tokamap_directory(undeclared, directory=tmp_path / "refused")
+
+    result = export_tokamap_directory(
+        undeclared,
+        directory=tmp_path / "withheld",
+        withhold_undeclared_cocos=True,
+    )
+    assert len(result.withheld) == len(catalog.maps)
+    assert {item.name for item in result.withheld} == {target.name}
+    assert {item.target_path for item in result.withheld} == {target.dd_path}
+    assert all("COCOS" in item.reason for item in result.withheld)
+    assert not result.entries
+
+
+def test_indexed_signal_rules_keep_distinct_sources(catalog, signal_map, tmp_path):
+    prototype = signal_map.signals[0]
+    rules = tuple(
+        dataclasses.replace(
+            prototype,
+            semantic_id=f"probe_{index}",
+            target_path="magnetics/b_field_pol_probe/field/data",
+            target_index=index,
+            source_array=f"probe_channel_{index}",
+        )
+        for index in (0, 1)
+    )
+    indexed = dataclasses.replace(signal_map, signals=rules)
+    empty_catalog = dataclasses.replace(
+        catalog,
+        binding_sets={name: () for name in catalog.binding_sets},
+    )
+    result = export_tokamap_directory(
+        empty_catalog, [indexed], directory=tmp_path / "indexed"
+    )
+    for partition in result.partitions:
+        mappings = json.loads(
+            (
+                tmp_path / "indexed" / "magnetics" / str(partition) / "mappings.json"
+            ).read_text()
+        )
+        for index in (0, 1):
+            key = f"b_field_pol_probe[{index}]/field/data"
+            assert mappings[key]["data_source"] == f"probe_channel_{index}"
+        assert "b_field_pol_probe[#]/field/data" not in mappings
+
+    duplicate = dataclasses.replace(rules[1], target_index=0)
+    overlapping = dataclasses.replace(indexed, signals=(rules[0], duplicate))
+    with pytest.raises(TokamapExportError, match="probe_0.*probe_1"):
+        export_tokamap_directory(
+            empty_catalog, [overlapping], directory=tmp_path / "overlap"
+        )
 
 
 def _bindings_by_name(cat) -> dict:
@@ -75,11 +149,8 @@ def _bindings_by_name(cat) -> dict:
 
 
 def _validator_command(directory: Path) -> list[str]:
-    executable = shutil.which("tokamap-validator")
-    if executable is not None:
-        return [executable, str(directory)]
     return [
-        "python3",
+        sys.executable,
         "-c",
         "from tokamap.validator.main import run; run()",
         str(directory),
@@ -90,9 +161,7 @@ def test_export_passes_validator_for_every_bound_ids_group(
     catalog, signal_map, tmp_path
 ):
     directory = tmp_path / "export"
-    result = export_tokamap_directory(
-        catalog, [signal_map], directory=directory
-    )
+    result = export_tokamap_directory(catalog, [signal_map], directory=directory)
 
     bound_groups = sorted(
         {
@@ -204,9 +273,7 @@ def test_unknown_unvalidated_sign_is_recorded_not_silently_signed(catalog, tmp_p
     directory = tmp_path / "unvalidated"
     result = export_tokamap_directory(unvalidated, directory=directory)
 
-    entry = next(
-        item for item in result.entries if item.source_name == target.name
-    )
+    entry = next(item for item in result.entries if item.source_name == target.name)
     assert entry.sign_factor == 1.0
     assert "unknown-unvalidated" in entry.comment
     assert "no sign applied" in entry.comment

@@ -17,18 +17,16 @@ is relative to that group, because tokamap -- and the libtokamap and UDA
 consumers of these directories -- resolve a request within the group the file
 is filed under.
 
-A DD path that several source arrays feed -- two probe families both
-declaring ``b_field_pol_probe/name`` is an example -- has no tokamap
-representation, because a JSON object holds one entry per key.  Those
-alternatives collapse to a single entry, first declaration wins: tokamap has
-no conditional, and the ambix catalogue already records the exclusion through
-its qualifications.
+Indexed signal rules use concrete structure-array keys. Tokamap resolves a
+concrete key when no wildcard key exists for that path. Catalogue alternatives
+with the same key retain their declared priority; signal collisions refuse.
 """
 
 from __future__ import annotations
 
 import json
 import math
+import re
 from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
@@ -80,6 +78,15 @@ class TokamapEntry:
 
 
 @dataclass(frozen=True)
+class TokamapWithheld:
+    """A COCOS-dependent source omitted because its convention is undeclared."""
+
+    name: str
+    target_path: str
+    reason: str
+
+
+@dataclass(frozen=True)
 class TokamapExport:
     """The result of exporting one directory, counting what landed on disk.
 
@@ -96,6 +103,7 @@ class TokamapExport:
     entries: tuple[TokamapEntry, ...] = field(default_factory=tuple)
     group_entry_counts: Mapping[str, int] = field(default_factory=dict)
     mappings_file_count: int = 0
+    withheld: tuple[TokamapWithheld, ...] = field(default_factory=tuple)
 
 
 _UNIT_CONVERSIONS: Mapping[tuple[str, str], float] = {
@@ -225,9 +233,7 @@ def _catalogue_entry(
                 f"binding {binding.name!r} targets COCOS-dependent path "
                 f"{binding.dd_path!r} with no declared source COCOS"
             )
-        cocos_factor = canonical_factor(
-            transformation, source_cocos=int(source_cocos)
-        )
+        cocos_factor = canonical_factor(transformation, source_cocos=int(source_cocos))
     scale = unit_factor * sign_factor * cocos_factor
     comment = _comment(
         sign_convention=binding.sign_convention,
@@ -274,6 +280,14 @@ def _signal_entry(
     cocos_factor = float(rule.convention_factor)
     scale = unit_factor * sign_factor * cocos_factor
     key = _tokamap_key(dd_version, rule.target_path)
+    if rule.target_index is not None:
+        if key.count("[#]") != 1:
+            raise TokamapExportError(
+                f"signal {rule.semantic_id!r} has target index {rule.target_index} "
+                f"but target {rule.target_path!r} has "
+                f"{key.count('[#]')} structure arrays"
+            )
+        key = key.replace("[#]", f"[{rule.target_index}]")
     comment = (
         f"semantic_id={rule.semantic_id}; "
         f"unit {rule.source_unit}->{rule.target_unit}; "
@@ -312,7 +326,8 @@ def _leaf_mappings(
     machine_map: MachineMap,
     signal_maps: tuple[SignalMap, ...],
     group: str,
-) -> tuple[dict[str, Any], list[tuple[str, dict[str, Any], TokamapEntry]]]:
+    withhold_undeclared_cocos: bool,
+) -> tuple[dict[str, Any], list[TokamapEntry], list[TokamapWithheld]]:
     """Return the mappings for one IDS group's leaf directory.
 
     Only bindings and signals whose Data Dictionary path belongs to ``group``
@@ -321,23 +336,71 @@ def _leaf_mappings(
     """
 
     mappings: dict[str, Any] = {}
-    records: list[tuple[str, dict[str, Any], TokamapEntry]] = []
+    records: list[TokamapEntry] = []
+    withheld: list[TokamapWithheld] = []
+
+    def add(key: str, mapping: dict[str, Any], record: TokamapEntry) -> None:
+        existing = mappings.get(key)
+        if existing is not None:
+            prior_record = next(item for item in records if item.key == key)
+            if prior_record.kind == record.kind == "catalogue":
+                return
+            raise TokamapExportError(
+                f"{group} mapping {key!r} has conflicting rules: "
+                f"{prior_record.source_name!r} and {record.source_name!r}"
+            )
+        mappings[key] = mapping
+        records.append(record)
+
     for binding in catalog.bindings_for(machine_map):
         if binding.dd_path.split("/", maxsplit=1)[0] != group:
             continue
+        if (
+            _cocos_transformation(catalog.dd_version, binding.dd_path) is not None
+            and catalog.cocos_for_binding(binding) is None
+        ):
+            reason = "COCOS-dependent target with no declared source COCOS"
+            if not withhold_undeclared_cocos:
+                raise TokamapExportError(
+                    f"binding {binding.name!r} targets {binding.dd_path!r}: {reason}"
+                )
+            withheld.append(TokamapWithheld(binding.name, binding.dd_path, reason))
+            continue
         key, mapping, record = _catalogue_entry(binding, catalog)
-        if key not in mappings:
-            mappings[key] = mapping
-            records.append((key, mapping, record))
+        add(key, mapping, record)
     for signal_map in signal_maps:
         for rule in signal_map.signals:
             if rule.target_path.split("/", maxsplit=1)[0] != group:
                 continue
+            if (
+                _cocos_transformation(catalog.dd_version, rule.target_path) is not None
+                and rule.source_cocos is None
+            ):
+                reason = "COCOS-dependent target with no declared source COCOS"
+                if not withhold_undeclared_cocos:
+                    raise TokamapExportError(
+                        f"signal {rule.semantic_id!r} targets "
+                        f"{rule.target_path!r}: {reason}"
+                    )
+                withheld.append(
+                    TokamapWithheld(rule.semantic_id, rule.target_path, reason)
+                )
+                continue
             key, mapping, record = _signal_entry(rule, catalog.dd_version)
-            if key not in mappings:
-                mappings[key] = mapping
-                records.append((key, mapping, record))
-    return mappings, records
+            add(key, mapping, record)
+    for key in mappings:
+        if "[#]" in key:
+            pattern = re.compile(
+                "^" + re.escape(key).replace(re.escape("[#]"), r"\[\d+\]") + "$"
+            )
+            concrete = [
+                name for name in mappings if name != key and pattern.fullmatch(name)
+            ]
+            if concrete:
+                raise TokamapExportError(
+                    f"wildcard mapping {key!r} shadows indexed mappings {concrete!r}"
+                )
+    return mappings, records, withheld
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -355,6 +418,7 @@ def export_tokamap_directory(
     experiment: str | None = None,
     author: str = "ambix",
     version: str = TOKAMAP_FORMAT_VERSION,
+    withhold_undeclared_cocos: bool = False,
 ) -> TokamapExport:
     """Write a tokamap directory from a catalogue and its signal maps.
 
@@ -403,6 +467,7 @@ def export_tokamap_directory(
     _write_json(root / "globals.json", {"source": catalog.source})
 
     records: list[TokamapEntry] = []
+    withheld: list[TokamapWithheld] = []
     group_entry_counts: dict[str, int] = {}
     mappings_file_count = 0
     for group in groups:
@@ -419,13 +484,14 @@ def export_tokamap_directory(
                     "shot_last": machine_map.last_shot,
                 },
             )
-            mappings, leaf_records = _leaf_mappings(
-                catalog, machine_map, signal_maps, group
+            mappings, leaf_records, leaf_withheld = _leaf_mappings(
+                catalog, machine_map, signal_maps, group, withhold_undeclared_cocos
             )
+            withheld.extend(leaf_withheld)
             _write_json(leaf / "mappings.json", mappings)
             mappings_file_count += 1
             group_total += len(mappings)
-            for _key, _mapping, record in leaf_records:
+            for record in leaf_records:
                 records.append(
                     TokamapEntry(
                         group=group,
@@ -450,6 +516,7 @@ def export_tokamap_directory(
         entries=tuple(records),
         group_entry_counts=group_entry_counts,
         mappings_file_count=mappings_file_count,
+        withheld=tuple(withheld),
     )
 
 
@@ -460,5 +527,6 @@ __all__ = [
     "TokamapEntry",
     "TokamapExport",
     "TokamapExportError",
+    "TokamapWithheld",
     "export_tokamap_directory",
 ]
