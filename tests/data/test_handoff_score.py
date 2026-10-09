@@ -251,9 +251,7 @@ def test_conflicting_counts_a_target_whose_source_array_differs():
         }
     ]
     assert result["total"]["conflicting"] == 1
-    assert (
-        result["by_structure"]["magnetics/b_field_pol_probe"]["conflicting"] == 1
-    )
+    assert result["by_structure"]["magnetics/b_field_pol_probe"]["conflicting"] == 1
 
 
 def test_a_target_without_a_hand_built_rule_is_not_conflicting():
@@ -293,9 +291,7 @@ def test_pending_cocos_rule_counts_as_imported_with_the_sign_unscored():
     assert len(imported.pending) == 1
     reference = dataclasses.replace(
         imported.maps[0],
-        signals=(
-            dataclasses.replace(imported.pending[0].rule, channel_factor=-1.0),
-        ),
+        signals=(dataclasses.replace(imported.pending[0].rule, channel_factor=-1.0),),
     )
 
     result = handoff_score.score_handoff(
@@ -361,15 +357,111 @@ def _launcher_document() -> dict:
     }
 
 
+def test_sign_unscored_counts_a_non_agreeing_pending_rule():
+    """A pending rule the hand-built map does not match still counts unscored.
+
+    The old sign_unscored counted only agreeing rules, so a COCOS-pending row
+    that landed on a different index left no trace in the score at all.
+    """
+    document, _ = _case()
+    document["ids"][0]["signals"][0]["cocos_label"] = "ip_like"
+    document["ids"][0]["signals"][0]["cocos_label_source"] = "xml"
+    imported = import_generated_mappings(document, _catalogue(None), MEMBERS)
+    assert len(imported.pending) == 1
+    pending = imported.pending[0].rule
+    elsewhere = dataclasses.replace(pending, target_index=pending.target_index + 5)
+    reference = dataclasses.replace(imported.maps[0], signals=(elsewhere,))
+
+    result = handoff_score.score_handoff(
+        document, _catalogue(None), MEMBERS, [reference]
+    )
+
+    magnetics = result["by_ids"]["magnetics"]
+    assert magnetics["agreeing"] == 0
+    assert magnetics["sign_unscored"] == 1
+
+
+def test_a_channel_served_elsewhere_is_listed_under_cross_structure():
+    """A channel the hand-built map serves on another structure is reported.
+
+    The imported rule targets a poloidal probe; the hand-built map serves the
+    same source channel on a phi probe, so neither the target match nor the
+    same-target conflict test reaches it. Both targets are named.
+    """
+    document, _ = _case()
+    imported = import_generated_mappings(document, _catalogue(), MEMBERS)
+    probe = imported.maps[0]
+    first, second = probe.signals
+    moved = dataclasses.replace(
+        second,
+        target_path="magnetics/b_field_phi_probe/field/data",
+        target_index=3,
+    )
+    reference = dataclasses.replace(probe, signals=(first, moved))
+
+    result = handoff_score.score_handoff(document, _catalogue(), MEMBERS, [reference])
+
+    magnetics = result["by_ids"]["magnetics"]
+    assert magnetics["agreeing"] == 1
+    assert magnetics["cross_structure"] == [
+        {
+            "source_group": "MDAC",
+            "source_array": "magPbTC11",
+            "imported_target_path": "magnetics/b_field_pol_probe/field/data",
+            "imported_target_index": 0,
+            "hand_built_targets": [
+                {
+                    "target_path": "magnetics/b_field_phi_probe/field/data",
+                    "target_index": 3,
+                }
+            ],
+        }
+    ]
+    assert result["total"]["cross_structure"] == magnetics["cross_structure"]
+
+
+def test_a_channel_served_on_another_index_is_listed_under_cross_structure():
+    """A channel bound at index 0 by the import but index 27 by the hand-built map.
+
+    Both rules share the source channel, structure and target path, so only the
+    element index separates them; the score names both targets rather than
+    reading the pair as neither agreeing nor conflicting.
+    """
+    document, _ = _case()
+    imported = import_generated_mappings(document, _catalogue(), MEMBERS)
+    probe = imported.maps[0]
+    first, second = probe.signals
+    moved = dataclasses.replace(second, target_index=second.target_index + 27)
+    reference = dataclasses.replace(probe, signals=(first, moved))
+
+    result = handoff_score.score_handoff(document, _catalogue(), MEMBERS, [reference])
+
+    magnetics = result["by_ids"]["magnetics"]
+    assert magnetics["agreeing"] == 1
+    assert magnetics["conflicting"] == 0
+    assert magnetics["cross_structure"] == [
+        {
+            "source_group": "MDAC",
+            "source_array": "magPbTC11",
+            "imported_target_path": "magnetics/b_field_pol_probe/field/data",
+            "imported_target_index": 0,
+            "hand_built_targets": [
+                {
+                    "target_path": "magnetics/b_field_pol_probe/field/data",
+                    "target_index": 27,
+                }
+            ],
+        }
+    ]
+
+
 def test_an_ids_without_a_description_store_is_reported_unplaced_by_name():
     """Every row of an IDS the description holds no store for is unplaced.
 
     The cause names the IDS, so a study reads the missing store apart from a
     row that carries no member pattern of its own.
     """
-    result = handoff_score.score_handoff(
-        _launcher_document(), _catalogue(), {}, []
-    )
+    result = handoff_score.score_handoff(_launcher_document(), _catalogue(), {}, [])
 
     launchers = result["by_ids"]["ec_launchers"]
     assert launchers["agreeing"] == "no reference"
