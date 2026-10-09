@@ -1,0 +1,683 @@
+{
+  "agent": {
+    "alias": "dsv4.1-flash",
+    "backend": "clive",
+    "effective_input_window": 230144,
+    "effort": "high",
+    "launch": "cli",
+    "model": "deepseek-v4.1-flash",
+    "sandbox": "worktree-full",
+    "usable_input_window": 230144
+  },
+  "attempt": 2,
+  "attempt_kind": "resume",
+  "backend": "clive",
+  "base_sha": "9705265c756dba0a6a80786d5d9f2dae475ae077",
+  "boundary_waiver": null,
+  "brief": null,
+  "budget": {
+    "cost_usd": null,
+    "cost_usd_cumulative": null,
+    "cost_usd_imputed": true,
+    "detail": "no rate-limit event in the stream yet",
+    "headroom": "unknown",
+    "rate_limit_period_minutes": null,
+    "rate_limit_type": null,
+    "refusal": false,
+    "resets_at": null,
+    "surpassed_threshold": null,
+    "threshold_status": null,
+    "tokens": {
+      "cache_creation_input_tokens": 0,
+      "cache_creation_input_tokens_cumulative": 0,
+      "cache_read_input_tokens": 0,
+      "cache_read_input_tokens_cumulative": 0,
+      "fallback_credit": null,
+      "inference_geo": "",
+      "input_tokens": 2542551,
+      "input_tokens_cumulative": 2542551,
+      "output_tokens": 6606,
+      "output_tokens_cumulative": 6606,
+      "service_tier": "standard",
+      "speed": "standard"
+    },
+    "utilisation_pct": null
+  },
+  "changed_lines": {
+    "added": 374,
+    "files": 4,
+    "removed": 3
+  },
+  "clone_matches": [],
+  "commit_resolution": null,
+  "commits": [
+    "88d302b48afab9003bba908ecabe659cf8960e31",
+    "eba48b28d8597aaa3f726426595255ab08cae456",
+    "96adf113c7323c9f5b1bdfe4ec78bf791015be07",
+    "95388a50529d7c1885eebc6f5f8ba55c1047c458"
+  ],
+  "completed_at": "2026-10-08T23:41:46.408Z",
+  "completed_at_source": "terminal_event",
+  "dispatched_at": "2026-10-08T22:55:02Z",
+  "disposition": null,
+  "dispute_count": 0,
+  "duration_measurement": null,
+  "execution_fit": {
+    "allowed": true,
+    "execution_capable": true,
+    "matched_measure": "pytest -p",
+    "override": false,
+    "role": "implement",
+    "status": "compatible"
+  },
+  "failure_classification": null,
+  "follow_on_paths": [],
+  "gate": "passed",
+  "gate_check": {
+    "command": "uv run --no-sync pytest -p no:cacheprovider tests/data/test_geqdsk_store.py tests/data/test_pulse_writer.py tests/data/test_jt60sa_signal_maps.py",
+    "exit_status": 0,
+    "log_digest": null,
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T225353639254-jtmm-geqdsk-psi-store/gate.log"
+  },
+  "impl_move": {
+    "at_complete": null,
+    "at_dispatch": 0.93,
+    "plan": "jt60sa-machine-map",
+    "reason": "corrective-run:resume",
+    "verdict": "exempt"
+  },
+  "lane_advisory": {
+    "backend": "clive",
+    "burn_multiple": null,
+    "cheaper_lane": {
+      "detail": "",
+      "lane": null,
+      "state": "not_evaluated"
+    },
+    "detail": "'clive' is unmetered, so it has no window to exhaust; the local lane's scarcity is throughput, which it does not publish",
+    "horizon_ends_at": "2026-10-08T23:54:53.534568+00:00",
+    "horizon_seconds": 3600,
+    "metered": false,
+    "observed_at": null,
+    "precedes_horizon": null,
+    "projected_exhaustion_at": null,
+    "resets_at": null,
+    "seconds_until_reset": null,
+    "state": "quiet",
+    "utilisation_pct": null
+  },
+  "lane_declaration": {
+    "backend": "clive",
+    "headroom": null,
+    "metered": false,
+    "observed_at": null,
+    "read_at": "2026-10-08T22:54:53Z",
+    "resolved_backend": "clive",
+    "utilisation_pct": null
+  },
+  "lane_reading": {
+    "age_seconds": 11,
+    "binding_observed": "unknown",
+    "detail": "",
+    "generating": 10,
+    "headroom": 2,
+    "mean_context": 108000,
+    "observed_at": "2026-10-08T22:54:42Z",
+    "state": "fresh",
+    "suggested_shelf_life_seconds": 45,
+    "throughput": {
+      "age_seconds": 11,
+      "aggregate_tokens_per_second": 235.596,
+      "detail": "",
+      "mean_tokens_per_second": 26.177,
+      "observed_at": "2026-10-08T22:54:42Z",
+      "runs": 9.0,
+      "state": "measured"
+    },
+    "waiting": 0
+  },
+  "lane_receipt": {
+    "effective_context_window": "unmeasured",
+    "notional_cost_usd": "unmeasured",
+    "observed_at": "2026-10-08T23:41:46.408Z",
+    "quota_state": "unmeasured",
+    "quota_windows": [],
+    "rate_basis": "unmeasured",
+    "unmeasured": {
+      "effective_context_window": "missing_rollout",
+      "notional_cost_usd": "missing_rollout",
+      "quota_windows": "unmetered",
+      "rate_basis": "missing_rollout"
+    }
+  },
+  "lineage": null,
+  "local": false,
+  "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T225353639254-jtmm-geqdsk-psi-store/manifest.md",
+  "member": "disposable-r-20261008T225353639254-jtmm-geqdsk-psi-store",
+  "negative_control": {
+    "added_failure_ids": [
+      "tests/data/test_geqdsk_store.py::test_engine_psi_matches_the_geqdsk_flux_times_minus_two_pi"
+    ],
+    "baseline_failure_ids": [],
+    "comparison_arm": "baseline_suite",
+    "control_exit_status": 1,
+    "control_failure_ids": [
+      "tests/data/test_geqdsk_store.py::test_engine_psi_matches_the_geqdsk_flux_times_minus_two_pi"
+    ],
+    "declaration": "Binding the psi rule with source_cocos 17 instead of 1 makes the psi check fail by the missing -2 pi, logged with a non-zero EXIT and the failing test id",
+    "log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T225353639254-jtmm-geqdsk-psi-store/negative_control.log",
+    "resolved_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T225353639254-jtmm-geqdsk-psi-store/negative_control.log",
+    "test_paths": [
+      "tests/data/test_geqdsk_store.py",
+      "tests/data/test_jt60sa_signal_maps.py",
+      "tests/data/test_pulse_writer.py"
+    ],
+    "verdict": "matched"
+  },
+  "no_commit": null,
+  "node": "jtmm-geqdsk-psi-store",
+  "node_definition": {
+    "brief": "",
+    "brief_path": "",
+    "brief_sha256": "",
+    "coordinator": {
+      "authoring_turn": {
+        "source": "claude-code-session-transcript",
+        "status": "measured",
+        "tokens": {
+          "cache_creation_input_tokens": 608,
+          "cached_input_tokens": 565877,
+          "input_tokens": 566487,
+          "output_tokens": 525,
+          "reasoning_output_tokens": 0,
+          "total_tokens": 567012,
+          "uncached_input_tokens": 2
+        }
+      },
+      "harness": "claude-code",
+      "runtime_session_id": "c66d1ea6-525d-4cec-8114-013919000083",
+      "session_id": "c66d1ea6-525d-4cec-8114-013919000083"
+    },
+    "done_when": "Read §7's psi-store paragraph and docs/evidence/fragments/jt60sa-machine-map/jtmm-reference-scope.html first. A converter module, imas_ambix/data/geqdsk_store.py, reads a shot's G-EQDSK through imas_ambix/challenge/loader.py load_geqdsk. It writes the psi grid as stored (COCOS 1, Wb/rad), its R and Z coordinate arrays and its time into a per-shot store group the transform engine reads. The group is zarr, sits under a cache root it is given, outside any fetched EDDB category, and uses the layout imas_alambic.eddb's cache writer uses, so the engine reads it like any channel. One rule in /home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/maps/equilibrium.json binds that array to equilibrium/time_slice/profiles_2d/psi with transformation psi_like and source_cocos 1, and binds the grid coordinates where the rule system requires them, with an evidence string citing the G-EQDSK. packages/imas-alambic/src/imas_alambic/pulse_writer.py IDS_NAMES gains equilibrium, and tests/data/test_pulse_writer.py follows. Tests in tests/data/test_geqdsk_store.py build the store in tmp_path from the real /work/projects/imas_gpu/jt60sa/101011.geqdsk, which is read-only, and make §7's psi check. E101011's psi, minted through the engine at the G-EQDSK's time, agrees on the G-EQDSK grid with the G-EQDSK psi multiplied by -2 pi, to a normalised RMS difference under 1% of that psi's range. The same comparison with the rule's sign flipped exceeds it. Nothing under /work is written. Write the landing fragment docs/evidence/fragments/jt60sa-machine-map/jtmm-geqdsk-psi-store.html, quoting the rule and the measured difference. On the fleet allocation (SLURM_JOB_ID set), with the worktree's maps a symlink to the main checkout's maps/, run in the foreground and capture once, to a log in the run directory whose first lines give the committed revision the tests ran at and the command, and whose last line is EXIT=: uv run --no-sync pytest -p no:cacheprovider tests/data/test_geqdsk_store.py tests/data/test_pulse_writer.py tests/data/test_jt60sa_signal_maps.py; it exits 0, and uv run --no-sync ruff check imas_ambix tests exits 0.",
+    "estimated_hours": null,
+    "goal": "Bind E101011's G-EQDSK psi into equilibrium profiles_2d psi through a staged store and a COCOS-1 rule",
+    "id": "jtmm-geqdsk-psi-store",
+    "lane_declaration": {
+      "backend": "clive",
+      "headroom": null,
+      "metered": false,
+      "observed_at": null,
+      "read_at": "2026-10-08T22:54:53Z",
+      "resolved_backend": "clive",
+      "utilisation_pct": null
+    },
+    "lane_reading": {
+      "age_seconds": 11,
+      "binding_observed": "unknown",
+      "detail": "",
+      "generating": 10,
+      "headroom": 2,
+      "mean_context": 108000,
+      "observed_at": "2026-10-08T22:54:42Z",
+      "state": "fresh",
+      "suggested_shelf_life_seconds": 45,
+      "throughput": {
+        "age_seconds": 11,
+        "aggregate_tokens_per_second": 235.596,
+        "detail": "",
+        "mean_tokens_per_second": 26.177,
+        "observed_at": "2026-10-08T22:54:42Z",
+        "runs": 9.0,
+        "state": "measured"
+      },
+      "waiting": 0
+    },
+    "manifest_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261008T225353639254-jtmm-geqdsk-psi-store/manifest.md",
+    "negative_control": "Binding the psi rule with source_cocos 17 instead of 1 makes the psi check fail by the missing -2 pi, logged with a non-zero EXIT and the failing test id",
+    "plan": "jt60sa-machine-map",
+    "requested_backend": "clive",
+    "requires_decisions": [],
+    "role": "implement",
+    "section": "§7",
+    "spec_level": "guided",
+    "time_budget": "60m",
+    "token_budget": null,
+    "write_paths": [
+      "imas_ambix/data/geqdsk_store.py",
+      "tests/data/test_geqdsk_store.py",
+      "/home/ITER/mcintos/Code/imas-ambix/maps/jt-60sa/maps/equilibrium.json",
+      "packages/imas-alambic/src/imas_alambic/pulse_writer.py",
+      "tests/data/test_pulse_writer.py",
+      "docs/evidence/fragments/jt60sa-machine-map/jtmm-geqdsk-psi-store.html",
+      "docs/figures/jt60sa-machine-map/jtmm-geqdsk-psi-store",
+      "tests/data/test_jt60sa_signal_maps.py"
+    ]
+  },
+  "orchestrator_lane_override": null,
+  "orientation_input_tokens": 7140271.0,
+  "outcome": "",
+  "pace": {
+    "allowance": null,
+    "bar": null,
+    "clocks": {
+      "five_hour": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "five_hour",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      },
+      "seven_day": {
+        "age_seconds": null,
+        "observed_at": null,
+        "period": "seven_day",
+        "resets_at": null,
+        "state": "unknown",
+        "utilisation": null,
+        "window_minutes": null
+      }
+    },
+    "group": null,
+    "hold": null,
+    "lane": "clive",
+    "member": null,
+    "node": "jtmm-geqdsk-psi-store",
+    "policy": {
+      "drain_lead_hours": 12.0,
+      "pace_multiple": 1.1
+    },
+    "reason": "the lane declares no budget group, so no wallet paced it",
+    "recorded_at": "2026-10-08T22:54:56.343701+00:00",
+    "score": 0.7375,
+    "source": null,
+    "state": "unknown"
+  },
+  "picker_selection": {
+    "action": "route",
+    "answering_model": "typesafe/jev-1.13-20260917",
+    "backend": "clive",
+    "comment": "",
+    "confidence": 0.82,
+    "decision_source": "jev",
+    "effort": "high",
+    "excluded": [
+      {
+        "availability": "not-probed",
+        "backend": "native",
+        "budget_age_s": null,
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": null,
+        "context": null,
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "in-harness",
+        "local": false,
+        "model": null,
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reasons": [
+          "in-harness-backend"
+        ],
+        "resets_at": null,
+        "stale": null,
+        "utilisation_pct": null,
+        "worker_slots": null
+      }
+    ],
+    "fallback_reason": null,
+    "family": "local",
+    "jev_latency_ms": 532.471,
+    "jev_model": "typesafe/jev-1.13",
+    "latency_ms": 879.808,
+    "model": "deepseek-v4.1-flash",
+    "offered": [
+      {
+        "availability": "unknown",
+        "backend": "claude",
+        "budget_age_s": 1358818.698642,
+        "budget_reason": null,
+        "burn_multiple": 0.95,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 59889,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 0.0,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-sonnet-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.055000000000000056,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-09-27T06:00:00+00:00",
+        "stale": true,
+        "utilisation_pct": 95.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-haiku",
+        "budget_age_s": 1358818.698642,
+        "budget_reason": null,
+        "burn_multiple": 0.95,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 59889,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 0.0,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-haiku-4-5-20251001",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.055000000000000056,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-09-27T06:00:00+00:00",
+        "stale": true,
+        "utilisation_pct": 95.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "claude-opus",
+        "budget_age_s": 1358818.698642,
+        "budget_reason": null,
+        "burn_multiple": 0.95,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 59889,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 0.0,
+        "effort": "high",
+        "family": "claude",
+        "local": false,
+        "model": "claude-opus-5-5",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.055000000000000056,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-09-27T06:00:00+00:00",
+        "stale": true,
+        "utilisation_pct": 95.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "served",
+        "backend": "clive",
+        "budget_age_s": null,
+        "budget_reason": null,
+        "burn_multiple": null,
+        "congestion": {
+          "admission_verdict": "open",
+          "running": 9,
+          "slots_state": "measured",
+          "stale": false,
+          "waiting": 0
+        },
+        "context": {
+          "estimated_tokens": 59889,
+          "headroom_pct": 74.0,
+          "peak_utilisation_p50_pct": 56.4,
+          "peak_utilisation_p90_pct": 79.4,
+          "peak_utilisation_runs": 635,
+          "window_tokens": 230144
+        },
+        "days_to_reset": null,
+        "effort": "high",
+        "family": "local",
+        "local": true,
+        "model": "deepseek-v4.1-flash",
+        "outcomes": {
+          "failed": 6,
+          "not-run": 1,
+          "passed": 103,
+          "unknown": 0
+        },
+        "pace_allowance": null,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": null,
+        "stale": null,
+        "utilisation_pct": null,
+        "worker_slots": 11
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex",
+        "budget_age_s": 1360.799642,
+        "budget_reason": null,
+        "burn_multiple": 2.5816237961677637,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 59889,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 5.264656103680555,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-sol",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 1,
+          "unknown": 0
+        },
+        "pace_allowance": 0.2726965877232143,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-14T05:14:59+00:00",
+        "stale": true,
+        "utilisation_pct": 64.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-astra",
+        "budget_age_s": 1360.799642,
+        "budget_reason": null,
+        "burn_multiple": 2.5816237961677637,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 59889,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 5.264656103680555,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-astra",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.2726965877232143,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-14T05:14:59+00:00",
+        "stale": true,
+        "utilisation_pct": 64.0,
+        "worker_slots": null
+      },
+      {
+        "availability": "unknown",
+        "backend": "codex-luna",
+        "budget_age_s": 1360.799642,
+        "budget_reason": null,
+        "burn_multiple": 2.5816237961677637,
+        "congestion": null,
+        "context": {
+          "estimated_tokens": 59889,
+          "headroom_pct": null,
+          "peak_utilisation_p50_pct": null,
+          "peak_utilisation_p90_pct": null,
+          "peak_utilisation_runs": null,
+          "window_tokens": null
+        },
+        "days_to_reset": 5.264656103680555,
+        "effort": "high",
+        "family": "codex",
+        "local": false,
+        "model": "gpt-6-luna",
+        "outcomes": {
+          "failed": 0,
+          "not-run": 0,
+          "passed": 0,
+          "unknown": 0
+        },
+        "pace_allowance": 0.2726965877232143,
+        "reason": "eligible",
+        "reasons": [],
+        "resets_at": "2026-10-14T05:14:59+00:00",
+        "stale": true,
+        "utilisation_pct": 64.0,
+        "worker_slots": null
+      }
+    ],
+    "probabilities": {
+      "claude:claude-haiku-4-5-20251001": 0,
+      "claude:claude-opus-5-5": 0.01,
+      "claude:claude-sonnet-5-5": 0.01,
+      "codex:gpt-6-astra": 0,
+      "codex:gpt-6-luna": 0.01,
+      "codex:gpt-6-sol": 0.08,
+      "hold": 0.05,
+      "local:deepseek-v4.1-flash": 0.84
+    },
+    "rendered_token_estimate": 2266,
+    "usage": {
+      "cost": 0.000242214,
+      "input_tokens": 5767,
+      "output_tokens": 150
+    }
+  },
+  "plan": "jt60sa-machine-map",
+  "plan_impl_at_dispatch": 0.93,
+  "plan_link": null,
+  "promoted_by": null,
+  "promoted_revision": "95388a50529d7c1885eebc6f5f8ba55c1047c458",
+  "resume_waiver": null,
+  "review": {
+    "absent": [],
+    "reviewed_base_sha": "9705265c756dba0a6a80786d5d9f2dae475ae077",
+    "reviewed_head_sha": "95388a50529d7c1885eebc6f5f8ba55c1047c458",
+    "scores": {
+      "durability": 19,
+      "evidence": 17,
+      "fit": 19,
+      "goal_fidelity": 20,
+      "reuse": 20,
+      "scope_discipline": 19
+    },
+    "status": "parsed",
+    "total": 114
+  },
+  "review_tier": "full",
+  "role": "implement",
+  "route_mode": "picker",
+  "run_id": "r-20261008T225353639254-jtmm-geqdsk-psi-store",
+  "scope_acceptances": null,
+  "scope_changed": false,
+  "section": "§7",
+  "session": "c66d1ea6-525d-4cec-8114-013919000083",
+  "session_harness": "claude",
+  "session_id": "76d1bcf6-4f2c-431e-9638-39aa39488fdc",
+  "session_model": "deepseek-v4.1-flash",
+  "shadow_controlled": null,
+  "shadow_patch": "",
+  "spec_level": "guided",
+  "stalled": false,
+  "suite_delta": null,
+  "tests_added": 3,
+  "throughput": {
+    "cumulative_cached_input_tokens": 0,
+    "cumulative_input_tokens": 15429574,
+    "detail": "generation and wall clock reported separately by the backend; utilisation divided by the configured lane window 230144",
+    "elapsed_seconds": 286.414,
+    "generated_tokens": 79214,
+    "generation_seconds": 205.308,
+    "input_budget_tokens": 230144,
+    "input_utilisation_pct": 75.2,
+    "machine_seconds": 81.106,
+    "peak_input_tokens": 173148,
+    "tokens_per_second": 385.83,
+    "wall_tokens_per_second": 276.57
+  },
+  "time_budget": "60m",
+  "tool_steps": 93.0,
+  "unplanned_reason": null,
+  "unreconciled_override": {
+    "grace": "15m",
+    "requested": true,
+    "waived_runs": []
+  },
+  "wall_seconds": 2804,
+  "watch_override": null,
+  "worker_exit": {
+    "attempt": 2,
+    "ended_during": "working",
+    "exit_code": 0,
+    "exited_at": "2026-10-08T23:41:49Z",
+    "last_record_type": "result",
+    "launched_at": "2026-10-08T23:36:55Z",
+    "recorded_by": "supervisor",
+    "run_id": "r-20261008T225353639254-jtmm-geqdsk-psi-store",
+    "signal": null,
+    "signal_name": null,
+    "stream_records_seen": 16684,
+    "worker_pid": 1654908
+  },
+  "worker_seconds": 2781,
+  "worker_seconds_source": "stream_events",
+  "worktree_retention": null
+}
