@@ -11,6 +11,7 @@ import imas
 
 from imas_ambix.data.generated_mapping_import import (
     dd_path_defined,
+    handoff_signal_id,
     import_generated_mappings,
 )
 
@@ -73,7 +74,7 @@ def _handoff_label(
 ) -> str | None:
     for row in rows:
         if (
-            row.get("signal_id") == rule.semantic_id
+            row.get("signal_id") == handoff_signal_id(rule.semantic_id)
             and row.get("target_path") == rule.target_path
             and row.get("source_group") == rule.source_group
             and row.get("source_array") == rule.source_array

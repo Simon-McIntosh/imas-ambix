@@ -9,7 +9,10 @@ from types import SimpleNamespace
 
 from imas_alambic.machine_map import SensorIdentityRule
 from imas_ambix.data import handoff_score
-from imas_ambix.data.generated_mapping_import import import_generated_mappings
+from imas_ambix.data.generated_mapping_import import (
+    _rule_id,
+    import_generated_mappings,
+)
 
 FIXTURE = Path(__file__).parents[1] / "fixtures" / "mapping_handoff_example.json"
 MEMBERS = {
@@ -161,6 +164,49 @@ def test_unscored_sign_agrees_on_scale_magnitude(monkeypatch):
 
     assert result["by_ids"]["magnetics"]["agreeing"] == 1
     assert result["by_ids"]["magnetics"]["sign_unscored"] == 1
+
+
+def test_a_rule_reads_its_own_row_when_one_signal_binds_two_structures(monkeypatch):
+    """Two rules from one hand-off signal each read their own row's cocos_label."""
+    signal_id = "jt-60sa:general/mdac_coilpair"
+    rows = [
+        {
+            "signal_id": signal_id,
+            "target_path": "pf_active/coil/current/data",
+            "source_group": "MDAC",
+            "source_array": "coilA",
+            "cocos_label": "ip_like",
+        },
+        {
+            "signal_id": signal_id,
+            "target_path": "pf_active/circuit/current/data",
+            "source_group": "MDAC",
+            "source_array": "coilA",
+            "cocos_label": "one_like",
+        },
+    ]
+    monkeypatch.setattr(
+        handoff_score, "_target_cocos_label", lambda *args: "dd_fallback"
+    )
+
+    def rule(target_path):
+        return SimpleNamespace(
+            semantic_id=_rule_id(signal_id, target_path, 0),
+            target_path=target_path,
+            source_group="MDAC",
+            source_array="coilA",
+        )
+
+    assert (
+        handoff_score._handoff_label(rows, rule("pf_active/coil/current/data"), "4.1.1")
+        == "ip_like"
+    )
+    assert (
+        handoff_score._handoff_label(
+            rows, rule("pf_active/circuit/current/data"), "4.1.1"
+        )
+        == "one_like"
+    )
 
 
 def test_matching_target_with_a_different_source_array_does_not_agree():
