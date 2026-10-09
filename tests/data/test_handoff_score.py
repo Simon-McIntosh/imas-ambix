@@ -71,6 +71,19 @@ def test_counts_rows_and_requires_source_and_total_scale_for_agreement():
     assert result["total"]["sign_unscored"] == 0
 
 
+def test_one_ids_splits_into_separate_structure_rows():
+    document, reference = _case()
+    result = handoff_score.score_handoff(document, _catalogue(), MEMBERS, [reference])
+
+    probe = result["by_structure"]["magnetics/b_field_pol_probe"]
+    loops = result["by_structure"]["magnetics/flux_loop"]
+    assert (probe["exported"], probe["imported"], probe["agreeing"]) == (4, 2, 1)
+    assert (probe["unplaced"], probe["refused"]) == (1, 1)
+    assert (loops["exported"], loops["imported"]) == (1, 0)
+    assert loops["agreeing"] == "no reference"
+    assert (loops["unplaced"], loops["refused"]) == (0, 1)
+
+
 def test_one_like_stays_sign_scored_without_source_cocos():
     document, reference = _case()
     assert (
