@@ -1,0 +1,105 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-09T02:39:10.349Z",
+  "dispatched_at": "2026-10-09T02:31:43Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:188",
+      "id": "reasoning-1",
+      "reason": "without rewriting the done-when (and the :210 sentence) to the resolver split, \u00a72 stays open indefinitely or a node is dispatched to redo the other plan's export.",
+      "text": "\u00a72's done-when still measures \"a tokamap exporter writes a directory that passes tokamap-validator for the five first-pass groups\", but the same paragraph (:233) states that export and its validator check moved on 2026-10-09 to jt60sa-tokamap-from-generated-maps \u00a71 and that jtmm-tokamap-jt60sa keeps only the COCOS-resolver split, so \u00a72 has no node left that can satisfy its own done-when \u2014 and the paragraph's opening sentence \"The JT-60SA export that closes this section\" (:210) still names the moved work; the section comment (:1107) records \"Section 2 stays open: the five-group clause needs JT-60SA bindings\"",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:711",
+      "id": "wiring-1",
+      "reason": "the execution order is the coordinator's dispatch map, and it now names the wrong section for that step, the same class as the earlier \u00a78 pointer defect.",
+      "text": "\u00a78's execution order item 7 still reads \"export tokamap and validate it (\u00a72)\", pointing a coordinator at \u00a72 for a deliverable the changed \u00a72 reassigns to jt60sa-tokamap-from-generated-maps \u00a71",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:646",
+      "id": "done_when-1",
+      "reason": "the node's guard is unverified; the done-when needs a measure that a JT-60SA X-point is scored, with a control that MAST's default box masks it.",
+      "text": "\u00a77 adds jtmm-xpoint-vessel-box so JT-60SA X-points survive the MAST limiter box and GeometryVerdict can score them, but \u00a77's done-when (:669-687) reports only boundary RMS distance and the whitened magnetics residual; judge_geometry reports a masked X-point as unavailable (None, efit_referee.GeometryVerdict.xpoint_error), which does not fail the stamp, so nothing shows the box change fires",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "2c60d1f966b70b4aafc7b73b0cd327b280d1ef0e919b848dabeed649d37c3f94",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 450,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "reasoning-1",
+      "reason": "Plan v451: section 2's done-when now measures the COCOS-resolver split; the JT-60SA export and validator are jt60sa-tokamap-from-generated-maps section 1's measure, and the paragraph's opening no longer names the moved work.",
+      "when": "2026-10-09T02:40:05.763028+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "wiring-1",
+      "reason": "Plan v451: section 8 now points the JT-60SA tokamap export and validation at jt60sa-tokamap-from-generated-maps section 1, with section 2's resolver split after it.",
+      "when": "2026-10-09T02:40:05.769508+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build",
+      "finding": "done_when-1",
+      "reason": "Plan v451: section 7's done-when now requires the stamp's GeometryVerdict to score the X-point on slices inside JT-60SA's limiter box, with MAST's default vessel box as the control that must mark them unavailable.",
+      "when": "2026-10-09T02:40:05.771048+00:00"
+    }
+  ],
+  "responses": {
+    "done_when-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v451: section 7's done-when now requires the stamp's GeometryVerdict to score the X-point on slices inside JT-60SA's limiter box, with MAST's default vessel box as the control that must mark them unavailable.",
+      "when": "2026-10-09T02:40:05.771048+00:00"
+    },
+    "reasoning-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v451: section 2's done-when now measures the COCOS-resolver split; the JT-60SA export and validator are jt60sa-tokamap-from-generated-maps section 1's measure, and the paragraph's opening no longer names the moved work.",
+      "when": "2026-10-09T02:40:05.763028+00:00"
+    },
+    "wiring-1": {
+      "action": "acted",
+      "by": "reckon-build",
+      "reason": "Plan v451: section 8 now points the JT-60SA tokamap export and validation at jt60sa-tokamap-from-generated-maps section 1, with section 2's resolver split after it.",
+      "when": "2026-10-09T02:40:05.769508+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-jt60sa-machine-map.v450.json",
+  "review_run_id": "r-20261009T023053279998-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "9b868a93d924aaf85b6bc0fb00f7c33437709447",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 the changed text's cited anchors resolve: transform_engine._target_cocos_transformation, cocos.canonical_factor (a transformation string, not a DD path), XPOINT_VESSEL_R_RANGE (0.1, 2.0) / XPOINT_VESSEL_Z_ABS 2.0, and jt60sa-tokamap-from-generated-maps \u00a71.",
+    "done_when": "a finding \u2014 \u00a77's added jtmm-xpoint-vessel-box changes which X-points survive masking, but \u00a77's done-when reports no X-point measure, so the node's guard cannot be shown to fire.",
+    "evidence_paths": "pass \u2014 the changed text's supporting evidence sits in dated reasoned comments and the \u00a77 gate's fragment under docs/evidence/fragments/, not a scratch or node-local path.",
+    "naming": "pass \u2014 the added node descriptions name mechanism (xpoint_null_set, build_geometry_from_arrays, normalise_unit, _unit), with no plan labels, stage names or ticket numbers in the symbols or files.",
+    "reasoning": "a finding \u2014 \u00a72's mechanism no longer produces its own done-when: the export that satisfied the five-group clause moved to another plan, yet the paragraph still opens \"The JT-60SA export that closes this section\" and the done-when clause still asserts the export.",
+    "single_goal": "pass \u2014 every node named in the changed \u00a72 and \u00a77 text states one deliverable (the resolver split; the multichannel reshape; the guarded refetch; the vessel box).",
+    "wiring": "a finding \u2014 \u00a78's execution order still lists the tokamap export under \u00a72, which the changed \u00a72 reassigns to jt60sa-tokamap-from-generated-maps \u00a71."
+  },
+  "section_digests": {
+    "_document": "aeae9043f53534ca2bc015344ff6611bcb0f8f1fd2d90c733ffbe2bbfb65ca84",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "b6c68a8fafc453c41507f784731382bab1b6954f9ff9ba20b8618c270a0c428d",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "e0e4d8e60c49f0c64daa0eddea1fc82dabb7855a86ef336a90b03177fa716d81",
+    "s8": "acaa8e846bc7d30783f4709d0009ac816bf41baeed2fe1392b0574460f80e420"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-09T02:40:05.755287+00:00"
+}
