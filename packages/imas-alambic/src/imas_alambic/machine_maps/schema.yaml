@@ -322,6 +322,11 @@ slots:
     description: >-
       Named reusable rule that canonicalises identities before comparison.
     required: true
+  member_aliases:
+    description: >-
+      Optional mapping from the facility member token a source spells to the
+      member name the machine description uses. A reader resolves a member
+      through its alias before applying the case and decimal-token rules.
   case_rule:
     range: IdentityCaseRule
     required: true
@@ -450,13 +455,17 @@ classes:
       - range_last_shot
   SensorIdentityRule:
     description: >-
-      Canonicalises acquisition identities without enumerating aliases. Case
-      and decimal-token rules apply uniformly to every sensor address.
+      Canonicalises acquisition identities. Case and decimal-token rules apply
+      uniformly to every sensor address. An optional member_aliases mapping
+      names the token a facility source spells and the machine-description
+      member it stands for; a reader resolves a member through its alias
+      before the rules run, so a facility spelling need not be enumerated.
     slots:
       - name
       - case_rule
       - numeric_token_rule
       - evidence
+      - member_aliases
   IdentityQualification:
     description: >-
       Records one malformed upstream spelling and the canonical acquisition
