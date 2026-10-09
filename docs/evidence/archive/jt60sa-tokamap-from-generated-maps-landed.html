@@ -110,6 +110,11 @@
     <p>The import reports a row whose target path the hand-off's DD version does not define as unresolved, naming path and version, and the score's label lookup declines such a path instead of raising (merge <code>19150336</code>). The JT-60SA coils re-export (10:41:50Z) scores in full, exported / imported / agreeing / conflicting / unplaced / refused: <code>pf_active/coil</code> 19/16/6/6/3/0; <code>pf_active/circuit</code> 18/16/no reference/0/2/0; <code>pf_active/supply</code> 6/0/no reference/0/6/0; <code>tf/coil</code> 3/1/1/0/1/1; total 46/33/7/6/12/1, sign unscored 6. All six conflicts are on <code>pf_active/coil/current/data</code> and are a chain choice: imas-codex binds <code>curEF1HiTe</code>–<code>curEF5HiTe</code> where the hand-built map uses the LKAT chain, and <code>curEF6LKAT</code> where it uses <code>curEF6HiTe</code>. The refused row is <code>tf/coil/conductor/current/data</code>, undefined in DD 4.1.1. Dropping the DD-path check fails both new tests with the <code>KeyError</code>. The base carried two failing score tests introduced by §15; §17 repairs them. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/handoff-invalid-dd-target.html">handoff-invalid-dd-target</a>.</p>
   </section>
 
+  <section id="s17">
+    <h2>§17 — the score finds a rule&#x27;s hand-off row again</h2>
+    <p>The import names its rule-id separator once and exposes <code>handoff_signal_id(rule_id)</code>; the score finds a rule's hand-off row through it, so the hand-off's <code>cocos_label</code> is read again (merge <code>50ccccd0</code>). The score and import tests pass in full, 38 of 38, including <code>test_handoff_label_overrides_absent_dd_label</code> and <code>test_unscored_sign_agrees_on_scale_magnitude</code>, which §15 had broken; a new test shows a rule whose signal binds two structures reading its own row's label. Restoring the old comparison fails three tests. The coils numbers recorded under §16 stand: both the DD and the hand-off label coil currents <code>ip_like</code>. Work review waived on the lead's instruction. Fragment: <a href="/imas-ambix/evidence/fragments/jt60sa-tokamap-from-generated-maps/score-label-after-rule-id.html">score-label-after-rule-id</a>.</p>
+  </section>
+
 </main>
 </body>
 </html>

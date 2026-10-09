@@ -24,9 +24,9 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="62">
+<meta name="plan-version" content="63">
 <meta name="plan-modified" content="2026-10-09">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;done&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;done&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -379,7 +379,7 @@
 <p><strong>Node</strong> <code>handoff-invalid-dd-target</code>, role implement, 0.5 h. Write paths: <code>imas_ambix/data/generated_mapping_import.py</code>, <code>tests/data/test_generated_mapping_import.py</code>, <code>imas_ambix/data/handoff_score.py</code>, <code>tests/data/test_handoff_score.py</code>, <code>docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/handoff-invalid-dd-target.html</code>. <strong>Done when</strong> a test shows a row on an undefined DD path reported unresolved with the path and version while the other rows still import and score; and the fragment quotes the full <code>score-handoff jt-60sa --json</code> on <code>/work/projects/imas_gpu/jt60sa/handoff/jt-60sa-coils-handoff.json</code> with its <code>exported_at</code>, the <code>by_structure</code> rows, and every conflict with both source arrays.</p>
 
     <h2 id="s17">§17 — The score finds a rule&#x27;s hand-off row by its signal id again</h2>
-<section data-reckon="section" data-id="s17" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s17" data-effort-hours="0.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
 <p>§15 composed each imported rule's id as <code>&lt;signal_id&gt;::&lt;target_path&gt;[&lt;index&gt;]</code>, but <code>_handoff_label</code> in <code>imas_ambix/data/handoff_score.py</code> still finds a rule's hand-off row by comparing the row's <code>signal_id</code> with the rule's <code>semantic_id</code>. It no longer matches, so the hand-off's <code>cocos_label</code> is never read and the score falls back to imas-python's DD label: <code>test_handoff_label_overrides_absent_dd_label</code> and <code>test_unscored_sign_agrees_on_scale_magnitude</code> fail on <code>main</code>. §15's gate ran only the import tests, which is how it slipped through.</p>
 <p>Find the row by the hand-off <code>signal_id</code> the rule carries, the id's prefix before <code>::</code>, through one helper the import also uses to compose the id, so the two cannot drift again.</p>
 <p><strong>Node</strong> <code>score-label-after-rule-id</code>, role implement, 0.25 h. Write paths: <code>imas_ambix/data/handoff_score.py</code>, <code>imas_ambix/data/generated_mapping_import.py</code>, <code>tests/data/test_handoff_score.py</code>. <strong>Done when</strong> <code>tests/data/test_handoff_score.py</code> and <code>tests/data/test_generated_mapping_import.py</code> pass in full, including the two tests above, and a test shows a rule whose signal binds two structures reading its own row's <code>cocos_label</code>.</p>
@@ -539,7 +539,10 @@
     <div class="r-comment-body"><p>§16 landed (merge <code>19150336</code>): coils score 46 / 33 / 7 agreeing / 6 conflicting (HiTe against LKAT chain choice on EF1–EF6) / 12 unplaced / 1 refused. <a href="/imas-ambix/evidence/archive/jt60sa-tokamap-from-generated-maps-landed.html#s16">evidence</a></p></div>
 </div>
 <div class="r-comment" data-section="s16" data-id="c-run-r-20261009T105815488974-handoff-invalid-dd-target" data-who="reckon-build" data-when="2026-10-09T11:14:25.967Z">
-    <div class="r-comment-body"><p>import refuses a row whose target path the hand-off&#x27;s DD version does not define (reported unresolved naming path and version) and the scorer&#x27;s label lookup declines such a path instead of raising; score-handoff jt-60sa on /work/projects/imas_gpu/jt60sa/handoff/jt-60sa-coils-handoff.json now completes with TOTAL exported 46 imported 33 refused 1 (&#x27;target path tf/coil/conductor/current/data is not defined in Data Dictionary 4.1.1&#x27;).</p></div>
+    <div class="r-comment-body"><p>import refuses a row whose target path the hand-off's DD version does not define (reported unresolved naming path and version) and the scorer's label lookup declines such a path instead of raising; score-handoff jt-60sa on /work/projects/imas_gpu/jt60sa/handoff/jt-60sa-coils-handoff.json now completes with TOTAL exported 46 imported 33 refused 1 ('target path tf/coil/conductor/current/data is not defined in Data Dictionary 4.1.1').</p></div>
+</div>
+<div class="r-comment" data-section="s17" data-id="c-close-s17" data-who="reckon-build" data-when="2026-10-09T11:30:00Z">
+    <div class="r-comment-body"><p>§17 landed (merge <code>50ccccd0</code>): the regression from §15 is repaired and guarded; 38 score and import tests pass. <a href="/imas-ambix/evidence/archive/jt60sa-tokamap-from-generated-maps-landed.html#s17">evidence</a></p></div>
 </div>
 </section>
 </main>
