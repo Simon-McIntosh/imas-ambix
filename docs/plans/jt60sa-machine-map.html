@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.96">
-<meta name="plan-version" content="436">
+<meta name="plan-version" content="437">
 <meta name="plan-modified" content="2026-10-09">
 </head>
 <body>
@@ -309,18 +309,29 @@
       That plan writes the equilibrium IDS beside a pulse's description IDSs and consumes this
       binding. The psi check here reads through the engine, and the stamp reads coil and magnetics
       data, so neither waits on that writer. The
-      section's interface account, as landed. The pin table below retires three public constants
-      and their re-export, and adds the one table <code>PINNED_DESCRIPTIONS</code>. Three new modules
-      add the producer, the PSRC reader and the psi store, each behind its own <code>__all__</code>:
-      <code>imas_ambix/gs/description_artifact.py</code> (the artifact author, the registry and its
-      value types, and the store-built registry), <code>imas_ambix/data/selene_psrc.py</code>
-      (<code>read_psrc_record</code> and its record types) and
-      <code>imas_ambix/data/geqdsk_store.py</code> (<code>write_geqdsk_store</code>, its reader and the
-      group's names). One private helper becomes public,
-      <code>geometry_adapter.current_channel_from_conductors</code>. One formula that was inline in
-      the reader becomes the public <code>artifact_geometry.representation_digest</code>. Each is
-      reused by its second caller rather than forked. The reference loader adds no
-      public name.
+      section's interface account, as landed, computed from every <code>__all__</code> and
+      public definition the section's nodes changed. Retired: <code>PINNED_SEMANTIC_IDENTITY</code>,
+      <code>PINNED_PHYSICAL_DIGEST</code> and <code>PINNED_REGISTRY_DIGEST</code> in
+      <code>gs/artifact_resolution.py</code>, and the last two's re-export from
+      <code>spine_bench/machine_artifact_arm.py</code>. Added to <code>gs/artifact_resolution.py</code>:
+      the table <code>PINNED_DESCRIPTIONS</code>, its row type <code>PinRow</code>, the accessors
+      <code>pinned_row</code> and <code>pinned_rows</code>, and the two authoring routes the table names,
+      <code>author_mast_machine_artifact</code> and <code>author_jt60sa_machine_artifact</code>. Added to
+      <code>spine_bench/shots.py</code>: <code>FROZEN_SHOTSETS</code>, <code>FrozenShotset</code>,
+      <code>JT60SA_FROZEN_SHOTSET</code> and <code>JT60SA_SHOTSET_VERSION</code>. Added to
+      <code>spine_bench/parity.py</code>: <code>DEFAULT_MACHINE</code>. Made public from code that
+      already existed, each reused by its second caller rather than forked:
+      <code>gs/artifact_geometry.py</code> <code>representation_digest</code> (formerly inline in the
+      reader) and <code>data/geometry_adapter.py</code> <code>current_channel_from_conductors</code>
+      (formerly private). Three new modules, each behind its own <code>__all__</code> and named
+      constants: <code>gs/description_artifact.py</code> (<code>author_jt60sa_machine_artifacts</code>,
+      <code>build_jt60sa_registry</code>, <code>build_jt60sa_registry_from_stores</code>,
+      <code>Jt60saGeometryRegistry</code>, <code>Jt60saConfiguration</code>,
+      <code>Jt60saSelection</code> and <code>Jt60saPhaseRange</code>), <code>data/selene_psrc.py</code>
+      (<code>read_psrc_record</code>, <code>PsrcRecord</code>, <code>PsrcBoundary</code> and
+      <code>SelenePsrcError</code>) and <code>data/geqdsk_store.py</code>
+      (<code>write_geqdsk_store</code>, <code>read_geqdsk_grid</code>, <code>default_geqdsk_path</code>
+      and the group's array names). The reference loader adds no public name.
     </p>
     <p>
       The reconstruction gate is what makes the map honest. The spine reads JT-60SA geometry
