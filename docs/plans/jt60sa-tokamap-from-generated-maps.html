@@ -24,9 +24,9 @@
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="11">
+<meta name="plan-version" content="13">
 <meta name="plan-modified" content="2026-10-09">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;done&quot;}">
 </head>
 <body>
   <main class="plan-doc">
@@ -267,6 +267,19 @@
       <code>docs/figures/jt60sa-signals/</code> where they already show this, rather than redrawing them.</li>
     </ul>
     <p>
+      §5 already renders the seven systems and the chain from the hand-built tokamap through
+      <code>scripts/figures_jt60sa_tokamap.py</code>. This section extends that script rather than writing a second
+      one: it adds the imas-codex draft row from §3 to each render that has one, switches the token colours to the
+      pygments style <code>friendly</code> so the slides match imas-codex's renders, and keeps the chain chart's
+      arrows clear of every label. The imas-codex chapter is on imas-codex main at <code>6083373eb</code>,
+      <code>docs/research/discovery-to-mapping-pipeline.html</code>, and its figures are
+      <code>/imas-codex/figures/discovery-to-mapping/pipeline.svg</code>, <code>mapping-lifecycle.svg</code>,
+      <code>pickup-probe.svg</code> and <code>pf-coil-current.svg</code>. The writer is <code>imas-alambic write</code>
+      through <code>pulse_writer.write_pulse</code>, writing <code>{out_root}/{pulse}_{run}.nc</code> under
+      <code>~/public/imasdb/jt-60sa/</code> and <code>/work/projects/imas_gpu/jt60sa/ids/</code>; the shared machine
+      description is <code>~/public/imasdb/jt-60sa_md/</code>.
+    </p>
+    <p>
       Also write a PNG at twice the SVG's size for each JSON render and flow chart, to drop into slides. Put them in
       <code>/work/projects/imas_gpu/jt60sa/presentation/</code>, not beside the SVGs and not in the repository.
     </p>
@@ -285,7 +298,7 @@
     </ul>
 
     <h2 id="s5">§5 — Per-system figures from the hand-built tokamap</h2>
-<section data-reckon="section" data-id="s5" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s5" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
 <p>The lead asked on 2026-10-09 to see prototype tokamaps for a selection of systems within the hour. §4's report waits on imas-codex's JT-60SA hand-off, so the figures that need only §1's output are drawn first, as the first iteration of the chain: catalogue and signal map in, tokamap entry out. §4 later adds the second iteration, the imas-codex draft row, to the same figures.</p>
 <p>Write <code>scripts/figures_jt60sa_tokamap.py</code>. For each of the seven systems §4 names (pickup probes, flux loops with FL7 absolute and one differential loop, PF coil current and coil geometry, passive structure, TF, wall and equilibrium), it renders one syntax-coloured JSON figure with <code>pygments</code>, setting side by side for one target the machine-map binding or signal-map rule as imas-ambix stores it, read from <code>maps/jt-60sa/</code>, and the <code>mappings.json</code> entry §1 wrote for it under <code>/work/projects/imas_gpu/jt60sa/tokamap/hand-built/</code>. Each excerpt is trimmed to 10 to 20 lines and uses one colour theme legible on white. A system the hand-built tokamap does not cover is drawn with the catalogue side only and a caption naming the gap, never skipped silently.</p>
 <p>It also draws the chain flow chart §4 describes, with the draft branch drawn dashed and labelled as awaiting the imas-codex hand-off. Figures go to <code>docs/figures/jt60sa-tokamap/</code>, one SVG each, following the data-ink rules; a PNG at twice the SVG's size for each goes to <code>/work/projects/imas_gpu/jt60sa/presentation/</code>.</p>
@@ -317,6 +330,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261009T025216706629-tokamap-system-figures" data-who="reckon-build" data-when="2026-10-09T03:10:33Z">
     <div class="r-comment-body"><p>Rendered seven syntax-coloured system JSON comparisons and the chain from the hand-built tokamap; final one-run gate: 7 JSON figures, 8 SVGs, 8 PNGs, 0 gaps; audit: 18 selectable excerpts of 10-12 lines; repeated run: 8 SVG and 8 PNG digests identical.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-close-s5" data-who="reckon-build" data-when="2026-10-09T03:12:00Z">
+    <div class="r-comment-body"><p>§5 landed: seven per-system catalogue-to-tokamap renders and the chain flow chart from the hand-built tokamap (merge <code>da283a3e</code>). §4 switches the renders to pygments "friendly" to match imas-codex, fixes the arrow crossing the export label, and adds the draft row. <a href="/imas-ambix/evidence/archive/jt60sa-tokamap-from-generated-maps-landed.html#s5">evidence</a></p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-close-s2" data-who="reckon-build" data-when="2026-10-09T02:58:00Z">
     <div class="r-comment-body"><p>§2 landed: draft importer (merge <code>283b530c</code>); fixture gives 4 indexed draft rules and 1 unexpanded reason. §3's caller must supply the ordered member identities from the machine description. <a href="/imas-ambix/evidence/archive/jt60sa-tokamap-from-generated-maps-landed.html#s2">evidence</a></p></div>
