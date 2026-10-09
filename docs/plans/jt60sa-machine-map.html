@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.96">
-<meta name="plan-version" content="455">
+<meta name="plan-version" content="456">
 <meta name="plan-modified" content="2026-10-09">
 </head>
 <body>
@@ -202,10 +202,15 @@
       test's case serves: ip_like on <code>pf_active/coil/current/data</code> at source COCOS 6, where
       the factor is −1. Mutating the engine resolver so that path reads as one_like must move that
       binding's exported scale from −1 to 1, which a private copy left in the exporter would not.
-      Both of <code>_leaf_mappings</code>' withhold checks, for bindings and for signal rules, call
-      the resolver. The binding check also gains the one_like exemption the signal-rule check
-      already carries, so a one_like binding with an undeclared source COCOS is kept, as the
-      equivalent signal rule is. Since
+      The binding withhold check in <code>_leaf_mappings</code> calls the resolver, and gains the
+      one_like exemption the signal-rule check already carries. A one_like binding with an
+      undeclared source COCOS is then kept, as the equivalent signal rule is. The signal-rule
+      check stays keyed on the rule's own transformation label, not on the resolver. DD 4.0.0
+      removed the COCOS labels on flux-loop flux and equilibrium psi, so under the map's DD 4.1.1
+      the resolver returns none for both. Keyed on the resolver, the check would keep an
+      undeclared psi_like rule, whose −2π conversion is still physically required. The 27
+      flux-loop rules stay one_like. Their signs were measured per channel in the target COCOS
+      (§6), and EDDB records total flux in Wb, so no source COCOS enters them. Since
       2026-10-09 the JT-60SA export directory and its <code>tokamap-validator</code> pass for the
       first-pass groups are <code>jt60sa-tokamap-from-generated-maps</code> §1's measure, not this
       section's. The exporter writes the directory from a catalogue and its signal maps
