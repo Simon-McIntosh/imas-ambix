@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import imas
 import matplotlib
 
 matplotlib.use("Agg")
@@ -23,10 +25,13 @@ if TYPE_CHECKING:
 ROOT = Path(__file__).resolve().parents[1]
 MAP = ROOT / "maps/jt-60sa"
 TOKAMAP = Path("/work/projects/imas_gpu/jt60sa/tokamap/hand-built")
-DRAFT_TOKAMAP = Path("/work/projects/imas_gpu/jt60sa/tokamap/draft-fixture")
+DRAFT_ROOT = Path("/work/projects/imas_gpu/jt60sa/tokamap")
+DRAFT_TOKAMAP = DRAFT_ROOT / "draft-fixture"
 HANDOFF = ROOT / "tests/fixtures/mapping_handoff_example.json"
+LIVE_HANDOFF = Path(
+    "/work/projects/imas_gpu/jt60sa/handoff/jt-60sa-mapping-handoff.json"
+)
 SVG_DIR = ROOT / "docs/figures/jt60sa-tokamap"
-PNG_DIR = Path("/work/projects/imas_gpu/jt60sa/presentation")
 matplotlib.rcParams["svg.hashsalt"] = "jt60sa-tokamap"
 FRIENDLY = get_style_by_name("friendly")
 
@@ -162,7 +167,85 @@ SOURCE_FIELDS = {
 COLORS = {
     "plain": "#262b32",
     "muted": "#626a73",
+    "red": "#a62f35",
 }
+
+
+@dataclass(frozen=True)
+class Target:
+    path: str
+    dd_version: str
+    units: str
+    data_type: str
+    coordinates: str
+    documentation: str
+    dd_label: str | None
+    rule_label: str
+    history: str = ""
+
+    @property
+    def mismatch(self) -> bool:
+        return self.dd_label is not None and self.rule_label != self.dd_label
+
+    @property
+    def dd_display(self) -> str:
+        return self.dd_label or f"none at DD {self.dd_version}"
+
+
+def _dd_label(metadata, relative_path: str) -> str | None:
+    components = relative_path.split("/")
+    for length in range(len(components), 0, -1):
+        label = getattr(
+            metadata["/".join(components[:length])], "cocos_label_transformation", None
+        )
+        if label:
+            return str(label)
+    return None
+
+
+def _target(
+    example: Example,
+    source: str,
+    factories: dict[str, imas.IDSFactory],
+    dd_version: str,
+) -> Target:
+    rule = json.loads(source)
+    relative = re.sub(r"\[(?:#|\d+)\]", "", example.key)
+    metadata = factories[dd_version].new(example.group).metadata
+    node = metadata[relative]
+    label = _dd_label(metadata, relative)
+    rule_label = rule.get(
+        "transformation", f"sign convention {rule.get('sign_convention', 'none')}"
+    )
+    history = ""
+    if example.group == "magnetics" and relative == "flux_loop/flux/data":
+        earlier = [
+            _dd_label(factories[v].new(example.group).metadata, relative)
+            for v in ("3.28.1", "3.42.0")
+        ]
+        removed = _dd_label(factories["4.0.0"].new(example.group).metadata, relative)
+        if (
+            earlier != ["psi_like", "psi_like"]
+            or removed is not None
+            or label is not None
+        ):
+            raise ValueError(
+                f"unexpected flux-loop COCOS history: {earlier}, {removed}, {label}"
+            )
+        history = "psi_like in DD 3.28.1–3.42, removed in 4.0.0"
+    documentation = str(node.documentation or "").split(".", 1)[0].strip()
+    coordinates = ", ".join(str(value) for value in node.coordinates) or "none"
+    return Target(
+        f"{example.group}/{node.path_string}",
+        dd_version,
+        str(node.units or "none"),
+        str(node.data_type.value),
+        coordinates,
+        documentation,
+        label,
+        str(rule_label),
+        history,
+    )
 
 
 def _json_excerpt(value: dict) -> str:
@@ -277,28 +360,27 @@ def _code(ax, code: str, x: float, y: float) -> None:
                 col = 0
 
 
-def _save(fig, name: str) -> tuple[Path, Path]:
+def _save(fig, name: str) -> Path:
     SVG_DIR.mkdir(parents=True, exist_ok=True)
-    PNG_DIR.mkdir(parents=True, exist_ok=True)
     svg = SVG_DIR / f"{name}.svg"
-    png = PNG_DIR / f"{name}.png"
     fig.savefig(svg, format="svg", facecolor="white", metadata={"Date": None})
     svg.write_text(
         "\n".join(line.rstrip() for line in svg.read_text().splitlines()) + "\n"
     )
-    fig.savefig(png, format="png", dpi=200, facecolor="white")
     plt.close(fig)
-    return svg, png
+    return svg
 
 
 def _render_json(
-    slug: str, title: str, pairs: list[tuple[Example, str, str | None, str | None]]
-) -> tuple[Path, Path]:
+    slug: str,
+    title: str,
+    pairs: list[tuple[Example, str, str | None, str | None, Target]],
+) -> Path:
     heights = [
         max(len(left.splitlines()), len((right or "").splitlines()), 10) * 22
         + (len(draft.splitlines()) * 22 + 55 if draft else 0)
-        + 84
-        for _, left, right, draft in pairs
+        + 214
+        for _, left, right, draft, _ in pairs
     ]
     height = sum(heights) + 35
     fig = plt.figure(figsize=(14, height / 100), dpi=100)
@@ -316,7 +398,9 @@ def _render_json(
         color=COLORS["plain"],
     )
     y = height - 62
-    for (example, left, right, draft), block_height in zip(pairs, heights, strict=True):
+    for (example, left, right, draft, target), block_height in zip(
+        pairs, heights, strict=True
+    ):
         source_x, entry_x = 28, 720
         ax.text(28, y, example.label, fontsize=15, va="top", color=COLORS["plain"])
         ax.text(
@@ -362,6 +446,70 @@ def _render_json(
                 color=COLORS["muted"],
             )
             _code(ax, draft, 28, draft_top - 24)
+        panel_top = y - block_height + 154
+        ax.text(
+            28,
+            panel_top,
+            f"Data Dictionary target · DD {target.dd_version}",
+            fontsize=15,
+            weight="bold",
+            va="top",
+            color=COLORS["plain"],
+        )
+        ax.text(
+            28,
+            panel_top - 28,
+            target.path,
+            fontsize=13,
+            va="top",
+            color=COLORS["plain"],
+            family="DejaVu Sans Mono",
+        )
+        ax.text(
+            28,
+            panel_top - 53,
+            f"units: {target.units}    type: {target.data_type}"
+            f"    coordinates: {target.coordinates}",
+            fontsize=12,
+            va="top",
+            color=COLORS["muted"],
+        )
+        ax.text(
+            28,
+            panel_top - 77,
+            f"documentation: {target.documentation}",
+            fontsize=12,
+            va="top",
+            color=COLORS["muted"],
+        )
+        dd_text = target.dd_display
+        label_colour = COLORS["red"] if target.mismatch else COLORS["plain"]
+        ax.text(
+            28,
+            panel_top - 101,
+            f"DD COCOS: {dd_text}    rule: {target.rule_label}",
+            fontsize=12,
+            va="top",
+            color=label_colour,
+        )
+        if target.history:
+            ax.text(
+                28,
+                panel_top - 125,
+                target.history,
+                fontsize=12,
+                va="top",
+                color=COLORS["muted"],
+            )
+        elif target.mismatch:
+            ax.text(
+                28,
+                panel_top - 125,
+                f"Mismatch: DD {target.dd_label}; rule {target.rule_label}",
+                fontsize=12,
+                va="top",
+                color=COLORS["red"],
+            )
         y -= block_height
     return _save(fig, slug)
 
@@ -382,7 +530,7 @@ def _arrow(
     )
 
 
-def _render_chain() -> tuple[Path, Path]:
+def _render_chain() -> Path:
     height = 740
     fig = plt.figure(figsize=(14, height / 100), dpi=100)
     ax = fig.add_axes((0, 0, 1, 1))
@@ -443,7 +591,7 @@ def _render_chain() -> tuple[Path, Path]:
     return _save(fig, "chain")
 
 
-def _render_writer() -> tuple[Path, Path]:
+def _render_writer() -> Path:
     height = 660
     fig = plt.figure(figsize=(14, height / 100), dpi=100)
     ax = fig.add_axes((0, 0, 1, 1))
@@ -494,14 +642,134 @@ def _render_writer() -> tuple[Path, Path]:
     return _save(fig, "writer-workflow")
 
 
+def _statistics(
+    catalogue: dict, factories: dict[str, imas.IDSFactory]
+) -> tuple[list[dict], str]:
+    partition = "101174"
+    draft = DRAFT_ROOT / "draft"
+    if not draft.is_dir():
+        draft = DRAFT_TOKAMAP
+    handoff_path = LIVE_HANDOFF if draft.name == "draft" else HANDOFF
+    handoff = json.loads(handoff_path.read_text())
+    handoff_groups = {item["ids_name"]: item for item in handoff["ids"]}
+    rows = []
+    for group_dir in sorted(TOKAMAP.iterdir()):
+        hand_path = group_dir / partition / "mappings.json"
+        if not hand_path.is_file():
+            continue
+        group = group_dir.name
+        hand = json.loads(hand_path.read_text())
+        draft_path = draft / group / partition / "mappings.json"
+        drafted = json.loads(draft_path.read_text())
+
+        def machine(item: dict) -> bool:
+            return str(item.get("data_source", "")).startswith("file://")
+
+        description = sum(machine(item) for item in hand.values())
+        signals = len(hand) - description
+        draft_signals = sum(not machine(item) for item in drafted.values())
+        # The partition's mapping comments identify the catalogue set used for it.
+        binding_sets = catalogue["binding_sets"]
+        chosen = max(
+            binding_sets,
+            key=lambda item: sum(
+                binding["name"] in str(entry.get("comment", ""))
+                for binding in item["bindings"]
+                for entry in hand.values()
+            ),
+        )
+        metadata = factories[catalogue["dd_version"]].new(group).metadata
+        withheld = sum(
+            bool(_dd_label(metadata, binding["dd_path"].split("/", 1)[1]))
+            and catalogue["source_cocos"] == 0
+            and not any(
+                binding["name"] in str(entry.get("comment", ""))
+                for entry in hand.values()
+            )
+            for binding in chosen["bindings"]
+            if binding["dd_path"].startswith(group + "/")
+        )
+        handoff_group = handoff_groups.get(group, {})
+        generated = sum(
+            "validation_state=draft" in str(item.get("comment", ""))
+            for item in drafted.values()
+        )
+        reported = len(handoff_group.get("signals", []))
+        if generated > reported:
+            raise ValueError(f"{group}: draft export exceeds hand-off signal rows")
+        unresolved = reported - generated + len(handoff_group.get("unexpanded", []))
+        rows.append(
+            dict(
+                group=group,
+                description=description,
+                signals=signals,
+                draft_signals=draft_signals,
+                withheld=withheld,
+                unresolved=unresolved,
+            )
+        )
+    if not rows or sum(row["description"] + row["signals"] for row in rows) == 0:
+        raise ValueError("hand-built partition is empty; cannot interpret zero counts")
+    if (
+        not handoff_groups
+        or sum(len(item.get("signals", [])) for item in handoff_groups.values()) == 0
+    ):
+        raise ValueError(
+            "hand-off has no signal rows; cannot interpret unresolved zero"
+        )
+    return rows, draft.name
+
+
+def _render_statistics(rows: list[dict], draft_name: str) -> Path:
+    kinds = (
+        ("description", "machine description", "#4f6982"),
+        ("signals", "hand-built signals", "#558a78"),
+        ("draft_signals", f"{draft_name} export signals", "#9a6c8c"),
+        ("withheld", "COCOS withheld", "#a67849"),
+        ("unresolved", "unresolved hand-off", "#a62f35"),
+    )
+    fig, ax = plt.subplots(figsize=(14, 11), dpi=100)
+    fig.subplots_adjust(left=0.17, right=0.72, top=0.96, bottom=0.07)
+    positions = []
+    for group_index, row in enumerate(rows):
+        for kind_index, (key, label, colour) in enumerate(kinds):
+            y = group_index * 6 + kind_index
+            count = row[key]
+            ax.barh(y, count, height=0.68, color=colour)
+            ax.text(
+                count + 0.6,
+                y,
+                f"{count}  {label}",
+                va="center",
+                color=colour,
+                fontsize=15,
+            )
+        positions.append(group_index * 6 + 2)
+    ax.set_yticks(positions, [row["group"] for row in rows], fontsize=17)
+    ax.set_xlim(0, max(row[key] for row in rows for key, _, _ in kinds) * 1.85 + 2)
+    ax.invert_yaxis()
+    ax.set_xlabel("entries or rows [count]", fontsize=20)
+    ax.tick_params(axis="x", labelsize=16, width=1.2)
+    ax.tick_params(axis="y", length=0)
+    ax.spines[["top", "right", "left"]].set_visible(False)
+    ax.spines["bottom"].set_linewidth(1.2)
+    ax.grid(False)
+    return _save(fig, "ids-statistics")
+
+
 def main() -> None:
     catalogue = json.loads((MAP / "machine_map.json").read_text())
     handoff = json.loads(HANDOFF.read_text())
+    factories = {
+        version: imas.IDSFactory(version)
+        for version in (catalogue["dd_version"], "3.28.1", "3.42.0", "4.0.0")
+    }
     signals = {
         group: json.loads((MAP / "maps" / f"{group}.json").read_text())["signals"]
         for group in ("magnetics", "pf_active", "tf", "equilibrium")
     }
-    pngs: list[Path] = []
+    svgs: list[Path] = []
+    targets: list[tuple[str, Target]] = []
     gaps: list[str] = []
     draft_count = 0
     for slug, (title, examples) in SYSTEMS.items():
@@ -521,7 +789,9 @@ def main() -> None:
                 index = source_record.get("target_index")
                 if index is not None and f"[{index}]" not in example.key:
                     raise ValueError(f"{example.key}: target index {index} is absent")
-            pairs.append((example, source, entry, draft))
+            target = _target(example, source, factories, catalogue["dd_version"])
+            targets.append((slug, target))
+            pairs.append((example, source, entry, draft, target))
             if entry is None:
                 gaps.append(f"{slug}: {example.key}")
             if draft is not None:
@@ -529,22 +799,38 @@ def main() -> None:
                 print(f"fixture-driven {slug}: {source_path}")
                 print(f"  hand-built: {entry_path}")
                 print(f"  indexed draft: {draft_path}")
-        svg, png = _render_json(slug, title, pairs)
-        pngs.append(png)
-    svg, png = _render_chain()
-    pngs.append(png)
-    svg, png = _render_writer()
-    pngs.append(png)
-    print(f"rendered {len(SYSTEMS)} JSON figures and 2 flow charts")
-    print(f"PNGs={len(pngs)} gaps={len(gaps)} draft_rows={draft_count}")
-    for path in pngs:
-        print(f"{path} 2800x{_png_height(path)} {path.stat().st_size} bytes")
-
-
-def _png_height(path: Path) -> int:
-    from matplotlib.image import imread
-
-    return int(imread(path).shape[0])
+        svgs.append(_render_json(slug, title, pairs))
+    svgs.extend((_render_chain(), _render_writer()))
+    rows, draft_name = _statistics(catalogue, factories)
+    svgs.append(_render_statistics(rows, draft_name))
+    print(
+        f"rendered {len(SYSTEMS)} system figures, 2 flow charts and 1 statistics figure"
+    )
+    print(f"SVGs={len(svgs)} gaps={len(gaps)} fixture_draft_rows={draft_count}")
+    print(f"partition=101174 draft_source={draft_name}")
+    for row in rows:
+        print(
+            "stats "
+            + row["group"]
+            + " "
+            + " ".join(
+                f"{key}={row[key]}"
+                for key in (
+                    "description",
+                    "signals",
+                    "draft_signals",
+                    "withheld",
+                    "unresolved",
+                )
+            )
+        )
+    for slug, target in targets:
+        print(
+            f"target {slug}: {target.path} "
+            f"DD={target.dd_display} rule={target.rule_label}"
+        )
+    for path in svgs:
+        print(f"{path} {path.stat().st_size} bytes")
 
 
 if __name__ == "__main__":
