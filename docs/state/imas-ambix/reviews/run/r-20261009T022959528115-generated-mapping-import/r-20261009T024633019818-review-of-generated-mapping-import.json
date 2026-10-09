@@ -1,0 +1,60 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed run's own manifest records baseline_suite and after_suite as null, so the added-failure delta is derived from its gate logs and re-measured arms. Reviewed head gate head-gate.log (5 passed, EXIT=0) has zero failures. Independently re-measured here: head arm at reviewed head 5c98ac82 (tests/data/test_generated_mapping_import.py + tests/data/test_signal_map.py) 17 passed EXIT=0 (head-arm.log); base arm at the run's base content 29c6201d (tests/data/test_signal_map.py; the new test file does not exist at base) 12 passed EXIT=0 (base-arm.log). No head failing id is absent from the base arm, so the node added zero failures.",
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-09T02:58:47.641Z",
+  "dispatched_at": "2026-10-09T02:46:46Z",
+  "findings": [
+    {
+      "file": "tests/fixtures/mapping_handoff_example.json",
+      "line": "10",
+      "severity": "follow-on",
+      "text": "follow-on: the committed fixture is byte-identical to imas-codex commit ed1c086c1 (sha256 ea01e631, verified), but imas-codex main has since changed these mapping_id values to drop the \":4.1.1\" suffix; the pinned copy is faithful to the commit it names, yet the handoff contract it exercises should be re-pinned or tracked before section 3 reads live documents."
+    },
+    {
+      "file": "docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/generated-mapping-import.html",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the reviewed manifest records baseline_suite and after_suite as null, so its added-failure delta is derivable only from its gate logs and re-measured arms, not from its own record; import nodes should record the base and after arms in the manifest block."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "no production call sites found",
+    "diff": "read commit by commit - 6f4231bf copies the fixture, bd7ad340 adds draft to _VALIDATION_STATES, b203fc85 adds the reader, bcf11fb6 adds the mismatch tests, 5c98ac82 tightens numeric-token matching; nothing outside scope changed and no existing test was weakened.",
+    "done_when": "section 2's three clauses each have a green test in tests/data/test_generated_mapping_import.py - test_fixture_indices_follow_description_identity_not_handoff_order (indices from a test catalogue's identity rules), test_unresolvable_member_is_reported_without_an_index (unresolvable member reported not indexed), and test_draft_rule_and_map_round_trip_through_serialisation (draft rule and map round-trip); all pass at the reviewed head.",
+    "goal": "read imas_ambix/data/generated_mapping_import.py against plan section 2; it adds draft to machine_map._VALIDATION_STATES (packages/imas-alambic/src/imas_alambic/machine_map.py:43) and turns one handoff document into one draft SignalMap per IDS, filling source_group/source_array/units/target_path/transformation and resolving target_index from the caller-supplied description_members through the catalogue's sensor_identity_rules, reporting unresolved and unexpanded rows with a reason.",
+    "manifest": "read; it states status complete, five commits (6f4231bf..5c98ac82), the gate (5 passed EXIT=0 in head-gate.log), the related SignalMap suite (12 passed on bcf11fb6), negative_control_log naming the row-order mutation failing the identity-index test EXIT=1, and states baseline_suite and after_suite as null.",
+    "write_paths": "the review diff base=29c6201d..head=5c98ac82 is exactly the five declared paths - imas_ambix/data/generated_mapping_import.py, packages/imas-alambic/src/imas_alambic/machine_map.py, tests/data/test_generated_mapping_import.py, tests/fixtures/mapping_handoff_example.json, docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/generated-mapping-import.html - matching the manifest's changed_paths."
+  },
+  "justifications": {
+    "durability": "tests/data/test_generated_mapping_import.py:33 fails if the reader assigns indices from handoff row order (reproduced by the reviewed run's negative-control.log, 1 failed EXIT=1), and packages/imas-alambic/src/imas_alambic/signal_map.py:139 makes the draft vocabulary load-bearing so the round-trip test reddens if draft is removed.",
+    "evidence": "tests/data/test_generated_mapping_import.py:33,58,112 assert all three done_when clauses and pass (17 passed EXIT=0, head-arm.log); the manifest's baseline_suite/after_suite are null so the added-failure delta is derived from the gate logs and my re-measured arms.",
+    "fit": "imas_ambix/data/generated_mapping_import.py follows the dataclass-and-validate idiom of packages/imas-alambic/src/imas_alambic/machine_map.py and introduces no forbidden name.",
+    "goal_fidelity": "imas_ambix/data/generated_mapping_import.py:119 implements section 2's reader and machine_map.py:43 adds the draft state; the description-member source is taken as an argument rather than derived from a live machine description, deferring that wiring as the manifest's follow_on states.",
+    "reuse": "the reader extends the existing owner packages/imas-alambic/src/imas_alambic/signal_map.py:39 (reusing SensorIdentityRule.normalise, SignalMap.create and SignalRule.validate) rather than forking a serialiser or identity mechanism; no existing handoff reader was found in the search.",
+    "scope_discipline": "the diff base=29c6201d..head=5c98ac82 touches exactly the five declared write paths and carries nothing the goal does not imply."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: read imas_ambix/data/generated_mapping_import.py against plan section 2; it adds draft to machine_map._VALIDATION_STATES (packages/imas-alambic/src/imas_alambic/machine_map.py:43) and turns one handoff document into one draft SignalMap per IDS, filling source_group/source_array/units/target_path/transformation and resolving target_index from the caller-supplied description_members through the catalogue's sensor_identity_rules, reporting unresolved and unexpanded rows with a reason.\nVERDICT done_when: section 2's three clauses each have a green test in tests/data/test_generated_mapping_import.py - test_fixture_indices_follow_description_identity_not_handoff_order (indices from a test catalogue's identity rules), test_unresolvable_member_is_reported_without_an_index (unresolvable member reported not indexed), and test_draft_rule_and_map_round_trip_through_serialisation (draft rule and map round-trip); all pass at the reviewed head.\nVERDICT write_paths: the review diff base=29c6201d..head=5c98ac82 is exactly the five declared paths - imas_ambix/data/generated_mapping_import.py, packages/imas-alambic/src/imas_alambic/machine_map.py, tests/data/test_generated_mapping_import.py, tests/fixtures/mapping_handoff_example.json, docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/generated-mapping-import.html - matching the manifest's changed_paths.\nVERDICT manifest: read; it states status complete, five commits (6f4231bf..5c98ac82), the gate (5 passed EXIT=0 in head-gate.log), the related SignalMap suite (12 passed on bcf11fb6), negative_control_log naming the row-order mutation failing the identity-index test EXIT=1, and states baseline_suite and after_suite as null.\nVERDICT diff: read commit by commit - 6f4231bf copies the fixture, bd7ad340 adds draft to _VALIDATION_STATES, b203fc85 adds the reader, bcf11fb6 adds the mismatch tests, 5c98ac82 tightens numeric-token matching; nothing outside scope changed and no existing test was weakened.\nCALL_SITES: none\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/data/generated_mapping_import.py:119 implements section 2's reader and machine_map.py:43 adds the draft state; the description-member source is taken as an argument rather than derived from a live machine description, deferring that wiring as the manifest's follow_on states.\nSCORE evidence: 18\nJUSTIFICATION evidence: tests/data/test_generated_mapping_import.py:33,58,112 assert all three done_when clauses and pass (17 passed EXIT=0, head-arm.log); the manifest's baseline_suite/after_suite are null so the added-failure delta is derived from the gate logs and my re-measured arms.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff base=29c6201d..head=5c98ac82 touches exactly the five declared write paths and carries nothing the goal does not imply.\nSCORE durability: 18\nJUSTIFICATION durability: tests/data/test_generated_mapping_import.py:33 fails if the reader assigns indices from handoff row order (reproduced by the reviewed run's negative-control.log, 1 failed EXIT=1), and packages/imas-alambic/src/imas_alambic/signal_map.py:139 makes the draft vocabulary load-bearing so the round-trip test reddens if draft is removed.\nSCORE fit: 19\nJUSTIFICATION fit: imas_ambix/data/generated_mapping_import.py follows the dataclass-and-validate idiom of packages/imas-alambic/src/imas_alambic/machine_map.py and introduces no forbidden name.\nSCORE reuse: 19\nJUSTIFICATION reuse: the reader extends the existing owner packages/imas-alambic/src/imas_alambic/signal_map.py:39 (reusing SensorIdentityRule.normalise, SignalMap.create and SignalRule.validate) rather than forking a serialiser or identity mechanism; no existing handoff reader was found in the search.\nFINDING tests/fixtures/mapping_handoff_example.json:10 follow-on: the committed fixture is byte-identical to imas-codex commit ed1c086c1 (sha256 ea01e631, verified), but imas-codex main has since changed these mapping_id values to drop the \":4.1.1\" suffix; the pinned copy is faithful to the commit it names, yet the handoff contract it exercises should be re-pinned or tracked before section 3 reads live documents.\nFINDING docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/generated-mapping-import.html:1 follow-on: the reviewed manifest records baseline_suite and after_suite as null, so its added-failure delta is derivable only from its gate logs and re-measured arms, not from its own record; import nodes should record the base and after arms in the manifest block.",
+  "review_run_id": "r-20261009T024633019818-review-of-generated-mapping-import",
+  "reviewed_base_sha": "29c6201d07bcd717e8b086b0529c050cc1c6af3d",
+  "reviewed_head_sha": "5c98ac82ab71300e2a2d0b32bb57b765ab45d634",
+  "reviewed_run_id": "r-20261009T022959528115-generated-mapping-import",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 18,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-09T02:58:08.012559+00:00",
+  "total": 112
+}
