@@ -19,12 +19,12 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-sprint" content="S20">
   <meta name="plan-tags" content="jt-60sa,machine-map">
-  <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;imas-codex:generated-map-handoff#s1&quot;], &quot;s3&quot;: [&quot;jt60sa-tokamap-from-generated-maps#s1&quot;, &quot;jt60sa-tokamap-from-generated-maps#s2&quot;, &quot;imas-codex:generated-map-handoff#s4&quot;], &quot;s4&quot;: [&quot;jt60sa-tokamap-from-generated-maps#s3&quot;, &quot;jt60sa-tokamap-from-generated-maps#s5&quot;, &quot;imas-codex:generated-map-handoff#s5&quot;], &quot;s5&quot;: [&quot;jt60sa-tokamap-from-generated-maps#s1&quot;]}">
+  <meta name="plan-section-depends-on" content="{&quot;s2&quot;: [&quot;imas-codex:generated-map-handoff#s1&quot;], &quot;s3&quot;: [&quot;jt60sa-tokamap-from-generated-maps#s1&quot;, &quot;jt60sa-tokamap-from-generated-maps#s2&quot;], &quot;s4&quot;: [&quot;jt60sa-tokamap-from-generated-maps#s3&quot;, &quot;jt60sa-tokamap-from-generated-maps#s5&quot;, &quot;imas-codex:generated-map-handoff#s5&quot;], &quot;s5&quot;: [&quot;jt60sa-tokamap-from-generated-maps#s1&quot;]}">
   <meta name="plan-informs" content="imas-codex:jt60sa-imas-maps,jt60sa-machine-map">
   <title>JT-60SA Tokamap From Generated Maps | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="5">
 <meta name="plan-modified" content="2026-10-09">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
 </head>
@@ -192,6 +192,15 @@
       Run it on the JT-60SA hand-off document that <code>imas-codex:generated-map-handoff</code> §4 writes to
       <code>/work/projects/imas_gpu/jt60sa/handoff/</code>. Write the result to
       <code>/work/projects/imas_gpu/jt60sa/tokamap/draft/</code>.
+    </p>
+    <p>
+      That document waits on imas-codex's first generated JT-60SA mappings, which were 45 to 60 minutes away on
+      2026-10-09. So the first iteration runs the same command on the committed contract fixture,
+      <code>tests/fixtures/mapping_handoff_example.json</code>, and writes it to
+      <code>/work/projects/imas_gpu/jt60sa/tokamap/draft-fixture/</code>; the fragment labels every figure and count
+      from it as fixture-driven. The second iteration reruns the command on the JT-60SA document when it exists and
+      replaces the fixture-driven counts and comparison in the fragment. A missing document never blocks the first
+      iteration.
     </p>
     <p>
       <strong>Node</strong> <code>jt60sa-draft-tokamap</code>, role implement, 0.5 h. Write paths:
