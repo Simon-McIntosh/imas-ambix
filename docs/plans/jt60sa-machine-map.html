@@ -27,7 +27,7 @@
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;}">
 <meta name="plan-commits" content="023dbf93,4bf5bf2f,8bcb8dd0,6c76ccb4,bdcce624,1eaa5c3d,0fcf03f2,63df11f5,6666b7c1,3a9517fd,3ced2e9d,f6210cbe,7bed17cc,477b5433,92146396,c106141f,1d72b2a4,8b7f8c79,0a3da71b,6d3d4d4d,b813d7f6,828fd7f2,5e45b7d2,a411ef85,71ab249b">
 <meta name="plan-impl" content="0.96">
-<meta name="plan-version" content="448">
+<meta name="plan-version" content="450">
 <meta name="plan-modified" content="2026-10-09">
 </head>
 <body>
@@ -229,9 +229,14 @@
       <code>get_transform_engine</code> and <code>transform_machine_description</code>, compile arrays
       from a store, and the exporter works from bindings with no store. And
       <code>canonical_factor</code> in <code>cocos.py</code> takes a transformation class rather than
-      a DD path, so it cannot answer which class a path carries. Then the node
-      exports the JT-60SA catalogue and signal maps for the five first-pass groups once §7's
-      equilibrium bindings exist.
+      a DD path, so it cannot answer which class a path carries. The JT-60SA export itself, and
+      its <code>tokamap-validator</code> check, moved on 2026-10-09 to the lead's plan
+      <code>jt60sa-tokamap-from-generated-maps</code> §1. That section also fixes the exporter dropping
+      every rule after the first for one indexed key, and adds an opt-in mode that withholds and
+      records a binding tokamap cannot carry. So <code>jtmm-tokamap-jt60sa</code> keeps only the
+      resolver split above. It runs after that plan's §1 merges, so the two never edit
+      <code>tokamap_export.py</code> at once. The <code>source_cocos</code> 0 that makes the exporter
+      refuse <code>magnetics/b_field_pol_probe/poloidal_angle</code> stays this plan's to declare.
     </p>
 
     <section class="section-landed">
@@ -612,6 +617,18 @@
       The sixteen frozen shots cache the axis and X-point arrays but no boundary contour, so one
       read-only EDDB fetch of <code>surfABVxp</code> for those shots fills the cache before the
       stamp. It runs over the lead's tunnel, one connection at a time, as every JT-60SA fetch does.
+      The first attempt cached nothing (<code>jtmm-psrc-boundary-fetch</code>). EDDB returns a
+      multi-channel array's data one-dimensional, and the remote script folds it into one channel.
+      So the cache writer refuses a record n_time × 604 wide against a time base n_time long.
+      <code>jtmm-eddb-multichannel-read</code> fixes the remote script. One read-only probe on one
+      shot settles EDDB's flat order first. It compares the single flat read of
+      <code>surfABVxp</code> with per-element reads (<code>dim=[i,1,1]</code>, as imas-efit reads PSRC)
+      for three elements. The script then reshapes a multi-channel read to <code>(nch, n_time)</code>
+      in that order. A test runs the reshape on a synthetic flat record laid out in each order, and
+      refuses a length that is not a whole number of channels. The fetch then reruns once,
+      <code>jtmm-psrc-boundary-refetch</code>. It goes one shot at a time, stops at the first
+      connection-level failure, and starts only when the lead confirms that no other session holds
+      a connection to the server.
       The reader's tests run against cached arrays and a synthetic boundary, so it is built before
       that fetch. That reduction has an owner. It goes through
       <code>imas_ambix/worldmodel/equilibrium_labels.py</code> <code>build_geometry_from_arrays</code>,
@@ -621,7 +638,16 @@
       passes is PSRC's magnetic axis, <code>calRp0</code> and <code>calZp0</code>, and never PSRC's
       plasma centre <code>calCCSRc</code> and <code>calCCSZc</code>. That centre is a geometric marker on
       a 0.2 m grid, 0.113 m from the axis on E101154 at 4.0 s, and the builder has no flag that
-      would rescue a wrongly sourced axis (<code>jtmm-reference-scope</code>). Through the builder, the X-point
+      would rescue a wrongly sourced axis (<code>jtmm-reference-scope</code>). The builder's in-vessel
+      X-point check is MAST's. <code>build_geometry_from_arrays</code> sends each X-point through
+      <code>xpoint_null_set</code>, whose <code>_null_in_vessel</code> keeps only nulls inside MAST's
+      coarse limiter box (<code>XPOINT_VESSEL_R_RANGE</code> 0.1 to 2.0 m, |Z| up to 2.0 m). Every
+      JT-60SA X-point lies outside that box, so each is masked and <code>GeometryVerdict</code> cannot
+      score it. <code>jtmm-xpoint-vessel-box</code> makes the box an argument of
+      <code>xpoint_null_set</code> and <code>build_geometry_from_arrays</code>. The default is MAST's
+      constants, so MAST's labels do not change. The SELENE loader passes JT-60SA's box, derived from
+      the limiter contour in the phase's <code>wall</code> IDS and widened as MAST's is, never typed
+      by hand. Through the builder, the X-point
       handling, the boundary resampling at fixed poloidal angles and the
       frame projection are the ones every other reference shares. So no second, ungated read of a reference equilibrium is added, and no
       second reader of SELENE either. <code>GeometryVerdict</code> scores axis, X-point and boundary RMS only. The
