@@ -1,0 +1,69 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-15T10:25:04.625Z",
+  "dispatched_at": "2026-10-15T10:16:34Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:877",
+      "id": "done_when-1",
+      "reason": "whichever stem the single parser keeps, one of the two callers keeps the other's answer only by changing behaviour on a `.1`/`.gz` name, so the section must scope the equivalence claim to the plain shapes or state which answer wins.",
+      "text": "the done-when requires the one parser to split a roll- or compression-suffixed name \"into the parts the three former parsers returned\", but those parsers disagree on exactly that shape, so the assertion cannot hold while \u00a723:869 also claims \"Behaviour does not change\" \u2014 measured on the merged code: `_roll_date('serve.jsonl.1')` is None, `_record_stem_and_suffix('serve.jsonl.1')` is `('serve', '.jsonl.1')`, `_ladder_stem('serve.jsonl.1')` is `'serve.jsonl'`; likewise `_record_stem_and_suffix('serve.jsonl.gz')` is `('serve', '.jsonl.gz')` against `_ladder_stem('serve.jsonl.gz')` = `'serve.jsonl'`",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:869",
+      "id": "reasoning-1",
+      "reason": "without rewriting `_roll_date` as a caller, the done-when's \"a search of both modules finds the eight-digit day pattern in that function only\" cannot pass, so the change text must name all three callers.",
+      "text": "\"The change\" lists `_record_stem_and_suffix` and `telemetry_store._ladder_stem` as the callers of the new parser, but the module that gains it also holds `serving_receipts._roll_date` (:612), itself named on :868 as one of the three parsers and still carrying `len(last) == 8 and last.isdigit()`",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "cc37688b66b76b360d605851760096a837bbb922e1a59a33bf8fdacfb9140d78",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 259,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261015T101611799535-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "3cde27e75d8d5287a75e94b20cf1b033c3d60e09",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `serving_receipts._roll_date` (:612), `serving_receipts._record_stem_and_suffix` (:650), `serving_receipts.day_segment_path` (:636), `telemetry_store._ladder_stem` (:798) and all four named test files exist, `telemetry_store.py:982` is exactly \"a new inode, and the pass that sees it starts the ladder's next contribution\", and the review score \u00a723 quotes (\"reuse 12\") is the value recorded in the \u00a721 repair's review record.",
+    "done_when": "a finding \u2014 \u00a723:877 requires the new test to split a roll- or compression-suffixed name \"into the parts the three former parsers returned\", and the three former parsers do not return one set of parts for such a name.",
+    "evidence_paths": "pass \u2014 \u00a723:874 names source and test paths under the repository and, like \u00a722, leaves the gate log and evidence to the crew report rather than a scratch or node-local path.",
+    "naming": "pass \u2014 \u00a723 names mechanisms (`day_segment_path`, \"the eight-digit day pattern\") and carries no ticket number, version tag or changelog prose; the `\u00a721`/`\u00a722` references are the plan's own cross-references.",
+    "reasoning": "a finding \u2014 \u00a723:869 names three functions as the defect and then names only two of them as callers of the new parser, leaving `serving_receipts._roll_date` \u2014 the module's own day reader, and one of the three offenders \u2014 parsing the day itself, which its own done-when forbids.",
+    "single_goal": "pass \u2014 \u00a723 carries one deliverable (the day parser gains one owner and the docstring that describes the removed mechanism is corrected); the docstring rewrite is the same change, not a second one.",
+    "wiring": "pass \u2014 \u00a723's node `srw-roll-day-one-parser` declares \"Runs after \u00a721\", \u00a721 is landed and its work is on the branch, and no other open node writes `serving_receipts.py` or `telemetry_store.py`; the declaration `s23: implementable` and followup `f-srw-030` agree with the section."
+  },
+  "section_digests": {
+    "_document": "f564132b350658da4af4dc414f336b1d72cd7d60f10344ee764e9e9206579668",
+    "s1": "f0e6a1c8acb9f607124dc4f3def1f738e2a0bc52c579a2c0849a33c6fa1156fb",
+    "s10": "1509fe50d6cbdb1159da0bac7826bf9df43f73f13dc81d4b4a3c3c0d3926d315",
+    "s11": "f02a2d9d5ac0a9537cbc0c7c1127234686c6b35ebe9d5f28f2eb1dc890ba8349",
+    "s12": "c993e8c7a97750818ddad0ac8e3797052442f5dd3357a9b1336cd024ff90f8d3",
+    "s13": "0a80350dd120a399e1c304a1eed64f149a7e5f5f1ef41302cad6223dc985910e",
+    "s14": "65bc34f5b6d081374d8287c3a7e14dfa77b21b6ef0390d5e95961d81ded7114d",
+    "s15": "1d02ca1576af9e3b58c011e3b4c84ffb63870a92698492bd45a0bbfe48660ea0",
+    "s16": "59a48fb3793215455ca353b8188b5d155dec253814be9a4eea8d2f4eeb412fe1",
+    "s17": "a9272f7380fa7e5e98ccdb05c439a87545af549c2b868454c7fcbf8b5f205d73",
+    "s18": "429fc06f68195b5f8d203f2a7cecc6012761471232df3108082927ed9cf8f432",
+    "s19": "dc83604a90c46f7c6ef8e70e35cccf1230c480b513b218fc4744ddeeae9e6864",
+    "s2": "dd85bfd277fcf3eff4974460f080158cafc4ff9e584ca8799bbdf19223a0067f",
+    "s20": "8122e379cac4618fb3130fbbe0ee431d918ea6f19ac63f7dee6b4d54ff284566",
+    "s21": "072fad4f2605157b2b243b2b8688d099e0d0b27039e2c7a28f72c4ba47c72cf5",
+    "s22": "7f906c0a7adece8f09e10af8e2aaba249369143900b6d084b92880b6c4b16223",
+    "s23": "e043d6111c7d687514a314fb31c58684ad6acd06c438b6b850ebf9049e53756e",
+    "s3": "dd2996924d4d122532e4de97c38a9cae83173c64b6409cc2135177861f392578",
+    "s4": "59f727a99fef92f80127586b2833279df3aa59154895e05a2590e648232abfeb",
+    "s5": "07d984217f6f4d05e582e4d403dff88fd7c0627b3a2cceb36a0123131813e899",
+    "s6": "19d3648895b8aeee8beac762cb2ddb63ba248dec6485eb393625e0c9fd840c32",
+    "s7": "8de1f36a2db5f192d8a078c96c91f29a1d456c95b742332e6fb3854ee451cb78",
+    "s8": "6fa176e0365af868497abc3e4cb9e224032b3de82c337015be11061591c407c2",
+    "s9": "a29439d3d5c1417e8d6fdc357f0ab636deb86ddef8cdd6865c541773247886ef"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T10:26:09.376285+00:00"
+}
