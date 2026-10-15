@@ -769,10 +769,10 @@ def _price_walk(
     serve that restarted inside a stretch contributes what that run carried.
     The median a stretch is priced at is the one in force at its start, so a
     change takes effect from the instant it was recorded rather than from the
-    instant the render happened to run. Consecutive segments carrying the same
-    rate are totalled together, and a period no listing cuts is priced on the
-    totals its caller already holds, so the reads this walk costs follow the
-    number of listings rather than the number of cuts.
+    instant the render happened to run. Cuts that select the same rate are
+    totalled together, whatever that rate was selected from, and a period no
+    listing cuts is priced on the totals its caller already holds, so the reads
+    this walk costs follow the rate changes rather than the number of cuts.
     """
     listings = _endpoint_listings(history, slug)
     if not listings:
@@ -808,39 +808,50 @@ def _price_walk(
         [float(row["at"]) for row in listings],
         hourly=bool(price.get("schedule")),
     )
-    # The rate in force is fixed between two listings, so every cut inside one
-    # listing's stretch carries that listing's rate: totalling the stretch in
-    # one read and pricing it in one go is the same sum as walking its hours,
-    # and it costs one read of the index and one of the history per listing
-    # rather than one per hour.
-    stretches: list[tuple[float, float, int, int]] = []
-    listing_at = [float(row["at"]) for row in listings]
-    in_force = 0
+    # A cut is totalled together with the neighbouring cuts only when they
+    # select the same rate, because that is what makes one read equal the walk.
+    # The rate is not always the listing's own: where no listing yields a
+    # median the walk borrows the headline, and a row priced by time of day
+    # moves its headline between one hour and the next. So the grouping follows
+    # the selected rate rather than the listing a cut sits under, and a
+    # scheduled row's hours -- each selecting its own rate -- stay one read
+    # each. Grouping never prices an hour at another hour's rate.
+    stretches: list[tuple[float, float, dict, bool, int]] = []
+    carried_back = False
     for mark, nxt in itertools.pairwise(marks):
         when = max(mark, first_at)
-        while in_force + 1 < len(listing_at) and listing_at[in_force + 1] <= when:
-            in_force += 1
-        if stretches and stretches[-1][2] == in_force:
+        carried_back = carried_back or mark < first_at
+        rate = provider_prices.provider_median_in_force(history, slug, when)
+        borrowed = rate is None
+        if borrowed:
+            # Every endpoint in the listing declared fewer than eight bits, so
+            # the median was taken over nothing; the headline is the only price
+            # the history carries for this stretch.
+            rate = provider_prices.rate_in_force(history, slug, when)
+        if rate is None:
+            rate = price_at(price, when)
+        if stretches and stretches[-1][2] == rate and stretches[-1][3] == borrowed:
             head = stretches[-1]
-            stretches[-1] = (head[0], nxt, in_force, head[3] + 1)
+            stretches[-1] = (head[0], nxt, head[2], head[3], head[4] + 1)
         else:
-            stretches.append((mark, nxt, in_force, 1))
+            stretches.append((mark, nxt, rate, borrowed, 1))
     # A period that no listing cuts is one stretch over the window the caller
     # has already totalled, so it is priced on those totals rather than on a
     # second read of the same window.
     uncut = len(marks) == 2
     segments = [
         (
-            lo,
             tokens_in if uncut else _span(index, PROMPT_TOKENS, lo, hi),
             tokens_out if uncut else _span(index, GENERATION_TOKENS, lo, hi),
+            rate,
+            borrowed,
             cut,
         )
-        for lo, hi, _, cut in stretches
+        for lo, hi, rate, borrowed, cut in stretches
     ]
     unrecorded = any(
         in_tokens is None or out_tokens is None
-        for _, in_tokens, out_tokens, _ in segments
+        for _, in_tokens, out_tokens, *_ in segments
     )
     if unrecorded:
         # A stretch whose own total is unrecorded is not a zero, and summing the
@@ -866,20 +877,10 @@ def _price_walk(
         )
 
     total = 0.0
-    carried_back = False
     fell_back = 0
-    for mark, in_tokens, out_tokens, cut in segments:
-        when = max(mark, first_at)
-        carried_back = carried_back or mark < first_at
-        rate = provider_prices.provider_median_in_force(history, slug, when)
-        if rate is None:
-            # Every endpoint in the listing declared fewer than eight bits, so
-            # the median was taken over nothing; the headline is the only price
-            # the history carries for this stretch.
-            rate = provider_prices.rate_in_force(history, slug, when)
+    for in_tokens, out_tokens, rate, borrowed, cut in segments:
+        if borrowed:
             fell_back += cut
-        if rate is None:
-            rate = price_at(price, when)
         total += (
             estimated_cost({"in": in_tokens, "out": out_tokens}, rate, estimate.rate)
             or 0.0
