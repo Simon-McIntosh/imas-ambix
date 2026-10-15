@@ -22,9 +22,9 @@
   <title>Serving Record Warehouse | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;done&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;done&quot;,&quot;s22&quot;:&quot;done&quot;,&quot;s23&quot;:&quot;done&quot;,&quot;s24&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;done&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;done&quot;,&quot;s22&quot;:&quot;done&quot;,&quot;s23&quot;:&quot;done&quot;,&quot;s24&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="280">
+<meta name="plan-version" content="281">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -877,7 +877,7 @@
 <p><strong>Done when</strong>: on the fleet node, <code>tests/test_agent_serving_receipts.py</code>, <code>tests/test_telemetry_store.py</code>, <code>tests/test_telemetry_compaction_leaves.py</code> and <code>tests/test_telemetry_compaction_runs.py</code> pass. A new test pins the result each of the three former functions returned before the change on <code>foo-1.jsonl</code>, <code>foo-1.20261015.jsonl</code>, <code>foo-1.20261015.jsonl.gz</code> and <code>foo-1.jsonl.1</code>, and asserts each still returns it. On the compressed segment those results are <code>None</code>, <code>('foo-1', '.jsonl.gz')</code> and <code>'foo-1.20261015.jsonl'</code>. A second test reads both modules' source and finds the eight-digit day match in the parser only. The docstring near <code>telemetry_store.py:982</code> describes a roll as keeping the inode. The declared negative control makes <code>_ladder_stem</code> match the day itself again, and the source test must fail.</p>
 
     <h2 id="s24">§24 — Pricing a period costs no more than reading it</h2>
-<section data-reckon="section" data-id="s24" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s24" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="done" data-links=""></section>
 <p><strong>What is wrong, measured 2026-10-15.</strong> Each <code>publish-watch</code> cycle logs its compute time to <code>~/.local/state/fleet/services/ambix-watch-publisher.log</code>. Before §18 was deployed at 11:00Z, the mean over 16 cycles from 09:00Z was 141.7 s. Over the 6 cycles after that restart, the mean was 247.5 s. That is about 106 s more per cycle, on a 300 s cadence. The process held 44% of one CPU over its first hour, on the fleet node every session shares. §18 prices each stretch of a period at its own rate, and a scheduled row hour by hour. Each segment's token total from the index is inherent to that rule, because each segment is priced on its own total. The likely candidate for the added cost is the price history: <code>provider_prices.rate_in_force</code> and <code>provider_median_in_force</code> read the whole history for each segment or hour, where one read per render would do. The index totals may be fetched in one grouped query instead of one per segment only if every figure stays the same.</p>
 <p><strong>The change.</strong> The node first profiles one <code>imas-ambix agent watch --json</code> render against the live index on the fleet node. It records the five most expensive call sites in its manifest. It then removes the repeated work the profile shows, without changing any figure and without changing the pricing rule §18 set. Which call is repeated is for the profile to say, not for this section to guess.</p>
 <table>
@@ -1125,10 +1125,11 @@
     <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §22</pre>
     <p class="r-fu-outcome">done: §22 landed at 1a754c5a under the scheduled-retirement decision; the ingest loop applies retirement daily.</p>
     </article>
-<article class="r-fu" data-id="f-srw-031" data-status="open" data-written-by="reckon-build" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §24" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-srw-031" data-status="resolved" data-written-by="reckon-build" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §24" data-resolved-at="2026-10-15T13:45:56+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Bring publish-watch&#x27;s compute back down after per-segment pricing</h4>
     <div class="r-fu-body"><p>Measured 2026-10-15: <code>publish-watch</code> cycles took a mean of 141.7 s before §18 was deployed and 247.5 s after it, on a 300 s cadence. §24 profiles one render and removes the repeated work.</p></div>
     <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §24</pre>
+    <p class="r-fu-outcome">done: §24 landed at 40f5b90e. A render fell from 221 s to 158–169 s; the remaining time_weighted_mean scan belongs to f-srw-020's hourly rollup.</p>
     </article>
 </section>
 
@@ -1753,6 +1754,9 @@
 </div>
 <div class="r-comment" data-section="s24" data-id="c-run-r-20261015T133249305957-review-of-srw-period-pricing-cost-d3bcf5d247ba" data-who="reckon-build" data-when="2026-10-15T13:43:11.873Z">
     <div class="r-comment-body"><p>review of r-20261015T121109101109-srw-period-pricing-cost at head d3bcf5d247ba over base 090e5cd30cfe scored 6/6 dimensions (goal_fidelity 18, evidence 12, scope_discipline 20, durability 18, fit 17, reuse 20; total 105), 6/6 checklist items and 2 production call sites, with 2 follow-on findings and no blocking finding; the store path is the record named in changed_paths</p></div>
+</div>
+<div class="r-comment" data-section="s24" data-id="c-close-s24" data-who="reckon-build" data-when="2026-10-15T13:50:00Z">
+    <div class="r-comment-body"><p>§24 landed: a period's cuts are read once per selected rate, and a render on the live index fell from 221 s to 158–169 s with every cost unchanged (merged <code>40f5b90e</code> after one repair); 74 tests pass; review 105/120. The 60% target was not met. The coordinator accepted 71–76%, because the remaining 73 s is <code>time_weighted_mean</code>'s whole-table scan, which f-srw-020's hourly rollup owns. <code>publish-watch</code> restarts next. <a href="/imas-ambix/evidence/archive/serving-record-warehouse-landed.html#s24">evidence</a></p></div>
 </div>
 </section>
 </main>
