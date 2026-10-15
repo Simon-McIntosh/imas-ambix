@@ -22,7 +22,7 @@
   <title>Serving Record Warehouse | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;done&quot;,&quot;s22&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;done&quot;,&quot;s22&quot;:&quot;implementable&quot;,&quot;s23&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
 <meta name="plan-version" content="259">
 <meta name="plan-modified" content="2026-10-15">
@@ -863,6 +863,19 @@
 </table>
 <p><strong>Done when</strong>: tests assert the following. The scheduled pass deletes only manifest files that still match their digests. It deletes a raw file only when its installed tiers, rebuilt first where its job has ended, prove equal to it. It keeps any file whose rebuilt tiers still disagree, and it never deletes a minute or hour tier file. A scheduler that times out or refuses makes the pass retire nothing. <code>telemetry_retention.py</code> contains no <code>squeue</code> subprocess of its own. The index file shrinks after a retirement and vacuum. A replica of 1278105's shape, tiers ending before the raw tail and a first row with no opening block, is rebuilt and then proves equal. A file whose rebuilt tiers still disagree is kept. The declared negative control skips the digest re-check, and a file mutated between listing and apply must be caught.</p>
 
+    <h2 id="s23">§23 — A receipt name's roll day has one parser</h2>
+<section data-reckon="section" data-id="s23" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
+<p><strong>What is wrong.</strong> The review of §21's repair on 2026-10-15 scored reuse 12 and found three functions that parse the trailing eight-digit roll day out of a receipt file name: <code>serving_receipts._roll_date</code>, <code>serving_receipts._record_stem_and_suffix</code> and <code>telemetry_store._ladder_stem</code>. A change to the segment name shape must therefore be made three times. The same review found that a <code>telemetry_store</code> docstring, near its line 982, still says a rolled segment "arrives with a new inode" and restarts the ladder's contribution. The merged code does the opposite: a roll renames the file and keeps the inode, and only a different inode starts at zero. So the docstring documents the mechanism the repair removed.</p>
+<p><strong>The change.</strong> <code>serving_receipts</code>, which owns the segment name through <code>day_segment_path</code>, gains the one function that splits a receipt file name into its record stem, its roll day and its suffix. <code>_record_stem_and_suffix</code> and <code>telemetry_store._ladder_stem</code> call it, and neither parses the day itself. <code>telemetry_index</code>'s own job-id pattern belongs to §22's node and is left alone. The stale docstring is rewritten to say what the merged branch does. Behaviour does not change.</p>
+<table>
+<caption>Node for this section.</caption>
+<thead><tr><th>Node</th><th>Writes</th><th>Runs after</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td><code>srw-roll-day-one-parser</code></td><td><code>imas_ambix/agent/serving_receipts.py</code>, <code>imas_ambix/agent/telemetry_store.py</code>, <code>tests/test_agent_serving_receipts.py</code>, <code>tests/test_telemetry_store.py</code></td><td>§21</td><td>1.0 h</td></tr>
+</tbody>
+</table>
+<p><strong>Done when</strong>: on the fleet node, <code>tests/test_agent_serving_receipts.py</code>, <code>tests/test_telemetry_store.py</code>, <code>tests/test_telemetry_compaction_leaves.py</code> and <code>tests/test_telemetry_compaction_runs.py</code> pass. A new test asserts that the one parser splits an open record, a day segment, and a roll- or compression-suffixed name into the parts the three former parsers returned. A search of both modules finds the eight-digit day pattern in that function only. The docstring near <code>telemetry_store.py:982</code> describes a roll as keeping the inode. The declared negative control makes <code>_ladder_stem</code> parse the day itself again, and the single-parser test must fail.</p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="caller-identity" data-choice="declared-header" data-by="Simon McIntosh" data-when="2026-09-22T18:58:10+00:00">
@@ -1085,6 +1098,11 @@
     <div class="r-fu-body"><p>A weeks-long serve's raw file grows at 53 MB a day and is re-read whole every five minutes. §21 rolls it daily and compacts incrementally, which is what lets §22 retire closed days at all.</p></div>
     <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §21</pre>
     <p class="r-fu-outcome">done: §21 landed at a4a927d1 after one repair. A running serve's raw record rolls daily and compacts incrementally, from the next serve restart.</p>
+    </article>
+<article class="r-fu" data-id="f-srw-030" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-build" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §23" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Give the roll day one parser</h4>
+    <div class="r-fu-body"><p>From the review of §21's repair: three functions parse a receipt name's roll day, and one docstring describes the removed inode reset.</p></div>
+    <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §23</pre>
     </article>
 <article class="r-fu" data-id="f-srw-029" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-risk="elevated" data-written-by="reckon-edit" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §22" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Decide whether retirement may delete on a schedule</h4>
