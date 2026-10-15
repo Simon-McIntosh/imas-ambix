@@ -443,18 +443,33 @@ def rebuild_job_tiers(
         (TIER_MINUTE, 60, minute_rows, minute_path),
         (TIER_HOUR, 3600, hour_rows, hour_path),
     ):
+        staging = _scratch_path(destination)
+        write_rows(staging, tier_rows)
         if destination.exists():
+            # Retired windows retain their original line bytes, including
+            # valid JSON formatting that differs from the current writer.
+            installed_rows = read_rows(destination)
+            installed_lines = [
+                line
+                for line in destination.read_bytes().splitlines(keepends=True)
+                if line.strip()
+            ]
             retained = [
-                row
-                for row in read_rows(destination)
+                (_timestamp_of(row) or 0.0, line)
+                for row, line in zip(installed_rows, installed_lines, strict=True)
                 if (stamp := _timestamp_of(row)) is None
                 or int(stamp // width) not in covered[tier]
             ]
-            tier_rows = sorted(
-                [*retained, *tier_rows], key=lambda row: _timestamp_of(row) or 0.0
-            )
-        staging = _scratch_path(destination)
-        write_rows(staging, tier_rows)
+            rebuilt = [
+                (_timestamp_of(row) or 0.0, line)
+                for row, line in zip(
+                    tier_rows,
+                    staging.read_bytes().splitlines(keepends=True),
+                    strict=True,
+                )
+            ]
+            ordered = sorted([*retained, *rebuilt], key=lambda entry: entry[0])
+            staging.write_bytes(b"".join(line for _stamp, line in ordered))
         os.replace(staging, destination)
     return True
 
