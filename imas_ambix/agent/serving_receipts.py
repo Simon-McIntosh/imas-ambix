@@ -615,12 +615,12 @@ def _roll_date(name: str) -> str | None:
     A segment is the open record's name with the day it covers inserted before
     the suffix, so ``<slug>-<job>.20261015.jsonl`` is the same job's record for
     one UTC day and every segment of a job resolves to the ladder its siblings
-    do.
+    do. Only a name the roll itself produced carries a day: a compressed or
+    rotated segment is not a rolled name and reports none, and a bare stem
+    reports none either.
     """
-    stem = name[: -len(".jsonl")] if name.endswith(".jsonl") else name
-    parts = stem.split(".")
-    last = parts[-1] if parts else ""
-    return last if len(last) == 8 and last.isdigit() else None
+    _stem, day, suffix = telemetry_store.split_record_name(name)
+    return day if suffix in ("", ".jsonl") else None
 
 
 def is_day_segment(path: str | Path) -> bool:
@@ -656,14 +656,7 @@ def _record_stem_and_suffix(name: str) -> tuple[str, str]:
     tier name instead of swallowing them into the stem, and drops a roll day
     from the stem so every segment of a job maps to that job's one ladder.
     """
-    index = name.find(".jsonl")
-    if index == -1:
-        stem, suffix = name, ""
-    else:
-        stem, suffix = name[:index], name[index:]
-    head, dot, last = stem.rpartition(".")
-    if dot and len(last) == 8 and last.isdigit():
-        stem = head
+    stem, _day, suffix = telemetry_store.split_record_name(name)
     return stem, suffix
 
 

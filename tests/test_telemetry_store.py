@@ -20,6 +20,7 @@ between them would be a figure about the reboot rather than about the machine.
 
 from __future__ import annotations
 
+import ast
 import html
 import json
 import math
@@ -30,6 +31,7 @@ from pathlib import Path
 
 import pytest
 
+import imas_ambix.agent.serving_receipts as serving_receipts
 import imas_ambix.agent.telemetry_store as telemetry_store
 from imas_ambix.agent.telemetry_index import (
     UNKNOWN_BOOT_ID,
@@ -995,3 +997,75 @@ def test_a_second_incremental_pass_reads_only_what_arrived(
     # the mark are the ones it has already compacted and must not pay for.
     assert tally["bytes"] == whole - offset
     assert tally["bytes"] < whole
+
+
+# The values the three readers returned before the roll day had one parser,
+# captured from the pre-change code and pinned here so each keeps returning the
+# same result whichever reader asks. On the compressed segment the day is
+# absent, the stem keeps its ``.jsonl`` marker in the suffix, and the ladder
+# stem still names the compressed segment itself.
+_ROLL_DAY_CASES: dict[str, tuple[str | None, tuple[str, str], str]] = {
+    "foo-1.jsonl": (None, ("foo-1", ".jsonl"), "foo-1"),
+    "foo-1.20261015.jsonl": ("20261015", ("foo-1", ".jsonl"), "foo-1"),
+    "foo-1.20261015.jsonl.gz": (None, ("foo-1", ".jsonl.gz"), "foo-1.20261015.jsonl"),
+    "foo-1.jsonl.1": (None, ("foo-1", ".jsonl.1"), "foo-1.jsonl"),
+}
+
+
+@pytest.mark.parametrize("name", sorted(_ROLL_DAY_CASES))
+def test_roll_day_readers_keep_their_former_results(name):
+    date, pair, stem = _ROLL_DAY_CASES[name]
+    assert serving_receipts._roll_date(name) == date
+    assert serving_receipts._record_stem_and_suffix(name) == pair
+    assert telemetry_store._ladder_stem(name) == stem
+
+
+def _day_match_functions(source):
+    """The functions whose body tests an eight-digit dotted component.
+
+    A roll day is matched by comparing a dotted component's length against
+    eight and asking whether it is all digits; the two must sit in the same
+    function for the body to be matching a day.
+    """
+    found = set()
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        length_eight = False
+        all_digits = False
+        for inner in ast.walk(node):
+            if (
+                isinstance(inner, ast.Compare)
+                and isinstance(inner.left, ast.Call)
+                and getattr(inner.left.func, "id", None) == "len"
+                and any(
+                    isinstance(cmp, ast.Constant) and cmp.value == 8
+                    for cmp in inner.comparators
+                )
+            ):
+                length_eight = True
+            if (
+                isinstance(inner, ast.Call)
+                and getattr(inner.func, "attr", None) == "isdigit"
+            ):
+                all_digits = True
+        if length_eight and all_digits:
+            found.add(node.name)
+    return found
+
+
+def test_only_the_shared_parser_matches_the_roll_day():
+    """One parser matches the day; the three readers never do.
+
+    The three readers disagreed on a suffixed name, so each keeps its own
+    suffix rule -- but none of them may recognise a day, or a change to the
+    segment name shape has to be made in more than one place. The day match
+    belongs to :func:`telemetry_store.split_record_name` alone.
+    """
+    parser = telemetry_store.split_record_name.__name__
+    receipt_matches = _day_match_functions(
+        Path(serving_receipts.__file__).read_text()
+    )
+    store_matches = _day_match_functions(Path(telemetry_store.__file__).read_text())
+    assert receipt_matches == set()
+    assert store_matches == {parser}

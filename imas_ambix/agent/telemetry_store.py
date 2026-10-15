@@ -795,16 +795,46 @@ WATERMARK_SUFFIX = ".watermark.json"
 _EMITTED_THROUGH_KEY = "emitted_through"
 
 
+def split_record_name(name: str) -> tuple[str, str | None, str]:
+    """A receipt file's name split into its record stem, roll day and suffix.
+
+    One name shape is read by more than one caller, so the split lives here and
+    no caller matches the roll day itself. The record's own identity is
+    everything before the ``.jsonl`` marker; the roll day is the eight-digit
+    dotted component immediately before that marker, and every suffix appended
+    after it -- a compressed segment's ``.gz``, a rotation count -- stays with
+    the suffix rather than being swallowed into the stem. A name carrying no
+    marker has no role in the ladder, so it is split at its last dot and
+    reports no day.
+
+    Each caller keeps its own rule about which suffixes it accepts; this
+    function only states where the day sits and what the parts are.
+    """
+    index = name.find(".jsonl")
+    if index == -1:
+        body, suffix = name, ""
+    else:
+        body, suffix = name[:index], name[index:]
+    head, dot, last = body.rpartition(".")
+    if dot and len(last) == 8 and last.isdigit():
+        return head, last, suffix
+    return body, None, suffix
+
+
 def _ladder_stem(name: str) -> str:
     """A record file's name without its roll date and suffix.
 
     A raw record rolls to one file per UTC day and every segment of one job
     feeds one ladder, so the segments of a job share this stem and a pass
-    recognises the file that replaced the one its watermark describes.
+    recognises the file that replaced the one its watermark describes. A name
+    whose suffix is exactly ``.jsonl`` is a rolled segment and drops both its
+    day and that marker; any other name keeps everything but its last dotted
+    component, which is the rule a compressed or rotated name has always taken.
     """
+    stem, _day, suffix = split_record_name(name)
+    if suffix == ".jsonl":
+        return stem
     parts = name.split(".")
-    if len(parts) >= 3 and len(parts[-2]) == 8 and parts[-2].isdigit():
-        return ".".join(parts[:-2])
     return ".".join(parts[:-1])
 
 
@@ -978,9 +1008,11 @@ def compact_incremental(
     behind it, or a tier shorter than the watermark records all recompact the
     source in full into a fresh tier, because a watermark that no longer
     describes its source would otherwise resume inside a record that is not
-    there. That is what makes a rolled record safe: the new segment arrives with
-    a new inode, and the pass that sees it starts the ladder's next contribution
-    rather than reading the old offset as its own.
+    there. That is what makes a rolled record safe: a roll renames the segment
+    and keeps its inode, so the pass that sees the new name resumes at the
+    watermark's offset and reads only what the segment gained after it. A
+    record that arrives with a different inode shares no rows with the
+    watermark and starts at zero.
     """
     if tier not in TIER_WINDOW_SECONDS:
         raise TelemetryStoreError(f"no compaction window for tier {tier!r}")
