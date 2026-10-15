@@ -1,0 +1,21 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-serve-log-drops-polling">
+  <header>
+    <h3>The serve's access log drops the polled request paths</h3>
+    <p class="meta">
+      Node <code>srw-serve-log-drops-polling</code> &middot;
+      date 2026-10-15 &middot;
+      worktree <code>imas-ambix-0405601943d2/srw-serve-log-drops-polling</code>
+    </p>
+  </header>
+  <div id="srw-serve-log-drops-polling-landing">
+    <p>Generated serve commands now exclude <code>/metrics</code>,
+    <code>/v1/models</code> and <code>/health</code> from the uvicorn access
+    log: SGLang through <code>--uvicorn-access-log-exclude-prefixes</code> and
+    vLLM through <code>--disable-access-log-for-endpoints</code>, each spelling
+    read from the installed engine's own <code>--help</code> rather than
+    carried here. Both flags render on the
+    <code>deepseek-v4-1-flash</code> (SGLang) and <code>deepseek-v4-flash</code>
+    (vLLM) launch lines with all three prefixes. The change takes effect at the
+    serve's next restart; no serve was restarted.</p>
+  </div>
+</section>

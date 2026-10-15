@@ -87,6 +87,14 @@ def _sbatch_headers(
     return headers
 
 
+# Request paths hit on a fixed cadence by watchers, health checks and catalog
+# polling. Suppressing their access lines keeps the engine's own batch and
+# decode lines readable in a log that is otherwise 60% polling. Only these
+# exact prefixes are excluded: /v1/messages and /v1/chat/completions carry no
+# matching prefix and stay in the log.
+_ACCESS_LOG_EXCLUDE_PREFIXES = ("/metrics", "/v1/models", "/health")
+
+
 def _append_option(
     args: list[str],
     flag: str,
@@ -218,6 +226,11 @@ def _build_sglang_args(profile: ModelProfile, site: SiteConfig) -> list[str]:
         engine.enable_decoder_swa_bounded_replay,
     )
     _append_flag(args, "--enable-metrics", engine.enable_metrics)
+    # SGLang takes the prefixes as one option group (nargs="*"). The spelling
+    # is the one the serving environment's `--help` prints.
+    args.extend(
+        ["--uvicorn-access-log-exclude-prefixes", *_ACCESS_LOG_EXCLUDE_PREFIXES]
+    )
     _append_flag(
         args,
         "--weight-loader-disable-mmap",
@@ -310,6 +323,14 @@ def _build_serve_command(profile: ModelProfile, site: SiteConfig) -> str:
             _THINK_MARKER_MIDDLEWARE,
         ]
         _append_flag(args, "--trust-remote-code", engine.trust_remote_code)
+        # vLLM's equivalent takes the prefixes as one comma-separated value
+        # rather than as separate arguments.
+        args.extend(
+            [
+                "--disable-access-log-for-endpoints",
+                ",".join(_ACCESS_LOG_EXCLUDE_PREFIXES),
+            ]
+        )
         _append_option(args, "--tokenizer", site.tokenizer_dir(profile))
         _append_flag(
             args,
