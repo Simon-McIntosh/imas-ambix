@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type"  content="research">
+  <meta name="plan-slug"    content="h200-b300-performance-comparison">
+  <meta name="plan-title"   content="H200 and B300 Compared — serving, model training and FP64 scientific computing for this project's workloads">
+  <meta name="plan-summary" content="B300 is 2.7x our H200 NVL at BF16 and FP8 and 4x at serving, but has 1/50th of its FP64: buy it for serving and training, keep H200 for FP64 physics">
+  <meta name="plan-informs" content="serving-record-warehouse,gpu-accelerated-labeler">
+  <meta name="plan-tags"    content="gpu-deployment,agent-serving,benchmarking">
+  <title>H200 and B300 Compared | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p>Written 2026-10-15 to support the decision on an 8×B300 server, set against the 8×H200 NVL node this project runs on (<code>98dci4-gpu-0003</code>). It covers three workload classes, each with this project's own measurements where they exist. Serving is summarised from the companion study, <a href="/imas-ambix/research/serving-capacity-and-b300-projection">serving capacity and the 8×B300 projection</a>, which holds the detail. Model training and FP64 scientific computing are assessed here. The earlier <a href="/imas-ambix/research/open-weight-serving-accelerator-choice">accelerator study</a> covers cooling, form factor and price.</p>
+
+<h2 id="s1">§1 — The answer in brief</h2>
+<p><strong>B300 is a very fast card for low-precision work and a very slow one for FP64.</strong> Per GPU it has about 2.7 times our H200 NVL card's BF16, FP8 and TF32 throughput, 1.7 times its memory bandwidth and twice its memory, and it adds FP4. It has one-fiftieth of its FP64 tensor throughput and one-eleventh of its INT8. NVIDIA built Blackwell Ultra for inference and low-precision training, and the FP64 cut is deliberate: 1.2 TFLOP/s against 37 on the B200 of the same generation.</p>
+<table>
+<caption>One 8×B300 node against our 8×H200 NVL node, per workload class. "Expected" is this study's estimate for this project's workloads; the evidence is in the section named.</caption>
+<thead><tr><th>Workload</th><th>Expected 8×B300 against 8×H200 NVL</th><th>What decides it</th><th>§</th></tr></thead>
+<tbody>
+<tr><td>LLM serving (DeepSeek-V4.1-Flash, agentic)</td><td>About 4 to 6 times today's four-card serve at today's 45 tok/s per request; 2 to 3 times per GPU</td><td>Memory bandwidth, capacity, and an all-to-all NVSwitch</td><td>§3</td></tr>
+<tr><td>Training of this project's models (100M to 1B parameters, BF16)</td><td>1.5 to 2.5 times realised; up to 2.7 times where compute-bound</td><td>Our models are small, so the data pipeline and launch overheads cap the gain</td><td>§4</td></tr>
+<tr><td>Fine-tuning large models (7B and up, BF16 or FP8)</td><td>2.3 to 2.7 times; up to about 4 times if FP4 training is adopted</td><td>Dense tensor throughput; twice the memory per card</td><td>§4</td></tr>
+<tr><td>FP64 physics (equilibrium operators, ensemble estimators)</td><td>Up to 1.7 times faster when memory-bound below 0.15 flop/byte, and up to 50 times slower above it</td><td>B300's FP64 roof sits at 1.2 TFLOP/s</td><td>§5</td></tr>
+<tr><td>Tiered-precision physics (the GPU labeler's BF16/TF32 GEMM with FP64 state)</td><td>About 2.6 times on the GEMM, which is the bulk of the work; the FP64 state then decides the rest</td><td>How much FP64 remains after tiering</td><td>§5</td></tr>
+</tbody>
+</table>
+<p><strong>The recommendation follows from the table.</strong> Buy B300 for serving and for model training. Keep FP64 physics on the H200 node, or move it to tiered precision before it moves to B300. Before ordering, run three benchmarks this repository already has on a trial B300: the serve census, one training step of the world model, and <code>scripts/fsa_gpu_capability.py</code> in FP64 (§6).</p>
+
+<h2 id="s2">§2 — The hardware side by side</h2>
+<table>
+<caption>Dense per-GPU figures. H200 NVL is the PCIe card with NVLink bridges that this project runs; H200 SXM is the reference part most public benchmarks use. The ratio column compares B300 with our H200 NVL.</caption>
+<thead><tr><th>Quantity</th><th>H200 NVL (ours)</th><th>H200 SXM</th><th>B300 (HGX)</th><th>B300 against ours</th></tr></thead>
+<tbody>
+<tr><td>HBM capacity</td><td>141 GB</td><td>141 GB</td><td>288 GB (270 usable)</td><td>1.9 to 2.0×</td></tr>
+<tr><td>HBM bandwidth</td><td>4.8 TB/s</td><td>4.8 TB/s</td><td>8 TB/s</td><td>1.7×</td></tr>
+<tr><td>FP4 tensor</td><td>—</td><td>—</td><td>about 14,000 TFLOP/s</td><td>new</td></tr>
+<tr><td>FP8 tensor</td><td>1,671 TFLOP/s</td><td>1,979 TFLOP/s</td><td>4,500 TFLOP/s</td><td>2.7×</td></tr>
+<tr><td>BF16 tensor</td><td>835 TFLOP/s</td><td>989 TFLOP/s</td><td>2,250 TFLOP/s</td><td>2.7×</td></tr>
+<tr><td>TF32 tensor</td><td>418 TFLOP/s</td><td>494 TFLOP/s</td><td>1,100 TFLOP/s</td><td>2.6×</td></tr>
+<tr><td>FP32 (no tensor cores)</td><td>60 TFLOP/s</td><td>67 TFLOP/s</td><td>75 TFLOP/s</td><td>1.25×</td></tr>
+<tr><td>FP64 tensor</td><td>60 TFLOP/s</td><td>67 TFLOP/s</td><td>1.2 TFLOP/s</td><td>0.02×</td></tr>
+<tr><td>FP64 (no tensor cores)</td><td>30 TFLOP/s</td><td>34 TFLOP/s</td><td>1.2 TFLOP/s</td><td>0.04×</td></tr>
+<tr><td>INT8 tensor</td><td>1,671 TOPS</td><td>1,979 TOPS</td><td>154 TOPS</td><td>0.09×</td></tr>
+<tr><td>GPU-to-GPU</td><td>NVLink bridges in groups of four (measured 159 GB/s per direction per pair), PCIe across groups</td><td>NVSwitch, 900 GB/s</td><td>NVSwitch, 1.8 TB/s, all eight GPUs</td><td>about 4× and fully connected</td></tr>
+<tr><td>Power per GPU</td><td>600 W (measured 332–357 W under serving)</td><td>700 W</td><td>about 1,100 W (air-cooled bin) to 1,400 W</td><td>about 2 to 2.3×</td></tr>
+</tbody>
+</table>
+<p><strong>The INT8 cut has a second consequence.</strong> NVIDIA's recent answer to weak FP64 is emulation: running double-precision matrix products on integer tensor cores (the Ozaki scheme, offered in recent cuBLAS). On B300 the INT8 units were cut as well, so emulated FP64 GEMM is not a way back on this card. It is on B200.</p>
+
+<h2 id="s3">§3 — Serving</h2>
+<p>The companion study measured our four-card DeepSeek-V4.1-Flash serve and projected it onto 8×B300. The short version:</p>
+<table>
+<caption>DeepSeek-V4.1-Flash on agentic traffic (about 120,000-token prompts, 97% prefix-cache hits).</caption>
+<thead><tr><th>Operating point</th><th>4×H200 NVL, measured</th><th>8×B300, projected</th></tr></thead>
+<tbody>
+<tr><td>Single stream</td><td>121 tok/s</td><td>240 to 350 tok/s</td></tr>
+<tr><td>At 45 tok/s per request</td><td>12 requests, 543 tok/s</td><td>47 to 76 requests, 2,100 to 3,400 tok/s</td></tr>
+<tr><td>Largest models that fit</td><td>DSv4.1-Flash (Engram on host), MiniMax M3, GLM-5.3 only requantised</td><td>Any of them at released precision, including Kimi K3 (1.42 TiB)</td></tr>
+</tbody>
+</table>
+<p>Public measurements agree. On DeepSeek R1 at 8K-token prompts, SemiAnalysis InferenceX reports B300 at 3.7 times H200 per GPU at 50 tok/s per user, 2.8 times at 89 and 1.6 times at 128. Serving is the workload B300 was designed for, and the case for it is strongest here.</p>
+
+<h2 id="s4">§4 — Model training</h2>
+<p><strong>What this project trains.</strong> The models here are small by LLM standards, and they train in BF16 on one node. They include a 125M-parameter transformer (<code>imas_ambix/train/configs/v0-125m.yaml</code>), video and signal tokenizers and their decoders (<code>imas_ambix/tokenizer/</code>), the camera-dynamics and machine-agnostic world models (<code>imas_ambix/worldmodel/</code>), and the GS-grounded latent engine. Two recorded figures give their scale on H200. The latent engine trained at about 17 steps a second across six ranks with data-parallel all-reduce, 51,456 training pairs (job 1224777). The in-process tokenizer encoder sustained 308 frames a second per GPU, and 4.02 billion tokens in about seven hours on one card.</p>
+<p><strong>Capability: what B300 makes possible that H200 does not.</strong></p>
+<table>
+<caption>Training capability per 8-GPU node. Full fine-tuning is sized at 16 bytes per parameter: BF16 weights and gradients plus FP32 Adam states and master weights, before activations.</caption>
+<thead><tr><th>Capability</th><th>8×H200 NVL</th><th>8×B300</th></tr></thead>
+<tbody>
+<tr><td>Largest model fully fine-tuned, sharded across the node</td><td>about 70B parameters</td><td>about 135B parameters</td></tr>
+<tr><td>Parameter-efficient fine-tuning of a frontier open model</td><td>Marginal: DSv4.1-Flash's 511 GB leaves little room for activations</td><td>Comfortable for DSv4.1-Flash and GLM-5.3, and possible for MiMo-V2.6-Pro</td></tr>
+<tr><td>Video world-model batch and context</td><td>Bounded by 141 GB, so activation checkpointing</td><td>About twice the frames per card before checkpointing</td></tr>
+<tr><td>Native FP8 training (Transformer Engine)</td><td>Yes</td><td>Yes, about 2.7 times faster</td></tr>
+<tr><td>Native FP4 training (NVFP4 recipes)</td><td>No</td><td>Yes, still maturing</td></tr>
+<tr><td>Eight-GPU data or model parallelism</td><td>Four-card groups; gradients cross groups over PCIe</td><td>One NVSwitch domain at 1.8 TB/s per GPU</td></tr>
+</tbody>
+</table>
+<p><strong>Performance: what to expect, and why it is less than the datasheet ratio for our models.</strong> The tensor-throughput ratio is 2.7 at BF16 and FP8. A large transformer reaches most of it, because its matrix products dominate. Our models are small. At 100M to 1B parameters the step is shared with data loading from GPFS, with kernel-launch latency and with optimizer and normalisation kernels that are bandwidth-bound and gain only 1.7 times. Data loading gains nothing at all. So expect 1.5 to 2.5 times realised per GPU on today's models at today's batch sizes. More is available by raising the batch into the extra memory. This is an estimate, not a measurement; §6 names the step benchmark that would settle it.</p>
+<p><strong>Public training measurements, read with care.</strong> In MLPerf Training v5.1 (November 2025), NVIDIA reported Blackwell Ultra at more than four times Hopper on Llama 3.1 405B pretraining with the same GPU count. Those submissions used FP4 recipes, against FP8 for Hopper, so part of the factor is the change of format. Lambda's independent GB300 NVL72 entry was 1.27 times GB200 NVL72 on Llama 2 70B LoRA fine-tuning. Both are rack-scale NVL72 systems, which run faster per GPU than an 8-GPU HGX board: by 12 to 14% in vLLM's DeepSeek measurement, and by up to about two times at some of InferenceX's serving points. For an 8×B300 node against 8×H200 on large-model training, 2.3 to 2.7 times at matched precision is the defensible figure, rising toward 4 with FP4.</p>
+
+<h2 id="s5">§5 — Scientific computing in FP64</h2>
+<p><strong>This project depends on FP64.</strong> Four modules switch JAX to double precision: the contour-free flux-surface average (<code>imas_ambix/latent/flux_surface_connectivity.py</code>), null finding (<code>stencil_nulls.py</code>), the boundary classifier (<code>connectivity_boundary.py</code>) and the NOVA ensemble estimator (<code>imas_ambix/statespace/nova_ensemble_estimator.py</code>). The equilibrium solve runs in FP64 on the host. The H200 runs the flux-surface average in FP64 at about 194,000 equilibria a second at batch 1,024, matching the CPU to 1.1e-13 (<code>imas_ambix/spine_bench/results/fsa-gpu-capability-2e35d090c7-98dci4-gpu-0003.yaml</code>).</p>
+<figure>
+<img src="/imas-ambix/figures/h200-b300-comparison/roofline.svg" alt="Roofline of attainable throughput against arithmetic intensity for H200 NVL and B300 in FP64 and BF16" style="max-width:100%">
+<figcaption>Attainable throughput against arithmetic intensity, from dense datasheet peaks and HBM bandwidth. Solid lines are FP64, dashed lines BF16. Blue is our H200 NVL card, orange a B300. Below 0.15 flop/byte both cards are limited by memory and B300's faster HBM wins. Above it, B300's FP64 stops at 1.2 TFLOP/s while H200 continues to 60.</figcaption>
+</figure>
+<p><strong>The roofline puts B300 behind for almost all FP64 work.</strong> A kernel doing less than 0.15 floating-point operations per byte it moves is limited by memory on both cards, and B300 runs it 1.7 times faster. Above that intensity B300 is capped at 1.2 TFLOP/s. A stencil or contour kernel typically sits between 0.1 and 1 flop per byte, which is already at or past B300's ridge. Its FP64 GEMMs and Newton-Jacobian products sit at 10 to 100, where H200 reaches 60 TFLOP/s and B300 stays at 1.2, fifty times slower. This study has not measured where each of our FP64 kernels sits. The flux-surface average's 194,000 equilibria a second could fall several-fold on B300, or could hold, depending on its intensity. That is why the FP64 benchmark in §6 matters more than any other.</p>
+<p><strong>The tiered design is what makes physics portable.</strong> The GPU labeler's lead decision of 2026-07-20 runs the Green's-function matrix product in BF16 or TF32 with FP32 accumulation, topology in FP32, and only the recurrent state in FP64. Its spike measured 259 and 202 TFLOP/s on H200 for the matrix product, in its two configurations at batch 512. The axis positions moved by 0.004 cm at TF32 and 0.019 cm at BF16. On B300 that product gains about 2.6 times. The FP64 remainder is a tridiagonal diffusion step and the passive-circuit recurrence, both small and sequential, so it is limited by latency rather than throughput. Code written this way gains on B300. Code that is FP64 throughout loses, and should stay on H200 until it is tiered.</p>
+<p><strong>The scientific use case therefore splits.</strong></p>
+<table>
+<caption>Where each class of this project's work belongs.</caption>
+<thead><tr><th>Work</th><th>Precision</th><th>Better on</th></tr></thead>
+<tbody>
+<tr><td>Agent serving of open-weight LLMs</td><td>FP4 to FP8</td><td>B300, by a wide margin</td></tr>
+<tr><td>World models, tokenizers, latent engines</td><td>BF16, optionally FP8</td><td>B300</td></tr>
+<tr><td>Tiered labeler and GPU solve (BF16/TF32 GEMM, FP64 state)</td><td>mixed</td><td>B300, provided the FP64 state stays small</td></tr>
+<tr><td>FP64 physics operators and ensemble estimators</td><td>FP64</td><td>H200, until rewritten in tiered precision</td></tr>
+<tr><td>Reference and validation solves that must be FP64 end to end</td><td>FP64</td><td>H200 or CPU</td></tr>
+</tbody>
+</table>
+
+<h2 id="s6">§6 — What to measure before ordering</h2>
+<p>Each benchmark below already exists in this repository, and each would turn one estimate in this study into a measurement. All three fit in an afternoon on a rented B300.</p>
+<table>
+<caption>Benchmarks to run on a trial B300, and the figure each would replace.</caption>
+<thead><tr><th>Benchmark</th><th>Command</th><th>Settles</th></tr></thead>
+<tbody>
+<tr><td>FP64 flux-surface average</td><td><code>python -m scripts.fsa_gpu_capability --batches 16,64,256,1024</code></td><td>Whether our FP64 operators lose to B300 (§5). This is the decisive one.</td></tr>
+<tr><td>Labeler matrix-product spike</td><td>the BF16/TF32 GEMM spike recorded in the GPU labeler plan</td><td>The 2.6 times expected for tiered physics (§5)</td></tr>
+<tr><td>One world-model training step</td><td><code>imas_ambix/worldmodel</code> at today's and at doubled batch</td><td>The 1.5 to 2.5 times training estimate (§4)</td></tr>
+<tr><td>Serve census</td><td>a DSv4.1-Flash serve at DEP8, then <code>docs/figures/b300-serving-projection/serve_census.py</code> over its log</td><td>The 2,100 to 3,400 tok/s projection (§3)</td></tr>
+</tbody>
+</table>
+
+<h2 id="s7">§7 — Sources</h2>
+<ul>
+<li>B300 and GB300 per-GPU figures, citing NVIDIA's Blackwell Ultra datasheet: <a href="https://glennklockwood.com/garden/processors/B300">Glenn Lockwood's B300 notes</a>; BF16 and FP8 dense figures cross-checked against <a href="https://inferencex.semianalysis.com/chips/b300">InferenceX's B300 page</a> and <a href="https://flopper.io/system/nvidia-hgx-b300-8-gpu/spec-sheet">Flopper's HGX B300 sheet</a>.</li>
+<li>H200 NVL and SXM figures: NVIDIA's H200 product specifications, with this repository's own NVLink and power readings from <code>imas_ambix/agent/AGENTS.md</code> and the 2026-09-17 accelerator study.</li>
+<li>Training: <a href="https://developer.nvidia.com/blog/nvidia-blackwell-architecture-sweeps-mlperf-training-v5-1-benchmarks/">NVIDIA on MLPerf Training v5.1</a>, <a href="https://lambda.ai/blog/lambda-mlperf-training-benchmarks-v5.1">Lambda's GB300 NVL72 entry</a>, and <a href="https://www.amd.com/en/blogs/2025/accelerating-ai-training.html">AMD's note</a> that NVIDIA's v5.1 training submissions were FP4 only.</li>
+<li>Serving: <a href="https://inferencex.semianalysis.com/compare/deepseek-r1-b300-vs-h200">InferenceX, B300 against H200 on DeepSeek R1</a>, and <a href="/imas-ambix/research/serving-capacity-and-b300-projection">the companion serving study</a>.</li>
+<li>This repository: <code>imas_ambix/spine_bench/results/fsa-gpu-capability-2e35d090c7-98dci4-gpu-0003.yaml</code>; the <a href="/imas-ambix/gpu-accelerated-labeler">GPU-accelerated labeler plan</a> and its precision decision; <a href="/imas-ambix/gs-grounded-latent-engine">the GS-grounded latent engine</a> for the six-rank training rate.</li>
+</ul>
+<p><strong>Not verified.</strong> NVIDIA's datasheet was not read directly; the per-GPU figures come from secondary sources that quote it. The B300 FP4 dense figure appears as 13 to 15 PFLOP/s depending on the source. The realised training speedup for our small models is an estimate. No public benchmark of FP64 scientific code on B300 was found, which is consistent with the part not being sold for it.</p>
+
+</main>
+</body>
+</html>
