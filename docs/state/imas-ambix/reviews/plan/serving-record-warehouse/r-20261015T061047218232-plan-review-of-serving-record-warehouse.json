@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-15T06:19:36.688Z",
+  "dispatched_at": "2026-10-15T06:12:19Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/receipt_bins.py:82",
+      "id": "reuse_search-1",
+      "reason": "\u00a720's done-when (\"every reader reads the rolled set, returning every row exactly once\") is unachievable through the search the section itself prescribes, so the census must be stated as a search over path-taking call sites and the reader rewritten in the same node.",
+      "text": "\u00a720 states it \"finds every reader with a search for `RECEIPTS_FILENAME` and `requests.jsonl`\", but the reader at `receipt_bins.py:82` (`read_receipt_rows`) takes the receipts path as an argument and does `Path(receipts_path).read_text(encoding=\"utf-8\")`, naming neither string, so that search returns only the producer (`request_receipts.py:43`), the router (`router.py:1750`) and the CLI path builder (`cli.py:2648`) and misses this one; its caller `collect_receipt_bins` (`receipt_bins.py:100`), its test `tests/test_agent_receipt_bins.py:41`, and `cache_estimate.py:38` (which \u00a720 lists as a write target but which only imports `STATUS_COMPLETED`) sit in the same blind spot \u2014 the same shape also hides \u00a721's third reader, since `serving_receipts.py:554` (`tier_paths`) and `telemetry_retention.py:317` (`raw_receipt_files`) reach the raw file by glob and by derived path rather than by a constant",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/serving_receipts.py:399",
+      "id": "deep_module-1",
+      "reason": "the node cannot be cut from the section as written, because the watermark's home and the treatment of the trailing partial bucket are the section's substance and neither is stated.",
+      "text": "\u00a721 requires \"compaction reads only rows it has not yet compacted\", dictates that \"output must stay byte-identical to a full recompaction\", and names no owner for the watermark that says which rows are compacted, while the three files it writes (`serving_receipts.py`, `telemetry_store.py`, `telemetry_retention.py`) and the recorder's restart path each need it; the two constraints also conflict at the boundary of a live window, because the minute and hour bucket covering the current instant is incomplete when it is written and an append-only compactor cannot correct its tail to the full-recompaction form that `tests/test_telemetry_store.py` demands",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/serving_receipts.py:554",
+      "id": "duplicate_owner-1",
+      "reason": "the plan must either extend the tier naming owner to carry the day (one ladder, day-stamped segments) or state the per-day pairing in \u00a721 and \u00a722, and the current text leaves the choice to the implementing node.",
+      "text": "\u00a721 rolls the raw record at each UTC midnight and says only that \"the naming must keep three readers working\"; `tier_paths` derives the minute and hour tier names from the raw file's stem (`path.name[: -len(suffix)]`), so a per-day raw name forks the tier ladder into one `.minute`/`.hour` pair per day instead of the single ladder the owner documents (\"one receipts directory holds a serve's whole retention ladder\", `serving_receipts.py:557`), and \u00a722's tier-equality retirement and five-week minute-tier ageing then have to pair each day's raw against its own tiers, a rule \u00a722 does not state and `telemetry_retention.is_raw_receipt` (`telemetry_retention.py:302`) does not implement for a name that carries both a job id and a date",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/provider_prices.py:169",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the public surface it adds in its own text, which is a one-line addition naming the retired or unchanged reader and why no merge is possible.",
+      "text": "with public_definitions 0, cli_options 0, mcp_views 0 and refusal_families 0, \u00a717 adds one public definition, the reader `rate_in_force(history, slug, when)` (\"the module exposes one reader\"), and no scoped section names what it retires or merges or states why nothing can be retired",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "15339311a32cd74928f9ae22fcfe3cc96b1fa5d55c1736f8dc8f4de4781c37a4",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 225,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261015T061047218232-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "3e1787b96043461b005427eb3f5827e337a32f8e",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 \u00a721 asks the recorder, the compactor and the retention scan to share an incremental \"rows not yet compacted\" watermark, requires append-only output to stay byte-identical to a full recompaction, and names no owner for that watermark nor how a partially-elapsed window is corrected.",
+    "duplicate_owner": "a finding \u2014 \u00a721 rolls the raw serve record to a per-day name while the tier ladder is derived from the raw file's stem, so placement of the tiers is forked from its owner.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a717 adds `rate_in_force` to a module's public surface and no scoped section names what it retires or merges, or why nothing can be.",
+    "reuse_search": "a finding \u2014 the plan does search the codebase and its two reuse claims verify (the index's `(host, boot_id, path, inode)` tail keying is real at `imas_ambix/agent/telemetry_index.py:246` and `:264`, and the `requests-YYYY-MM-DD.jsonl` name shape is already described at `imas_ambix/agent/telemetry_retention.py:22` and `:308`), but \u00a720's prescribed census method (a search for `RECEIPTS_FILENAME` and `requests.jsonl` literals) cannot find the reader that takes the receipts path as an argument.",
+    "thin_wrapper": "pass \u2014 every scoped change is an extension of the module that already owns the behaviour (`provider_prices` gains the history beside the table it writes, `watch.period_row` is extended rather than wrapped, the generated serve command gains a flag its engine already publishes, the receipt sink and recorder gain a roll), and no new parallel layer over existing machinery is proposed."
+  },
+  "section_digests": {
+    "_document": "00971e581012b09331cfaeb3acb67ba5dd7f0dda2eaffcb44e0704a986e0223e",
+    "s1": "f0e6a1c8acb9f607124dc4f3def1f738e2a0bc52c579a2c0849a33c6fa1156fb",
+    "s10": "1509fe50d6cbdb1159da0bac7826bf9df43f73f13dc81d4b4a3c3c0d3926d315",
+    "s11": "f02a2d9d5ac0a9537cbc0c7c1127234686c6b35ebe9d5f28f2eb1dc890ba8349",
+    "s12": "c993e8c7a97750818ddad0ac8e3797052442f5dd3357a9b1336cd024ff90f8d3",
+    "s13": "0a80350dd120a399e1c304a1eed64f149a7e5f5f1ef41302cad6223dc985910e",
+    "s14": "65bc34f5b6d081374d8287c3a7e14dfa77b21b6ef0390d5e95961d81ded7114d",
+    "s15": "1d02ca1576af9e3b58c011e3b4c84ffb63870a92698492bd45a0bbfe48660ea0",
+    "s16": "59a48fb3793215455ca353b8188b5d155dec253814be9a4eea8d2f4eeb412fe1",
+    "s17": "a9d14cd3ba044e23edaef040ed4ae691e810d6c4dd951c117432c0f08f51707c",
+    "s18": "4fbf26597e971feb3af07d38b5c2da52430c618f28bcaf3df29b21644c63e888",
+    "s19": "dc83604a90c46f7c6ef8e70e35cccf1230c480b513b218fc4744ddeeae9e6864",
+    "s2": "dd85bfd277fcf3eff4974460f080158cafc4ff9e584ca8799bbdf19223a0067f",
+    "s20": "528a8b171be7ce66c185c86549289ac2bad82137ebdbd4c6265ca06c78525d9e",
+    "s21": "239a60f2ffcce19a455e1b12739c1157309de89715278462cebb9ddd9072e79d",
+    "s22": "52141ebae4753d8660df25ad6003fbdcdef2f880b263ebc610a7f03418b8dcd9",
+    "s3": "dd2996924d4d122532e4de97c38a9cae83173c64b6409cc2135177861f392578",
+    "s4": "59f727a99fef92f80127586b2833279df3aa59154895e05a2590e648232abfeb",
+    "s5": "07d984217f6f4d05e582e4d403dff88fd7c0627b3a2cceb36a0123131813e899",
+    "s6": "19d3648895b8aeee8beac762cb2ddb63ba248dec6485eb393625e0c9fd840c32",
+    "s7": "8de1f36a2db5f192d8a078c96c91f29a1d456c95b742332e6fb3854ee451cb78",
+    "s8": "6fa176e0365af868497abc3e4cb9e224032b3de82c337015be11061591c407c2",
+    "s9": "a29439d3d5c1417e8d6fdc357f0ab636deb86ddef8cdd6865c541773247886ef"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T06:23:11.826390+00:00"
+}
