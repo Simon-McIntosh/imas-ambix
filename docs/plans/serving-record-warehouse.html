@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;implementable&quot;,&quot;s21&quot;:&quot;implementable&quot;,&quot;s22&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="246">
+<meta name="plan-version" content="247">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -1636,7 +1636,10 @@
     <div class="r-comment-body"><p>Investigation node <code>srw-1278105-tier-disagreement</code> landed: its tiers lose a first-hour opening advance and a 2½-minute raw tail, because the recorder stopped between passes. The scheduled pass now rebuilds an ended job's tiers before it compares them. <a href="/imas-ambix/evidence/archive/serving-record-warehouse-landed.html#s22-1278105">evidence</a></p></div>
 </div>
 <div class="r-comment" data-section="s17" data-id="c-run-r-20261015T074619366002-srw-price-history" data-who="reckon-build" data-when="2026-10-15T08:19:41.331Z">
-    <div class="r-comment-body"><p>provider_prices now keeps a change-only append-only price history at openrouter-price-history.jsonl beside the table, seeded on first refresh with the six recovered deepseek/deepseek-v4.1-flash observations in time order ahead of the fetched rows, grown by one row per model whose three rates moved, with refresh gaining a slugs keyword that fetches each named slug&#x27;s endpoints listing and records it only on change, plus rate_in_force and provider_median_in_force readers and REFRESH_AGE cut from 24 h to 3600 s; measure: tests/test_provider_prices.py 33 passed with the serving-interpreter grammar guard in tests/test_agent_serve_registry.py also passing, EXIT=0</p></div>
+    <div class="r-comment-body"><p>provider_prices now keeps a change-only append-only price history at openrouter-price-history.jsonl beside the table, seeded on first refresh with the six recovered deepseek/deepseek-v4.1-flash observations in time order ahead of the fetched rows, grown by one row per model whose three rates moved, with refresh gaining a slugs keyword that fetches each named slug's endpoints listing and records it only on change, plus rate_in_force and provider_median_in_force readers and REFRESH_AGE cut from 24 h to 3600 s; measure: tests/test_provider_prices.py 33 passed with the serving-interpreter grammar guard in tests/test_agent_serve_registry.py also passing, EXIT=0</p></div>
+</div>
+<div class="r-comment" data-section="s17" data-id="c-run-r-20261015T082028261171-review-of-srw-price-history-cf48243664c2" data-who="reckon-build" data-when="2026-10-15T08:35:54.826Z">
+    <div class="r-comment-body"><p>review of run r-20261015T074619366002-srw-price-history stored at .config/reckon/crew/reviews/imas-ambix/r-20261015T074619366002-srw-price-history.at-cf48243664c2aef6200512522fa1d6ee8a9a4098.json: scores goal_fidelity 19, evidence 19, scope_discipline 18, durability 19, fit 18, reuse 5; 3 follow-on findings (a _rates normaliser duplicated from watch.py; an altered recovered-rate citation; an endpoints change test that records a reorder as a price change); no blocking finding.</p></div>
 </div>
 </section>
 </main>

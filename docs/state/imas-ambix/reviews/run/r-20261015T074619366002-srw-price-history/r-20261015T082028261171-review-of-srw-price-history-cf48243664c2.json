@@ -1,0 +1,70 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "basis: the reviewed run's manifest declares both baseline_suite and after_suite null (see its classification.json manifest.data), so neither arm exists to difference against, and no base-arm measurement was recorded for the node; the reviewed head gate log /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T074619366002-srw-price-history/gate-final.log carries rev cf482436 and closes '33 passed in 6.67s' with EXIT=0 and no FAILED or ERROR line, so the head adds no failing test. added_failure_count is 0 by construction, not by a differenced measurement.",
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/watch.py:948",
+    "imas_ambix/agent/watch.py:364",
+    "imas_ambix/agent/watch.py:489"
+  ],
+  "completed_at": "2026-10-15T08:35:54.826Z",
+  "dispatched_at": "2026-10-15T08:20:42Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/provider_prices.py",
+      "line": "370",
+      "severity": "follow-on",
+      "text": "FINDING imas_ambix/agent/provider_prices.py:370 follow-on: _rates duplicates the capability imas_ambix/agent/watch.py:278 already owns -- the same returned keys (prompt, cache_read, completion) and the same cache-read-falls-back-to-the-prompt-rate rule -- and does not extend that owner; watch already reaches provider_prices through a lazy import, so the normaliser could have lived here and been imported by watch rather than copied, and the copy now has to be kept in step by hand."
+    },
+    {
+      "file": "imas_ambix/agent/provider_prices.py",
+      "line": "121",
+      "severity": "follow-on",
+      "text": "FINDING imas_ambix/agent/provider_prices.py:121 follow-on: the recovered 2026-10-02 row's citation states '22.0 G input and 166 M output tokens' where the plan source it cites (docs/plans/serving-record-warehouse.html:778) states 22.8 B input and 0.166 B output; the output figure is equivalent but the input figure differs (22.0 against 22.8), so the provenance a reader is told to check does not reconcile with the source, and the rate it justifies (1.37e-08, correctly one millionth of the plan's per-million figure) rests on a citation that has been silently altered."
+    },
+    {
+      "file": "imas_ambix/agent/provider_prices.py",
+      "line": "559",
+      "severity": "follow-on",
+      "text": "FINDING imas_ambix/agent/provider_prices.py:559 follow-on: the endpoints change test compares the whole json.dumps of the listing, so a listing whose endpoints are merely reordered -- or whose provider metadata changes while every price is unchanged -- appends a history row even though nothing repriced; the plan frames the file as growing with price changes rather than fetches, so the row is not the change it claims to record. The median reader is order-independent, so the extra row is benign to consumers but it inflates the history the change exists to keep minimal."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_aggregate_note": "five checklist verdicts plus the call-sites verdict",
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s); the two new readers rate_in_force and provider_median_in_force have no production caller yet -- the plan assigns their wiring to the following section -- and the production refresh call at watch.py:948 passes no slugs, which is the documented shape of a refresh that fetches no endpoints listing.",
+    "diff": "read 3fb62038 and cf482436 against base fcb2096b commit by commit; three files, all inside the declared scope, one code-and-test commit and one evidence-fragment commit.",
+    "done_when": "nine assertions are named; all nine are gated by tests/test_provider_prices.py plus the serve-registry grammar guard, and the manifest records the gate at 33 passed, EXIT=0.",
+    "goal": "the goal is a change-only history beside the table, seeded with the recovered rates and read through rate_in_force and provider_median_in_force; imas_ambix/agent/provider_prices.py:504, :343, :432 and :453 land all of it, so the goal is met.",
+    "manifest": "read; records the gate command and its 33-passed result at cf482436, the negative control at EXIT=1, the declared unit deviation and the follow-on that the production slug-wiring is the next section's node.",
+    "write_paths": "read; every path in the diff (imas_ambix/agent/provider_prices.py, tests/test_provider_prices.py, docs/evidence/fragments/serving-record-warehouse/srw-price-history.html) is inside the declared write paths."
+  },
+  "justifications": {
+    "durability": "tests/test_provider_prices.py:333 fails if the recorded-rates comparison at imas_ambix/agent/provider_prices.py:523 is removed, and the run's negative-control.log shows exactly that (EXIT=1).",
+    "evidence": "the reviewed gate log gate-final.log opens with revision cf482436 and closes '33 passed in 6.67s' EXIT=0, and every done_when assertion has a covering test in tests/test_provider_prices.py.",
+    "fit": "imas_ambix/agent/provider_prices.py:370-488 keep the module's docstring and constant idiom, and both changed files are clean under the naming checks (no plan, phase, ticket or version label).",
+    "goal_fidelity": "imas_ambix/agent/provider_prices.py:301, :343, :504 and the readers :432 and :453 land the change-only history, the recovered seed and both readers the goal names.",
+    "reuse": "imas_ambix/agent/provider_prices.py:370 re-implements the _rates that imas_ambix/agent/watch.py:278 already owns rather than extending it.",
+    "scope_discipline": "git diff --stat fcb2096b..cf482436 lists only the declared paths."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the goal is a change-only price history beside the table, seeded with the recovered rates and read through rate_in_force and provider_median_in_force; imas_ambix/agent/provider_prices.py:504, :343, :432 and :453 land all four parts of the goal.\nVERDICT done_when: the done_when names nine assertions (one line per model on a repeat, one line per changed model only, nothing on a failed fetch, endpoints fetched only for named slugs and appended only on change, REFRESH_AGE 3600, the five-endpoint median with two narrow routes excluded, rate_in_force at or before an instant and None before the first, six recovered rows in time order ahead of the fetched rows, and the serve-registry grammar guard); tests/test_provider_prices.py:333-576 covers every one and the manifest records the gate at 33 passed.\nVERDICT write_paths: read the manifest's declared paths (imas_ambix/agent/provider_prices.py, tests/test_provider_prices.py, docs/evidence/fragments/serving-record-warehouse/srw-price-history.html and the figures dir); every path in the diff is inside them and the figures dir is unused.\nVERDICT manifest: read r-20261015T074619366002-srw-price-history/manifest.md; it records the gate command and its '33 passed in 6.67s' EXIT=0 at cf482436, the negative control at EXIT=1, and a declared unit deviation (the history stores dollars per token, not the plan's per million).\nVERDICT diff: read 3fb62038 (code and tests) and cf482436 (the evidence fragment) against base fcb2096b commit by commit; three files changed, provider_prices.py +444, test_provider_prices.py +324, the fragment +23, all inside the declared scope.\nCALL_SITES: imas_ambix/agent/watch.py:948, imas_ambix/agent/watch.py:364, imas_ambix/agent/watch.py:489\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/provider_prices.py:301 history_path, :343 seed_history, :504 _model_history_rows and the two readers :432 and :453 land every clause of the goal, with the change-only decision at :523.\nSCORE evidence: 19\nJUSTIFICATION evidence: each done_when assertion is gated by tests/test_provider_prices.py and the run's own gate log gate-final.log records rev cf482436 '33 passed in 6.67s' EXIT=0.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: git diff --stat fcb2096b..cf482436 lists only imas_ambix/agent/provider_prices.py, tests/test_provider_prices.py and docs/evidence/fragments/serving-record-warehouse/srw-price-history.html, every one of them declared.\nSCORE durability: 19\nJUSTIFICATION durability: tests/test_provider_prices.py:333 fails if the recorded-rates comparison at imas_ambix/agent/provider_prices.py:523 is removed, which the run's own negative-control.log shows (EXIT=1).\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/provider_prices.py:370-488 follow the module's docstring and constant style, and the naming checks over both changed files return no plan, phase, ticket or version label.\nSCORE reuse: 5\nJUSTIFICATION reuse: imas_ambix/agent/provider_prices.py:370 re-implements the pricing-block normaliser imas_ambix/agent/watch.py:278 already owns, without extending it.\nFINDING imas_ambix/agent/provider_prices.py:370 follow-on: _rates duplicates the capability imas_ambix/agent/watch.py:278 already owns -- the same returned keys (prompt, cache_read, completion) and the same cache-read-falls-back-to-the-prompt-rate rule -- and does not extend that owner; watch already reaches provider_prices through a lazy import, so the normaliser could have lived here and been imported by watch rather than copied, and the copy now has to be kept in step by hand.\nFINDING imas_ambix/agent/provider_prices.py:121 follow-on: the recovered 2026-10-02 row's citation states '22.0 G input and 166 M output tokens' where the plan source it cites (docs/plans/serving-record-warehouse.html:778) states 22.8 B input and 0.166 B output; the output figure is equivalent but the input figure differs (22.0 against 22.8), so the provenance a reader is told to check does not reconcile with the source, and the rate it justifies (1.37e-08, correctly one millionth of the plan's per-million figure) rests on a citation that has been silently altered.\nFINDING imas_ambix/agent/provider_prices.py:559 follow-on: the endpoints change test compares the whole json.dumps of the listing, so a listing whose endpoints are merely reordered -- or whose provider metadata changes while every price is unchanged -- appends a history row even though nothing repriced; the plan frames the file as growing with price changes rather than fetches, so the row is not the change it claims to record. The median reader is order-independent, so the extra row is benign to consumers but it inflates the history the change exists to keep minimal.",
+  "review_run_id": "r-20261015T082028261171-review-of-srw-price-history-cf48243664c2",
+  "reviewed_base_sha": "fcb2096b45f1397d00a03f547c6e455b0711f15a",
+  "reviewed_head_sha": "cf48243664c2aef6200512522fa1d6ee8a9a4098",
+  "reviewed_run_id": "r-20261015T074619366002-srw-price-history",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 5,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T08:33:09.482866+00:00"
+}
