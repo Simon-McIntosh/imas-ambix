@@ -1,0 +1,71 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "basis: the reviewed run r-20261015T114941475292-srw-roll-day-one-parser declares neither baseline_suite nor after_suite (both keys null in its manifest), so no base arm exists to difference against. Its head gate log /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T114941475292-srw-roll-day-one-parser/gate.log closes \"83 passed in 40.94s\" with EXIT=0 and zero FAILED or ERROR lines, so the head arm has no failing ids; its negative control at negative_control.log closes EXIT=1 with exactly one failing id (test_only_the_shared_parser_matches_the_roll_day) that the head arm passes. added_failure_count is 0 by construction from those facts, not by a differenced measurement.",
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/serving_receipts.py:419",
+    "imas_ambix/agent/serving_receipts.py:809",
+    "imas_ambix/agent/live_panel.py:181",
+    "imas_ambix/agent/telemetry_retention.py:650",
+    "imas_ambix/agent/telemetry_retention.py:669"
+  ],
+  "commits_read": [
+    "85c33b8fb1a712b530ad47e4d00dcd8137723cb4",
+    "60315e679bb60a998bcc73701caec8526a76b6ed"
+  ],
+  "completed_at": "2026-10-15T12:23:31.407Z",
+  "dispatched_at": "2026-10-15T12:06:24Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/serving_receipts.py",
+      "line": "623",
+      "severity": "follow-on",
+      "text": "follow-on: on a marker-carrying name whose stem is a bare eight-digit component (\"20261015.jsonl\") or which carries a trailing eight-digit component after the marker (\"foo-1.jsonl.20261015\"), _roll_date now returns None where it returned the day before, so the plan's guarantee that every marker-carrying name keeps its former result does not hold; no receipt name the recorder writes takes either shape, so it does not block."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T114941475292-srw-roll-day-one-parser/gate.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the gate log's first line names rev 85c33b8fb1a712b530ad47e4d00dcd8137723cb4 (the declared base), but the run inside it passes the tests added by 60315e67, so the label does not identify the tree the gate ran at."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 5 production call site(s)",
+    "diff": "read commit 60315e67 against base 85c33b8f; four files, all inside the declared scope.",
+    "done_when": "read; the four named test files pass in gate.log (83 passed, exit 0) and the pinned-name, source and docstring assertions are recorded.",
+    "goal": "read; the roll day's sole matcher is telemetry_store.py:798 split_record_name and the three former readers delegate to it.",
+    "manifest": "read; status complete, commit 60315e67, gate at gate.log, negative control at negative_control.log exit 1.",
+    "write_paths": "read the manifest's declared paths; every path in git diff --name-status 85c33b8f..60315e67 is inside them."
+  },
+  "justifications": {
+    "durability": "tests/test_telemetry_store.py:1007 pins the four names against literal pre-change values and :1057 asserts the day match lives in split_record_name alone, with the recorded negative control reddening the latter, though the source scan recognises only the len(...)==8-and-isdigit idiom.",
+    "evidence": "gate.log closes \"83 passed in 40.94s\" EXIT=0 over the four named files and negative_control.log closes EXIT=1 on the named test, but gate.log:1 labels the run rev 85c33b8f (the base) though the tests it passes include the change.",
+    "fit": "telemetry_store.py:798 follows the module's docstringed-helper style with full type hints and introduces no name the repository naming rules forbid.",
+    "goal_fidelity": "telemetry_store.py:798 defines split_record_name and the three former day-matchers delegate to it at serving_receipts.py:622, serving_receipts.py:659 and telemetry_store.py:834, so no reader matches the day itself.",
+    "reuse": "the change creates the single owner of the receipt-name split rather than duplicating one, and a search over imas_ambix/agent for len(...)==8, isdigit, day_segment_path and split found no prior splitter (the job-id regex at telemetry_index.py:178 is scoped to another node and left alone).",
+    "scope_discipline": "git diff --name-status 85c33b8f..60315e67 lists four files, all inside the manifest's declared write paths, and tests/test_agent_serving_receipts.py is declared but carries no change."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is that a receipt name's roll day has one parser; at 60315e67 the only eight-digit day match in the two modules is inside imas_ambix/agent/telemetry_store.py:798 split_record_name, and the three former readers all delegate to it (serving_receipts.py:622, serving_receipts.py:659, telemetry_store.py:834).\nVERDICT done_when: the done_when names four test files and five assertions; the manifest records the gate at gate.log closing \"83 passed in 40.94s\" EXIT=0 over all four files, the pinned-name test at tests/test_telemetry_store.py:1016, the source test at tests/test_telemetry_store.py:1057, the docstring rewrite at telemetry_store.py:1011, and the negative control at negative_control.log.\nVERDICT write_paths: the manifest's declared paths are imas_ambix/agent/serving_receipts.py, imas_ambix/agent/telemetry_store.py, tests/test_agent_serving_receipts.py, tests/test_telemetry_store.py, the evidence fragment and the figures dir; git diff --name-status 85c33b8f..60315e67 names exactly the evidence fragment (A), serving_receipts.py (M), telemetry_store.py (M) and tests/test_telemetry_store.py (M), every path inside that scope.\nVERDICT manifest: read; it declares status complete, commit 60315e67, the gate at gate.log (83 passed, exit 0), the negative control at negative_control.log (1 failed, exit 1), and its four probed names' pre-change values.\nVERDICT diff: read commit 60315e67 against its base 85c33b8f; +151/-19 across four files -- split_record_name added and the three readers rewired plus the watermark docstring rewritten in telemetry_store.py, two readers rewired in serving_receipts.py, two tests added in test_telemetry_store.py, the evidence fragment added; nothing outside the declared scope.\nCALL_SITES: imas_ambix/agent/serving_receipts.py:419, imas_ambix/agent/serving_receipts.py:809, imas_ambix/agent/live_panel.py:181, imas_ambix/agent/telemetry_retention.py:650, imas_ambix/agent/telemetry_retention.py:669\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: telemetry_store.py:798 defines split_record_name and the three former day-matchers delegate to it at serving_receipts.py:622, serving_receipts.py:659 and telemetry_store.py:834, so no reader matches the day itself.\nSCORE evidence: 16\nJUSTIFICATION evidence: gate.log closes \"83 passed in 40.94s\" EXIT=0 over the four named files and negative_control.log closes EXIT=1 on the named test, but gate.log:1 labels the run rev 85c33b8f (the base) though the tests it passes include the change.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: git diff --name-status 85c33b8f..60315e67 lists four files, all inside the manifest's declared write paths, and tests/test_agent_serving_receipts.py is declared but carries no change.\nSCORE durability: 17\nJUSTIFICATION durability: tests/test_telemetry_store.py:1007 pins the four names against literal pre-change values and :1057 asserts the day match lives in split_record_name alone, with the recorded negative control reddening the latter, though the source scan recognises only the len(...)==8-and-isdigit idiom.\nSCORE fit: 18\nJUSTIFICATION fit: telemetry_store.py:798 follows the module's docstringed-helper style with full type hints and introduces no name the repository naming rules forbid.\nSCORE reuse: 19\nJUSTIFICATION reuse: the change creates the single owner of the receipt-name split rather than duplicating one, and a search over imas_ambix/agent for len(...)==8, isdigit, day_segment_path and split found no prior splitter (the job-id regex at telemetry_index.py:178 is scoped to another node and left alone).\nFINDING imas_ambix/agent/serving_receipts.py:623 follow-on: on a marker-carrying name whose stem is a bare eight-digit component (\"20261015.jsonl\") or which carries a trailing eight-digit component after the marker (\"foo-1.jsonl.20261015\"), _roll_date now returns None where it returned the day before, so the plan's guarantee that every marker-carrying name keeps its former result does not hold; no receipt name the recorder writes takes either shape, so it does not block.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T114941475292-srw-roll-day-one-parser/gate.log:1 follow-on: the gate log's first line names rev 85c33b8fb1a712b530ad47e4d00dcd8137723cb4 (the declared base), but the run inside it passes the tests added by 60315e67, so the label does not identify the tree the gate ran at.\n",
+  "review_run_id": "r-20261015T120610960106-review-of-srw-roll-day-one-parser-60315e679bb6",
+  "reviewed_base_sha": "85c33b8fb1a712b530ad47e4d00dcd8137723cb4",
+  "reviewed_head_sha": "60315e679bb60a998bcc73701caec8526a76b6ed",
+  "reviewed_revision": "60315e67",
+  "reviewed_run_id": "r-20261015T114941475292-srw-roll-day-one-parser",
+  "scores": {
+    "durability": 17,
+    "evidence": 16,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T12:16:40.207920+00:00",
+  "total": 108
+}
