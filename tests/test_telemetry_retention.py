@@ -718,12 +718,12 @@ def test_a_scheduler_that_times_out_or_refuses_is_raised_not_read_as_empty(
     look ended, so both a timeout and a refusal raise out of the liveness read
     and the pass retires nothing.
     """
-    for answer in (None,):
-        monkeypatch.setattr(
-            retention.node_probe, "run_capture", lambda argv, timeout_s=10.0: answer
-        )
-        with pytest.raises(RuntimeError):
-            retention.default_running_job_ids()
+    monkeypatch.setattr(
+        retention.node_probe, "run_capture", lambda argv, timeout_s=10.0: None
+    )
+
+    with pytest.raises(RuntimeError):
+        retention.default_running_job_ids()
 
 
 def test_a_rewrite_that_keeps_the_time_and_length_is_caught_by_the_digest(tmp_path):

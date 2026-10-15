@@ -860,7 +860,8 @@ def scan(
     rebuild_failed: set[str] = set()
     if rebuild:
         jobs = {receipts_job_id(path) for path in files}
-        for job in sorted(candidate for candidate in jobs if candidate and candidate not in live):
+        ended = (candidate for candidate in jobs if candidate and candidate not in live)
+        for job in sorted(ended):
             if not rebuild_job_tiers(files, job):
                 rebuild_failed.add(job)
     verdicts = tuple(

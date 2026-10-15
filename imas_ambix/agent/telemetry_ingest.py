@@ -51,13 +51,13 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from imas_ambix.agent import telemetry_retention
-
 from imas_ambix.agent.telemetry_index import IngestReport, TelemetryIndex, discover
-from imas_ambix.agent.telemetry_retention import ApplyReport, RunningProvider
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
     from pathlib import Path
+
+    from imas_ambix.agent.telemetry_retention import ApplyReport, RunningProvider
 
 #: Default cadence, in seconds, between ticks of the standing loop. The record
 #: is written continuously, so a minute is short enough that the index is never
