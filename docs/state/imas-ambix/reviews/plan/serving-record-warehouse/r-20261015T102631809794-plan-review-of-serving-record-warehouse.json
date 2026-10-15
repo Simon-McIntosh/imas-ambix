@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-15T10:40:10.563Z",
+  "dispatched_at": "2026-10-15T10:26:54Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:869",
+      "id": "reasoning-1",
+      "reason": "as written the node cannot import the module it edits without a nonstandard late import (which E402 forbids) or a change of home for the shared parser, so the plan must say where the one parser lives (or drop the telemetry_store limb) or its own done-when cannot be met.",
+      "text": "\"The change\" puts the one parser in `serving_receipts` and says `_roll_date`, `_record_stem_and_suffix` and `telemetry_store._ladder_stem` \"all call it\"; because `serving_receipts` imports `telemetry_store` at module top (serving_receipts.py:75) and evaluates `telemetry_store.TIER_MINUTE` as a def default at import (serving_receipts.py:404), a top-level import of `serving_receipts` in `telemetry_store` makes `import imas_ambix.agent.telemetry_store` raise `AttributeError: partially initialized module ... has no attribute 'TIER_MINUTE'` \u2014 reproducibly triggered by `tests/test_telemetry_store.py:39` (`from imas_ambix.agent.telemetry_store import (...)`), one of the four files \u00a723's own done-when requires to pass, and by telemetry_store's own `__main__` entry (telemetry_store.py:1314)",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "b7a39f9570661ca11185a452e3aeb5afcfcc3dd44f15719e022f79cd6cc35d63",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 259,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261015T102631809794-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "9cd0182399e47f3d5a1bab15230de97069a9f4cd",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `telemetry_store.py:982` resolves (the \"arrives with a new inode\" sentence is at :981-983), the three cited functions exist at serving_receipts.py:612/:650 and telemetry_store.py:798; the \"reuse 12\" citation resolves to the stored review r-20261015T084820771350-srw-raw-record-rolls-daily-repair (`scores.reuse == 12`), and its two follow-ons match \u00a723's \"What is wrong\".",
+    "done_when": "pass \u2014 \u00a723's done-when names four test files, a pinned-former-result assertion, a module-search assertion, a docstring assertion, and a declared negative control (\"makes `_ladder_stem` parse the day itself again, and the single-parser test must fail\"), which is a control that can go red.",
+    "evidence_paths": "pass \u2014 \u00a723 names no gate path at all, so nothing is placed in a scratchpad or node-local temporary; the gate evidence is the run's own test logs.",
+    "naming": "pass \u2014 \u00a723 introduces no plan labels, ticket numbers or version tags into code symbols, and its new test is described by mechanism, not by a tracker id.",
+    "reasoning": "a finding \u2014 the root cause matches the cited evidence, but the stated mechanism cannot run on the real code path: placing the one parser in `serving_receipts` and having `telemetry_store._ladder_stem` call it makes `telemetry_store` import `serving_receipts`, which already imports `telemetry_store` at module top and reads `telemetry_store.TIER_MINUTE` as a def-default at import time (serving_receipts.py:404).",
+    "single_goal": "pass \u2014 the node carries one deliverable (one roll-day parser) plus the docstring correction in the same file and mechanism.",
+    "wiring": "pass \u2014 \u00a723's node `srw-roll-day-one-parser` runs after \u00a721 and is recommended by open followup f-srw-030 (plan.html:1102) with the matching skill prompt `/reckon-build serving-record-warehouse \u00a723`; no relationship is missing or mis-pointed."
+  },
+  "section_digests": {
+    "_document": "f564132b350658da4af4dc414f336b1d72cd7d60f10344ee764e9e9206579668",
+    "s1": "f0e6a1c8acb9f607124dc4f3def1f738e2a0bc52c579a2c0849a33c6fa1156fb",
+    "s10": "1509fe50d6cbdb1159da0bac7826bf9df43f73f13dc81d4b4a3c3c0d3926d315",
+    "s11": "f02a2d9d5ac0a9537cbc0c7c1127234686c6b35ebe9d5f28f2eb1dc890ba8349",
+    "s12": "c993e8c7a97750818ddad0ac8e3797052442f5dd3357a9b1336cd024ff90f8d3",
+    "s13": "0a80350dd120a399e1c304a1eed64f149a7e5f5f1ef41302cad6223dc985910e",
+    "s14": "65bc34f5b6d081374d8287c3a7e14dfa77b21b6ef0390d5e95961d81ded7114d",
+    "s15": "1d02ca1576af9e3b58c011e3b4c84ffb63870a92698492bd45a0bbfe48660ea0",
+    "s16": "59a48fb3793215455ca353b8188b5d155dec253814be9a4eea8d2f4eeb412fe1",
+    "s17": "a9272f7380fa7e5e98ccdb05c439a87545af549c2b868454c7fcbf8b5f205d73",
+    "s18": "429fc06f68195b5f8d203f2a7cecc6012761471232df3108082927ed9cf8f432",
+    "s19": "dc83604a90c46f7c6ef8e70e35cccf1230c480b513b218fc4744ddeeae9e6864",
+    "s2": "dd85bfd277fcf3eff4974460f080158cafc4ff9e584ca8799bbdf19223a0067f",
+    "s20": "8122e379cac4618fb3130fbbe0ee431d918ea6f19ac63f7dee6b4d54ff284566",
+    "s21": "072fad4f2605157b2b243b2b8688d099e0d0b27039e2c7a28f72c4ba47c72cf5",
+    "s22": "7f906c0a7adece8f09e10af8e2aaba249369143900b6d084b92880b6c4b16223",
+    "s23": "d60ef5c27b8addfa50624f8d732df81f5ffd8964bbf3466807df404ba36ab9ed",
+    "s3": "dd2996924d4d122532e4de97c38a9cae83173c64b6409cc2135177861f392578",
+    "s4": "59f727a99fef92f80127586b2833279df3aa59154895e05a2590e648232abfeb",
+    "s5": "07d984217f6f4d05e582e4d403dff88fd7c0627b3a2cceb36a0123131813e899",
+    "s6": "19d3648895b8aeee8beac762cb2ddb63ba248dec6485eb393625e0c9fd840c32",
+    "s7": "8de1f36a2db5f192d8a078c96c91f29a1d456c95b742332e6fb3854ee451cb78",
+    "s8": "6fa176e0365af868497abc3e4cb9e224032b3de82c337015be11061591c407c2",
+    "s9": "a29439d3d5c1417e8d6fdc357f0ab636deb86ddef8cdd6865c541773247886ef"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T11:05:30.031209+00:00"
+}
