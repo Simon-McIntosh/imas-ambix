@@ -1,0 +1,75 @@
+{
+  "artifacts": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T080032026452-srw-1278105-tier-disagreement/final.txt (reviewed report, read-only)",
+    "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/srw-1278105-tier-disagreement/finding.md and compare_receipt_tiers.py (cited finding and script, read-only); /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T080032026452-srw-1278105-tier-disagreement/tier-comparison.log (the run's comparison log, read-only)",
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T080720131281-review-of-srw-1278105-tier-disagreement-318484748714/rerun.log (this review's re-run: EXIT=0, same six disagreements and same boundary figures)"
+  ],
+  "claim_lines": [
+    "CLAIM 1: reproduced: re-ran the cited script compare_receipt_tiers.py from the reviewed run's own directory (/home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T080032026452-srw-1278105-tier-disagreement) with PYTHONPATH set to the reviewed worktree and its .venv python; EXIT=0 and the imported module was the reviewed worktree's imas_ambix/agent/telemetry_retention.py; different_pairs=6, one counter (generation, prompt and uncached prompt) in each of the two boundary hours 2026-09-27T07:00:00Z and 2026-10-02T19:00:00Z, with 396 compared pairs across the rest - matching the report's six disagreeing pairs at the two boundaries",
+    "CLAIM 2: reproduced: the same re-run showed the minute and hour final rows at (92733314; 14486926305; 303812608) (19:01:29.962091Z) and the raw final row at (92786037; 14493941746; 303902464) (19:04:01.976365Z); the raw-only tail advance is (52723; 7015441; 89856), and with the first advance that is at least (53123; 7015455; 90112) generation/prompt/uncached tokens - the figures the report states",
+    "CLAIM 3: reproduced: the same re-run showed all three counters DIFFERENT at 2026-09-27T07:00:00Z with totals {hour=null, minute=0.0, raw=400/14/256} - the minute tier computes zero and the hour tier no total; the raw first two rows (8;193;256) and (408;207;512) differ by (400; 14; 256), the report's first advance, and the first minute row already carries the latter endpoint with no open block"
+  ],
+  "claim_summary": {
+    "detail": "The report's summary line (final.txt line 1, echoed by finding.md line 3) reads: 'reproduced six disagreements ... The other 393 compared pairs agree.' The 393 figure does not match the table beneath it or the comparator's own output. The disagreeing-pair table carries 6 rows, and the comparator's own summary line records compared_pairs=396 with different_pairs=6, so the agreeing pairs number 396-6 = 390, not 393. finding.md's wording ('393 compared pairs across 131 intervening hours agree') is internally consistent at 131x3 = 393, but the comparator compared 132 hours (compared_hours=132), i.e. 130 intervening hours between the two boundary hours, so 390 agreeing pairs, not 393. The discrepancy is one hour's worth of pairs (3).",
+    "verdict": "differs"
+  },
+  "claim_summary_line": "CLAIM_SUMMARY: differs: the report's summary line reads 'six disagreements ... The other 393 compared pairs agree' (finding.md: '393 compared pairs across 131 intervening hours agree'), but the disagreeing table carries 6 rows and the comparator's own output records compared_pairs=396 with different_pairs=6 (compared_hours=132), so the agreeing pairs number 396-6 = 390 across 130 intervening hours, not 393 across 131",
+  "claim_verdicts": {
+    "CLAIM 1": {
+      "cites": "compare_receipt_tiers.py (reported command, run from the reviewed run's directory); tier-comparison.log lines 8-14",
+      "detail": "Re-ran the cited command from the reviewed run's own directory. It exited EXIT=0 and the imported module path is the reviewed worktree (imas_ambix/agent/telemetry_retention.py under .../srw-1278105-tier-disagreement). different_pairs=6, one per counter in each of the two boundary hours: engine.generation_tokens, engine.prompt_tokens and engine.uncached_prompt_tokens at 2026-09-27T07:00:00Z and 2026-10-02T19:00:00Z. Row counts 85957 raw / 7899 minute / 133 hour, 396 compared pairs, matching the report's statement that six disagreeing pairs sit at the two boundaries and none through the middle. Log: rerun.log.",
+      "finding": "rank 1 (the headline finding): compare_tiers finds six disagreeing (UTC hour, counter) pairs, all confined to the first and last UTC hours of the recording, with the intervening hours agreeing",
+      "verdict": "reproduced"
+    },
+    "CLAIM 2": {
+      "cites": "compare_receipt_tiers.py evidence_hour rows for 2026-10-02T19:00:00Z; tier-comparison.log lines 9,11,13,28-40",
+      "detail": "Re-ran the cited command. The minute and hour final rows are (92733314; 14486926305; 303812608) at 2026-10-02T19:01:00Z ('19:01:29.962091+00:00'), and the raw final row is (92786037; 14493941746; 303902464) at 19:04:01.976365+00:00. The raw-minus-tier tail advance is (92786037-92733314, 14493941746-14486926305, 303902464-303812608) = (52,723; 7,015,441; 89,856), exactly the report's figure. Adding the start-boundary advance (400; 14; 256) gives (53,123; 7,015,455; 90,112), matching the report's stated at-least total. The DIFFERENT lines at 19:00:00Z carry raw 86916.0 / 13232738.0 / 206080.0 against minute=hour 34193.0 / 6217297.0 / 116224.0, consistent with the tail. Log: rerun.log.",
+      "finding": "rank 2 (the end-boundary mechanism): the raw file continues past both tiers' final row, so the raw-only tail advances would be lost on retirement - the report states the 2026-10-02 19:00 hour rows lose (52,723; 7,015,441; 89,856) and the total at-least loss across both boundaries is (53,123; 7,015,455; 90,112) tokens for generation, prompt and uncached prompt",
+      "verdict": "reproduced"
+    },
+    "CLAIM 3": {
+      "cites": "compare_receipt_tiers.py DIFFERENT lines for 2026-09-27T07:00:00Z and the raw boundary rows; tier-comparison.log lines 8,10,12,15-27",
+      "detail": "Re-ran the cited command. At 2026-09-27T07:00:00Z all three counters are DIFFERENT with totals {hour: null, minute: 0.0, raw: 400.0 / 14.0 / 256.0}, i.e. the minute tier computes zero and the hour tier no total, matching the report. The raw first two rows in that hour are (8; 193; 256) at 07:23:35.564695+00:00 and (408; 207; 512) at 07:23:40.969610+00:00, whose difference is (400; 14; 256), the report's stated first advance; the first minute row already carries the latter endpoint (408; 207; 512) at 07:23:56.620322+00:00 with no open block, and the hour tier has a single row at that hour. Log: rerun.log.",
+      "finding": "rank 3 (the start-boundary mechanism): the first compacted hour lacks an opening counter value, so the minute tier computes zero and the hour tier no total for the first advance, which is (400; 14; 256) tokens for generation, prompt and uncached prompt",
+      "verdict": "reproduced"
+    }
+  },
+  "claims": [
+    {
+      "cites": "compare_receipt_tiers.py (the report's script, re-run from the reviewed run's directory); tier-comparison.log lines 8-14",
+      "rank": 1,
+      "report_figure": "six disagreeing (UTC hour, counter) pairs, all at 2026-09-27T07:00Z and 2026-10-02T19:00Z",
+      "rerun_figure": "identical: different_pairs=6, one per counter in each of the two boundary hours; 396 compared pairs; EXIT=0",
+      "verdict": "reproduced"
+    },
+    {
+      "cites": "compare_receipt_tiers.py evidence_hour 2026-10-02T19:00:00Z rows; tier-comparison.log lines 9,11,13,28-40",
+      "rank": 2,
+      "report_figure": "2026-10-02 19:00 loses raw-only advances (52,723; 7,015,441; 89,856); total at least (53,123; 7,015,455; 90,112)",
+      "rerun_figure": "identical: raw final (92786037; 14493941746; 303902464) minus tier final (92733314; 14486926305; 303812608) = (52723; 7015441; 89856); with the first advance (400;14;256) the total is (53123; 7015455; 90112)",
+      "verdict": "reproduced"
+    },
+    {
+      "cites": "compare_receipt_tiers.py DIFFERENT lines for 2026-09-27T07:00:00Z and the raw boundary rows; tier-comparison.log lines 8,10,12,15-27",
+      "rank": 3,
+      "report_figure": "first compacted hour lacks an opening counter value: minute tier totals 0, hour tier no total; first advance (400; 14; 256)",
+      "rerun_figure": "identical: DIFFERENT at 07:00Z with {hour=null, minute=0.0, raw=400/14/256}; raw rows (8;193;256)->(408;207;512) differ by (400; 14; 256)",
+      "verdict": "reproduced"
+    }
+  ],
+  "completed_at": "2026-10-15T08:15:34.931Z",
+  "dimensions": null,
+  "dispatched_at": "2026-10-15T08:07:32Z",
+  "method": "The reviewed run is read-only: its manifest records commits: [] and changed_paths limited to the report directory (compare_receipt_tiers.py, finding.md), with no gate suite, so reviewed_base_sha == reviewed_head_sha == 3184847487143ee3f4c36e9396ea617f629a06f2 (the reviewed worktree HEAD, verified at /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/4fd309f5-d84d-4f4d-97a9-75ac19ce3494/srw-1278105-tier-disagreement, clean tree) and there is no diff to read. Its deliverable is the report final.txt (with the detailed finding.md and the comparison log tier-comparison.log) under the report directory. Its three highest-ranked findings are: (1) the headline finding - six disagreeing (UTC hour, counter) pairs, all in the two boundary hours; (2) the end-boundary mechanism - the raw file runs past the tier endpoint, so retiring it would lose the raw-only tail advances; (3) the start-boundary mechanism - the first compacted hour lacks an opening endpoint, so the minute tier computes zero and the hour tier no total. All three cite the same script compare_receipt_tiers.py, so it was re-run once from the reviewed run's own directory with the interpreter and PYTHONPATH the report cites: cd /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T080032026452-srw-1278105-tier-disagreement and PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/4fd309f5-d84d-4f4d-97a9-75ac19ce3494/srw-1278105-tier-disagreement /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/4fd309f5-d84d-4f4d-97a9-75ac19ce3494/srw-1278105-tier-disagreement/.venv/bin/python /home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/srw-1278105-tier-disagreement/compare_receipt_tiers.py (the report's own script, read as a cited artifact); output captured to this review run's rerun.log (EXIT=0, imported module confirmed at the reviewed worktree). The report's own summary line (final.txt line 1) was compared with the disagreeing-pair table beneath it in finding.md.",
+  "project": "imas-ambix",
+  "report_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T080032026452-srw-1278105-tier-disagreement/final.txt",
+  "review_run_id": "r-20261015T080720131281-review-of-srw-1278105-tier-disagreement-318484748714",
+  "reviewed_base_sha": "3184847487143ee3f4c36e9396ea617f629a06f2",
+  "reviewed_head_sha": "3184847487143ee3f4c36e9396ea617f629a06f2",
+  "reviewed_run_id": "r-20261015T080032026452-srw-1278105-tier-disagreement",
+  "rubric": "claims",
+  "status": "parsed",
+  "suite_delta_fields_omitted": "added_failure_count and added_failure_ids are intentionally absent: the reviewed run ran no gate suite (this review adds none).",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T08:12:00+00:00"
+}
