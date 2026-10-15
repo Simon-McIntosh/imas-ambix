@@ -1,0 +1,75 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "basis: the reviewed run r-20261015T101418913456-srw-scheduled-retention declares neither baseline_suite nor after_suite (both keys are present and empty in its manifest.md), so no base arm exists to difference against. Its own head gate log /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T101418913456-srw-scheduled-retention/gate.log opens '# revision: 1847163c + lint fixes' and closes '109 passed in 36.75s' with EXIT=0 and zero FAILED or ERROR lines, and the negative-control log closes EXIT=1 with exactly one failing id (test_a_rewrite_that_keeps_the_time_and_length_is_caught_by_the_digest) that the head arm passes. added_failure_count is 0 by construction from those facts, not by a differenced measurement.",
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2945",
+    "imas_ambix/agent/cli.py:3030",
+    "imas_ambix/agent/telemetry_ingest.py:490"
+  ],
+  "commits_read": [
+    "1847163c3133cb8dd9c854772d45ca3431ad3f0f",
+    "78d08350c4bcafbe354a4f7b594c2bda2da09166"
+  ],
+  "completed_at": "2026-10-15T11:00:52.009Z",
+  "dispatched_at": "2026-10-15T10:50:01Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/cli.py",
+      "line": "2945",
+      "severity": "blocking",
+      "text": "blocking: the fleet service launches the standing loop as \"imas-ambix agent ingest\" (services.json), and that command calls telemetry_ingest.run with no retention argument, so ScheduledRetention is constructed only in telemetry_ingest.main at imas_ambix/agent/telemetry_ingest.py:490, which no console script or service reaches; the node's goal is therefore inert in production and the section's change deletes nothing."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "996",
+      "severity": "follow-on",
+      "text": "follow-on: forget copies the \"DELETE FROM sample ...; DELETE FROM source ...\" pair that _drop_deselected_tiers already performs at imas_ambix/agent/telemetry_index.py:1302-1306 and the rewrite path performs at :1382, so a third copy of the source-row removal now exists and a later change to the sample/source keying has three places to find."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_ingest.py",
+      "line": "427",
+      "severity": "follow-on",
+      "text": "follow-on: retention() runs in run()'s else branch outside the try that catches sqlite3.OperationalError, and retention_pass catches only RuntimeError at imas_ambix/agent/telemetry_ingest.py:134, so an OSError from write_manifest/os.replace or a lock error from index.vacuum (VACUUM needs an exclusive lock a concurrent reader can hold) propagates out of the standing loop and stops the one writer of the index."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "read both commits against base 43aa0c8c -- 1847163c (the rebuild, bounded liveness, scheduled pass and index forget/vacuum, +631/-38 across six files) and 78d08350 (import sorting and a loop split, behaviour unchanged) -- and every hunk is inside the declared scope.",
+    "done_when": "read the done_when's nine clauses; eight are asserted by new tests in tests/test_telemetry_retention.py, tests/test_telemetry_ingest.py and tests/test_telemetry_index.py, and the ninth (at most once a day from the ingest loop) is asserted at tests/test_telemetry_ingest.py:519 against ScheduledRetention directly rather than against the loop the fleet launches.",
+    "goal": "the node's goal is that the ingest loop retires proven-equal raw receipt files daily; the machinery is landed in imas_ambix/agent/telemetry_retention.py and imas_ambix/agent/telemetry_ingest.py:101, but the production ingest loop at imas_ambix/agent/cli.py:2945 calls telemetry_ingest.run with no retention argument, so the pass never runs in the deployed service.",
+    "manifest": "read; it declares status complete, six changed paths matching the diff, 109 passed on the fleet node job 1281970, a negative control log at EXIT=1, and one follow-on, but its baseline_suite and after_suite keys are empty so the record carries no base arm to difference against.",
+    "write_paths": "the declared scope is nine paths; git diff --name-status 43aa0c8c..78d08350 names six files, every one inside the declared set, and node_probe.py plus the two docs paths are declared but unused."
+  },
+  "justifications": {
+    "durability": "tests/test_telemetry_retention.py:729 fails when the digest re-check is removed (the recorded negative control reddens it), and tests/test_telemetry_retention.py:621 contrasts rebuild=False against rebuild=True so it cannot pass on the installed tiers alone.",
+    "evidence": "the gate at /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T101418913456-srw-scheduled-retention/gate.log closes \"109 passed in 36.75s\" at EXIT=0 and the negative control closes EXIT=1 with one failing id, so the recorded result is measured, though no base arm exists.",
+    "fit": "the added work follows the module's frozen-dataclass and keyword-only idiom at imas_ambix/agent/telemetry_ingest.py:81, with no name the repository naming rules forbid.",
+    "goal_fidelity": "imas_ambix/agent/cli.py:2945 calls telemetry_ingest.run without retention=, so the daily retirement the goal names is never reached by the loop the fleet service launches.",
+    "reuse": "imas_ambix/agent/telemetry_index.py:996 forget re-writes the sample/source DELETE pair already inline at imas_ambix/agent/telemetry_index.py:1302-1306 and :1382 rather than extending a shared owner.",
+    "scope_discipline": "every path in git diff 43aa0c8c..78d08350 lies inside the nine declared write paths, and the diff adds nothing the goal does not imply."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is that the ingest loop retires proven-equal raw receipt files daily; the machinery is landed in imas_ambix/agent/telemetry_retention.py and imas_ambix/agent/telemetry_ingest.py:101, but the production ingest loop at imas_ambix/agent/cli.py:2945 calls telemetry_ingest.run with no retention argument, so the pass never runs in the deployed service.\nVERDICT done_when: read the done_when's nine clauses; eight are asserted by new tests in tests/test_telemetry_retention.py, tests/test_telemetry_ingest.py and tests/test_telemetry_index.py, and the ninth (at most once a day from the ingest loop) is asserted at tests/test_telemetry_ingest.py:519 against ScheduledRetention directly rather than against the loop the fleet launches.\nVERDICT write_paths: the declared scope is nine paths; git diff --name-status 43aa0c8c..78d08350 names six files, every one inside the declared set, and node_probe.py plus the two docs paths are declared but unused.\nVERDICT manifest: read; it declares status complete, six changed paths matching the diff, 109 passed on the fleet node job 1281970, a negative control log at EXIT=1, and one follow-on, but its baseline_suite and after_suite keys are empty so the record carries no base arm to difference against.\nVERDICT diff: read both commits against base 43aa0c8c -- 1847163c (the rebuild, bounded liveness, scheduled pass and index forget/vacuum, +631/-38 across six files) and 78d08350 (import sorting and a loop split, behaviour unchanged) -- and every hunk is inside the declared scope.\nCALL_SITES: imas_ambix/agent/cli.py:2945, imas_ambix/agent/cli.py:3030, imas_ambix/agent/telemetry_ingest.py:490\nSCORE goal_fidelity: 8\nJUSTIFICATION goal_fidelity: imas_ambix/agent/cli.py:2945 calls telemetry_ingest.run without retention=, so the daily retirement the goal names is never reached by the loop the fleet service launches.\nSCORE evidence: 14\nJUSTIFICATION evidence: the gate at /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T101418913456-srw-scheduled-retention/gate.log closes \"109 passed in 36.75s\" at EXIT=0 and the negative control closes EXIT=1 with one failing id, so the recorded result is measured, though no base arm exists.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: every path in git diff 43aa0c8c..78d08350 lies inside the nine declared write paths, and the diff adds nothing the goal does not imply.\nSCORE durability: 17\nJUSTIFICATION durability: tests/test_telemetry_retention.py:729 fails when the digest re-check is removed (the recorded negative control reddens it), and tests/test_telemetry_retention.py:621 contrasts rebuild=False against rebuild=True so it cannot pass on the installed tiers alone.\nSCORE fit: 16\nJUSTIFICATION fit: the added work follows the module's frozen-dataclass and keyword-only idiom at imas_ambix/agent/telemetry_ingest.py:81, with no name the repository naming rules forbid.\nSCORE reuse: 13\nJUSTIFICATION reuse: imas_ambix/agent/telemetry_index.py:996 forget re-writes the sample/source DELETE pair already inline at imas_ambix/agent/telemetry_index.py:1302-1306 and :1382 rather than extending a shared owner.\nFINDING imas_ambix/agent/cli.py:2945 blocking: the fleet service launches the standing loop as \"imas-ambix agent ingest\" (services.json), and that command calls telemetry_ingest.run with no retention argument, so ScheduledRetention is constructed only in telemetry_ingest.main at imas_ambix/agent/telemetry_ingest.py:490, which no console script or service reaches; the node's goal is therefore inert in production and the section's change deletes nothing.\nFINDING imas_ambix/agent/telemetry_index.py:996 follow-on: forget copies the \"DELETE FROM sample ...; DELETE FROM source ...\" pair that _drop_deselected_tiers already performs at imas_ambix/agent/telemetry_index.py:1302-1306 and the rewrite path performs at :1382, so a third copy of the source-row removal now exists and a later change to the sample/source keying has three places to find.\nFINDING imas_ambix/agent/telemetry_ingest.py:427 follow-on: retention() runs in run()'s else branch outside the try that catches sqlite3.OperationalError, and retention_pass catches only RuntimeError at imas_ambix/agent/telemetry_ingest.py:134, so an OSError from write_manifest/os.replace or a lock error from index.vacuum (VACUUM needs an exclusive lock a concurrent reader can hold) propagates out of the standing loop and stops the one writer of the index.",
+  "review_run_id": "r-20261015T104949038780-review-of-srw-scheduled-retention-78d08350c4bc",
+  "reviewed_base_sha": "43aa0c8c601f125a46a1f052d4d89d0786d940f9",
+  "reviewed_head_sha": "78d08350c4bcafbe354a4f7b594c2bda2da09166",
+  "reviewed_revision": "78d08350",
+  "reviewed_run_id": "r-20261015T101418913456-srw-scheduled-retention",
+  "scores": {
+    "durability": 17,
+    "evidence": 14,
+    "fit": 16,
+    "goal_fidelity": 8,
+    "reuse": 13,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T10:56:32.497078+00:00",
+  "total": 86
+}
