@@ -796,3 +796,86 @@ def test_a_row_without_a_usable_timestamp_is_refused():
         compact_rows(
             [{"timestamp": "2026-09-01T00:00:00"}], tier=TIER_MINUTE
         )
+
+
+def _raw_row(seconds: int, counter: float, gauge: float) -> dict:
+    """One raw sample of the synthetic record these tests append to."""
+    return {
+        "timestamp": (
+            datetime(2026, 9, 5, 12, 0, 0, tzinfo=UTC)
+            + timedelta(seconds=seconds)
+        ).isoformat(),
+        "hostname": "node-a",
+        "job_id": "1262921",
+        "generation_tokens_total": counter,
+        "kv_cache_usage_perc": gauge,
+    }
+
+
+def _append(path: Path, rows: list[dict]) -> None:
+    with path.open("a", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
+
+
+def test_incremental_compaction_matches_one_full_compaction(tmp_path: Path) -> None:
+    """Appending in steps writes the rows one full compaction would write.
+
+    A running record is compacted while it is still being written, so the
+    pass that reads only what has arrived must agree with the pass that reads
+    the whole file -- otherwise a serve's tier would depend on when it happened
+    to be compacted.
+    """
+    source = tmp_path / "receipts.jsonl"
+    minute = tmp_path / "receipts.minute.jsonl"
+    hour = tmp_path / "receipts.hour.jsonl"
+    rows = [_raw_row(index * 20, float(index * 10), 0.1 * index) for index in range(12)]
+
+    _append(source, rows[:6])
+    telemetry_store.compact_incremental(source, minute, tier=TIER_MINUTE)
+    telemetry_store.compact_incremental(minute, hour, tier=TIER_HOUR)
+    # The window holding the first rows has closed; the one still filling has
+    # not been written, so nothing is written twice when it does close.
+    written = read_rows(minute)
+    assert [row["window_start"] for row in written] == ["2026-09-05T12:00:00+00:00"]
+
+    _append(source, rows[6:10])
+    telemetry_store.compact_incremental(source, minute, tier=TIER_MINUTE)
+    _append(source, rows[10:])
+    telemetry_store.compact_incremental(source, minute, tier=TIER_MINUTE, close=True)
+    telemetry_store.compact_incremental(minute, hour, tier=TIER_HOUR, close=True)
+
+    full_minute = tmp_path / "full.minute.jsonl"
+    full_hour = tmp_path / "full.hour.jsonl"
+    compact_file(source, full_minute, tier=TIER_MINUTE)
+    compact_file(full_minute, full_hour, tier=TIER_HOUR)
+
+    assert minute.read_bytes() == full_minute.read_bytes()
+    assert hour.read_bytes() == full_hour.read_bytes()
+
+
+def test_incremental_compaction_recompacts_when_the_source_is_replaced(
+    tmp_path: Path,
+) -> None:
+    """A watermark outlives nothing: a replaced source is read from the start.
+
+    The open record is replaced when a serve restarts into the same path, and a
+    pass that resumed at the old offset would keep rows it no longer describes.
+    """
+    source = tmp_path / "receipts.jsonl"
+    minute = tmp_path / "receipts.minute.jsonl"
+    rows = [_raw_row(index * 20, float(index * 10), 0.1 * index) for index in range(6)]
+
+    _append(source, rows)
+    telemetry_store.compact_incremental(source, minute, tier=TIER_MINUTE)
+    assert read_rows(minute)[0]["obs"]["samples"] == 3
+
+    replacement = tmp_path / "replacement.jsonl"
+    _append(replacement, rows[1:])
+    os.replace(replacement, source)
+    telemetry_store.compact_incremental(source, minute, tier=TIER_MINUTE, close=True)
+
+    full = tmp_path / "full.minute.jsonl"
+    compact_file(source, full, tier=TIER_MINUTE)
+    assert minute.read_bytes() == full.read_bytes()
+    assert read_rows(minute)[0]["obs"]["samples"] == 2

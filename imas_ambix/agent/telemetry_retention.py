@@ -59,10 +59,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from imas_ambix.agent.serving_receipts import tier_paths
+from imas_ambix.agent.serving_receipts import (
+    is_day_segment,
+    receipts_job_id,
+    tier_paths,
+)
 from imas_ambix.agent.telemetry_index import (
     counter_run_continues,
-    receipts_job_id,
     row_boot_id,
     row_host,
     row_job_id,
@@ -663,7 +666,11 @@ def _verdict(
     reasons: list[str] = []
     if job is None:
         reasons.append("name carries no job id")
-    elif job in live:
+    elif job in live and not is_day_segment(path):
+        # Only the open record is still being written. A rolled day segment is
+        # closed by construction -- the recorder stops appending to it at the
+        # day's end -- so a running job says nothing about whether its earlier
+        # days may be retired.
         reasons.append(f"job {job} is running")
     if mtime is None:
         reasons.append("file cannot be read")

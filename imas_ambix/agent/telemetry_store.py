@@ -95,6 +95,7 @@ unknown groups with other unknown-boot rows and not with a keyed one.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as _dt
 import json
 import math
@@ -530,7 +531,9 @@ def _open_reading(row: dict[str, Any]) -> dict[str, float]:
     }
 
 
-def _row_weights(rows: list[dict[str, Any]], window_seconds: int) -> list[float]:
+def _row_weights(
+    rows: list[dict[str, Any]], window_seconds: int, *, nominal: float | None = None
+) -> list[float]:
     """The observation duration each row stands for.
 
     A row already carrying an ``obs`` block is a compacted row and declares its
@@ -538,6 +541,11 @@ def _row_weights(rows: list[dict[str, Any]], window_seconds: int) -> list[float]
     weighted mean one tier up. A raw row takes the gap to the next row, with the
     final row inheriting the last positive gap -- a forward-fill so the weights
     sum to the covered interval rather than dropping the tail.
+
+    *nominal* is the gap the forward-fill inherits when these rows are a suffix
+    of a longer record: a pass that reads only the live tail reaches its first
+    row with no gap behind it, and reading the cadence from the row before the
+    tail is what keeps a one-row tail's weight equal to the whole record's.
     """
     declared: list[float] = []
     has_declared = True
@@ -554,18 +562,18 @@ def _row_weights(rows: list[dict[str, Any]], window_seconds: int) -> list[float]
 
     stamps = [_parse_timestamp(row) for row in rows]
     weights: list[float] = []
-    nominal = float(window_seconds)
+    carried = float(window_seconds) if nominal is None else float(nominal)
     for index, stamp in enumerate(stamps):
         if index + 1 < len(stamps):
             gap = (stamps[index + 1] - stamp).total_seconds()
         elif weights:
             gap = weights[-1]
         else:
-            gap = nominal
+            gap = carried
         if not (gap > 0):
-            gap = nominal
+            gap = carried
         weights.append(gap)
-        nominal = gap
+        carried = gap
     return weights
 
 
@@ -699,6 +707,9 @@ def _compact_run(
     boot_id: str,
     job_id: str | None,
     window_seconds: int,
+    *,
+    carried_seen: dict[str, float] | None = None,
+    carried_nominal: float | None = None,
 ) -> list[dict[str, Any]]:
     """Compact one unbroken counter run into one row per window.
 
@@ -713,12 +724,12 @@ def _compact_run(
     carry the hour's opening through from the raw tier instead of dropping the
     run's first window.
     """
-    weights = _row_weights(rows, window_seconds)
+    weights = _row_weights(rows, window_seconds, nominal=carried_nominal)
     sample_counts = _row_samples(rows)
     windows: dict[int, _Window] = {}
     openings: dict[int, dict[str, float]] = {}
     order: list[int] = []
-    seen: dict[str, float] = {}
+    seen: dict[str, float] = dict(carried_seen) if carried_seen else {}
     for row, weight, samples in zip(rows, weights, sample_counts, strict=True):
         stamp = _parse_timestamp(row)
         epoch = stamp.timestamp()
@@ -773,6 +784,372 @@ def _compact_run(
         row.update(_finalise(window.payload))
         compacted.append(row)
     return compacted
+
+
+#: Sidecar a tier file keeps beside itself: where the last incremental pass
+#: stopped reading, the run state the window it left open will need when it
+#: closes, and how far the tier has already been written.
+WATERMARK_SUFFIX = ".watermark.json"
+
+#: The highest window end the tier holds, so a pass cannot re-emit one of them.
+_EMITTED_THROUGH_KEY = "emitted_through"
+
+
+def _ladder_stem(name: str) -> str:
+    """A record file's name without its roll date and suffix.
+
+    A raw record rolls to one file per UTC day and every segment of one job
+    feeds one ladder, so the segments of a job share this stem and a pass
+    recognises the file that replaced the one its watermark describes.
+    """
+    parts = name.split(".")
+    if len(parts) >= 3 and len(parts[-2]) == 8 and parts[-2].isdigit():
+        return ".".join(parts[:-2])
+    return ".".join(parts[:-1])
+
+
+def watermark_path(destination: str | Path) -> Path:
+    """The sidecar holding *destination*'s incremental watermark.
+
+    It is a sibling of the tier file rather than a second store, so a tier and
+    the position its next pass resumes from travel together: a directory holding
+    one serve's ladder holds each tier's watermark beside it.
+    """
+    path = Path(destination)
+    return path.with_name(path.name + WATERMARK_SUFFIX)
+
+
+def read_watermark(destination: str | Path) -> dict[str, Any] | None:
+    """Read *destination*'s watermark, or ``None`` when it cannot be used.
+
+    A watermark that cannot be read is treated as absent rather than as an
+    error: the pass that finds it absent recompacts the source in full, which
+    is always correct and merely costs the reading the watermark exists to
+    avoid.
+    """
+    try:
+        text = watermark_path(destination).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    try:
+        mark = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    return mark if isinstance(mark, dict) else None
+
+
+def write_watermark(destination: str | Path, mark: dict[str, Any]) -> None:
+    """Write *mark* as *destination*'s watermark, replacing it atomically.
+
+    A pass writes its watermark after the rows it describes have landed, so a
+    crash between the two leaves a tier that is ahead of its watermark -- the
+    next pass re-reads and re-emits nothing it already wrote -- rather than a
+    watermark ahead of the tier, which would skip rows.
+    """
+    path = watermark_path(destination)
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(
+        json.dumps(mark, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(temporary, path)
+
+
+def clear_watermark(destination: str | Path) -> None:
+    """Drop *destination*'s watermark, so its next pass recompacts in full."""
+
+    with contextlib.suppress(OSError):
+        watermark_path(destination).unlink()
+
+
+def _window_start_epoch(row: dict[str, Any]) -> float:
+    """The epoch a compacted row's window opens at."""
+    return _dt.datetime.fromisoformat(str(row[_WINDOW_START_KEY])).timestamp()
+
+
+def _complete_lines(
+    data: bytes, offset: int
+) -> tuple[list[tuple[dict[str, Any], int]], int]:
+    """Parse whole lines from *offset*, each with its own byte offset.
+
+    A trailing line without its newline is a row still being appended, so it is
+    left unread and the pass resumes at its start: reading it would count a
+    partial sample and leave the watermark inside a row.
+    """
+    rows: list[tuple[dict[str, Any], int]] = []
+    consumed = offset
+    for line in data[offset:].decode("utf-8").splitlines(keepends=True):
+        start = consumed
+        consumed += len(line.encode("utf-8"))
+        if not line.endswith("\n"):
+            consumed = start
+            break
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            row = json.loads(stripped)
+        except json.JSONDecodeError as exc:
+            raise TelemetryStoreError(f"{start} is not JSON") from exc
+        if not isinstance(row, dict):
+            raise TelemetryStoreError(f"{start} is not a JSON object")
+        rows.append((row, start))
+    return rows, consumed
+
+
+def _context_of(raw: object) -> dict[str, Any] | None:
+    """The carried run state a watermark holds, or ``None``."""
+    if not isinstance(raw, dict):
+        return None
+    key = raw.get("key")
+    counters = raw.get("counters")
+    if not isinstance(key, list) or not isinstance(counters, dict):
+        return None
+    return {
+        "key": tuple(key),
+        "counters": {
+            str(name): float(value)
+            for name, value in counters.items()
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+        },
+        "nominal": float(raw.get("nominal") or 0.0),
+    }
+
+
+def _context_document(context: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The serialisable form of a carried run state, or ``None``."""
+    if context is None:
+        return None
+    key = context.get("key")
+    return {
+        "key": list(key) if key else None,
+        "counters": {
+            str(name): float(value)
+            for name, value in (context.get("counters") or {}).items()
+        },
+        "nominal": float(context.get("nominal") or 0.0),
+    }
+
+
+def compact_incremental(
+    source: str | Path,
+    destination: str | Path,
+    *,
+    tier: str,
+    close: bool = False,
+    host: str | None = None,
+    boot_id: str | None = None,
+) -> int:
+    """Compact the tail *source* has grown since the last pass; return rows added.
+
+    A running serve appends to its raw record for the life of the serve, so a
+    compaction that re-reads the whole file at every cadence spends almost all
+    of its time on rows it has already compacted -- and the cost grows with the
+    record rather than with the new data. This pass reads only what has arrived
+    since the last one and appends what it produces, so its cost is the tail's.
+
+    The state that makes that possible lives in *destination*'s watermark: the
+    byte offset the last pass left unread, and the counter reading of the row
+    just before it. A window is written only once it has closed -- when a row at
+    or after its end has been read -- so the window still filling is not written
+    and rewritten on every pass; *close* writes it too, which is what a segment
+    close or the end of a serve asks for. The rows written are the rows a full
+    compaction would write, in the same order, because every quantity is
+    computed from the same rows: a window's rows are all in the tail by the time
+    it closes, and the run state its opening carries is read from the row before
+    the tail.
+
+    A watermark is used only while it still describes this source: a different
+    file name or inode, a tier on another ladder, a tier that has been rewritten
+    behind it, or a tier shorter than the watermark records all recompact the
+    source in full into a fresh tier, because a watermark that no longer
+    describes its source would otherwise resume inside a record that is not
+    there. That is what makes a rolled record safe: the new segment arrives with
+    a new inode, and the pass that sees it starts the ladder's next contribution
+    rather than reading the old offset as its own.
+    """
+    if tier not in TIER_WINDOW_SECONDS:
+        raise TelemetryStoreError(f"no compaction window for tier {tier!r}")
+    window_seconds = TIER_WINDOW_SECONDS[tier]
+    src = Path(source)
+    dest = Path(destination)
+    try:
+        stat = src.stat()
+    except OSError as exc:
+        raise TelemetryStoreError(f"{source} cannot be read: {exc}") from exc
+    data = src.read_bytes()
+
+    mark = read_watermark(dest)
+    matching = False
+    if (
+        mark is not None
+        and mark.get("tier") == tier
+        and isinstance(mark.get("offset"), int)
+        and isinstance(mark.get("destination_size"), int)
+        and isinstance(mark.get(_EMITTED_THROUGH_KEY), (int, float))
+        and 0 <= mark["offset"] <= len(data)
+        and dest.is_file()
+    ):
+        try:
+            matching = dest.stat().st_size == mark["destination_size"]
+        except OSError:
+            matching = False
+
+    same_source = (
+        matching
+        and mark.get("source") == src.name
+        and mark.get("source_inode") == stat.st_ino
+    )
+    # A raw record that has rolled is the same ladder's next contribution: the
+    # closed segment was flushed under the old name and the open file is the
+    # same job's record one day on, so its rows are appended to the ladder and
+    # the closed segment's run state is carried into the new file's first
+    # window.
+    rolled = (
+        matching
+        and not same_source
+        and mark.get("source") != src.name
+        and _ladder_stem(str(mark.get("source") or "")) == _ladder_stem(src.name)
+    )
+
+    if same_source:
+        offset = mark["offset"]
+        context = _context_of(mark.get("context"))
+        emitted_through = float(mark[_EMITTED_THROUGH_KEY])
+    elif rolled:
+        offset = 0
+        context = _context_of(mark.get("context"))
+        emitted_through = 0.0
+    else:
+        offset = 0
+        context = None
+        emitted_through = 0.0
+    resumed = same_source or rolled
+
+    rows, safe_end = _complete_lines(data, offset)
+    fallback_host = host or os.uname().nodename
+    fallback_boot, _ = resolve_boot_id(local_boot_id() if boot_id is None else boot_id)
+
+    strides: dict[tuple[str, str, str | None], list[tuple[dict[str, Any], int]]] = {}
+    for row, start in rows:
+        recorded = row_host(row) or fallback_host
+        boot, _ = resolve_boot_id(row_boot_id(row) or fallback_boot)
+        strides.setdefault((recorded, boot, row_job_id(row)), []).append((row, start))
+
+    carry = context if context is not None else None
+    max_stamp = max((_parse_timestamp(row) for row, _ in rows), default=None)
+    horizon = None if max_stamp is None else max_stamp.timestamp()
+
+    emitted: list[dict[str, Any]] = []
+    pending_start: int | None = None
+    for key, group in strides.items():
+        recorded, boot, job = key
+        carried_here = carry is not None and tuple(carry["key"]) == key
+        runs: list[list[dict[str, Any]]] = []
+        previous: Any = None
+        carried_here = carried_here and telemetry_index.counter_run_continues(
+            (carry["key"], dict(carry["counters"])),
+            (key, _counter_reading(group[0][0])),
+        )
+        for row, _start in group:
+            current = (key, _counter_reading(row))
+            if not telemetry_index.counter_run_continues(previous, current):
+                runs.append([])
+            runs[-1].append(row)
+            previous = current
+        for index, run in enumerate(runs):
+            first = carried_here and index == 0
+            produced = _compact_run(
+                run,
+                tier,
+                recorded,
+                boot,
+                job,
+                window_seconds,
+                carried_seen=carry["counters"] if first else None,
+                carried_nominal=carry["nominal"] if first else None,
+            )
+            for row in produced:
+                opened = _window_start_epoch(row)
+                if opened < emitted_through:
+                    continue
+                closed_window = (
+                    horizon is not None and opened + window_seconds <= horizon
+                )
+                if close or closed_window:
+                    emitted.append(row)
+        for row, start in group:
+            opened = (
+                math.floor(_parse_timestamp(row).timestamp() / window_seconds)
+                * window_seconds
+            )
+            if (close or horizon is None or opened + window_seconds > horizon) and (
+                pending_start is None or start < pending_start
+            ):
+                pending_start = start
+
+    next_offset = safe_end if pending_start is None else pending_start
+    next_through = max(
+        [emitted_through]
+        + [_window_start_epoch(row) + window_seconds for row in emitted]
+    )
+
+    prior: tuple[dict[str, Any], int] | None = None
+    following: dict[str, Any] | None = None
+    for row, start in rows:
+        if start < next_offset:
+            prior = (row, start)
+        else:
+            following = row
+            break
+
+    if prior is None:
+        next_context = carry if offset == next_offset else None
+    else:
+        row = prior[0]
+        recorded = row_host(row) or fallback_host
+        boot, _ = resolve_boot_id(row_boot_id(row) or fallback_boot)
+        nominal = float(window_seconds)
+        if carry is not None:
+            nominal = carry["nominal"] or nominal
+        if following is not None:
+            gap = (
+                _parse_timestamp(following) - _parse_timestamp(row)
+            ).total_seconds()
+            if gap > 0:
+                nominal = gap
+        next_context = {
+            "key": (recorded, boot, row_job_id(row)),
+            "counters": _counter_reading(row),
+            "nominal": nominal,
+        }
+
+    text = "".join(
+        json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n" for row in emitted
+    )
+    if resumed and dest.is_file():
+        if text:
+            with dest.open("a", encoding="utf-8") as handle:
+                handle.write(text)
+    elif emitted or dest.is_file():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(text, encoding="utf-8")
+
+    if dest.is_file():
+        write_watermark(
+            dest,
+            {
+                "source": src.name,
+                "source_inode": stat.st_ino,
+                "source_size": len(data),
+                "destination_size": dest.stat().st_size,
+                "offset": next_offset,
+                _EMITTED_THROUGH_KEY: next_through,
+                "tier": tier,
+                "context": _context_document(next_context),
+            },
+        )
+    return len(emitted)
 
 
 def read_rows(path: str | Path) -> list[dict[str, Any]]:

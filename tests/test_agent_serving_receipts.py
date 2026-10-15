@@ -1019,7 +1019,11 @@ def test_record_receipts_compacts_its_record_between_samples(tmp_path: Path) -> 
     minute_rows = _read_rows(minute_path)
     assert len(minute_rows) == 1
     assert minute_rows[0]["tier"] == "minute"
-    assert minute_rows[0]["obs"] == {"samples": 2, "seconds": 10.0}
+    # The window's own coverage: the two raw ticks stand for five seconds each.
+    # The obs block also carries the per-leaf sample counts the store records
+    # for every gauge, which this assertion is not about.
+    assert minute_rows[0]["obs"]["samples"] == 2
+    assert minute_rows[0]["obs"]["seconds"] == 10.0
     hour_rows = _read_rows(hour_path)
     assert len(hour_rows) == 1
     assert hour_rows[0]["tier"] == "hour"
@@ -1522,3 +1526,84 @@ def test_the_reader_resolves_the_directory_the_serve_script_writes_to(
 
     assert str(resolved) in script, "the reader looks where nothing writes"
     assert resolved == site.receipts_dir
+
+
+def test_record_receipts_rolls_its_record_into_utc_day_segments(
+    tmp_path: Path,
+) -> None:
+    """A run that crosses midnight leaves one segment per UTC day.
+
+    The opened record is renamed at the day boundary and reopened, so the
+    closed segment keeps the rows that belong to its day and the open name
+    keeps only the new one. Both names resolve through ``tier_paths`` to the
+    same ladder, so the serve's tiers stay a single series across the roll.
+    """
+    receipts_path = tmp_path / "deepseek-v4-flash-1262921.jsonl"
+    minute_path, hour_path = sr.tier_paths(receipts_path)
+    segment = tmp_path / "deepseek-v4-flash-1262921.20260905.jsonl"
+
+    clock = iter([0.0, 5.0, 10.0, 15.0])
+    wall_clock = iter(
+        [
+            _dt.datetime(2026, 9, 5, 23, 59, 50, tzinfo=_dt.UTC),
+            _dt.datetime(2026, 9, 6, 0, 0, 5, tzinfo=_dt.UTC),
+            _dt.datetime(2026, 9, 6, 0, 0, 20, tzinfo=_dt.UTC),
+        ]
+    )
+    observed: list[dict[str, Any]] = []
+
+    def _slept(_seconds: float) -> None:
+        if observed:
+            return
+        observed.append(
+            {
+                "inode": receipts_path.stat().st_ino,
+                "tier_windows": (
+                    [row["window_start"] for row in _read_rows(minute_path)]
+                    if minute_path.is_file()
+                    else []
+                ),
+            }
+        )
+
+    with patch(
+        "urllib.request.urlopen", _stub_urlopen([SAMPLE_T0, SAMPLE_T1])
+    ):
+        rows_written = sr.record_receipts(
+            "http://98dci4-gpu-0003:18800",
+            receipts_path,
+            interval_s=5.0,
+            duration_s=15.0,
+            compaction_paths=(minute_path, hour_path),
+            compaction_interval_s=6.0,
+            sleep=_slept,
+            monotonic=lambda: next(clock),
+            now=lambda: next(wall_clock),
+        )
+
+    assert rows_written == 3
+    # Each row lands in the day it was sampled in: the 23:59:50 tick closes
+    # into its own segment, and the two ticks of the new day share the name
+    # the recorder reopened.
+    assert [row["timestamp"] for row in _read_rows(receipts_path)] == [
+        "2026-09-06T00:00:05+00:00",
+        "2026-09-06T00:00:20+00:00",
+    ]
+    closed = _read_rows(segment)
+    assert [row["timestamp"] for row in closed] == ["2026-09-05T23:59:50+00:00"]
+    # The rename carried the inode the recorder had been appending to, so the
+    # rows written before the boundary are the same bytes rather than copies.
+    assert segment.stat().st_ino == observed[0]["inode"]
+    assert receipts_path.stat().st_ino != observed[0]["inode"]
+    # One ladder for the job: every name of the record resolves to it.
+    assert sr.tier_paths(segment) == (minute_path, hour_path)
+    assert sr.tier_paths(receipts_path) == (minute_path, hour_path)
+    assert sr.receipts_job_id(segment) == "1262921"
+    assert sr.receipts_job_id(receipts_path) == "1262921"
+    assert sr.is_day_segment(segment) and not sr.is_day_segment(receipts_path)
+    # Both segments' closed windows reach one ladder: the window of the day
+    # that rolled survives the pass that reads the name it was renamed to,
+    # which a pass treating the segment as an unrelated source would wipe.
+    window_starts = [row["window_start"] for row in _read_rows(minute_path)]
+    assert "2026-09-05T23:59:00+00:00" in window_starts
+    assert observed[0]["inode"] != receipts_path.stat().st_ino
