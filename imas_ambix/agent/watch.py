@@ -28,6 +28,22 @@ peak-to-off-peak ratio. Prices are read from the local cache the workstation
 watcher already maintains; this reader never fetches, because a reader derives.
 With no cached table the cost column is dashed rather than guessed.
 
+**A period is priced segment by segment, over the price history.** The rate a
+provider charges for a model is not one number over a month: the endpoints
+serving it change, and each listing carries its own prices. So a period is
+split at each instant the history records a new endpoint listing for the
+served slug, and each segment's own tokens are totalled and priced at the
+median of the listing then in force. A period priced at one instant's median
+is wrong by however far the median moved inside it -- measured on the published
+document, a month reading that changed by a factor of three while nothing about
+our traffic did. A segment before the first recorded listing is priced at that
+first listing's median and says the rate was carried back, so a borrowed rate
+is never presented as an observed one. Where a segment's own total is
+unrecorded the period is priced as a single segment instead of dashing, and
+says so: a split must not turn a period that prices today into one that does
+not. The headline rate answers only where the listing's endpoints all declare
+fewer than eight bits, and the label counts the segments that fell back.
+
 **The cost printed is the realistic third-party estimate.** Our own cache is
 ours: one large prefix cache we control, which a hosted endpoint serving the
 same model would not have. So the figure prices input at the estimated
@@ -41,6 +57,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as _dt
+import itertools
 import json
 import sqlite3
 import time
@@ -140,6 +157,13 @@ THROTTLE_C = 84.0
 #: refresh interval while the estimate must survive it.
 ESTIMATE_FILENAME = "third-party-cache-rate.json"
 
+#: The pricing policies a period's cost can be derived under. The median of a
+#: slug's endpoint listing is the price a request is actually billed at; the
+#: headline is the blended cheapest route, often a narrow-quantisation
+#: endpoint, and it answers only where no listing survives the precision floor.
+PRICE_POLICY_MEDIAN = "provider median of >=8-bit endpoints"
+PRICE_POLICY_HEADLINE = "headline rate"
+
 
 @dataclasses.dataclass(frozen=True)
 class Period:
@@ -158,6 +182,15 @@ class Period:
     #: estimate is installed. Carried on the row so the JSON document and the
     #: text panel label the same figure the same way.
     cost_label: str | None = None
+    #: How many stretches of the period the cost was summed over. 1 is a period
+    #: priced in one go, whether because no listing changed inside it or
+    #: because its segment totals could not be recovered.
+    price_segments: int | None = None
+    #: The policy the figure was priced under: the endpoint listing's median, or
+    #: the headline rate where no endpoint survived the precision floor.
+    price_policy: str | None = None
+    #: The date the priced history begins, when the figure came from it.
+    price_history_from: str | None = None
 
     @property
     def cached_share(self) -> float | None:
@@ -461,6 +494,20 @@ def cost_label(estimate: CacheRateEstimate | None) -> str:
     return f"{label} {cited}".strip()
 
 
+def _cost_label(estimate: CacheRateEstimate | None, walk: PriceWalk | None) -> str:
+    """The label beside the figure: the estimate, then how the price was read.
+
+    The two halves answer different questions and are kept apart. The estimate
+    clause says which cache hit rate was assumed and where that rate came from;
+    the walk clause says which price the tokens were multiplied by, over how
+    much history, and whether the rate rested on anything the reader would
+    otherwise have to infer.
+    """
+    base = cost_label(estimate)
+    note = walk.note if walk is not None else ""
+    return f"{base} {note}".strip() if note else base
+
+
 def estimate_path(price_path: str | Path | None = None) -> Path:
     """The estimate record's path: the price table's directory, one filename.
 
@@ -616,6 +663,216 @@ def card_utilisation(
     return float(sum(readings) / len(readings))
 
 
+# ── the price history, walked segment by segment ─────────────────────
+
+
+def _utc_date(epoch: float) -> str:
+    """An epoch as the UTC calendar date the ledger labels a history with."""
+    return _dt.datetime.fromtimestamp(epoch, _dt.UTC).strftime("%Y-%m-%d")
+
+
+def _endpoint_listings(history: Sequence[dict] | None, slug: str) -> list[dict]:
+    """The endpoint listings recorded for *slug*, oldest first.
+
+    The history records a listing only when the prices in it moved, so each row
+    it holds is itself a change instant: the moments a period is split at are
+    the rows' own stamps, and no diff between adjacent rows is needed. The
+    headline rows the same history carries are not listings -- they record what
+    the model's blended route cost, not what the endpoints serving it charge --
+    and an unreadable stamp is left out rather than sorted as zero.
+    """
+    rows = [
+        row
+        for row in (history or ())
+        if isinstance(row, dict)
+        and row.get("id") == slug
+        and row.get("source") == "endpoints"
+        and not isinstance(row.get("at"), bool)
+        and isinstance(row.get("at"), (int, float))
+    ]
+    return sorted(rows, key=lambda row: float(row["at"]))
+
+
+def _endpoints_in_median(listing: dict) -> int:
+    """How many of a listing's endpoints the median was taken over.
+
+    The precision floor is the price history's own policy, read from the module
+    that owns it rather than restated: a count derived from a second copy of
+    the rule could disagree with the median printed beside it about which
+    endpoints were priced.
+    """
+    count = 0
+    for endpoint in listing.get("endpoints") or ():
+        if not isinstance(endpoint, dict):
+            continue
+        if provider_prices._declares_fewer_than_eight_bits(  # noqa: SLF001
+            endpoint.get("quantization")
+        ):
+            continue
+        if provider_prices.rates(endpoint.get("pricing")) is None:
+            continue
+        count += 1
+    return count
+
+
+def _segment_bounds(
+    start: float, end: float, changes: Sequence[float], *, hourly: bool
+) -> list[float]:
+    """The instants a period is cut at, ascending, ends included.
+
+    A change recorded inside the period cuts it; one recorded outside does not,
+    because the segment it would make is empty. Hour boundaries are cut only
+    for a price row that carries a schedule, where the rate in force can move
+    between one hour and the next without any listing changing.
+    """
+    marks = {start, end}
+    marks.update(at for at in changes if start < at < end)
+    if hourly:
+        boundary = (int(start // 3600) + 1) * 3600
+        while boundary < end:
+            marks.add(float(boundary))
+            boundary += 3600
+    return sorted(marks)
+
+
+@dataclasses.dataclass(frozen=True)
+class PriceWalk:
+    """One period's cost, and how the walk over the history arrived at it."""
+
+    cost: float | None
+    policy: str | None
+    segments: int | None
+    history_from: str | None
+    #: The clause appended to the cost label: what the policy was, how much
+    #: history it was read over, and anything the reader must not have to infer
+    #: -- a borrowed rate, a fallback, or a segmentation that did not happen.
+    note: str
+
+
+def _price_walk(
+    index: TelemetryIndex,
+    start: float,
+    end: float,
+    *,
+    history: Sequence[dict] | None,
+    slug: str,
+    price: dict,
+    estimate: CacheRateEstimate,
+    now: float,
+    tokens_in: float | None,
+    tokens_out: float | None,
+) -> PriceWalk:
+    """Price one period segment by segment over the recorded listings.
+
+    A segment's tokens are its own: the counters are cumulative, so each
+    stretch is totalled between its own bounds exactly as the whole period is,
+    and a serve that restarted inside a segment contributes what that run
+    carried. The median a segment is priced at is the one in force at the
+    segment's start, so a change takes effect from the instant it was recorded
+    rather than from the instant the render happened to run.
+    """
+    listings = _endpoint_listings(history, slug)
+    if not listings:
+        return PriceWalk(
+            cost=estimated_cost(
+                {"in": tokens_in, "out": tokens_out},
+                price_at(price, now),
+                estimate.rate,
+            ),
+            policy=PRICE_POLICY_HEADLINE,
+            segments=1,
+            history_from=None,
+            note=("no endpoint history: priced as one segment at the current headline"),
+        )
+
+    first_at = float(listings[0]["at"])
+    history_from = _utc_date(first_at)
+    closing = max(listings, key=lambda row: float(row["at"]))
+    listed = _endpoints_in_median(closing)
+    # A closing listing that precedes the period still answers for it: the
+    # rate carried back into the period is the first observation's own, and
+    # naming the count beside the policy is what tells the reader the figure
+    # rests on an older listing rather than on none.
+    if start < first_at:
+        listed = _endpoints_in_median(listings[0])
+    opening = (
+        f"policy {PRICE_POLICY_MEDIAN}, {listed} endpoints, history from {history_from}"
+    )
+
+    marks = _segment_bounds(
+        start,
+        end,
+        [float(row["at"]) for row in listings],
+        hourly=bool(price.get("schedule")),
+    )
+    segments = [
+        (
+            mark,
+            _span(index, PROMPT_TOKENS, mark, nxt),
+            _span(index, GENERATION_TOKENS, mark, nxt),
+        )
+        for mark, nxt in itertools.pairwise(marks)
+    ]
+    unrecorded = any(
+        in_tokens is None or out_tokens is None for _, in_tokens, out_tokens in segments
+    )
+    if unrecorded:
+        # A stretch whose own total is unrecorded is not a zero, and summing the
+        # segments that survive would publish a bill for traffic nothing
+        # measured. The period is priced in one go instead, at the median in
+        # force at its end, so the split declines rather than the row.
+        when = max(end, first_at)
+        rate = (
+            provider_prices.provider_median_in_force(history, slug, when)
+            or provider_prices.rate_in_force(history, slug, when)
+            or price_at(price, when)
+        )
+        return PriceWalk(
+            cost=estimated_cost(
+                {"in": tokens_in, "out": tokens_out}, rate, estimate.rate
+            ),
+            policy=PRICE_POLICY_MEDIAN,
+            segments=1,
+            history_from=history_from,
+            note=(
+                f"{opening}; segmentation not possible: a segment total is unrecorded"
+            ),
+        )
+
+    total = 0.0
+    carried_back = False
+    fell_back = 0
+    for mark, in_tokens, out_tokens in segments:
+        when = max(mark, first_at)
+        carried_back = carried_back or mark < first_at
+        rate = provider_prices.provider_median_in_force(history, slug, when)
+        if rate is None:
+            # Every endpoint in the listing declared fewer than eight bits, so
+            # the median was taken over nothing; the headline is the only price
+            # the history carries for this stretch.
+            rate = provider_prices.rate_in_force(history, slug, when)
+            fell_back += 1
+        if rate is None:
+            rate = price_at(price, when)
+        total += (
+            estimated_cost({"in": in_tokens, "out": out_tokens}, rate, estimate.rate)
+            or 0.0
+        )
+
+    notes = [opening]
+    if carried_back:
+        notes.append("first segment's rate carried back to the first listing")
+    if fell_back:
+        notes.append(f"{fell_back} segment(s) fell back to the headline")
+    return PriceWalk(
+        cost=total,
+        policy=PRICE_POLICY_MEDIAN,
+        segments=len(segments),
+        history_from=history_from,
+        note="; ".join(notes),
+    )
+
+
 def period_row(
     index: TelemetryIndex,
     start: float,
@@ -627,6 +884,7 @@ def period_row(
     prices: Sequence[dict] | None = None,
     model: str | None = None,
     estimate: CacheRateEstimate | None = None,
+    history: Sequence[dict] | None = None,
 ) -> Period | None:
     """One ledger row derived from the record, or ``None`` when unbacked.
 
@@ -646,15 +904,23 @@ def period_row(
     tokens_out = _span(index, GENERATION_TOKENS, start, end)
     cached = _cached_span(index, start, end)
 
-    cost = None
+    cost, walk = None, None
     if prices and estimate is not None:
         price = match_price(model or "", prices)
         if price is not None:
-            cost = estimated_cost(
-                {"in": tokens_in, "out": tokens_out},
-                price_at(price, now),
-                estimate.rate,
+            walk = _price_walk(
+                index,
+                start,
+                end,
+                history=history,
+                slug=str(price.get("slug") or ""),
+                price=price,
+                estimate=estimate,
+                now=now,
+                tokens_in=tokens_in,
+                tokens_out=tokens_out,
             )
+            cost = walk.cost
 
     covered = min(period, in_partition.coverage)
     return Period(
@@ -666,7 +932,10 @@ def period_row(
         tokens_out=tokens_out,
         utilisation=card_utilisation(index, start, end, stamps=stamps),
         cost=cost,
-        cost_label=cost_label(estimate),
+        cost_label=_cost_label(estimate, walk),
+        price_segments=None if walk is None else walk.segments,
+        price_policy=None if walk is None else walk.policy,
+        price_history_from=None if walk is None else walk.history_from,
     )
 
 
@@ -678,12 +947,17 @@ def ledger(
     prices: Sequence[dict] | None = None,
     model: str | None = None,
     estimate: CacheRateEstimate | None = None,
+    history: Sequence[dict] | None = None,
 ) -> list[Period]:
     """Every period the record spans, longest last.
 
     A longer period backed by the same few minutes of record as a shorter one
     is the first row relabelled, so it must be backed by
     :data:`MIN_PERIOD_COVERAGE` of itself once a shorter row exists.
+
+    *history* is the price history the periods are priced over, already read.
+    Every period walks the same rows, so it is read once by the caller rather
+    than per row.
     """
     when = time.time() if now is None else now
     rows: list[Period] = []
@@ -699,6 +973,7 @@ def ledger(
             prices=prices,
             model=model,
             estimate=estimate,
+            history=history,
         )
         if row is None:
             continue
@@ -900,6 +1175,7 @@ def render_document(
     now: float | None = None,
     prices: Sequence[dict] | None = None,
     estimate: CacheRateEstimate | None = None,
+    history: Sequence[dict] | None = None,
 ) -> str:
     """The whole reading as one text document, in rich markup."""
     when = time.time() if now is None else now
@@ -910,6 +1186,7 @@ def render_document(
         prices=prices,
         model=reading.get("model_id"),
         estimate=estimate,
+        history=history,
     )
     blocks = [render_index(index_status(index.path, when)), render_rail(reading)]
     cards = render_cards(index, when)
@@ -919,19 +1196,49 @@ def render_document(
     return "\n".join(blocks)
 
 
-def _owned_prices() -> tuple[list[float | dict] | None, float | None]:
+def _served_slugs(model: str | None) -> tuple[str, ...]:
+    """The provider slugs a refresh should fetch an endpoints listing for.
+
+    The refresh takes the slugs to fetch as an argument, so the served model
+    has to be resolved to a provider slug before it runs. The only table that
+    can answer that is the one already written: the rows the fetch is about to
+    return do not exist yet. A first run, with no table on disk, therefore
+    names no slug, and no listing is fetched for a model this render could not
+    have matched; the listing arrives on the next refresh, once there is a
+    table to match against.
+    """
+    table = load_prices()
+    if not model or not table:
+        return ()
+    price = match_price(model, table)
+    slug = str(price.get("slug") or "") if price else ""
+    return (slug,) if slug and slug != "?" else ()
+
+
+def _owned_prices(
+    model: str | None = None,
+) -> tuple[list[float | dict] | None, float | None]:
     """Refresh the owned price table, then read it back.
 
-    The full render path calls this once. The owning module decides whether a
-    fetch is due, so a render waits at most the module's fetch bound and the
-    reader never fetches on its own account. The age returned is the age of
-    the table that was read, so a kept cache is reported at its true age
-    rather than as fresh.
+    The full render path calls this once, naming the model the serve reports,
+    so the refresh records the endpoints listing this render prices against.
+    The owning module decides whether a fetch is due, so a render waits at most
+    the module's fetch bound and the reader never fetches on its own account.
+    The age returned is the age of the table that was read, so a kept cache is
+    reported at its true age rather than as fresh.
     """
-    from imas_ambix.agent import provider_prices
-
-    outcome = provider_prices.refresh()
+    outcome = provider_prices.refresh(slugs=_served_slugs(model))
     return load_prices(outcome.path), outcome.age
+
+
+def _owned_history() -> list[dict]:
+    """The price history beside the owned table, read against that table.
+
+    Resolved through the table's own path, so a reader pointed at a table
+    elsewhere -- a fixture, a second deployment -- reads the history that
+    belongs to it rather than whatever sits at the site's default location.
+    """
+    return provider_prices.read_history(provider_prices.history_path())
 
 
 def _installed_estimate() -> CacheRateEstimate | None:
@@ -973,14 +1280,19 @@ def watch_text(
     status = index_status(target, when)
     if not status["exists"]:
         return _plain(render_index(status), width=width)
-    if prices is None:
-        prices, _ = _owned_prices()
-    if estimate is None:
-        estimate = _installed_estimate()
     try:
         with TelemetryIndex.readonly(target, timeout=timeout) as index:
+            if prices is None:
+                model = _latest_reading(index, when).get("model_id")
+                prices, _ = _owned_prices(model)
+            if estimate is None:
+                estimate = _installed_estimate()
             document = render_document(
-                index, now=when, prices=prices, estimate=estimate
+                index,
+                now=when,
+                prices=prices,
+                estimate=estimate,
+                history=_owned_history(),
             )
     except sqlite3.DatabaseError as error:
         status["readable"] = False
@@ -997,6 +1309,7 @@ def document(
     prices: Sequence[dict] | None = None,
     price_age: float | None = None,
     estimate: CacheRateEstimate | None = None,
+    history: Sequence[dict] | None = None,
 ) -> dict:
     """The same figures :func:`render_document` prints, as plain data.
 
@@ -1007,7 +1320,9 @@ def document(
     consumer renders cost from the document rather than reaching for the
     table itself. Each period row carries its ``cost`` figure and the
     ``cost_label`` beside it, so a JSON consumer labels the figure the way the
-    panel does.
+    panel does, and carries ``price_segments``, ``price_policy`` and
+    ``price_history_from`` so it can tell a period priced over the recorded
+    listings from one priced at a single instant.
     """
     when = time.time() if now is None else now
     reading = _latest_reading(index, when)
@@ -1018,6 +1333,7 @@ def document(
         prices=prices,
         model=reading.get("model_id"),
         estimate=estimate,
+        history=history,
     )
     return {
         "record": reading,
@@ -1092,7 +1408,8 @@ def watch_document(
         try:
             with TelemetryIndex.readonly(target, timeout=timeout) as index:
                 if prices is None:
-                    prices, age = _owned_prices()
+                    model = _latest_reading(index, when).get("model_id")
+                    prices, age = _owned_prices(model)
                     if price_age is None:
                         price_age = age
                 if estimate is None:
@@ -1103,6 +1420,7 @@ def watch_document(
                     prices=prices,
                     price_age=price_age,
                     estimate=estimate,
+                    history=_owned_history(),
                 )
             status["readable"] = True
         except sqlite3.DatabaseError as error:
