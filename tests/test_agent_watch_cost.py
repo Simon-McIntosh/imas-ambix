@@ -758,6 +758,130 @@ def test_a_scheduled_price_row_is_priced_hour_by_hour(tmp_path: Path) -> None:
     index.close()
 
 
+def test_the_index_reads_follow_the_listings_not_the_hours(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Hours inside one listing are totalled in one read, whatever the span.
+
+    A scheduled row cuts its period at every hour boundary, so walking the
+    cuts one by one reads the index once per hour per counter and a longer
+    period costs more. The rate in force is fixed between two listings, so the
+    hours of one listing's stretch are totalled together: more hours over one
+    listing cost the same reads.
+    """
+    base = float(int(_dt.datetime.now(_dt.UTC).timestamp() // HOUR) * HOUR) - 48 * HOUR
+    now = base + 48 * HOUR
+    rows = [(base + HOUR * k + 300, 10_000 * k, 1_000 * k) for k in range(1, 49)]
+    index = _segmented_index(tmp_path, rows)
+    history = [_listing(base - HOUR, WIDE_A)]
+    scheduled = {
+        **PRICE_ROW,
+        "pricing": {
+            "prompt": 1e-5,
+            "completion": 2e-5,
+            "input_cache_read": 1e-6,
+            "overrides": [
+                {
+                    "prompt": 5e-5,
+                    "completion": 10e-5,
+                    "input_cache_read": 5e-6,
+                    "utc_start": 0,
+                    "utc_end": 2359,
+                }
+            ],
+        },
+    }
+
+    reads: list[tuple[str, float, float]] = []
+    original = watch._span
+
+    def counted(inner: TelemetryIndex, name: str, start: float, end: float):
+        reads.append((name, start, end))
+        return original(inner, name, start, end)
+
+    monkeypatch.setattr(watch, "_span", counted)
+
+    def period_reads(hours: float) -> int:
+        reads.clear()
+        watch.ledger(
+            index,
+            now=now,
+            periods=((hours * HOUR, "span"),),
+            prices=[scheduled],
+            model="deepseek-v4-flash",
+            estimate=_estimate(),
+            history=history,
+        )
+        return len(reads)
+
+    assert period_reads(48) == period_reads(12)
+    assert period_reads(48) < 10
+    index.close()
+
+
+def test_a_day_priced_only_by_a_schedule_costs_its_hours_one_by_one(
+    tmp_path: Path,
+) -> None:
+    """When the only rate on offer is a time-of-day window, it moves hourly.
+
+    No listing here yields a median -- every endpoint in it is below the
+    precision floor -- and the history carries no headline to borrow, so each
+    hour is priced at the window open then. Those hours sit under one listing,
+    so a walk that totalled them together would price the whole day at the
+    first hour's rate. The day is asserted against its own 24 hours, each
+    rendered on its own: a period is the sum of the periods it is cut into.
+    """
+    base = _dt.datetime(2026, 10, 14, tzinfo=_dt.UTC).timestamp()
+    now = base + 24 * HOUR
+    rows = [
+        (base + HOUR * k + 300, 100_000 * (2 * k), 10_000 * (2 * k)) for k in range(24)
+    ]
+    rows += [
+        (base + HOUR * k + 3300, 100_000 * (2 * k + 1), 10_000 * (2 * k + 1))
+        for k in range(24)
+    ]
+    index = _segmented_index(tmp_path, sorted(rows))
+    history = [_listing(base - HOUR, (), narrow=True)]
+    scheduled = {
+        **PRICE_ROW,
+        "pricing": {
+            "prompt": 1e-5,
+            "completion": 2e-5,
+            "input_cache_read": 1e-6,
+            "overrides": [
+                {
+                    "prompt": 5e-5,
+                    "completion": 10e-5,
+                    "input_cache_read": 5e-6,
+                    "utc_start": 900,
+                    "utc_end": 1700,
+                }
+            ],
+        },
+    }
+
+    def priced(start: float, end: float) -> float:
+        row = watch.period_row(
+            index,
+            start,
+            end,
+            label="span",
+            period=end - start,
+            now=end,
+            prices=[scheduled],
+            model="deepseek-v4-flash",
+            estimate=_estimate(),
+            history=history,
+        )
+        assert row is not None and row.cost is not None
+        return row.cost
+
+    day = priced(base, now)
+    hours = sum(priced(base + HOUR * k, base + HOUR * (k + 1)) for k in range(24))
+    assert day == pytest.approx(hours)
+    index.close()
+
+
 def test_the_json_period_row_carries_the_segmentation_figures(tmp_path: Path) -> None:
     """The document states the policy, the segment count and the history's start."""
     now = _dt.datetime.now(_dt.UTC).timestamp()
