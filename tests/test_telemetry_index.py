@@ -1936,3 +1936,26 @@ def test_a_retirement_and_vacuum_shrink_the_index_file(tmp_path):
         after = path.stat().st_size
 
     assert after < before, f"the index did not shrink: {before} -> {after}"
+
+
+def test_retirement_and_tier_deselection_share_source_deletion(tmp_path, monkeypatch):
+    """Both paths discard a source through the same sample and source delete."""
+    raw = tmp_path / "deepseek-v4-1-flash-1273253.jsonl"
+    _write(raw, [_token_row(0, generation=1.0, prompt=2.0, uncached=3.0)])
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([raw])
+        calls = []
+        delete = index._delete_source_rows
+
+        def spy(row):
+            calls.append(row["path"])
+            delete(row)
+
+        monkeypatch.setattr(index, "_delete_source_rows", spy)
+        assert index.forget([raw]) == 1
+        assert index.sample_count() == 0
+        index.ingest([raw])
+        assert index.sample_count() == 1
+        index._drop_deselected_tiers({"1273253": "minute"})
+        assert index.sample_count() == 0
+        assert calls == [str(raw), str(raw)]

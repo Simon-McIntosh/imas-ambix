@@ -46,6 +46,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import datetime as _dt
+import logging
 import sqlite3
 import time
 from typing import TYPE_CHECKING, Any
@@ -71,15 +72,16 @@ DEFAULT_CADENCE_SECONDS = 60.0
 #: moves on the day scale, so a listing more often costs whole-record reads for
 #: a list that cannot have grown.
 DEFAULT_RETENTION_INTERVAL_SECONDS = 24 * 60 * 60.0
+_LOG = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
 class RetentionReport:
     """What one scheduled retirement pass did, or why it did nothing.
 
-    ``ran`` is false when the pass was not yet due. ``error`` carries the reason
-    a bounded liveness read refused -- a scheduler that timed out or declined --
-    in which case nothing was listed and nothing was removed.
+    ``ran`` is false when the pass was not yet due. ``error`` carries a pass
+    failure, which is logged and contained so ingest keeps indexing.
+    ``vacuum_owed`` persists a failed vacuum into the next scheduled pass.
     """
 
     ran: bool
@@ -87,6 +89,7 @@ class RetentionReport:
     removed: tuple[Path, ...] = ()
     skipped: tuple[tuple[Path, str], ...] = ()
     error: str | None = None
+    vacuum_owed: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -95,6 +98,7 @@ class RetentionReport:
             "removed": [str(path) for path in self.removed],
             "skipped": [[str(path), reason] for path, reason in self.skipped],
             "error": self.error,
+            "vacuum_owed": self.vacuum_owed,
         }
 
 
@@ -106,41 +110,63 @@ def retention_pass(
     older_than_days: float = telemetry_retention.DEFAULT_OLDER_THAN_DAYS,
     now: float | None = None,
     running: RunningProvider | None = None,
+    vacuum_owed: bool = False,
 ) -> RetentionReport:
     """List eligible raw receipts, apply the manifest, and give the space back.
 
     The listing rebuilds an ended job's tiers before it judges them, deletes
     only a file that still matches the manifest's digests, and never a tier. A
-    scheduler read that refuses raises out of the listing; it is caught here so
-    a timed-out or declined liveness query makes the pass retire nothing rather
-    than end the loop -- an absent reading is not an empty job table.
+    scheduler read that refuses is caught here, so an absent answer is never
+    read as an empty job table. Errors before apply retire nothing and are
+    logged here so a failed pass never ends the ingest loop.
 
     When a retirement removed something, the index drops the retired sources'
     rows and is vacuumed, so the space a deleted file's samples held returns to
-    the filesystem rather than sitting as free pages SQLite does not reclaim.
+    the filesystem. A locked vacuum leaves the retirement applied and is retried
+    on the next pass even when that pass finds no eligible file.
     """
+    manifest: Path | None = None
+    removed: tuple[Path, ...] = ()
+    skipped: tuple[tuple[Path, str], ...] = ()
+    error: Exception | None = None
     try:
         result = telemetry_retention.scan(
             directory, older_than_days=older_than_days, now=now, running=running
         )
-        if not result.eligible:
-            return RetentionReport(ran=True)
-        manifest = telemetry_retention.write_manifest(
-            result, manifest_dir=manifest_dir, now=now
-        )
-        report: ApplyReport = telemetry_retention.apply_manifest(
-            manifest, now=now, running=running
-        )
-    except RuntimeError as error:
-        return RetentionReport(ran=True, error=str(error))
-    if report.removed:
-        index.forget(report.removed)
-        index.vacuum()
+        if result.eligible:
+            manifest = telemetry_retention.write_manifest(
+                result, manifest_dir=manifest_dir, now=now
+            )
+            report: ApplyReport = telemetry_retention.apply_manifest(
+                manifest, now=now, running=running
+            )
+            removed, skipped = report.removed, report.skipped
+    except Exception as exc:
+        error = exc
+    forget_succeeded = True
+    if removed:
+        vacuum_owed = True
+        try:
+            index.forget(removed)
+        except Exception as exc:
+            error = error or exc
+            forget_succeeded = False
+    if vacuum_owed and forget_succeeded:
+        try:
+            index.vacuum()
+        except Exception as exc:
+            error = error or exc
+        else:
+            vacuum_owed = False
+    if error is not None:
+        _LOG.error("telemetry retention pass failed: %s", error)
     return RetentionReport(
         ran=True,
         manifest_path=manifest,
-        removed=report.removed,
-        skipped=report.skipped,
+        removed=removed,
+        skipped=skipped,
+        error=None if error is None else str(error),
+        vacuum_owed=vacuum_owed,
     )
 
 
@@ -168,6 +194,7 @@ class ScheduledRetention:
     running: RunningProvider | None = None
     last_report: RetentionReport | None = dataclasses.field(default=None, init=False)
     _last_run: float | None = dataclasses.field(default=None, init=False)
+    _vacuum_owed: bool = dataclasses.field(default=False, init=False)
 
     def due(self, now: float | None = None) -> bool:
         moment = self.clock() if now is None else float(now)
@@ -187,7 +214,9 @@ class ScheduledRetention:
             older_than_days=self.older_than_days,
             now=moment,
             running=self.running,
+            vacuum_owed=self._vacuum_owed,
         )
+        self._vacuum_owed = report.vacuum_owed
         self.last_report = report
         return report
 
@@ -486,9 +515,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """
     args = _parser().parse_args(argv)
     index = TelemetryIndex(args.index_path)
-    retention = (
-        ScheduledRetention(index, args.record_dir) if args.retention else None
-    )
+    retention = ScheduledRetention(index, args.record_dir) if args.retention else None
     try:
         run(
             index,

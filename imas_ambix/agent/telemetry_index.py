@@ -1004,20 +1004,28 @@ class TelemetryIndex:
         removed = 0
         for path in paths:
             rows = self._conn.execute(
-                "SELECT host, inode FROM source WHERE path = ?", (str(path),)
+                "SELECT host, boot_id, path, inode FROM source WHERE path = ?",
+                (str(path),),
             ).fetchall()
             with self._conn:
                 for row in rows:
-                    self._conn.execute(
-                        "DELETE FROM sample WHERE host = ? AND inode = ?",
-                        (row["host"], row["inode"]),
-                    )
-                    self._conn.execute(
-                        "DELETE FROM source WHERE host = ? AND inode = ?",
-                        (row["host"], row["inode"]),
-                    )
+                    self._delete_source_rows(row)
                     removed += 1
         return removed
+
+    def _delete_source_rows(self, row: sqlite3.Row) -> None:
+        """Delete one source and only the samples attributed to that source."""
+        identity = (row["host"], row["boot_id"], row["path"], row["inode"])
+        self._conn.execute(
+            "DELETE FROM sample WHERE host = ? AND boot_id = ? "
+            "AND path = ? AND inode = ?",
+            identity,
+        )
+        self._conn.execute(
+            "DELETE FROM source WHERE host = ? AND boot_id = ? "
+            "AND path = ? AND inode = ?",
+            identity,
+        )
 
     def vacuum(self) -> None:
         """Return the index file's free pages to the filesystem.
@@ -1288,7 +1296,9 @@ class TelemetryIndex:
         against a tier nobody selected, and a source whose name carries no job
         takes no tier and is never dropped.
         """
-        rows = self._conn.execute("SELECT host, path, inode FROM source").fetchall()
+        rows = self._conn.execute(
+            "SELECT host, boot_id, path, inode FROM source"
+        ).fetchall()
         with self._conn:
             for row in rows:
                 info = receipts_tier(row["path"])
@@ -1298,14 +1308,7 @@ class TelemetryIndex:
                 selected = chosen.get(job)
                 if selected is None or tier == selected:
                     continue
-                self._conn.execute(
-                    "DELETE FROM sample WHERE host = ? AND inode = ?",
-                    (row["host"], row["inode"]),
-                )
-                self._conn.execute(
-                    "DELETE FROM source WHERE host = ? AND path = ? AND inode = ?",
-                    (row["host"], row["path"], row["inode"]),
-                )
+                self._delete_source_rows(row)
 
     def _resumed_row(self, path: Path, inode: int) -> sqlite3.Row | None:
         """The source row this file resumes from, or ``None`` if it has none.

@@ -1,7 +1,7 @@
 """Retire raw serving receipts once their compacted siblings are proven equal.
 
-A raw receipt file grows about 8.7 MB a day and never rolls, so the record
-outlives any single serve by a long way. Once its minute and hour compactions
+A raw receipt grows about 8.7 MB a day and rolls into closed day segments.
+Once its minute and hour compactions
 reproduce the raw file's own totals window by window, the raw bytes are the only
 copy of nothing the coarser tiers do not already carry, and the file may be
 retired.
@@ -389,7 +389,7 @@ def rebuild_job_tiers(
     host: str | None = None,
     boot_id: str | None = None,
 ) -> bool:
-    """Rebuild *job_id*'s installed minute and hour tiers from its whole record.
+    """Rebuild a job's present raw windows while retaining retired-day tiers.
 
     An ended job's tiers can disagree with its raw record for two reasons the
     investigation of job 1278105 found: a recorder that stopped between passes
@@ -397,8 +397,10 @@ def rebuild_job_tiers(
     compacted before rows carried an opening block lose the first hour's
     opening advance. Both are cured by rebuilding rather than by trusting the
     installed tiers, so before the record of an ended job is compared the tiers
-    are re-derived from every one of that job's files -- its day segments in
-    date order and its open record -- read into one row stream.
+    are re-derived from every raw file still present -- its day segments in
+    date order and its open record -- read into one row stream. Windows outside
+    each present file's own span remain as installed, including retired days
+    between two present segments.
 
     The minute tier is compacted from the raw rows and the hour tier from the
     minute rows, the same two-level ladder the recorder builds, so a rebuilt
@@ -413,11 +415,22 @@ def rebuild_job_tiers(
     """
     raw_files = _job_record_files(files, job_id)
     rows: list[dict] = []
+    covered: dict[str, set[int]] = {TIER_MINUTE: set(), TIER_HOUR: set()}
     for path in raw_files:
         try:
-            rows.extend(read_rows(path))
+            source_rows = read_rows(path)
         except (OSError, TelemetryStoreError):
             return False
+        stamps = [
+            stamp for row in source_rows if (stamp := _timestamp_of(row)) is not None
+        ]
+        if not stamps:
+            return False
+        for tier, width in ((TIER_MINUTE, 60), (TIER_HOUR, 3600)):
+            first = int(min(stamps) // width)
+            last = int(max(stamps) // width)
+            covered[tier].update(range(first, last + 1))
+        rows.extend(source_rows)
     if not rows:
         return False
     rows.sort(key=lambda row: _timestamp_of(row) or 0.0)
@@ -426,10 +439,20 @@ def rebuild_job_tiers(
         list(minute_rows), tier=TIER_HOUR, host=host, boot_id=boot_id
     )
     minute_path, hour_path = tier_paths(raw_files[0])
-    for tier_rows, destination in (
-        (minute_rows, minute_path),
-        (hour_rows, hour_path),
+    for tier, width, tier_rows, destination in (
+        (TIER_MINUTE, 60, minute_rows, minute_path),
+        (TIER_HOUR, 3600, hour_rows, hour_path),
     ):
+        if destination.exists():
+            retained = [
+                row
+                for row in read_rows(destination)
+                if (stamp := _timestamp_of(row)) is None
+                or int(stamp // width) not in covered[tier]
+            ]
+            tier_rows = sorted(
+                [*retained, *tier_rows], key=lambda row: _timestamp_of(row) or 0.0
+            )
         staging = _scratch_path(destination)
         write_rows(staging, tier_rows)
         os.replace(staging, destination)
@@ -714,9 +737,7 @@ def compare_tiers(
                 continue
             compared_pairs += 1
             compared_hours.add(index)
-            if not (
-                tier_totals["raw"] == tier_totals["minute"] == tier_totals["hour"]
-            ):
+            if not (tier_totals["raw"] == tier_totals["minute"] == tier_totals["hour"]):
                 agrees = False
         comparisons.append(
             CounterComparison(
