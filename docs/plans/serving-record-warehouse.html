@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;implementable&quot;,&quot;s22&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="248">
+<meta name="plan-version" content="249">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -1644,6 +1644,9 @@
 </div>
 <div class="r-comment" data-section="s20" data-id="c-close-s20" data-who="reckon-build" data-when="2026-10-15T08:55:00Z">
     <div class="r-comment-body"><p>§20 landed: request receipts roll into UTC day files, compressed after two whole days, read through one shared reader (commit <code>8f300da4</code>, merged <code>a7409495</code>); 44 + 126 tests pass; review 112/120. It takes effect at the next router restart. <a href="/imas-ambix/evidence/archive/serving-record-warehouse-landed.html#s20">evidence</a></p></div>
+</div>
+<div class="r-comment" data-section="s20" data-id="c-run-r-20261015T074658094819-srw-request-receipts-roll-daily" data-who="reckon-build" data-when="2026-10-15T08:25:39.057Z">
+    <div class="r-comment-body"><p>Router request receipts now roll into UTC day files compressed once two whole days old, read back through one shared reader; measured 44 passed in tests/test_request_receipts.py plus tests/test_agent_receipt_bins.py and 126 passed across tests/test_agent_router*.py, with the whole-tree ruff check clean</p></div>
 </div>
 </section>
 </main>
