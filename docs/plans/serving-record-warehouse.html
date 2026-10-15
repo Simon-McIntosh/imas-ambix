@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;implementable&quot;,&quot;s22&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="249">
+<meta name="plan-version" content="250">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -1647,6 +1647,9 @@
 </div>
 <div class="r-comment" data-section="s20" data-id="c-run-r-20261015T074658094819-srw-request-receipts-roll-daily" data-who="reckon-build" data-when="2026-10-15T08:25:39.057Z">
     <div class="r-comment-body"><p>Router request receipts now roll into UTC day files compressed once two whole days old, read back through one shared reader; measured 44 passed in tests/test_request_receipts.py plus tests/test_agent_receipt_bins.py and 126 passed across tests/test_agent_router*.py, with the whole-tree ruff check clean</p></div>
+</div>
+<div class="r-comment" data-section="s20" data-id="c-run-r-20261015T082859756718-review-of-srw-request-receipts-roll-daily-8f300da4c8e8" data-who="reckon-build" data-when="2026-10-15T08:51:16.309Z">
+    <div class="r-comment-body"><p>Reviewed r-20261015T074658094819-srw-request-receipts-roll-daily at head 8f300da4 against base fcb2096b; goal met, both named gates re-run green (44 passed receipts, 126 passed router), one follow-on finding that the delegated reader under-reads when handed the legacy file path; stored a parsed record scoring all 6 dimensions.</p></div>
 </div>
 </section>
 </main>

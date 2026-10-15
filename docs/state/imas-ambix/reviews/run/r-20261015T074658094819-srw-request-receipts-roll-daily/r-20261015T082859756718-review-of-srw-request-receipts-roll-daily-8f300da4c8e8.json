@@ -1,0 +1,59 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "basis: the reviewed run's manifest declares both baseline_suite and after_suite null (see its classification.json manifest.data), so neither arm exists to difference against; its recorded head gates are receipts-gate.log ('44 passed in 1.16s') and router-gate.log ('126 passed in 26.85s'), and I re-ran both at reviewed head 8f300da4 with the same result (44 passed in 1.25s, 126 passed in 26.70s, EXIT=0) and no FAILED or ERROR line, so the head adds no failing test. added_failure_count is 0 by construction, not by a differenced measurement.",
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/router.py:1756",
+    "imas_ambix/agent/router.py:2570",
+    "imas_ambix/agent/request_receipts.py:734"
+  ],
+  "completed_at": "2026-10-15T08:51:16.309Z",
+  "dispatched_at": "2026-10-15T08:29:16Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/receipt_bins.py",
+      "line": "83",
+      "severity": "follow-on",
+      "text": "FINDING imas_ambix/agent/receipt_bins.py:83 follow-on: the delegated reader treats a file argument as a single file and only a directory argument as the rolled set, so a caller that keeps handing the legacy path (the parameter is named receipts_path on both this function and collect_receipt_bins at imas_ambix/agent/receipt_bins.py:95, and the two analysis scripts docs/figures/b300-serving-projection/serve_census.py:148 and docs/figures/local-lane-occupancy/request_width_measure.py:38 hold that path) now silently reads one day of the record after the roll instead of the whole record, with no error to show the under-read; the deployed record only comes back whole when the directory is passed, which the manifest's follow_on records but no code enforces."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_aggregate_note": "five checklist verdicts plus the call-sites verdict",
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s): the router derives the receipts path and the roll flag at imas_ambix/agent/router.py:1756 and builds the sink at :2570, whose write path is imas_ambix/agent/request_receipts.py:734; the shared reader imas_ambix/agent/request_receipts.py:549 has no production caller (imas_ambix/agent/receipt_bins.py:83 is reached only from collect_receipt_bins, which is test-only, and imas_ambix/agent/telemetry_index.py:1741 supplies rows from its index to summarise_receipt_rows, not the path reader).",
+    "diff": "read 8f300da4 against base fcb2096b commit by commit; one commit, five files (+389/-33), all inside the declared scope, the production change in imas_ambix/agent/request_receipts.py, router.py and receipt_bins.py and the rest in the two test files.",
+    "done_when": "the done_when names tests/test_request_receipts.py and tests/test_agent_receipt_bins.py for the five roll/age/read/bin assertions and tests/test_agent_router*.py for the sink importers; the manifest records 44 passed and 126 passed and I re-ran both at 8f300da4 (44 passed in 1.25s; 126 passed in 26.70s, EXIT=0), with the midnight, age, reader-order, bin-equality and delegation assertions each present in the diff.",
+    "goal": "the goal is that request receipts roll into UTC day files, closed days compress, and every reader reads the rolled set through one shared reader; imas_ambix/agent/request_receipts.py:479 day_file_path and the sink at :734 land the roll, :575 compress_closed_day_files ages the closed days, :549 read_receipt_rows is the shared reader, and imas_ambix/agent/receipt_bins.py:83 delegates to it, so the goal is met.",
+    "manifest": "read r-20261015T074658094819-srw-request-receipts-roll-daily/manifest.md; it records both gate commands and results, the negative-control log at EXIT=1, the call-site list, and its baseline_suite and after_suite are null so no base arm exists to difference against.",
+    "write_paths": "read the manifest's declared paths (the three source files, the two test files, the docs evidence fragment and the figures dir); every path in the diff is inside them and the docs fragment and figures dir are unused."
+  },
+  "justifications": {
+    "durability": "tests/test_request_receipts.py:337 fails if the age rule compresses a file younger than two closed days, which the reviewed negative-control log demonstrates red at EXIT=1, and tests/test_agent_receipt_bins.py:260 fails if imas_ambix/agent/receipt_bins.py:83 stops delegating, so the two load-bearing assertions name a condition under which each reddens.",
+    "evidence": "the reviewed manifest records the gate at receipts 44 passed and router 126 passed and I reproduced both at reviewed head 8f300da4 (receipts-gate 44 passed in 1.25s, router 126 passed in 26.70s, EXIT=0), so the done_when measure is recorded and independently re-read; the reviewed run declares no baseline_suite or after_suite arm, so the gate is a head-only result rather than a differenced one.",
+    "fit": "imas_ambix/agent/request_receipts.py:470-596 keep the module's docstring-and-constant idiom and add only mechanism-named helpers (day_file_path, compress_closed_day_files, read_receipt_rows) with no plan, phase, ticket or version label in any added name or comment.",
+    "goal_fidelity": "imas_ambix/agent/router.py:1756 and :2572 pass roll_daily=True only for the derived beside-the-lane-document path, and imas_ambix/agent/request_receipts.py:734 writes each row to the day file for its own UTC day and sweeps aged files, which is the roll, the ageing and the shared reader the goal names.",
+    "reuse": "the repository owns no rolled-set reader or day-file compressor, so the search over imas_ambix/agent (gzip appears only as HTTP content decoding in imas_ambix/agent/lane.py:543) found no owner to extend, and the change removed the one prior opener by making imas_ambix/agent/receipt_bins.py:83 delegate rather than keep its own copy.",
+    "scope_discipline": "the diff against base fcb2096b touches only imas_ambix/agent/request_receipts.py, imas_ambix/agent/router.py, imas_ambix/agent/receipt_bins.py, tests/test_request_receipts.py and tests/test_agent_receipt_bins.py, all declared, with the declared docs evidence fragment and figures dir left unwritten."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the goal is that request receipts roll into UTC day files, closed days compress, and every reader reads the rolled set through one shared reader; imas_ambix/agent/request_receipts.py:479 day_file_path and the sink at :734 land the roll, :575 compress_closed_day_files ages the closed days, :549 read_receipt_rows is the shared reader, and imas_ambix/agent/receipt_bins.py:83 delegates to it, so the goal is met.\nVERDICT done_when: the done_when names tests/test_request_receipts.py and tests/test_agent_receipt_bins.py for the five roll/age/read/bin assertions and tests/test_agent_router*.py for the sink importers; the manifest records 44 passed and 126 passed and I re-ran both at 8f300da4 (44 passed in 1.25s; 126 passed in 26.70s, EXIT=0), with the midnight, age, reader-order, bin-equality and delegation assertions each present in the diff.\nVERDICT write_paths: read the manifest's declared paths (the three source files, the two test files, the docs evidence fragment and the figures dir); every path in the diff is inside them and the docs fragment and figures dir are unused.\nVERDICT manifest: read r-20261015T074658094819-srw-request-receipts-roll-daily/manifest.md; it records both gate commands and results, the negative-control log at EXIT=1, the call-site list, and its baseline_suite and after_suite are null so no base arm exists to difference against.\nVERDICT diff: read 8f300da4 against base fcb2096b commit by commit; one commit, five files (+389/-33), all inside the declared scope, the production change in imas_ambix/agent/request_receipts.py, router.py and receipt_bins.py and the rest in the two test files.\nCALL_SITES: imas_ambix/agent/router.py:1756, imas_ambix/agent/router.py:2570, imas_ambix/agent/request_receipts.py:734\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/router.py:1756 and :2572 pass roll_daily=True only for the derived beside-the-lane-document path, and imas_ambix/agent/request_receipts.py:734 writes each row to the day file for its own UTC day and sweeps aged files, which is the roll, the ageing and the shared reader the goal names.\nSCORE evidence: 18\nJUSTIFICATION evidence: the reviewed manifest records the gate at receipts 44 passed and router 126 passed and I reproduced both at reviewed head 8f300da4 (receipts-gate 44 passed in 1.25s, router 126 passed in 26.70s, EXIT=0), so the done_when measure is recorded and independently re-read; the reviewed run declares no baseline_suite or after_suite arm, so the gate is a head-only result rather than a differenced one.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: the diff against base fcb2096b touches only imas_ambix/agent/request_receipts.py, imas_ambix/agent/router.py, imas_ambix/agent/receipt_bins.py, tests/test_request_receipts.py and tests/test_agent_receipt_bins.py, all declared, with the declared docs evidence fragment and figures dir left unwritten.\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_request_receipts.py:337 fails if the age rule compresses a file younger than two closed days, which the reviewed negative-control log demonstrates red at EXIT=1, and tests/test_agent_receipt_bins.py:260 fails if imas_ambix/agent/receipt_bins.py:83 stops delegating, so the two load-bearing assertions name a condition under which each reddens.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/request_receipts.py:470-596 keep the module's docstring-and-constant idiom and add only mechanism-named helpers (day_file_path, compress_closed_day_files, read_receipt_rows) with no plan, phase, ticket or version label in any added name or comment.\nSCORE reuse: 19\nJUSTIFICATION reuse: the repository owns no rolled-set reader or day-file compressor, so the search over imas_ambix/agent (gzip appears only as HTTP content decoding in imas_ambix/agent/lane.py:543) found no owner to extend, and the change removed the one prior opener by making imas_ambix/agent/receipt_bins.py:83 delegate rather than keep its own copy.\nFINDING imas_ambix/agent/receipt_bins.py:83 follow-on: the delegated reader treats a file argument as a single file and only a directory argument as the rolled set, so a caller that keeps handing the legacy path (the parameter is named receipts_path on both this function and collect_receipt_bins at imas_ambix/agent/receipt_bins.py:95, and the two analysis scripts docs/figures/b300-serving-projection/serve_census.py:148 and docs/figures/local-lane-occupancy/request_width_measure.py:38 hold that path) now silently reads one day of the record after the roll instead of the whole record, with no error to show the under-read; the deployed record only comes back whole when the directory is passed, which the manifest's follow_on records but no code enforces.",
+  "review_run_id": "r-20261015T082859756718-review-of-srw-request-receipts-roll-daily-8f300da4c8e8",
+  "reviewed_base_sha": "fcb2096b45f1397d00a03f547c6e455b0711f15a",
+  "reviewed_head_sha": "8f300da4c8e8c87905a7b19c0302b4bdfb94f19e",
+  "reviewed_run_id": "r-20261015T074658094819-srw-request-receipts-roll-daily",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T08:40:00.000000+00:00",
+  "total": 112
+}
