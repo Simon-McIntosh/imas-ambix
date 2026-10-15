@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 
 import pytest
 
+from imas_ambix.agent import receipt_bins, request_receipts
 from imas_ambix.agent.receipt_bins import collect_receipt_bins
 
 
@@ -204,3 +206,68 @@ def test_collector_declines_a_rate_whose_counters_fell(tmp_path) -> None:
     assert report["excluded_intervals"] == 2
     assert report["bins"]["10-14"]["intervals"] == 0
     assert report["bins"]["10-14"]["prefix_hit_rate"] is None
+
+
+def test_collector_bins_a_rolled_directory_the_same_as_one_file(tmp_path) -> None:
+    """The rolled set and the rows concatenated into one file bin identically.
+
+    The collector reads through the shared reader, so a record split across a
+    legacy file, a plain day file and a compressed day file is summarised
+    exactly as the same rows written to one path.
+    """
+
+    rows = [
+        {
+            **_interval(
+                running=10, generation=120.0, prefill=500.0, prefix_hit_rate=0.2
+            ),
+            "timestamp": "2026-10-01T00:00:00Z",
+        },
+        {
+            **_interval(
+                running=14, generation=280.0, prefill=700.0, prefix_hit_rate=0.8
+            ),
+            "timestamp": "2026-10-02T00:00:00Z",
+        },
+        {
+            **_interval(
+                running=15, generation=150.0, prefill=900.0, prefix_hit_rate=0.9
+            ),
+            "timestamp": "2026-10-03T00:00:00Z",
+        },
+    ]
+    rolled = tmp_path / "rolled"
+    rolled.mkdir()
+    (rolled / "requests.jsonl").write_text(json.dumps(rows[0]) + "\n", encoding="utf-8")
+    (rolled / "requests-2026-10-02.jsonl").write_text(
+        json.dumps(rows[1]) + "\n", encoding="utf-8"
+    )
+    with gzip.open(rolled / "requests-2026-10-03.jsonl.gz", "wt") as handle:
+        handle.write(json.dumps(rows[2]) + "\n")
+
+    concatenated = tmp_path / "all.jsonl"
+    concatenated.write_text(
+        "".join(f"{json.dumps(row)}\n" for row in rows), encoding="utf-8"
+    )
+
+    assert (
+        collect_receipt_bins(rolled).to_dict()
+        == collect_receipt_bins(concatenated).to_dict()
+    )
+    assert collect_receipt_bins(rolled).rows_read == len(rows)
+
+
+def test_receipt_bins_reads_through_the_shared_reader(tmp_path, monkeypatch) -> None:
+    """The bin reader delegates to the one reader of the rolled set."""
+
+    seen: list[object] = []
+
+    def fake_reader(location: object) -> list[dict[str, object]]:
+        seen.append(location)
+        return [{"sentinel": True}]
+
+    monkeypatch.setattr(request_receipts, "read_receipt_rows", fake_reader)
+
+    location = tmp_path / "requests.jsonl"
+    assert receipt_bins.read_receipt_rows(location) == [{"sentinel": True}]
+    assert seen == [location]

@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import dataclasses
-import json
 import statistics
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from imas_ambix.agent import request_receipts
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
+    from pathlib import Path
 
 
 DEFAULT_WIDTH_BINS: tuple[tuple[int, int], ...] = ((10, 14), (15, 19))
@@ -80,21 +81,15 @@ _INTERVAL_FIELDS = (
 
 
 def read_receipt_rows(receipts_path: str | Path) -> list[dict[str, Any]]:
-    """Read the non-empty JSONL receipt rows, naming malformed input lines."""
-    rows: list[dict[str, Any]] = []
-    for line_number, line in enumerate(
-        Path(receipts_path).read_text(encoding="utf-8").splitlines(), start=1
-    ):
-        if not line.strip():
-            continue
-        try:
-            row = json.loads(line)
-        except json.JSONDecodeError as error:
-            raise ValueError(f"invalid receipt JSON at line {line_number}") from error
-        if not isinstance(row, dict):
-            raise ValueError(f"receipt line {line_number} is not an object")
-        rows.append(row)
-    return rows
+    """Read receipt rows through the shared reader of the rolled set.
+
+    The receipt record is no longer one file: a day's rows land in their own
+    file and an old day file is compressed, so opening the path here would read
+    one day of it and call that the record.
+    :func:`request_receipts.read_receipt_rows` owns that layout, and every reader
+    reaches the rows through it rather than opening a receipts path itself.
+    """
+    return request_receipts.read_receipt_rows(receipts_path)
 
 
 def collect_receipt_bins(

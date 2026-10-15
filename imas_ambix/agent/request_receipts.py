@@ -24,23 +24,42 @@ row it writes, so a reader scaling totals back up does so honestly.
 from __future__ import annotations
 
 import contextlib
+import gzip
 import json
 import logging
+import os
 import random
+import re
+import shutil
 import time
 import unicodedata
 from collections import deque
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Receipts for one routing process, beside the endpoint and lane documents the
-# router's launching command already names.
+# router's launching command already names. This is the legacy single-file name,
+# which the roll below no longer appends to: it is kept because a reader still
+# yields it first and because a deployed record predates the roll.
 RECEIPTS_FILENAME = "requests.jsonl"
+
+# A day's rows land in their own file beside the legacy name, dated by the UTC
+# day of the row's own timestamp: ``requests-2026-10-01.jsonl``. A day file is
+# closed when its UTC day ends, and is compressed to ``.jsonl.gz`` once closed
+# for this many whole UTC days. Nothing deletes a receipt.
+DAY_FILE_SUFFIX = ".jsonl"
+CLOSED_DAYS_BEFORE_COMPRESSION = 2
+
+_DAY_FILE_PATTERN = re.compile(
+    r"^(?P<stem>.+)-(?P<day>\d{4}-\d{2}-\d{2})"
+    + re.escape(DAY_FILE_SUFFIX)
+    + r"(\.gz)?$"
+)
 
 # The upstream field on a row for a request the router answered itself -- one it
 # refused before any engine was chosen, or a catalog listing it served from the
@@ -448,6 +467,139 @@ def _isoformat(moment: datetime) -> str:
     return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _utc_date(moment: datetime | date | None) -> date:
+    """The UTC day *moment* falls in, or today when none is given."""
+    if moment is None:
+        return datetime.now(UTC).date()
+    if isinstance(moment, datetime):
+        return moment.astimezone(UTC).date()
+    return moment
+
+
+def day_file_path(receipts_path: str | Path, day: date) -> Path:
+    """The day file a row dated *day* belongs in, beside the legacy name.
+
+    ``requests.jsonl`` beside the lane document becomes
+    ``requests-2026-10-01.jsonl``: the same stem, the day it covers, and the
+    same suffix, so a reader that knows the legacy name can find the rolled set
+    without being told a second name.
+    """
+    base = Path(receipts_path)
+    return base.with_name(f"{base.stem}-{day.isoformat()}{base.suffix}")
+
+
+def _day_from_name(name: str, *, stem: str | None = None) -> date | None:
+    """The UTC day a day-file name covers, or ``None`` when it is not one."""
+    match = _DAY_FILE_PATTERN.match(name)
+    if match is None:
+        return None
+    if stem is not None and match["stem"] != stem:
+        return None
+    return date.fromisoformat(match["day"])
+
+
+def _rolled_files(directory: Path) -> list[Path]:
+    """The legacy file, then every day file under *directory* in date order.
+
+    Legacy rows were written before the roll took effect and the legacy file is
+    never rewritten, so yielding it first and the day files in ascending date
+    order reconstructs the record in the order the rows were written.
+    """
+    stem = Path(RECEIPTS_FILENAME).stem
+    files: list[Path] = []
+    legacy = directory / RECEIPTS_FILENAME
+    if legacy.is_file():
+        files.append(legacy)
+    dated: list[tuple[date, str, Path]] = []
+    for candidate in directory.iterdir():
+        if not candidate.is_file() or candidate.name == RECEIPTS_FILENAME:
+            continue
+        day = _day_from_name(candidate.name, stem=stem)
+        if day is not None:
+            dated.append((day, candidate.name, candidate))
+    dated.sort(key=lambda entry: (entry[0], entry[1]))
+    files.extend(entry[2] for entry in dated)
+    return files
+
+
+def _read_rows_from(path: Path) -> list[dict[str, Any]]:
+    """Every object row in one receipt file, plain or gzip-compressed.
+
+    A blank line is skipped, as the sink never writes one. A line that does not
+    parse as an object names its file and line rather than being dropped: a
+    malformed receipt is a defect in the writer, and a reader that silently
+    omitted it would understate the record.
+    """
+    rows: list[dict[str, Any]] = []
+    opener = gzip.open if path.name.endswith(".gz") else open
+    with opener(path, "rt", encoding="utf-8") as handle:
+        for number, line in enumerate(handle, start=1):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as error:
+                raise ValueError(f"invalid receipt JSON at {path}:{number}") from error
+            if not isinstance(row, dict):
+                raise ValueError(f"receipt line {number} of {path} is not an object")
+            rows.append(row)
+    return rows
+
+
+def read_receipt_rows(location: str | Path) -> list[dict[str, Any]]:
+    """Every receipt row under *location*, in the order the rows were written.
+
+    Given one file, that file's rows whether it is plain or compressed. Given a
+    directory, the whole rolled set: the legacy ``requests.jsonl`` first, then
+    each day file, plain or compressed, in date order.
+    """
+    path = Path(location)
+    files = _rolled_files(path) if path.is_dir() else [path]
+    rows: list[dict[str, Any]] = []
+    for file in files:
+        rows.extend(_read_rows_from(file))
+    return rows
+
+
+def _compress(source: Path) -> Path:
+    """Compress *source* in place and return the ``.gz`` file it became."""
+    target = source.with_name(source.name + ".gz")
+    temporary = target.with_name(target.name + ".partial")
+    with source.open("rb") as reader, gzip.open(temporary, "wb") as writer:
+        shutil.copyfileobj(reader, writer)
+    os.replace(temporary, target)
+    source.unlink()
+    return target
+
+
+def compress_closed_day_files(
+    directory: str | Path,
+    *,
+    base_name: str = RECEIPTS_FILENAME,
+    now: datetime | date | None = None,
+    closed_days: int = CLOSED_DAYS_BEFORE_COMPRESSION,
+) -> list[Path]:
+    """Compress every day file closed for *closed_days* whole UTC days.
+
+    A day file covers one UTC day and is closed when that day ends, so it has
+    been closed for *closed_days* whole days once the current UTC day is
+    ``closed_days + 1`` days after the day it covers. An already-compressed file
+    and the still-open current day are both left alone, and nothing is deleted.
+    """
+    today = _utc_date(now)
+    stem = Path(base_name).stem
+    compressed: list[Path] = []
+    for candidate in sorted(Path(directory).iterdir()):
+        if not candidate.is_file() or candidate.name.endswith(".gz"):
+            continue
+        day = _day_from_name(candidate.name, stem=stem)
+        if day is None:
+            continue
+        if (today - day).days >= closed_days + 1:
+            compressed.append(_compress(candidate))
+    return compressed
+
+
 class RequestReceiptSink:
     """Append receipts to one stream, sampling above a configured rate.
 
@@ -456,12 +608,21 @@ class RequestReceiptSink:
     killed mid-service. Writing never disturbs routing: a sink that cannot write
     logs once and discards, because a relay that stopped serving requests to
     keep a metrics file current would have inverted its own purpose.
+
+    A rolling sink writes each row to a day file beside the name it was given,
+    so the record is a rolled set rather than one file that grows without
+    bound. A launch that names its own receipts path gets one file at that
+    path instead: the operator named a location to read back, and
+    :func:`read_receipt_rows` reads a file it is handed, so a redirect that
+    scattered that path's rows into siblings would answer the operator's own
+    reader with nothing.
     """
 
     def __init__(
         self,
         path: str | Path,
         *,
+        roll_daily: bool = True,
         max_rows_per_s: float = DEFAULT_MAX_ROWS_PER_S,
         window_s: float = DEFAULT_WINDOW_S,
         random_float: Callable[[], float] = random.random,
@@ -473,6 +634,7 @@ class RequestReceiptSink:
         if window_s <= 0:
             raise ValueError("window_s must be positive")
         self.path = Path(path)
+        self.roll_daily = roll_daily
         self.max_rows_per_s = max_rows_per_s
         self.window_s = window_s
         self._random = random_float
@@ -480,6 +642,7 @@ class RequestReceiptSink:
         self._now = now
         self._arrivals: deque[float] = deque()
         self._handle: Any = None
+        self._handle_day: date | None = None
         self._write_failed = False
         self.rows_written = 0
         self.rows_sampled_out = 0
@@ -525,8 +688,9 @@ class RequestReceiptSink:
         if fraction < 1.0 and self._random() >= fraction:
             self.rows_sampled_out += 1
             return None
+        moment = timestamp if timestamp is not None else self._now()
         receipt = RequestReceipt(
-            timestamp=_isoformat(timestamp if timestamp is not None else self._now()),
+            timestamp=_isoformat(moment),
             model=model,
             upstream=upstream,
             dialect=accounting.dialect,
@@ -544,18 +708,16 @@ class RequestReceiptSink:
             sample_fraction=round(fraction, 6),
             sampling_rate_per_s=round(rate, 3),
         )
-        if self._write(receipt):
+        if self._write(receipt, moment):
             self.rows_written += 1
             return receipt
         return None
 
-    def _write(self, receipt: RequestReceipt) -> bool:
+    def _write(self, receipt: RequestReceipt, moment: datetime) -> bool:
         if self._write_failed:
             return False
         try:
-            if self._handle is None:
-                self.path.parent.mkdir(parents=True, exist_ok=True)
-                self._handle = self.path.open("a", encoding="utf-8")
+            self._ensure_handle(moment)
             self._handle.write(receipt.to_json() + "\n")
             self._handle.flush()
         except OSError as error:
@@ -569,11 +731,33 @@ class RequestReceiptSink:
             return False
         return True
 
+    def _ensure_handle(self, moment: datetime) -> None:
+        """Open the day file *moment* falls in, rolling and ageing on a new day.
+
+        The handle is held open across a day's rows and re-opened when the UTC
+        day moves, which is the roll. The sweep is idempotent, so a process that
+        started after the roll began still compresses whatever has come of age.
+        A sink that keeps one file opens that file once and never closes it.
+        """
+        day = _utc_date(moment)
+        if self._handle is not None and self._handle_day == day:
+            return
+        self.close()
+        target = day_file_path(self.path, day) if self.roll_daily else self.path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        self._handle = target.open("a", encoding="utf-8")
+        self._handle_day = day
+        if self.roll_daily:
+            compress_closed_day_files(
+                target.parent, base_name=self.path.name, now=moment
+            )
+
     def close(self) -> None:
         if self._handle is not None:
             with contextlib.suppress(OSError):
                 self._handle.close()
             self._handle = None
+            self._handle_day = None
 
 
 def _round_or_none(value: float | None) -> float | None:

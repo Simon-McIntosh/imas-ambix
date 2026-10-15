@@ -1750,6 +1750,10 @@ class RouterApp:
             self._receipts_path = lane_document.with_name(RECEIPTS_FILENAME)
         else:
             self._receipts_path = None
+        # The derived record is the router's own and rolls into day files. A
+        # path the launch named is one file at that path: the operator named a
+        # location to read back.
+        self._receipts_roll_daily = request_receipts_path is None
         # Resolved at construction so a malformed setting stops the launch
         # rather than surfacing later as rows sampled at a rate nobody asked
         # for, and so the value in force is fixed for the process's life.
@@ -2565,6 +2569,7 @@ class RouterApp:
         if self._receipts is None:
             self._receipts = RequestReceiptSink(
                 self._receipts_path,
+                roll_daily=self._receipts_roll_daily,
                 max_rows_per_s=self._receipt_max_rows_per_s,
                 window_s=self._receipt_window_s,
             )

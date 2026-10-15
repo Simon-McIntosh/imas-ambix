@@ -8,6 +8,7 @@ object the router's own tests do.
 from __future__ import annotations
 
 import asyncio
+import gzip
 import json
 import logging
 import math
@@ -31,7 +32,9 @@ from imas_ambix.agent.request_receipts import (
     STATUS_FAILED,
     RequestReceiptSink,
     StreamAccounting,
+    compress_closed_day_files,
     identity_from_headers,
+    read_receipt_rows,
 )
 from imas_ambix.agent.router import (
     RECEIPT_MAX_ROWS_PER_S_ENV,
@@ -144,12 +147,18 @@ async def _router_with_receipts(
             app._receipts.close()
 
 
-def _read_rows(path: Path) -> list[dict[str, Any]]:
-    return [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
-    ]
+def _read_rows(receipts_path: Path) -> list[dict[str, Any]]:
+    """Every row the record at *receipts_path* holds, through the shared reader.
+
+    A rolling sink writes each row to the day file for its own UTC timestamp, so
+    the path it was handed names a rolled set in its directory rather than a
+    file. A sink that keeps one file, which is what a launch naming its own
+    receipts path gets, is read at that path.
+    """
+
+    if receipts_path.is_file():
+        return read_receipt_rows(receipts_path)
+    return read_receipt_rows(receipts_path.parent)
 
 
 def _request_body() -> bytes:
@@ -288,6 +297,102 @@ class _Clock:
 
 def _idle_accounting() -> StreamAccounting:
     return StreamAccounting(clock=lambda: 0.0)
+
+
+def _jsonl(rows: Sequence[dict[str, Any]]) -> str:
+    return "".join(f"{json.dumps(row)}\n" for row in rows)
+
+
+def test_rows_either_side_of_utc_midnight_land_in_two_day_files(
+    tmp_path: Path,
+) -> None:
+    """The roll is on the row's own UTC day, not on when the sink was built."""
+
+    sink = RequestReceiptSink(tmp_path / "requests.jsonl", max_rows_per_s=1e9)
+    for moment in (
+        datetime(2026, 10, 15, 23, 59, 59, tzinfo=UTC),
+        datetime(2026, 10, 16, 0, 0, 0, tzinfo=UTC),
+    ):
+        sink.record(
+            model="streamer",
+            upstream="http://engine",
+            caller_hint="local",
+            status=STATUS_COMPLETED,
+            duration_s=0.1,
+            accounting=_idle_accounting(),
+            timestamp=moment,
+        )
+    sink.close()
+
+    assert sorted(path.name for path in tmp_path.iterdir()) == [
+        "requests-2026-10-15.jsonl",
+        "requests-2026-10-16.jsonl",
+    ]
+    assert [row["timestamp"] for row in _read_rows(tmp_path / "requests.jsonl")] == [
+        "2026-10-15T23:59:59Z",
+        "2026-10-16T00:00:00Z",
+    ]
+
+
+def test_a_day_file_closed_for_two_whole_days_is_compressed_and_a_younger_one_is_not(
+    tmp_path: Path,
+) -> None:
+    """Age is counted in whole days since the day the file covers ended.
+
+    With the current day 2026-10-15, the file for 2026-10-12 has been closed for
+    two whole days and compresses; the file for 2026-10-14 has been closed for
+    one, and the file for today not at all, so both stay plain.
+    """
+
+    for name in (
+        "requests-2026-10-12.jsonl",
+        "requests-2026-10-14.jsonl",
+        "requests-2026-10-15.jsonl",
+    ):
+        (tmp_path / name).write_text('{"timestamp": "x"}\n', encoding="utf-8")
+
+    compressed = compress_closed_day_files(
+        tmp_path, now=datetime(2026, 10, 15, 12, tzinfo=UTC)
+    )
+
+    assert [path.name for path in compressed] == ["requests-2026-10-12.jsonl.gz"]
+    assert (tmp_path / "requests-2026-10-12.jsonl.gz").is_file()
+    assert not (tmp_path / "requests-2026-10-12.jsonl").exists()
+    assert (tmp_path / "requests-2026-10-14.jsonl").is_file()
+    assert (tmp_path / "requests-2026-10-15.jsonl").is_file()
+
+
+def test_the_reader_returns_every_row_once_in_timestamp_order(tmp_path: Path) -> None:
+    """A legacy file, a plain day file and a compressed day file, read as one.
+
+    The legacy file is never rewritten and predates the roll, so reading it
+    first and the day files in date order is what makes the rolled set come back
+    in the order the rows were written.
+    """
+
+    rows = [
+        {"timestamp": "2026-10-01T00:00:00Z", "n": 1},
+        {"timestamp": "2026-10-02T00:00:00Z", "n": 2},
+        {"timestamp": "2026-10-02T06:00:00Z", "n": 3},
+        {"timestamp": "2026-10-03T00:00:00Z", "n": 4},
+    ]
+    (tmp_path / "requests.jsonl").write_text(_jsonl(rows[:1]), encoding="utf-8")
+    (tmp_path / "requests-2026-10-02.jsonl").write_text(
+        _jsonl(rows[1:3]), encoding="utf-8"
+    )
+    with gzip.open(tmp_path / "requests-2026-10-03.jsonl.gz", "wt") as handle:
+        handle.write(_jsonl(rows[3:]))
+
+    found = read_receipt_rows(tmp_path)
+
+    assert len(found) == len(rows)
+    assert [row["timestamp"] for row in found] == sorted(
+        row["timestamp"] for row in rows
+    )
+    assert [row["n"] for row in found] == [1, 2, 3, 4]
+    # One file is read as that file, whichever form it is in.
+    assert read_receipt_rows(tmp_path / "requests-2026-10-02.jsonl") == rows[1:3]
+    assert read_receipt_rows(tmp_path / "requests-2026-10-03.jsonl.gz") == rows[3:]
 
 
 def _record_onto(
@@ -617,7 +722,7 @@ def test_the_sampling_ceiling_is_read_from_the_environment(
     async def exercise() -> None:
         engine = _sse_engine()
         async with _server(engine) as engine_url:
-            unlimited = tmp_path / "unlimited.jsonl"
+            unlimited = tmp_path / "unlimited" / "requests.jsonl"
             monkeypatch.setenv(RECEIPT_MAX_ROWS_PER_S_ENV, "inf")
             async with _router_with_receipts([Upstream(engine_url)], unlimited) as app:
                 for _ in range(offered):
@@ -628,7 +733,7 @@ def test_the_sampling_ceiling_is_read_from_the_environment(
             assert "max_rows_per_s=inf" in caplog.text
 
             monkeypatch.setenv(RECEIPT_MAX_ROWS_PER_S_ENV, "1")
-            throttled = tmp_path / "throttled.jsonl"
+            throttled = tmp_path / "throttled" / "requests.jsonl"
             async with _router_with_receipts(
                 [Upstream(engine_url)], throttled
             ) as throttled_app:
