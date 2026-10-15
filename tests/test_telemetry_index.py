@@ -1959,3 +1959,34 @@ def test_retirement_and_tier_deselection_share_source_deletion(tmp_path, monkeyp
         index._drop_deselected_tiers({"1273253": "minute"})
         assert index.sample_count() == 0
         assert calls == [str(raw), str(raw)]
+
+
+def test_forget_removes_samples_kept_under_a_source_previous_path(tmp_path):
+    """A rolled segment retains samples written under its open-record name."""
+    raw = tmp_path / "deepseek-v4-1-flash-1273253.jsonl"
+    segment = tmp_path / "deepseek-v4-1-flash-1273253.20260920.jsonl"
+    rows = [
+        _token_row(offset, generation=float(offset), prompt=1.0, uncached=2.0)
+        for offset in (0, 5, 10)
+    ]
+    for row in rows:
+        row["job_id"] = "1273253"
+    _write(raw, rows[:2])
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([raw])
+        raw.rename(segment)
+        _write(segment, rows[2:])
+        index.ingest([segment])
+        sample_paths = {
+            row["path"] for row in index._conn.execute("SELECT path FROM sample")
+        }
+        source_paths = {
+            row["path"] for row in index._conn.execute("SELECT path FROM source")
+        }
+        assert sample_paths == source_paths == {str(raw), str(segment)}
+        assert index.sample_count() == 3
+
+        assert index.forget([segment]) == 1
+        assert index.sample_count() == 0, "samples under the pre-roll path survived"
+        assert index._conn.execute("SELECT count(*) FROM source").fetchone()[0] == 0

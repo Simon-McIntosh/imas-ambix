@@ -607,6 +607,59 @@ def test_a_locked_vacuum_is_retried_without_another_retirement(tmp_path, monkeyp
         assert len(attempts) == 2, "the empty pass did not retry vacuum"
 
 
+def test_a_failed_source_forget_is_retried_before_vacuum(tmp_path, monkeypatch):
+    """A lock after raw deletion leaves source cleanup owed to the next pass."""
+    records = tmp_path / "records"
+    raw = _retirable_job(records)
+    monkeypatch.setattr(
+        telemetry_ingest.telemetry_retention,
+        "default_running_job_ids",
+        lambda: frozenset(),
+    )
+    with TelemetryIndex(tmp_path / "index.sqlite") as index:
+        tick(index, records)
+        actual_forget = index.forget
+        actual_vacuum = index.vacuum
+        forgotten = []
+        vacuumed = []
+
+        def locked_once(paths):
+            paths = tuple(paths)
+            forgotten.append(paths)
+            if len(forgotten) == 1:
+                raise sqlite3.OperationalError("database is locked")
+            return actual_forget(paths)
+
+        def count_vacuum():
+            vacuumed.append(1)
+            actual_vacuum()
+
+        monkeypatch.setattr(index, "forget", locked_once)
+        monkeypatch.setattr(index, "vacuum", count_vacuum)
+        scheduled = telemetry_ingest.ScheduledRetention(
+            index,
+            records,
+            manifest_dir=tmp_path / "manifests",
+            clock=lambda: _RETENTION_NOW,
+        )
+
+        first = scheduled(_RETENTION_NOW)
+        assert not raw.exists(), "the index lock undid retirement"
+        assert first.error is not None
+        assert first.pending_forget == (raw,)
+        assert first.vacuum_owed is True
+        assert index.sample_count() > 0
+        assert vacuumed == [], "vacuum ran before source cleanup"
+
+        second = scheduled(_RETENTION_NOW + scheduled.interval_seconds)
+        assert second.removed == ()
+        assert second.pending_forget == ()
+        assert second.vacuum_owed is False
+        assert forgotten == [(raw,), (raw,)]
+        assert vacuumed == [1]
+        assert index.sample_count() == 0
+
+
 def test_the_retirement_pass_runs_at_most_once_a_day(tmp_path, monkeypatch):
     """The cadence lives with the pass, so a loop ticking every minute retires
     once a day rather than once a tick."""
