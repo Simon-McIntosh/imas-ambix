@@ -1,0 +1,64 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": null,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest declares baseline_suite and after_suite unarmed for the node, so it names no base/head gate-log pair to difference",
+  "call_site_count": 2,
+  "call_sites": [
+    "imas_ambix/agent/watch_publish.py:116 publish_once",
+    "imas_ambix/agent/cli.py:2738 watch_document"
+  ],
+  "completed_at": "2026-10-15T13:43:11.873Z",
+  "dispatched_at": "2026-10-15T13:33:03Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-period-pricing-cost.html",
+      "line": "40",
+      "severity": "follow-on",
+      "text": "follow-on: the node's own quantitative measure is unmet (71.2% and 74.7% against \"at most 60% of the wall time\"), and the acceptance rests on a coordinator ruling recorded only in the run directory, so the plan still states a criterion the landed change does not satisfy."
+    },
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "841",
+      "severity": "follow-on",
+      "text": "follow-on: the uncut branch silently requires its caller to have totalled PROMPT_TOKENS and GENERATION_TOKENS over exactly [start,end); only period_row at imas_ambix/agent/watch.py:929 does so and nothing pins that coupling, so a future caller passing another interval's totals would be billed wrong with every test still green."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 2 production call site(s)",
+    "diff": "read revision by revision against 090e5cd3 (9125583e the equal-rate grouping, d1db0670 and d3bcf5d2 the evidence, e12aea87 the repair) \u2014 three files, 255 insertions and 27 deletions, all inside the declared scope; provider_prices.py is granted but untouched.",
+    "done_when": "the done_when names tests/test_agent_watch_cost.py and a 60% wall-time criterion; the manifest records the suite result (74 passed, EXIT=0, logs/repair_gate_full.log) but records the wall-time ratios as 71.2% and 74.7%, so the stated quantitative measure is not met, and the acceptance rests on a coordinator ruling held in the run directory rather than in the plan.",
+    "goal": "the node's goal is a watch render that prices its periods without repeating per-segment work; imas_ambix/agent/watch.py:833 now merges adjacent cuts that select the same rate and :841 prices an uncut period on the totals its caller already holds, and the manifest's profile shows the render's partitioned_total reads falling 20 to 12.",
+    "manifest": "read; it states the gate command and result (74 passed in 17.35 s, EXIT=0), names its logs, records both negative-control logs with EXIT=1, and answers the earlier finding f03d2b9f770 with revision e12aea87.",
+    "write_paths": "declared paths are imas_ambix/agent/watch.py, imas_ambix/agent/provider_prices.py, tests/test_agent_watch_cost.py, the evidence fragment and the figures directory; every path in the diff is inside them."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_watch_cost.py:817 counts watch._span calls (98 against 26 when the per-cut read is restored) and :881 asserts a day equals its own 24 hours (33.135 against 78.255 when the listing-keyed grouping is restored), each with a recorded red log.",
+    "evidence": "the manifest's own ratios 71.2%/74.7% fail the done_when's \"at most 60%\", and the reviewed manifest declares baseline_suite and after_suite \"not armed\", so no added-failure count can be derived from its gate logs.",
+    "fit": "the walk follows the idiom of imas_ambix/agent/watch.py, though the five-field tuple at :819 is indexed positionally where the module elsewhere uses frozen dataclasses.",
+    "goal_fidelity": "imas_ambix/agent/watch.py:841 reuses the caller's period totals and :833 merges equal-rate cuts, and the manifest's profile shows the repeated reads gone (partitioned_total 20 -> 12).",
+    "reuse": "the change extends the owners imas_ambix/agent/provider_prices.py:439 rate_in_force and :460 provider_median_in_force rather than re-deriving them, and a search over imas_ambix/agent for an existing equal-rate stretch grouper found none.",
+    "scope_discipline": "the diff touches only imas_ambix/agent/watch.py, tests/test_agent_watch_cost.py and docs/evidence/fragments/serving-record-warehouse/srw-period-pricing-cost.html, all inside the declared write paths."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is a watch render that prices its periods without repeating per-segment work; imas_ambix/agent/watch.py:833 now merges adjacent cuts that select the same rate and :841 prices an uncut period on the totals its caller already holds, and the manifest's profile shows the render's partitioned_total reads falling 20 to 12.\nVERDICT done_when: the done_when names tests/test_agent_watch_cost.py and a 60% wall-time criterion; the manifest records the suite result (74 passed, EXIT=0, logs/repair_gate_full.log) but records the wall-time ratios as 71.2% and 74.7%, so the stated quantitative measure is not met, and the acceptance rests on a coordinator ruling held in the run directory rather than in the plan.\nVERDICT write_paths: declared paths are imas_ambix/agent/watch.py, imas_ambix/agent/provider_prices.py, tests/test_agent_watch_cost.py, the evidence fragment and the figures directory; every path in the diff is inside them.\nVERDICT manifest: read; it states the gate command and result (74 passed in 17.35 s, EXIT=0), names its logs, records both negative-control logs with EXIT=1, and answers the earlier finding f03d2b9f770 with revision e12aea87.\nVERDICT diff: read revision by revision against 090e5cd3 (9125583e the equal-rate grouping, d1db0670 and d3bcf5d2 the evidence, e12aea87 the repair) \u2014 three files, 255 insertions and 27 deletions, all inside the declared scope; provider_prices.py is granted but untouched.\nCALL_SITES: imas_ambix/agent/watch_publish.py:116 publish_once, imas_ambix/agent/cli.py:2738 watch_document\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/agent/watch.py:841 reuses the caller's period totals and :833 merges equal-rate cuts, and the manifest's profile shows the repeated reads gone (partitioned_total 20 -> 12).\nSCORE evidence: 12\nJUSTIFICATION evidence: the manifest's own ratios 71.2%/74.7% fail the done_when's \"at most 60%\", and the reviewed manifest declares baseline_suite and after_suite \"not armed\", so no added-failure count can be derived from its gate logs.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff touches only imas_ambix/agent/watch.py, tests/test_agent_watch_cost.py and docs/evidence/fragments/serving-record-warehouse/srw-period-pricing-cost.html, all inside the declared write paths.\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_agent_watch_cost.py:817 counts watch._span calls (98 against 26 when the per-cut read is restored) and :881 asserts a day equals its own 24 hours (33.135 against 78.255 when the listing-keyed grouping is restored), each with a recorded red log.\nSCORE fit: 17\nJUSTIFICATION fit: the walk follows the idiom of imas_ambix/agent/watch.py, though the five-field tuple at :819 is indexed positionally where the module elsewhere uses frozen dataclasses.\nSCORE reuse: 20\nJUSTIFICATION reuse: the change extends the owners imas_ambix/agent/provider_prices.py:439 rate_in_force and :460 provider_median_in_force rather than re-deriving them, and a search over imas_ambix/agent for an existing equal-rate stretch grouper found none.\nFINDING docs/evidence/fragments/serving-record-warehouse/srw-period-pricing-cost.html:40 follow-on: the node's own quantitative measure is unmet (71.2% and 74.7% against \"at most 60% of the wall time\"), and the acceptance rests on a coordinator ruling recorded only in the run directory, so the plan still states a criterion the landed change does not satisfy.\nFINDING imas_ambix/agent/watch.py:841 follow-on: the uncut branch silently requires its caller to have totalled PROMPT_TOKENS and GENERATION_TOKENS over exactly [start,end); only period_row at imas_ambix/agent/watch.py:929 does so and nothing pins that coupling, so a future caller passing another interval's totals would be billed wrong with every test still green.",
+  "review_run_id": "r-20261015T133249305957-review-of-srw-period-pricing-cost-d3bcf5d247ba",
+  "reviewed_base_sha": "090e5cd30cfe31f1ec0c23f08bdba73fb8f4c8e7",
+  "reviewed_head_sha": "d3bcf5d247ba953517dfe209f3d830d8268611f4",
+  "reviewed_run_id": "r-20261015T121109101109-srw-period-pricing-cost",
+  "scores": {
+    "durability": 18,
+    "evidence": 12,
+    "fit": 17,
+    "goal_fidelity": 18,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "subject": "run",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T13:42:10.036498+00:00",
+  "total": 105
+}
