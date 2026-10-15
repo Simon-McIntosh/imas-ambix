@@ -35,7 +35,9 @@
 
   <h4>Measure, one render through the watch API on the fleet node, fixed now</h4>
   <ul>
-    <li>wall: before <strong>221.273 s</strong> &rarr; after <strong>AFTER_WALL s</strong>.</li>
+    <li>wall: before <strong>221.273 s</strong> &rarr; after <strong>157.620 s</strong>, and <code>partitioned_total</code> reads 20 &rarr; 12 (sqlite executes 113 &rarr; 105).</li>
+    <li>back-to-back, to control for the node's load: before <strong>210.978 s</strong> &rarr; after <strong>157.620 s</strong>, <strong>74.7%</strong>.</li>
+    <li>that is not the 60% the criterion asks for, and the profile accounts for the rest: <code>time_weighted_mean</code> (73.4 s, one full-table window scan per card per period) and the three per-period totals each row genuinely needs, neither of which is repeated work.</li>
     <li>period costs, 1 hour / 1 day / 1 week / 1 month: identical before and after.</li>
     <li>five most expensive call sites before and after, and the two profiles, are in the node's manifest.</li>
   </ul>
