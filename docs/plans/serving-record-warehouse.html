@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;done&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;done&quot;,&quot;s22&quot;:&quot;done&quot;,&quot;s23&quot;:&quot;done&quot;,&quot;s24&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="276">
+<meta name="plan-version" content="277">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -1699,6 +1699,9 @@
 </div>
 <div class="r-comment" data-section="s22" data-id="c-close-s22" data-who="reckon-build" data-when="2026-10-15T12:55:00Z">
     <div class="r-comment-body"><p>§22 landed: the ingest loop retires eligible raw receipts daily, keeps retired days' tier rows through a rebuild, contains its own errors and vacuums the index (merged <code>1a754c5a</code> after one repair); 119 tests pass; review 116/120. It takes effect when the ingest service restarts. <a href="/imas-ambix/evidence/archive/serving-record-warehouse-landed.html#s22">evidence</a></p></div>
+</div>
+<div class="r-comment" data-section="s22" data-id="c-run-r-20261015T124000704278-review-of-srw-scheduled-retention-repair-5c3da24ce65e" data-who="reckon-build" data-when="2026-10-15T12:49:20.587Z">
+    <div class="r-comment-body"><p>Independent review of r-20261015T115015270708-srw-scheduled-retention-repair at head 5c3da24c on base 90fedfd5; all six items read; scores goal_fidelity 20, evidence 18, scope_discipline 20, durability 19, fit 19, reuse 20 (total 116); added_failure_count 0; one follow-on finding (landing fragment not written); no blocking findings.</p></div>
 </div>
 <div class="r-comment" data-section="s17" data-id="c-run-r-20261015T074619366002-srw-price-history" data-who="reckon-build" data-when="2026-10-15T08:19:41.331Z">
     <div class="r-comment-body"><p>provider_prices now keeps a change-only append-only price history at openrouter-price-history.jsonl beside the table, seeded on first refresh with the six recovered deepseek/deepseek-v4.1-flash observations in time order ahead of the fetched rows, grown by one row per model whose three rates moved, with refresh gaining a slugs keyword that fetches each named slug's endpoints listing and records it only on change, plus rate_in_force and provider_median_in_force readers and REFRESH_AGE cut from 24 h to 3600 s; measure: tests/test_provider_prices.py 33 passed with the serving-interpreter grammar guard in tests/test_agent_serve_registry.py also passing, EXIT=0</p></div>

@@ -1,0 +1,122 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed manifest records baseline_suite:null and after_suite:null, so the arms were derived from the run's own logs. baseline.log at base 90fedfd5 reddens six of the node's new tests (EXIT=1), and review-baseline.log at 8b70fe38 reddens the two repair-round tests (test_forget_removes_samples_kept_under_a_source_previous_path, test_a_failed_source_forget_is_retried_before_vacuum, EXIT=1). The head arm repair-final-gate.log at 5c3da24 runs all three declared test files and ends '119 passed in 41.92s', EXIT=0, so there are zero head failure ids and nothing added.",
+  "after_suite": {
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T115015270708-srw-scheduled-retention-repair/repair-final-gate.log",
+    "revision": "5c3da24ce65e46c67689c0c8fb0b925103b33972"
+  },
+  "assertion_analysis": [
+    {
+      "failure_condition": "after == before[path] fails if any retired-day minute or hour line is dropped, reordered, or rewritten; before is read from disk before rebuild and after from disk after, so the two sides are independent, and repair-final-declared-negative.log shows the declared interval mutation reddens present_days1.",
+      "line": "tests/test_telemetry_retention.py:740"
+    },
+    {
+      "failure_condition": "fault in caplog.text fails if a manifest-Write OSError, a tier os.replace OSError, or a scheduler RuntimeError is raised out of the pass without being logged, or stops the loop before two ticks.",
+      "line": "tests/test_telemetry_ingest.py:567"
+    },
+    {
+      "failure_condition": "len(attempts) == 2 fails if a locked vacuum is not retried on the next pass or is retried twice; repair-negative-cleanup-retry.log shows the pre-fix code reddens the sibling assertion.",
+      "line": "tests/test_telemetry_ingest.py:607"
+    },
+    {
+      "failure_condition": "forgotten == [(raw,), (raw,)] fails if a failed index.forget is not carried into the next pass and re-issued; repair-negative-cleanup-retry.log shows the reverted code records only one forget call.",
+      "line": "tests/test_telemetry_ingest.py:655"
+    },
+    {
+      "failure_condition": "calls == [str(raw), str(raw)] fails if either forget or _drop_deselected_tiers bypasses _delete_source_rows, but it asserts the route rather than the delete semantics and would not catch a second, differently-worded delete pair.",
+      "line": "tests/test_telemetry_index.py:1961"
+    },
+    {
+      "failure_condition": "sample_count() == 0 after forget([segment]) fails if samples indexed under the pre-roll path survive, which is exactly the rolled-source regression; repair-negative-rolled-source.log shows the reverted identity leaves 2 samples.",
+      "line": "tests/test_telemetry_index.py:1991"
+    }
+  ],
+  "baseline_suite": {
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 6,
+    "failure_ids": [
+      "tests/test_telemetry_retention.py::test_rebuild_keeps_rows_from_retired_days[present_days0]",
+      "tests/test_telemetry_retention.py::test_rebuild_keeps_rows_from_retired_days[present_days1]",
+      "tests/test_telemetry_ingest.py::test_retention_fault_stays_inside_the_pass_and_ingest_continues[manifest]",
+      "tests/test_telemetry_ingest.py::test_retention_fault_stays_inside_the_pass_and_ingest_continues[rename]",
+      "tests/test_telemetry_ingest.py::test_retention_fault_stays_inside_the_pass_and_ingest_continues[scheduler]",
+      "tests/test_telemetry_ingest.py::test_a_locked_vacuum_is_retried_without_another_retirement"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T115015270708-srw-scheduled-retention-repair/baseline.log",
+    "revision": "90fedfd59f6dc6c95c612f6cf947379ca9fd34dd"
+  },
+  "call_site_count": 6,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2980",
+    "imas_ambix/agent/telemetry_ingest.py:218",
+    "imas_ambix/agent/telemetry_ingest.py:528",
+    "imas_ambix/agent/telemetry_retention.py:901",
+    "imas_ambix/agent/telemetry_index.py:1012",
+    "imas_ambix/agent/telemetry_index.py:1315"
+  ],
+  "commits_read": [
+    "189cac1cded13f2ec500314e2af8977029893290",
+    "442f83c7839d6463c43b0e4ca05520ecbb4cd09a",
+    "9aa9958c5bb3401f7dae7a59e85431d0fa3ad20a",
+    "8b70fe38727ba178ea4116719457c9e1afef1ac4",
+    "e2e03334472d05c53ec4cfb9b5b6ae5ba164f096",
+    "f3548ea4735ade953016f88e376b05e59068a2b9",
+    "7a435129001e7142fd784300f23c9a2a14b5ca72",
+    "5c3da24ce65e46c67689c0c8fb0b925103b33972"
+  ],
+  "completed_at": "2026-10-15T12:49:20.587Z",
+  "dispatched_at": "2026-10-15T12:40:14Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-scheduled-retention-repair.html",
+      "line": "1",
+      "severity": "follow-on: ",
+      "text": "follow-on: the node's granted landing fragment is absent from the tree at head (git cat-file -e at 5c3da24 reports the path does not exist); the landing record lives only in the manifest 'landing:' line, and at 453 changed lines the node is not small by the two-part rule that permits a manifest-only landing, although the dispatch brief also states the node writes no evidence prose."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 6 production call sites",
+    "diff": "Read each of 189cac1c, 442f83c7, 9aa9958c, 8b70fe38, e2e03334, f3548ea4, 7a435129, 5c3da24c against base 90fedfd5; the six-file diff adds failing tests, narrows the rebuild to each present file's covered window union retaining exact installed bytes, contains pass errors with carried-forward cleanup debt, and centralises source deletion.",
+    "done_when": "The measure at prompt.txt:92 names the three test files and four behaviours; tests/test_telemetry_retention.py:740, tests/test_telemetry_ingest.py:519-607, tests/test_telemetry_index.py:1961 and tests/test_telemetry_index.py:1991 exercise exactly those behaviours, and repair-final-gate.log records 119 passes.",
+    "goal": "The source goal at prompt.txt:30 asks for retired-day tier preservation, contained pass errors, and one shared source-deletion helper; all three are present in the diff at telemetry_retention.py:457-472, telemetry_ingest.py:148-168, and telemetry_index.py:1016.",
+    "manifest": "The source manifest.md reports status complete, eight commits, and '119 passed in 41.92s, EXIT=0', and lists the declared negative-control log; its baseline_suite and after_suite fields are null although readable baseline, review-baseline and repair-final-gate logs exist, so the reviewer had to derive the added-failure figures itself.",
+    "write_paths": "The source scope at prompt.txt:68-76 grants three telemetry modules plus their three tests plus a fragment and figure directory; the diff touches the six code/test files only, and the granted fragment docs/evidence/fragments/serving-record-warehouse/srw-scheduled-retention-repair.html is absent from the tree at head."
+  },
+  "justifications": {
+    "durability": "Every added assertion names a code change that reddens it and three inverse logs demonstrate firing: repair-final-declared-negative.log for the covered-span union, repair-negative-rolled-source.log for the inode-keyed delete at telemetry_index.py:1016, and repair-negative-cleanup-retry.log for pending_forget at telemetry_ingest.py:150; the helper-sharing assertion at tests/test_telemetry_index.py:1961 is structural and would not catch a differently-worded duplicate delete pair.",
+    "evidence": "baseline.log at revision 90fedfd5 records six named failures with EXIT=1, review-baseline.log at 8b70fe38 records the two repair tests failing with EXIT=1, and repair-final-gate.log at 5c3da24 ends '119 passed in 41.92s' with EXIT=0; the declared inverse control in repair-final-declared-negative.log reddens tests/test_telemetry_retention.py:740.",
+    "fit": "The new fields sit with their siblings in the RetentionReport dataclass at telemetry_ingest.py:82-104, the helper at telemetry_index.py:1016 sits beside the two callers it replaces, and no added name carries a plan, sprint or ticket identifier.",
+    "goal_fidelity": "The three goal clauses are each delivered in the diff: telemetry_retention.py:418-432 computes a per-file covered window union and telemetry_retention.py:457-472 retains untouched installed lines, telemetry_ingest.py:148-168 contains pass faults and carries vacuum debt, and telemetry_index.py:1016 is the single retired-source delete helper shared by forget at line 1012 and tier deselection at line 1315.",
+    "reuse": "A capability search of imas_ambix/agent for source-and-sample deletion found the owner telemetry_index.py, and the change extends it in place: _delete_source_rows at line 1016 is now called by both forget at line 1012 and _drop_deselected_tiers at line 1315 rather than forking a second delete pair.",
+    "scope_discipline": "The base-to-head diff changes exactly imas_ambix/agent/telemetry_retention.py, telemetry_ingest.py, telemetry_index.py and the three declared test files, all inside the source prompt.txt:68-76 scope, with no out-of-scope edit."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The source goal at prompt.txt:30 asks for retired-day tier preservation, contained pass errors, and one shared source-deletion helper; all three are present in the diff at telemetry_retention.py:457-472, telemetry_ingest.py:148-168, and telemetry_index.py:1016.\nVERDICT done_when: The measure at prompt.txt:92 names the three test files and four behaviours; tests/test_telemetry_retention.py:740, tests/test_telemetry_ingest.py:519-607, tests/test_telemetry_index.py:1961 and tests/test_telemetry_index.py:1991 exercise exactly those behaviours, and repair-final-gate.log records 119 passes.\nVERDICT write_paths: The source scope at prompt.txt:68-76 grants three telemetry modules plus their three tests plus a fragment and figure directory; the diff touches the six code/test files only, and the granted fragment docs/evidence/fragments/serving-record-warehouse/srw-scheduled-retention-repair.html is absent from the tree at head.\nVERDICT manifest: The source manifest.md reports status complete, eight commits, and '119 passed in 41.92s, EXIT=0', and lists the declared negative-control log; its baseline_suite and after_suite fields are null although readable baseline, review-baseline and repair-final-gate logs exist, so the reviewer had to derive the added-failure figures itself.\nVERDICT diff: Read each of 189cac1c, 442f83c7, 9aa9958c, 8b70fe38, e2e03334, f3548ea4, 7a435129, 5c3da24c against base 90fedfd5; the six-file diff adds failing tests, narrows the rebuild to each present file's covered window union retaining exact installed bytes, contains pass errors with carried-forward cleanup debt, and centralises source deletion.\nCALL_SITES: imas_ambix/agent/cli.py:2980, imas_ambix/agent/telemetry_ingest.py:218, imas_ambix/agent/telemetry_ingest.py:528, imas_ambix/agent/telemetry_retention.py:901, imas_ambix/agent/telemetry_index.py:1012, imas_ambix/agent/telemetry_index.py:1315\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: The three goal clauses are each delivered in the diff: telemetry_retention.py:418-432 computes a per-file covered window union and telemetry_retention.py:457-472 retains untouched installed lines, telemetry_ingest.py:148-168 contains pass faults and carries vacuum debt, and telemetry_index.py:1016 is the single retired-source delete helper shared by forget at line 1012 and tier deselection at line 1315.\nSCORE evidence: 18\nJUSTIFICATION evidence: baseline.log at revision 90fedfd5 records six named failures with EXIT=1, review-baseline.log at 8b70fe38 records the two repair tests failing with EXIT=1, and repair-final-gate.log at 5c3da24 ends '119 passed in 41.92s' with EXIT=0; the declared inverse control in repair-final-declared-negative.log reddens tests/test_telemetry_retention.py:740.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: The base-to-head diff changes exactly imas_ambix/agent/telemetry_retention.py, telemetry_ingest.py, telemetry_index.py and the three declared test files, all inside the source prompt.txt:68-76 scope, with no out-of-scope edit.\nSCORE durability: 19\nJUSTIFICATION durability: Every added assertion names a code change that reddens it and three inverse logs demonstrate firing: repair-final-declared-negative.log for the covered-span union, repair-negative-rolled-source.log for the inode-keyed delete at telemetry_index.py:1016, and repair-negative-cleanup-retry.log for pending_forget at telemetry_ingest.py:150; the helper-sharing assertion at tests/test_telemetry_index.py:1961 is structural and would not catch a differently-worded duplicate delete pair.\nSCORE fit: 19\nJUSTIFICATION fit: The new fields sit with their siblings in the RetentionReport dataclass at telemetry_ingest.py:82-104, the helper at telemetry_index.py:1016 sits beside the two callers it replaces, and no added name carries a plan, sprint or ticket identifier.\nSCORE reuse: 20\nJUSTIFICATION reuse: A capability search of imas_ambix/agent for source-and-sample deletion found the owner telemetry_index.py, and the change extends it in place: _delete_source_rows at line 1016 is now called by both forget at line 1012 and _drop_deselected_tiers at line 1315 rather than forking a second delete pair.\nFINDING docs/evidence/fragments/serving-record-warehouse/srw-scheduled-retention-repair.html:1 follow-on: the node's granted landing fragment is absent from the tree at head (git cat-file -e at 5c3da24 reports the path does not exist); the landing record lives only in the manifest 'landing:' line, and at 453 changed lines the node is not small by the two-part rule that permits a manifest-only landing, although the dispatch brief also states the node writes no evidence prose.",
+  "review_run_id": "r-20261015T124000704278-review-of-srw-scheduled-retention-repair-5c3da24ce65e",
+  "reviewed_base_sha": "90fedfd59f6dc6c95c612f6cf947379ca9fd34dd",
+  "reviewed_head_sha": "5c3da24ce65e46c67689c0c8fb0b925103b33972",
+  "reviewed_revision": "5c3da24c",
+  "reviewed_run_id": "r-20261015T115015270708-srw-scheduled-retention-repair",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "self_referential_assertions": [],
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T12:52:00.000000+00:00",
+  "total": 116
+}
