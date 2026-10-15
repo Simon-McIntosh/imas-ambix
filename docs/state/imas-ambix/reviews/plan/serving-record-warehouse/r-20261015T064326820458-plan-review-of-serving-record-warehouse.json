@@ -1,0 +1,68 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-15T06:53:29.229Z",
+  "dispatched_at": "2026-10-15T06:45:36Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/serving-record-warehouse.html:769",
+      "id": "reasoning-1",
+      "reason": "the section's whole purpose is that the recovered rates price the historical gaps, so a reader that ignores them defeats the section and would send the node to a filter the plan's own evidence contradicts.",
+      "text": "\u00a717 defines the only reader as `rate_in_force(history, slug, when)` returning \"the last `models` observation at or before `when`\", but its own recovered observations (line 772, the table at lines 777\u2013782) carry `\"source\": \"recovered\"` and not `\"models\"`; a worker implementing the sentence literally filters the six recovered rows out, leaving \u00a718's \"a segment that falls before the history's first observation is priced at that first observation\" (line 798) resting on the caller's own intent rather than on the reader's behaviour",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/serving-record-warehouse.html:825",
+      "id": "anchors_resolve-1",
+      "reason": "the miscited script does not change the node's writes or its shared-reader mechanism, and the node's own manifest step (\"lists every call site that opens a request-receipts path\") would find the true reader set anyway.",
+      "text": "\u00a720 names `docs/figures/local-lane-occupancy/occupancy_measure.py` among \"the file's readers today\" that \"open it by path\", but that script takes `--job LABEL=LOG_PATH` arguments and parses a serve log (its `raw = Path(path).read_bytes()` at line 294 reads a log), with no occurrence of `requests`, `receipt` or `.jsonl`",
+      "type": "anchors_resolve",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "66d32b8819c7e74eebdb2c25d0824dcc0b64de780c891aeb351f86316057b1fc",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 227,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261015T064326820458-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "13e173847930916b726fe881e274f7b7453a23a8",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 \u00a720 line 825 names `docs/figures/local-lane-occupancy/occupancy_measure.py` as a current reader of the request-receipts file, but that script has no reference to receipts and reads serve logs.",
+    "done_when": "pass \u2014 \u00a717 and \u00a720 each name a measurable negative control (a change-every-refresh appender that must fail the change-only test; a current-day compressor that must fail the age test), and each names checks that can fail.",
+    "evidence_paths": "pass \u2014 \u00a717 and \u00a720 gates run in the node worktrees under the repository test tree, and \u00a718's live render names the fleet node; no gate writes to a session scratchpad.",
+    "naming": "pass \u2014 `rate_in_force`, `read_receipt_rows`, `REFRESH_AGE` and the day-segment names are mechanism names carrying no plan label, ticket number or version tag.",
+    "reasoning": "a finding \u2014 \u00a717 line 769 states `rate_in_force` returns the last `models` observation, while its own recovered observations at line 772 carry `\"source\": \"recovered\"`, so the rates the section exists to recover would be invisible to the module's only reader.",
+    "single_goal": "pass \u2014 \u00a717 lands one reader plus its history, \u00a720 lands the roll plus the shared reader that the roll's callers need; each node's done-when closes on one verdict.",
+    "wiring": "pass \u2014 the plan's `plan-depends-on` target resolves (`docs/plans/serve-telemetry-spine.html` exists) and \u00a718's \"Runs after: \u00a717\" edge matches \u00a717's exported `rate_in_force`; no declared relationship points at a wrong node."
+  },
+  "section_digests": {
+    "_document": "00971e581012b09331cfaeb3acb67ba5dd7f0dda2eaffcb44e0704a986e0223e",
+    "s1": "f0e6a1c8acb9f607124dc4f3def1f738e2a0bc52c579a2c0849a33c6fa1156fb",
+    "s10": "1509fe50d6cbdb1159da0bac7826bf9df43f73f13dc81d4b4a3c3c0d3926d315",
+    "s11": "f02a2d9d5ac0a9537cbc0c7c1127234686c6b35ebe9d5f28f2eb1dc890ba8349",
+    "s12": "c993e8c7a97750818ddad0ac8e3797052442f5dd3357a9b1336cd024ff90f8d3",
+    "s13": "0a80350dd120a399e1c304a1eed64f149a7e5f5f1ef41302cad6223dc985910e",
+    "s14": "65bc34f5b6d081374d8287c3a7e14dfa77b21b6ef0390d5e95961d81ded7114d",
+    "s15": "1d02ca1576af9e3b58c011e3b4c84ffb63870a92698492bd45a0bbfe48660ea0",
+    "s16": "59a48fb3793215455ca353b8188b5d155dec253814be9a4eea8d2f4eeb412fe1",
+    "s17": "e6b096ec27da376edc3a5aeb32666bd0e572f9726b0584d8e8a4a010c00cc461",
+    "s18": "4fbf26597e971feb3af07d38b5c2da52430c618f28bcaf3df29b21644c63e888",
+    "s19": "dc83604a90c46f7c6ef8e70e35cccf1230c480b513b218fc4744ddeeae9e6864",
+    "s2": "dd85bfd277fcf3eff4974460f080158cafc4ff9e584ca8799bbdf19223a0067f",
+    "s20": "fd2f7922c502cbdf7411d382a6f317f5efa02c8de413f9c616f13b1a4bd1fdc2",
+    "s21": "072fad4f2605157b2b243b2b8688d099e0d0b27039e2c7a28f72c4ba47c72cf5",
+    "s22": "52141ebae4753d8660df25ad6003fbdcdef2f880b263ebc610a7f03418b8dcd9",
+    "s3": "dd2996924d4d122532e4de97c38a9cae83173c64b6409cc2135177861f392578",
+    "s4": "59f727a99fef92f80127586b2833279df3aa59154895e05a2590e648232abfeb",
+    "s5": "07d984217f6f4d05e582e4d403dff88fd7c0627b3a2cceb36a0123131813e899",
+    "s6": "19d3648895b8aeee8beac762cb2ddb63ba248dec6485eb393625e0c9fd840c32",
+    "s7": "8de1f36a2db5f192d8a078c96c91f29a1d456c95b742332e6fb3854ee451cb78",
+    "s8": "6fa176e0365af868497abc3e4cb9e224032b3de82c337015be11061591c407c2",
+    "s9": "a29439d3d5c1417e8d6fdc357f0ab636deb86ddef8cdd6865c541773247886ef"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T06:56:16.597795+00:00"
+}
