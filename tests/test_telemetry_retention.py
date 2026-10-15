@@ -600,8 +600,10 @@ def test_a_running_jobs_closed_day_segment_is_not_held_by_its_run(tmp_path):
     open_path = tmp_path / "deepseek-v4-1-flash-1278105.jsonl"
     _write_rows(
         open_path,
-        [_row(_NOW - 3600 + offset, 900.0 + index * 100) for index, offset in
-         enumerate((600, 1800, 3000))],
+        [
+            _row(_NOW - 3600 + offset, 900.0 + index * 100)
+            for index, offset in enumerate((600, 1800, 3000))
+        ],
     )
 
     def running() -> frozenset[str]:
@@ -678,6 +680,57 @@ def test_a_rebuilt_tier_is_staged_beside_the_tier_and_renamed_into_place(
 
     assert {destination for _s, destination in staged} == {minute, hour_path}
     assert all(source.parent == destination.parent for source, destination in staged)
+
+
+@pytest.mark.parametrize("present_days", [(2,), (0, 2)])
+def test_rebuild_keeps_rows_from_retired_days(tmp_path, present_days):
+    """Only windows belonging to present raw segments may be replaced."""
+    base = int((_NOW - 24 * 86400) // 86400) * 86400
+    raw = tmp_path / "deepseek-v4-1-flash-1278105.jsonl"
+    all_rows = [
+        _row(base + day * 86400 + offset, day * 1000 + index * 100)
+        for day in range(3)
+        for index, offset in enumerate((600, 1800, 3000))
+    ]
+    minute, hour_path = retention.tier_paths(raw)
+    from imas_ambix.agent.telemetry_store import (
+        TIER_HOUR,
+        TIER_MINUTE,
+        compact_rows,
+        write_rows,
+    )
+
+    minute_rows = compact_rows(all_rows, tier=TIER_MINUTE)
+    hour_rows = compact_rows(minute_rows, tier=TIER_HOUR)
+    write_rows(minute, minute_rows)
+    write_rows(hour_path, hour_rows)
+    retired_days = set(range(3)) - set(present_days)
+    before = {
+        path: [
+            line
+            for line in path.read_bytes().splitlines(keepends=True)
+            if int((retention._timestamp_of(json.loads(line)) - base) // 86400)
+            in retired_days
+        ]
+        for path in (minute, hour_path)
+    }
+    assert all(before.values()), "the test built no retired-day tier rows"
+
+    present = []
+    for day in present_days:
+        segment = tmp_path / f"deepseek-v4-1-flash-1278105.202609{day + 7:02d}.jsonl"
+        _write_rows(segment, all_rows[day * 3 : day * 3 + 3])
+        present.append(segment)
+
+    assert retention.rebuild_job_tiers(present, "1278105") is True
+    for path in (minute, hour_path):
+        after = [
+            line
+            for line in path.read_bytes().splitlines(keepends=True)
+            if int((retention._timestamp_of(json.loads(line)) - base) // 86400)
+            in retired_days
+        ]
+        assert after == before[path], f"{path.name} lost retired-day bytes"
 
 
 def test_the_liveness_query_is_account_wide_bounded_and_takes_no_subprocess(

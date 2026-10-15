@@ -515,6 +515,98 @@ def test_a_scheduler_that_refuses_makes_the_pass_retire_nothing(tmp_path, monkey
     assert raw.exists() is True
 
 
+@pytest.mark.parametrize("fault", ["manifest", "rename", "scheduler"])
+def test_retention_fault_stays_inside_the_pass_and_ingest_continues(
+    tmp_path, monkeypatch, caplog, fault
+):
+    """A failed pass reports its error while later ingest ticks still run."""
+    records = tmp_path / "records"
+    raw = _retirable_job(records)
+    monkeypatch.setattr(
+        telemetry_ingest.telemetry_retention,
+        "default_running_job_ids",
+        lambda: frozenset(),
+    )
+    if fault == "manifest":
+
+        def fail(*args, **kwargs):
+            raise OSError("manifest write failed")
+
+        monkeypatch.setattr(
+            telemetry_ingest.telemetry_retention, "write_manifest", fail
+        )
+    elif fault == "rename":
+
+        def fail(*args, **kwargs):
+            raise OSError("tier rename failed")
+
+        monkeypatch.setattr(telemetry_ingest.telemetry_retention.os, "replace", fail)
+    else:
+
+        def fail():
+            raise RuntimeError("scheduler refused")
+
+        monkeypatch.setattr(
+            telemetry_ingest.telemetry_retention, "default_running_job_ids", fail
+        )
+
+    with TelemetryIndex(tmp_path / "index.sqlite") as index:
+        scheduled = telemetry_ingest.ScheduledRetention(
+            index,
+            records,
+            manifest_dir=tmp_path / "manifests",
+            clock=lambda: _RETENTION_NOW,
+        )
+        reports = run(
+            index, records, iterations=2, sleep=lambda _: None, retention=scheduled
+        )
+        assert len(reports) == 2
+        assert index.sample_count() > 0, "the loop did not index the record"
+        assert scheduled.last_report.error is not None
+    assert raw.exists(), "a failed pass retired the raw file"
+    assert fault in caplog.text
+
+
+def test_a_locked_vacuum_is_retried_without_another_retirement(tmp_path, monkeypatch):
+    """Apply stays applied; the next empty pass still repays the vacuum debt."""
+    records = tmp_path / "records"
+    raw = _retirable_job(records)
+    monkeypatch.setattr(
+        telemetry_ingest.telemetry_retention,
+        "default_running_job_ids",
+        lambda: frozenset(),
+    )
+    with TelemetryIndex(tmp_path / "index.sqlite") as index:
+        tick(index, records)
+        actual_vacuum = index.vacuum
+        attempts = []
+
+        def locked_once():
+            attempts.append(1)
+            if len(attempts) == 1:
+                raise sqlite3.OperationalError("database is locked")
+            actual_vacuum()
+
+        monkeypatch.setattr(index, "vacuum", locked_once)
+        scheduled = telemetry_ingest.ScheduledRetention(
+            index,
+            records,
+            manifest_dir=tmp_path / "manifests",
+            clock=lambda: _RETENTION_NOW,
+        )
+        reports = run(
+            index, records, iterations=2, sleep=lambda _: None, retention=scheduled
+        )
+        assert len(reports) == 2
+        assert not raw.exists(), "vacuum failure undid retirement"
+        assert scheduled.last_report.removed == (raw,)
+        assert scheduled.last_report.vacuum_owed is True
+        next_report = scheduled(_RETENTION_NOW + scheduled.interval_seconds)
+        assert next_report.removed == ()
+        assert next_report.vacuum_owed is False
+        assert len(attempts) == 2, "the empty pass did not retry vacuum"
+
+
 def test_the_retirement_pass_runs_at_most_once_a_day(tmp_path, monkeypatch):
     """The cadence lives with the pass, so a loop ticking every minute retires
     once a day rather than once a tick."""
