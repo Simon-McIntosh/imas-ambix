@@ -22,9 +22,9 @@
   <title>Serving Record Warehouse | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;implementable&quot;,&quot;s20&quot;:&quot;implementable&quot;,&quot;s21&quot;:&quot;implementable&quot;,&quot;s22&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;implementable&quot;,&quot;s21&quot;:&quot;implementable&quot;,&quot;s22&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="233">
+<meta name="plan-version" content="234">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -807,7 +807,7 @@
 <p><strong>Done when</strong>: tests over a fixture index and a fixture history assert the following. A period spanning one recorded change in the endpoint median costs the first segment's tokens at the first median plus the second segment's tokens at the second. A period entirely after the last change costs that median's single-rate figure. A segment before the first endpoints observation is priced at its median, and the label says the rate was carried back. An FP4 endpoint in the fixture does not move the median. A scheduled row is priced hour by hour. Every existing test in <code>tests/test_agent_watch_cost.py</code> still passes. <code>watch.py</code>'s call to <code>provider_prices.refresh</code> names the served model's matched slug. One <code>agent watch --json</code> render against the live index completes on the fleet node, appends an <code>endpoints</code> row for that slug to the live history, and its month cost is recorded beside the single-rate figure from the same render. The declared negative control prices every segment at <code>now</code>, and it must fail the two-rate test.</p>
 
     <h2 id="s19">§19 — The serve's log carries engine lines, not access lines</h2>
-<section data-reckon="section" data-id="s19" data-effort-hours="0.75" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s19" data-effort-hours="0.75" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="done" data-links=""></section>
 <p><strong>What is wrong, measured 2026-10-15.</strong> The four-card SGLang serve, job 1280470, has written a 426 MB log in 12.4 days, about 34 MB a day, into the repository root. Of its 2,719,458 lines, 1,027,209 are <code>GET /v1/models</code> and 602,311 are <code>GET /metrics</code>: 60% of the file records polling. The engine lines the capacity studies read, 434,904 decode and 314,235 prefill batch lines, are 28%. The serve's own arguments show <code>uvicorn_access_log_exclude_prefixes: []</code>, so the engine already supports suppressing these lines and the profile never asks it to.</p>
 <p><strong>The change.</strong> The generated serve command passes the access-log exclusion for <code>/metrics</code>, <code>/v1/models</code> and <code>/health</code> to an SGLang serve. Before writing the flag, the node reads its exact spelling from the serving environment's <code>sglang serve --help</code>, never from memory. A vLLM serve gets the equivalent only if that environment's help lists one. Request lines for <code>/v1/messages</code> and <code>/v1/chat/completions</code> stay in the log. The change takes effect at the serve's next restart, and this node does not restart a serve.</p>
 <table>
@@ -1067,10 +1067,11 @@
     <div class="r-fu-body"><p>The lead reversed the 2026-10-05 decline of <code>f-srw-024</code> on 2026-10-15. §17 records the history and §18 prices from it, in that order, because §18 reads §17's <code>rate_in_force</code>.</p></div>
     <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §17</pre>
     </article>
-<article class="r-fu" data-id="f-srw-026" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-edit" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §19" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-srw-026" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-edit" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §19" data-resolved-at="2026-10-15T07:37:27+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Stop the serve log recording every poll</h4>
     <div class="r-fu-body"><p>60% of the live serve's 426 MB log is <code>/v1/models</code> and <code>/metrics</code> access lines. §19 passes the engine's own exclusion flag; it applies at the next serve restart.</p></div>
     <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §19</pre>
+    <p class="r-fu-outcome">done: §19 landed at d3602d87. Serve commands exclude polling paths from the access log, effective at the next serve restart.</p>
     </article>
 <article class="r-fu" data-id="f-srw-027" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-edit" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §20" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Roll the router&#x27;s request receipts by day</h4>
@@ -1614,6 +1615,9 @@
 </div>
 <div class="r-comment" data-section="s19" data-id="c-run-r-20261015T072138893021-review-of-srw-serve-log-drops-polling-e181b6637ad6" data-who="reckon-build" data-when="2026-10-15T07:34:56.144Z">
     <div class="r-comment-body"><p>independent review of run r-20261015T064125208736-srw-serve-log-drops-polling at head e181b6637ad6: the landed change drops /metrics, /v1/models and /health from the generated SGLang and vLLM serve access logs; 6/6 dimensions scored, total 110, three follow-on findings, no blocking finding.</p></div>
+</div>
+<div class="r-comment" data-section="s19" data-id="c-close-s19" data-who="reckon-build" data-when="2026-10-15T07:40:00Z">
+    <div class="r-comment-body"><p>§19 landed: serve commands drop <code>/metrics</code>, <code>/v1/models</code> and <code>/health</code> from the access log (commit <code>e181b663</code>, merged <code>d3602d87</code>); 6 tests pass; review 110/120. It takes effect at the next serve restart. <a href="/imas-ambix/evidence/archive/serving-record-warehouse-landed.html#s19">evidence</a></p></div>
 </div>
 </section>
 </main>

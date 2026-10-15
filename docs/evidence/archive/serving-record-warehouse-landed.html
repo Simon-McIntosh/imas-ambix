@@ -137,6 +137,11 @@
     <p>The three index-report tests in <code>tests/test_agent_telemetry_watch.py</code> now assert that the ledger block's header line and every period row are absent, through one helper, <code>_assert_no_ledger_block</code>. They no longer assert the bare word, which an index path may carry.</p><p>All 22 tests pass both under a <code>TMPDIR</code> whose path contains <em>ledger</em> and under a clean one. The declared negative control, appending <code>render_ledger_rows</code> to both index reports, fails the three. Run <code>r-20261005T094714092208</code>, worker commit <code>e5f415bc</code>, merged <code>4c9be988</code>, review 90 with no findings.</p>
   </section>
 
+  <section id="s19">
+    <h2>§19 — the serve&#x27;s log drops polling lines</h2>
+    <p>Generated serve commands now exclude <code>/metrics</code>, <code>/v1/models</code> and <code>/health</code> from the uvicorn access log. SGLang gets <code>--uvicorn-access-log-exclude-prefixes</code> and vLLM <code>--disable-access-log-for-endpoints</code>; each spelling was read from the installed engine's <code>--help</code>. Commit <code>e181b663</code>, merged at <code>d3602d87</code>. <code>tests/test_agent_serve_access_log.py</code>: 6 passed. The negative control, which drops <code>/v1/models</code>, failed as declared. Independent review: 110 of 120, 0 added failures. The change takes effect at the serve's next restart. Review follow-ons: one test compares two of its own constants; the vLLM flag is emitted without consulting that engine's help; the vLLM test skips where the wheel is absent.</p>
+  </section>
+
 </main>
 </body>
 </html>
