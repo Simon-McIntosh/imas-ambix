@@ -1,0 +1,69 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-15T11:28:35.298Z",
+  "dispatched_at": "2026-10-15T11:19:34Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:854",
+      "id": "reasoning-1",
+      "reason": "as written the safeguard drops the very history its paragraph exists to protect, so a node implementing \"the time span\" as one interval loses a retired day's tier rows; the rule must be \"windows covered by a present raw file\" (a union of per-file spans) and the done-when pins only \"an earlier day segment already retired\", not a retired segment straddled by present files.",
+      "text": "the rebuild's retention rule keeps only \"every tier row outside that span [the time span of the raw files still present]\", but a retired day segment whose windows fall between two raw files still present (day1 kept because its defective first hour fails equality, day2 retired, day3 present) is inside that span and is dropped by the rebuild; the section's own evidence at \u00a722:854 and the archive anchor `s22-1278105` show the earliest hour's tiers are the defective one, so earliest-kept / later-retired is the expected shape, not a corner",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:864",
+      "id": "done_when-1",
+      "reason": "the assertion is unsatisfiable as written, so a worker either writes a test that cannot pass or reorders the vacuum ahead of the apply to satisfy it, changing the design the section states.",
+      "text": "the done-when asserts \"An error raised inside a retention pass leaves the ingest loop running and retires nothing that day\", and \u00a722:854 lists \"a lock error from the vacuum\" among the errors that retire nothing, but the same paragraph fixes the vacuum *after* the apply (\"After a retirement it vacuums the index outside the hot path\") so a vacuum lock error cannot leave the day retiring nothing \u2014 the deletion has already landed",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "169bff864a08a54abb312e06ef58a17bb64fb927f16b8776968797d142dd3346",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 265,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261015T111908625137-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "3391da81e6dadc50aebe43403bba8bbabdd925b9",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `node_probe.run_capture` resolves at `imas_ambix/agent/node_probe.py:186` with a 10 s default timeout, `node_probe.read_jobs` at `:667` issues `squeue -h -w <nodename>` (node-scoped, as \u00a722 says), the anchor `s22-1278105` resolves to a `<section id=\"s22-1278105\">` at line 145 of the archive, and `~/.cache/ambix/watch-index.sqlite3` exists at 9,872,637,952 B against the stated 9.8 GB with `measure.sqlite3` absent as \u00a722 records.",
+    "done_when": "a finding \u2014 the done-when's \"an error ... retires nothing that day\" is made unsatisfiable by the section's own ordering, because it lists the vacuum lock error among the errors that retire nothing while the vacuum runs after the deletes.",
+    "evidence_paths": "pass \u2014 the evidence anchor lives in the committed archive `docs/evidence/archive/serving-record-warehouse-landed.html`, and the gate names test files under `tests/`, not a scratchpad.",
+    "naming": "pass \u2014 the prose carries only section references (in-plan), and no plan label, stage name or ticket id reaches a symbol or file named by \u00a722.",
+    "reasoning": "a finding \u2014 the stated safeguard \"replaces only the tier windows inside the time span of the raw files still present\" cannot preserve a retired day whose windows lie between two present raw files, and the plan's own evidence makes that shape expected.",
+    "single_goal": "pass \u2014 `srw-scheduled-retention` carries one deliverable (the scheduled pass), and the 1278105 cause-finding was moved to its own landed investigate node.",
+    "wiring": "pass \u2014 \u00a722's node table names one implementable node `srw-scheduled-retention` running after \u00a721 (declared `done`, landed per the archive anchor `s21`), and the investigate node it names elsewhere is landed and its crew report resolves at `docs/evidence/archive/serving-record-warehouse-landed.html#s22-1278105`."
+  },
+  "section_digests": {
+    "_document": "f564132b350658da4af4dc414f336b1d72cd7d60f10344ee764e9e9206579668",
+    "s1": "f0e6a1c8acb9f607124dc4f3def1f738e2a0bc52c579a2c0849a33c6fa1156fb",
+    "s10": "1509fe50d6cbdb1159da0bac7826bf9df43f73f13dc81d4b4a3c3c0d3926d315",
+    "s11": "f02a2d9d5ac0a9537cbc0c7c1127234686c6b35ebe9d5f28f2eb1dc890ba8349",
+    "s12": "c993e8c7a97750818ddad0ac8e3797052442f5dd3357a9b1336cd024ff90f8d3",
+    "s13": "0a80350dd120a399e1c304a1eed64f149a7e5f5f1ef41302cad6223dc985910e",
+    "s14": "65bc34f5b6d081374d8287c3a7e14dfa77b21b6ef0390d5e95961d81ded7114d",
+    "s15": "1d02ca1576af9e3b58c011e3b4c84ffb63870a92698492bd45a0bbfe48660ea0",
+    "s16": "59a48fb3793215455ca353b8188b5d155dec253814be9a4eea8d2f4eeb412fe1",
+    "s17": "a9272f7380fa7e5e98ccdb05c439a87545af549c2b868454c7fcbf8b5f205d73",
+    "s18": "429fc06f68195b5f8d203f2a7cecc6012761471232df3108082927ed9cf8f432",
+    "s19": "dc83604a90c46f7c6ef8e70e35cccf1230c480b513b218fc4744ddeeae9e6864",
+    "s2": "dd85bfd277fcf3eff4974460f080158cafc4ff9e584ca8799bbdf19223a0067f",
+    "s20": "8122e379cac4618fb3130fbbe0ee431d918ea6f19ac63f7dee6b4d54ff284566",
+    "s21": "072fad4f2605157b2b243b2b8688d099e0d0b27039e2c7a28f72c4ba47c72cf5",
+    "s22": "ca54f1fc9dd75faa9b8b5fafbe92cbfe924fb1174a92f0a5036466385a8e3b3b",
+    "s23": "610b50ac6a385e642652eae78f628fddf9d43a5744bdad1097853a67bc474779",
+    "s3": "dd2996924d4d122532e4de97c38a9cae83173c64b6409cc2135177861f392578",
+    "s4": "59f727a99fef92f80127586b2833279df3aa59154895e05a2590e648232abfeb",
+    "s5": "07d984217f6f4d05e582e4d403dff88fd7c0627b3a2cceb36a0123131813e899",
+    "s6": "19d3648895b8aeee8beac762cb2ddb63ba248dec6485eb393625e0c9fd840c32",
+    "s7": "8de1f36a2db5f192d8a078c96c91f29a1d456c95b742332e6fb3854ee451cb78",
+    "s8": "6fa176e0365af868497abc3e4cb9e224032b3de82c337015be11061591c407c2",
+    "s9": "a29439d3d5c1417e8d6fdc357f0ab636deb86ddef8cdd6865c541773247886ef"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T11:32:04.671698+00:00"
+}
