@@ -1014,16 +1014,20 @@ class TelemetryIndex:
         return removed
 
     def _delete_source_rows(self, row: sqlite3.Row) -> None:
-        """Delete one source and only the samples attributed to that source."""
-        identity = (row["host"], row["boot_id"], row["path"], row["inode"])
+        """Delete a source and its samples across every path it held after a roll.
+
+        Samples keep the path they had when inserted, while the renamed segment
+        gets another source row. Host, boot and inode are the stored sample key
+        shared by both paths, so deleting by the source's current path would
+        leave its earlier samples and source alias behind.
+        """
+        identity = (row["host"], row["boot_id"], row["inode"])
         self._conn.execute(
-            "DELETE FROM sample WHERE host = ? AND boot_id = ? "
-            "AND path = ? AND inode = ?",
+            "DELETE FROM sample WHERE host = ? AND boot_id = ? AND inode = ?",
             identity,
         )
         self._conn.execute(
-            "DELETE FROM source WHERE host = ? AND boot_id = ? "
-            "AND path = ? AND inode = ?",
+            "DELETE FROM source WHERE host = ? AND boot_id = ? AND inode = ?",
             identity,
         )
 
