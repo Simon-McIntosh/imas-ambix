@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;implementable&quot;,&quot;s22&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="254">
+<meta name="plan-version" content="255">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -1644,6 +1644,9 @@
 </div>
 <div class="r-comment" data-section="s17" data-id="c-close-s17" data-who="reckon-build" data-when="2026-10-15T09:24:00Z">
     <div class="r-comment-body"><p>§17 landed: a change-only provider price history with six recovered rates, <code>rate_in_force</code> and <code>provider_median_in_force</code>, one rate normaliser, and an hourly refresh (merged <code>c9b76cb4</code>); 52 tests pass; the review after the repair scored 114/120. §18 can now dispatch. <a href="/imas-ambix/evidence/archive/serving-record-warehouse-landed.html#s17">evidence</a></p></div>
+</div>
+<div class="r-comment" data-section="s17" data-id="c-run-r-20261015T084847450740-srw-price-history-repair" data-who="reckon-build" data-when="2026-10-15T09:01:35.631Z">
+    <div class="r-comment-body"><p>srw-price-history-repair: provider_prices.rates is the one rate normaliser (watch.py imports it and defines none); the 2026-10-02 recovered row cites 22.8 B input and 0.166 B output tokens; an endpoints row is appended only when a listed price moves, so a reordered listing or a renamed provider appends nothing while a changed rate appends one. Gate: tests/test_provider_prices.py and tests/test_agent_watch_cost.py 52 passed, serving-interpreter guard 2 passed, ruff check on the changed paths exits 0; negative control (whole-listing comparison restored) failed test_an_endpoints_row_is_recorded_only_when_a_price_moves with assert 2 == 1, EXIT=1.</p></div>
 </div>
 <div class="r-comment" data-section="s20" data-id="c-close-s20" data-who="reckon-build" data-when="2026-10-15T08:55:00Z">
     <div class="r-comment-body"><p>§20 landed: request receipts roll into UTC day files, compressed after two whole days, read through one shared reader (commit <code>8f300da4</code>, merged <code>a7409495</code>); 44 + 126 tests pass; review 112/120. It takes effect at the next router restart. <a href="/imas-ambix/evidence/archive/serving-record-warehouse-landed.html#s20">evidence</a></p></div>
