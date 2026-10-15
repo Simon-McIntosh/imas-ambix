@@ -1,0 +1,77 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "basis: the reviewed run's own after_suite arm (revision 7072515f) reports completed true with failure_count 0 and no failure ids, and the head gate log /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T064155851387-srw-raw-record-rolls-daily/tests.log closes \"94 passed in 37.41s\" with EXIT=0 and no FAILED or ERROR line, so the head added no failing test; the manifest declares no baseline_suite, so no base arm exists to difference against and the count is 0.",
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2655",
+    "imas_ambix/agent/serving_receipts.py:821",
+    "imas_ambix/agent/telemetry_retention.py:319",
+    "imas_ambix/agent/telemetry_retention.py:669",
+    "imas_ambix/agent/live_panel.py:181"
+  ],
+  "completed_at": "2026-10-15T08:05:45.128Z",
+  "dispatched_at": "2026-10-15T07:46:32Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_store.py",
+      "line": "1022",
+      "severity": "blocking",
+      "text": "FINDING imas_ambix/agent/telemetry_store.py:1022 blocking: the rolled branch sets emitted_through to 0.0 and offset to 0, so the pass that runs at a day roll re-emits every closed window the cadence passes already appended to the same minute tier; a replica of the recorder's ordering (cadence pass on the open record, rename to the day segment, close pass into the same tier) leaves 5 duplicate window rows behind, so the tier is not byte-identical to one full compaction over the same rows -- the measure the done-when names -- and the duplication is reachable every UTC midnight the serve crosses. Reproduction log: roll-duplication.log beside the manifest."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_retention.py",
+      "line": "669",
+      "severity": "blocking",
+      "text": "FINDING imas_ambix/agent/telemetry_retention.py:669 blocking: the new liveness clause has no test, so the done-when item \"a closed day segment of a running job passes the retention scan's job check, and the open file does not\" is unmeasured; the only running-job test (tests/test_telemetry_retention.py:204) uses an open record and every other scan test passes _none_running, so the is_day_segment branch is never entered and a regression to the bare \"job in live\" test would leave the suite green."
+    },
+    {
+      "file": "imas_ambix/agent/serving_receipts.py",
+      "line": "649",
+      "severity": "follow-on",
+      "text": "FINDING imas_ambix/agent/serving_receipts.py:649 follow-on: receipts_job_id duplicates a capability imas_ambix/agent/telemetry_index.py:417 already owns and exports (telemetry_index.py:1799); the addition does not extend the owner, and the two disagree -- telemetry_index.receipts_job_id returns None for \"deepseek-v4-1-flash-1280470.20261015.jsonl\" where the new definition returns \"1280470\"."
+    },
+    {
+      "file": "imas_ambix/agent/serving_receipts.py",
+      "line": "671",
+      "severity": "follow-on",
+      "text": "FINDING imas_ambix/agent/serving_receipts.py:671 follow-on: tier_paths lost its suffix handling -- it now strips only \".jsonl\" and the 8-digit day -- so a rolled or compressed name such as \"x-1.jsonl.1.gz\" resolves to \"x-1.jsonl.1.gz.minute.jsonl\" where the previous implementation resolved \"x.minute.jsonl.1.gz\"; no producer under imas_ambix/agent writes such a name today, so it is latent, but telemetry_index.py:176 and :182 still tolerate those suffixes and would not find the ladder."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 5 production call site(s)",
+    "diff": "read commit by commit against aba9c1ab; six files, all inside the declared scope, two commits.",
+    "done_when": "five assertions are named; four are gated and passing, and the retention one (closed day segment of a running job) has no test.",
+    "goal": "the goal is a running serve's raw record rolled into UTC day segments under one ladder and compacted incrementally; imas_ambix/agent/serving_receipts.py:557 and imas_ambix/agent/telemetry_store.py:934 implement both, but the roll re-emits windows the tier already holds.",
+    "manifest": "read; records the gate command, its 94-passed result, the EXIT=1 negative control and the two admitted gaps in follow_ons.",
+    "write_paths": "read; every path in the diff is inside imas_ambix/agent/serving_receipts.py, imas_ambix/agent/telemetry_store.py, imas_ambix/agent/telemetry_retention.py, the two test files and the evidence fragment."
+  },
+  "justifications": {
+    "durability": "tests/test_telemetry_store.py:833 fails if the incremental tier diverges from one full compaction, but no test covers the roll at imas_ambix/agent/telemetry_store.py:1022.",
+    "evidence": "the reviewed gate log tests.log opens with revision 7072515f and closes \"94 passed in 37.41s\" with EXIT=0, and the done-when's retention assertion has no gate.",
+    "fit": "imas_ambix/agent/telemetry_store.py:934 and imas_ambix/agent/serving_receipts.py:399 keep the module's docstring voice and carry no plan or ticket label.",
+    "goal_fidelity": "the roll and the watermark pass are present at imas_ambix/agent/serving_receipts.py:557 and imas_ambix/agent/telemetry_store.py:934, but the roll at telemetry_store.py:1022 duplicates the day's windows.",
+    "reuse": "imas_ambix/agent/serving_receipts.py:649 duplicates imas_ambix/agent/telemetry_index.py:417 without extending it.",
+    "scope_discipline": "git diff --stat aba9c1ab..d6635540 lists only the declared paths."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: read the node goal against the landed change; imas_ambix/agent/serving_receipts.py:557 renames the open record to <slug>-<job>.<YYYYMMDD>.jsonl at the UTC day boundary and reopens the open name, and imas_ambix/agent/telemetry_store.py:934 adds the watermark-driven incremental pass, so the day-roll and incremental compaction the goal names are both present.\nVERDICT done_when: the done-when sets five assertions; tests/test_agent_serving_receipts.py:1529 covers the roll, the preserved inode, the single ladder and receipts_job_id, and tests/test_telemetry_store.py:833 and its neighbours cover byte-identity against one full compaction, the closed-windows-only rule and the inode-mismatch recompaction, but no test names a closed day segment beside a running job, so that assertion is unmeasured and the roll's own byte-identity does not hold (FINDING telemetry_store.py:1022).\nVERDICT write_paths: read the manifest's declared paths; the diff touches imas_ambix/agent/serving_receipts.py, imas_ambix/agent/telemetry_store.py, imas_ambix/agent/telemetry_retention.py, tests/test_agent_serving_receipts.py, tests/test_telemetry_store.py and docs/evidence/fragments/serving-record-warehouse/srw-raw-record-rolls-daily.html, every one of them inside them.\nVERDICT manifest: read r-20261015T064155851387-srw-raw-record-rolls-daily/manifest.md; it records the five-file gate at 94 passed in 37.41 s (EXIT=0, tests.log) and a negative control at EXIT=1, declares no baseline arm, and its own follow_ons admit that the retention assertion has no test.\nVERDICT diff: read 7072515f and d6635540 against base aba9c1ab commit by commit; the code commit lands the roll, the watermark pass and the retention clause across five files, and the docs commit adds only the evidence fragment, all inside the declared scope.\nCALL_SITES: imas_ambix/agent/cli.py:2655, imas_ambix/agent/serving_receipts.py:821, imas_ambix/agent/telemetry_retention.py:319, imas_ambix/agent/telemetry_retention.py:669, imas_ambix/agent/live_panel.py:181\nSCORE goal_fidelity: 11\nJUSTIFICATION goal_fidelity: imas_ambix/agent/telemetry_store.py:1022 re-emits the day's already-written windows at every roll, so the ladder the goal exists to make linear.\nSCORE evidence: 10\nJUSTIFICATION evidence: the gate names three of the five done-when assertions and its 94-passed result is recorded in tests.log, but the fifth has no gate.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every path in the diff is inside the declared write paths listed in the manifest, and the only extra material is the two-name-parse helpers the roll implies.\nSCORE durability: 8\nJUSTIFICATION durability: tests/test_telemetry_store.py:833 compares the incremental tier to an independent full compaction and would redden if the resume offset regressed, but no test reinstates the roll duplication at imas_ambix/agent/telemetry_store.py:1022.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/telemetry_store.py:934 follows the surrounding docstring and error idiom, and no added name carries a plan, phase or ticket label.\nSCORE reuse: 5\nJUSTIFICATION reuse: imas_ambix/agent/serving_receipts.py:649 re-implements the receipts_job_id that imas_ambix/agent/telemetry_index.py:417 already owns rather than extending it.\nFINDING imas_ambix/agent/telemetry_store.py:1022 blocking: the rolled branch sets emitted_through to 0.0 and offset to 0, so the pass that runs at a day roll re-emits every closed window the cadence passes already appended to the same minute tier; a replica of the recorder's ordering (cadence pass on the open record, rename to the day segment, close pass into the same tier) leaves 5 duplicate window rows behind, so the tier is not byte-identical to one full compaction over the same rows -- the measure the done-when names -- and the duplication is reachable every UTC midnight the serve crosses. Reproduction log: roll-duplication.log beside the manifest.\nFINDING imas_ambix/agent/telemetry_retention.py:669 blocking: the new liveness clause has no test, so the done-when item \"a closed day segment of a running job passes the retention scan's job check, and the open file does not\" is unmeasured; the only running-job test (tests/test_telemetry_retention.py:204) uses an open record and every other scan test passes _none_running, so the is_day_segment branch is never entered and a regression to the bare \"job in live\" test would leave the suite green.\nFINDING imas_ambix/agent/serving_receipts.py:649 follow-on: receipts_job_id duplicates a capability imas_ambix/agent/telemetry_index.py:417 already owns and exports (telemetry_index.py:1799); the addition does not extend the owner, and the two disagree -- telemetry_index.receipts_job_id returns None for \"deepseek-v4-1-flash-1280470.20261015.jsonl\" where the new definition returns \"1280470\".\nFINDING imas_ambix/agent/serving_receipts.py:671 follow-on: tier_paths lost its suffix handling -- it now strips only \".jsonl\" and the 8-digit day -- so a rolled or compressed name such as \"x-1.jsonl.1.gz\" resolves to \"x-1.jsonl.1.gz.minute.jsonl\" where the previous implementation resolved \"x.minute.jsonl.1.gz\"; no producer under imas_ambix/agent writes such a name today, so it is latent, but telemetry_index.py:176 and :182 still tolerate those suffixes and would not find the ladder.",
+  "review_run_id": "r-20261015T074617743718-review-of-srw-raw-record-rolls-daily-d66355400676",
+  "reviewed_base_sha": "aba9c1abdd7ce3442f56d31f71b38e337d826079",
+  "reviewed_head_sha": "d663554006766bac8cf7966bda092d03628467ec",
+  "reviewed_run_id": "r-20261015T064155851387-srw-raw-record-rolls-daily",
+  "scores": {
+    "durability": 8,
+    "evidence": 10,
+    "fit": 18,
+    "goal_fidelity": 11,
+    "reuse": 5,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T08:02:59.755487+00:00"
+}
