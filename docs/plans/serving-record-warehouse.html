@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;done&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;done&quot;,&quot;s22&quot;:&quot;implementable&quot;,&quot;s23&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="261">
+<meta name="plan-version" content="263">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -1665,6 +1665,9 @@
 <div class="r-comment" data-section="s22" data-id="c-s22-1278105" data-who="reckon-build" data-when="2026-10-15T08:20:00Z">
     <div class="r-comment-body"><p>Investigation node <code>srw-1278105-tier-disagreement</code> landed: its tiers lose a first-hour opening advance and a 2½-minute raw tail, because the recorder stopped between passes. The scheduled pass now rebuilds an ended job's tiers before it compares them. <a href="/imas-ambix/evidence/archive/serving-record-warehouse-landed.html#s22-1278105">evidence</a></p></div>
 </div>
+<div class="r-comment" data-section="s22" data-id="c-run-r-20261015T104949038780-review-of-srw-scheduled-retention-78d08350c4bc" data-who="reckon-build" data-when="2026-10-15T11:00:52.009Z">
+    <div class="r-comment-body"><p>Independent review of run r-20261015T101418913456-srw-scheduled-retention (base 43aa0c8c, head 78d08350) stored at both review-store paths with six dimension scores summing to 86, three findings and three production call sites; one blocking finding: the scheduled retirement is wired only into telemetry_ingest.main, while the fleet-launched &quot;imas-ambix agent ingest&quot; reaches it at cli.py:2945 without a retention argument, so the node&#x27;s goal is inert in production.</p></div>
+</div>
 <div class="r-comment" data-section="s17" data-id="c-run-r-20261015T074619366002-srw-price-history" data-who="reckon-build" data-when="2026-10-15T08:19:41.331Z">
     <div class="r-comment-body"><p>provider_prices now keeps a change-only append-only price history at openrouter-price-history.jsonl beside the table, seeded on first refresh with the six recovered deepseek/deepseek-v4.1-flash observations in time order ahead of the fetched rows, grown by one row per model whose three rates moved, with refresh gaining a slugs keyword that fetches each named slug's endpoints listing and records it only on change, plus rate_in_force and provider_median_in_force readers and REFRESH_AGE cut from 24 h to 3600 s; measure: tests/test_provider_prices.py 33 passed with the serving-interpreter grammar guard in tests/test_agent_serve_registry.py also passing, EXIT=0</p></div>
 </div>
@@ -1694,6 +1697,9 @@
 </div>
 <div class="r-comment" data-section="s18" data-id="c-close-s18" data-who="reckon-build" data-when="2026-10-15T11:05:00Z">
     <div class="r-comment-body"><p>§18 landed and deployed: each ledger period is priced segment by segment at the provider median the history records (merged <code>f12f7c82</code>; review 99/120). After the <code>publish-watch</code> restart the month reads $1,937 at the median, against $689 at the headline. <a href="/imas-ambix/evidence/archive/serving-record-warehouse-landed.html#s18">evidence</a></p></div>
+</div>
+<div class="r-comment" data-section="s18" data-id="c-run-r-20261015T093045695791-srw-ledger-prices-each-segment" data-who="reckon-build" data-when="2026-10-15T10:24:56.589Z">
+    <div class="r-comment-body"><p>docs/evidence/fragments/serving-record-warehouse/srw-ledger-prices-each-segment.html</p></div>
 </div>
 </section>
 </main>
