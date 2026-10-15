@@ -1,0 +1,84 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-15T08:46:31.543Z",
+  "dispatched_at": "2026-10-15T08:34:10Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:864",
+      "id": "done_when-1",
+      "reason": "the assertion has to be scoped to the rebuilt comparison (\"never deletes a file whose rebuilt tiers disagree\"), or the node's gate forbids the retirement the section exists to perform.",
+      "text": "\u00a722's done-when asserts \"It never deletes a file whose tiers disagree\", but \u00a722:854 makes the point of the change that 1278105's *installed* tiers disagree and the file becomes eligible once its rebuilt tiers prove equal; taken literally the assertion keeps that 312 MB file \u2014 and every file of its shape \u2014 permanently ineligible, and a gate written to it would redden against the section's own mechanism",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:807",
+      "id": "done_when-2",
+      "reason": "the node must either keep the unsegmented figure as a document field or the gate must compute it itself; as written the gate names an output the mechanism never produces.",
+      "text": "\u00a718's live gate requires \"its month cost is recorded beside the single-rate figure from the same render\", but \u00a718's mechanism (line 799) replaces the single-rate price with per-segment pricing and adds only `price_segments`, `price_policy` and `price_history_from` to the document, so no render emits an unsegmented figure for the gate to sit the month cost beside",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:854",
+      "id": "reasoning-1",
+      "reason": "the safety sentence \"a file is deleted only when its tiers have proven equal to it\" holds only if the rebuilt tiers are installed in place, and the node cannot infer that from the text as it stands.",
+      "text": "\u00a722 states the pass \"rebuilds those tiers from the complete raw record with the existing full compaction\", but it never says the rebuilt tiers replace the installed minute and hour files before the raw file is deleted, and the plan's only precedent for a rebuild (`srw-rebuild-tiers-from-raw-staged`) staged them in a separate directory; if the rebuilt tiers stay staged, deleting the raw file leaves the installed tiers the investigation proved incomplete \u2014 missing the last 52,723 output and 7,015,441 prompt tokens \u2014 which is the loss the rebuild exists to prevent",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:861",
+      "id": "anchors_resolve-1",
+      "reason": "the row's only evidence pointer is dead, and it should name the archive anchor that actually exists so a reader can open the finding.",
+      "text": "the \u00a722 node table declares `srw-1278105-tier-disagreement` writing `docs/evidence/fragments/serving-record-warehouse/srw-1278105-tier-disagreement.html`, and that file has never existed in any commit (`git log --all -- <path>` is empty) while the node has landed (plan comment `c-s22-1278105`, 2026-10-15T08:20Z) with its record in `docs/evidence/archive/serving-record-warehouse-landed.html#s22-1278105`; every sibling fragment in that directory, including the other investigate node's `srw-ledger-double-count-located.html` and `srw-rebuild-tiers-from-raw-staged.html`, does exist",
+      "type": "anchors_resolve",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "edb7dff6a935aa75e0dc0f090d275dbf8051db97704612993e8e5e9513b9e214",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 245,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261015T083310093834-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "acc7b931f23a3ece16504fe7aa320d390355e9b0",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 \u00a722's investigate-node row names a deliverable path that has never existed.",
+    "done_when": "a finding \u2014 \u00a722's done-when asserts \"It never deletes a file whose tiers disagree\", a blanket rule the section's own rebuild step contradicts.",
+    "evidence_paths": "pass \u2014 gate evidence lands under `docs/evidence/fragments/serving-record-warehouse/` and the crew reports, and \u00a718's live-gate figures are recorded in the manifest, not a node-local path.",
+    "naming": "pass \u2014 no plan labels, stage names or ticket numbers reach the symbols or files the two nodes declare; the names describe the mechanism (`provider_median_in_force`, `srw-...` node ids live in the plan, not in code).",
+    "reasoning": "a finding \u2014 \u00a722's rebuild deletes the raw file without stating that it installs the rebuilt tiers, so the safety claim the section rests on is not established by the mechanism as written.",
+    "single_goal": "pass \u2014 each node names one deliverable; the 1278105 investigation is its own node beside the scheduled pass.",
+    "wiring": "pass \u2014 \u00a718's predecessor \u00a717 exists, \u00a722's predecessor \u00a721 exists, and the two decisions both sections cite (`cost-price-policy` data-sections=\"s17,s18\" and `scheduled-retirement` data-sections=\"s22\") are present and locked in the decisions block."
+  },
+  "section_digests": {
+    "_document": "634d0df2412b9bd21b43428bb2cfd78f4f53f492834ea129b8d4a8c413bce41d",
+    "s1": "f0e6a1c8acb9f607124dc4f3def1f738e2a0bc52c579a2c0849a33c6fa1156fb",
+    "s10": "1509fe50d6cbdb1159da0bac7826bf9df43f73f13dc81d4b4a3c3c0d3926d315",
+    "s11": "f02a2d9d5ac0a9537cbc0c7c1127234686c6b35ebe9d5f28f2eb1dc890ba8349",
+    "s12": "c993e8c7a97750818ddad0ac8e3797052442f5dd3357a9b1336cd024ff90f8d3",
+    "s13": "0a80350dd120a399e1c304a1eed64f149a7e5f5f1ef41302cad6223dc985910e",
+    "s14": "65bc34f5b6d081374d8287c3a7e14dfa77b21b6ef0390d5e95961d81ded7114d",
+    "s15": "1d02ca1576af9e3b58c011e3b4c84ffb63870a92698492bd45a0bbfe48660ea0",
+    "s16": "59a48fb3793215455ca353b8188b5d155dec253814be9a4eea8d2f4eeb412fe1",
+    "s17": "a9272f7380fa7e5e98ccdb05c439a87545af549c2b868454c7fcbf8b5f205d73",
+    "s18": "b4509132c3b3fbd642182ec3c41b63343c7f2d261f382a3d7e71e1f79dba9009",
+    "s19": "dc83604a90c46f7c6ef8e70e35cccf1230c480b513b218fc4744ddeeae9e6864",
+    "s2": "dd85bfd277fcf3eff4974460f080158cafc4ff9e584ca8799bbdf19223a0067f",
+    "s20": "8122e379cac4618fb3130fbbe0ee431d918ea6f19ac63f7dee6b4d54ff284566",
+    "s21": "072fad4f2605157b2b243b2b8688d099e0d0b27039e2c7a28f72c4ba47c72cf5",
+    "s22": "4f86e0ae081951bbd895d8b3c709676bf6cca555aadb5f31e12a9dd1ae38e870",
+    "s3": "dd2996924d4d122532e4de97c38a9cae83173c64b6409cc2135177861f392578",
+    "s4": "59f727a99fef92f80127586b2833279df3aa59154895e05a2590e648232abfeb",
+    "s5": "07d984217f6f4d05e582e4d403dff88fd7c0627b3a2cceb36a0123131813e899",
+    "s6": "19d3648895b8aeee8beac762cb2ddb63ba248dec6485eb393625e0c9fd840c32",
+    "s7": "8de1f36a2db5f192d8a078c96c91f29a1d456c95b742332e6fb3854ee451cb78",
+    "s8": "6fa176e0365af868497abc3e4cb9e224032b3de82c337015be11061591c407c2",
+    "s9": "a29439d3d5c1417e8d6fdc357f0ab636deb86ddef8cdd6865c541773247886ef"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T08:47:46.986393+00:00"
+}
