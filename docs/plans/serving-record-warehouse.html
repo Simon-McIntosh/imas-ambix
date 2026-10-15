@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;done&quot;,&quot;s22&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="258">
+<meta name="plan-version" content="259">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -1633,6 +1633,9 @@
 </div>
 <div class="r-comment" data-section="s21" data-id="c-close-s21" data-who="reckon-build" data-when="2026-10-15T10:15:00Z">
     <div class="r-comment-body"><p>§21 landed: the raw record rolls into UTC day segments under one ladder, and compaction reads only new bytes and writes only closed windows (merged <code>a4a927d1</code> after one repair); 160 tests pass; the review after the repair scored 95/120. It takes effect at the next serve restart. §22 can now dispatch. <a href="/imas-ambix/evidence/archive/serving-record-warehouse-landed.html#s21">evidence</a></p></div>
+</div>
+<div class="r-comment" data-section="s21" data-id="c-run-r-20261015T084820771350-srw-raw-record-rolls-daily-repair" data-who="reckon-build" data-when="2026-10-15T09:24:58.901Z">
+    <div class="r-comment-body"><p>srw-raw-record-rolls-daily-repair — the day roll and its incremental compaction meet the section&#x27;s done-when: a roll leaves no duplicate window and both tiers byte-identical to one full compaction, a second incremental pass reads only the bytes above its watermark, the job-id reader has one owner, and tier_paths keeps a rotation or compression suffix while a day segment resolves to its job&#x27;s one ladder.</p></div>
 </div>
 <div class="r-comment" data-section="s22" data-id="c-run-r-20261015T080720131281-review-of-srw-1278105-tier-disagreement-318484748714" data-who="reckon-build" data-when="2026-10-15T08:15:34.931Z">
     <div class="r-comment-body"><p>Independent claims review of read-only run r-20261015T080032026452-srw-1278105-tier-disagreement stored at both review-store paths: three ranked findings re-run (all reproduced), summary line differs from its table (report says 393 agreeing pairs; comparator records 396-6=390); no suite-delta fields.</p></div>
