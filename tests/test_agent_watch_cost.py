@@ -758,6 +758,67 @@ def test_a_scheduled_price_row_is_priced_hour_by_hour(tmp_path: Path) -> None:
     index.close()
 
 
+def test_the_index_reads_follow_the_listings_not_the_hours(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Hours inside one listing are totalled in one read, whatever the span.
+
+    A scheduled row cuts its period at every hour boundary, so walking the
+    cuts one by one reads the index once per hour per counter and a longer
+    period costs more. The rate in force is fixed between two listings, so the
+    hours of one listing's stretch are totalled together: more hours over one
+    listing cost the same reads.
+    """
+    base = float(int(_dt.datetime.now(_dt.UTC).timestamp() // HOUR) * HOUR) - 48 * HOUR
+    now = base + 48 * HOUR
+    rows = [(base + HOUR * k + 300, 10_000 * k, 1_000 * k) for k in range(1, 49)]
+    index = _segmented_index(tmp_path, rows)
+    history = [_listing(base - HOUR, WIDE_A)]
+    scheduled = {
+        **PRICE_ROW,
+        "pricing": {
+            "prompt": 1e-5,
+            "completion": 2e-5,
+            "input_cache_read": 1e-6,
+            "overrides": [
+                {
+                    "prompt": 5e-5,
+                    "completion": 10e-5,
+                    "input_cache_read": 5e-6,
+                    "utc_start": 0,
+                    "utc_end": 2359,
+                }
+            ],
+        },
+    }
+
+    reads: list[tuple[str, float, float]] = []
+    original = watch._span
+
+    def counted(inner: TelemetryIndex, name: str, start: float, end: float):
+        reads.append((name, start, end))
+        return original(inner, name, start, end)
+
+    monkeypatch.setattr(watch, "_span", counted)
+
+    def period_reads(hours: float) -> int:
+        reads.clear()
+        watch.ledger(
+            index,
+            now=now,
+            periods=((hours * HOUR, "span"),),
+            prices=[scheduled],
+            model="deepseek-v4-flash",
+            estimate=_estimate(),
+            history=history,
+        )
+        return len(reads)
+
+    assert period_reads(48) == period_reads(12)
+    assert period_reads(48) < 10
+    index.close()
+
+
 def test_the_json_period_row_carries_the_segmentation_figures(tmp_path: Path) -> None:
     """The document states the policy, the segment count and the history's start."""
     now = _dt.datetime.now(_dt.UTC).timestamp()

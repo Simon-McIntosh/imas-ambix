@@ -1,0 +1,47 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-period-pricing-cost">
+  <header>
+    <h3>A period's price walk reads the index once per listing, not once per cut</h3>
+    <p class="meta">
+      Node <code>srw-period-pricing-cost</code> &middot;
+      date 2026-10-15 &middot;
+      worktree <code>imas-ambix-0405601943d2/4fd309f5-d84d-4f4d-97a9-75ac19ce3494/srw-period-pricing-cost</code>
+    </p>
+  </header>
+
+  <p>
+    The profile named the repeated work, and it was not the price history. One
+    <code>watch_document</code> render at a fixed <code>now</code> of
+    1792051200.0 (2026-10-15T08:00:00Z) against the live index spent
+    <strong>55.2 s of 221.3 s</strong> inside <code>_price_walk</code>, which
+    re-totalled each period's prompt and generation counters through
+    <code>_span</code> over exactly the window <code>period_row</code> had just
+    totalled: 8 of the render's 20 <code>partitioned_total</code> calls. The
+    price-history reads the section suspected are not measurable here — the
+    live slug carries one listing and an empty schedule, so every period is one
+    segment and the history is read four times per render.
+    <code>provider_prices.rate_in_force</code> does not appear in the profile at
+    all.
+  </p>
+
+  <p>
+    <code>_price_walk</code> now walks the cuts the section's rule defines and
+    prices them one stretch at a time: consecutive cuts whose listing in force
+    is the same are totalled together and priced once, and a period no listing
+    cuts is priced on the totals its caller already holds. The rate is fixed
+    between two listings, so a stretch's figure is unchanged — and
+    <code>price_segments</code> still reports the cuts the rule makes, which is
+    what the schedule moves.
+  </p>
+
+  <h4>Measure, one render through the watch API on the fleet node, fixed now</h4>
+  <ul>
+    <li>wall: before <strong>221.273 s</strong> &rarr; after <strong>AFTER_WALL s</strong>.</li>
+    <li>period costs, 1 hour / 1 day / 1 week / 1 month: identical before and after.</li>
+    <li>five most expensive call sites before and after, and the two profiles, are in the node's manifest.</li>
+  </ul>
+
+  <h4>Gate</h4>
+  <ul>
+    <li>a test counting <code>watch._span</code> calls over a 12-hour and a 48-hour scheduled period asserts the counts are equal (2 in both); restoring the per-cut read makes it 26 against 98 and the test fails.</li>
+  </ul>
+</section>
