@@ -1,0 +1,95 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-raw-record-rolls-daily">
+  <header>
+    <h3>A raw record rolls into UTC day segments and compacts from a watermark</h3>
+    <p class="meta">
+      Node <code>srw-raw-record-rolls-daily</code> &middot;
+      date 2026-10-15 &middot;
+      worktree <code>imas-ambix-0405601943d2/srw-raw-record-rolls-daily</code>
+    </p>
+  </header>
+
+  <p>
+    A serve that runs for weeks wrote one unbounded raw record. Two consequences
+    followed: the retention scan could never retire anything, because the only
+    file it would consider is the one the running serve still appends to, and
+    every compaction pass re-parsed the file from row 0, so the cost of a pass
+    grew with the age of the serve rather than with the increment.
+  </p>
+
+  <p>
+    The recorder now closes its open record at the UTC day boundary. When a
+    row's sample date differs from the date the open name holds, the recorder
+    renames that name to <code>&lt;slug&gt;-&lt;job&gt;.YYYYMMDD.jsonl</code>
+    and reopens the open name, so the closed segment is immutable and the
+    running serve keeps appending to a name that holds only today. The rename
+    carries the inode, so the rows written before the boundary are the same
+    bytes rather than copies. One ladder per job survives the roll: a segment
+    resolves through <code>tier_paths</code> to the same minute and hour pair as
+    the open record, and to the same pair as its siblings.
+  </p>
+
+  <p>
+    Compaction is incremental from a watermark sidecar beside each tier file,
+    holding the source name and inode, the destination size, the resume offset,
+    and the last window end emitted. A pass resumes at the offset when the
+    watermark describes the same inode; it restarts from the top when the source
+    was replaced or rolled, which is the case a serve restart into the same path
+    produces. The counter reading and the cadence gap of the row immediately
+    before the offset are carried into the pass, so the first window it finishes
+    is byte-identical to the window one full compaction would write, which is
+    what stops a tier from depending on when it happened to be compacted.
+  </p>
+
+  <p>
+    Only closed windows are emitted. A window closes when a row at or after its
+    end has been read; the open window is flushed when the source is closed at
+    the end of a recording run. Before that close the tiers therefore hold every
+    closed window and no window that is still filling. The retention scan reads
+    a day segment as closed by construction and treats only a running job's open
+    record as live, so a segment of a running serve becomes eligible for
+    retirement without waiting for the serve to stop.
+  </p>
+
+  <h4>What changed</h4>
+  <ul>
+    <li>
+      <code>serving_receipts.py</code> — the recorder rolls and reopens at the
+      day boundary, runs the close pass at the end of a run, and gains
+      <code>is_day_segment</code>, <code>day_segment_path</code> and
+      <code>receipts_job_id</code>; <code>tier_paths</code> resolves every
+      segment to its job's ladder.
+    </li>
+    <li>
+      <code>telemetry_store.py</code> — <code>compact_incremental</code>, the
+      watermark sidecar, the resume and restart rules, and a weight that carries
+      the forward-fill gap across the resume boundary.
+    </li>
+    <li>
+      <code>telemetry_retention.py</code> — the liveness clause excludes a
+      closed day segment from the running-job clause.
+    </li>
+  </ul>
+
+  <h4>Evidence</h4>
+  <ul>
+    <li>
+      <code>tests/test_telemetry_store.py</code> — incremental compaction over
+      two appends and a close is byte-identical to one full compaction, for both
+      tiers; a source replaced under the same name re-compacts from the top and
+      drops the window the previous source had produced.
+    </li>
+    <li>
+      <code>tests/test_agent_serving_receipts.py</code> — a run crossing
+      midnight leaves one segment per UTC day with the pre-boundary rows in the
+      segment and the post-boundary rows under the reopened name; the segment
+      holds the open record's inode; both names resolve to one ladder; a window
+      of the day that rolled survives the pass that reads the reopened name.
+    </li>
+    <li>
+      Negative control: the resume was inverted so every pass parses from row 0
+      while still recording a watermark, and the row-count assertion the healthy
+      path satisfies then fails (12 of 12 rows parsed against a bound of fewer).
+      Log: <code>negative-control.log</code> in the run directory.
+    </li>
+  </ul>
+</section>
