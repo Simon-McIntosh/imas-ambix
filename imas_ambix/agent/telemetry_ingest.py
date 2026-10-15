@@ -81,7 +81,8 @@ class RetentionReport:
 
     ``ran`` is false when the pass was not yet due. ``error`` carries a pass
     failure, which is logged and contained so ingest keeps indexing.
-    ``vacuum_owed`` persists a failed vacuum into the next scheduled pass.
+    ``pending_forget`` retains raw paths whose index cleanup failed after they
+    were deleted. ``vacuum_owed`` persists until cleanup and vacuum both work.
     """
 
     ran: bool
@@ -90,6 +91,7 @@ class RetentionReport:
     skipped: tuple[tuple[Path, str], ...] = ()
     error: str | None = None
     vacuum_owed: bool = False
+    pending_forget: tuple[Path, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -99,6 +101,7 @@ class RetentionReport:
             "skipped": [[str(path), reason] for path, reason in self.skipped],
             "error": self.error,
             "vacuum_owed": self.vacuum_owed,
+            "pending_forget": [str(path) for path in self.pending_forget],
         }
 
 
@@ -111,6 +114,7 @@ def retention_pass(
     now: float | None = None,
     running: RunningProvider | None = None,
     vacuum_owed: bool = False,
+    pending_forget: tuple[Path, ...] = (),
 ) -> RetentionReport:
     """List eligible raw receipts, apply the manifest, and give the space back.
 
@@ -122,8 +126,8 @@ def retention_pass(
 
     When a retirement removed something, the index drops the retired sources'
     rows and is vacuumed, so the space a deleted file's samples held returns to
-    the filesystem. A locked vacuum leaves the retirement applied and is retried
-    on the next pass even when that pass finds no eligible file.
+    the filesystem. A failed source deletion is retried before vacuum; a locked
+    vacuum is likewise retried on the next pass even when no file is eligible.
     """
     manifest: Path | None = None
     removed: tuple[Path, ...] = ()
@@ -143,15 +147,17 @@ def retention_pass(
             removed, skipped = report.removed, report.skipped
     except Exception as exc:
         error = exc
-    forget_succeeded = True
-    if removed:
+    paths_to_forget = tuple(dict.fromkeys((*pending_forget, *removed)))
+    if paths_to_forget:
         vacuum_owed = True
         try:
-            index.forget(removed)
+            index.forget(paths_to_forget)
         except Exception as exc:
             error = error or exc
-            forget_succeeded = False
-    if vacuum_owed and forget_succeeded:
+            pending_forget = paths_to_forget
+        else:
+            pending_forget = ()
+    if vacuum_owed and not pending_forget:
         try:
             index.vacuum()
         except Exception as exc:
@@ -167,6 +173,7 @@ def retention_pass(
         skipped=skipped,
         error=None if error is None else str(error),
         vacuum_owed=vacuum_owed,
+        pending_forget=pending_forget,
     )
 
 
@@ -195,6 +202,7 @@ class ScheduledRetention:
     last_report: RetentionReport | None = dataclasses.field(default=None, init=False)
     _last_run: float | None = dataclasses.field(default=None, init=False)
     _vacuum_owed: bool = dataclasses.field(default=False, init=False)
+    _pending_forget: tuple[Path, ...] = dataclasses.field(default=(), init=False)
 
     def due(self, now: float | None = None) -> bool:
         moment = self.clock() if now is None else float(now)
@@ -215,8 +223,10 @@ class ScheduledRetention:
             now=moment,
             running=self.running,
             vacuum_owed=self._vacuum_owed,
+            pending_forget=self._pending_forget,
         )
         self._vacuum_owed = report.vacuum_owed
+        self._pending_forget = report.pending_forget
         self.last_report = report
         return report
 
