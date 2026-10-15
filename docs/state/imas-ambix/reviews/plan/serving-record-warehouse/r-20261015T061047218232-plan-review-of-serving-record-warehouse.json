@@ -54,6 +54,13 @@
       "finding": "deep_module-1",
       "reason": "acted in 9a9a365e: section 21 gives the watermark to telemetry_store in a sidecar per tier file, writes only closed windows so the tiers stay append-only, and states byte identity at segment close.",
       "when": "2026-10-15T06:24:38.057243+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator 4fd309f5",
+      "finding": "duplicate_owner-1",
+      "reason": "acted in 9a9a365e: section 21 keeps one tier ladder per job; tier_paths stays the owner and maps day segments to it, and the retention check pairs a segment with that ladder's windows in its UTC day.",
+      "when": "2026-10-15T06:24:38.634111+00:00"
     }
   ],
   "responses": {
@@ -62,6 +69,12 @@
       "by": "reckon-build coordinator 4fd309f5",
       "reason": "acted in 9a9a365e: section 21 gives the watermark to telemetry_store in a sidecar per tier file, writes only closed windows so the tiers stay append-only, and states byte identity at segment close.",
       "when": "2026-10-15T06:24:38.057243+00:00"
+    },
+    "duplicate_owner-1": {
+      "action": "acted",
+      "by": "reckon-build coordinator 4fd309f5",
+      "reason": "acted in 9a9a365e: section 21 keeps one tier ladder per job; tier_paths stays the owner and maps day segments to it, and the retention check pairs a segment with that ladder's windows in its UTC day.",
+      "when": "2026-10-15T06:24:38.634111+00:00"
     },
     "reuse_search-1": {
       "action": "acted",
