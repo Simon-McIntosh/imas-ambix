@@ -1,0 +1,92 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed manifest records baseline_suite and after_suite as 'not armed for this node', so no base/head arm pair was run; the head figure is taken from the run's own gate log logs/gate_after.log, which ends '73 passed in 11.66 s' with EXIT=0 at head d1db0670, and logs/gate_watch_cost.log records the 63 passes the same file carried before the new test was added. Nothing is added: the head arm is green and it is the only arm. The node's own gate therefore shows zero added failures, but it is a focused gate on one package, not the repository suite, so a suite-wide delta is not measured here.",
+  "after_suite": {
+    "command": "UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv uv run --no-sync pytest tests/test_agent_watch_cost.py tests/test_provider_prices.py tests/test_agent_serve_registry.py",
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T121109101109-srw-period-pricing-cost/logs/gate_after.log",
+    "revision": "d1db0670e3b0c662f2b81478a9f21e1b5299cca3"
+  },
+  "assertion_analysis": [
+    {
+      "failure_condition": "assert period_reads(48) == period_reads(12) fails if watch._span is called once per hour per counter, because a 48 h scheduled period then costs about four times the reads of a 12 h one; the two sides are two independent runs of the code under test with different inputs, and logs/negative_control.log shows the restored per-cut read reddens it (98 against 26, EXIT=1), so it is not self-referential and it does catch the regression it names.",
+      "line": "tests/test_agent_watch_cost.py:817"
+    }
+  ],
+  "baseline_suite": {
+    "completed": false,
+    "exit_status": null,
+    "failure_count": null,
+    "failure_ids": [],
+    "log_path": null,
+    "note": "not armed on the reviewed node; its manifest reads 'not armed for this node', so no base-arm suite log exists to reduce.",
+    "revision": "090e5cd30cfe31f1ec0c23f08bdba73fb8f4c8e7"
+  },
+  "call_site_count": 6,
+  "call_sites": [
+    "imas_ambix/agent/watch.py:937",
+    "imas_ambix/agent/watch.py:1209",
+    "imas_ambix/agent/watch.py:1356",
+    "imas_ambix/agent/watch.py:1401",
+    "imas_ambix/agent/watch_publish.py:116",
+    "imas_ambix/agent/cli.py:2738"
+  ],
+  "commits_read": [
+    "9125583e9d5a63bcd48ad40ebd537b3a89ef2ad0",
+    "d1db0670e3b0c662f2b81478a9f21e1b5299cca3"
+  ],
+  "completed_at": "2026-10-15T13:24:18.917Z",
+  "dispatched_at": "2026-10-15T12:57:40Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "816",
+      "severity": "blocking",
+      "text": "blocking: merging consecutive cuts by listing index at imas_ambix/agent/watch.py:816-831 discards the hourly cuts a scheduled price row needs for its time-of-day rate. When the listing yields no median (every endpoint below the precision floor) and no headline row exists, the rate falls back to watch.price_at at imas_ambix/agent/watch.py:882, whose value moves hour by hour; the merged stretch prices all its hours at the first hour's rate instead. Reproduced read-only with the module's own helpers: a 24 h scheduled render (overrides utc_start 900/utc_end 1700, a narrow-only listing, no headline) returns 7.755 at the landed code against 3.243 under the base per-cut walk -- a 2.4x change, and the change's own commit message and plan section 24 both state every figure is unchanged. The configuration is reachable: the live table /work/projects/imas_gpu/agents/openrouter-prices.json carries hour-varying schedules for deepseek/deepseek-v4-pro-0813, tencent/hy4-preview and tencent/hy3. The live slug the node measured has an empty schedule, so its recorded figures are unaffected and its gate passes."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "Read commit by commit against base 090e5cd3: 9125583e changes imas_ambix/agent/watch.py and tests/test_agent_watch_cost.py, and d1db0670 adds the evidence fragment; the code change is the stretch merge at watch.py:816-831, the uncut substitution at watch.py:831-840, and segments=len(marks)-1 at watch.py:896.",
+    "done_when": "The measure at prompt.txt:90 requires the after render at no more than 60% of the before wall time; the manifest records 71.2% (logs/baseline.log 221.273 s to logs/after.log 157.620 s) and 74.7% (logs/before2.log 210.978 s), a miss the coordinator waived at 2026-10-15T12:51Z, and the identical-figure clause holds at logs/json_baseline.json versus logs/json_after.json for the live slug only.",
+    "goal": "The source goal at prompt.txt:30 asks the render to price its periods without repeating per-segment work the profile names; imas_ambix/agent/watch.py:816-831 removes the per-cut re-total and watch._price_walk is absent from logs/profile_after.txt, so the repeated work the profile named is gone.",
+    "manifest": "The source manifest.md reports status complete and '73 passed in 11.66 s (EXIT=0)' recorded at logs/gate_after.log, and names the declared negative-control log logs/negative_control.log; its baseline_suite and after_suite fields read 'not armed for this node', so no base/head arm exists in the run.",
+    "write_paths": "The source scope at prompt.txt:68-76 grants imas_ambix/agent/watch.py, imas_ambix/agent/provider_prices.py, tests/test_agent_watch_cost.py, a docs/evidence fragment and a docs/figures directory; the diff touches watch.py, the test file and the fragment, all inside the scope, and provider_prices.py is left unchanged."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_watch_cost.py:817 fails on the restored per-cut read (logs/negative_control.log, 98 against 26, EXIT=1) and is independent of the value it tests, but no assertion guards the figure-invariance the stretch merge at imas_ambix/agent/watch.py:816-831 breaks.",
+    "evidence": "The done-when bar at prompt.txt:90 is a 60% wall-time ratio, but logs/after.log records 157.620 s against logs/baseline.log 221.273 s (71.2%) and logs/before2.log 210.978 s (74.7%), a miss accepted only by the coordinator ruling at 12:51Z; the same-figure clause holds at logs/json_baseline.json versus logs/json_after.json but only for the live slug.",
+    "fit": "The added locals at imas_ambix/agent/watch.py:816-831 follow the module's idiom and carry no plan or ticket identifier, though 'stretch' is a newly introduced synonym for the module's own 'segment' and 'in_force' at line 818 is a listing index rather than a rate.",
+    "goal_fidelity": "The source goal at prompt.txt:30 -- price the periods without repeating per-segment work the profile names -- is delivered: the per-cut re-total is removed at imas_ambix/agent/watch.py:816-831 and the after profile at logs/profile_after.txt no longer lists watch._price_walk.",
+    "reuse": "The change extends the owner _price_walk in place and adds no function, class or module, but the pointer walk at imas_ambix/agent/watch.py:818-825 re-derives the 'listing at or before an instant' selection that provider_prices.rate_in_force/provider_median_in_force already own without extending them.",
+    "scope_discipline": "Every path in 090e5cd3..d1db0670 -- imas_ambix/agent/watch.py, tests/test_agent_watch_cost.py and docs/evidence/fragments/serving-record-warehouse/srw-period-pricing-cost.html -- is inside the prompt.txt:68-76 scope, and no out-of-scope file is touched."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The source goal at prompt.txt:30 asks the render to price its periods without repeating per-segment work the profile names; imas_ambix/agent/watch.py:816-831 removes the per-cut re-total and watch._price_walk is absent from logs/profile_after.txt, so the repeated work the profile named is gone.\nVERDICT done_when: The measure at prompt.txt:90 requires the after render at no more than 60% of the before wall time; the manifest records 71.2% (logs/baseline.log 221.273 s to logs/after.log 157.620 s) and 74.7% (logs/before2.log 210.978 s), a miss the coordinator waived at 2026-10-15T12:51Z, and the identical-figure clause holds at logs/json_baseline.json versus logs/json_after.json for the live slug only.\nVERDICT write_paths: The source scope at prompt.txt:68-76 grants imas_ambix/agent/watch.py, imas_ambix/agent/provider_prices.py, tests/test_agent_watch_cost.py, a docs/evidence fragment and a docs/figures directory; the diff touches watch.py, the test file and the fragment, all inside the scope, and provider_prices.py is left unchanged.\nVERDICT manifest: The source manifest.md reports status complete and '73 passed in 11.66 s (EXIT=0)' recorded at logs/gate_after.log, and names the declared negative-control log logs/negative_control.log; its baseline_suite and after_suite fields read 'not armed for this node', so no base/head arm exists in the run.\nVERDICT diff: Read commit by commit against base 090e5cd3: 9125583e changes imas_ambix/agent/watch.py and tests/test_agent_watch_cost.py, and d1db0670 adds the evidence fragment; the code change is the stretch merge at watch.py:816-831, the uncut substitution at watch.py:831-840, and segments=len(marks)-1 at watch.py:896.\nCALL_SITES: imas_ambix/agent/watch.py:937, imas_ambix/agent/watch.py:1209, imas_ambix/agent/watch.py:1356, imas_ambix/agent/watch.py:1401, imas_ambix/agent/watch_publish.py:116, imas_ambix/agent/cli.py:2738\nSCORE goal_fidelity: 17\nJUSTIFICATION goal_fidelity: The source goal at prompt.txt:30 -- price the periods without repeating per-segment work the profile names -- is delivered: the per-cut re-total is removed at imas_ambix/agent/watch.py:816-831 and the after profile at logs/profile_after.txt no longer lists watch._price_walk.\nSCORE evidence: 12\nJUSTIFICATION evidence: The done-when bar at prompt.txt:90 is a 60% wall-time ratio, but logs/after.log records 157.620 s against logs/baseline.log 221.273 s (71.2%) and logs/before2.log 210.978 s (74.7%), a miss accepted only by the coordinator ruling at 12:51Z; and the identical-figure clause holds at logs/json_baseline.json versus logs/json_after.json but only for the live slug.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: Every path in 090e5cd3..d1db0670 -- imas_ambix/agent/watch.py, tests/test_agent_watch_cost.py and docs/evidence/fragments/serving-record-warehouse/srw-period-pricing-cost.html -- is inside the prompt.txt:68-76 scope, and no out-of-scope file is touched.\nSCORE durability: 14\nJUSTIFICATION durability: tests/test_agent_watch_cost.py:817 fails on the restored per-cut read (logs/negative_control.log, 98 against 26, EXIT=1) and is independent of the value it tests, but no assertion guards the figure-invariance the stretch merge at imas_ambix/agent/watch.py:816-831 breaks.\nSCORE fit: 17\nJUSTIFICATION fit: The added locals at imas_ambix/agent/watch.py:816-831 follow the module's idiom and carry no plan or ticket identifier, though 'stretch' is a newly introduced synonym for the module's own 'segment' and 'in_force' at line 818 is a listing index rather than a rate.\nSCORE reuse: 16\nJUSTIFICATION reuse: The change extends the owner _price_walk in place and adds no function, class or module, but the pointer walk at imas_ambix/agent/watch.py:818-825 re-derives the 'listing at or before an instant' selection that provider_prices.rate_in_force/provider_median_in_force already own without extending them.\nFINDING imas_ambix/agent/watch.py:816 blocking: merging consecutive cuts by listing index at imas_ambix/agent/watch.py:816-831 discards the hourly cuts a scheduled price row needs for its time-of-day rate; when the listing yields no median (every endpoint below the precision floor) and no headline row exists, the rate falls back to watch.price_at at watch.py:882, whose value moves hour by hour, so the merged stretch prices all its hours at the first hour's rate. Reproduced read-only with the module's own helpers: a 24 h scheduled render (overrides utc_start 900/utc_end 1700, a narrow-only listing, no headline) returns 7.755 at the landed code against 3.243 under the base per-cut walk -- a 2.4x change, against the commit message and plan section 24 both stating every figure is unchanged. The configuration is reachable: the live table /work/projects/imas_gpu/agents/openrouter-prices.json carries hour-varying schedules for deepseek/deepseek-v4-pro-0813, tencent/hy4-preview and tencent/hy3. The live slug the node measured has an empty schedule, so its recorded figures are unaffected and its gate passes.\n",
+  "review_run_id": "r-20261015T125726310206-review-of-srw-period-pricing-cost-d1db0670e3b0",
+  "reviewed_base_log_revision": null,
+  "reviewed_base_sha": "090e5cd30cfe31f1ec0c23f08bdba73fb8f4c8e7",
+  "reviewed_head_log_revision": null,
+  "reviewed_head_sha": "d1db0670e3b0c662f2b81478a9f21e1b5299cca3",
+  "reviewed_revision": "d1db0670",
+  "reviewed_run_id": "r-20261015T121109101109-srw-period-pricing-cost",
+  "scores": {
+    "durability": 14,
+    "evidence": 12,
+    "fit": 17,
+    "goal_fidelity": 17,
+    "reuse": 16,
+    "scope_discipline": 20
+  },
+  "self_referential_assertions": [],
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T13:20:00.000000+00:00",
+  "total": 96
+}

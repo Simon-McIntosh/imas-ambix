@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;done&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;done&quot;,&quot;s22&quot;:&quot;done&quot;,&quot;s23&quot;:&quot;done&quot;,&quot;s24&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="278">
+<meta name="plan-version" content="279">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -1747,6 +1747,9 @@
 </div>
 <div class="r-comment" data-section="s23" data-id="c-run-r-20261015T114941475292-srw-roll-day-one-parser" data-who="reckon-build" data-when="2026-10-15T12:04:49.665Z">
     <div class="r-comment-body"><p>srw-roll-day-one-parser: telemetry_store.split_record_name is now the one parser of a receipt name's roll day, and _ladder_stem, _roll_date and _record_stem_and_suffix call it while keeping their own suffix rules; the four named test files pass, 83 passed, exit 0, and on foo-1.jsonl / foo-1.20261015.jsonl / foo-1.20261015.jsonl.gz / foo-1.jsonl.1 every reader returns its pre-change result (None, ('foo-1', '.jsonl.gz') and 'foo-1.20261015.jsonl' on the compressed segment); the telemetry_store docstring now says a roll keeps the inode.</p></div>
+</div>
+<div class="r-comment" data-section="s24" data-id="c-run-r-20261015T125726310206-review-of-srw-period-pricing-cost-d1db0670e3b0" data-who="reckon-build" data-when="2026-10-15T13:24:18.917Z">
+    <div class="r-comment-body"><p>Independent review of r-20261015T121109101109-srw-period-pricing-cost at head d1db0670 on base 090e5cd3; all six checklist items read; scores goal_fidelity 17, evidence 12, scope_discipline 20, durability 14, fit 17, reuse 16 (total 96); added_failure_count 0; one blocking finding at imas_ambix/agent/watch.py:816 (the stretch merge mis-prices a scheduled row when the rate falls back to the schedule).</p></div>
 </div>
 </section>
 </main>
