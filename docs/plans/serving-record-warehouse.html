@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;implementable&quot;,&quot;s20&quot;:&quot;implementable&quot;,&quot;s21&quot;:&quot;implementable&quot;,&quot;s22&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="231">
+<meta name="plan-version" content="232">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -1608,6 +1608,9 @@
 </div>
 <div class="r-comment" data-section="s16" data-id="c-run-r-20261005T095442531219-review-of-srw-watch-tests-read-ledger-absence-from-rows" data-who="reckon-build" data-when="2026-10-05T10:03:58.250Z">
     <div class="r-comment-body"><p>independent review of r-20261005T094714092208-srw-watch-tests-read-ledger-absence-from-rows stored at the two granted review paths as a parsed record scoring all 5 dimensions 0..20 -- goal_fidelity 19, evidence 17, scope_discipline 19, durability 17, fit 18, total 90, reviewed_base_sha 375cbe6fb64b6a3bd719af8df3fd3e398542fe40, reviewed_head_sha e5f415bcdf472940691ef8a1c4dfde765b8358c9, added_failure_count 0 with added_failure_ids [] derived from the reviewer's own base and head arms of the reviewed node's declared gate; the fix (assert the ledger block's header and period rows, not the bare word 'ledger', in the three index-report tests) reproduces the defect at base (3 failed) and passes at head (22 passed), and the declared negative control reddens exactly the three guarded tests; no findings.</p></div>
+</div>
+<div class="r-comment" data-section="s19" data-id="c-run-r-20261015T064125208736-srw-serve-log-drops-polling" data-who="reckon-build" data-when="2026-10-15T07:18:58.819Z">
+    <div class="r-comment-body"><p>srw-serve-log-drops-polling -- generated serve commands now exclude /metrics, /v1/models and /health from the uvicorn access log (SGLang --uvicorn-access-log-exclude-prefixes, vLLM --disable-access-log-for-endpoints); measure: tests/test_agent_serve_access_log.py 6 passed, and the declared negative control drops /v1/models and reddens the three-prefix test at EXIT=1.</p></div>
 </div>
 </section>
 </main>
