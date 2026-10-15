@@ -1904,3 +1904,89 @@ def test_a_reboot_spanning_source_consumed_to_its_end_is_not_read_again(
         assert third.rows_duplicate == 0, "the third pass re-read a committed row"
         assert third.bytes_read == new_line_bytes, "read more than the new line"
         assert index.sample_count() == 5
+
+
+def test_a_retirement_and_vacuum_shrink_the_index_file(tmp_path):
+    """Retiring a source and vacuuming gives its pages back to the filesystem.
+
+    Dropping the rows alone leaves the file the same size, with the space held
+    as free pages SQLite does not reclaim; the vacuum is what returns it.
+    """
+    records = tmp_path / "records"
+    records.mkdir()
+    raw = records / "deepseek-v4-1-flash-1273253.jsonl"
+    _write(
+        raw,
+        [
+            _token_row(
+                index * 5,
+                generation=float(index),
+                prompt=1.0 + index,
+                uncached=2.0 + index,
+            )
+            for index in range(4000)
+        ],
+    )
+    path = tmp_path / "index.sqlite"
+    with TelemetryIndex(path) as index:
+        tick(index, records)
+        before = path.stat().st_size
+        assert index.forget([raw]) > 0, "no source rows were dropped"
+        index.vacuum()
+        after = path.stat().st_size
+
+    assert after < before, f"the index did not shrink: {before} -> {after}"
+
+
+def test_retirement_and_tier_deselection_share_source_deletion(tmp_path, monkeypatch):
+    """Both paths discard a source through the same sample and source delete."""
+    raw = tmp_path / "deepseek-v4-1-flash-1273253.jsonl"
+    _write(raw, [_token_row(0, generation=1.0, prompt=2.0, uncached=3.0)])
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([raw])
+        calls = []
+        delete = index._delete_source_rows
+
+        def spy(row):
+            calls.append(row["path"])
+            delete(row)
+
+        monkeypatch.setattr(index, "_delete_source_rows", spy)
+        assert index.forget([raw]) == 1
+        assert index.sample_count() == 0
+        index.ingest([raw])
+        assert index.sample_count() == 1
+        index._drop_deselected_tiers({"1273253": "minute"})
+        assert index.sample_count() == 0
+        assert calls == [str(raw), str(raw)]
+
+
+def test_forget_removes_samples_kept_under_a_source_previous_path(tmp_path):
+    """A rolled segment retains samples written under its open-record name."""
+    raw = tmp_path / "deepseek-v4-1-flash-1273253.jsonl"
+    segment = tmp_path / "deepseek-v4-1-flash-1273253.20260920.jsonl"
+    rows = [
+        _token_row(offset, generation=float(offset), prompt=1.0, uncached=2.0)
+        for offset in (0, 5, 10)
+    ]
+    for row in rows:
+        row["job_id"] = "1273253"
+    _write(raw, rows[:2])
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([raw])
+        raw.rename(segment)
+        _write(segment, rows[2:])
+        index.ingest([segment])
+        sample_paths = {
+            row["path"] for row in index._conn.execute("SELECT path FROM sample")
+        }
+        source_paths = {
+            row["path"] for row in index._conn.execute("SELECT path FROM source")
+        }
+        assert sample_paths == source_paths == {str(raw), str(segment)}
+        assert index.sample_count() == 3
+
+        assert index.forget([segment]) == 1
+        assert index.sample_count() == 0, "samples under the pre-roll path survived"
+        assert index._conn.execute("SELECT count(*) FROM source").fetchone()[0] == 0

@@ -16,6 +16,8 @@ import os
 import time
 from pathlib import Path
 
+import pytest
+
 from imas_ambix.agent import telemetry_retention as retention
 from imas_ambix.agent.telemetry_store import run_compaction
 
@@ -227,37 +229,33 @@ def test_an_ended_old_job_whose_check_passes_is_eligible(tmp_path):
     assert all(counter.agrees for counter in verdict.counters)
 
 
-def test_an_ended_old_job_whose_minute_window_differs_is_ineligible(tmp_path):
-    """One window of one counter that disagrees with raw keeps the file.
+def test_a_rebuilt_window_disagreement_keeps_the_file(tmp_path):
+    """A file whose rebuilt tiers still disagree over its own window is kept.
 
-    The minute tier's row closing the first hour window is raised, and its
-    opening is left alone, so the tier's whole-job span is unchanged while that
-    one window's total is not. The check must see the window.
+    A job that closes a day segment and reopens its record inside one UTC hour
+    leaves two raw files sharing a window. The rebuild reads both into one row
+    stream, so the installed tiers carry the reopened file's traffic while this
+    file carries only its own, and the window totals differ. The rebuild cannot
+    make this file redundant, so it is reported and kept rather than retired on
+    an ambiguous comparison.
     """
-    raw, minute, _hour = _build_job(tmp_path)
-    hour_start = int((_NOW - 20 * 86400) // 3600) * 3600
-    boundary = _dt.datetime.fromtimestamp(hour_start + 3000, tz=_dt.UTC).isoformat()
-    rows = [
-        json.loads(line) for line in minute.read_text().splitlines() if line.strip()
-    ]
-    raised = False
-    for row in rows:
-        if row["timestamp"] == boundary:
-            row["engine"]["generation_tokens"] += 50.0
-            raised = True
-    assert raised, "the minute row to alter was not found"
-    minute.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    hour = int((_NOW - 20 * 86400) // 3600) * 3600
+    segment = tmp_path / "deepseek-v4-1-flash-1278105.20260911.jsonl"
+    reopened = tmp_path / "deepseek-v4-1-flash-1278105.jsonl"
+    _write_rows(segment, [_row(hour + 600, 0.0), _row(hour + 1800, 100.0)])
+    _write_rows(reopened, [_row(hour + 3000, 1000.0), _row(hour + 4200, 1100.0)])
+    quiet = _NOW - 21 * 86400
+    for path in (segment, reopened):
+        os.utime(path, (quiet, quiet))
 
-    verdict = _verdict_for(_listing(tmp_path), raw)
+    verdict = _verdict_for(_listing(tmp_path), segment)
 
     assert verdict.eligible is False
     assert "differ" in verdict.reason
     by_name = {counter.name: counter for counter in verdict.counters}
     assert by_name["engine.generation_tokens"].agrees is False
-    # The disagreement is a window's, not the whole job's: the totals still match.
-    assert by_name["engine.generation_tokens"].raw == (
-        by_name["engine.generation_tokens"].minute
-    )
+    assert by_name["engine.generation_tokens"].raw == 100.0
+    assert by_name["engine.generation_tokens"].minute == 1000.0
 
 
 def test_an_absent_counter_is_absent_not_zero(tmp_path):
@@ -602,8 +600,10 @@ def test_a_running_jobs_closed_day_segment_is_not_held_by_its_run(tmp_path):
     open_path = tmp_path / "deepseek-v4-1-flash-1278105.jsonl"
     _write_rows(
         open_path,
-        [_row(_NOW - 3600 + offset, 900.0 + index * 100) for index, offset in
-         enumerate((600, 1800, 3000))],
+        [
+            _row(_NOW - 3600 + offset, 900.0 + index * 100)
+            for index, offset in enumerate((600, 1800, 3000))
+        ],
     )
 
     def running() -> frozenset[str]:
@@ -618,3 +618,200 @@ def test_a_running_jobs_closed_day_segment_is_not_held_by_its_run(tmp_path):
     open_verdict = _verdict_for(result, open_path)
     assert open_verdict.eligible is False
     assert "job 1278105 is running" in open_verdict.reason
+
+
+def test_a_record_whose_tiers_lack_its_tail_is_rebuilt_and_then_proves_equal(
+    tmp_path,
+):
+    """An ended job's tiers are rebuilt from its whole record before judging.
+
+    The recorder stopping between passes leaves the tiers holding the head of
+    the record and none of its tail, and a tier compacted before rows carried an
+    opening block loses its first window's opening advance. Both are the shape
+    job 1278105 had, and both make the installed tiers disagree with the record
+    however healthy the record is. The listing must re-derive them from the
+    record rather than refuse the file.
+    """
+    raw, minute, hour_path = _build_job(tmp_path)
+    # Only the head of the record was ever compacted, and without an opening
+    # block, so every tier's totals fall short of the record's own span.
+    for tier in (minute, hour_path):
+        rows = [
+            json.loads(line) for line in tier.read_text().splitlines() if line.strip()
+        ]
+        rows[0].pop("open", None)
+        _write_rows(tier, rows[:1])
+
+    before = _verdict_for(
+        retention.scan(tmp_path, now=_NOW, running=_none_running, rebuild=False), raw
+    )
+    assert before.eligible is False, "the tiers were not actually short of the tail"
+
+    after = _verdict_for(_listing(tmp_path), raw)
+
+    assert after.eligible is True, after.reason
+    assert after.counters, "the rebuilt tiers were not compared"
+    assert all(counter.agrees for counter in after.counters)
+
+
+def test_a_rebuilt_tier_is_staged_beside_the_tier_and_renamed_into_place(
+    tmp_path, monkeypatch
+):
+    """A rebuilt tier is written to a scratch path and renamed onto the tier.
+
+    A comparison must never read a half-written tier, so the rebuild stages each
+    one beside the path it replaces and renames it into place in the same
+    directory.
+    """
+    raw, minute, hour_path = _build_job(tmp_path)
+    staged: list[tuple[Path, Path]] = []
+    real_replace = os.replace
+
+    def spy(source, destination):
+        source, destination = Path(source), Path(destination)
+        assert source.exists(), "the staged tier was renamed before it was written"
+        assert source.name.endswith(retention.REBUILD_SCRATCH_SUFFIX)
+        staged.append((source, destination))
+        real_replace(source, destination)
+
+    monkeypatch.setattr(retention.os, "replace", spy)
+
+    assert retention.rebuild_job_tiers([raw], "1278105") is True
+
+    assert {destination for _s, destination in staged} == {minute, hour_path}
+    assert all(source.parent == destination.parent for source, destination in staged)
+
+
+@pytest.mark.parametrize("present_days", [(2,), (0, 2)])
+def test_rebuild_keeps_rows_from_retired_days(tmp_path, present_days):
+    """Only windows belonging to present raw segments may be replaced."""
+    base = int((_NOW - 24 * 86400) // 86400) * 86400
+    raw = tmp_path / "deepseek-v4-1-flash-1278105.jsonl"
+    all_rows = [
+        _row(base + day * 86400 + offset, day * 1000 + index * 100)
+        for day in range(3)
+        for index, offset in enumerate((600, 1800, 3000))
+    ]
+    minute, hour_path = retention.tier_paths(raw)
+    from imas_ambix.agent.telemetry_store import (
+        TIER_HOUR,
+        TIER_MINUTE,
+        compact_rows,
+        write_rows,
+    )
+
+    minute_rows = compact_rows(all_rows, tier=TIER_MINUTE)
+    hour_rows = compact_rows(minute_rows, tier=TIER_HOUR)
+    write_rows(minute, minute_rows)
+    write_rows(hour_path, hour_rows)
+    retired_days = set(range(3)) - set(present_days)
+    for path in (minute, hour_path):
+        lines = path.read_bytes().splitlines(keepends=True)
+        for index, line in enumerate(lines):
+            day = int((retention._timestamp_of(json.loads(line)) - base) // 86400)
+            if day in retired_days:
+                lines[index] = line.replace(b'":', b'": ', 1)
+        path.write_bytes(b"".join(lines))
+    before = {
+        path: [
+            line
+            for line in path.read_bytes().splitlines(keepends=True)
+            if int((retention._timestamp_of(json.loads(line)) - base) // 86400)
+            in retired_days
+        ]
+        for path in (minute, hour_path)
+    }
+    assert all(before.values()), "the test built no retired-day tier rows"
+
+    present = []
+    for day in present_days:
+        segment = tmp_path / f"deepseek-v4-1-flash-1278105.202609{day + 7:02d}.jsonl"
+        _write_rows(segment, all_rows[day * 3 : day * 3 + 3])
+        present.append(segment)
+
+    assert retention.rebuild_job_tiers(present, "1278105") is True
+    for path in (minute, hour_path):
+        after = [
+            line
+            for line in path.read_bytes().splitlines(keepends=True)
+            if int((retention._timestamp_of(json.loads(line)) - base) // 86400)
+            in retired_days
+        ]
+        assert after == before[path], f"{path.name} lost retired-day bytes"
+
+
+def test_the_liveness_query_is_account_wide_bounded_and_takes_no_subprocess(
+    monkeypatch,
+):
+    """A live job may be on any node, so liveness is asked account-wide and bounded.
+
+    The pass asks one question for every candidate at once, through the node
+    probe's bounded reader rather than a subprocess of its own, and it does not
+    narrow the query to the node the ingest happens to run on.
+    """
+    asked: list[tuple[tuple[str, ...], float]] = []
+
+    def fake_run_capture(argv, timeout_s=10.0):
+        asked.append((tuple(argv), timeout_s))
+        return "1281970\n1281971\n"
+
+    monkeypatch.setattr(retention.node_probe, "run_capture", fake_run_capture)
+
+    assert retention.default_running_job_ids() == frozenset({"1281970", "1281971"})
+
+    argv, timeout_s = asked[0]
+    assert argv[0] == "squeue"
+    assert "-u" in argv
+    assert "-w" not in argv, "the liveness question was narrowed to one node"
+    assert timeout_s == retention.SCHEDULER_TIMEOUT_SECONDS
+    source = Path(retention.__file__).read_text(encoding="utf-8")
+    assert "subprocess" not in source
+    assert "run_capture" in source
+
+
+def test_a_scheduler_that_times_out_or_refuses_is_raised_not_read_as_empty(
+    monkeypatch,
+):
+    """An absent scheduler answer is not an empty job table.
+
+    Reading a refused read as "no jobs are running" would make every live serve
+    look ended, so both a timeout and a refusal raise out of the liveness read
+    and the pass retires nothing.
+    """
+    monkeypatch.setattr(
+        retention.node_probe, "run_capture", lambda argv, timeout_s=10.0: None
+    )
+
+    with pytest.raises(RuntimeError):
+        retention.default_running_job_ids()
+
+
+def test_a_rewrite_that_keeps_the_time_and_length_is_caught_by_the_digest(tmp_path):
+    """The manifest digest refuses a rewrite the other re-checks cannot see.
+
+    A file can be rewritten in place with its length and modification time
+    unchanged, so quietness, age and liveness all still hold. The digest of the
+    bytes the listing read is the only re-check that can refuse it, and the pass
+    must re-read rather than trust the listing.
+    """
+    raw, _minute, _hour = _build_job(tmp_path)
+    result = retention.scan(tmp_path, now=_NOW, running=_none_running)
+    manifest = retention.write_manifest(
+        result, manifest_dir=tmp_path / "manifests", now=_NOW
+    )
+
+    before = raw.stat()
+    rows = [json.loads(line) for line in raw.read_text().splitlines() if line.strip()]
+    last = rows[-1]["engine"]["generation_tokens"]
+    rows[-1]["engine"]["generation_tokens"] = last + 1.0
+    _write_rows(raw, rows)
+    os.utime(raw, (before.st_atime, before.st_mtime))
+    after = raw.stat()
+    assert after.st_size == before.st_size, "the rewrite changed the length"
+    assert after.st_mtime == before.st_mtime, "the rewrite moved the time"
+    assert after.st_ino == before.st_ino, "the rewrite replaced the file"
+
+    report = retention.apply_manifest(manifest, now=_NOW, running=_none_running)
+
+    assert report.removed == ()
+    assert any("bytes changed" in reason for _path, reason in report.skipped)

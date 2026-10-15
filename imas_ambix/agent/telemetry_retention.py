@@ -1,7 +1,7 @@
 """Retire raw serving receipts once their compacted siblings are proven equal.
 
-A raw receipt file grows about 8.7 MB a day and never rolls, so the record
-outlives any single serve by a long way. Once its minute and hour compactions
+A raw receipt grows about 8.7 MB a day and rolls into closed day segments.
+Once its minute and hour compactions
 reproduce the raw file's own totals window by window, the raw bytes are the only
 copy of nothing the coarser tiers do not already carry, and the file may be
 retired.
@@ -53,12 +53,12 @@ import datetime as _dt
 import hashlib
 import json
 import os
-import subprocess
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from imas_ambix.agent import node_probe
 from imas_ambix.agent.serving_receipts import (
     is_day_segment,
     tier_paths,
@@ -69,6 +69,14 @@ from imas_ambix.agent.telemetry_index import (
     row_boot_id,
     row_host,
     row_job_id,
+)
+from imas_ambix.agent.telemetry_store import (
+    TIER_HOUR,
+    TIER_MINUTE,
+    TelemetryStoreError,
+    compact_rows,
+    read_rows,
+    write_rows,
 )
 
 #: Where a listing pass writes the manifest an apply pass consumes. Kept under
@@ -83,6 +91,16 @@ DEFAULT_OLDER_THAN_DAYS = 14.0
 #: has been quiet this long, because a serve whose allocation has ended may
 #: still be flushing its tail.
 QUIET_SECONDS = 24 * 60 * 60
+
+#: How long the account-wide liveness query may take before the pass gives up.
+#: A scheduler that hangs must not stall a scheduled pass, so the read is
+#: bounded and a timeout is a refusal -- the pass retires nothing rather than
+#: treating an absent answer as an empty job table.
+SCHEDULER_TIMEOUT_SECONDS = 10.0
+
+#: The trailing part a rebuilt tier is staged under beside the tier file, so the
+#: rename onto the installed path is a same-directory replace.
+REBUILD_SCRATCH_SUFFIX = ".rebuild-scratch"
 
 #: The engine-section counters that must agree across the three tiers. Their
 #: canonical spelling is what the receipts row records them under, so the three
@@ -109,25 +127,30 @@ def default_running_job_ids() -> frozenset[str]:
     ran and reported nothing answers with an empty set; a failure to run raises,
     because an absent reading is not an empty one and reading it as empty would
     make every running serve look ended.
+
+    The query is put through :func:`node_probe.run_capture`, whose own bound is
+    what stops a hung scheduler stalling the pass: a scheduler that does not
+    answer inside :data:`SCHEDULER_TIMEOUT_SECONDS` and one that refuses both
+    raise here, so the pass retires nothing rather than reading an absent answer
+    as an empty one. The account-wide question is kept -- a running serve's job
+    may be on any node, so a node-scoped read would narrow liveness to wherever
+    the ingest happens to run.
     """
+    argv = ("squeue", "-h", "-o", "%i", "-u", os.environ.get("USER", ""))
     try:
-        completed = subprocess.run(
-            ["squeue", "-h", "-o", "%i", "-u", os.environ.get("USER", "")],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        text = node_probe.run_capture(argv, timeout_s=SCHEDULER_TIMEOUT_SECONDS)
     except FileNotFoundError as exc:  # pragma: no cover - off-cluster only
         raise RuntimeError(
             "squeue is unavailable, so a live job cannot be told from an ended one"
         ) from exc
-    if completed.returncode != 0:
+    if text is None:
         raise RuntimeError(
-            f"squeue failed with status {completed.returncode}: "
-            f"{completed.stderr.strip()}"
+            "squeue did not answer within "
+            f"{SCHEDULER_TIMEOUT_SECONDS:g}s, so a live job cannot be told "
+            "from an ended one"
         )
     ids: set[str] = set()
-    for line in completed.stdout.splitlines():
+    for line in text.splitlines():
         token = line.strip().split()[0] if line.strip() else ""
         if token.isdigit():
             ids.add(token)
@@ -331,6 +354,124 @@ def raw_receipt_files(record_dir: str | Path) -> list[Path]:
     if not directory.is_dir():
         return []
     return sorted(path for path in directory.glob("*.jsonl") if is_raw_receipt(path))
+
+
+def _job_record_files(files: Sequence[Path], job_id: str) -> list[Path]:
+    """A job's raw record files: day segments in date order, then the open file.
+
+    After a roll a serve's record is several files -- its closed UTC day
+    segments and the one still being appended to. Every segment and the open
+    record resolve through :func:`receipts_job_id` to the one job, and the day a
+    segment's name carries sorts it among its siblings, so date order is name
+    order over the segments alone.
+    """
+    mine = [path for path in files if receipts_job_id(path) == job_id]
+    segments = sorted(
+        (path for path in mine if is_day_segment(path)), key=lambda path: path.name
+    )
+    return segments + [path for path in mine if not is_day_segment(path)]
+
+
+def _scratch_path(tier_path: Path) -> Path:
+    """Where a rebuilt tier is staged before it is renamed onto *tier_path*.
+
+    The scratch is a sibling of the tier it replaces, so the rename is a
+    same-directory replace rather than a cross-filesystem copy, and its own
+    name never carries the tier markers a candidate name is refused for.
+    """
+    return tier_path.with_name(tier_path.name + REBUILD_SCRATCH_SUFFIX)
+
+
+def rebuild_job_tiers(
+    files: Sequence[Path],
+    job_id: str,
+    *,
+    host: str | None = None,
+    boot_id: str | None = None,
+) -> bool:
+    """Rebuild a job's present raw windows while retaining retired-day tiers.
+
+    An ended job's tiers can disagree with its raw record for two reasons the
+    investigation of job 1278105 found: a recorder that stopped between passes
+    writes no final compaction, so the tiers lack the record's tail, and tiers
+    compacted before rows carried an opening block lose the first hour's
+    opening advance. Both are cured by rebuilding rather than by trusting the
+    installed tiers, so before the record of an ended job is compared the tiers
+    are re-derived from every raw file still present -- its day segments in
+    date order and its open record -- read into one row stream. Windows outside
+    each present file's own span remain as installed, including retired days
+    between two present segments.
+
+    The minute tier is compacted from the raw rows and the hour tier from the
+    minute rows, the same two-level ladder the recorder builds, so a rebuilt
+    tier carries the opening blocks that make a window totalled from it equal
+    the raw record's own. Each rebuilt tier is written to a scratch path beside
+    the tier file and renamed onto it, so a comparison never reads a half-written
+    tier and a failure between the two leaves the installed tier untouched.
+
+    ``False`` when the job has no readable raw rows, in which case no tier is
+    replaced: an empty rebuild would delete the very history a retirement is
+    resting on.
+    """
+    raw_files = _job_record_files(files, job_id)
+    rows: list[dict] = []
+    covered: dict[str, set[int]] = {TIER_MINUTE: set(), TIER_HOUR: set()}
+    for path in raw_files:
+        try:
+            source_rows = read_rows(path)
+        except (OSError, TelemetryStoreError):
+            return False
+        stamps = [
+            stamp for row in source_rows if (stamp := _timestamp_of(row)) is not None
+        ]
+        if not stamps:
+            return False
+        for tier, width in ((TIER_MINUTE, 60), (TIER_HOUR, 3600)):
+            first = int(min(stamps) // width)
+            last = int(max(stamps) // width)
+            covered[tier].update(range(first, last + 1))
+        rows.extend(source_rows)
+    if not rows:
+        return False
+    rows.sort(key=lambda row: _timestamp_of(row) or 0.0)
+    minute_rows = compact_rows(list(rows), tier=TIER_MINUTE, host=host, boot_id=boot_id)
+    hour_rows = compact_rows(
+        list(minute_rows), tier=TIER_HOUR, host=host, boot_id=boot_id
+    )
+    minute_path, hour_path = tier_paths(raw_files[0])
+    for tier, width, tier_rows, destination in (
+        (TIER_MINUTE, 60, minute_rows, minute_path),
+        (TIER_HOUR, 3600, hour_rows, hour_path),
+    ):
+        staging = _scratch_path(destination)
+        write_rows(staging, tier_rows)
+        if destination.exists():
+            # Retired windows retain their original line bytes, including
+            # valid JSON formatting that differs from the current writer.
+            installed_rows = read_rows(destination)
+            installed_lines = [
+                line
+                for line in destination.read_bytes().splitlines(keepends=True)
+                if line.strip()
+            ]
+            retained = [
+                (_timestamp_of(row) or 0.0, line)
+                for row, line in zip(installed_rows, installed_lines, strict=True)
+                if (stamp := _timestamp_of(row)) is None
+                or int(stamp // width) not in covered[tier]
+            ]
+            rebuilt = [
+                (_timestamp_of(row) or 0.0, line)
+                for row, line in zip(
+                    tier_rows,
+                    staging.read_bytes().splitlines(keepends=True),
+                    strict=True,
+                )
+            ]
+            ordered = sorted([*retained, *rebuilt], key=lambda entry: entry[0])
+            staging.write_bytes(b"".join(line for _stamp, line in ordered))
+        os.replace(staging, destination)
+    return True
 
 
 def _hour_windows(first: float, last: float) -> list[tuple[float, float]]:
@@ -611,9 +752,7 @@ def compare_tiers(
                 continue
             compared_pairs += 1
             compared_hours.add(index)
-            if not (
-                tier_totals["raw"] == tier_totals["minute"] == tier_totals["hour"]
-            ):
+            if not (tier_totals["raw"] == tier_totals["minute"] == tier_totals["hour"]):
                 agrees = False
         comparisons.append(
             CounterComparison(
@@ -640,7 +779,12 @@ def _modification_time(path: Path) -> float | None:
 
 
 def _verdict(
-    path: Path, *, now: float, older_than_days: float, live: frozenset[str]
+    path: Path,
+    *,
+    now: float,
+    older_than_days: float,
+    live: frozenset[str],
+    rebuild_failed: bool = False,
 ) -> FileVerdict:
     """Everything the listing concluded about one raw receipt file."""
     job = receipts_job_id(path)
@@ -681,6 +825,8 @@ def _verdict(
     elif now - last <= older_than_days * 86400:
         reasons.append(f"last row is not older than {older_than_days:g} days")
     if job is not None:
+        if rebuild_failed:
+            reasons.append("tiers could not be rebuilt from the record")
         missing = [
             sibling.name
             for sibling in (minute_path, hour_path)
@@ -729,19 +875,40 @@ def scan(
     older_than_days: float = DEFAULT_OLDER_THAN_DAYS,
     now: float | None = None,
     running: RunningProvider | None = None,
+    rebuild: bool = True,
 ) -> ScanResult:
     """List every raw receipt file under *record_dir* and judge each one.
 
     Liveness is read once for the whole listing, so every candidate is judged
     against the same scheduler reading rather than against one taken per file.
+    An ended job's tiers are rebuilt from its whole record before it is judged
+    (:func:`rebuild_job_tiers`), once per job, so a file whose compaction lags
+    its raw tail is compared against tiers that cover every row rather than
+    refused for a lag a rebuild cures. A live job's tiers are left alone: its
+    open record is still being appended to, so a rebuild would race the
+    recorder. *rebuild* ``False`` judges the installed tiers as they stand.
     """
     resolved = Path(record_dir)
     moment = time.time() if now is None else float(now)
     provider = default_running_job_ids if running is None else running
     live = frozenset(provider())
+    files = raw_receipt_files(resolved)
+    rebuild_failed: set[str] = set()
+    if rebuild:
+        jobs = {receipts_job_id(path) for path in files}
+        ended = (candidate for candidate in jobs if candidate and candidate not in live)
+        for job in sorted(ended):
+            if not rebuild_job_tiers(files, job):
+                rebuild_failed.add(job)
     verdicts = tuple(
-        _verdict(path, now=moment, older_than_days=float(older_than_days), live=live)
-        for path in raw_receipt_files(resolved)
+        _verdict(
+            path,
+            now=moment,
+            older_than_days=float(older_than_days),
+            live=live,
+            rebuild_failed=receipts_job_id(path) in rebuild_failed,
+        )
+        for path in files
     )
     return ScanResult(
         record_dir=resolved,

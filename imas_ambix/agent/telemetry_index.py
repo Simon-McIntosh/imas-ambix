@@ -993,6 +993,56 @@ class TelemetryIndex:
         """
         self._conn.rollback()
 
+    def forget(self, paths: Iterable[str | Path]) -> int:
+        """Drop every stored source and sample for *paths* and return the count.
+
+        A source that no longer exists on disk -- a raw receipt a retirement
+        has deleted -- has no rows to serve. Its samples go with its source row,
+        keyed by the host and inode the source row carries, which is the key the
+        sample table keys on.
+        """
+        removed = 0
+        for path in paths:
+            rows = self._conn.execute(
+                "SELECT host, boot_id, path, inode FROM source WHERE path = ?",
+                (str(path),),
+            ).fetchall()
+            with self._conn:
+                for row in rows:
+                    self._delete_source_rows(row)
+                    removed += 1
+        return removed
+
+    def _delete_source_rows(self, row: sqlite3.Row) -> None:
+        """Delete a source and its samples across every path it held after a roll.
+
+        Samples keep the path they had when inserted, while the renamed segment
+        gets another source row. Host, boot and inode are the stored sample key
+        shared by both paths, so deleting by the source's current path would
+        leave its earlier samples and source alias behind.
+        """
+        identity = (row["host"], row["boot_id"], row["inode"])
+        self._conn.execute(
+            "DELETE FROM sample WHERE host = ? AND boot_id = ? AND inode = ?",
+            identity,
+        )
+        self._conn.execute(
+            "DELETE FROM source WHERE host = ? AND boot_id = ? AND inode = ?",
+            identity,
+        )
+
+    def vacuum(self) -> None:
+        """Return the index file's free pages to the filesystem.
+
+        SQLite frees the pages a deletion leaves but does not shrink the file,
+        so a retirement that drops a retired source's rows leaves the bytes on
+        disk until they are reclaimed here. ``VACUUM`` rewrites the database, so
+        it is run outside a tick -- after the write that freed the pages, not
+        between the statements of one.
+        """
+        self._conn.commit()
+        self._conn.execute("VACUUM")
+
     def __enter__(self) -> TelemetryIndex:
         return self
 
@@ -1250,7 +1300,9 @@ class TelemetryIndex:
         against a tier nobody selected, and a source whose name carries no job
         takes no tier and is never dropped.
         """
-        rows = self._conn.execute("SELECT host, path, inode FROM source").fetchall()
+        rows = self._conn.execute(
+            "SELECT host, boot_id, path, inode FROM source"
+        ).fetchall()
         with self._conn:
             for row in rows:
                 info = receipts_tier(row["path"])
@@ -1260,14 +1312,7 @@ class TelemetryIndex:
                 selected = chosen.get(job)
                 if selected is None or tier == selected:
                     continue
-                self._conn.execute(
-                    "DELETE FROM sample WHERE host = ? AND inode = ?",
-                    (row["host"], row["inode"]),
-                )
-                self._conn.execute(
-                    "DELETE FROM source WHERE host = ? AND path = ? AND inode = ?",
-                    (row["host"], row["path"], row["inode"]),
-                )
+                self._delete_source_rows(row)
 
     def _resumed_row(self, path: Path, inode: int) -> sqlite3.Row | None:
         """The source row this file resumes from, or ``None`` if it has none.

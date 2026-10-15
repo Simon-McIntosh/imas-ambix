@@ -46,15 +46,19 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import datetime as _dt
+import logging
 import sqlite3
 import time
 from typing import TYPE_CHECKING, Any
 
+from imas_ambix.agent import telemetry_retention
 from imas_ambix.agent.telemetry_index import IngestReport, TelemetryIndex, discover
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
     from pathlib import Path
+
+    from imas_ambix.agent.telemetry_retention import ApplyReport, RunningProvider
 
 #: Default cadence, in seconds, between ticks of the standing loop. The record
 #: is written continuously, so a minute is short enough that the index is never
@@ -62,6 +66,169 @@ if TYPE_CHECKING:
 #: the loop's whole cost. The fleet allocation's supervisor starts the loop and
 #: keeps it running; it ends with the allocation and starts again with it.
 DEFAULT_CADENCE_SECONDS = 60.0
+
+#: How often the retirement pass runs from the standing loop. A day is the
+#: cadence the scheduled-retirement decision names: a raw file's eligibility
+#: moves on the day scale, so a listing more often costs whole-record reads for
+#: a list that cannot have grown.
+DEFAULT_RETENTION_INTERVAL_SECONDS = 24 * 60 * 60.0
+_LOG = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class RetentionReport:
+    """What one scheduled retirement pass did, or why it did nothing.
+
+    ``ran`` is false when the pass was not yet due. ``error`` carries a pass
+    failure, which is logged and contained so ingest keeps indexing.
+    ``pending_forget`` retains raw paths whose index cleanup failed after they
+    were deleted. ``vacuum_owed`` persists until cleanup and vacuum both work.
+    """
+
+    ran: bool
+    manifest_path: Path | None = None
+    removed: tuple[Path, ...] = ()
+    skipped: tuple[tuple[Path, str], ...] = ()
+    error: str | None = None
+    vacuum_owed: bool = False
+    pending_forget: tuple[Path, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "ran": self.ran,
+            "manifest": None if self.manifest_path is None else str(self.manifest_path),
+            "removed": [str(path) for path in self.removed],
+            "skipped": [[str(path), reason] for path, reason in self.skipped],
+            "error": self.error,
+            "vacuum_owed": self.vacuum_owed,
+            "pending_forget": [str(path) for path in self.pending_forget],
+        }
+
+
+def retention_pass(
+    index: TelemetryIndex,
+    directory: str | Path,
+    *,
+    manifest_dir: str | Path = telemetry_retention.RETENTION_MANIFEST_DIR,
+    older_than_days: float = telemetry_retention.DEFAULT_OLDER_THAN_DAYS,
+    now: float | None = None,
+    running: RunningProvider | None = None,
+    vacuum_owed: bool = False,
+    pending_forget: tuple[Path, ...] = (),
+) -> RetentionReport:
+    """List eligible raw receipts, apply the manifest, and give the space back.
+
+    The listing rebuilds an ended job's tiers before it judges them, deletes
+    only a file that still matches the manifest's digests, and never a tier. A
+    scheduler read that refuses is caught here, so an absent answer is never
+    read as an empty job table. Errors before apply retire nothing and are
+    logged here so a failed pass never ends the ingest loop.
+
+    When a retirement removed something, the index drops the retired sources'
+    rows and is vacuumed, so the space a deleted file's samples held returns to
+    the filesystem. A failed source deletion is retried before vacuum; a locked
+    vacuum is likewise retried on the next pass even when no file is eligible.
+    """
+    manifest: Path | None = None
+    removed: tuple[Path, ...] = ()
+    skipped: tuple[tuple[Path, str], ...] = ()
+    error: Exception | None = None
+    try:
+        result = telemetry_retention.scan(
+            directory, older_than_days=older_than_days, now=now, running=running
+        )
+        if result.eligible:
+            manifest = telemetry_retention.write_manifest(
+                result, manifest_dir=manifest_dir, now=now
+            )
+            report: ApplyReport = telemetry_retention.apply_manifest(
+                manifest, now=now, running=running
+            )
+            removed, skipped = report.removed, report.skipped
+    except Exception as exc:
+        error = exc
+    paths_to_forget = tuple(dict.fromkeys((*pending_forget, *removed)))
+    if paths_to_forget:
+        vacuum_owed = True
+        try:
+            index.forget(paths_to_forget)
+        except Exception as exc:
+            error = error or exc
+            pending_forget = paths_to_forget
+        else:
+            pending_forget = ()
+    if vacuum_owed and not pending_forget:
+        try:
+            index.vacuum()
+        except Exception as exc:
+            error = error or exc
+        else:
+            vacuum_owed = False
+    if error is not None:
+        _LOG.error("telemetry retention pass failed: %s", error)
+    return RetentionReport(
+        ran=True,
+        manifest_path=manifest,
+        removed=removed,
+        skipped=skipped,
+        error=None if error is None else str(error),
+        vacuum_owed=vacuum_owed,
+        pending_forget=pending_forget,
+    )
+
+
+@dataclasses.dataclass
+class ScheduledRetention:
+    """Runs :func:`retention_pass` at most once per *interval_seconds*.
+
+    The cadence lives here rather than in the ingest loop, so the loop stays a
+    pure sequence of ticks and a test can drive a day of passes without waiting
+    a day.
+
+    A pass is due only once *interval_seconds* have passed since the last one
+    that ran. ``clock`` is injected, so a caller -- a test, or a service whose
+    clock is not the wall's -- decides what "now" is. ``last_report`` is the
+    latest pass this object ran, so a caller observes the loop's retirements
+    without holding the loop's return value.
+    """
+
+    index: TelemetryIndex
+    directory: str | Path
+    manifest_dir: str | Path = telemetry_retention.RETENTION_MANIFEST_DIR
+    older_than_days: float = telemetry_retention.DEFAULT_OLDER_THAN_DAYS
+    interval_seconds: float = DEFAULT_RETENTION_INTERVAL_SECONDS
+    clock: Callable[[], float] = time.time
+    running: RunningProvider | None = None
+    last_report: RetentionReport | None = dataclasses.field(default=None, init=False)
+    _last_run: float | None = dataclasses.field(default=None, init=False)
+    _vacuum_owed: bool = dataclasses.field(default=False, init=False)
+    _pending_forget: tuple[Path, ...] = dataclasses.field(default=(), init=False)
+
+    def due(self, now: float | None = None) -> bool:
+        moment = self.clock() if now is None else float(now)
+        return self._last_run is None or (
+            moment - self._last_run >= self.interval_seconds
+        )
+
+    def __call__(self, now: float | None = None) -> RetentionReport:
+        moment = self.clock() if now is None else float(now)
+        if not self.due(moment):
+            return RetentionReport(ran=False)
+        self._last_run = moment
+        report = retention_pass(
+            self.index,
+            self.directory,
+            manifest_dir=self.manifest_dir,
+            older_than_days=self.older_than_days,
+            now=moment,
+            running=self.running,
+            vacuum_owed=self._vacuum_owed,
+            pending_forget=self._pending_forget,
+        )
+        self._vacuum_owed = report.vacuum_owed
+        self._pending_forget = report.pending_forget
+        self.last_report = report
+        return report
 
 
 @dataclasses.dataclass(frozen=True)
@@ -230,6 +397,7 @@ def run(
     sleep: Callable[[float], None] = time.sleep,
     on_tick: Callable[[TickReport], None] | None = None,
     on_error: Callable[[sqlite3.OperationalError], None] | None = None,
+    retention: Callable[[], object] | None = None,
     previous: Mapping[str, SourceFingerprint] | None = None,
     pattern: str | None = None,
 ) -> list[TickReport]:
@@ -294,6 +462,8 @@ def run(
                 reports.append(report)
             if on_tick is not None:
                 on_tick(report)
+            if retention is not None:
+                retention()
         if iterations is not None and ticks >= iterations:
             break
         sleep(cadence)
@@ -328,6 +498,12 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="take one tick and exit rather than loop on the cadence",
     )
+    parser.add_argument(
+        "--no-retention",
+        dest="retention",
+        action="store_false",
+        help="do not run the daily retirement pass from the loop",
+    )
     return parser
 
 
@@ -341,15 +517,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     point names the index it writes explicitly rather than defaulting to a
     reader's cache path, so the process that owns the store is never pointed at
     the one ``agent watch`` queries by accident.
+
+    The loop carries the scheduled retirement: it lists eligible raw receipts
+    once a day, applies the manifest, drops the retired sources from the index
+    and vacuums it. A producer that wants the index alone passes
+    ``--no-retention``.
     """
     args = _parser().parse_args(argv)
     index = TelemetryIndex(args.index_path)
+    retention = ScheduledRetention(index, args.record_dir) if args.retention else None
     try:
         run(
             index,
             args.record_dir,
             cadence=args.cadence,
             iterations=1 if args.once else None,
+            retention=retention,
         )
     finally:
         index.close()
@@ -358,11 +541,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 __all__ = [
     "DEFAULT_CADENCE_SECONDS",
+    "DEFAULT_RETENTION_INTERVAL_SECONDS",
+    "RetentionReport",
+    "ScheduledRetention",
     "SourceFingerprint",
     "SourceStates",
     "TickReport",
     "main",
     "pending_sources",
+    "retention_pass",
     "run",
     "tick",
 ]
