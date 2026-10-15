@@ -1,0 +1,70 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-15T12:07:38.445Z",
+  "dispatched_at": "2026-10-15T11:59:57Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/serving-record-warehouse.html:890",
+      "id": "done_when-1",
+      "reason": "as written a worker either reports a phantom figure change caused by ingested traffic or cannot pass the gate; the done-when needs the before/after comparison pinned to one frozen input (a fixture index and price history, or one snapshot re-rendered), which is a change to the node's instruction on line 890.",
+      "text": "\u00a724's done-when measures a render \"against the live index\" and then asserts \"The month cost and every period's cost in the JSON are identical before and after\"; the ingest loop writes new rows every 60 s, so the month token total (and every open period's) grows between the before-render and the after-render and the cost necessarily moves \u2014 the assertion is unsatisfiable on a live index and can only hold against a frozen input, which the node's own brief does not name",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/serving-record-warehouse.html:881",
+      "id": "reasoning-1",
+      "reason": "naming the index query as removable points the profile-and-fix node at a cost that cannot be removed without contradicting \"without changing any figure\"; narrowing it to the hoistable history scan keeps the node off a fix that would alter the pricing rule \u00a718 set.",
+      "text": "\u00a724 attributes the +106 s to \"work repeated once per hour or per segment that could be done once per period, such as reading the price history or querying the index\", but \u00a718 (line 799) prices each segment on that segment's own `partitioned_total`, so the per-segment index queries in `watch.py:_span` -> `telemetry_index.partitioned_total` are inherent to the segmentation and hoisting them to one query per period would change the figures \u00a724 also requires be held \u2014 only the per-segment full-history scan in `provider_prices.provider_median_in_force`/`rate_in_force` is genuinely hoistable repeated work",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "06fb513e8d65c311ac4ac673572a0ba0a074fd12e7236f784a7928a142f8acb7",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 269,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261015T115930793680-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "6d5262d21d08e118cf46d8eaf05a17c373a24d01",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 \u00a718, imas_ambix/agent/watch.py, imas_ambix/agent/provider_prices.py and tests/test_agent_watch_cost.py all resolve; s24 carries no hrefs to mis-resolve as `<path>.html`.",
+    "done_when": "a finding \u2014 \u00a724 requires a render \"against the live index\" yet asserts \"The month cost and every period's cost in the JSON are identical before and after\", which the live index cannot hold between two renders.",
+    "evidence_paths": "pass \u2014 the regression is cited to the durable service log ~/.local/state/fleet/services/ambix-watch-publisher.log (present, 329792 B), and the profile's five call sites land in the run manifest.",
+    "naming": "pass \u2014 `srw-period-pricing-cost` and `tests/test_agent_watch_cost.py` name the capability; no ticket number, version tag or plan stage reaches a symbol.",
+    "reasoning": "a finding \u2014 the stated removable work includes \"querying the index\", but each segment's index total is inherent to \u00a718's per-segment pricing and cannot be hoisted to once per period without changing figures.",
+    "single_goal": "pass \u2014 \u00a724 carries one deliverable: lower the watch render's cost while every priced figure is unchanged.",
+    "wiring": "pass \u2014 \u00a724 declares \"Runs after \u00a718\" and \u00a718 is a landed node whose write paths (ima_ambix/agent/watch.py, tests/test_agent_watch_cost.py) \u00a724 also writes, so the dependency resolves and the overlap is serialised behind it."
+  },
+  "section_digests": {
+    "_document": "861aab159aecd004da7e25e4494fd5f00edda93f419f7d26bfa1adb3f1bfa373",
+    "s1": "f0e6a1c8acb9f607124dc4f3def1f738e2a0bc52c579a2c0849a33c6fa1156fb",
+    "s10": "1509fe50d6cbdb1159da0bac7826bf9df43f73f13dc81d4b4a3c3c0d3926d315",
+    "s11": "f02a2d9d5ac0a9537cbc0c7c1127234686c6b35ebe9d5f28f2eb1dc890ba8349",
+    "s12": "c993e8c7a97750818ddad0ac8e3797052442f5dd3357a9b1336cd024ff90f8d3",
+    "s13": "0a80350dd120a399e1c304a1eed64f149a7e5f5f1ef41302cad6223dc985910e",
+    "s14": "65bc34f5b6d081374d8287c3a7e14dfa77b21b6ef0390d5e95961d81ded7114d",
+    "s15": "1d02ca1576af9e3b58c011e3b4c84ffb63870a92698492bd45a0bbfe48660ea0",
+    "s16": "59a48fb3793215455ca353b8188b5d155dec253814be9a4eea8d2f4eeb412fe1",
+    "s17": "a9272f7380fa7e5e98ccdb05c439a87545af549c2b868454c7fcbf8b5f205d73",
+    "s18": "429fc06f68195b5f8d203f2a7cecc6012761471232df3108082927ed9cf8f432",
+    "s19": "dc83604a90c46f7c6ef8e70e35cccf1230c480b513b218fc4744ddeeae9e6864",
+    "s2": "dd85bfd277fcf3eff4974460f080158cafc4ff9e584ca8799bbdf19223a0067f",
+    "s20": "8122e379cac4618fb3130fbbe0ee431d918ea6f19ac63f7dee6b4d54ff284566",
+    "s21": "072fad4f2605157b2b243b2b8688d099e0d0b27039e2c7a28f72c4ba47c72cf5",
+    "s22": "d6ca33c49a8ce786f8c65953fb1fa408603e49bc9b2b85621bd6ad59d4467789",
+    "s23": "610b50ac6a385e642652eae78f628fddf9d43a5744bdad1097853a67bc474779",
+    "s24": "e9d64e4ecc4b483d7abd3f4d0e5f979ad5c044bc9c99594f688b59608ea7cbdf",
+    "s3": "dd2996924d4d122532e4de97c38a9cae83173c64b6409cc2135177861f392578",
+    "s4": "59f727a99fef92f80127586b2833279df3aa59154895e05a2590e648232abfeb",
+    "s5": "07d984217f6f4d05e582e4d403dff88fd7c0627b3a2cceb36a0123131813e899",
+    "s6": "19d3648895b8aeee8beac762cb2ddb63ba248dec6485eb393625e0c9fd840c32",
+    "s7": "8de1f36a2db5f192d8a078c96c91f29a1d456c95b742332e6fb3854ee451cb78",
+    "s8": "6fa176e0365af868497abc3e4cb9e224032b3de82c337015be11061591c407c2",
+    "s9": "a29439d3d5c1417e8d6fdc357f0ab636deb86ddef8cdd6865c541773247886ef"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T12:09:44.824519+00:00"
+}
