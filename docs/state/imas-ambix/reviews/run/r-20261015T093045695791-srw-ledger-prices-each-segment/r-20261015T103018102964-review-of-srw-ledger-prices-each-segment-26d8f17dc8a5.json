@@ -1,0 +1,77 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "basis: the reviewed run's manifest declares baseline_suite 'tests/test_agent_watch_cost.py + tests/test_provider_prices.py: 52 passed at base sha ddd8e75f' and after_suite '...: 63 passed (11 new tests added)', both with zero failures, so the head arm adds no failing test; added_failure_count is 0 by construction from those two arms, and runs/gate-head.log independently closes '63 passed in 8.90s' EXIT=0 with no FAILED or ERROR line.",
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2738",
+    "imas_ambix/agent/cli.py:2743",
+    "imas_ambix/agent/watch_publish.py:116"
+  ],
+  "commits_read": [
+    "d0c797ff6021aa34f86a1c2de3cc835b3e8ccf9e",
+    "26d8f17dc8a598507c7c083a00d363d1686af471"
+  ],
+  "completed_at": "2026-10-15T10:41:42.834Z",
+  "dispatched_at": "2026-10-15T10:30:30Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "696",
+      "severity": "follow-on",
+      "text": "FINDING imas_ambix/agent/watch.py:696 follow-on: _endpoints_in_median re-derives the endpoint-selection loop that imas_ambix/agent/provider_prices.py:476-492 (provider_median_in_force) already owns, and reaches the private _declares_fewer_than_eight_bits at watch.py:708 under a noqa: SLF001; the count in the label is a second copy of the median's own filter, so a later change to the owner's precision floor or selection could leave the printed count disagreeing with the median printed beside it. Not blocking: no public count owner exists, section 18 directs the count to be read from the held history, and provider_prices is outside this node's write scope."
+    },
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "834",
+      "severity": "follow-on",
+      "text": "FINDING imas_ambix/agent/watch.py:834 follow-on: the unrecorded-segment branch hard-codes policy=PRICE_POLICY_MEDIAN, but the rate chosen at :828 may come from rate_in_force (the headline) or price_at (the table) when provider_median_in_force returns None; price_policy is the machine-readable statement of which price history answered, so a row priced off the headline can still report the median policy."
+    },
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "752",
+      "severity": "follow-on",
+      "text": "FINDING imas_ambix/agent/watch.py:752 follow-on: the namespace keeps two label helpers -- the new _cost_label:497 and the existing cost_label:494 it wraps -- which is a readability cost rather than a defect, and a reader now has to open both to see the full label."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_aggregate_note": "five checklist verdicts plus the call-sites verdict",
+  "item_verdicts": {
+    "call_sites": "three production call sites reach the landed change: imas_ambix/agent/cli.py:2738 renders watch_document and :2743 prints watch_text, and imas_ambix/agent/watch_publish.py:116 calls watch_document on each publish iteration; through both the changed period_row, _price_walk, _owned_prices (now naming the served slug) and _owned_history are all on the runtime path.",
+    "diff": "read d0c797ff (watch.py + tests/test_agent_watch_cost.py, +833/-28) and 26d8f17d (the evidence fragment, +171) against base ddd8e75f commit by commit; three files changed, all inside the declared write paths.",
+    "done_when": "the fixture clauses of the done_when are each asserted by a new test in tests/test_agent_watch_cost.py -- two-rate split :523, post-last-change single median :557, carried-back label :575, fp4 moves neither median nor count :599, all-narrow headline fallback :626, unrecorded segment declines to one :654, no history keeps today's figure :680, hourly split under a schedule :698, JSON keys :761, reader-path history :780, refresh names the served slug and names none without a table :812 -- and the gate log logs/gate-head.log closes '63 passed in 8.90s' EXIT=0; the done_when's live-render clause is NOT met: the reviewed history at /work/projects/imas_gpu/agents/openrouter-price-history.jsonl holds no endpoints row, so the recorded render took the one-segment headline path and the segmented and headline month figures are equal (687.668446434272 each), a comparison that cannot separate the policies.",
+    "goal": "the node's goal is that watch.period_row price each stretch of a period at the provider median the price history records for it; imas_ambix/agent/watch.py:911 calls _price_walk from period_row:876 and :936 exposes price_segments/price_policy/price_history_from on the returned Period, so each stretch is priced at its own median recorded at its start.",
+    "manifest": "read runs/r-20261015T093045695791-srw-ledger-prices-each-segment/manifest.md; it names the two commits d0c797ff and 26d8f17d, the gate at 63 passed, the declared negative control at 2 failed / EXIT=1, and records the unmet live-render clause under follow_ons:26 and blockers:28 rather than claiming it.",
+    "write_paths": "the manifest's declared paths are imas_ambix/agent/watch.py, tests/test_agent_watch_cost.py, docs/evidence/fragments/serving-record-warehouse/srw-ledger-prices-each-segment.html and docs/figures/serving-record-warehouse/srw-ledger-prices-each-segment; the diff touches the first three and nothing else, and the figures directory is left empty."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_watch_cost.py:523 fails under the declared mutation (when=max(mark,first_at) -> when=now), recorded at runs/negative-control.log EXIT=1 with FAILED test_a_period_spanning_a_listing_change_prices_each_segment_alone, and the expected figure is independently re-derived by the _seg_cost helper (:487) rather than importing estimated_cost, so the test guards both the split and the formula.",
+    "evidence": "the gate log runs/gate-head.log closes '63 passed in 8.90s' EXIT=0 over the two named files and runs/negative-control.log closes EXIT=1 with two failing ids, but the done_when's live-render clause is unmet (no endpoints row in the reviewed history; segmented and headline figures equal at 687.668446434272), so the measure is not fully asserted.",
+    "fit": "imas_ambix/agent/watch.py:752-870 follows the module's frozen-dataclass and label-building idiom and introduces no plan, ticket, phase or version label; the only friction is _cost_label:497 standing beside the existing cost_label:494 it wraps.",
+    "goal_fidelity": "imas_ambix/agent/watch.py:876 splits a period at each recorded listing change through _price_walk:752 and prices each stretch with provider_median_in_force at the segment start; the goal holds for every period with a listing, and the unrecorded and no-history branches fall back rather than dashing.",
+    "reuse": "the walk reuses _span/partitioned_total, estimated_cost, provider_prices.provider_median_in_force and rate_in_force, but _endpoints_in_median:696 re-implements the endpoint-selection loop owned by imas_ambix/agent/provider_prices.py:476-492 and reaches the private _declares_fewer_than_eight_bits predicate, an unowned partial duplication of the median's filter.",
+    "scope_discipline": "every path in the two commits is inside the declared write paths -- imas_ambix/agent/watch.py, tests/test_agent_watch_cost.py and the fragment -- and the two collapsed format-only lines at tests/test_agent_watch_cost.py:227 and :270 are ruff normalisation inside a file the node owns."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is that watch.period_row price each stretch of a period at the provider median the price history records for it; imas_ambix/agent/watch.py:911 calls _price_walk from period_row:876 and :936 exposes price_segments/price_policy/price_history_from on the returned Period, so each stretch is priced at its own median recorded at its start.\nVERDICT done_when: the fixture clauses of the done_when are each asserted by a new test in tests/test_agent_watch_cost.py -- two-rate split :523, post-last-change single median :557, carried-back label :575, fp4 moves neither median nor count :599, all-narrow headline fallback :626, unrecorded segment declines to one :654, no history keeps today's figure :680, hourly split under a schedule :698, JSON keys :761, reader-path history :780, refresh names the served slug and names none without a table :812 -- and the gate log logs/gate-head.log closes '63 passed in 8.90s' EXIT=0; the done_when's live-render clause is NOT met: the reviewed history at /work/projects/imas_gpu/agents/openrouter-price-history.jsonl holds no endpoints row, so the recorded render took the one-segment headline path and the segmented and headline month figures are equal (687.668446434272 each), a comparison that cannot separate the policies.\nVERDICT write_paths: the manifest's declared paths are imas_ambix/agent/watch.py, tests/test_agent_watch_cost.py, docs/evidence/fragments/serving-record-warehouse/srw-ledger-prices-each-segment.html and docs/figures/serving-record-warehouse/srw-ledger-prices-each-segment; the diff touches the first three and nothing else, and the figures directory is left empty.\nVERDICT manifest: read runs/r-20261015T093045695791-srw-ledger-prices-each-segment/manifest.md; it names the two commits d0c797ff and 26d8f17d, the gate at 63 passed, the declared negative control at 2 failed / EXIT=1, and records the unmet live-render clause under follow_ons:26 and blockers:28 rather than claiming it.\nVERDICT diff: read d0c797ff (watch.py + tests/test_agent_watch_cost.py, +833/-28) and 26d8f17d (the evidence fragment, +171) against base ddd8e75f commit by commit; three files changed, all inside the declared write paths.\nCALL_SITES: imas_ambix/agent/cli.py:2738, imas_ambix/agent/cli.py:2743, imas_ambix/agent/watch_publish.py:116\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/agent/watch.py:876 splits a period at each recorded listing change through _price_walk:752 and prices each stretch with provider_median_in_force at the segment start; the goal holds for every period with a listing, and the unrecorded and no-history branches fall back rather than dashing.\nSCORE evidence: 13\nJUSTIFICATION evidence: the gate log runs/gate-head.log closes '63 passed in 8.90s' EXIT=0 over the two named files and runs/negative-control.log closes EXIT=1 with two failing ids, but the done_when's live-render clause is unmet (no endpoints row in the reviewed history; segmented and headline figures equal at 687.668446434272), so the measure is not fully asserted.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: every path in the two commits is inside the declared write paths -- imas_ambix/agent/watch.py, tests/test_agent_watch_cost.py and the fragment -- and the two collapsed format-only lines at tests/test_agent_watch_cost.py:227 and :270 are ruff normalisation inside a file the node owns.\nSCORE durability: 17\nJUSTIFICATION durability: tests/test_agent_watch_cost.py:523 fails under the declared mutation (when=max(mark,first_at) -> when=now), recorded at runs/negative-control.log EXIT=1 with FAILED test_a_period_spanning_a_listing_change_prices_each_segment_alone, and the expected figure is independently re-derived by the _seg_cost helper (:487) rather than importing estimated_cost, so the test guards both the split and the formula.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/watch.py:752-870 follows the module's frozen-dataclass and label-building idiom and introduces no plan, ticket, phase or version label; the only friction is _cost_label:497 standing beside the existing cost_label:494 it wraps.\nSCORE reuse: 15\nJUSTIFICATION reuse: the walk reuses _span/partitioned_total, estimated_cost, provider_prices.provider_median_in_force and rate_in_force, but _endpoints_in_median:696 re-implements the endpoint-selection loop owned by imas_ambix/agent/provider_prices.py:476-492 and reaches the private _declares_fewer_than_eight_bits predicate, an unowned partial duplication of the median's filter.\nFINDING imas_ambix/agent/watch.py:696 follow-on: _endpoints_in_median re-derives the endpoint-selection loop that imas_ambix/agent/provider_prices.py:476-492 (provider_median_in_force) already owns, and reaches the private _declares_fewer_than_eight_bits at watch.py:708 under a noqa: SLF001; the count in the label is a second copy of the median's own filter, so a later change to the owner's precision floor or selection could leave the printed count disagreeing with the median printed beside it. Not blocking: no public count owner exists, section 18 directs the count to be read from the held history, and provider_prices is outside this node's write scope.\nFINDING imas_ambix/agent/watch.py:834 follow-on: the unrecorded-segment branch hard-codes policy=PRICE_POLICY_MEDIAN, but the rate chosen at :828 may come from rate_in_force (the headline) or price_at (the table) when provider_median_in_force returns None; price_policy is the machine-readable statement of which price history answered, so a row priced off the headline can still report the median policy.\nFINDING imas_ambix/agent/watch.py:752 follow-on: the namespace keeps two label helpers -- the new _cost_label:497 and the existing cost_label:494 it wraps -- which is a readability cost rather than a defect, and a reader now has to open both to see the full label.",
+  "review_run_id": "r-20261015T103018102964-review-of-srw-ledger-prices-each-segment-26d8f17dc8a5",
+  "reviewed_base_sha": "ddd8e75f150dbe74d602a35396c830a3562fea08",
+  "reviewed_head_sha": "26d8f17dc8a598507c7c083a00d363d1686af471",
+  "reviewed_revision": "26d8f17d",
+  "reviewed_run_id": "r-20261015T093045695791-srw-ledger-prices-each-segment",
+  "scores": {
+    "durability": 17,
+    "evidence": 13,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "reuse": 15,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T10:45:00+00:00",
+  "total": 99,
+  "verdict": null
+}
