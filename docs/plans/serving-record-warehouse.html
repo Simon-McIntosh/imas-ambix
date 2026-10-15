@@ -22,7 +22,7 @@
   <title>Serving Record Warehouse | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;implementable&quot;,&quot;s20&quot;:&quot;implementable&quot;,&quot;s21&quot;:&quot;implementable&quot;,&quot;s22&quot;:&quot;deferred&quot;}">
 <meta name="plan-impl" content="0.45">
 <meta name="plan-version" content="225">
 <meta name="plan-modified" content="2026-10-05">
@@ -762,6 +762,101 @@
   <p class="landed-summary">Landed: the three index-report tests assert the ledger block's header and period rows are absent, not the bare word an index path may carry; 22 pass with a ledger-named and a clean TMPDIR; review 90. <a href="s16">full record</a></p>
 </section>
 
+    <h2 id="s17">§17 — The provider price table keeps a history of every rate it has seen</h2>
+<section data-reckon="section" data-id="s17" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
+<p><strong>What is wrong, measured 2026-10-15.</strong> <code>provider_prices.refresh</code> overwrites <code>openrouter-prices.json</code> in place, so the table only ever holds the rates of its last fetch, and it refetches only when the table is older than 24 h. The rates it records are spot prices that move within hours. Between the 09:34Z and 15:37Z fetches on 2026-10-14, the headline for <code>deepseek/deepseek-v4-pro</code> halved and the one for <code>deepseek/deepseek-v4.1-flash</code> moved from $0.02016 to $0.02088 per million prompt tokens. Two copies of the table existed at those two instants, which is the only reason the change is visible at all.</p>
+<p><strong>The headline is not a provider's price.</strong> OpenRouter's <code>/api/v1/models</code> row for <code>deepseek/deepseek-v4.1-flash</code> reads $0.0209 prompt, $0.0054 cache read and $0.891 completion per million tokens. The endpoints listing for the same slug, read the same morning, carries 29 providers with prompt rates from $0.0137 to $0.30 and completion rates from $0.18 to $1.20, and none of them matches the headline. The cheapest endpoints serve FP4 or undeclared quantisations. DeepSeek's own endpoint lists $0.15 and $0.60. So a single headline row cannot say what our traffic would have cost, and the spread around it is part of the answer.</p>
+<p><strong>The change.</strong> The module that owns the table also owns a history beside it, <code>openrouter-price-history.jsonl</code> in the table's directory. Every successful refresh appends one line per model whose pricing differs from that model's last recorded line: <code>{"at": &lt;fetch epoch&gt;, "id": &lt;slug&gt;, "source": "models", "pricing": {...}}</code>. The first refresh after the change records every model once. A refresh also fetches the endpoints listing for each slug the caller names, and appends <code>{"at", "id", "source": "endpoints", "endpoints": [{"provider", "tag", "quantization", "pricing"}]}</code> when that listing's prices changed. The history is append-only and change-only, so it grows by the number of price changes rather than by the number of fetches. <code>REFRESH_AGE</code> falls from 24 h to 1 h. The module exposes one reader, <code>rate_in_force(history, slug, when)</code>, which returns the last <code>models</code> observation at or before <code>when</code>, or <code>None</code> before the first one. A failed fetch writes nothing to the history, exactly as it writes nothing to the table.</p>
+<p><strong>This reverses a decline, at the lead's request.</strong> Followup <code>f-srw-024</code> asked for exactly this on 2026-10-05 and was declined that day: a today's-price figure was judged representative enough. On 2026-10-15 the lead asked for historic spot-price tracking so that estimates follow the price over time, after the month figure fell by about half with no change in traffic. §18 shows that the fall was a repricing.</p>
+<p><strong>The rates that can be recovered are recorded, and say where they came from.</strong> A history file created from nothing begins with these observations for <code>deepseek/deepseek-v4.1-flash</code>, each carrying <code>"source": "recovered"</code> and a citation. Rates are per million tokens, in the order prompt, cache read, completion.</p>
+<table>
+<caption>Recovered headline rates for <code>deepseek/deepseek-v4.1-flash</code>. A blank cache-read cell was not recorded, and is priced at the prompt rate as <code>_rates</code> already does.</caption>
+<thead><tr><th>At (UTC)</th><th>Prompt</th><th>Cache read</th><th>Completion</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>2026-09-29</td><td>$0.30</td><td>$0.006</td><td>$1.20</td><td>§9 docstring; billed Together responses in the third-party hit-rate measurement</td></tr>
+<tr><td>2026-10-02 10:03</td><td>$0.0137</td><td>$0.0036</td><td>$0.891</td><td>back-solved: the only rate reproducing that read's month cost of $243.40 from 22.8 B input and 0.166 B output tokens, to within 1%; it equals the cheapest provider's listing on 2026-10-15</td></tr>
+<tr><td>2026-10-04 09:00</td><td>$0.003</td><td></td><td>$2.40</td><td><code>f-srw-024</code>, measured from the table fetched then</td></tr>
+<tr><td>2026-10-05 08:54</td><td>$0.30</td><td>$0.006</td><td>$1.20</td><td><code>f-srw-024</code>, measured from the table fetched then</td></tr>
+<tr><td>2026-10-14 09:34</td><td>$0.02088</td><td>$0.0054</td><td>$0.891</td><td>the site table's own <code>at</code> field</td></tr>
+<tr><td>2026-10-14 15:37</td><td>$0.02016</td><td>$0.0054</td><td>$0.891</td><td>the retired gpu-watch copy's own <code>at</code> field</td></tr>
+</tbody>
+</table>
+<p>Nothing else is invented. The gaps between recovered rates stay gaps, priced by §18 at the last observation before them.</p>
+<table>
+<caption>Node for this section.</caption>
+<thead><tr><th>Node</th><th>Writes</th><th>Runs after</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td><code>srw-price-history</code></td><td><code>imas_ambix/agent/provider_prices.py</code>, <code>tests/test_provider_prices.py</code></td><td>—</td><td>2.0 h</td></tr>
+</tbody>
+</table>
+<p><strong>Done when</strong>: tests over a stub fetch assert the following. Two refreshes with identical pricing append one line per model, not two. A changed price appends one line for that model only. A failed fetch appends nothing. The endpoints listing is fetched only for the named slugs, and its line is appended only on a change. <code>rate_in_force</code> returns the last observation at or before an instant, and <code>None</code> before the first. <code>REFRESH_AGE</code> is 3,600 s. The serving-interpreter grammar guard passes. A history created by a first refresh holds the two recovered observations with their citations ahead of the fetched rows, and a second refresh does not add them again. The declared negative control appends on every refresh regardless of change, and it must fail the change-only test.</p>
+
+    <h2 id="s18">§18 — The ledger prices each stretch of a period at the rate recorded for it</h2>
+<section data-reckon="section" data-id="s18" data-effort-hours="2.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
+<p><strong>What is wrong.</strong> §9 states that each interval of a period is priced at the rate in force at that interval. The code does not do that. <code>watch.period_row</code> prices the whole period once, at <code>price_at(price, now)</code>: today's table, at today's time of day. So a change in the provider's headline reprices every token of the month the moment the table refreshes. Measured 2026-10-15 on the published watch document: the month row carries 57.9 B input and 0.400 B output tokens and reads $732 at today's rates. The same tokens at the 2026-09-29 rates read about $2,019. Nothing about our traffic changed between those two figures; only the rate applied to all of it did. That is why the month figure appeared to halve.</p>
+<p><strong>The change.</strong> A period is split at each instant the §17 history records a change for the served slug. Where the price row carries a time-of-day schedule, it is also split at each hour boundary. Each segment's input and output are totalled with <code>partitioned_total</code>, exactly as the whole period is today, and priced with <code>price_at(rate_in_force(seg_start), seg_mid)</code> at the installed third-party hit rate. The period's cost is the sum of the segment costs. A segment that falls before the history's first observation is priced at that first observation. The cost label then states that the rate was carried back, so the row never presents a borrowed rate as an observed one. The label also names how many recorded rates priced the period, and the date of the earliest. The JSON document gains <code>price_segments</code> and <code>price_history_from</code> on each period. With no history file, the period is priced as one segment at the current table's rate, which is today's behaviour, and the label says so.</p>
+<table>
+<caption>Node for this section.</caption>
+<thead><tr><th>Node</th><th>Writes</th><th>Runs after</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td><code>srw-ledger-prices-each-segment</code></td><td><code>imas_ambix/agent/watch.py</code>, <code>tests/test_agent_watch_cost.py</code></td><td>§17</td><td>2.5 h</td></tr>
+</tbody>
+</table>
+<p><strong>Done when</strong>: tests over a fixture index and a fixture history assert the following. A period spanning one recorded change costs the first segment's tokens at the first rate plus the second segment's tokens at the second rate. A period entirely after the last change costs what today's single-rate figure costs. A segment before the first observation is priced at it, and the label says the rate was carried back. A scheduled row is priced hour by hour. Every existing test in <code>tests/test_agent_watch_cost.py</code> still passes. One <code>agent watch --json</code> render against the live index completes on the fleet node, and its month cost is recorded beside the single-rate figure from the same render. The declared negative control prices every segment at <code>now</code>, and it must fail the two-rate test.</p>
+
+    <h2 id="s19">§19 — The serve's log carries engine lines, not access lines</h2>
+<section data-reckon="section" data-id="s19" data-effort-hours="0.75" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
+<p><strong>What is wrong, measured 2026-10-15.</strong> The four-card SGLang serve, job 1280470, has written a 426 MB log in 12.4 days, about 34 MB a day, into the repository root. Of its 2,719,458 lines, 1,027,209 are <code>GET /v1/models</code> and 602,311 are <code>GET /metrics</code>: 60% of the file records polling. The engine lines the capacity studies read, 434,904 decode and 314,235 prefill batch lines, are 28%. The serve's own arguments show <code>uvicorn_access_log_exclude_prefixes: []</code>, so the engine already supports suppressing these lines and the profile never asks it to.</p>
+<p><strong>The change.</strong> The generated serve command passes the access-log exclusion for <code>/metrics</code>, <code>/v1/models</code> and <code>/health</code> to an SGLang serve. Before writing the flag, the node reads its exact spelling from the serving environment's <code>sglang serve --help</code>, never from memory. A vLLM serve gets the equivalent only if that environment's help lists one. Request lines for <code>/v1/messages</code> and <code>/v1/chat/completions</code> stay in the log. The change takes effect at the serve's next restart, and this node does not restart a serve.</p>
+<table>
+<caption>Node for this section.</caption>
+<thead><tr><th>Node</th><th>Writes</th><th>Runs after</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td><code>srw-serve-log-drops-polling</code></td><td><code>imas_ambix/agent/slurm.py</code>, <code>tests/test_agent_serve_access_log.py</code></td><td>—</td><td>0.75 h</td></tr>
+</tbody>
+</table>
+<p><strong>Done when</strong>: a test renders the serve script for <code>deepseek-v4-1-flash</code> and finds the exclusion flag naming all three prefixes. A test renders a vLLM profile's script and finds the flag only if the vLLM help lists one. The manifest quotes the help line that spells the flag. The serving-interpreter grammar guard passes. The declared negative control drops <code>/v1/models</code> from the prefix list, and it must fail the first test.</p>
+
+    <h2 id="s20">§20 — Router request receipts roll daily and age into compressed files</h2>
+<section data-reckon="section" data-id="s20" data-effort-hours="2.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
+<p><strong>What is wrong, measured 2026-10-15.</strong> The router appends every request receipt to one file, <code>~/public/imas-ambix/requests.jsonl</code>. It holds 513,524 rows and 294 MB since 2026-09-23, about 13 MB a day, and it never rolls. <code>telemetry_retention</code> already describes the name shape a rolled file should take, <code>requests-2026-10-01.jsonl</code>, but nothing produces it.</p>
+<p><strong>The change.</strong> The receipt sink writes each row to <code>requests-YYYY-MM-DD.jsonl</code> beside the lane document, where the date is the UTC day of the row's timestamp. When a day file has been closed for two whole days, the router compresses it to <code>.jsonl.gz</code>. Nothing deletes a receipt. Every reader of request receipts reads the rolled set: plain and compressed day files, plus the legacy <code>requests.jsonl</code> as the oldest segment, which is never rewritten. The node finds every reader with a search for <code>RECEIPTS_FILENAME</code> and <code>requests.jsonl</code>, and names them in its manifest. The roll takes effect at the router's next restart, and this node does not restart the router.</p>
+<table>
+<caption>Node for this section.</caption>
+<thead><tr><th>Node</th><th>Writes</th><th>Runs after</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td><code>srw-request-receipts-roll-daily</code></td><td><code>imas_ambix/agent/request_receipts.py</code>, <code>imas_ambix/agent/router.py</code>, <code>imas_ambix/agent/cache_estimate.py</code>, <code>tests/test_request_receipts.py</code></td><td>—</td><td>2.5 h</td></tr>
+</tbody>
+</table>
+<p><strong>Done when</strong>: tests assert the following. Rows either side of a UTC midnight land in two day files. A day file closed for two days is compressed, and a younger one is not. A reader over a fixture holding a legacy file, one plain day file and one compressed day file returns every row exactly once, in timestamp order, and its count equals the fixture's. The router suites that import the sink still pass. The declared negative control compresses the current day's file, and it must fail the age test.</p>
+
+    <h2 id="s21">§21 — A running serve's raw record rolls daily and compacts incrementally</h2>
+<section data-reckon="section" data-id="s21" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
+<p><strong>What is wrong, measured 2026-10-15.</strong> The live serve's raw receipt file, <code>deepseek-v4-1-flash-1280470.jsonl</code>, is 664 MB after 12.4 days: 53 MB a day, six times the 8.7 MB a day <code>telemetry_store</code> was designed around. Its minute tier is 179 MB and growing at 14 MB a day. The store's own design keeps raw for about two days and the minute tier for about five weeks. Neither bound holds for a serve that runs for weeks, because retirement acts on whole files and refuses any file whose job is still running. The recorder also compacts by re-reading the whole raw file every 300 s. At today's size that is about 190 GB of GPFS reads a day, and the cost grows with the square of the serve's age.</p>
+<p><strong>The change.</strong> The recorder closes its raw file at each UTC midnight and continues in a new one, so a closed day exists as its own file while the serve still runs. The naming must keep three readers working: <code>tier_paths</code>, <code>receipts_job_id</code> and the retention scan. §2 already requires that a rolled file is recognised as the same source, and the index keys its tail on the inode for exactly this case. Compaction reads only rows it has not yet compacted and appends their windows to the minute and hour tiers. Output must stay byte-identical to a full recompaction of the same rows, which the store's existing tests require. A day file closed for more than a day becomes eligible for the existing retirement check on the same terms as a file whose job has ended. This section does not delete anything. Deleting on a schedule is §22, which waits for a decision.</p>
+<table>
+<caption>Node for this section.</caption>
+<thead><tr><th>Node</th><th>Writes</th><th>Runs after</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td><code>srw-raw-record-rolls-daily</code></td><td><code>imas_ambix/agent/serving_receipts.py</code>, <code>imas_ambix/agent/telemetry_store.py</code>, <code>imas_ambix/agent/telemetry_retention.py</code>, <code>tests/test_agent_serving_receipts.py</code>, <code>tests/test_telemetry_store.py</code>, <code>tests/test_telemetry_retention.py</code></td><td>—</td><td>4.0 h</td></tr>
+</tbody>
+</table>
+<p><strong>Done when</strong>: tests assert the following. A recorder run across a UTC midnight produces two raw files whose rows, concatenated, equal a single-file run's rows. Incremental compaction over two appends produces minute and hour tiers byte-identical to one full compaction over the same rows. A closed day file of a running job passes the retention scan's job check, and the open file does not. <code>receipts_job_id</code> resolves both files to the job. Every existing test in the three named test files still passes, and the run is on the fleet node. The declared negative control re-reads the whole raw file on every compaction while declaring itself incremental, and an instrumented read count must catch it.</p>
+
+    <h2 id="s22">§22 — Retention runs on a schedule and the index gives the space back</h2>
+<section data-reckon="section" data-id="s22" data-effort-hours="2.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-attempts="0" data-status="deferred" data-links=""></section>
+<p><strong>What is wrong, measured 2026-10-15.</strong> <code>imas-ambix agent retire-raw</code> has run once, on 2026-10-02. It retired 0 of 31 files, because the tier-equality check then failed every file, a defect since repaired. A listing run today with the repaired check finds 11 of 32 raw files eligible, about 273 MB. A twelfth, <code>deepseek-v4-1-flash-1278105.jsonl</code> at 312 MB, is refused because its compaction totals differ from its raw record, and that disagreement is unexplained. Thirteen old-format files carry no counters and can never pass the check. The index at <code>~/.cache/ambix/watch-index.sqlite3</code> is 9.8 GB in the home directory with no free pages, and SQLite does not shrink a file when rows are deleted. A stale 534 MB <code>measure.sqlite3</code> from 2026-09-23 sits beside it.</p>
+<p><strong>The change, once the decision below is locked.</strong> The §5 ingest loop runs the retirement listing once a day and applies its manifest, so a file is deleted only when its tiers have proven equal to it. After a retirement it vacuums the index outside the hot path. The minute tier ages out after five weeks for files whose job has ended. The node first explains the 1278105 disagreement, and does not retire that file until the explanation is recorded.</p>
+<p><strong>Why this section is deferred.</strong> Today a person reviews every manifest before <code>--apply</code> deletes anything. Applying it on a schedule removes that review and leaves the tier-equality proof as the only safeguard. That changes the destructive authority of the system, so it is the lead's decision, recorded below, and no node is cut until it is locked.</p>
+<table>
+<caption>Node for this section.</caption>
+<thead><tr><th>Node</th><th>Writes</th><th>Runs after</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td><code>srw-scheduled-retention</code></td><td><code>imas_ambix/agent/telemetry_retention.py</code>, <code>imas_ambix/agent/telemetry_ingest.py</code>, <code>imas_ambix/agent/telemetry_index.py</code>, their tests</td><td>§21 and the <code>scheduled-retirement</code> decision</td><td>2.5 h</td></tr>
+</tbody>
+</table>
+<p><strong>Done when</strong>: once the section is released, tests assert the following. The scheduled pass deletes only manifest files that still match their digests. It never deletes a file whose tiers disagree. The index file shrinks after a retirement and vacuum. The 1278105 disagreement has a recorded cause. The declared negative control skips the digest re-check, and a file mutated between listing and apply must be caught.</p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="caller-identity" data-choice="declared-header" data-by="Simon McIntosh" data-when="2026-09-22T18:58:10+00:00">
@@ -803,6 +898,16 @@
       <button class="r-opt" data-value="compare-throughput-means">Extend the check to compare the old-format throughput means</button>
       </p>
     <p class="r-dec-rat">Lead decision 2026-10-02. When no tier carries a counter in a given hour, there is nothing to verify, so that hour-and-counter pair is skipped rather than counted as a disagreement. The rows for the hour may still exist; what is absent is the counter. A file with no compared pair at all would be deleted on no evidence, so at least one compared pair is required. Hybrid files such as 1273253 become eligible when every compared pair agrees, and the 19 pure old-format files are kept. The exact rule, with absent, compared and agrees defined, is f-srw-018.</p>
+    </div>
+<div class="r-dec" data-key="scheduled-retirement" data-choice="" data-by="" data-when="" data-sections="s22">
+    <p class="r-dec-q">May the ingest loop delete raw receipt files on a schedule, with the tier-equality proof as the only safeguard?</p>
+    <p class="r-dec-ctx">Today a person reviews each retirement manifest before anything is deleted, and that review has happened once, retiring nothing. Raw files of a long-lived serve grow at about 53 MB a day and the index mirrors them at roughly seven times their size.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="auto-apply-proven">Yes: apply daily, deleting only files whose tiers prove equal and whose digests still match</button>
+      <button class="r-opt" data-value="auto-list-human-apply">List daily and publish the manifest; a person applies it</button>
+      <button class="r-opt" data-value="compress-not-delete">Never delete; compress closed raw files instead</button>
+      </p>
+    <p class="r-dec-rat"></p>
     </div>
 </section>
 
@@ -941,6 +1046,31 @@
     <div class="r-fu-body"><p><code>watch.period_row</code> prices every period at <code>price_at(price, now)</code>, using the single price table the owner last fetched. The module docstring promises cost <em>per interval at the rate then in force</em>, but only a time-of-day schedule is honoured, not a change in the listed price.</p><p>Measured 2026-10-05: the table fetched about 2026-10-04 09:00Z listed <code>deepseek/deepseek-v4.1-flash</code> at $0.003/M prompt and $2.40/M completion. The table fetched about 08:54Z on 2026-10-05 lists $0.30/M prompt, $0.006/M cache read and $1.20/M completion. Every ledger row, including the month, was repriced at the refresh: the 1-hour row moved from about $2.8 to $6.4 for similar tokens.</p><p>Doing this needs a price history kept beside the table, a design choice for the lead: keep every fetched row, or keep only changes. Until then the cost column is a today's-price estimate for every period.</p></div>
     <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §9</pre>
     <p class="r-fu-outcome">Declined by the lead on 2026-10-05: pricing every period at today's listed rate is fine, because the cost column is only representative. No price history will be kept.</p>
+    </article>
+<article class="r-fu" data-id="f-srw-025" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-edit" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §17" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Keep a price history, then price each stretch of a period from it</h4>
+    <div class="r-fu-body"><p>The lead reversed the 2026-10-05 decline of <code>f-srw-024</code> on 2026-10-15. §17 records the history and §18 prices from it, in that order, because §18 reads §17's <code>rate_in_force</code>.</p></div>
+    <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §17</pre>
+    </article>
+<article class="r-fu" data-id="f-srw-026" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-edit" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §19" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Stop the serve log recording every poll</h4>
+    <div class="r-fu-body"><p>60% of the live serve's 426 MB log is <code>/v1/models</code> and <code>/metrics</code> access lines. §19 passes the engine's own exclusion flag; it applies at the next serve restart.</p></div>
+    <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §19</pre>
+    </article>
+<article class="r-fu" data-id="f-srw-027" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-edit" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §20" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Roll the router's request receipts by day</h4>
+    <div class="r-fu-body"><p><code>requests.jsonl</code> is one 294 MB file that never rolls. §20 rolls it daily and compresses closed days; it applies at the next router restart.</p></div>
+    <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §20</pre>
+    </article>
+<article class="r-fu" data-id="f-srw-028" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-edit" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §21" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Bound a running serve's raw record</h4>
+    <div class="r-fu-body"><p>A weeks-long serve's raw file grows at 53 MB a day and is re-read whole every five minutes. §21 rolls it daily and compacts incrementally, which is what lets §22 retire closed days at all.</p></div>
+    <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §21</pre>
+    </article>
+<article class="r-fu" data-id="f-srw-029" data-status="open" data-capability-version="1.0" data-capability-class="general" data-capability-risk="elevated" data-written-by="reckon-edit" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §22" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Decide whether retirement may delete on a schedule</h4>
+    <div class="r-fu-body"><p>Exemption claimed: <code>authority-required</code>. §22 turns a person-reviewed deletion into a scheduled one. It is held until the <code>scheduled-retirement</code> decision is locked.</p></div>
+    <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §22</pre>
     </article>
 </section>
 
