@@ -2891,11 +2891,32 @@ def _emit_ingest_tick(
     is_flag=True,
     help="Take one tick and exit rather than loop on the cadence.",
 )
+@click.option(
+    "--retention/--no-retention",
+    "retention",
+    default=True,
+    show_default=True,
+    help=(
+        "Retire raw receipts from the loop once a day, or keep the index alone "
+        "with --no-retention."
+    ),
+)
+@click.option(
+    "--manifest-dir",
+    type=click.Path(),
+    default=None,
+    help=(
+        "Where a retirement pass writes its manifest (default: "
+        "~/.local/state/ambix/retention)."
+    ),
+)
 def ingest(
     record_dir: str | None,
     index_path: str | None,
     cadence: float,
     once: bool,
+    retention: bool,
+    manifest_dir: str | None,
 ) -> None:
     """Keep the telemetry index current from the recorded receipts.
 
@@ -2911,9 +2932,16 @@ def ingest(
     reader who has not run yet. It ends with the allocation and starts again
     when the allocation does.
 
+    This loop also carries the scheduled retirement. Once a day it lists the
+    raw receipts whose compactions prove them redundant, writes a manifest,
+    deletes exactly the files that still match it, drops the retired sources
+    from the index and vacuums it -- so the space a retired file held returns to
+    the filesystem. A producer that wants the index alone passes
+    ``--no-retention``.
+
     Every tick prints one line to stdout and flushes it, so the fleet service
-    log shows the loop is alive. The line is stamped with the UTC wall clock
-    time the tick finished, to the second, and names the counts the tick
+    log shows the loop's own work is alive. The line is stamped with the UTC wall
+    clock time the tick finished, to the second, and names the counts the tick
     discovered, read and skipped and what the index scanned, inserted, found
     duplicate or malformed, and read in bytes:
 
@@ -2929,7 +2957,7 @@ def ingest(
     Take one tick and exit, against a specific record and index:
         imas-ambix agent ingest --once --record /path/to/receipts
     """
-    from imas_ambix.agent import telemetry_ingest
+    from imas_ambix.agent import telemetry_ingest, telemetry_retention
     from imas_ambix.agent.telemetry_index import TelemetryIndex
     from imas_ambix.agent.watch import DEFAULT_INDEX_PATH, default_record_dir
 
@@ -2948,6 +2976,19 @@ def ingest(
             cadence=cadence,
             iterations=1 if once else None,
             on_tick=_emit_ingest_tick,
+            retention=(
+                telemetry_ingest.ScheduledRetention(
+                    index,
+                    resolved_record,
+                    manifest_dir=(
+                        Path(manifest_dir).expanduser()
+                        if manifest_dir
+                        else telemetry_retention.RETENTION_MANIFEST_DIR
+                    ),
+                )
+                if retention
+                else None
+            ),
         )
     finally:
         index.close()

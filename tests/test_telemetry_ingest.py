@@ -549,3 +549,55 @@ def test_the_retirement_pass_runs_at_most_once_a_day(tmp_path, monkeypatch):
 
     scheduled(_RETENTION_NOW + day)
     assert len(calls) == 2, "a pass was not due a day later"
+
+
+def test_the_command_the_service_runs_carries_the_scheduled_retirement(
+    tmp_path, monkeypatch
+):
+    """The loop the fleet service starts retires raw receipts, once a day.
+
+    The service launches ``agent ingest``, so the retirement has to be wired
+    where that command runs the loop: a loop that ticks with no cadence retires
+    nothing, however complete the pass itself is. One tick of that command over
+    an eligible record must therefore retire the file and report nothing else.
+    """
+    from click.testing import CliRunner
+
+    from imas_ambix.agent.cli import ingest
+
+    records = tmp_path / "records"
+    raw = _retirable_job(records)
+    monkeypatch.setattr(
+        telemetry_ingest.telemetry_retention,
+        "default_running_job_ids",
+        lambda: frozenset(),
+    )
+
+    result = CliRunner().invoke(
+        ingest,
+        [
+            "--once",
+            "--record",
+            str(records),
+            "--index",
+            str(tmp_path / "index.sqlite"),
+            "--manifest-dir",
+            str(tmp_path / "manifests"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert raw.exists() is False, "the command's loop retired nothing"
+    assert sorted(path.name for path in retention_tier_files(records)) == [
+        "deepseek-v4-1-flash-1278105.hour.jsonl",
+        "deepseek-v4-1-flash-1278105.minute.jsonl",
+    ], "the pass removed a compaction with the raw file"
+
+
+def retention_tier_files(directory: Path) -> list[Path]:
+    """Every compacted tier under *directory*, by the markers their names carry."""
+    return [
+        path
+        for path in directory.iterdir()
+        if ".minute." in path.name or ".hour." in path.name
+    ]
