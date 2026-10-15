@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-15T11:14:57.989Z",
+  "dispatched_at": "2026-10-15T11:06:21Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/serving-record-warehouse.html:869",
+      "id": "reasoning-1",
+      "reason": "a worker implementing \u00a723 as written reaches a case it cannot satisfy and must either drop the pinned-behaviour test or leave a day-parsing rule inside one of the three readers, contradicting the section's own single-parser and unchanged-behaviour claims.",
+      "text": "\u00a723's change text says `telemetry_store._ladder_stem`, `serving_receipts._roll_date` and `serving_receipts._record_stem_and_suffix` \"all call it, and none of them parses the day itself\", while the same section at :868 states the three disagree on suffixed names and the done-when at :877 requires each to still return its former result and \"Behaviour does not change\" (:869). Measured on the merged code (`886fc21c`): for `foo-1.20261015.jsonl.gz` the three return `None`, `('foo-1', '.jsonl.gz')` and `'foo-1.20261015.jsonl'` respectively \u2014 `_ladder_stem` recognises a day only in the second-to-last position while the sibling `_record_stem_and_suffix` recognises it anywhere before `.jsonl`. A single (stem, day, suffix) split fixes one recognition rule, so under the \u00a723 change either `_record_stem_and_suffix` loses its stem `foo-1` or `_ladder_stem` loses `foo-1.20261015.jsonl`; both cannot hold, so the done-when test cannot pass and the \"the eight-digit day pattern in that function only\" search cannot be satisfied",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "6208dd1dad68df483783192768f5fb3899db8b198a4da4ae7d75cb72f8cf0c50",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 263,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261015T110552291011-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "fe3518a7a3587a045725429ae490c110ad213ff9",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `serving_receipts.py:75` resolves to the module-load import of `telemetry_store`, the docstring at `telemetry_store.py:982` resolves (\"near its line 982\" \u2014 the text \"arrives with a new inode\" sits at :981), and the three named readers resolve: `serving_receipts._roll_date` at :612, `serving_receipts._record_stem_and_suffix` at :650, `telemetry_store._ladder_stem` at :798.",
+    "done_when": "pass \u2014 \u00a723's done-when names four test files that exist and a declared negative control (\"makes `_ladder_stem` parse the day itself again, and the single-parser test must fail\"); the measure and its control are both falsifiable.",
+    "evidence_paths": "pass \u2014 the gate is test files committed under `tests/`, which are durable and readable from any later checkout; no session scratchpad or node-local path is named.",
+    "naming": "pass \u2014 \u00a723 carries no plan, sprint or ticket identifier into a symbol, and the only labelled token, `srw-1278105-tier-disagreement`, is a node id in prose covering \u00a722, not a name in code.",
+    "reasoning": "a finding \u2014 \u00a723 asserts the one parser can back all three readers and preserve each reader's own result, but two of the three use different day-recognition rules and disagree on compression-suffixed names, so no single (stem, day, suffix) split reproduces both (\u00a723:869 against :868/:877); see FINDING.",
+    "single_goal": "pass \u2014 the node carries one deliverable, the single roll-day parser, with the stale docstring rewrite folded into the same change rather than shipped separately.",
+    "wiring": "pass \u2014 node `srw-roll-day-one-parser` declares \"Runs after \u00a721\", \u00a721 is `done` in the section declaration, and the only dependency this section needs is the \u00a721 roll the parser operates on."
+  },
+  "section_digests": {
+    "_document": "f564132b350658da4af4dc414f336b1d72cd7d60f10344ee764e9e9206579668",
+    "s1": "f0e6a1c8acb9f607124dc4f3def1f738e2a0bc52c579a2c0849a33c6fa1156fb",
+    "s10": "1509fe50d6cbdb1159da0bac7826bf9df43f73f13dc81d4b4a3c3c0d3926d315",
+    "s11": "f02a2d9d5ac0a9537cbc0c7c1127234686c6b35ebe9d5f28f2eb1dc890ba8349",
+    "s12": "c993e8c7a97750818ddad0ac8e3797052442f5dd3357a9b1336cd024ff90f8d3",
+    "s13": "0a80350dd120a399e1c304a1eed64f149a7e5f5f1ef41302cad6223dc985910e",
+    "s14": "65bc34f5b6d081374d8287c3a7e14dfa77b21b6ef0390d5e95961d81ded7114d",
+    "s15": "1d02ca1576af9e3b58c011e3b4c84ffb63870a92698492bd45a0bbfe48660ea0",
+    "s16": "59a48fb3793215455ca353b8188b5d155dec253814be9a4eea8d2f4eeb412fe1",
+    "s17": "a9272f7380fa7e5e98ccdb05c439a87545af549c2b868454c7fcbf8b5f205d73",
+    "s18": "429fc06f68195b5f8d203f2a7cecc6012761471232df3108082927ed9cf8f432",
+    "s19": "dc83604a90c46f7c6ef8e70e35cccf1230c480b513b218fc4744ddeeae9e6864",
+    "s2": "dd85bfd277fcf3eff4974460f080158cafc4ff9e584ca8799bbdf19223a0067f",
+    "s20": "8122e379cac4618fb3130fbbe0ee431d918ea6f19ac63f7dee6b4d54ff284566",
+    "s21": "072fad4f2605157b2b243b2b8688d099e0d0b27039e2c7a28f72c4ba47c72cf5",
+    "s22": "7f906c0a7adece8f09e10af8e2aaba249369143900b6d084b92880b6c4b16223",
+    "s23": "58a7283e718a710a5f8f64dd4373560aed868e6edb3792cc405d9200879fe7f2",
+    "s3": "dd2996924d4d122532e4de97c38a9cae83173c64b6409cc2135177861f392578",
+    "s4": "59f727a99fef92f80127586b2833279df3aa59154895e05a2590e648232abfeb",
+    "s5": "07d984217f6f4d05e582e4d403dff88fd7c0627b3a2cceb36a0123131813e899",
+    "s6": "19d3648895b8aeee8beac762cb2ddb63ba248dec6485eb393625e0c9fd840c32",
+    "s7": "8de1f36a2db5f192d8a078c96c91f29a1d456c95b742332e6fb3854ee451cb78",
+    "s8": "6fa176e0365af868497abc3e4cb9e224032b3de82c337015be11061591c407c2",
+    "s9": "a29439d3d5c1417e8d6fdc357f0ab636deb86ddef8cdd6865c541773247886ef"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T11:16:48.743651+00:00"
+}
