@@ -1,0 +1,23 @@
+<section data-reckon="fragment" data-node="srw-price-history-repair">
+  <p>Three defects in the just-landed price history are repaired. Rate
+  normalisation has one owner: <code>provider_prices.rates(pricing, fallback=None)</code>
+  is public, and <code>watch.py</code> imports it in place of its own
+  <code>_rates</code> copy, so the ledger and the history cannot answer "what
+  does this block charge" two ways. The recovered 2026-10-02 observation now
+  cites the read it was back-solved from in that read's units — <em>22.8 B
+  input and 0.166 B output tokens</em> — not the 22.0 G / 166 M the reply
+  carried. And an endpoints row is appended only when a listed price moves:
+  the comparison is over each provider's three rates, sorted, rather than the
+  serialised listing, so a reordered listing or a renamed provider records no
+  repricing that did not happen while a changed rate still appends one row.
+  Reproduced before repair on the base revision: a reorder-only refresh took
+  the endpoint rows 1 → 2, a metadata-only refresh 2 → 3; after the repair the
+  same sequence stays 1, 1, and appends only on the price change, 1 → 2.</p>
+  <p>Measure: <code>tests/test_provider_prices.py tests/test_agent_watch_cost.py</code>
+  52 passed; the serving-interpreter parse guard 2 passed;
+  <code>ruff check</code> on the three changed paths exits 0. Negative control,
+  applied as a scratch edit and restored, and logged at
+  <code>negative-control.log</code>: restoring the whole-listing comparison
+  failed <code>test_an_endpoints_row_is_recorded_only_when_a_price_moves</code>
+  at its reordered-listing assertion (<code>assert 2 == 1</code>), EXIT=1.</p>
+</section>

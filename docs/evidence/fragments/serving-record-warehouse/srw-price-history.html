@@ -1,0 +1,23 @@
+<section data-reckon="fragment" data-node="srw-price-history">
+  <p id="srw-price-history-change">The provider price table now keeps a change-only
+  history beside itself, <code>openrouter-price-history.jsonl</code>, resolved through
+  <code>history_path</code>. A successful refresh appends one row per model whose three
+  rates moved since its last recorded row, so the file grows with repricings rather than
+  with fetches; the first refresh also seeds the six recovered observations the table
+  existed before, in time order, ahead of the fetched rows. <code>refresh</code> gains a
+  <code>slugs</code> keyword: the endpoints listing is fetched for each named slug and
+  recorded only when that listing's prices changed. All prices are dollars per token,
+  the unit <code>watch.ledger_cost</code> multiplies tokens by.</p>
+  <p id="srw-price-history-readers">Two readers answer the two questions the history
+  holds: <code>rate_in_force(history, slug, when)</code> returns the last headline
+  observation at or before an instant, and <code>provider_median_in_force</code> returns
+  the median of the endpoints declaring eight bits or more, so the narrow-quantisation
+  routes that the headline blends in are excluded. <code>REFRESH_AGE</code> falls from a
+  day to 3600 s.</p>
+  <p id="srw-price-history-measure">Measure:
+  <code>tests/test_provider_prices.py</code> 33 passed and the serving-interpreter parse
+  guard in <code>tests/test_agent_serve_registry.py</code> passed. Negative control, applied
+  as a scratch edit and restored: removing the recorded-rates comparison so every refresh
+  appends every model failed
+  <code>test_identical_refreshes_append_one_line_per_model</code>.</p>
+</section>
