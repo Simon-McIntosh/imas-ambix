@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type"  content="research">
+  <meta name="plan-slug"    content="serving-capacity-and-b300-projection">
+  <meta name="plan-title"   content="Serving Capacity on 4×H200 and the 8×B300 Projection — measured concurrency, the telemetry record's growth, why the cost estimate halved, and what a B300 node changes">
+  <meta name="plan-summary" content="The four-card DeepSeek-V4.1-Flash serve tops out near 540 tok/s at 12 requests; an 8xB300 node projects to 2,100-3,400 tok/s at today's per-request rate. The month's cost halved because the ledger reprices all traffic at the newest headline price">
+  <meta name="plan-informs" content="serving-record-warehouse,local-lane-admission-control">
+  <meta name="plan-tags"    content="agent-serving,gpu-deployment,benchmarking">
+  <title>Serving Capacity and the 8×B300 Projection | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+<main class="plan-doc">
+
+<p>Measured 2026-10-15 on the live four-card DeepSeek-V4.1-Flash serve, job 1280470 on <code>98dci4-gpu-0003</code>, over its whole life from 2026-10-02 19:12 UTC to 2026-10-15 05:54 UTC. This study extends two earlier ones rather than repeating them. <a href="/imas-ambix/research/open-weight-serving-accelerator-choice">Choosing the next accelerator</a> (2026-09-17) fitted a decode cost model before speculative decoding was enabled. <a href="/imas-ambix/research/local-lane-throughput-against-occupancy">Local-lane throughput against occupancy</a> (2026-10-08) set the router gate to 12. The code changes that follow from §3 and §4 are sections 17 to 22 of the <a href="/imas-ambix/plans/serving-record-warehouse">serving record warehouse</a> plan.</p>
+
+<h2 id="s1">§1 — The answers in brief</h2>
+<table>
+<caption>Each question asked, the short answer, and the section that carries the evidence.</caption>
+<thead><tr><th>Question</th><th>Answer</th><th>§</th></tr></thead>
+<tbody>
+<tr><td>How do concurrency, aggregate and per-request rates behave on 4×H200?</td><td>Aggregate decode rises from 121 tok/s for one request to about 540 tok/s at 12, and barely moves after that. Per request it falls from 121 to 45 tok/s. Since the gate went to 12, 12% of busy time sits at the cap, and the router queue's 99th-percentile wait has risen from 6.6 s to 17.5 s.</td><td>§2</td></tr>
+<tr><td>Is the data reported to a rotating store, with bounded log growth?</td><td>Only partly. The recorder compacts raw rows into minute and hour tiers every five minutes, but nothing rotates, retires or prunes on its own. Seven streams grow without bound. Together they hold about 18 GB and add about 120 MB of files a day, plus several hundred megabytes a day in the index, which stores about seven bytes for every raw byte it reads.</td><td>§3</td></tr>
+<tr><td>Did the monthly cost estimate halve because DSv4.1 got cheaper?</td><td>Partly, but the main cause is in our code. OpenRouter's headline price for <code>deepseek/deepseek-v4.1-flash</code> has swung between $0.003 and $0.30 per million prompt tokens since 2026-09-29. The ledger prices the whole month at whichever headline it fetched last. DeepSeek's own price has not changed since 2026-09-10. Priced day by day at the rate in force, the same month costs about $1,665, not $706.</td><td>§4</td></tr>
+<tr><td>Do we need historic spot-price tracking?</td><td>Yes. It is now plan sections 17 (a change-only price history with per-provider rows) and 18 (pricing each stretch of a period at its own rate).</td><td>§4</td></tr>
+<tr><td>How would an 8×B300 node change throughput for DSv4.1?</td><td>At today's 45 tok/s per request: 47 to 76 concurrent requests and 2,100 to 3,400 tok/s, which is 4 to 6 times today's node. A single stream gets 240 to 350 tok/s instead of 121. Public H200-to-B300 comparisons agree on the scale.</td><td>§5</td></tr>
+<tr><td>What about GLM-5.3, MiMo and Kimi?</td><td>All three fit on one 8×B300 node at their released precision. Kimi K3 fits on no H200 configuration we have. Expect roughly a third to a half of DSv4.1's throughput for GLM-5.3 and MiMo-V2.6-Pro, and a fifth to a third for Kimi K3.</td><td>§6</td></tr>
+<tr><td>Do interconnect speeds matter?</td><td>Inside the box, decisively, and HGX B300 has it built in: NVLink 5 through NVSwitch, about four times our bridged H200 cards' per-GPU bandwidth. Between boxes, hardly at all for us. Serving nodes are run as islands, and only HTTP request bodies of about half a megabyte cross the network.</td><td>§7</td></tr>
+<tr><td>How do datacentres route requests?</td><td>An L7 gateway feeds an endpoint picker that scores replicas on prefix-cache overlap against load. Large operators add prefill/decode separation and wide expert parallelism over rack-scale NVLink. For us, the change that matters is per-island gates and session affinity in our own router.</td><td>§8</td></tr>
+</tbody>
+</table>
+
+<h2 id="s2">§2 — What four H200 cards deliver today</h2>
+<p><strong>The serve.</strong> SGLang with TP4 and EP4 across four H200 NVL cards, FP8 KV cache, a 4,000,000-token pool, <code>mem_fraction_static</code> 0.85 and at most 36 running requests. DSpark speculative decoding runs with four draft tokens. The figures come from 435,002 decode-batch and 314,328 prefill-batch lines in the serve's own log, and from 289,246 completed router receipts for the same span. The router gate was lowered from 16 to 12 on 2026-10-08 at 04:38 UTC, so the figures below are split at that instant.</p>
+<figure>
+<img src="/imas-ambix/figures/b300-serving-projection/decode-by-width.svg" alt="Aggregate and per-request decode rate against concurrent requests, measured on 4xH200 and projected for 8xB300" style="max-width:100%">
+<figcaption>Left: aggregate decode rate against the engine's running-request count. Blue points are medians on the four-card H200 serve since the gate went to 12, with interquartile whiskers. The orange band is the 8×B300 projection of §5, bounded by its low and high assumptions. Right: the same rates per request. The dotted line is today's per-request rate at the gate. The dotted vertical marks the gate at 12.</figcaption>
+</figure>
+<table>
+<caption>Decode by exact running width since the gate change (2026-10-08 04:38 to 2026-10-15 05:54 UTC). Pass time is accept length times width over the aggregate rate.</caption>
+<thead><tr><th>Running</th><th>Share of busy time</th><th>Aggregate [tok/s]</th><th>Per request [tok/s]</th><th>Accept length</th><th>KV pool used</th><th>Pass time [ms]</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>22.0%</td><td>121</td><td>120.6</td><td>3.08</td><td>3%</td><td>25.5</td></tr>
+<tr><td>2</td><td>9.1%</td><td>207</td><td>103.3</td><td>3.09</td><td>6%</td><td>29.9</td></tr>
+<tr><td>4</td><td>6.3%</td><td>350</td><td>87.4</td><td>3.09</td><td>13%</td><td>35.4</td></tr>
+<tr><td>6</td><td>6.3%</td><td>444</td><td>74.0</td><td>3.09</td><td>19%</td><td>41.7</td></tr>
+<tr><td>8</td><td>6.0%</td><td>492</td><td>61.5</td><td>3.10</td><td>25%</td><td>50.4</td></tr>
+<tr><td>10</td><td>6.1%</td><td>520</td><td>52.0</td><td>3.12</td><td>32%</td><td>60.0</td></tr>
+<tr><td>11</td><td>6.9%</td><td>523</td><td>47.6</td><td>3.13</td><td>35%</td><td>65.8</td></tr>
+<tr><td>12</td><td>12.3%</td><td>543</td><td>45.3</td><td>3.15</td><td>36%</td><td>69.6</td></tr>
+</tbody>
+</table>
+<p><strong>The pass time is a straight line, and that decides the projection.</strong> A pass costs 20.0 ms plus 4.0 ms for every running request, with a residual of 1.5 ms across widths 1 to 12. The per-request term is not expert traffic. Expert traffic grows ever more slowly as the batch's experts overlap, and this line does not bend. What grows linearly is work each request brings with it: sparse attention over a context of about 125,000 tokens, and the prefill of that request's next turn, which runs between decode steps on the same cards. The 2026-10-08 study measured the share of seconds carrying any prefill rising from 0.17 at one request to 0.70 at twelve. So on these cards, aggregate decode flattens because prefill and long-context attention take the time, not because the KV pool or the experts run out. At width 12 the pool is 36% used.</p>
+<p><strong>What a request experiences.</strong> Since the gate change, a completed request presents a median of 120,135 prompt tokens and 90th percentile 169,747. 96.8% of presented prompt tokens are served from the prefix cache, so each turn prefills about 3,700 new tokens. The median completion is 376 tokens and the mean 745. Time to first token has a median of 0.74 s and a 90th percentile of 1.56 s. The router's own receipts give a median per-request decode rate of 62 tok/s, with 10th and 90th percentiles of 38 and 106. That median is higher than the engine's figure at width 12 because many requests run at lower widths. Waiting at the router gate is zero for most requests, but its 90th percentile rose from 0.0001 s before the change to 1.8 s after, and its 99th from 6.6 s to 17.5 s. The gate is now doing its job, and some of the time it is the constraint.</p>
+<figure>
+<img src="/imas-ambix/figures/b300-serving-projection/hourly-load.svg" alt="Hourly mean running requests and output rate across the serve's life" style="max-width:100%">
+<figcaption>Hourly means across job 1280470's 299 hours, idle hours included. Top: running requests. Bottom: output rate. The dotted vertical marks the gate change from 16 to 12 on 2026-10-08.</figcaption>
+</figure>
+<p><strong>The lane is busy in bursts.</strong> Over 299 hours the mean is 4.0 running requests and 237 tok/s of output. The median hour has 2.8 running, the 90th-percentile hour 9.6. 41 hours, 14%, had essentially nothing running, and 70 hours averaged at least 400 tok/s. In the router's own record, the share of time with no request in flight is 32%, with 1 to 4 in flight 34%, with 5 to 11 in flight 28%, and with 12 or more in flight 6%. A faster node will be bought for the peaks and for the per-request rate. It will not be bought for utilisation, which is the same conclusion the 2026-09-17 study reached.</p>
+
+<h2 id="s3">§3 — The telemetry record and its growth</h2>
+<p><strong>What is in place.</strong> The on-node recorder appends one row every five seconds to a raw receipt file on GPFS. Every 300 s it compacts that file into a minute tier and the minute tier into an hour tier. A disposable SQLite index serves the panels, and <code>agent watch</code> publishes a ledger from it. <code>imas-ambix agent retire-raw</code> can delete a raw file once its tiers are proven equal to it, but only after a person reviews the manifest it writes. That is the "rotating" part, and it stops there: no stream in the table below is rotated, retired or pruned automatically.</p>
+<table>
+<caption>Every serving record and log stream, measured 2026-10-15. Growth rates are size over the live job's 12.4 days unless stated.</caption>
+<thead><tr><th>Stream</th><th>Where</th><th>Size now</th><th>Growth</th><th>Bounded?</th><th>Remedy</th></tr></thead>
+<tbody>
+<tr><td>Serve stdout</td><td>repository root, <code>&lt;slug&gt;-&lt;job&gt;.log</code></td><td>426 MB for the live job; 1.4 GB over 451 files</td><td>34 MB/day</td><td>No. 60% of its lines are <code>GET /v1/models</code> and <code>GET /metrics</code></td><td>Plan §19 drops polling lines</td></tr>
+<tr><td>Router stdout</td><td>repository root, <code>ambix-router-&lt;job&gt;.log</code></td><td>35 MB</td><td>3.6 MB/day</td><td>No</td><td>Not yet planned</td></tr>
+<tr><td>Raw serving receipts</td><td><code>/work/projects/imas_gpu/agents/receipts/</code></td><td>664 MB for the live job; 1.6 GB in the directory</td><td>53 MB/day, six times the 8.7 MB/day the store was designed for</td><td>Only by the manual retirement, which excludes running jobs. It ran once, on 2026-10-02, and retired 0 of 31. Today 11 of 32 files (273 MB) qualify</td><td>Plan §21, then §22</td></tr>
+<tr><td>Minute tier</td><td>same directory, <code>.minute.jsonl</code></td><td>179 MB for the live job</td><td>14 MB/day</td><td>No. The five-week ageing in the design is not implemented</td><td>Plan §22</td></tr>
+<tr><td>Hour tier</td><td>same directory, <code>.hour.jsonl</code></td><td>3.1 MB</td><td>0.25 MB/day</td><td>Kept indefinitely, by design</td><td>None needed</td></tr>
+<tr><td>Router request receipts</td><td><code>~/public/imas-ambix/requests.jsonl</code></td><td>294 MB, 513,524 rows since 2026-09-23</td><td>13 MB/day</td><td>No; one file, never rolled</td><td>Plan §20</td></tr>
+<tr><td>Telemetry index</td><td><code>~/.cache/ambix/watch-index.sqlite3</code></td><td>9.8 GB in the home directory</td><td>About seven times the raw bytes it indexes</td><td>Only when raw files are retired, and SQLite does not shrink without a vacuum</td><td>Plan §22</td></tr>
+<tr><td>Stale measurement copy</td><td><code>~/.cache/ambix/measure.sqlite3</code></td><td>534 MB</td><td>None since 2026-09-23</td><td>Orphaned</td><td>Delete on the lead's word</td></tr>
+<tr><td>Drain sidecar</td><td><code>/work/projects/imas_gpu/logs/</code></td><td>4.8 GB in 1,824 files</td><td>One row a second per serve</td><td>Each file rotates at about 50 MB; the directory is never pruned</td><td>Not yet planned</td></tr>
+</tbody>
+</table>
+<p><strong>The compaction itself has a cost that grows with the serve's age.</strong> Each 300 s pass re-reads the whole raw file. At 664 MB that is about 190 GB of GPFS reads a day, and the figure grows with the square of the serve's lifetime. §21 makes compaction incremental and rolls the raw file at each UTC midnight, so that closed days can be retired while the serve runs. Scheduled deletion, §22, removes the person who now reviews each retirement manifest. That changes the system's destructive authority, so §22 is held behind the <code>scheduled-retirement</code> decision in the plan.</p>
+
+<h2 id="s4">§4 — The cost estimate: why the month halved</h2>
+<p><strong>The ledger reprices the past.</strong> <code>watch.period_row</code> prices a whole period once, at <code>price_at(price, now)</code>: the provider table it last fetched, at the current time of day. The plan's own §9 says each interval should be priced at the rate in force when it ran; the code does not do that. So whenever OpenRouter's headline moves, every token of the month is repriced the moment the table refreshes. The published month row today carries 57.9 B input and 0.400 B output tokens, and reads $732. The router's receipts agree to within 3%, at 56.4 B and 0.382 B.</p>
+<p><strong>The headline moves a lot, and it is not anyone's price.</strong> These are the headline rates that can still be recovered for <code>deepseek/deepseek-v4.1-flash</code>, in dollars per million tokens:</p>
+<table>
+<caption>Recovered OpenRouter headline rates. 2026-10-02 is back-solved from a captured panel read and reproduces its month cost to within 1%; the others were read from fetched tables.</caption>
+<thead><tr><th>At (UTC)</th><th>Prompt</th><th>Cache read</th><th>Completion</th></tr></thead>
+<tbody>
+<tr><td>2026-09-29</td><td>0.30</td><td>0.006</td><td>1.20</td></tr>
+<tr><td>2026-10-02 10:03</td><td>0.0137</td><td>0.0036</td><td>0.891</td></tr>
+<tr><td>2026-10-04 09:00</td><td>0.003</td><td>not recorded</td><td>2.40</td></tr>
+<tr><td>2026-10-05 08:54</td><td>0.30</td><td>0.006</td><td>1.20</td></tr>
+<tr><td>2026-10-14 09:34</td><td>0.02088</td><td>0.0054</td><td>0.891</td></tr>
+</tbody>
+</table>
+<p>The endpoint listing for the same slug, read on 2026-10-15, carries 29 providers. Prompt rates run from $0.0137 to $0.30 and completion rates from $0.18 to $1.20, and none of them equals the headline. The cheapest serve FP4 or undeclared quantisations. DeepSeek itself lists $0.15 and $0.60, which is its off-peak half of the $0.30 and $1.20 it has charged at peak since its 2026-09-10 price change. So the halving was not a cut in DeepSeek's price. It was a cheaper blended headline, applied by our ledger to every token we had already served.</p>
+<table>
+<caption>The same month of traffic, 57.9 B input and 0.400 B output tokens, at a third-party cache hit rate of 0.93, under each pricing choice.</caption>
+<thead><tr><th>Pricing</th><th>Month</th></tr></thead>
+<tbody>
+<tr><td>Today's headline, applied to every day (what the panel prints)</td><td>$732</td></tr>
+<tr><td>Each day at the headline in force that day (what §18 will print)</td><td>$1,665</td></tr>
+<tr><td>Cheapest single provider</td><td>$606</td></tr>
+<tr><td>Provider median (interquartile $1,191 to $2,039)</td><td>$1,595</td></tr>
+<tr><td>DeepSeek first-party, off-peak</td><td>$1,010</td></tr>
+<tr><td>DeepSeek first-party, peak</td><td>$2,019</td></tr>
+</tbody>
+</table>
+<p><strong>What to change.</strong> Plan §17 keeps a change-only history of every headline row, plus the per-provider rows for the served model, refreshed hourly and seeded with the five recovered points above. §18 prices each stretch of a period at the rate recorded for it, so a new headline only affects traffic served after it. That reverses the 2026-10-05 decision to keep no history (<code>f-srw-024</code>), as the lead asked today. One question remains the lead's: which price is "the OpenRouter equivalent". The headline is the price of the cheapest blended route, often an FP4 provider. The provider median is closer to what an unpinned client is charged over time, and it sits within 5% of the history-priced figure. I recommend publishing the provider median of FP8-or-better endpoints beside the headline, once §17 records the per-provider rows.</p>
+<p><strong>Input is half the bill even at a 93% cache hit rate.</strong> Our traffic is 148 input tokens per output token. At today's headline, input is 51% of the month's cost, and at the $0.30 rate it is 76%. This is why the third-party cache rate, measured at 0.93 on 2026-09-29, matters as much as the price.</p>
+
+<h2 id="s5">§5 — 8×B300: what changes for DeepSeek-V4.1-Flash</h2>
+<p><strong>The hardware.</strong> A B300 (Blackwell Ultra) on an HGX baseboard carries 288 GB of HBM3e at about 8 TB/s, against 141 GB at 4.8 TB/s on our H200 NVL. NVIDIA's datasheet lists 270 GB usable, about 2.1 TB per node. Dense FP4 is about 13 to 15 PFLOPS per GPU against roughly 2 PFLOPS of FP8 on H200. All eight GPUs share one NVSwitch domain at 1.8 TB/s each, and each GPU has an 800 Gb/s ConnectX-8 NIC in NVIDIA's reference build. Eight such cards against our four give 3.3 times the memory bandwidth, about five times the FP8 compute, about fifteen times that compute at FP4, and four times the memory.</p>
+<p><strong>The method.</strong> §2's pass time splits into a 20.0 ms fixed term and a 4.0 ms per-request term. On 8×B300 the fixed term, which is expert reads plus collective and launch latency, is divided by <em>k<sub>a</sub></em>. The per-request term, which is long-context attention plus the interleaved prefill of each request's next turn, is divided by <em>k<sub>b</sub></em>. The low case takes <em>k<sub>a</sub></em> 1.7 and <em>k<sub>b</sub></em> 3.3. That is the bandwidth ratio at today's 20% efficiency, diluted by an unchanged latency floor, and a per-request term that gains only bandwidth. The high case takes <em>k<sub>a</sub></em> 2.5 and <em>k<sub>b</sub></em> 5.0. That is the 2026-09-17 study's block-scale tax removed, with prefill gaining a share of the compute ratio. The accept length stays at today's 3.1. vLLM's recipe uses a five-token DSpark block on Blackwell with a reported acceptance of 3.51, which would lift every figure by about 13%.</p>
+<table>
+<caption>Projected DeepSeek-V4.1-Flash decode on one 8×B300 node, against today's measured four-card serve.</caption>
+<thead><tr><th>Operating point</th><th>4×H200 measured</th><th>8×B300 low</th><th>8×B300 high</th></tr></thead>
+<tbody>
+<tr><td>Single stream</td><td>121 tok/s</td><td>240 tok/s</td><td>353 tok/s</td></tr>
+<tr><td>12 concurrent: per request / aggregate</td><td>45 / 543 tok/s</td><td>118 / 1,418 tok/s</td><td>177 / 2,120 tok/s</td></tr>
+<tr><td>At 45 tok/s per request: concurrent requests / aggregate</td><td>12 / 543 tok/s</td><td>47 / 2,128 tok/s</td><td>76 / 3,437 tok/s</td></tr>
+<tr><td>At 30 tok/s per request: concurrent requests / aggregate</td><td>not reached within the gate</td><td>76 / 2,274 tok/s</td><td>120 / 3,586 tok/s</td></tr>
+</tbody>
+</table>
+<p><strong>Memory stops being a constraint.</strong> On 8×B300 the 511 GB checkpoint fits whole, Engram tables included, so the host offload we use today is not needed. vLLM's Blackwell recipe runs it as DEP8 with up to 256 sequences. That leaves well over 1 TB for KV. At our measured 10.1 KB per token, one 125,000-token conversation needs about 1.3 GB, so over a thousand conversations would stay resident. The 4M-token pool we run now holds about 32.</p>
+<p><strong>Public measurements agree on the scale.</strong> SemiAnalysis InferenceX publishes per-GPU throughput for DeepSeek R1 at 8K input and 1K output tokens. At 50 tok/s per user, B300 delivers 5,852 tok/s per GPU against H200's 1,591, a factor of 3.7. At 89 tok/s per user the factor is 2.8, and at 128 it is 1.6. Doubling for eight cards against our four gives a node factor of 7.4, 5.6 and 3.2. Our projection at 45 tok/s per request is a factor of 3.9 to 6.3. That sits slightly below the public figures, for reasons that are expected: their prompts are 8K tokens against our 120K, so per-request attention and prefill are cheaper, and their H200 is the SXM part rather than our 600 W NVL card. vLLM reports a single GB300 in a DGX Station serving this exact model at 416 to 423 tok/s across 16 streams, with its Engram tables in host memory. That is about 80% of our four H200 cards at width 12, from one Blackwell Ultra GPU.</p>
+<p><strong>What this study cannot settle.</strong> The per-request term's split between attention and prefill is inferred from its linearity and from the 2026-10-08 prefill-active shares, not measured directly. If prefill is the larger part, the high case is closer, because prefill is compute-bound and gains the most from Blackwell. The projection also assumes our router's global gate is lifted for the new node, which §8 makes a precondition.</p>
+
+<h2 id="s6">§6 — Frontier open weights on 8×B300</h2>
+<p>Each projection below scales §5's DSv4.1 result by the bytes a model must read per generated token, its layer count and its draft acceptance. Only Kimi K3 has a published measurement on an 8×B300 node, and that measurement uses 128-token prompts. Treat these rows as a sizing guide with a factor of two of uncertainty, not as forecasts.</p>
+<table>
+<caption>Latest variants as of 2026-10-15, whether they fit, and projected decode at agentic context lengths of about 125,000 tokens. OpenRouter headline prices are per million prompt and completion tokens on 2026-10-14.</caption>
+<thead><tr><th>Model</th><th>Total / active</th><th>Released weights</th><th>4×H200 (562 GB)</th><th>8×B300 (~2.1 TB)</th><th>8×B300 single stream</th><th>8×B300 at ~30 tok/s per request</th><th>Headline price</th></tr></thead>
+<tbody>
+<tr><td>DeepSeek-V4.1-Flash</td><td>552B + 196B Engram / 8B prefill, 16B decode</td><td>MXFP4 experts, FP8 rest; 511 GB</td><td>Serving now, Engram on host</td><td>Fits whole</td><td>240–350 tok/s</td><td>76–120 requests, 2,300–3,600 tok/s</td><td>$0.021 / $0.89</td></tr>
+<tr><td>GLM-5.3</td><td>744–753B / about 40B</td><td>FP8, 704 GiB</td><td>Only a community W4A8 requantisation</td><td>Fits at FP8 with about 1.3 TB spare</td><td>70–130 tok/s</td><td>20–45 requests, 600–1,400 tok/s</td><td>$0.079 / $4.80</td></tr>
+<tr><td>MiMo-V2.6-Pro</td><td>1.02T / 42B</td><td>MXFP4 MoE; about 0.6 TB</td><td>No (V2.5-Pro needed CPU offload)</td><td>Fits; SGLang's recipe targets 8×B300 at TP8 and EP8</td><td>100–180 tok/s</td><td>30–60 requests, 900–1,800 tok/s</td><td>$0.435 / $0.87</td></tr>
+<tr><td>Kimi K3</td><td>2.8T / 104B</td><td>MXFP4 (trained quantisation-aware); about 1.42 TiB</td><td>No, and not on 8×H200 either</td><td>Fits with about 0.5 TB spare</td><td>70–100 tok/s; 120–180 with DSpark at low concurrency</td><td>25–50 requests, 800–1,500 tok/s</td><td>$0.62 / $15.00</td></tr>
+<tr><td>MiniMax M3</td><td>428B / 24.5B</td><td>FP8, 456 GB</td><td>Fits</td><td>Fits twice over</td><td>120–200 tok/s</td><td>40–75 requests, 1,200–2,200 tok/s</td><td>$0.30 / $1.20</td></tr>
+</tbody>
+</table>
+<p><strong>The one measured anchor.</strong> On a DGX-B300 at TP8, with 128-token prompts and 128-token completions, Kimi K3 under vLLM decoded at 101 tok/s for one user and 27.5 tok/s per user at 64 concurrent, 1,759 tok/s in aggregate. SGLang reached 1,863 tok/s at 64. DSpark speculative decoding nearly doubled the single-user rate to 188 tok/s. Its gain was gone by 16 concurrent requests, and by 64 the run with it was less than half as fast as the run without. In SGLang the scheduler's time to first token rose six-fold at 64 concurrent. Speculative decoding on the largest models is therefore a low-concurrency tool, and our long prompts will cost more than these short ones do.</p>
+<p><strong>What the capacity buys.</strong> The node's real advantage for these models is that each runs at its released precision on one machine. GLM-5.3's FP8 release replaces the community requantisation whose draft head the 2026-09-17 study found damaged. Kimi K3 becomes servable at all. Two mid-sized models can share the node: DSv4.1-Flash on four B300 cards and GLM-5.3 at FP8 on the other four together use about 1.3 TB of weights. Our router already serves two models on one host by port.</p>
+
+<h2 id="s7">§7 — Interconnect: inside the box and between boxes</h2>
+<p><strong>Inside the box, interconnect is decisive, and HGX B300 already has it.</strong> Mixture-of-experts serving exchanges activations between GPUs at every layer: tensor-parallel all-reduces, and expert-parallel dispatch and combine. On our H200 NVL cards those exchanges ride bridges that join four cards into a clique, measured at 159 GB/s per direction per pair, with PCIe beyond the clique. That is why the 2026-09-17 study found eight-card runs here losing to four-card ones. HGX B300 puts all eight GPUs on one NVSwitch at 1.8 TB/s each, about four times our cards' per-GPU NVLink and fully connected. Specify the HGX (SXM) baseboard, not PCIe cards, when ordering. A PCIe Blackwell card would repeat today's island boundary.</p>
+<p><strong>Between boxes, bandwidth barely matters for a pair of serving nodes.</strong> Each serving node holds complete models, and only HTTP requests cross the network. A 125,000-token prompt is about half a megabyte of JSON, so even gigabit Ethernet moves it in a few milliseconds. The fast NICs, 800 Gb/s ConnectX-8 per GPU, matter in three cases:</p>
+<table>
+<caption>When the network between nodes becomes part of serving, and whether it applies to one B300 node beside our H200 node.</caption>
+<thead><tr><th>Use</th><th>What crosses the network</th><th>Applies to us?</th></tr></thead>
+<tbody>
+<tr><td>Wide expert parallelism across nodes</td><td>Activations at every layer, at microsecond latency. DeepSeek decodes V3 across 18 nodes of 8 H800s (EP144) over InfiniBand, overlapping communication with compute.</td><td>No. It needs many identical nodes; rack-scale NVLink (GB300 NVL72) now does this inside one domain. Publicly, GB300 NVL72 delivers 1.0 to 3.6 times an HGX B300's per-GPU throughput on DeepSeek, depending on the interactivity target.</td></tr>
+<tr><td>Prefill on one node, decode on another</td><td>The finished KV cache. For DSv4.1 at our 10.1 KB per token, a full 125,000-token context is 1.3 GB: 13 ms at 100 GB/s, 0.4 s on 25 GbE. A turn's 3,700 new tokens are 37 MB.</td><td>Possible but not worth it now. With 97% prefix hits there is little prefill to move, and pairing an H200 prefill pool with a B300 decode pool means converting between different tensor-parallel layouts.</td></tr>
+<tr><td>A shared KV tier, or loading weights</td><td>Evicted prefixes; a 0.5 to 1.4 TB checkpoint at start-up.</td><td>Only start-up time. Weights come from GPFS once per serve.</td></tr>
+</tbody>
+</table>
+<p>So run the B300 node as an island. Buy what the site network already offers, and do not pay for InfiniBand unless a second B300 node and cross-node expert parallelism are planned.</p>
+
+<h2 id="s8">§8 — How datacentres route requests, and what our router needs</h2>
+<p><strong>The common shape.</strong> An L7 gateway terminates the request, and an endpoint picker chooses a replica. Kubernetes stacks implement it through the Gateway API Inference Extension; llm-d runs a pipeline of filters and weighted scorers there, prefix-cache affinity against queue depth and KV load. NVIDIA Dynamo's KV router keeps a global prefix tree built from the KV-block events workers report. It routes by a cost that weighs the prefill a worker would still have to do (the uncached part of the prompt) against that worker's decode load. SGLang's router keeps an approximate per-worker radix tree of past prompts. It sends a request to the best prefix match when the match rate passes a threshold, and to the shortest queue when load is imbalanced. Above that sit prefill/decode separation with KV transfer over RDMA (NIXL, Mooncake), autoscaling on SLO targets, and for the largest operators, wide expert parallelism across rack-scale NVLink domains. Aggregators such as OpenRouter route one level higher, across providers, by price, uptime and latency with fallbacks. That is why §4's headline price moves.</p>
+<p><strong>What our router already does.</strong> It discovers upstreams, resolves a model id to the widest topology serving it, and admits generation through one global first-in-first-out gate of width 12. That gate was tuned to the H200 knee in §2.</p>
+<p><strong>What a second island needs.</strong></p>
+<ol>
+<li><strong>A gate per upstream, not one global gate.</strong> A single width of 12 across both nodes would hold a B300 node at an eighth of its projected width. Each island needs its own width, measured on that node the way §2 measured this one.</li>
+<li><strong>Session affinity when one model runs on both islands.</strong> 96.8% of our prompt tokens are served from the prefix cache. A turn routed to the wrong island prefills about 120,000 tokens instead of 3,700: about 12 s on H200 and about 2 s on B300. Our clients already send <code>x-reckon-run-id</code> and <code>x-reckon-session</code>, so pin each session to one island and fail over only when that island's gate is full or down. This is the same cache-affinity-with-load-fallback rule that the SGLang router and Dynamo implement.</li>
+<li><strong>Prefer different models on different islands at first.</strong> Model-level routing needs nothing new, and keeps every cache warm.</li>
+</ol>
+
+<h2 id="s9">§9 — Provenance and sources</h2>
+<p><strong>Our measurements</strong>, taken 2026-10-15 on the fleet node. The census script is <code>docs/figures/b300-serving-projection/serve_census.py</code>, run over <code>deepseek-v4-1-flash-1280470.log</code> (426 MB) and <code>~/public/imas-ambix/requests.jsonl</code> (294 MB). Its output is <code>census-1280470.json</code>, and <code>serve_figures.py</code> derives <code>projection.json</code> and both figures from it. The serve log prints Central European Summer Time; the census converts to UTC. The retention listing was run without <code>--apply</code> and deleted nothing. Month costs come from the published <code>watch.json</code> month row and from receipts grouped by UTC day, at the installed third-party hit rate of 0.93. The 2026-10-02 headline was back-solved from a captured <code>agent watch</code> read in a crew report.</p>
+<p><strong>Public sources</strong>, read 2026-10-15:</p>
+<ul>
+<li><a href="https://inferencex.semianalysis.com/compare/deepseek-r1-b300-vs-h200">SemiAnalysis InferenceX: B300 against H200 on DeepSeek R1</a>. Points are interpolated, at 8K input and 1K output. The page's percentage cost claims disagree with its own table; this study uses only the throughput figures.</li>
+<li><a href="https://inferencex.semianalysis.com/compare/deepseek-v4-b300-vs-h200">SemiAnalysis InferenceX: DeepSeek V4 Pro on B300</a>. It has no H200 data at that target.</li>
+<li><a href="https://recipes.vllm.ai/deepseek-ai/DeepSeek-V4.1-Flash">vLLM recipe for DeepSeek-V4.1-Flash</a>: architecture, the B300 DEP8 configuration, and the GB300 DGX Station rates.</li>
+<li><a href="https://vllm.ai/blog/2026-02-13-gb300-deepseek">vLLM: DeepSeek-V3.2 on GB300</a>: GB300 against B300 per GPU.</li>
+<li><a href="https://whitepapers.openzeka.com/papers/kimi-k3-dgx-b300-inference-benchmark/">Kimi K3 inference benchmark on DGX-B300</a> (July 2026).</li>
+<li><a href="https://docs.sglang.io/cookbook/autoregressive/Xiaomi/MiMo-V2.6">SGLang cookbook: MiMo-V2.6</a> and <a href="https://docs.sglang.io/cookbook/autoregressive/Moonshotai/Kimi-K3">Kimi-K3</a>.</li>
+<li><a href="https://huggingface.co/zai-org/GLM-5.3">GLM-5.3 model card</a>, with this repository's <code>glm-5-3</code>, <code>mimo-v2-5-pro</code> and <code>minimax-m3</code> profiles for architecture details.</li>
+<li><a href="https://api-docs.deepseek.com/news/news260910/">DeepSeek's V4.1-Flash announcement</a> and its pricing as summarised by <a href="https://apidog.com/blog/deepseek-v4-1-flash-pricing/">Apidog</a>.</li>
+<li>OpenRouter's <code>/api/v1/models</code> table and <code>/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints</code>, read 2026-10-14 and 2026-10-15.</li>
+<li><a href="https://docs.nvidia.com/dynamo/dev/knowledge-base/modular-components/router/router-design.md">NVIDIA Dynamo router design</a>, <a href="https://llm-d.ai/docs/architecture/Components/inf-scheduler">llm-d inference scheduler</a> and <a href="https://docs.sglang.ai/advanced_features/router.html">SGLang router</a>.</li>
+<li>DeepSeek's inference-system figures (prefill EP32 on 4 nodes, decode EP144 on 18 nodes, 73.7k input and 14.8k output tok/s per H800 node) as restated in <a href="https://arxiv.org/pdf/2506.12708">the CloudMatrix384 paper</a>.</li>
+<li>HGX B300 figures from <a href="https://openmetal.io/resources/hardware-details/nvidia-hgx-b300-8-gpu-server/">OpenMetal</a> and <a href="https://glennklockwood.com/garden/processors/B300">Glenn Lockwood's notes</a>. Dense FP4 per GPU is quoted as 13 to 15 PFLOPS across sources; NVIDIA's datasheet was not read directly.</li>
+</ul>
+<p><strong>Not verified.</strong> GLM-5.3's active parameter count is not on its model card; 40B is the GLM-5 family figure that a third party reports. MiMo-V2.6-Pro's weight size is inferred from its parameter count and format. No public B300 measurement exists at contexts of 100,000 tokens or more for any model in §6.</p>
+
+</main>
+</body>
+</html>
