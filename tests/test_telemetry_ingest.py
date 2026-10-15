@@ -646,18 +646,18 @@ def test_a_failed_source_forget_is_retried_before_vacuum(tmp_path, monkeypatch):
         first = scheduled(_RETENTION_NOW)
         assert not raw.exists(), "the index lock undid retirement"
         assert first.error is not None
-        assert first.pending_forget == (raw,)
         assert first.vacuum_owed is True
         assert index.sample_count() > 0
         assert vacuumed == [], "vacuum ran before source cleanup"
 
         second = scheduled(_RETENTION_NOW + scheduled.interval_seconds)
         assert second.removed == ()
-        assert second.pending_forget == ()
-        assert second.vacuum_owed is False
         assert forgotten == [(raw,), (raw,)]
         assert vacuumed == [1]
         assert index.sample_count() == 0
+        assert first.pending_forget == (raw,)
+        assert second.pending_forget == ()
+        assert second.vacuum_owed is False
 
 
 def test_the_retirement_pass_runs_at_most_once_a_day(tmp_path, monkeypatch):
