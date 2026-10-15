@@ -1,0 +1,171 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-ledger-prices-each-segment">
+  <header>
+    <h3>Each stretch of a ledger period is priced at its own recorded median</h3>
+    <p class="meta">
+      Node <code>srw-ledger-prices-each-segment</code> &middot;
+      date 2026-10-15 &middot;
+      worktree <code>imas-ambix-0405601943d2/srw-ledger-prices-each-segment</code>
+    </p>
+  </header>
+
+  <p>
+    The ledger row of a period was priced at the one open-market rate the price
+    table happened to carry when the panel rendered, so a month that spanned
+    several provider price changes was billed entirely at whichever rate was
+    current at the read. The figure moved with the render time rather than with
+    the traffic it measured. A period is now split at every instant the recorded
+    endpoint listing for the served slug changed, and each stretch's own token
+    total is priced at the provider median in force at that stretch's start.
+  </p>
+
+  <h4>What changed</h4>
+  <ul>
+    <li>
+      <code>imas_ambix/agent/watch.py</code> gains the segment walk:
+      <code>_endpoint_listings</code> (the change instants),
+      <code>_endpoints_in_median</code> (how many endpoints the median was taken
+      over, read through <code>provider_prices</code>' own precision floor rather
+      than a second copy of the rule), <code>_segment_bounds</code>,
+      <code>_price_walk</code> and <code>PriceWalk</code>. Each segment's tokens
+      come from <code>partitioned_total</code> over its own bounds, so the split
+      reuses the partition the query layer already defines.
+    </li>
+    <li>
+      The three pricing policies are now distinguishable in the row and in JSON:
+      <code>price_segments</code>, <code>price_policy</code> and
+      <code>price_history_from</code> ride beside <code>cost</code>, and the
+      label names the policy, the endpoint count in the median, the date the
+      history begins, a carried-back rate, a headline fallback and a
+      segmentation that declined.
+    </li>
+    <li>
+      <code>watch</code>'s refresh call now resolves the served model against the
+      table already on disk, so the endpoints listing it fetches is the one for
+      the slug this render prices, and a first run with no table names no slug
+      and defers the listing to the next refresh.
+    </li>
+    <li>
+      <code>tests/test_agent_watch_cost.py</code> gains eleven tests over a
+      fixture index and a fixture history, one per behaviour above.
+    </li>
+    <li>
+      Commit <code>d0c797ff</code> on the node branch,
+      <code>feat(agent): price each ledger period segment by segment</code>.
+    </li>
+  </ul>
+
+  <h4>The refusals that were made to happen</h4>
+  <p>
+    Each guard is exercised on a period where the guard has something to refuse,
+    and the refusal is asserted in the label or the figure:
+  </p>
+  <ul>
+    <li>
+      <strong>Two medians.</strong> A period spanning one recorded change costs
+      the first segment's tokens at the first median plus the second segment's at
+      the second, and the total is asserted <em>not</em> to equal the period at
+      either rate applied to all of it.
+    </li>
+    <li>
+      <strong>A narrow endpoint.</strong> An fp4 endpoint three orders of
+      magnitude below the wide ones moves neither the figure nor the count: the
+      label names three endpoints for a four-endpoint listing.
+    </li>
+    <li>
+      <strong>An unrecorded segment.</strong> A stretch with no reading of its
+      own yields a null total, and the period is then priced in one segment at
+      the median in force at its end with <em>segmentation not possible</em> in
+      the label — rather than summing the part that was measured.
+    </li>
+    <li>
+      <strong>A carried-back rate.</strong> A stretch before the history begins
+      is priced at the first observation's median and the label says the rate was
+      carried back, so the figure is not read as an observation of that stretch.
+    </li>
+    <li>
+      <strong>A listing with no surviving endpoint.</strong> Every endpoint
+      below the headline, the median is taken over nothing, and the row falls
+      back to the headline with the count of segments that fell back named.
+    </li>
+    <li>
+      <strong>A scheduled row.</strong> A time-of-day schedule cuts the period at
+      every hour boundary — six segments against one for the same period under an
+      unscheduled row, with the two figures equal, so the schedule is shown to
+      move the split and not the arithmetic.
+    </li>
+  </ul>
+
+  <h4>The declared negative control</h4>
+  <p>
+    Mutation applied: in the per-segment loop, <code>when = max(mark,
+    first_at)</code> was replaced by <code>when = now</code>, so every segment is
+    priced at the median in force at the render instant instead of its own. The
+    two-rate test then fails, and a second test fails with it:
+  </p>
+  <pre>FAILED tests/test_agent_watch_cost.py::test_a_period_spanning_a_listing_change_prices_each_segment_alone
+FAILED tests/test_agent_watch_cost.py::test_watch_document_prices_over_the_history_beside_the_table
+2 failed, 61 passed in 9.67s
+EXIT=1</pre>
+  <p>
+    The mutation was reverted; the same command returns <code>63 passed</code>
+    and <code>EXIT=0</code>. Log:
+    <code>logs/negative-control.log</code> in the run directory.
+  </p>
+
+  <h4>The live render, and the one condition it could not meet</h4>
+  <p>
+    One <code>imas-ambix agent watch --json</code> render against the live index
+    and the live serve's receipts completed on the live record at
+    10:18:42Z in 2 m 33 s. The month row carried
+    <code>price_segments: 1</code> and
+    <code>price_policy: "headline rate"</code>, with
+    <code>cost: 687.593197353935</code> over
+    59,066,156,008 prompt and 406,343,459 generation tokens.
+  </p>
+  <p>
+    Both the segmented figure and the one-segment headline figure for that month
+    were then computed in one process from a single read of the month's tokens.
+    That single read is load-bearing: the serve keeps writing receipts, so two
+    successive reads of the same month disagree by about 0.006 USD, and a
+    comparison taken over two reads would have measured the serve's write rate
+    rather than the pricing policy. The two figures are equal --
+    <code>687.668446434272</code> either way -- because the live price history
+    holds <strong>no</strong> endpoints row at all, so the walk takes the
+    one-segment headline path and there is nothing for a split to differ over.
+    The comparison becomes informative at the first render that follows a refresh
+    which actually fetched a listing.
+  </p>
+  <p>
+    That condition is the one the node could not satisfy inside its fence. The
+    live history
+    <code>/work/projects/imas_gpu/agents/openrouter-price-history.jsonl</code>
+    does not exist. The refresh that would create it early-returned, which it is
+    designed to do: the table was fetched at 09:35:46Z and
+    <code>REFRESH_AGE</code> is 3600 s, so a refresh that fetches is possible
+    only from 10:35:46Z — four minutes and forty-five seconds past this node's
+    10:31:01Z deadline. Waiting past the fence was not an option, and the
+    resource was not faked: backdating the table's own <code>at</code> field
+    would have misdated a real fetch, and writing a listing row into the history
+    by hand would have put a claimed observation in the record that no fetch ever
+    made. What was verified instead is the naming that fetch depends on. Against
+    the live table on disk, the served model
+    <code>deepseek-v4.1-flash</code> resolves to the slug
+    <code>deepseek/deepseek-v4.1-flash</code>, and the endpoints URL the refresh
+    will request for it is
+    <code>https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints</code>.
+    The refresh call itself reported <code>refreshed: false</code> with the table
+    at 2111 s of age — the early return, not an error
+    (<code>error: None</code>).
+  </p>
+  <p>
+    Live evidence, run directory <code>logs/</code>:
+    <code>live-render.log</code> (slug resolution, refresh outcome, both
+    figures), <code>watch-json-live-worktree.json</code> (the render),
+    <code>running-code.log</code> (the marker proving the render ran the
+    worktree's <code>watch</code> rather than the editable checkout's),
+    <code>live-comparison.log</code>, <code>watch-json-live.json</code> — the
+    first render, kept because it ran the pre-change code and its row carries
+    none of the three new keys, which is what a render that is not the change
+    looks like.
+  </p>
+</section>
