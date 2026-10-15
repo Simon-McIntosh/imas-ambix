@@ -147,6 +147,11 @@
     <p>Investigation <code>srw-1278105-tier-disagreement</code>, 2026-10-15, run on the fleet node with <code>telemetry_retention.compare_tiers</code>. It found six disagreeing (UTC hour, counter) pairs, all in the first and last hours. The other 390 of 396 compared pairs, across 130 hours, agree. At the start, the compacted rows carry no opening block, so the first advance of (400; 14; 256) generation, prompt and uncached-prompt tokens is lost. At the end, both tiers stop at 19:01:29 while the raw record runs to 19:04:01, losing (52,723; 7,015,441; 89,856). The recorder was stopped between compaction passes. An independent review reproduced all three claims. Retiring the raw file now would lose those tokens, so §22 rebuilds an ended job's tiers from its raw record before comparing them. The full finding is in the crew reports under <code>imas-ambix/srw-1278105-tier-disagreement/finding.md</code>.</p>
   </section>
 
+  <section id="s20">
+    <h2>§20 — router request receipts roll daily</h2>
+    <p>The router writes request receipts to <code>requests-YYYY-MM-DD.jsonl</code> by the UTC day of each row, and compresses a day file once it has been closed for two whole days. Nothing deletes a receipt. One shared reader, <code>request_receipts.read_receipt_rows</code>, reads the legacy <code>requests.jsonl</code> and then each plain or compressed day file in date order, and <code>receipt_bins</code> delegates to it. Commit <code>8f300da4</code>, merged at <code>a7409495</code>. Tests: 44 passed in the receipt and bin suites and 126 across <code>tests/test_agent_router*.py</code>, and the whole-tree lint is clean. The negative control compressed the current day and failed the age test as declared. Independent review: 112 of 120, 0 added failures. It takes effect at the next router restart. Follow-on: two analysis scripts pass the legacy file path, so they read only that file. Those are <code>docs/figures/b300-serving-projection/serve_census.py</code> and <code>docs/figures/local-lane-occupancy/request_width_measure.py</code>, and they should pass the directory instead.</p>
+  </section>
+
 </main>
 </body>
 </html>

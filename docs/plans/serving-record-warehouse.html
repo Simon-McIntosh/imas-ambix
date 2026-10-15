@@ -22,9 +22,9 @@
   <title>Serving Record Warehouse | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;implementable&quot;,&quot;s21&quot;:&quot;implementable&quot;,&quot;s22&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;implementable&quot;,&quot;s22&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="247">
+<meta name="plan-version" content="248">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -820,7 +820,7 @@
 <p><strong>Done when</strong>: a test renders the serve script for <code>deepseek-v4-1-flash</code> and finds the exclusion flag naming all three prefixes. A test renders a vLLM profile's script and finds the flag only if the vLLM help lists one. The manifest quotes the help line that spells the flag. The serving-interpreter grammar guard passes. The declared negative control drops <code>/v1/models</code> from the prefix list, and it must fail the first test.</p>
 
     <h2 id="s20">§20 — Router request receipts roll daily and age into compressed files</h2>
-<section data-reckon="section" data-id="s20" data-effort-hours="2.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s20" data-effort-hours="2.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="done" data-links=""></section>
 <p><strong>What is wrong, measured 2026-10-15.</strong> The router appends every request receipt to one file, <code>~/public/imas-ambix/requests.jsonl</code>. It holds 513,524 rows and 294 MB since 2026-09-23, about 13 MB a day, and it never rolls. <code>telemetry_retention</code> already describes the name shape a rolled file should take, <code>requests-2026-10-01.jsonl</code>, but nothing produces it.</p>
 <p><strong>The change.</strong> The receipt sink writes each row to <code>requests-YYYY-MM-DD.jsonl</code> beside the lane document, where the date is the UTC day of the row's timestamp. When a day file has been closed for two whole days, the router compresses it to <code>.jsonl.gz</code>. Nothing deletes a receipt. <code>request_receipts</code> gains the one reader of the rolled set, <code>read_receipt_rows(location)</code>. Given the directory, it yields the legacy <code>requests.jsonl</code> first, then each day file, plain or compressed, in date order. Given one file, it reads that file. Every existing reader calls it rather than opening the file itself.</p>
 <p><strong>Where the readers are.</strong> No production code in the package reads <code>requests.jsonl</code>; reviews on 2026-10-15 established this. The router writes it, naming the file at <code>router.py:1750</code>. <code>receipt_bins.read_receipt_rows</code> at <code>receipt_bins.py:82</code> opens the path it is handed, but it and its caller <code>collect_receipt_bins</code> are reached only from tests. <code>cli.py:2648</code> builds the serve recorder's own receipt path, a different file, and is out of scope. <code>cache_estimate</code> takes rows, not a path. The file's one known reader today is an analysis script that opens it by path, <code>docs/figures/b300-serving-projection/serve_census.py</code>. It keeps reading the legacy file, which is never rewritten, and moves to the shared reader when next run. So this node makes <code>receipt_bins.read_receipt_rows</code> delegate to the shared reader, and its manifest lists every call site that opens a request-receipts path. The roll takes effect at the router's next restart, and this node does not restart the router.</p>
@@ -1074,10 +1074,11 @@
     <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §19</pre>
     <p class="r-fu-outcome">done: §19 landed at d3602d87. Serve commands exclude polling paths from the access log, effective at the next serve restart.</p>
     </article>
-<article class="r-fu" data-id="f-srw-027" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-edit" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §20" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-srw-027" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-edit" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §20" data-resolved-at="2026-10-15T08:50:41+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Roll the router&#x27;s request receipts by day</h4>
     <div class="r-fu-body"><p><code>requests.jsonl</code> is one 294 MB file that never rolls. §20 rolls it daily and compresses closed days; it applies at the next router restart.</p></div>
     <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §20</pre>
+    <p class="r-fu-outcome">done: §20 landed at a7409495. Router request receipts roll daily, effective at the next router restart.</p>
     </article>
 <article class="r-fu" data-id="f-srw-028" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-edit" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §21" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Bound a running serve&#x27;s raw record</h4>
@@ -1640,6 +1641,9 @@
 </div>
 <div class="r-comment" data-section="s17" data-id="c-run-r-20261015T082028261171-review-of-srw-price-history-cf48243664c2" data-who="reckon-build" data-when="2026-10-15T08:35:54.826Z">
     <div class="r-comment-body"><p>review of run r-20261015T074619366002-srw-price-history stored at .config/reckon/crew/reviews/imas-ambix/r-20261015T074619366002-srw-price-history.at-cf48243664c2aef6200512522fa1d6ee8a9a4098.json: scores goal_fidelity 19, evidence 19, scope_discipline 18, durability 19, fit 18, reuse 5; 3 follow-on findings (a _rates normaliser duplicated from watch.py; an altered recovered-rate citation; an endpoints change test that records a reorder as a price change); no blocking finding.</p></div>
+</div>
+<div class="r-comment" data-section="s20" data-id="c-close-s20" data-who="reckon-build" data-when="2026-10-15T08:55:00Z">
+    <div class="r-comment-body"><p>§20 landed: request receipts roll into UTC day files, compressed after two whole days, read through one shared reader (commit <code>8f300da4</code>, merged <code>a7409495</code>); 44 + 126 tests pass; review 112/120. It takes effect at the next router restart. <a href="/imas-ambix/evidence/archive/serving-record-warehouse-landed.html#s20">evidence</a></p></div>
 </div>
 </section>
 </main>
