@@ -705,6 +705,13 @@ def test_rebuild_keeps_rows_from_retired_days(tmp_path, present_days):
     write_rows(minute, minute_rows)
     write_rows(hour_path, hour_rows)
     retired_days = set(range(3)) - set(present_days)
+    for path in (minute, hour_path):
+        lines = path.read_bytes().splitlines(keepends=True)
+        for index, line in enumerate(lines):
+            day = int((retention._timestamp_of(json.loads(line)) - base) // 86400)
+            if day in retired_days:
+                lines[index] = line.replace(b'":', b'": ', 1)
+        path.write_bytes(b"".join(lines))
     before = {
         path: [
             line
