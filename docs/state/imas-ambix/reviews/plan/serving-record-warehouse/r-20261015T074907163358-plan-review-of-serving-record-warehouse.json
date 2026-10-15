@@ -1,0 +1,76 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-15T07:57:36.722Z",
+  "dispatched_at": "2026-10-15T07:49:27Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:855",
+      "id": "reasoning-1",
+      "reason": "the node deletes that subprocess and routes the query through the bounded runner regardless, so the misstatement changes no mechanism \u2014 it only misreads the current failure mode for a later reader.",
+      "text": "\u00a722 says `default_running_job_ids` \"cannot tell a refusal from an empty answer\", but `default_running_job_ids` (`imas_ambix/agent/telemetry_retention.py:101`) raises `RuntimeError` on a non-zero `squeue` exit and returns an empty `frozenset` only when the scheduler ran and reported nothing, so it does distinguish the two; the only real defect is the missing timeout, so a hung scheduler stalls the pass.",
+      "type": "reasoning",
+      "would_change": false
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:799",
+      "id": "reasoning-2",
+      "reason": "a worker implementing the segmentation as written has no rate for the all-FP4 case and must invent a fallback the plan should have chosen, which is the kind of gap that lands wrong first time.",
+      "text": "\u00a718 prices each segment with `provider_median_in_force(seg_start)` and falls back to \"one segment at the current headline\" only for the case of \"no endpoint history at all\", but \u00a717 defines `provider_median_in_force` to return `None` also when no endpoint survives the eight-bit filter (an all-FP4 listing), a case \u00a718's ladder does not cover, so the stated mechanism is undefined exactly where its dependency can hand back `None`.",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:799",
+      "id": "reasoning-3",
+      "reason": "\u00a718 already holds the history it walks to find the change instants, so it can count the surviving endpoints and read the first observation's timestamp itself without redrawing \u00a717's signature.",
+      "text": "\u00a718 requires the cost label to name \"the number of endpoints in the median, and the date the history begins\", but \u00a717 defines `provider_median_in_force(history, slug, when)` to return only the median prompt, cache-read and completion rates each taken separately, so the \u00a718 node \u2014 which writes only `watch.py`) \u2014 depends on quantities the reader it relies on is not specified to return.",
+      "type": "reasoning",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "627a298bd282879370c5cb8041297be8f6a7ff71023bfeb42e50bfe432ad71b3",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 236,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261015T074907163358-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "56c4a640844c9860d7116bc58634dbd317ef0bdc",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `watch.py:634`/`price_at(price, now)` at `watch.py:670`, `node_probe.run_capture` at `node_probe.py:186` (10 s default) and `read_jobs` at `node_probe.py:667` all resolve; the `cost-price-policy` and `scheduled-retirement` decisions and the \u00a75 ingest loop the sections cite all resolve.",
+    "done_when": "pass \u2014 both changed nodes name a declared negative control that inverts a specific assertion: s18's control \"prices every segment at `now`\" and must fail the two-rate test; s22's control \"skips the digest re-check\" and a file mutated between listing and apply must be why it fails.",
+    "evidence_paths": "pass \u2014 neither node routes a gate into a scratchpad or a node-local temporary path; s18's live render and s22's suite both run on the fleet node and land in the run's own record.",
+    "naming": "pass \u2014 no plan labels, stage names or ticket numbers reach the code symbols; the node ids stay in the plan's own node table.",
+    "reasoning": "a finding \u2014 \u00a718's fallback ladder is undefined where its own dependency can return `None`, and \u00a722 misstates the current liveness reader.",
+    "single_goal": "pass \u2014 the earlier conflated s22 node is now split: `srw-scheduled-retention` (schedule the retire-and-vacuum pass) and `srw-1278105-tier-disagreement` (investigate only, writes an evidence fragment), so each carries one closable verdict.",
+    "wiring": "pass \u2014 s18's node declares \"Runs after \u00a717\", which is the section that defines the two readers it calls (`rate_in_force`, `provider_median_in_force`); s22's `srw-scheduled-retention` declares \"Runs after \u00a721\", and \u00a721 (the section it depends on) itself edits `telemetry_retention.py`, so the write ordering is serial and correct; the `srw-1278105-tier-disagreement` investigate node declares no dependency it needs."
+  },
+  "section_digests": {
+    "_document": "634d0df2412b9bd21b43428bb2cfd78f4f53f492834ea129b8d4a8c413bce41d",
+    "s1": "f0e6a1c8acb9f607124dc4f3def1f738e2a0bc52c579a2c0849a33c6fa1156fb",
+    "s10": "1509fe50d6cbdb1159da0bac7826bf9df43f73f13dc81d4b4a3c3c0d3926d315",
+    "s11": "f02a2d9d5ac0a9537cbc0c7c1127234686c6b35ebe9d5f28f2eb1dc890ba8349",
+    "s12": "c993e8c7a97750818ddad0ac8e3797052442f5dd3357a9b1336cd024ff90f8d3",
+    "s13": "0a80350dd120a399e1c304a1eed64f149a7e5f5f1ef41302cad6223dc985910e",
+    "s14": "65bc34f5b6d081374d8287c3a7e14dfa77b21b6ef0390d5e95961d81ded7114d",
+    "s15": "1d02ca1576af9e3b58c011e3b4c84ffb63870a92698492bd45a0bbfe48660ea0",
+    "s16": "59a48fb3793215455ca353b8188b5d155dec253814be9a4eea8d2f4eeb412fe1",
+    "s17": "a9272f7380fa7e5e98ccdb05c439a87545af549c2b868454c7fcbf8b5f205d73",
+    "s18": "809de9405f0b7a5517d85b001838fe42cb8c6d035e731a2dbe056154e5a225bb",
+    "s19": "dc83604a90c46f7c6ef8e70e35cccf1230c480b513b218fc4744ddeeae9e6864",
+    "s2": "dd85bfd277fcf3eff4974460f080158cafc4ff9e584ca8799bbdf19223a0067f",
+    "s20": "8122e379cac4618fb3130fbbe0ee431d918ea6f19ac63f7dee6b4d54ff284566",
+    "s21": "072fad4f2605157b2b243b2b8688d099e0d0b27039e2c7a28f72c4ba47c72cf5",
+    "s22": "b452e320d567edaba807d4becaecf9254764fe38f016f6d8fc0012873af91a9a",
+    "s3": "dd2996924d4d122532e4de97c38a9cae83173c64b6409cc2135177861f392578",
+    "s4": "59f727a99fef92f80127586b2833279df3aa59154895e05a2590e648232abfeb",
+    "s5": "07d984217f6f4d05e582e4d403dff88fd7c0627b3a2cceb36a0123131813e899",
+    "s6": "19d3648895b8aeee8beac762cb2ddb63ba248dec6485eb393625e0c9fd840c32",
+    "s7": "8de1f36a2db5f192d8a078c96c91f29a1d456c95b742332e6fb3854ee451cb78",
+    "s8": "6fa176e0365af868497abc3e4cb9e224032b3de82c337015be11061591c407c2",
+    "s9": "a29439d3d5c1417e8d6fdc357f0ab636deb86ddef8cdd6865c541773247886ef"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T07:58:43.338616+00:00"
+}
