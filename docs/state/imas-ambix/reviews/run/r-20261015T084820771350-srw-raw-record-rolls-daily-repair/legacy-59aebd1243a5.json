@@ -1,0 +1,101 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 7,
+  "call_sites": [
+    "imas_ambix/agent/serving_receipts.py:419",
+    "imas_ambix/agent/serving_receipts.py:566",
+    "imas_ambix/agent/serving_receipts.py:592",
+    "imas_ambix/agent/telemetry_retention.py:650",
+    "imas_ambix/agent/telemetry_retention.py:800",
+    "imas_ambix/agent/telemetry_retention.py:860",
+    "imas_ambix/agent/live_panel.py:181"
+  ],
+  "commits_read": [
+    "340b1fe5ae7e9f9e4d12e16cfacf5694752d6814",
+    "fc0bc07f3352ea6bcb08f9b37d6103bf784c7a05"
+  ],
+  "completed_at": "",
+  "dispatched_at": "2026-10-15T08:48:38Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T084820771350-srw-raw-record-rolls-daily-repair/negative-control.log",
+      "line": "51",
+      "severity": "blocking",
+      "text": "blocking: the log's last non-empty line is the restore annotation, not an EXIT record, and its status line reads 'NEGATIVE-CONTROL EXIT = 1' rather than the bare 'EXIT=1' that promotion_evidence._EXIT_RECORD fullmatches, so promotion_checks._require_declared_negative_control refuses this node with 'it records no EXIT status, so whether its run failed is unknown' even though the mutation demonstrably reddened tests/test_telemetry_store.py:898."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T084820771350-srw-raw-record-rolls-daily-repair/manifest.md",
+      "line": "22",
+      "severity": "follow-on",
+      "text": "follow-on: after_suite is the prose '160 passed in 57.14s, exit 0, at fc0bc07f' rather than the armed JSON (completed/failure_ids) the arm readers require, so promotion_checks._head_suite_failure_ids reads it as None and the head arm is unreadable; baseline_suite at :21 has the same defect."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T084820771350-srw-raw-record-rolls-daily-repair/baseline.log",
+      "line": "12",
+      "severity": "follow-on",
+      "text": "follow-on: the log ends mid-progress line at 'tests/test_telemetry_store.py ..........' with no summary line and no exit record, so the base arm's '154 passed in 61.98s, exit 0' is claimed in the manifest's prose and cannot be read from the log its own header names."
+    },
+    {
+      "file": "docs/evidence/fragments/serving-record-warehouse/srw-raw-record-rolls-daily-repair.html",
+      "line": "38",
+      "severity": "follow-on",
+      "text": "follow-on: the fragment states the recorder's copy of receipts_job_id resolved a rolled day segment 'to no job at all', which inverts the defect -- the deleted copy at serving_receipts.py (base d6635540) dropped a trailing eight-digit day before taking the id and resolved deepseek-v4-1-flash-1280470.20261015.jsonl to 1280470, while the index's _JOB_ID_IN_NAME failed to match it -- so the committed record misnames which reader was broken and which was correct."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_store.py",
+      "line": "980",
+      "severity": "follow-on",
+      "text": "follow-on: the docstring still asserts 'the new segment arrives with a new inode, and the pass that sees it starts the ladder's next contribution rather than reading the old offset as its own', which the landed branch at :1034-1040 contradicts -- a roll renames the file and keeps the inode, and only a file with a different inode starts at zero -- so the function documents the mechanism the change removed."
+    },
+    {
+      "file": "imas_ambix/agent/serving_receipts.py",
+      "line": "650",
+      "severity": "follow-on",
+      "text": "follow-on: _record_stem_and_suffix strips a trailing eight-digit roll day that is already parsed at serving_receipts.py:612 _roll_date and at imas_ambix/agent/telemetry_store.py:798 _ladder_stem, so the receipts name grammar now has three day parsers and a name-shape change must be made in each."
+    }
+  ],
+  "gate_arms_note": "derived from the reviewed run's own arms: after.log records no FAILED or ERROR id and ends '160 passed in 57.14s', so the head arm fails nothing and the added set is empty whatever the base arm holds; baseline.log is truncated at line 12 before any summary or exit record, so the base figure (154 passed, exit 0) is claimed in the manifest's prose only and is unreadable as an arm. Neither arm is stored in the armed JSON shape the promotion readers require.",
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 7 production call site(s)",
+    "diff": "read commit by commit from d6635540 to fc0bc07f -- 340b1fe5 rewrites the rolled branch of compact_incremental, adds _read_tail, splits the tier name at its .jsonl marker, and deletes serving_receipts' second receipts_job_id; fc0bc07f adds the evidence fragment; nine files, 334 insertions and 40 deletions, all inside the declared scope.",
+    "done_when": "the done-when names the six test files and six named assertions; the manifest records that run (after.log, 160 passed; 154 at the base) and each named assertion exists in the diff -- tests/test_telemetry_store.py:898 (roll leaves no duplicate window and both tiers byte-identical to one full compaction), :959 (instrumented byte count), tests/test_telemetry_index.py:930 (day segment yields its job id), :944 (one reader), tests/test_agent_serving_receipts.py:996 (tier_paths suffix and roll day), tests/test_telemetry_retention.py:583 (running job's closed segment not held).",
+    "goal": "the node's goal is to make the day roll and its incremental compaction meet section 21's done-when -- no duplicate windows at a roll, compaction reading from its watermark offset, one owner for the job-id reader -- and all three are landed: imas_ambix/agent/telemetry_store.py:1040 resumes the rolled pass at the mark and carries emitted_through, imas_ambix/agent/telemetry_store.py:1049 reads only the tail from that offset, and imas_ambix/agent/serving_receipts.py:80 re-exports the index's single receipts_job_id.",
+    "manifest": "read; status complete, commits 340b1fe5 and fc0bc07f, tests and test_logs name the six-file gate and both arms, but baseline_suite and after_suite are prose sentences rather than the armed JSON objects the promotion readers require, and baseline.log is truncated before its summary.",
+    "write_paths": "read from the reviewed run's node record (write_paths, ten entries) and the manifest; all nine changed paths in the diff are inside them and nothing outside is touched."
+  },
+  "justifications": {
+    "durability": "tests/test_telemetry_store.py:898 is a real guard reddened by the recorded mutation and :959 counts the bytes read independently, but tests/test_telemetry_retention.py:583 reddens on no change this node made.",
+    "evidence": "the gate measures the done-when's six files and after.log:20 records 160 passed with six new tests, but the manifest's prose arms at manifest.md:21-22 are unreadable to promotion and negative-control.log:51 ends on a restore note rather than an EXIT record.",
+    "fit": "the new helpers follow the module's underscore-private idiom and carry no plan label, but imas_ambix/agent/telemetry_store.py:980 now states the opposite of the landed code at :1034.",
+    "goal_fidelity": "imas_ambix/agent/telemetry_store.py:1040 and :1049 deliver the resume-at-the-mark and tail-only read, and imas_ambix/agent/serving_receipts.py:80 the single reader, though the function docstring at :980 still describes the pre-change mechanism.",
+    "reuse": "imas_ambix/agent/serving_receipts.py:80 extends the owner rather than forking it, but imas_ambix/agent/serving_receipts.py:650 re-implements the roll-day strip already written at :612 and at imas_ambix/agent/telemetry_store.py:798.",
+    "scope_discipline": "every one of the nine paths in the diff is inside the ten declared write paths, and the diff carries no change the goal does not imply."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is to make the day roll and its incremental compaction meet section 21's done-when -- no duplicate windows at a roll, compaction reading from its watermark offset, one owner for the job-id reader -- and all three are landed: imas_ambix/agent/telemetry_store.py:1040 resumes the rolled pass at the mark and carries emitted_through, imas_ambix/agent/telemetry_store.py:1049 reads only the tail from that offset, and imas_ambix/agent/serving_receipts.py:80 re-exports the index's single receipts_job_id.\nVERDICT done_when: the done-when names the six test files and six named assertions; the manifest records that run (after.log, 160 passed; 154 at the base) and each named assertion exists in the diff -- tests/test_telemetry_store.py:898 (roll leaves no duplicate window and both tiers byte-identical to one full compaction), :959 (instrumented byte count), tests/test_telemetry_index.py:930 (day segment yields its job id), :944 (one reader), tests/test_agent_serving_receipts.py:996 (tier_paths suffix and roll day), tests/test_telemetry_retention.py:583 (running job's closed segment not held).\nVERDICT write_paths: read from the reviewed run's node record (write_paths, ten entries) and the manifest; all nine changed paths in the diff are inside them and nothing outside is touched.\nVERDICT manifest: read; status complete, commits 340b1fe5 and fc0bc07f, tests and test_logs name the six-file gate and both arms, but baseline_suite and after_suite are prose sentences rather than the armed JSON objects the promotion readers require, and baseline.log is truncated before its summary.\nVERDICT diff: read commit by commit from d6635540 to fc0bc07f -- 340b1fe5 rewrites the rolled branch of compact_incremental, adds _read_tail, splits the tier name at its .jsonl marker, and deletes serving_receipts' second receipts_job_id; fc0bc07f adds the evidence fragment; nine files, 334 insertions and 40 deletions, all inside the declared scope.\nCALL_SITES: imas_ambix/agent/serving_receipts.py:419, imas_ambix/agent/serving_receipts.py:566, imas_ambix/agent/serving_receipts.py:592, imas_ambix/agent/telemetry_retention.py:650, imas_ambix/agent/telemetry_retention.py:800, imas_ambix/agent/telemetry_retention.py:860, imas_ambix/agent/live_panel.py:181\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/agent/telemetry_store.py:1040 and :1049 deliver the resume-at-the-mark and tail-only read, and imas_ambix/agent/serving_receipts.py:80 the single reader, though the function docstring at :980 still describes the pre-change mechanism.\nSCORE evidence: 15\nJUSTIFICATION evidence: the gate measures the done-when's six files and after.log:20 records 160 passed with six new tests, but the manifest's prose arms at manifest.md:21-22 are unreadable to promotion and negative-control.log:51 ends on a restore note rather than an EXIT record.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every one of the nine paths in the diff is inside the ten declared write paths, and the diff carries no change the goal does not imply.\nSCORE durability: 15\nJUSTIFICATION durability: tests/test_telemetry_store.py:898 is a real guard reddened by the recorded mutation and :959 counts the bytes read independently, but tests/test_telemetry_retention.py:583 reddens on no change this node made.\nSCORE fit: 16\nJUSTIFICATION fit: the new helpers follow the module's underscore-private idiom and carry no plan label, but imas_ambix/agent/telemetry_store.py:980 now states the opposite of the landed code at :1034.\nSCORE reuse: 12\nJUSTIFICATION reuse: imas_ambix/agent/serving_receipts.py:80 extends the owner rather than forking it, but imas_ambix/agent/serving_receipts.py:650 re-implements the roll-day strip already written at :612 and at imas_ambix/agent/telemetry_store.py:798.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T084820771350-srw-raw-record-rolls-daily-repair/negative-control.log:51 blocking: the log's last non-empty line is the restore annotation, not an EXIT record, and its status line reads 'NEGATIVE-CONTROL EXIT = 1' rather than the bare 'EXIT=1' that promotion_evidence._EXIT_RECORD fullmatches, so promotion_checks._require_declared_negative_control refuses this node with 'it records no EXIT status, so whether its run failed is unknown' even though the mutation demonstrably reddened tests/test_telemetry_store.py:898.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T084820771350-srw-raw-record-rolls-daily-repair/manifest.md:22 follow-on: after_suite is the prose '160 passed in 57.14s, exit 0, at fc0bc07f' rather than the armed JSON (completed/failure_ids) the arm readers require, so promotion_checks._head_suite_failure_ids reads it as None and the head arm is unreadable; baseline_suite at :21 has the same defect.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T084820771350-srw-raw-record-rolls-daily-repair/baseline.log:12 follow-on: the log ends mid-progress line at 'tests/test_telemetry_store.py ..........' with no summary line and no exit record, so the base arm's '154 passed in 61.98s, exit 0' is claimed in the manifest's prose and cannot be read from the log its own header names.\nFINDING docs/evidence/fragments/serving-record-warehouse/srw-raw-record-rolls-daily-repair.html:38 follow-on: the fragment states the recorder's copy of receipts_job_id resolved a rolled day segment 'to no job at all', which inverts the defect -- the deleted copy at serving_receipts.py (base d6635540) dropped a trailing eight-digit day before taking the id and resolved deepseek-v4-1-flash-1280470.20261015.jsonl to 1280470, while the index's _JOB_ID_IN_NAME failed to match it -- so the committed record misnames which reader was broken and which was correct.\nFINDING imas_ambix/agent/telemetry_store.py:980 follow-on: the docstring still asserts 'the new segment arrives with a new inode, and the pass that sees it starts the ladder's next contribution rather than reading the old offset as its own', which the landed branch at :1034-1040 contradicts -- a roll renames the file and keeps the inode, and only a file with a different inode starts at zero -- so the function documents the mechanism the change removed.\nFINDING imas_ambix/agent/serving_receipts.py:650 follow-on: _record_stem_and_suffix strips a trailing eight-digit roll day that is already parsed at serving_receipts.py:612 _roll_date and at imas_ambix/agent/telemetry_store.py:798 _ladder_stem, so the receipts name grammar now has three day parsers and a name-shape change must be made in each.\n",
+  "review_run_id": "legacy-59aebd1243a5",
+  "review_run_id_source": "derived",
+  "reviewed_base_sha": "d663554006766bac8cf7966bda092d03628467ec",
+  "reviewed_head_sha": "fc0bc07f3352ea6bcb08f9b37d6103bf784c7a05",
+  "reviewed_revision": "fc0bc07f3352ea6bcb08f9b37d6103bf784c7a05",
+  "reviewed_run_id": "r-20261015T084820771350-srw-raw-record-rolls-daily-repair",
+  "reviewer_node": "review-of-srw-raw-record-rolls-daily-repair-fc0bc07f3352",
+  "reviewer_run_id": "r-20261015T092613886693-review-of-srw-raw-record-rolls-daily-repair-fc0bc07f3352",
+  "scores": {
+    "durability": 15,
+    "evidence": 15,
+    "fit": 16,
+    "goal_fidelity": 18,
+    "reuse": 12,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T09:47:39.949948+00:00",
+  "total": 95,
+  "verdict": "blocked"
+}
