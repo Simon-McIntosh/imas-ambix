@@ -61,6 +61,13 @@
       "finding": "single_goal-1",
       "reason": "The 1278105 disagreement becomes its own investigate node; section 22's node excludes that file until the cause is recorded.",
       "when": "2026-10-15T07:46:01.567028+00:00"
+    },
+    {
+      "action": "acted",
+      "by": "reckon-build coordinator 4fd309f5",
+      "finding": "reasoning-2",
+      "reason": "Section 18 will match the served slug against the table on disk before refreshing; with no table, the endpoints fetch waits for the next refresh.",
+      "when": "2026-10-15T07:46:02.073757+00:00"
     }
   ],
   "responses": {
@@ -75,6 +82,12 @@
       "by": "reckon-build coordinator 4fd309f5",
       "reason": "Section 22 will keep the account-wide question and route it through node_probe.run_capture's bounded runner, not node-scoped read_jobs; edit follows before section 22 dispatches.",
       "when": "2026-10-15T07:46:00.135444+00:00"
+    },
+    "reasoning-2": {
+      "action": "acted",
+      "by": "reckon-build coordinator 4fd309f5",
+      "reason": "Section 18 will match the served slug against the table on disk before refreshing; with no table, the endpoints fetch waits for the next refresh.",
+      "when": "2026-10-15T07:46:02.073757+00:00"
     },
     "single_goal-1": {
       "action": "acted",
