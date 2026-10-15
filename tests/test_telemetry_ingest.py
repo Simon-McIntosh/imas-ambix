@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+import imas_ambix.agent.telemetry_ingest as telemetry_ingest
 from imas_ambix.agent.telemetry_index import TelemetryIndex, discover
 from imas_ambix.agent.telemetry_ingest import (
     DEFAULT_CADENCE_SECONDS,
@@ -444,3 +445,107 @@ def test_an_operational_error_that_is_not_a_lock_still_ends_the_process(
         pytest.raises(sqlite3.OperationalError, match="disk I/O error"),
     ):
         run(index, tmp_path, iterations=2, sleep=lambda _: None)
+
+
+_RETENTION_NOW = _dt.datetime(2026, 10, 1, 12, 0, 0, tzinfo=_dt.UTC).timestamp()
+
+
+def _retirable_job(directory: Path) -> Path:
+    """An ended old job's raw record with the compactions a pass may retire."""
+    import os as _os
+
+    from imas_ambix.agent.serving_receipts import tier_paths
+    from imas_ambix.agent.telemetry_store import run_compaction
+
+    directory.mkdir(parents=True, exist_ok=True)
+    hour = int((_RETENTION_NOW - 20 * 86400) // 3600) * 3600
+    rows = [
+        {
+            "timestamp": _dt.datetime.fromtimestamp(
+                hour + offset, tz=_dt.UTC
+            ).isoformat(),
+            "hostname": "98dci4-gpu-0003",
+            "job_id": "1278105",
+            "engine": {
+                "generation_tokens": 100.0 * index,
+                "prompt_tokens": 200.0 * index,
+                "uncached_prompt_tokens": 250.0 * index,
+            },
+        }
+        for index, offset in enumerate((600, 1800, 3000, 4200, 5400, 6600))
+    ]
+    raw = directory / "deepseek-v4-1-flash-1278105.jsonl"
+    _write(raw, rows)
+    minute, hour_path = tier_paths(raw)
+    run_compaction(raw, minute, hour_path)
+    quiet = _RETENTION_NOW - 21 * 86400
+    for path in (raw, minute, hour_path):
+        _os.utime(path, (quiet, quiet))
+    return raw
+
+
+def test_a_scheduler_that_refuses_makes_the_pass_retire_nothing(tmp_path, monkeypatch):
+    """A refused liveness read retires nothing and does not end the loop.
+
+    An absent scheduler answer is not an empty job table, so the read raises,
+    the pass reports the refusal, and every candidate is left where it was.
+    """
+    records = tmp_path / "records"
+    raw = _retirable_job(records)
+    index = TelemetryIndex(tmp_path / "index.sqlite")
+
+    def refuse() -> frozenset[str]:
+        raise RuntimeError("squeue did not answer within 10.0s")
+
+    monkeypatch.setattr(
+        telemetry_ingest.telemetry_retention, "default_running_job_ids", refuse
+    )
+
+    report = telemetry_ingest.retention_pass(
+        index,
+        records,
+        manifest_dir=tmp_path / "manifests",
+        now=_RETENTION_NOW,
+    )
+
+    assert report.ran is True
+    assert report.error, "a refused liveness read was reported as an ordinary pass"
+    assert "squeue" in report.error
+    assert report.removed == ()
+    assert raw.exists() is True
+
+
+def test_the_retirement_pass_runs_at_most_once_a_day(tmp_path, monkeypatch):
+    """The cadence lives with the pass, so a loop ticking every minute retires
+    once a day rather than once a tick."""
+    records = tmp_path / "records"
+    raw = _retirable_job(records)
+    index = TelemetryIndex(tmp_path / "index.sqlite")
+    monkeypatch.setattr(
+        telemetry_ingest.telemetry_retention,
+        "default_running_job_ids",
+        lambda: frozenset(),
+    )
+    calls: list[float | None] = []
+    real_pass = telemetry_ingest.retention_pass
+
+    def counting_pass(index_, directory, **kwargs):
+        calls.append(kwargs.get("now"))
+        return real_pass(index_, directory, **kwargs)
+
+    monkeypatch.setattr(telemetry_ingest, "retention_pass", counting_pass)
+
+    day = telemetry_ingest.DEFAULT_RETENTION_INTERVAL_SECONDS
+    scheduled = telemetry_ingest.ScheduledRetention(
+        index, records, manifest_dir=tmp_path / "manifests", clock=lambda: 0.0
+    )
+
+    scheduled(_RETENTION_NOW)
+    assert len(calls) == 1, "the first pass did not run"
+    assert raw.exists() is False, "the first pass retired nothing to count against"
+
+    scheduled(_RETENTION_NOW + day / 2.0)
+    assert len(calls) == 1, "a second pass ran before a day had passed"
+
+    scheduled(_RETENTION_NOW + day)
+    assert len(calls) == 2, "a pass was not due a day later"

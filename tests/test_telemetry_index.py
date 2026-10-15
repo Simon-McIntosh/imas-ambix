@@ -1904,3 +1904,35 @@ def test_a_reboot_spanning_source_consumed_to_its_end_is_not_read_again(
         assert third.rows_duplicate == 0, "the third pass re-read a committed row"
         assert third.bytes_read == new_line_bytes, "read more than the new line"
         assert index.sample_count() == 5
+
+
+def test_a_retirement_and_vacuum_shrink_the_index_file(tmp_path):
+    """Retiring a source and vacuuming gives its pages back to the filesystem.
+
+    Dropping the rows alone leaves the file the same size, with the space held
+    as free pages SQLite does not reclaim; the vacuum is what returns it.
+    """
+    records = tmp_path / "records"
+    records.mkdir()
+    raw = records / "deepseek-v4-1-flash-1273253.jsonl"
+    _write(
+        raw,
+        [
+            _token_row(
+                index * 5,
+                generation=float(index),
+                prompt=1.0 + index,
+                uncached=2.0 + index,
+            )
+            for index in range(4000)
+        ],
+    )
+    path = tmp_path / "index.sqlite"
+    with TelemetryIndex(path) as index:
+        tick(index, records)
+        before = path.stat().st_size
+        assert index.forget([raw]) > 0, "no source rows were dropped"
+        index.vacuum()
+        after = path.stat().st_size
+
+    assert after < before, f"the index did not shrink: {before} -> {after}"

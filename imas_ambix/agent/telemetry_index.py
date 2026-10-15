@@ -993,6 +993,44 @@ class TelemetryIndex:
         """
         self._conn.rollback()
 
+    def forget(self, paths: Iterable[str | Path]) -> int:
+        """Drop every stored source and sample for *paths* and return the count.
+
+        A source that no longer exists on disk -- a raw receipt a retirement
+        has deleted -- has no rows to serve. Its samples go with its source row,
+        keyed by the host and inode the source row carries, which is the key the
+        sample table keys on.
+        """
+        removed = 0
+        for path in paths:
+            rows = self._conn.execute(
+                "SELECT host, inode FROM source WHERE path = ?", (str(path),)
+            ).fetchall()
+            with self._conn:
+                for row in rows:
+                    self._conn.execute(
+                        "DELETE FROM sample WHERE host = ? AND inode = ?",
+                        (row["host"], row["inode"]),
+                    )
+                    self._conn.execute(
+                        "DELETE FROM source WHERE host = ? AND inode = ?",
+                        (row["host"], row["inode"]),
+                    )
+                    removed += 1
+        return removed
+
+    def vacuum(self) -> None:
+        """Return the index file's free pages to the filesystem.
+
+        SQLite frees the pages a deletion leaves but does not shrink the file,
+        so a retirement that drops a retired source's rows leaves the bytes on
+        disk until they are reclaimed here. ``VACUUM`` rewrites the database, so
+        it is run outside a tick -- after the write that freed the pages, not
+        between the statements of one.
+        """
+        self._conn.commit()
+        self._conn.execute("VACUUM")
+
     def __enter__(self) -> TelemetryIndex:
         return self
 
