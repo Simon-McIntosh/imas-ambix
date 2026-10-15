@@ -1,0 +1,76 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-15T08:30:38.038Z",
+  "dispatched_at": "2026-10-15T08:20:21Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:807",
+      "id": "done_when-1",
+      "reason": "the node's own live gate is not idempotent, so a re-run fails spuriously and sends the worker after a defect that does not exist; the gate should assert the row is present after the render rather than that the render appended it.",
+      "text": "\u00a718's done-when requires that \"One `agent watch --json` render against the live index \u2026 appends an `endpoints` row for that slug to the live history\", but \u00a717 (line 770) appends an endpoints line only \"when that listing's prices changed\", so a second render over a history that already holds that slug's endpoints row appends nothing and the gate reddens with nothing wrong",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:799",
+      "id": "reasoning-1",
+      "reason": "without the rule a node either raises on the `None`, or declines a period that prices today, which is a regression the section's done-when (\"every existing test still passes\") will not necessarily catch.",
+      "text": "\u00a718 says \"The period's cost is the sum of the segment costs\" after totalling each segment with `partitioned_total`, but `estimated_cost` (`watch.py:443`) returns `None` when either total is unrecorded, and `period_row` (`watch.py:659`) reads its input total directly and its output total through `_span`; a split at a price change can therefore produce a segment with no recorded total where the whole period had one, and the section states no rule for that segment",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:799",
+      "id": "reasoning-2",
+      "reason": "the split is a strict generalisation that costs nothing and is correct in the fallback path, so a node implementing it as written reaches the right figure either way.",
+      "text": "\u00a718 splits a scheduled period \"at each hour boundary\" but prices each segment with `provider_median_in_force(seg_start)`, and \u00a717 defines that reader to return a single median of prompt, cache-read and completion rates with no time-of-day schedule, so the hour split is a no-op on the primary pricing path and only bites in the headline fallback, which the section does not say",
+      "type": "reasoning",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "43106578736bf14610599330a7b88230b8bf4e0672740b2b4a2a933ed587769c",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 239,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261015T080836329886-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "4e8556df2a892d1797dea1754a9667da39a345d4",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 \u00a717 and \u00a79 resolve, `imas_ambix/agent/watch.py`, `tests/test_agent_watch_cost.py`, `partitioned_total`, `provider_median_in_force`, `rate_in_force` and the `cost-price-policy` decision all exist, and no extensionless href is used.",
+    "done_when": "a finding \u2014 \u00a718's live-render gate asserts an append that \u00a717's change-only rule cannot guarantee on a re-run.",
+    "evidence_paths": "pass \u2014 the section's gates are fixture tests under `tests/` plus one labelled live render on the fleet node; nothing is written to a session scratchpad or a node-local temporary path.",
+    "naming": "pass \u2014 `price_segments`, `price_policy` and `price_history_from` name the mechanism, and no plan label, stage name or ticket number reaches a symbol or comment.",
+    "reasoning": "a finding \u2014 the stated root cause matches its evidence and the mechanism runs on the named caller, but the segment sum leaves the missing-total case undefined, so segmentation can turn a period that prices today into one that dashes.",
+    "single_goal": "pass \u2014 the node carries one deliverable (per-segment pricing of a period), and its gate closes on that alone.",
+    "wiring": "pass \u2014 \u00a718's node `srw-ledger-prices-each-segment` declares `Runs after \u00a717` and \u00a717's node `srw-price-history` exists, writes `provider_prices.py` while \u00a718 writes `watch.py`, and no other live node writes `watch.py`."
+  },
+  "section_digests": {
+    "_document": "634d0df2412b9bd21b43428bb2cfd78f4f53f492834ea129b8d4a8c413bce41d",
+    "s1": "f0e6a1c8acb9f607124dc4f3def1f738e2a0bc52c579a2c0849a33c6fa1156fb",
+    "s10": "1509fe50d6cbdb1159da0bac7826bf9df43f73f13dc81d4b4a3c3c0d3926d315",
+    "s11": "f02a2d9d5ac0a9537cbc0c7c1127234686c6b35ebe9d5f28f2eb1dc890ba8349",
+    "s12": "c993e8c7a97750818ddad0ac8e3797052442f5dd3357a9b1336cd024ff90f8d3",
+    "s13": "0a80350dd120a399e1c304a1eed64f149a7e5f5f1ef41302cad6223dc985910e",
+    "s14": "65bc34f5b6d081374d8287c3a7e14dfa77b21b6ef0390d5e95961d81ded7114d",
+    "s15": "1d02ca1576af9e3b58c011e3b4c84ffb63870a92698492bd45a0bbfe48660ea0",
+    "s16": "59a48fb3793215455ca353b8188b5d155dec253814be9a4eea8d2f4eeb412fe1",
+    "s17": "a9272f7380fa7e5e98ccdb05c439a87545af549c2b868454c7fcbf8b5f205d73",
+    "s18": "1904494d12301af973eb6bb517fb9e656e629c7354aa231758eb7ff1e07beded",
+    "s19": "dc83604a90c46f7c6ef8e70e35cccf1230c480b513b218fc4744ddeeae9e6864",
+    "s2": "dd85bfd277fcf3eff4974460f080158cafc4ff9e584ca8799bbdf19223a0067f",
+    "s20": "8122e379cac4618fb3130fbbe0ee431d918ea6f19ac63f7dee6b4d54ff284566",
+    "s21": "072fad4f2605157b2b243b2b8688d099e0d0b27039e2c7a28f72c4ba47c72cf5",
+    "s22": "456b8ba87bd7a0087607fbf921804cf9c82d45641704deb5342c1476fc2a44f8",
+    "s3": "dd2996924d4d122532e4de97c38a9cae83173c64b6409cc2135177861f392578",
+    "s4": "59f727a99fef92f80127586b2833279df3aa59154895e05a2590e648232abfeb",
+    "s5": "07d984217f6f4d05e582e4d403dff88fd7c0627b3a2cceb36a0123131813e899",
+    "s6": "19d3648895b8aeee8beac762cb2ddb63ba248dec6485eb393625e0c9fd840c32",
+    "s7": "8de1f36a2db5f192d8a078c96c91f29a1d456c95b742332e6fb3854ee451cb78",
+    "s8": "6fa176e0365af868497abc3e4cb9e224032b3de82c337015be11061591c407c2",
+    "s9": "a29439d3d5c1417e8d6fdc357f0ab636deb86ddef8cdd6865c541773247886ef"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T08:31:40.898568+00:00"
+}
