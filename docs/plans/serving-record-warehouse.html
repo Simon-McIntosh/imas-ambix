@@ -22,9 +22,9 @@
   <title>Serving Record Warehouse | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;done&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;done&quot;,&quot;s22&quot;:&quot;implementable&quot;,&quot;s23&quot;:&quot;implementable&quot;}">
+<meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;done&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;done&quot;,&quot;s22&quot;:&quot;implementable&quot;,&quot;s23&quot;:&quot;implementable&quot;,&quot;s24&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="268">
+<meta name="plan-version" content="269">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -876,6 +876,19 @@
 </table>
 <p><strong>Done when</strong>: on the fleet node, <code>tests/test_agent_serving_receipts.py</code>, <code>tests/test_telemetry_store.py</code>, <code>tests/test_telemetry_compaction_leaves.py</code> and <code>tests/test_telemetry_compaction_runs.py</code> pass. A new test pins the result each of the three former functions returned before the change on <code>foo-1.jsonl</code>, <code>foo-1.20261015.jsonl</code>, <code>foo-1.20261015.jsonl.gz</code> and <code>foo-1.jsonl.1</code>, and asserts each still returns it. On the compressed segment those results are <code>None</code>, <code>('foo-1', '.jsonl.gz')</code> and <code>'foo-1.20261015.jsonl'</code>. A second test reads both modules' source and finds the eight-digit day match in the parser only. The docstring near <code>telemetry_store.py:982</code> describes a roll as keeping the inode. The declared negative control makes <code>_ladder_stem</code> match the day itself again, and the source test must fail.</p>
 
+    <h2 id="s24">§24 — Pricing a period costs no more than reading it</h2>
+<section data-reckon="section" data-id="s24" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
+<p><strong>What is wrong, measured 2026-10-15.</strong> Each <code>publish-watch</code> cycle logs its compute time to <code>~/.local/state/fleet/services/ambix-watch-publisher.log</code>. Before §18 was deployed at 11:00Z, the mean over 16 cycles from 09:00Z was 141.7 s. Over the 6 cycles after that restart, the mean was 247.5 s. That is about 106 s more per cycle, on a 300 s cadence. The process held 44% of one CPU over its first hour, on the fleet node every session shares. §18 prices each stretch of a period at its own rate, and a scheduled row hour by hour. So the added cost is most likely work repeated once per hour or per segment that could be done once per period, such as reading the price history or querying the index.</p>
+<p><strong>The change.</strong> The node first profiles one <code>imas-ambix agent watch --json</code> render against the live index on the fleet node. It records the five most expensive call sites in its manifest. It then removes the repeated work the profile shows, without changing any figure and without changing the pricing rule §18 set. Which call is repeated is for the profile to say, not for this section to guess.</p>
+<table>
+<caption>Node for this section.</caption>
+<thead><tr><th>Node</th><th>Writes</th><th>Runs after</th><th>Effort</th></tr></thead>
+<tbody>
+<tr><td><code>srw-period-pricing-cost</code></td><td><code>imas_ambix/agent/watch.py</code>, <code>imas_ambix/agent/provider_prices.py</code>, <code>tests/test_agent_watch_cost.py</code></td><td>§18</td><td>1.5 h</td></tr>
+</tbody>
+</table>
+<p><strong>Done when</strong>: on the fleet node, one <code>imas-ambix agent watch --json</code> render against the live index takes at most 60% of the wall time it took before the change. The worker measures both in the same session and records them in the manifest, with the profile's five most expensive call sites before and after. The month cost and every period's cost in the JSON are identical before and after. <code>tests/test_agent_watch_cost.py</code> passes. A new test counts calls to the function the profile names as repeated, over a period spanning 48 hours, and asserts the count does not grow with the number of hours. The declared negative control restores the repeated call, and the count test must fail. The node does not restart <code>publish-watch</code>; the coordinator restarts it after the merge and reads the next three cycles' <code>compute_seconds</code>.</p>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="caller-identity" data-choice="declared-header" data-by="Simon McIntosh" data-when="2026-09-22T18:58:10+00:00">
@@ -1109,6 +1122,11 @@
     <h4 class="r-fu-title">Decide whether retirement may delete on a schedule</h4>
     <div class="r-fu-body"><p>Exemption claimed: <code>authority-required</code>. §22 turns a person-reviewed deletion into a scheduled one. It is held until the <code>scheduled-retirement</code> decision is locked.</p></div>
     <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §22</pre>
+    </article>
+<article class="r-fu" data-id="f-srw-031" data-status="open" data-written-by="reckon-build" data-written-at="2026-10-15" data-recommends-skill="/reckon-build serving-record-warehouse §24" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Bring publish-watch&#x27;s compute back down after per-segment pricing</h4>
+    <div class="r-fu-body"><p>Measured 2026-10-15: <code>publish-watch</code> cycles took a mean of 141.7 s before §18 was deployed and 247.5 s after it, on a 300 s cadence. §24 profiles one render and removes the repeated work.</p></div>
+    <pre class="r-fu-prompt">/reckon-build serving-record-warehouse §24</pre>
     </article>
 </section>
 
@@ -1672,7 +1690,7 @@
     <div class="r-comment-body"><p>Reviewed the one commit the run gained since its prior review (90fedfd5, +96/-3 across imas_ambix/agent/cli.py and tests/test_telemetry_ingest.py): the prior blocking finding f69b8895181 is answered, since cli.py:2979 now constructs ScheduledRetention and hands it to telemetry_ingest.run at cli.py:2973, and the recorded negative control (reverting that wiring) reddens the new end-to-end test; stored a parsed 6-dimension record (total 105) at reviewed_base_sha 78d08350 and reviewed_head_sha 90fedfd5 with added_failure_count 0.</p></div>
 </div>
 <div class="r-comment" data-section="s22" data-id="c-run-r-20261015T101418913456-srw-scheduled-retention" data-who="reckon-build" data-when="2026-10-15T11:09:07.521Z">
-    <div class="r-comment-body"><p>The ingest loop retires proven-equal raw receipts once a day from the command the fleet service actually starts: the loop builds a retirement cadence where `agent ingest` runs it and hands it to the run call, the listing rebuilds an ended job&#x27;s minute and hour tiers from all of its raw files and stages each to a scratch path before renaming it into place, the liveness read is one account-wide scheduler question through the node probe&#x27;s bounded reader, and a retirement drops the retired sources&#x27; rows from the index and vacuums it.</p></div>
+    <div class="r-comment-body"><p>The ingest loop retires proven-equal raw receipts once a day from the command the fleet service actually starts: the loop builds a retirement cadence where `agent ingest` runs it and hands it to the run call, the listing rebuilds an ended job's minute and hour tiers from all of its raw files and stages each to a scratch path before renaming it into place, the liveness read is one account-wide scheduler question through the node probe's bounded reader, and a retirement drops the retired sources' rows from the index and vacuums it.</p></div>
 </div>
 <div class="r-comment" data-section="s17" data-id="c-run-r-20261015T074619366002-srw-price-history" data-who="reckon-build" data-when="2026-10-15T08:19:41.331Z">
     <div class="r-comment-body"><p>provider_prices now keeps a change-only append-only price history at openrouter-price-history.jsonl beside the table, seeded on first refresh with the six recovered deepseek/deepseek-v4.1-flash observations in time order ahead of the fetched rows, grown by one row per model whose three rates moved, with refresh gaining a slugs keyword that fetches each named slug's endpoints listing and records it only on change, plus rate_in_force and provider_median_in_force readers and REFRESH_AGE cut from 24 h to 3600 s; measure: tests/test_provider_prices.py 33 passed with the serving-interpreter grammar guard in tests/test_agent_serve_registry.py also passing, EXIT=0</p></div>
