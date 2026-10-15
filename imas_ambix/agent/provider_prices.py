@@ -117,9 +117,9 @@ RECOVERED_OBSERVATIONS: tuple[dict, ...] = (
             "completion": 8.91e-07,
         },
         "citation": (
-            "back-solved: the only rate reproducing a month read's cost of "
-            "$243.40 from 22.0 G input and 166 M output tokens, to within 1%; "
-            "it equals the cheapest provider's listing taken later"
+            "back-solved: the only rate reproducing that read's month cost of "
+            "$243.40 from 22.8 B input and 0.166 B output tokens, to within 1%; "
+            "it equals the cheapest provider's listing on 2026-10-15"
         ),
     },
     {
@@ -367,14 +367,21 @@ def seed_history(path: Path) -> bool:
     return True
 
 
-def _rates(pricing: object) -> dict | None:
+def rates(pricing: object, fallback: float | None = None) -> dict | None:
     """The three rates a cost is priced against, out of one pricing block.
+
+    This is the one normaliser for a provider pricing block: the models rows,
+    the endpoints rows and the ledger's pricing all read a block through it,
+    so a rate cannot mean one thing in the history and another in the figure
+    the history was gathered for.
 
     A block with no prompt or completion rate is not a price this module can
     use and is dropped rather than defaulted, because a zero invented for an
     unstated rate would price traffic as free. A missing cache-read tier is
-    the one exception: cached input is priced at the prompt rate, which
-    overstates the bill rather than inventing a discount that may not exist.
+    the one exception: cached input is priced at *fallback* when the caller
+    supplies one -- a provider's time-of-day override inherits the base
+    table's cache tier -- and at the prompt rate otherwise, which overstates
+    the bill rather than inventing a discount that may not exist.
     """
     if not isinstance(pricing, dict):
         return None
@@ -386,7 +393,7 @@ def _rates(pricing: object) -> dict | None:
     try:
         cache = float(pricing.get("input_cache_read", pricing.get("cache_read")))
     except (TypeError, ValueError):
-        cache = prompt
+        cache = prompt if fallback is None else float(fallback)
     return {"prompt": prompt, "cache_read": cache, "completion": completion}
 
 
@@ -447,7 +454,7 @@ def rate_in_force(history: object, slug: str, when: float) -> dict | None:
     if not candidates:
         return None
     latest = max(candidates, key=lambda row: row["at"])
-    return _rates(latest.get("pricing"))
+    return rates(latest.get("pricing"))
 
 
 def provider_median_in_force(history: object, slug: str, when: float) -> dict | None:
@@ -471,19 +478,19 @@ def provider_median_in_force(history: object, slug: str, when: float) -> dict | 
     if not candidates:
         return None
     latest = max(candidates, key=lambda row: row["at"])
-    rates = []
+    surviving = []
     for endpoint in latest.get("endpoints") or []:
         if not isinstance(endpoint, dict):
             continue
         if _declares_fewer_than_eight_bits(endpoint.get("quantization")):
             continue
-        rate = _rates(endpoint.get("pricing"))
+        rate = rates(endpoint.get("pricing"))
         if rate is not None:
-            rates.append(rate)
-    if not rates:
+            surviving.append(rate)
+    if not surviving:
         return None
     return {
-        key: _median([rate[key] for rate in rates])
+        key: _median([rate[key] for rate in surviving])
         for key in ("prompt", "cache_read", "completion")
     }
 
@@ -493,12 +500,12 @@ def _recorded_rates(rows: list[dict], slug: str) -> dict | None:
     candidates = [
         row
         for row in rows
-        if row.get("id") == slug and _rates(row.get("pricing")) is not None
+        if row.get("id") == slug and rates(row.get("pricing")) is not None
     ]
     if not candidates:
         return None
     latest = max(candidates, key=lambda row: float(row.get("at") or 0.0))
-    return _rates(latest.get("pricing"))
+    return rates(latest.get("pricing"))
 
 
 def _model_history_rows(
@@ -518,12 +525,35 @@ def _model_history_rows(
             continue
         slug = model.get("id")
         pricing = model.get("pricing")
-        if not slug or _rates(pricing) is None:
+        if not slug or rates(pricing) is None:
             continue
-        if _recorded_rates(recorded, slug) == _rates(pricing):
+        if _recorded_rates(recorded, slug) == rates(pricing):
             continue
         rows.append({"at": stamp, "id": slug, "source": "models", "pricing": pricing})
     return rows
+
+
+def _listing_prices(endpoints: object) -> list[tuple]:
+    """What a listing charges, independent of row order and of metadata.
+
+    A listing is compared by the prices it publishes and not by the bytes it
+    arrived in: the same providers in a different order, or carrying a new
+    tag or name while every rate holds, is not a repricing. Each row
+    contributes its provider and its three rates, and sorting the result
+    leaves a reordering of the same rows equal to what it was.
+    """
+    prices = []
+    for endpoint in endpoints or ():
+        if not isinstance(endpoint, dict):
+            continue
+        rate = rates(endpoint.get("pricing"))
+        if rate is None:
+            continue
+        provider = endpoint.get("provider") or endpoint.get("provider_name") or ""
+        prices.append(
+            (str(provider), rate["prompt"], rate["cache_read"], rate["completion"])
+        )
+    return sorted(prices)
 
 
 def _endpoint_history_rows(
@@ -539,6 +569,11 @@ def _endpoint_history_rows(
     turn one refresh into hundreds of round trips for rows nothing reads. A
     listing that cannot be fetched is skipped rather than failing the refresh
     -- the model rows are already recorded and are the ones a render needs.
+
+    A listing is recorded when a price in it moved, which is what the row
+    exists to answer. A provider renaming itself, or a listing arriving in a
+    different order, has changed nothing a cost is computed from and is not a
+    repricing.
     """
     fetcher = fetch if fetch is not None else fetch_endpoints
     rows = []
@@ -556,9 +591,7 @@ def _endpoint_history_rows(
         ]
         if previous:
             latest = max(previous, key=lambda row: float(row.get("at") or 0.0))
-            if json.dumps(latest.get("endpoints"), sort_keys=True) == json.dumps(
-                endpoints, sort_keys=True
-            ):
+            if _listing_prices(latest.get("endpoints")) == _listing_prices(endpoints):
                 continue
         rows.append(
             {"at": stamp, "id": slug, "source": "endpoints", "endpoints": endpoints}
@@ -646,6 +679,7 @@ __all__ = [
     "migrate_legacy",
     "provider_median_in_force",
     "rate_in_force",
+    "rates",
     "read_history",
     "read_table",
     "refresh",

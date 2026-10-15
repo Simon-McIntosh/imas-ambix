@@ -47,6 +47,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from imas_ambix.agent import provider_prices
 from imas_ambix.agent.telemetry_index import TelemetryIndex
 
 if TYPE_CHECKING:
@@ -275,31 +276,15 @@ def price_at(price: dict, when: float) -> dict:
     return price
 
 
-def _rates(p: dict, fallback: float | None = None) -> dict | None:
-    """The three $/token figures out of one pricing block."""
-    try:
-        prompt = float(p["prompt"])
-        completion = float(p["completion"])
-    except (KeyError, TypeError, ValueError):
-        return None
-    try:
-        cache = float(p.get("input_cache_read", p.get("cache_read")))
-    except (TypeError, ValueError):
-        # No published cache tier: charge cached input at the prompt rate,
-        # which overstates rather than inventing a discount that may not exist.
-        cache = prompt if fallback is None else fallback
-    return {"prompt": prompt, "completion": completion, "cache_read": cache}
-
-
 def _price_row(entry: dict) -> dict | None:
     """Normalise one provider row to $/token, with its time-of-day schedule."""
     p = entry.get("pricing", entry)
-    base = _rates(p)
+    base = provider_prices.rates(p)
     if base is None:
         return None
     schedule = []
     for window in p.get("overrides") or []:
-        rates = _rates(window, fallback=base["cache_read"])
+        rates = provider_prices.rates(window, fallback=base["cache_read"])
         if rates is None:
             continue
         rates["days"] = {str(d).lower() for d in (window.get("utc_days") or [])}

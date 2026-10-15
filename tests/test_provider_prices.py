@@ -90,6 +90,35 @@ def test_watch_module_holds_no_price_path_literal() -> None:
     assert "gpu-watch/openrouter-prices" not in source
 
 
+def test_watch_defines_no_rate_normaliser_of_its_own() -> None:
+    """One normaliser, owned here: the ledger imports it rather than repeating it.
+
+    Two normalisers are two answers to what a pricing block charges, and the
+    one the ledger prices from would drift from the one the history records.
+    """
+    source = Path(watch.__file__).read_text(encoding="utf-8")
+    assert "def _rates" not in source
+    assert "def rates" not in source
+    assert "provider_prices.rates" in source
+    assert provider_prices.rates({"prompt": 1.0, "completion": 2.0}) == {
+        "prompt": 1.0,
+        "cache_read": 1.0,
+        "completion": 2.0,
+    }
+    assert provider_prices.rates(
+        {"prompt": 1.0, "completion": 2.0}, fallback=3.0
+    ) == {"prompt": 1.0, "cache_read": 3.0, "completion": 2.0}
+
+
+def test_the_recovered_row_cites_the_read_it_was_back_solved_from() -> None:
+    """The recovered 2026-10-02 rate cites its read, in that read's units."""
+    stamps = [entry["at"] for entry in provider_prices.RECOVERED_OBSERVATIONS]
+    row = provider_prices.RECOVERED_OBSERVATIONS[stamps.index(1790935380.0)]
+    citation = row["citation"]
+    assert "22.8 B input" in citation
+    assert "0.166 B output tokens" in citation
+
+
 def test_young_table_is_not_refetched(tmp_path: Path, monkeypatch) -> None:
     """A table inside the refresh window is served as-is."""
     monkeypatch.setattr(provider_prices, "LEGACY_PRICE_PATH", tmp_path / "absent.json")
@@ -424,6 +453,49 @@ def test_the_endpoints_listing_is_fetched_for_the_named_slugs_only(
         now=NOW + 6 * HOUR,
     )
     assert len(_rows(config, "endpoints")) == 2
+
+
+def test_an_endpoints_row_is_recorded_only_when_a_price_moves(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """A listing that reordered, or renamed a provider, has not repriced."""
+    monkeypatch.setattr(provider_prices, "LEGACY_PRICE_PATH", tmp_path / "absent.json")
+    config = _config(tmp_path)
+    slug = "deepseek/deepseek-v4.1-flash"
+    listing = [
+        _endpoint("one", "fp8", 1e-07, 1e-08, 1e-06),
+        _endpoint("two", "fp8", 2e-07, 2e-08, 2e-06),
+    ]
+    served: list[list[dict]] = [list(listing)]
+
+    def endpoints_fetch(url: str, timeout: float) -> list[dict]:
+        return [dict(row) for row in served[0]]
+
+    def refresh(at: float) -> int:
+        provider_prices.refresh(
+            config=config,
+            fetch=_stub(_model("alpha")),
+            endpoints_fetch=endpoints_fetch,
+            slugs=[slug],
+            now=at,
+        )
+        return len(_rows(config, "endpoints"))
+
+    assert refresh(NOW) == 1
+
+    served[0] = list(reversed(listing))
+    assert refresh(NOW + 2 * HOUR) == 1
+
+    served[0] = [
+        {**row, "tag": "renamed"} for row in reversed(listing)
+    ]
+    assert refresh(NOW + 4 * HOUR) == 1
+
+    served[0] = [
+        {**row, "pricing": {**row["pricing"], "prompt": 5e-07}}
+        for row in listing
+    ]
+    assert refresh(NOW + 6 * HOUR) == 2
 
 
 def test_rate_in_force_returns_the_last_headline_observation() -> None:
