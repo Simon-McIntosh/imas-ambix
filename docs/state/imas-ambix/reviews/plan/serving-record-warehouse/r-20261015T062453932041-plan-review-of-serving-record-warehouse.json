@@ -1,0 +1,84 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-15T06:40:38.305Z",
+  "dispatched_at": "2026-10-15T06:27:31Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/serving-record-warehouse.html:767",
+      "id": "reasoning-1",
+      "reason": "those six rows are the seed the history file is created from, and `rate_in_force` returns \"the last models observation at or before when\", so a reversed pair prices every segment between the two instants at the wrong rate and mis-measures the very repricing \u00a717 exists to record.",
+      "text": "\u00a717 states the flash prompt rate \"moved from $0.02016 to $0.02088\" between the 09:34Z and 15:37Z fetches, but its own recovered-rates table records $0.02088 at 09:34Z (line 781, \"the site table's own at field\") and $0.02016 at 15:37Z (line 782, \"the retired gpu-watch copy's own at field\"), so prose and table give the two observations in opposite order",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/serving-record-warehouse.html:825",
+      "id": "reasoning-2",
+      "reason": "the node's declared census is \"a search over call sites that open a receipts path\", and these two facts make it list a writer of a different file and hide that the rolled-set reader currently has no production consumer, so a builder edits the wrong call site or reports a reader set that is not where \u00a720 says it is.",
+      "text": "\u00a720 names three readers of the router request-receipts file and cites \"The CLI builds that path at cli.py:2648\" for one of them, but cli.py:2648 sits inside the `agent receipts` command and builds the serve recorder's own `--output` path (`default_record_dir() / f\"{name}.jsonl\"`, the file `record_receipts` then appends `GET /metrics` samples to), not the router's `requests.jsonl`; and the named caller `collect_receipt_bins` is reached only from tests \u2014 a grep of `imas_ambix/` for `collect_receipt_bins`/`read_receipt_rows` outside their own module returns nothing, so the reader set the node is meant to re-point has no production member",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/serving-record-warehouse.html:793",
+      "id": "done_when-1",
+      "reason": "a test written to the done-when seeds two rows, four recovered rates are silently dropped, and `rate_in_force` then returns None before the 2026-10-14 observations, so \u00a718's \"a segment that falls before the history's first observation is priced at that first observation\" carries the 15:37Z rate back over the whole 2026-09-29..10-14 span rather than pricing it from the recorded rates.",
+      "text": "\u00a717's done-when requires that \"A history created by a first refresh holds the two recovered observations with their citations ahead of the fetched rows\", while \u00a717's own recovered-rates section (lines 773\u2013782) records six observations for `deepseek/deepseek-v4.1-flash`, all carrying `\"source\": \"recovered\"`",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/serving-record-warehouse.html:419",
+      "id": "wiring-1",
+      "reason": "the section states the predecessor is already met (the restart happened 2026-09-26), so no node waits on it; the stale row costs a reader one lookup, not a mis-sequenced build.",
+      "text": "the \u00a79 node table still declares \"Re-derive the estimate from request-receipt gaps | Runs after: relay restart\", which \u00a79's rewired paragraph (line 458, \"the receipt-gap source no longer waits on a relay restart. Its node runs beside the measurement node\") and \u00a712's definitions block (line 707, \"it runs concurrently with the measurement nodes\") supersede",
+      "type": "wiring",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "8167b0f97cf76cbb289f17b0680b59e10ba0680c51b2e0279d693708d482be0d",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 226,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261015T062453932041-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "3e926a57d851e71e3be02163e3c20baf5ec0a836",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every module, symbol, evidence file, follow-up id and section id I opened resolves: `imas_ambix/agent/{watch,provider_prices,live_panel,telemetry_store,telemetry_retention,request_receipts,receipt_bins,cli,router,serving_receipts,slurm}.py`, `receipt_bins.py:82`=`read_receipt_rows`, `router.py:1750`=`self._receipts_path = lane_document.with_name(RECEIPTS_FILENAME)`, `counter_run_continues` (telemetry_index.py:694), `tier_paths` (serving_receipts.py:554), `receipts_job_id` (telemetry_index.py:417), `is_raw_receipt` (telemetry_retention.py:301), `lane_block` (live_panel.py:434), `period_row`'s single `price_at` call (watch.py:670), `provider_prices.REFRESH_AGE` (24 h today, \u00a717 sets 3,600 s), the four cited evidence fragments, the three named test files, and `docs/plans/serve-telemetry-spine.html`; extensionless hrefs (`s13`\u2013`s16`) resolve as in-page sections, and `cli.py:2648` resolves as a line (see the reasoning finding \u2014 it resolves as a line but not as the claimed fact).",
+    "done_when": "a finding \u2014 \u00a717's done-when pins \"the two recovered observations\" where \u00a717's own table records six (lines 772\u2013782).",
+    "evidence_paths": "pass \u2014 gates are in-repo test files and reports under `~/.config/reckon/crew/reports/imas-ambix/`; no done-when writes to a session scratchpad or a node-local temporary directory.",
+    "naming": "pass \u2014 the names this plan adds (`rate_in_force`, `read_receipt_rows`, `counter_run_continues`, `openrouter-price-history.jsonl`, `third-party-cache-rate.json`) are mechanism-named; plan labels and node ids stay inside the document.",
+    "reasoning": "two findings \u2014 \u00a717's prose reverses its own two 2026-10-14 observations, and \u00a720 names a production caller that does not read the file the section is about.",
+    "single_goal": "pass \u2014 every open node names one deliverable and one verdict could close it (\u00a717 history, \u00a718 segment pricing, \u00a719 flag, \u00a720 roll, \u00a721 roll+incremental compaction, \u00a722 scheduled retention).",
+    "wiring": "a finding \u2014 \u00a79's node table still names \"relay restart\" as the predecessor of the receipt-gap node (line 419), which \u00a79's own rewired paragraph (line 458) and \u00a712's definitions block supersede as already met."
+  },
+  "section_digests": {
+    "_document": "00971e581012b09331cfaeb3acb67ba5dd7f0dda2eaffcb44e0704a986e0223e",
+    "s1": "f0e6a1c8acb9f607124dc4f3def1f738e2a0bc52c579a2c0849a33c6fa1156fb",
+    "s10": "1509fe50d6cbdb1159da0bac7826bf9df43f73f13dc81d4b4a3c3c0d3926d315",
+    "s11": "f02a2d9d5ac0a9537cbc0c7c1127234686c6b35ebe9d5f28f2eb1dc890ba8349",
+    "s12": "c993e8c7a97750818ddad0ac8e3797052442f5dd3357a9b1336cd024ff90f8d3",
+    "s13": "0a80350dd120a399e1c304a1eed64f149a7e5f5f1ef41302cad6223dc985910e",
+    "s14": "65bc34f5b6d081374d8287c3a7e14dfa77b21b6ef0390d5e95961d81ded7114d",
+    "s15": "1d02ca1576af9e3b58c011e3b4c84ffb63870a92698492bd45a0bbfe48660ea0",
+    "s16": "59a48fb3793215455ca353b8188b5d155dec253814be9a4eea8d2f4eeb412fe1",
+    "s17": "a1bc15623f07ef918a848aeecca3b8927db6a02dfff0df7788d896b6e61a4836",
+    "s18": "4fbf26597e971feb3af07d38b5c2da52430c618f28bcaf3df29b21644c63e888",
+    "s19": "dc83604a90c46f7c6ef8e70e35cccf1230c480b513b218fc4744ddeeae9e6864",
+    "s2": "dd85bfd277fcf3eff4974460f080158cafc4ff9e584ca8799bbdf19223a0067f",
+    "s20": "5a26c4133b808f7f29466be5eb621b486148deb96c91e222f18a07af92c6990a",
+    "s21": "072fad4f2605157b2b243b2b8688d099e0d0b27039e2c7a28f72c4ba47c72cf5",
+    "s22": "52141ebae4753d8660df25ad6003fbdcdef2f880b263ebc610a7f03418b8dcd9",
+    "s3": "dd2996924d4d122532e4de97c38a9cae83173c64b6409cc2135177861f392578",
+    "s4": "59f727a99fef92f80127586b2833279df3aa59154895e05a2590e648232abfeb",
+    "s5": "07d984217f6f4d05e582e4d403dff88fd7c0627b3a2cceb36a0123131813e899",
+    "s6": "19d3648895b8aeee8beac762cb2ddb63ba248dec6485eb393625e0c9fd840c32",
+    "s7": "8de1f36a2db5f192d8a078c96c91f29a1d456c95b742332e6fb3854ee451cb78",
+    "s8": "6fa176e0365af868497abc3e4cb9e224032b3de82c337015be11061591c407c2",
+    "s9": "a29439d3d5c1417e8d6fdc357f0ab636deb86ddef8cdd6865c541773247886ef"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T06:40:42.057053+00:00"
+}
