@@ -1,0 +1,179 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The source manifest records baseline_suite:null and after_suite:null, but its own baseline.log identifies six failed focused tests at base revision 90fedfd5 and ends EXIT=1; final-gate.log covers all three named test files at head 8b70fe38, records 117 passed and ends EXIT=0, so there are zero head failure IDs to subtract.",
+  "after_suite": {
+    "completed": true,
+    "exit_status": 0,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T115015270708-srw-scheduled-retention-repair/final-gate.log",
+    "revision": "8b70fe38727ba178ea4116719457c9e1afef1ac4"
+  },
+  "assertion_analysis": [
+    {
+      "failure_condition": "all(before.values()) fails if the fixture made no installed rows for either retired-day tier.",
+      "line": "tests/test_telemetry_retention.py:724"
+    },
+    {
+      "failure_condition": "rebuild_job_tiers is True fails if rebuild refuses the present files.",
+      "line": "tests/test_telemetry_retention.py:732"
+    },
+    {
+      "failure_condition": "after == before[path] fails if any retired-day minute or hour line is dropped, changed, or reordered; the declared interval mutation does fail it.",
+      "line": "tests/test_telemetry_retention.py:740"
+    },
+    {
+      "failure_condition": "len(reports) == 2 fails if a pre-apply fault stops the ingest loop before two ticks complete.",
+      "line": "tests/test_telemetry_ingest.py:563"
+    },
+    {
+      "failure_condition": "sample_count > 0 fails if the loop completes without indexing the fixture record.",
+      "line": "tests/test_telemetry_ingest.py:564"
+    },
+    {
+      "failure_condition": "last_report.error is not None fails if the pass hides a manifest, rename, or scheduler fault.",
+      "line": "tests/test_telemetry_ingest.py:565"
+    },
+    {
+      "failure_condition": "raw.exists() fails if a fault raised before apply still deletes the raw file.",
+      "line": "tests/test_telemetry_ingest.py:566"
+    },
+    {
+      "failure_condition": "fault in caplog.text fails if the pass contains a fault without logging its type.",
+      "line": "tests/test_telemetry_ingest.py:567"
+    },
+    {
+      "failure_condition": "len(reports) == 2 fails if a vacuum lock stops the ingest loop.",
+      "line": "tests/test_telemetry_ingest.py:600"
+    },
+    {
+      "failure_condition": "not raw.exists() fails if a vacuum lock prevents the already-applied retirement.",
+      "line": "tests/test_telemetry_ingest.py:601"
+    },
+    {
+      "failure_condition": "last_report.removed == (raw,) fails if the report omits the file actually removed.",
+      "line": "tests/test_telemetry_ingest.py:602"
+    },
+    {
+      "failure_condition": "vacuum_owed is True fails if a failed vacuum loses the debt.",
+      "line": "tests/test_telemetry_ingest.py:603"
+    },
+    {
+      "failure_condition": "next_report.removed == () fails if the retry pass retires a file despite the fixture having none left.",
+      "line": "tests/test_telemetry_ingest.py:605"
+    },
+    {
+      "failure_condition": "next_report.vacuum_owed is False fails if a successful retry does not clear the debt.",
+      "line": "tests/test_telemetry_ingest.py:606"
+    },
+    {
+      "failure_condition": "len(attempts) == 2 fails if the empty next pass omits the vacuum retry or repeats it.",
+      "line": "tests/test_telemetry_ingest.py:607"
+    },
+    {
+      "failure_condition": "forget([raw]) == 1 fails if the same-path source is not selected for deletion.",
+      "line": "tests/test_telemetry_index.py:1955"
+    },
+    {
+      "failure_condition": "sample_count == 0 fails if same-path sample rows survive forget.",
+      "line": "tests/test_telemetry_index.py:1956"
+    },
+    {
+      "failure_condition": "sample_count == 1 fails if reingesting the fixture after forget does not restore one sample.",
+      "line": "tests/test_telemetry_index.py:1958"
+    },
+    {
+      "failure_condition": "sample_count == 0 fails if tier deselection does not remove the same-path sample.",
+      "line": "tests/test_telemetry_index.py:1960"
+    },
+    {
+      "failure_condition": "calls == [str(raw), str(raw)] fails if either operation bypasses the shared helper, although it does not cover a source renamed after indexing.",
+      "line": "tests/test_telemetry_index.py:1961"
+    }
+  ],
+  "baseline_suite": {
+    "completed": true,
+    "exit_status": 1,
+    "failure_count": 6,
+    "failure_ids": [
+      "tests/test_telemetry_retention.py::test_rebuild_keeps_rows_from_retired_days[present_days0]",
+      "tests/test_telemetry_retention.py::test_rebuild_keeps_rows_from_retired_days[present_days1]",
+      "tests/test_telemetry_ingest.py::test_retention_fault_stays_inside_the_pass_and_ingest_continues[manifest]",
+      "tests/test_telemetry_ingest.py::test_retention_fault_stays_inside_the_pass_and_ingest_continues[rename]",
+      "tests/test_telemetry_ingest.py::test_retention_fault_stays_inside_the_pass_and_ingest_continues[scheduler]",
+      "tests/test_telemetry_ingest.py::test_a_locked_vacuum_is_retried_without_another_retirement"
+    ],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T115015270708-srw-scheduled-retention-repair/baseline.log",
+    "revision": "90fedfd59f6dc6c95c612f6cf947379ca9fd34dd"
+  },
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2980",
+    "imas_ambix/agent/telemetry_ingest.py:455",
+    "imas_ambix/agent/telemetry_ingest.py:150",
+    "imas_ambix/agent/telemetry_retention.py:901",
+    "imas_ambix/agent/telemetry_index.py:1314"
+  ],
+  "commits_read": [
+    "189cac1cded13f2ec500314e2af8977029893290",
+    "442f83c7839d6463c43b0e4ca05520ecbb4cd09a",
+    "9aa9958c5bb3401f7dae7a59e85431d0fa3ad20a",
+    "8b70fe38727ba178ea4116719457c9e1afef1ac4"
+  ],
+  "completed_at": "2026-10-15T12:31:15Z",
+  "dispatched_at": "2026-10-15T12:14:18Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "1020",
+      "severity": "blocking",
+      "text": "blocking: _delete_source_rows requires sample.path to equal source.path, but a roll inserts the renamed source under the new path while previously indexed samples retain the old path (source insertion at line 1229, sample insertion at line 1479); forgetting the retired segment removes its source row but leaves its samples, so the subsequent vacuum cannot give their space back and the new test at tests/test_telemetry_index.py:1955 uses only an unchanged path."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_ingest.py",
+      "line": "140",
+      "severity": "follow-on",
+      "text": "follow-on: if apply_manifest removes one eligible file and raises while removing a later one, the assignment to removed at line 143 never runs; the caught exception reports no removals and schedules neither index cleanup nor vacuum for the file already deleted."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 5 production call sites",
+    "diff": "Read each of 189cac1c, 442f83c7, 9aa9958c, and 8b70fe38 against base 90fedfd5; the six-file diff adds failure tests, preserves untouched tier line bytes, contains pass errors, and centralizes source deletion.",
+    "done_when": "The source measure at prompt.txt:92 is exercised by tests/test_telemetry_retention.py:740, tests/test_telemetry_ingest.py:563-607, and tests/test_telemetry_index.py:1955-1961; baseline.log records six failures and final-gate.log records 117 passes, but the index test covers only an unchanged path.",
+    "goal": "The source goal at prompt.txt:30 requires retired-day preservation, contained pass faults, and shared index deletion; telemetry_retention.py:445 and telemetry_ingest.py:144 address the first two, while telemetry_index.py:1020 misses samples across a rolled path.",
+    "manifest": "The source manifest.md reports four commits, 117 focused passes, a failing retired-gap mutation, and complete status; its baseline_suite and after_suite fields are null despite readable baseline.log and final-gate.log.",
+    "write_paths": "The source scope at prompt.txt:68-76 grants the three telemetry modules and their three tests, exactly the six files named by the base-to-head diff."
+  },
+  "justifications": {
+    "durability": "tests/test_telemetry_retention.py:740 fails on lost or rewritten retired-day bytes and tests/test_telemetry_ingest.py:563-607 fail on the specified pass faults, but tests/test_telemetry_index.py:1955-1961 cannot detect deletion across a renamed source.",
+    "evidence": "baseline.log at revision 90fedfd5 ends with six named failures and EXIT=1, final-gate.log at 8b70fe38 ends with 117 passed and EXIT=0, and final-negative-control.log reddens the retired-day gap assertion at tests/test_telemetry_retention.py:740.",
+    "fit": "The added helper at telemetry_index.py:1016 sits beside forget and tier deselection, and the new tests follow the local fixtures and naming patterns at tests/test_telemetry_ingest.py:518 and tests/test_telemetry_retention.py:683.",
+    "goal_fidelity": "telemetry_retention.py:445 retains out-of-span tier lines and telemetry_ingest.py:144 contains pass faults, but telemetry_index.py:1020 leaves rolled-path samples in the index after retirement.",
+    "reuse": "The capability search for source and sample deletion in imas_ambix/agent found the existing owner telemetry_index.py, and its new _delete_source_rows at line 1016 is shared by forget at line 1012 and tier deselection at line 1314.",
+    "scope_discipline": "The diff changes only telemetry_retention.py, telemetry_ingest.py, telemetry_index.py and their three declared tests, all listed in the source prompt.txt:68-76."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The source goal at prompt.txt:30 requires retired-day preservation, contained pass faults, and shared index deletion; telemetry_retention.py:445 and telemetry_ingest.py:144 address the first two, while telemetry_index.py:1020 misses samples across a rolled path.\nVERDICT done_when: The source measure at prompt.txt:92 is exercised by tests/test_telemetry_retention.py:740, tests/test_telemetry_ingest.py:563-607, and tests/test_telemetry_index.py:1955-1961; baseline.log records six failures and final-gate.log records 117 passes, but the index test covers only an unchanged path.\nVERDICT write_paths: The source scope at prompt.txt:68-76 grants the three telemetry modules and their three tests, exactly the six files named by the base-to-head diff.\nVERDICT manifest: The source manifest.md reports four commits, 117 focused passes, a failing retired-gap mutation, and complete status; its baseline_suite and after_suite fields are null despite readable baseline.log and final-gate.log.\nVERDICT diff: Read each of 189cac1c, 442f83c7, 9aa9958c, and 8b70fe38 against base 90fedfd5; the six-file diff adds failure tests, preserves untouched tier line bytes, contains pass errors, and centralizes source deletion.\nCALL_SITES: imas_ambix/agent/cli.py:2980, imas_ambix/agent/telemetry_ingest.py:455, imas_ambix/agent/telemetry_ingest.py:150, imas_ambix/agent/telemetry_retention.py:901, imas_ambix/agent/telemetry_index.py:1314\nSCORE goal_fidelity: 14\nJUSTIFICATION goal_fidelity: telemetry_retention.py:445 retains out-of-span tier lines and telemetry_ingest.py:144 contains pass faults, but telemetry_index.py:1020 leaves rolled-path samples in the index after retirement.\nSCORE evidence: 18\nJUSTIFICATION evidence: baseline.log at revision 90fedfd5 ends with six named failures and EXIT=1, final-gate.log at 8b70fe38 ends with 117 passed and EXIT=0, and final-negative-control.log reddens the retired-day gap assertion at tests/test_telemetry_retention.py:740.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: The diff changes only telemetry_retention.py, telemetry_ingest.py, telemetry_index.py and their three declared tests, all listed in the source prompt.txt:68-76.\nSCORE durability: 15\nJUSTIFICATION durability: tests/test_telemetry_retention.py:740 fails on lost or rewritten retired-day bytes and tests/test_telemetry_ingest.py:563-607 fail on the specified pass faults, but tests/test_telemetry_index.py:1955-1961 cannot detect deletion across a renamed source.\nSCORE fit: 18\nJUSTIFICATION fit: The added helper at telemetry_index.py:1016 sits beside forget and tier deselection, and the new tests follow the local fixtures and naming patterns at tests/test_telemetry_ingest.py:518 and tests/test_telemetry_retention.py:683.\nSCORE reuse: 20\nJUSTIFICATION reuse: The capability search for source and sample deletion in imas_ambix/agent found the existing owner telemetry_index.py, and its new _delete_source_rows at line 1016 is shared by forget at line 1012 and tier deselection at line 1314.\nFINDING imas_ambix/agent/telemetry_index.py:1020 blocking: _delete_source_rows requires sample.path to equal source.path, but a roll inserts the renamed source under the new path while previously indexed samples retain the old path (source insertion at line 1229, sample insertion at line 1479); forgetting the retired segment removes its source row but leaves its samples, so the subsequent vacuum cannot give their space back and the new test at tests/test_telemetry_index.py:1955 uses only an unchanged path.\nFINDING imas_ambix/agent/telemetry_ingest.py:140 follow-on: if apply_manifest removes one eligible file and raises while removing a later one, the assignment to removed at line 143 never runs; the caught exception reports no removals and schedules neither index cleanup nor vacuum for the file already deleted.",
+  "review_run_id": "r-20261015T121400190795-review-of-srw-scheduled-retention-repair-8b70fe38727b",
+  "reviewed_base_sha": "90fedfd59f6dc6c95c612f6cf947379ca9fd34dd",
+  "reviewed_head_sha": "8b70fe38727ba178ea4116719457c9e1afef1ac4",
+  "reviewed_revision": "8b70fe38",
+  "reviewed_run_id": "r-20261015T115015270708-srw-scheduled-retention-repair",
+  "scores": {
+    "durability": 15,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 14,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "self_referential_assertions": [],
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T12:30:26.264893+00:00",
+  "total": 105
+}

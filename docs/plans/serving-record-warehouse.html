@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;done&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;done&quot;,&quot;s22&quot;:&quot;implementable&quot;,&quot;s23&quot;:&quot;done&quot;,&quot;s24&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="273">
+<meta name="plan-version" content="274">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -1693,6 +1693,9 @@
 <div class="r-comment" data-section="s22" data-id="c-run-r-20261015T101418913456-srw-scheduled-retention" data-who="reckon-build" data-when="2026-10-15T11:09:07.521Z">
     <div class="r-comment-body"><p>The ingest loop retires proven-equal raw receipts once a day from the command the fleet service actually starts: the loop builds a retirement cadence where `agent ingest` runs it and hands it to the run call, the listing rebuilds an ended job's minute and hour tiers from all of its raw files and stages each to a scratch path before renaming it into place, the liveness read is one account-wide scheduler question through the node probe's bounded reader, and a retirement drops the retired sources' rows from the index and vacuums it.</p></div>
 </div>
+<div class="r-comment" data-section="s22" data-id="c-run-r-20261015T121400190795-review-of-srw-scheduled-retention-repair-8b70fe38727b" data-who="reckon-build" data-when="2026-10-15T12:31:15Z">
+    <div class="r-comment-body"><p>Reviewed base 90fedfd59f6dc6c95c612f6cf947379ca9fd34dd to head 8b70fe38727ba178ea4116719457c9e1afef1ac4; six scores total 105, five production call sites, two findings (one blocking), six baseline failures and zero head or added failures.</p></div>
+</div>
 <div class="r-comment" data-section="s17" data-id="c-run-r-20261015T074619366002-srw-price-history" data-who="reckon-build" data-when="2026-10-15T08:19:41.331Z">
     <div class="r-comment-body"><p>provider_prices now keeps a change-only append-only price history at openrouter-price-history.jsonl beside the table, seeded on first refresh with the six recovered deepseek/deepseek-v4.1-flash observations in time order ahead of the fetched rows, grown by one row per model whose three rates moved, with refresh gaining a slugs keyword that fetches each named slug's endpoints listing and records it only on change, plus rate_in_force and provider_median_in_force readers and REFRESH_AGE cut from 24 h to 3600 s; measure: tests/test_provider_prices.py 33 passed with the serving-interpreter grammar guard in tests/test_agent_serve_registry.py also passing, EXIT=0</p></div>
 </div>
@@ -1733,7 +1736,7 @@
     <div class="r-comment-body"><p>review of r-20261015T114941475292-srw-roll-day-one-parser stored at base 85c33b8f / head 60315e67 with all 6 dimensions scored (goal_fidelity 19, evidence 16, scope_discipline 19, durability 17, fit 18, reuse 19; total 108), added_failure_count 0 with its basis note, and two follow-on findings; the node consolidates the roll-day match into telemetry_store.split_record_name and every added assertion is independent of the value under test.</p></div>
 </div>
 <div class="r-comment" data-section="s23" data-id="c-run-r-20261015T114941475292-srw-roll-day-one-parser" data-who="reckon-build" data-when="2026-10-15T12:04:49.665Z">
-    <div class="r-comment-body"><p>srw-roll-day-one-parser: telemetry_store.split_record_name is now the one parser of a receipt name&#x27;s roll day, and _ladder_stem, _roll_date and _record_stem_and_suffix call it while keeping their own suffix rules; the four named test files pass, 83 passed, exit 0, and on foo-1.jsonl / foo-1.20261015.jsonl / foo-1.20261015.jsonl.gz / foo-1.jsonl.1 every reader returns its pre-change result (None, (&#x27;foo-1&#x27;, &#x27;.jsonl.gz&#x27;) and &#x27;foo-1.20261015.jsonl&#x27; on the compressed segment); the telemetry_store docstring now says a roll keeps the inode.</p></div>
+    <div class="r-comment-body"><p>srw-roll-day-one-parser: telemetry_store.split_record_name is now the one parser of a receipt name's roll day, and _ladder_stem, _roll_date and _record_stem_and_suffix call it while keeping their own suffix rules; the four named test files pass, 83 passed, exit 0, and on foo-1.jsonl / foo-1.20261015.jsonl / foo-1.20261015.jsonl.gz / foo-1.jsonl.1 every reader returns its pre-change result (None, ('foo-1', '.jsonl.gz') and 'foo-1.20261015.jsonl' on the compressed segment); the telemetry_store docstring now says a roll keeps the inode.</p></div>
 </div>
 </section>
 </main>
