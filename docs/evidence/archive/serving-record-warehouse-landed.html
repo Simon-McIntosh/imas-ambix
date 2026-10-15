@@ -142,6 +142,11 @@
     <p>Generated serve commands now exclude <code>/metrics</code>, <code>/v1/models</code> and <code>/health</code> from the uvicorn access log. SGLang gets <code>--uvicorn-access-log-exclude-prefixes</code> and vLLM <code>--disable-access-log-for-endpoints</code>; each spelling was read from the installed engine's <code>--help</code>. Commit <code>e181b663</code>, merged at <code>d3602d87</code>. <code>tests/test_agent_serve_access_log.py</code>: 6 passed. The negative control, which drops <code>/v1/models</code>, failed as declared. Independent review: 110 of 120, 0 added failures. The change takes effect at the serve's next restart. Review follow-ons: one test compares two of its own constants; the vLLM flag is emitted without consulting that engine's help; the vLLM test skips where the wheel is absent.</p>
   </section>
 
+  <section id="s22-1278105">
+    <h2>§22 — why 1278105&#x27;s tiers disagree with its raw record</h2>
+    <p>Investigation <code>srw-1278105-tier-disagreement</code>, 2026-10-15, run on the fleet node with <code>telemetry_retention.compare_tiers</code>. It found six disagreeing (UTC hour, counter) pairs, all in the first and last hours. The other 390 of 396 compared pairs, across 130 hours, agree. At the start, the compacted rows carry no opening block, so the first advance of (400; 14; 256) generation, prompt and uncached-prompt tokens is lost. At the end, both tiers stop at 19:01:29 while the raw record runs to 19:04:01, losing (52,723; 7,015,441; 89,856). The recorder was stopped between compaction passes. An independent review reproduced all three claims. Retiring the raw file now would lose those tokens, so §22 rebuilds an ended job's tiers from its raw record before comparing them. The full finding is in the crew reports under <code>imas-ambix/srw-1278105-tier-disagreement/finding.md</code>.</p>
+  </section>
+
 </main>
 </body>
 </html>
