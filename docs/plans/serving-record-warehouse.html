@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;implementable&quot;,&quot;s18&quot;:&quot;implementable&quot;,&quot;s19&quot;:&quot;implementable&quot;,&quot;s20&quot;:&quot;implementable&quot;,&quot;s21&quot;:&quot;implementable&quot;,&quot;s22&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="232">
+<meta name="plan-version" content="233">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -1611,6 +1611,9 @@
 </div>
 <div class="r-comment" data-section="s19" data-id="c-run-r-20261015T064125208736-srw-serve-log-drops-polling" data-who="reckon-build" data-when="2026-10-15T07:18:58.819Z">
     <div class="r-comment-body"><p>srw-serve-log-drops-polling -- generated serve commands now exclude /metrics, /v1/models and /health from the uvicorn access log (SGLang --uvicorn-access-log-exclude-prefixes, vLLM --disable-access-log-for-endpoints); measure: tests/test_agent_serve_access_log.py 6 passed, and the declared negative control drops /v1/models and reddens the three-prefix test at EXIT=1.</p></div>
+</div>
+<div class="r-comment" data-section="s19" data-id="c-run-r-20261015T072138893021-review-of-srw-serve-log-drops-polling-e181b6637ad6" data-who="reckon-build" data-when="2026-10-15T07:34:56.144Z">
+    <div class="r-comment-body"><p>independent review of run r-20261015T064125208736-srw-serve-log-drops-polling at head e181b6637ad6: the landed change drops /metrics, /v1/models and /health from the generated SGLang and vLLM serve access logs; 6/6 dimensions scored, total 110, three follow-on findings, no blocking finding.</p></div>
 </div>
 </section>
 </main>

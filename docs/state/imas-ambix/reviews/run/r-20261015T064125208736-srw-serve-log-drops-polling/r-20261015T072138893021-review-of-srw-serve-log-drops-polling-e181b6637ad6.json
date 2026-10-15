@@ -1,0 +1,71 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "basis: every added failure must appear as a FAILED/ERROR line in the reviewed run's own head gate log, and logs/head_access_log.log (revision aba9c1ab) reports '6 passed in 116.45s' with EXIT=0 and no FAILED/ERROR line, so the head added no failing test by construction and the count is 0 regardless of any base arm. The manifest names neither baseline_suite nor after_suite, so no base arm exists to difference against.",
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:624",
+    "imas_ambix/agent/cli.py:2018",
+    "imas_ambix/agent/cli.py:2357"
+  ],
+  "completed_at": "2026-10-15T07:34:56.144Z",
+  "dispatched_at": "2026-10-15T07:22:07Z",
+  "findings": [
+    {
+      "file": "tests/test_agent_serve_access_log.py",
+      "line": "117",
+      "severity": "follow-on",
+      "text": "follow-on: test_request_paths_are_not_swallowed_by_an_excluded_prefix compares two module-level literals the test itself defines (_GENERATION_PATHS and _EXPECTED_PREFIXES) and never calls generate_serve_script, so the assertion holds whatever the launch line emits and guards nothing about the change."
+    },
+    {
+      "file": "imas_ambix/agent/slurm.py",
+      "line": "328",
+      "severity": "follow-on",
+      "text": "follow-on: the vLLM exclusion flag is emitted unconditionally in the vLLM branch of _build_serve_command without consulting the engine help, so the plan's \"only if that environment's help lists one\" holds at test time only and an upstream rename would put an option the engine rejects on the generated launch line."
+    },
+    {
+      "file": "tests/test_agent_serve_access_log.py",
+      "line": "132",
+      "severity": "follow-on",
+      "text": "follow-on: the vLLM branch's only guard skips when the wheel's help is not producible (help_text is None at :138), so where vLLM is not installed the vLLM emission is unguarded, while the SGLang emission is guarded unconditionally by the environment-independent test at :102."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "read e181b663 against base aba9c1ab commit by commit; one commit touching three files, +204 lines, all inside the declared scope.",
+    "done_when": "the done_when asks for a three-prefix SGLang render test, a help-conditional vLLM render test, the quoted help line, the grammar guard and a negative control dropping /v1/models; the manifest records the gate log and the negative control, and every one of those is present.",
+    "goal": "read the node goal and imas_ambix/agent/slurm.py:231 and :328; the generated SGLang and vLLM launch lines now carry the access-log exclusion for /metrics, /v1/models and /health, which is what the goal asks.",
+    "manifest": "read r-20261015T064125208736-srw-serve-log-drops-polling/manifest.md; it records the gate command and its \"6 passed\" result, the grammar guard, the verbatim sglang --help line and the applied-then-reverted negative control at EXIT=1.",
+    "write_paths": "read the manifest's declared paths imas_ambix/agent/slurm.py, tests/test_agent_serve_access_log.py and the evidence fragment; every path in the diff is inside them."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_serve_access_log.py:112 fails when /v1/models is dropped from imas_ambix/agent/slurm.py:95, as the declared negative control logs/negative_control.log (EXIT=1) demonstrates.",
+    "evidence": "the reviewed gate log logs/head_access_log.log opens with revision aba9c1ab and closes \"6 passed in 116.45s ... EXIT=0\", and logs/negative_control.log closes EXIT=1.",
+    "fit": "imas_ambix/agent/slurm.py:95 declares one module constant beside the existing _append_option helper at :98 and _append_flag at :108, and both comments describe the mechanism.",
+    "goal_fidelity": "imas_ambix/agent/slurm.py:231 and :328 emit the three-prefix exclusion with all three prefixes on both engine launch arms.",
+    "reuse": "a capability search over imas_ambix/ for any other access-log-exclusion owner found none, so _ACCESS_LOG_EXCLUDE_PREFIXES at imas_ambix/agent/slurm.py:95 is the first definition of this capability.",
+    "scope_discipline": "git show --stat e181b663 lists only imas_ambix/agent/slurm.py, tests/test_agent_serve_access_log.py and the evidence fragment, all inside the declared write paths."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: read the node goal and imas_ambix/agent/slurm.py:231 and :328; the generated SGLang and vLLM launch lines now carry the access-log exclusion for /metrics, /v1/models and /health, which is what the goal asks.\nVERDICT done_when: the done_when asks for a three-prefix SGLang render test, a help-conditional vLLM render test, the quoted help line, the grammar guard and a negative control dropping /v1/models; the manifest records the gate log and the negative control, and every one of those is present.\nVERDICT write_paths: read the manifest's declared paths imas_ambix/agent/slurm.py, tests/test_agent_serve_access_log.py and the evidence fragment; every path in the diff is inside them.\nVERDICT manifest: read r-20261015T064125208736-srw-serve-log-drops-polling/manifest.md; it records the gate command and its \"6 passed\" result, the grammar guard, the verbatim sglang --help line and the applied-then-reverted negative control at EXIT=1.\nVERDICT diff: read e181b663 against base aba9c1ab commit by commit; one commit touching three files, +204 lines, all inside the declared scope.\nCALL_SITES: imas_ambix/agent/cli.py:624, imas_ambix/agent/cli.py:2018, imas_ambix/agent/cli.py:2357\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/agent/slurm.py:231 and :328 emit the three-prefix exclusion with all three prefixes on both engine launch arms.\nSCORE evidence: 19\nJUSTIFICATION evidence: the reviewed gate log logs/head_access_log.log opens with revision aba9c1ab and closes \"6 passed in 116.45s ... EXIT=0\", and logs/negative_control.log closes EXIT=1.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: git show --stat e181b663 lists only imas_ambix/agent/slurm.py, tests/test_agent_serve_access_log.py and the evidence fragment, all inside the declared write paths.\nSCORE durability: 16\nJUSTIFICATION durability: tests/test_agent_serve_access_log.py:112 fails when /v1/models is dropped from imas_ambix/agent/slurm.py:95, as the declared negative control logs/negative_control.log (EXIT=1) demonstrates.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/slurm.py:95 declares one module constant beside the existing _append_option helper at :98 and _append_flag at :108, and both comments describe the mechanism.\nSCORE reuse: 20\nJUSTIFICATION reuse: a capability search over imas_ambix/ for any other access-log-exclusion owner found none, so _ACCESS_LOG_EXCLUDE_PREFIXES at imas_ambix/agent/slurm.py:95 is the first definition of this capability.\nFINDING tests/test_agent_serve_access_log.py:117 follow-on: test_request_paths_are_not_swallowed_by_an_excluded_prefix compares two module-level literals the test itself defines (_GENERATION_PATHS and _EXPECTED_PREFIXES) and never calls generate_serve_script, so the assertion holds whatever the launch line emits and guards nothing about the change.\nFINDING imas_ambix/agent/slurm.py:328 follow-on: the vLLM exclusion flag is emitted unconditionally in the vLLM branch of _build_serve_command without consulting the engine help, so the plan's \"only if that environment's help lists one\" holds at test time only and an upstream rename would put an option the engine rejects on the generated launch line.\nFINDING tests/test_agent_serve_access_log.py:132 follow-on: the vLLM branch's only guard skips when the wheel's help is not producible (help_text is None at :138), so where vLLM is not installed the vLLM emission is unguarded, while the SGLang emission is guarded unconditionally by the environment-independent test at :102.\n",
+  "review_run_id": "r-20261015T072138893021-review-of-srw-serve-log-drops-polling-e181b6637ad6",
+  "reviewed_base_sha": "aba9c1abdd7ce3442f56d31f71b38e337d826079",
+  "reviewed_head_sha": "e181b6637ad6f6babf7d319710e5732671ad102e",
+  "reviewed_run_id": "r-20261015T064125208736-srw-serve-log-drops-polling",
+  "scores": {
+    "durability": 16,
+    "evidence": 19,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "subject": "run",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T07:37:00+00:00",
+  "total": 110
+}
