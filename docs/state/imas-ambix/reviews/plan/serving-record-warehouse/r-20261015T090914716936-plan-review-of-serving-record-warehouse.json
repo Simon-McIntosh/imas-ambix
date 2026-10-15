@@ -1,0 +1,60 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-15T09:18:04.205Z",
+  "dispatched_at": "2026-10-15T09:09:36Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-record-warehouse.html:854",
+      "id": "reasoning-1",
+      "reason": "a worker implementing \u00a722 has to invent both the source set the rebuild reads and which of the two eligibility procedures governs a rolled file, and the plausible single-source implementation silently retires nothing, defeating the section's whole purpose after \u00a721 lands.",
+      "text": "\u00a722 says the pass \"rebuilds those tiers from the complete raw record with the existing full compaction\" and stages each result \"into a scratch path beside the tier file\", but this node runs after \u00a721 (node table, line 860), which renames a running serve's raw file into day segments `<slug>-<job>.<YYYYMMDD>.jsonl` (\u00a721:839), so an ended job's \"complete raw record\" is a set of segments rather than one file; `telemetry_store.compact_file(source, destination)` takes a single source and writes its destination with `destination.write_text(...)` (telemetry_store.py:811\u2013816), so compacting segment by segment into one tier path leaves that tier holding only the last segment's rows \u2014 it will never prove equal to the job's raw record, and every rolled job stays permanently ineligible; the same paragraph also conflicts with \u00a721:841, which makes a closed day segment \"eligible for the existing retirement check on the same terms as a file whose job has ended\" and pairs that segment with the ladder's windows inside its UTC day, whereas \u00a722 makes eligibility turn on a whole-record rebuild that for a still-running job does not exist and whose `os.replace` would replace a live ladder the recorder is still appending to",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "622f67a53cf2f73900710e017738c30d83b2ebb9792e60a14abe71bec0118d4e",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 252,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261015T090914716936-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "44565e5b3854ffc92108b1875409e4e3906ef64b",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `node_probe.py:186`, `:667`, `telemetry_store.compact_file`, the `s22-1278105` anchor and the `scheduled-retirement` decision all resolve; the extensionless snapshot hrefs resolve as `<path>.html`.",
+    "done_when": "pass \u2014 \u00a722's done-when names measurable assertions and a declared negative control (\"skips the digest re-check, and a file mutated between listing and apply must be caught\"), plus the keep-path control \"a file whose rebuilt tiers still disagree is kept\".",
+    "evidence_paths": "pass \u2014 the section's evidence is a durable repository path (`docs/evidence/archive/serving-record-warehouse-landed.html#s22-1278105`); nothing in \u00a722 writes to a scratchpad or a node-local temporary directory.",
+    "naming": "pass \u2014 \u00a722's mechanism names carry no plan labels, stage names or ticket numbers.",
+    "reasoning": "a finding \u2014 \u00a722's changed rebuild paragraph does not say which files the rebuild reads now that \u00a721 has split a job's raw record into day segments, and the single-source `compact_file` it invokes overwrites its destination, so the mechanism cannot produce the equality its own done-when asserts.",
+    "single_goal": "pass \u2014 the node's parts (scheduled apply, rebuild-before-compare, bounded liveness read, index vacuum) are one deliverable: retention runs on a schedule and the index gives the space back.",
+    "wiring": "pass \u2014 the `srw-scheduled-retention` node's \"runs after \u00a721\" names a node that exists, the `scheduled-retirement` decision carries `data-sections=\"s22\"`, and the \u00a75 ingest loop it attaches to exists (`telemetry_ingest.py:64`, `DEFAULT_CADENCE_SECONDS = 60.0`)."
+  },
+  "section_digests": {
+    "_document": "634d0df2412b9bd21b43428bb2cfd78f4f53f492834ea129b8d4a8c413bce41d",
+    "s1": "f0e6a1c8acb9f607124dc4f3def1f738e2a0bc52c579a2c0849a33c6fa1156fb",
+    "s10": "1509fe50d6cbdb1159da0bac7826bf9df43f73f13dc81d4b4a3c3c0d3926d315",
+    "s11": "f02a2d9d5ac0a9537cbc0c7c1127234686c6b35ebe9d5f28f2eb1dc890ba8349",
+    "s12": "c993e8c7a97750818ddad0ac8e3797052442f5dd3357a9b1336cd024ff90f8d3",
+    "s13": "0a80350dd120a399e1c304a1eed64f149a7e5f5f1ef41302cad6223dc985910e",
+    "s14": "65bc34f5b6d081374d8287c3a7e14dfa77b21b6ef0390d5e95961d81ded7114d",
+    "s15": "1d02ca1576af9e3b58c011e3b4c84ffb63870a92698492bd45a0bbfe48660ea0",
+    "s16": "59a48fb3793215455ca353b8188b5d155dec253814be9a4eea8d2f4eeb412fe1",
+    "s17": "a9272f7380fa7e5e98ccdb05c439a87545af549c2b868454c7fcbf8b5f205d73",
+    "s18": "429fc06f68195b5f8d203f2a7cecc6012761471232df3108082927ed9cf8f432",
+    "s19": "dc83604a90c46f7c6ef8e70e35cccf1230c480b513b218fc4744ddeeae9e6864",
+    "s2": "dd85bfd277fcf3eff4974460f080158cafc4ff9e584ca8799bbdf19223a0067f",
+    "s20": "8122e379cac4618fb3130fbbe0ee431d918ea6f19ac63f7dee6b4d54ff284566",
+    "s21": "072fad4f2605157b2b243b2b8688d099e0d0b27039e2c7a28f72c4ba47c72cf5",
+    "s22": "d407038572b977c8fc416b607793ad3767c68704810fda1d4e18014aeba68d6e",
+    "s3": "dd2996924d4d122532e4de97c38a9cae83173c64b6409cc2135177861f392578",
+    "s4": "59f727a99fef92f80127586b2833279df3aa59154895e05a2590e648232abfeb",
+    "s5": "07d984217f6f4d05e582e4d403dff88fd7c0627b3a2cceb36a0123131813e899",
+    "s6": "19d3648895b8aeee8beac762cb2ddb63ba248dec6485eb393625e0c9fd840c32",
+    "s7": "8de1f36a2db5f192d8a078c96c91f29a1d456c95b742332e6fb3854ee451cb78",
+    "s8": "6fa176e0365af868497abc3e4cb9e224032b3de82c337015be11061591c407c2",
+    "s9": "a29439d3d5c1417e8d6fdc357f0ab636deb86ddef8cdd6865c541773247886ef"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T09:19:14.069000+00:00"
+}
