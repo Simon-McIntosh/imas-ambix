@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-15T11:45:21.408Z",
+  "dispatched_at": "2026-10-15T11:33:37Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/serving-record-warehouse.html:853",
+      "id": "reasoning-1",
+      "reason": "the following paragraph and the done-when already direct the rebuild the explanation implies, so no node is steered down a wrong path; only the framing sentence is stale.",
+      "text": "\u00a722:853 says 1278105 \"is refused because its compaction totals differ from its raw record, and that disagreement is unexplained\", while \u00a722:854 states the investigation node \"found why 1278105's tiers disagree\" (a recorder stopped between passes losing a 2\u00bd-minute raw tail, and a first hour lacking its opening advance); the same section both denies and supplies the explanation",
+      "type": "reasoning",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "11718978ca58909251c13e4895fc030960f117a497da7c034116092681285be0",
+  "plan_slug": "serving-record-warehouse",
+  "plan_version": 267,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261015T113252313851-plan-review-of-serving-record-warehouse",
+  "reviewed_blob_sha": "105da8d6f797f62ac5850381e0d9210ed4b1c5a7",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 node_probe.py:186 is `run_capture` (default timeout_s=10.0), node_probe.py:667 is `read_jobs`, serving_receipts.py:75 is the module-top `telemetry_store` import, and telemetry_store.py holds `read_rows` (1176), `write_rows` (1194), `compact_rows` (604) and `compact_file` (1209); \u00a78's lead rule that compacted tier files are never deleted stands at line 562; the extensionless evidence href resolves as its `.html` target.",
+    "done_when": "pass \u2014 \u00a722's done-when is falsifiable and names a declared negative control (\"skips the digest re-check, and a file mutated between listing and apply must be caught\"); the union-of-spans change is pinned by both \"an earlier day segment already retired keeps that day's tier rows, byte for byte\" and \"a retired day lies between two day segments still present\", which redden under a single-interval rebuild.",
+    "evidence_paths": "pass \u2014 the landed investigation's evidence sits at docs/evidence/archive/serving-record-warehouse-landed.html (section id `s22-1278105`) and the plan comment anchor `c-s22-1278105`, both durable repository paths.",
+    "naming": "pass \u2014 the symbols \u00a722 names (read_rows, compact_rows, write_rows, compact_file, day_segment_path, default_running_job_ids) carry no plan label, stage name or version tag; node ids such as `srw-scheduled-retention` appear only in the plan's node table, not in code.",
+    "reasoning": "a finding \u2014 \u00a722:853 calls 1278105's tier disagreement \"unexplained\", but \u00a722:854, the very next paragraph, states the landed investigate node found the cause.",
+    "single_goal": "pass \u2014 the node delivers one capability, scheduled retention that frees space safely; the bounded liveness read (node_probe.py) is the prerequisite that makes auto-apply safe, not a second deliverable, and the earlier split removed the investigation into its own landed node.",
+    "wiring": "pass \u2014 \u00a722's node runs after \u00a721 (the day-segment/watermark work it consumes) and is driven by \u00a75's ingest loop, both present in the plan; the landed investigate node `srw-1278105-tier-disagreement` resolves at its evidence anchor `s22-1278105`."
+  },
+  "section_digests": {
+    "_document": "f564132b350658da4af4dc414f336b1d72cd7d60f10344ee764e9e9206579668",
+    "s1": "f0e6a1c8acb9f607124dc4f3def1f738e2a0bc52c579a2c0849a33c6fa1156fb",
+    "s10": "1509fe50d6cbdb1159da0bac7826bf9df43f73f13dc81d4b4a3c3c0d3926d315",
+    "s11": "f02a2d9d5ac0a9537cbc0c7c1127234686c6b35ebe9d5f28f2eb1dc890ba8349",
+    "s12": "c993e8c7a97750818ddad0ac8e3797052442f5dd3357a9b1336cd024ff90f8d3",
+    "s13": "0a80350dd120a399e1c304a1eed64f149a7e5f5f1ef41302cad6223dc985910e",
+    "s14": "65bc34f5b6d081374d8287c3a7e14dfa77b21b6ef0390d5e95961d81ded7114d",
+    "s15": "1d02ca1576af9e3b58c011e3b4c84ffb63870a92698492bd45a0bbfe48660ea0",
+    "s16": "59a48fb3793215455ca353b8188b5d155dec253814be9a4eea8d2f4eeb412fe1",
+    "s17": "a9272f7380fa7e5e98ccdb05c439a87545af549c2b868454c7fcbf8b5f205d73",
+    "s18": "429fc06f68195b5f8d203f2a7cecc6012761471232df3108082927ed9cf8f432",
+    "s19": "dc83604a90c46f7c6ef8e70e35cccf1230c480b513b218fc4744ddeeae9e6864",
+    "s2": "dd85bfd277fcf3eff4974460f080158cafc4ff9e584ca8799bbdf19223a0067f",
+    "s20": "8122e379cac4618fb3130fbbe0ee431d918ea6f19ac63f7dee6b4d54ff284566",
+    "s21": "072fad4f2605157b2b243b2b8688d099e0d0b27039e2c7a28f72c4ba47c72cf5",
+    "s22": "d6ca33c49a8ce786f8c65953fb1fa408603e49bc9b2b85621bd6ad59d4467789",
+    "s23": "610b50ac6a385e642652eae78f628fddf9d43a5744bdad1097853a67bc474779",
+    "s3": "dd2996924d4d122532e4de97c38a9cae83173c64b6409cc2135177861f392578",
+    "s4": "59f727a99fef92f80127586b2833279df3aa59154895e05a2590e648232abfeb",
+    "s5": "07d984217f6f4d05e582e4d403dff88fd7c0627b3a2cceb36a0123131813e899",
+    "s6": "19d3648895b8aeee8beac762cb2ddb63ba248dec6485eb393625e0c9fd840c32",
+    "s7": "8de1f36a2db5f192d8a078c96c91f29a1d456c95b742332e6fb3854ee451cb78",
+    "s8": "6fa176e0365af868497abc3e4cb9e224032b3de82c337015be11061591c407c2",
+    "s9": "a29439d3d5c1417e8d6fdc357f0ab636deb86ddef8cdd6865c541773247886ef"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T11:48:11.256623+00:00"
+}
