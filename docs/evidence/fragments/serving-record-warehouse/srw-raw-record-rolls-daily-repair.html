@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-record-warehouse">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="srw-raw-record-rolls-daily-repair-defects">
+      <h2 id="srw-raw-record-rolls-daily-repair-defects-heading">What the roll and its compaction got wrong</h2>
+      <p id="srw-raw-record-rolls-daily-repair-roll">The recorder compacts its
+      open record on a cadence, renames that record to the UTC day segment the
+      day just ended, and closes the segment under its new name. The
+      incremental pass read the rename as a new source: it reset the byte
+      offset and the emitted-through bound to zero and compacted the whole
+      segment again. Every window the cadence pass had already written was
+      written a second time, so the minute tier gained a duplicate row at each
+      roll and a reader of that tier counted those windows twice. Measured on a
+      replica of the recorder's ordering, the minute tier after the roll held
+      <code>['23:58', '23:58', '23:59']</code> before the repair and
+      <code>['23:58', '23:59']</code> after it, and both tiers are now
+      byte-identical to one full compaction of the same rows.</p>
+
+      <p id="srw-raw-record-rolls-daily-repair-tail">The same pass read the
+      whole source before deciding where to resume, so its cost grew with the
+      record rather than with what had arrived since the last pass. It now
+      reads from the watermark offset to the end. Measured by counting the
+      bytes read from the source during a second pass: the pass read the
+      file's whole length before the repair and <code>size - offset</code>
+      after it.</p>
+
+      <p id="srw-raw-record-rolls-daily-repair-owner">The name-to-job-id
+      reader existed twice, once in the index and once beside the recorder, and
+      only the index's was taught that a rolled segment carries the day it
+      covers before its suffix. The recorder's copy therefore resolved
+      <code>deepseek-v4-1-flash-1280470.20261015.jsonl</code> to no job at all.
+      There is one reader again, re-exported by the recorder, and it resolves
+      that name to <code>1280470</code>.</p>
+
+      <p id="srw-raw-record-rolls-daily-repair-ladder">The tier ladder was
+      built by trimming a <code>.jsonl</code> suffix and then the roll day,
+      which left a rotation count or a compression inside the stem:
+      <code>slug-9.jsonl.1</code> mapped to
+      <code>slug-9.jsonl.1.minute.jsonl</code> rather than to the
+      <code>slug-9.minute.jsonl.1</code> it mapped to before the roll existed.
+      A name is now split at its <code>.jsonl</code> marker, so those suffixes
+      stay on the tier name while a day segment resolves to its job's single
+      ladder, which is what keeps one serve's tiers one series across a
+      roll.</p>
+    </section>
+  </main>
+</body>
+</html>

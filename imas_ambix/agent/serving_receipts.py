@@ -77,6 +77,7 @@ from imas_ambix.agent.bench import (
     _counter_delta,
     _fetch_body,
 )
+from imas_ambix.agent.telemetry_index import receipts_job_id as receipts_job_id
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -401,18 +402,23 @@ def compact_record(
     destination: str | Path,
     *,
     tier: str = telemetry_store.TIER_MINUTE,
+    close: bool = False,
 ) -> bool:
-    """Compact *source* into *destination*, reporting failure instead of raising.
+    """Compact the tail of *source* into *destination*, reporting failure.
 
     The recorder compacts between samples, so a compaction that cannot finish —
     a path it may not write, a row the store will not parse, a short write on a
     busy filesystem — must cost one attempt and not the record. The sample loop
     is the durable thing here, so every such failure is reported on stderr and
-    the next tick proceeds; the transform is idempotent, so the retry at the
-    next cadence reaches the same result. Returns whether the tier was written.
+    the next tick proceeds. The transform is idempotent and resumes from the
+    destination's own watermark, so the retry at the next cadence reaches the
+    same result. *close* writes the window still filling as well, which is what
+    the end of a record asks for. Returns whether the tier was written.
     """
     try:
-        telemetry_store.compact_file(source, destination, tier=tier)
+        telemetry_store.compact_incremental(
+            source, destination, tier=tier, close=close
+        )
     except (OSError, telemetry_store.TelemetryStoreError) as exc:
         print(
             f"serving_receipts: compaction of {source} -> {destination} "
@@ -493,6 +499,8 @@ def record_receipts(
     rows_written = 0
     start = monotonic()
     next_compaction = start + compaction_interval_s
+    compacted_once = False
+    open_day: str | None = None
     resolved_serve_config: dict[str, Any] | None = None
     serve_config_settled = False
 
@@ -535,6 +543,38 @@ def record_receipts(
                     node_sections=sections,
                     serve_config=resolved_serve_config,
                 )
+                day = sampled_at.strftime("%Y%m%d")
+                if open_day is None:
+                    open_day = day
+                elif day != open_day:
+                    # The record rolls into one file per UTC day, so a row that
+                    # lands on a new day closes the file it has been appending
+                    # to and opens the same name again. The rename keeps the
+                    # inode, so the closed segment is the bytes already written
+                    # rather than a copy of them, and the window still filling
+                    # is written before the file stops being the live one --
+                    # the ladder and the offset that continues it both outlive
+                    # the segment.
+                    closed = day_segment_path(path, open_day)
+                    fh.close()
+                    os.rename(path, closed)
+                    open_day = day
+                    fh = path.open("a", encoding="utf-8")
+                    if compaction_paths is not None:
+                        minute_path, hour_path = compaction_paths
+                        if compact_record(
+                            closed,
+                            minute_path,
+                            tier=telemetry_store.TIER_MINUTE,
+                            close=True,
+                        ):
+                            compact_record(
+                                minute_path,
+                                hour_path,
+                                tier=telemetry_store.TIER_HOUR,
+                                close=True,
+                            )
+                        compacted_once = True
                 fh.write(row.to_json() + "\n")
                 fh.flush()
                 rows_written += 1
@@ -542,25 +582,104 @@ def record_receipts(
             if compaction_paths is not None and tick >= next_compaction:
                 next_compaction = tick + compaction_interval_s
                 minute_path, hour_path = compaction_paths
-                compact_record(path, minute_path, tier=telemetry_store.TIER_MINUTE)
-                compact_record(minute_path, hour_path, tier=telemetry_store.TIER_HOUR)
+                if compact_record(
+                    path, minute_path, tier=telemetry_store.TIER_MINUTE
+                ):
+                    compact_record(
+                        minute_path, hour_path, tier=telemetry_store.TIER_HOUR
+                    )
+                compacted_once = True
             if duration_s is not None and tick - start >= duration_s:
                 break
             sleep(interval_s)
 
+        if compaction_paths is not None and compacted_once:
+            # The recorder owns the end of its record, so the last window -- the
+            # one a cadence pass leaves open because nothing has closed the
+            # window yet -- is written here rather than left for a next pass
+            # that will not come.
+            minute_path, hour_path = compaction_paths
+            if compact_record(
+                path, minute_path, tier=telemetry_store.TIER_MINUTE, close=True
+            ):
+                compact_record(
+                    minute_path, hour_path, tier=telemetry_store.TIER_HOUR, close=True
+                )
+
     return rows_written
+
+
+def _roll_date(name: str) -> str | None:
+    """The UTC day a rolled receipt file's name carries, or ``None``.
+
+    A segment is the open record's name with the day it covers inserted before
+    the suffix, so ``<slug>-<job>.20261015.jsonl`` is the same job's record for
+    one UTC day and every segment of a job resolves to the ladder its siblings
+    do.
+    """
+    stem = name[: -len(".jsonl")] if name.endswith(".jsonl") else name
+    parts = stem.split(".")
+    last = parts[-1] if parts else ""
+    return last if len(last) == 8 and last.isdigit() else None
+
+
+def is_day_segment(path: str | Path) -> bool:
+    """Whether *path* is a rolled day segment rather than the open record.
+
+    A segment is closed by construction: the recorder writes it when the day it
+    covers ends and never appends to it again, so it is eligible for the
+    retirement the open file is not while its job runs.
+    """
+    return _roll_date(Path(path).name) is not None
+
+
+def day_segment_path(receipts_path: str | Path, day: str) -> Path:
+    """Where the record open at *receipts_path* rolls to for *day*.
+
+    *day* is the UTC date the closed segment covers, as ``YYYYMMDD``. The
+    segment is a sibling of the open record, so a serve's whole record stays in
+    one directory and :func:`tier_paths` maps every segment to the ladder of the
+    job they all belong to.
+    """
+    path = Path(receipts_path)
+    suffix = "".join(path.suffixes)
+    stem = path.name[: -len(suffix)] if suffix else path.name
+    return path.with_name(f"{stem}.{day}{suffix or '.jsonl'}")
+
+
+def _record_stem_and_suffix(name: str) -> tuple[str, str]:
+    """A receipt file's name split at its ``.jsonl`` marker.
+
+    The record's own identity is everything before ``.jsonl``; every suffix a
+    roll, a compression or a rotation appends comes after it. Splitting on the
+    marker rather than on the last dot keeps those suffixes attached to the
+    tier name instead of swallowing them into the stem, and drops a roll day
+    from the stem so every segment of a job maps to that job's one ladder.
+    """
+    index = name.find(".jsonl")
+    if index == -1:
+        stem, suffix = name, ""
+    else:
+        stem, suffix = name[:index], name[index:]
+    head, dot, last = stem.rpartition(".")
+    if dot and len(last) == 8 and last.isdigit():
+        stem = head
+    return stem, suffix
 
 
 def tier_paths(receipts_path: str | Path) -> tuple[Path, Path]:
     """The ``(minute, hour)`` tiers a receipts file rolls into.
 
     The tiers are siblings of the raw file, named between its stem and its
-    suffix, so one receipts directory holds a serve's whole retention ladder
-    and a reader can find the coarser resolution from the file it already has.
+    suffix, so one receipts directory holds a ladder and a reader can find the
+    coarser resolution from the file it already has. Every suffix the raw name
+    carries -- a rotation count, a compression, and a roll day -- stays on the
+    tier name, so a name mapped before a roll maps to the same ladder after it
+    and a day segment resolves to the ladder of the job it belongs to rather
+    than to a ladder of its own.
     """
     path = Path(receipts_path)
-    suffix = "".join(path.suffixes)
-    stem = path.name[: -len(suffix)] if suffix else path.name
+    stem, suffix = _record_stem_and_suffix(path.name)
     return (
         path.with_name(f"{stem}.minute{suffix or '.jsonl'}"),
         path.with_name(f"{stem}.hour{suffix or '.jsonl'}"),

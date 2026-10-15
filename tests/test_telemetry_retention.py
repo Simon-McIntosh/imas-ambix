@@ -578,3 +578,43 @@ def test_the_listing_shows_compared_pair_and_hours_counts(tmp_path):
     assert "compared_pairs=6" in text
     assert "compared_hours=2" in text
     assert raw.name in text
+
+
+def test_a_running_jobs_closed_day_segment_is_not_held_by_its_run(tmp_path):
+    """A live job's closed days may retire; only its open record may not.
+
+    The open record is still being appended to, so retiring it would lose the
+    rows that arrive after the listing is taken. A day segment is closed by
+    construction -- the recorder stops appending to it when the day it covers
+    ends -- so the job being live says nothing about whether that day may go.
+    A scan that held every file of a running job would keep a long serve's whole
+    history for as long as it ran, which is the accumulation the roll exists to
+    end.
+    """
+    raw, _minute, _hour = _build_job(tmp_path)
+    segment = tmp_path / "deepseek-v4-1-flash-1278105.20260911.jsonl"
+    os.rename(raw, segment)
+    quiet = _NOW - 21 * 86400
+    os.utime(segment, (quiet, quiet))
+
+    # The record one day on, under the name the roll reopened: same job, still
+    # being written, so its rows are recent by construction.
+    open_path = tmp_path / "deepseek-v4-1-flash-1278105.jsonl"
+    _write_rows(
+        open_path,
+        [_row(_NOW - 3600 + offset, 900.0 + index * 100) for index, offset in
+         enumerate((600, 1800, 3000))],
+    )
+
+    def running() -> frozenset[str]:
+        return frozenset({"1278105"})
+
+    result = retention.scan(tmp_path, now=_NOW, running=running)
+
+    segment_verdict = _verdict_for(result, segment)
+    assert "running" not in segment_verdict.reason
+    assert segment_verdict.eligible is True, segment_verdict.reason
+
+    open_verdict = _verdict_for(result, open_path)
+    assert open_verdict.eligible is False
+    assert "job 1278105 is running" in open_verdict.reason
