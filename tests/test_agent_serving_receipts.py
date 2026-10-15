@@ -993,6 +993,37 @@ def test_tier_paths_are_siblings_of_the_raw_record() -> None:
     assert hour == Path("/receipts/deepseek-v4-flash-1262921.hour.jsonl")
 
 
+def test_tier_paths_keep_a_suffix_and_drop_a_roll_day() -> None:
+    """A trailing suffix stays on the tier name; a roll day does not stay.
+
+    A rotation count or a compression trails the raw name, so a tier of that
+    name carries the same suffix and maps back to the file it was made from.
+    A roll day is different: it marks which day a segment covers, not which
+    file or ladder it belongs to, so every segment of one job maps to that
+    job's one ladder rather than to a ladder per day.
+    """
+    for name, expected in (
+        (
+            "deepseek-v4-flash-1262921.jsonl.1",
+            ("deepseek-v4-flash-1262921.minute.jsonl.1",
+             "deepseek-v4-flash-1262921.hour.jsonl.1"),
+        ),
+        (
+            "deepseek-v4-flash-1262921.jsonl.gz",
+            ("deepseek-v4-flash-1262921.minute.jsonl.gz",
+             "deepseek-v4-flash-1262921.hour.jsonl.gz"),
+        ),
+        (
+            "deepseek-v4-flash-1262921.20261015.jsonl",
+            ("deepseek-v4-flash-1262921.minute.jsonl",
+             "deepseek-v4-flash-1262921.hour.jsonl"),
+        ),
+    ):
+        minute, hour = sr.tier_paths(Path("/receipts") / name)
+        assert minute == Path("/receipts") / expected[0]
+        assert hour == Path("/receipts") / expected[1]
+
+
 def test_record_receipts_compacts_its_record_between_samples(tmp_path: Path) -> None:
     receipts_path = tmp_path / "receipts.jsonl"
     minute_path, hour_path = sr.tier_paths(receipts_path)

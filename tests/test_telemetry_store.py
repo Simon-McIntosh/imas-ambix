@@ -879,3 +879,119 @@ def test_incremental_compaction_recompacts_when_the_source_is_replaced(
     compact_file(source, full, tier=TIER_MINUTE)
     assert minute.read_bytes() == full.read_bytes()
     assert read_rows(minute)[0]["obs"]["samples"] == 2
+
+
+_MIDNIGHT = datetime(2026, 9, 5, 23, 58, 0, tzinfo=UTC)
+
+
+def _roll_row(seconds: int, counter: float, gauge: float) -> dict:
+    """One raw sample of a record that rolls to a second UTC day partway."""
+    return {
+        "timestamp": (_MIDNIGHT + timedelta(seconds=seconds)).isoformat(),
+        "hostname": "node-a",
+        "job_id": "1262921",
+        "generation_tokens_total": counter,
+        "kv_cache_usage_perc": gauge,
+    }
+
+
+def test_a_roll_writes_no_window_its_cadence_already_wrote(tmp_path: Path) -> None:
+    """The recorder's roll order leaves both tiers as one full pass would.
+
+    The recorder compacts on its cadence, renames the open record to the day
+    segment the day it covers just ended, and closes the segment under its new
+    name. A roll renames the file rather than rewriting it, so a pass that took
+    the rename for a new source would read the segment's whole length again --
+    its rows are the ones the cadence pass already compacted -- and write every
+    window it had already written a second time. Both tiers are compared byte
+    for byte against one full compaction of the same rows, and the windows are
+    counted, because a duplicated row is invisible in a length.
+    """
+    source = tmp_path / "receipts.jsonl"
+    segment = tmp_path / "receipts.20260905.jsonl"
+    minute = tmp_path / "receipts.minute.jsonl"
+    hour = tmp_path / "receipts.hour.jsonl"
+
+    rows = [_roll_row(index * 20, index * 10.0, 0.1 * index) for index in range(5)]
+
+    _append(source, rows)
+    telemetry_store.compact_incremental(source, minute, tier=TIER_MINUTE)
+    telemetry_store.compact_incremental(minute, hour, tier=TIER_HOUR)
+
+    os.rename(source, segment)
+    telemetry_store.compact_incremental(segment, minute, tier=TIER_MINUTE, close=True)
+    telemetry_store.compact_incremental(minute, hour, tier=TIER_HOUR, close=True)
+
+    full_minute = tmp_path / "full.minute.jsonl"
+    full_hour = tmp_path / "full.hour.jsonl"
+    compact_file(segment, full_minute, tier=TIER_MINUTE)
+    compact_file(full_minute, full_hour, tier=TIER_HOUR)
+
+    windows = [row["window_start"] for row in read_rows(minute)]
+    assert len(windows) == len(set(windows))
+    assert minute.read_bytes() == full_minute.read_bytes()
+    assert hour.read_bytes() == full_hour.read_bytes()
+
+
+class _CountingHandle:
+    """A file handle that tallies the bytes read through it."""
+
+    def __init__(self, handle, tally: dict[str, int]) -> None:
+        self._handle = handle
+        self._tally = tally
+
+    def read(self, *args):
+        data = self._handle.read(*args)
+        self._tally["bytes"] += len(data)
+        return data
+
+    def __enter__(self):
+        self._handle.__enter__()
+        return self
+
+    def __exit__(self, *exc):
+        return self._handle.__exit__(*exc)
+
+    def __getattr__(self, name):
+        return getattr(self._handle, name)
+
+
+def test_a_second_incremental_pass_reads_only_what_arrived(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pass costs the tail's bytes, not the record's.
+
+    The watermark exists so a cadence pass does not spend its time on rows it
+    has already compacted, and the cost of a pass that re-read the whole record
+    would grow with the record rather than with what has arrived since. The
+    bytes read from the source are counted directly, so the claim is measured
+    rather than inferred from the pass having resumed.
+    """
+    source = tmp_path / "receipts.jsonl"
+    minute = tmp_path / "receipts.minute.jsonl"
+    rows = [_raw_row(index * 20, float(index * 10), 0.1 * index) for index in range(12)]
+
+    _append(source, rows[:6])
+    telemetry_store.compact_incremental(source, minute, tier=TIER_MINUTE)
+
+    tally = {"bytes": 0}
+    real_open = Path.open
+
+    def counting_open(self, *args, **kwargs):
+        handle = real_open(self, *args, **kwargs)
+        return _CountingHandle(handle, tally) if self == source else handle
+
+    monkeypatch.setattr(Path, "open", counting_open)
+
+    _append(source, rows[6:10])
+    whole = source.stat().st_size
+    offset = telemetry_store.read_watermark(minute)["offset"]
+    assert 0 < offset < whole
+
+    tally["bytes"] = 0
+    telemetry_store.compact_incremental(source, minute, tier=TIER_MINUTE)
+
+    # The pass starts at the watermark and reads to the end: the bytes below
+    # the mark are the ones it has already compacted and must not pay for.
+    assert tally["bytes"] == whole - offset
+    assert tally["bytes"] < whole

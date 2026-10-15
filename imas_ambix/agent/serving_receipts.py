@@ -77,6 +77,7 @@ from imas_ambix.agent.bench import (
     _counter_delta,
     _fetch_body,
 )
+from imas_ambix.agent.telemetry_index import receipts_job_id as receipts_job_id
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
@@ -646,46 +647,42 @@ def day_segment_path(receipts_path: str | Path, day: str) -> Path:
     return path.with_name(f"{stem}.{day}{suffix or '.jsonl'}")
 
 
-def receipts_job_id(path: str | Path) -> str | None:
-    """The job id a receipt file's name claims, open record or day segment.
+def _record_stem_and_suffix(name: str) -> tuple[str, str]:
+    """A receipt file's name split at its ``.jsonl`` marker.
 
-    The name is the record's whole identity in a shared directory, so it is
-    resolved the same way for the file a serve is still appending to and for the
-    segments it has rolled: the id is the last ``-``-separated field of the
-    name, before any roll date and the suffix. A compacted tier carries a tier
-    marker and is refused here, as it is everywhere else.
+    The record's own identity is everything before ``.jsonl``; every suffix a
+    roll, a compression or a rotation appends comes after it. Splitting on the
+    marker rather than on the last dot keeps those suffixes attached to the
+    tier name instead of swallowing them into the stem, and drops a roll day
+    from the stem so every segment of a job maps to that job's one ladder.
     """
-    name = Path(path).name
-    if ".minute." in name or ".hour." in name:
-        return None
-    stem = name[: -len(".jsonl")] if name.endswith(".jsonl") else name
-    parts = stem.split(".")
-    if len(parts) >= 2 and len(parts[-1]) == 8 and parts[-1].isdigit():
-        parts = parts[:-1]
-    if not parts:
-        return None
-    head, _, tail = parts[-1].rpartition("-")
-    return tail if head and tail.isdigit() else None
+    index = name.find(".jsonl")
+    if index == -1:
+        stem, suffix = name, ""
+    else:
+        stem, suffix = name[:index], name[index:]
+    head, dot, last = stem.rpartition(".")
+    if dot and len(last) == 8 and last.isdigit():
+        stem = head
+    return stem, suffix
 
 
 def tier_paths(receipts_path: str | Path) -> tuple[Path, Path]:
     """The ``(minute, hour)`` tiers a receipts file rolls into.
 
     The tiers are siblings of the raw file, named between its stem and its
-    suffix, so one receipts directory holds a serve's whole retention ladder
-    and a reader can find the coarser resolution from the file it already has.
-    A UTC day segment resolves to the ladder of the job it belongs to rather
-    than to a ladder of its own, so a job's tiers stay one series across a roll.
+    suffix, so one receipts directory holds a ladder and a reader can find the
+    coarser resolution from the file it already has. Every suffix the raw name
+    carries -- a rotation count, a compression, and a roll day -- stays on the
+    tier name, so a name mapped before a roll maps to the same ladder after it
+    and a day segment resolves to the ladder of the job it belongs to rather
+    than to a ladder of its own.
     """
     path = Path(receipts_path)
-    name = path.name
-    stem = name[: -len(".jsonl")] if name.endswith(".jsonl") else name
-    day = _roll_date(name)
-    if day is not None and stem.endswith(f".{day}"):
-        stem = stem[: -(len(day) + 1)]
+    stem, suffix = _record_stem_and_suffix(path.name)
     return (
-        path.with_name(f"{stem}.minute.jsonl"),
-        path.with_name(f"{stem}.hour.jsonl"),
+        path.with_name(f"{stem}.minute{suffix or '.jsonl'}"),
+        path.with_name(f"{stem}.hour{suffix or '.jsonl'}"),
     )
 
 

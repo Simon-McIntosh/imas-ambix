@@ -13,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 import imas_ambix.agent.telemetry_index as telemetry_index
+from imas_ambix.agent import serving_receipts
 from imas_ambix.agent.receipt_bins import summarise_receipt_rows
 from imas_ambix.agent.serving_receipts import tier_paths
 from imas_ambix.agent.telemetry_index import (
@@ -924,6 +925,31 @@ def test_a_receipts_name_yields_the_job_id_it_carries():
     assert receipts_job_id("serve.jsonl") is None
     # A tier file is a derived sibling, not a receipts file's own name.
     assert receipts_job_id("summary-1271709.minute.jsonl") is None
+
+
+def test_a_rolled_day_segment_yields_the_job_id_it_was_renamed_from():
+    """The day a segment covers sits before the suffix, not in the job id.
+
+    The recorder rolls its open record to one file per UTC day, so the file a
+    serve is still appending to and every segment it has rolled name one job
+    between them. A reader that stopped at the day would report a job id no
+    serve ever had, and one that read the digits it found there would report
+    the date instead.
+    """
+    assert receipts_job_id("deepseek-v4-1-flash-1280470.jsonl") == "1280470"
+    assert receipts_job_id("deepseek-v4-1-flash-1280470.20261015.jsonl") == "1280470"
+    assert receipts_job_id("deepseek-v4-1-flash-1280470.20261015.jsonl.gz") == "1280470"
+
+
+def test_serving_receipts_defines_no_second_job_id_reader():
+    """One name, one reader: the recorder re-exports the index's.
+
+    A second parse beside the recorder drifts from this one the first time
+    either learns a new name shape, and the two disagree silently on the files
+    where it matters. The recorder's name resolves the very object defined
+    here, so a name shape learned once is learned everywhere.
+    """
+    assert serving_receipts.receipts_job_id is receipts_job_id
 
 
 def test_the_receipts_host_is_resolved_from_the_job_id(monkeypatch):

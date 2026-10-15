@@ -171,9 +171,11 @@ UNKNOWN_HOST = ""
 UNKNOWN_BOOT_ID = ""
 
 #: The job id a receipts filename carries, in the suffix the recorder writes:
-#: ``<slug>-<job id>.jsonl``. A roll suffix or a compression suffix trails the
-#: ``.jsonl`` and does not move the digits.
-_JOB_ID_IN_NAME = re.compile(r"-(\d+)\.jsonl(?:\.\d+)?(?:\.gz)?\Z")
+#: ``<slug>-<job id>.jsonl``. A roll date sits between the job id and the suffix
+#: once the recorder has closed a UTC day into a segment, and a roll or
+#: compression suffix trails the ``.jsonl``: none of them moves the digits, so
+#: the open record and every segment it rolled into name one job.
+_JOB_ID_IN_NAME = re.compile(r"-(\d+)(?:\.\d{8})?\.jsonl(?:\.\d+)?(?:\.gz)?\Z")
 
 #: A receipts filename whose tier the recorder states between the job id and the
 #: suffix, as ``<slug>-<job id>.minute...`` is a sibling of the raw file rather
@@ -420,6 +422,11 @@ def receipts_job_id(path: str | Path) -> str | None:
     The on-node recorder writes ``<slug>-<job id>.jsonl``, so the job that
     produced a file -- and therefore the node that ran the serve -- is
     recoverable from the name alone, before any row states it.
+
+    This is the one reader of that name. A rolled UTC day segment carries the
+    same job id as the open record it was renamed from, with only the day it
+    covers inserted before the suffix, so both resolve here rather than through
+    a second parse kept beside the recorder.
     """
     match = _JOB_ID_IN_NAME.search(Path(path).name)
     return None if match is None else match.group(1)

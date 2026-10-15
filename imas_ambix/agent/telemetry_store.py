@@ -867,18 +867,32 @@ def _window_start_epoch(row: dict[str, Any]) -> float:
     return _dt.datetime.fromisoformat(str(row[_WINDOW_START_KEY])).timestamp()
 
 
+def _read_tail(path: Path, offset: int) -> bytes:
+    """The bytes *path* holds from *offset* onward.
+
+    A pass resumes where its watermark left it, so reading the file from the
+    start would re-read every row it has already compacted and make the pass
+    cost grow with the record rather than with what has arrived since.
+    """
+    with path.open("rb") as handle:
+        handle.seek(offset)
+        return handle.read()
+
+
 def _complete_lines(
     data: bytes, offset: int
 ) -> tuple[list[tuple[dict[str, Any], int]], int]:
     """Parse whole lines from *offset*, each with its own byte offset.
 
-    A trailing line without its newline is a row still being appended, so it is
+    *data* is the source from *offset* onward, so the first byte of it is
+    *offset* and each row's absolute position is recovered from that base. A
+    trailing line without its newline is a row still being appended, so it is
     left unread and the pass resumes at its start: reading it would count a
     partial sample and leave the watermark inside a row.
     """
     rows: list[tuple[dict[str, Any], int]] = []
     consumed = offset
-    for line in data[offset:].decode("utf-8").splitlines(keepends=True):
+    for line in data.decode("utf-8").splitlines(keepends=True):
         start = consumed
         consumed += len(line.encode("utf-8"))
         if not line.endswith("\n"):
@@ -977,7 +991,7 @@ def compact_incremental(
         stat = src.stat()
     except OSError as exc:
         raise TelemetryStoreError(f"{source} cannot be read: {exc}") from exc
-    data = src.read_bytes()
+    size = stat.st_size
 
     mark = read_watermark(dest)
     matching = False
@@ -987,7 +1001,7 @@ def compact_incremental(
         and isinstance(mark.get("offset"), int)
         and isinstance(mark.get("destination_size"), int)
         and isinstance(mark.get(_EMITTED_THROUGH_KEY), (int, float))
-        and 0 <= mark["offset"] <= len(data)
+        and 0 <= mark["offset"] <= size
         and dest.is_file()
     ):
         try:
@@ -1017,15 +1031,22 @@ def compact_incremental(
         context = _context_of(mark.get("context"))
         emitted_through = float(mark[_EMITTED_THROUGH_KEY])
     elif rolled:
-        offset = 0
+        # A roll renames the record rather than rewriting it, so the inode is
+        # unchanged and the segment's rows below the mark are the ones the
+        # previous pass already compacted: resume at the mark and carry the
+        # emitted-through bound, or every window the mark covers is written a
+        # second time. The open file that takes the name afterward is a new
+        # inode, so it starts at zero and only the run state carries over.
+        offset = mark["offset"] if mark.get("source_inode") == stat.st_ino else 0
         context = _context_of(mark.get("context"))
-        emitted_through = 0.0
+        emitted_through = float(mark[_EMITTED_THROUGH_KEY])
     else:
         offset = 0
         context = None
         emitted_through = 0.0
     resumed = same_source or rolled
 
+    data = _read_tail(src, offset)
     rows, safe_end = _complete_lines(data, offset)
     fallback_host = host or os.uname().nodename
     fallback_boot, _ = resolve_boot_id(local_boot_id() if boot_id is None else boot_id)
@@ -1141,7 +1162,7 @@ def compact_incremental(
             {
                 "source": src.name,
                 "source_inode": stat.st_ino,
-                "source_size": len(data),
+                "source_size": size,
                 "destination_size": dest.stat().st_size,
                 "offset": next_offset,
                 _EMITTED_THROUGH_KEY: next_through,
