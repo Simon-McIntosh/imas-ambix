@@ -1,0 +1,33 @@
+<section class="evidence-fragment" data-reckon="evidence" id="srw-roll-day-one-parser">
+  <header>
+    <h3>A receipt name's roll day has one parser</h3>
+    <p class="meta">
+      Node <code>srw-roll-day-one-parser</code> &middot;
+      date 2026-10-15 &middot;
+      plan <code>serving-record-warehouse</code> &sect;23
+    </p>
+  </header>
+
+  <p>
+    <code>telemetry_store.split_record_name</code> now splits a receipt file
+    name into its record stem, its roll day and its suffix, and the three
+    readers that each matched the trailing eight-digit day themselves --
+    <code>telemetry_store._ladder_stem</code>,
+    <code>serving_receipts._roll_date</code> and
+    <code>serving_receipts._record_stem_and_suffix</code> -- call it and keep
+    only their own rule about which suffixes they accept. Before the change the
+    three matched the day in three places
+    (<code>telemetry_store.py:806</code>,
+    <code>serving_receipts.py:623</code>,
+    <code>serving_receipts.py:665</code>); after it the day match appears in the
+    parser alone. On the four probed names every reader returns exactly what it
+    returned before, including <code>None</code> /
+    <code>('foo-1', '.jsonl.gz')</code> /
+    <code>'foo-1.20261015.jsonl'</code> on the compressed segment. The
+    <code>telemetry_store</code> docstring that described a rolled segment
+    arriving with a new inode is rewritten to say what the merged branch does:
+    a roll renames the segment and keeps its inode, so the pass resumes at the
+    watermark's offset, and only a different inode starts at zero. Gate: the
+    four named test files pass, 83 passed, exit 0.
+  </p>
+</section>
