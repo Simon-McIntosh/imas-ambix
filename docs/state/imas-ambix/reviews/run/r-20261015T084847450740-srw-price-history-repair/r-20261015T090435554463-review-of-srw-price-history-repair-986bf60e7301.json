@@ -1,0 +1,58 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "basis: the reviewed run r-20261015T084847450740-srw-price-history-repair carries no baseline_suite and no after_suite arm (its manifest declares neither key and its run record has suite_command null), so no base arm exists to difference against; its own head gate log /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T084847450740-srw-price-history-repair/gate.log opens with rev e0fccca4 and closes '52 passed in 3.37s' with EXIT=0 and no FAILED or ERROR line, so the head adds no failing test. added_failure_count is 0 by construction, not by a differenced measurement.",
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/watch.py:282",
+    "imas_ambix/agent/watch.py:287",
+    "imas_ambix/agent/watch.py:933"
+  ],
+  "completed_at": "2026-10-15T09:20:15.180Z",
+  "dispatched_at": "2026-10-15T09:05:39Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/provider_prices.py",
+      "line": "554",
+      "severity": "follow-on",
+      "text": "FINDING imas_ambix/agent/provider_prices.py:554 follow-on: _listing_prices keys each endpoint as (str(provider), prompt, cache_read, completion), so a listing that changes an endpoint's `provider` field appends a history row although no rate moved; the docstring at provider_prices.py:541 ('carrying a new tag or name while every rate holds, is not a repricing') and the repair commit e0fccca4 both claim a renamed provider records nothing, and tests/test_provider_prices.py:481 varies only `tag`, so the claim is untested for the `provider` field. The row exists to mark a repricing, so a provider rename records a change that did not happen; including the provider name is defensible for keeping two same-priced providers distinct, so the prose is what overclaims."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_aggregate_note": "five checklist verdicts plus the call-sites verdict",
+  "item_verdicts": {
+    "call_sites": "3 production call sites reach the landed change, all in imas_ambix/agent/watch.py: :282 and :287 call provider_prices.rates with and without the fallback, and :933 calls provider_prices.refresh(), which reaches the changed _endpoint_history_rows and _listing_prices; the refresh call passes no slugs, so the endpoints-listing path the third defect lives in has no production caller yet, and the two history readers still have none.",
+    "diff": "read e0fccca4 (code and tests) and 986bf60e (the evidence fragment) against base cf482436 commit by commit; four files changed, +152/-38, all inside the declared scope.",
+    "done_when": "the done_when's four clauses each have a covering assertion -- tests/test_provider_prices.py:93 (watch defines no normaliser and calls provider_prices.rates), :113 (the 9684000000000.0-second citation '22.8 B input' / '0.166 B output tokens'), :458 (reordered and metadata-only listings append no row, a price change appends one) -- plus the serve-registry grammar guard; the manifest records the gate at 52 passed and the guard at 2 passed, EXIT=0.",
+    "goal": "the goal is one rate normaliser in provider_prices, a corrected recovered citation, and an endpoints row only on a repricing; imas_ambix/agent/provider_prices.py:370 makes rates the public normaliser, imas_ambix/agent/watch.py:282 and :287 consume it instead of a private copy, provider_prices.py:121 carries the corrected citation, and provider_prices.py:594 compares listings through _listing_prices, so all three clauses land.",
+    "manifest": "read r-20261015T084847450740-srw-price-history-repair/manifest.md; it records the gate command and its '52 passed in 3.37s' EXIT=0 at e0fccca4, the serving-grammar guard at 2 passed, the negative control at EXIT=1, the base-revision reproduction of all three defects, and the after-the-repair row counts 1, 1, 1, 2.",
+    "write_paths": "read the manifest's declared paths; the diff touches imas_ambix/agent/provider_prices.py, imas_ambix/agent/watch.py, tests/test_provider_prices.py and docs/evidence/fragments/serving-record-warehouse/srw-price-history-repair.html, every one of them inside the declared scope; tests/test_agent_watch_cost.py and the declared figures directory are unused by the diff."
+  },
+  "justifications": {
+    "durability": "tests/test_provider_prices.py:487 fails if provider_prices.py:594 reverts to comparing the whole serialised listing, which the run's own negative-control.log shows at EXIT=1 (assert 2 == 1), and tests/test_provider_prices.py:113 fails if the citation at provider_prices.py:121 regresses.",
+    "evidence": "the reviewed gate log gate.log opens with rev e0fccca4 and closes '52 passed in 3.37s' EXIT=0, with gate-serving-grammar.log recording the serve-registry guard at 2 passed, so every done_when clause is measured and recorded rather than claimed.",
+    "fit": "imas_ambix/agent/provider_prices.py:370-398 keeps the module's dict-in/dict-out idiom and its docstring voice, and the changed files carry no plan, phase, ticket or version label.",
+    "goal_fidelity": "imas_ambix/agent/provider_prices.py:370 makes rates the module's public normaliser with imas_ambix/agent/watch.py:282-287 consuming it, provider_prices.py:121 carries the corrected 22.8 B / 0.166 B citation, and provider_prices.py:594 records an endpoints row only on a repricing.",
+    "reuse": "imas_ambix/agent/provider_prices.py:370 is now the single owner of the pricing-block normaliser and imas_ambix/agent/watch.py:50 imports it, so the watch-side copy the previous review found at watch.py:278 is gone and no second normaliser remains in production.",
+    "scope_discipline": "git diff --numstat cf48243664..986bf60e lists only imas_ambix/agent/provider_prices.py, imas_ambix/agent/watch.py, tests/test_provider_prices.py and docs/evidence/fragments/serving-record-warehouse/srw-price-history-repair.html, every one of them declared."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the goal is one rate normaliser in provider_prices, a corrected recovered citation, and an endpoints row only on a repricing; imas_ambix/agent/provider_prices.py:370 makes rates the public normaliser, imas_ambix/agent/watch.py:282 and :287 consume it instead of a private copy, imas_ambix/agent/provider_prices.py:121 carries the corrected citation, and imas_ambix/agent/provider_prices.py:594 compares listings through _listing_prices, so all three clauses land.\nVERDICT done_when: the done_when's four clauses each have a covering assertion -- tests/test_provider_prices.py:93 (watch defines no normaliser and calls provider_prices.rates), :113 (the recovered 2026-10-02 row's '22.8 B input' and '0.166 B output tokens' citation), :458 (a reordered listing and a metadata-only listing each append no row, a price change appends one) -- plus the serve-registry grammar guard in tests/test_agent_serve_registry.py; the manifest records the gate at 52 passed and the guard at 2 passed, EXIT=0.\nVERDICT write_paths: read the manifest's declared paths; the diff touches imas_ambix/agent/provider_prices.py, imas_ambix/agent/watch.py, tests/test_provider_prices.py and docs/evidence/fragments/serving-record-warehouse/srw-price-history-repair.html, every one of them inside the declared scope; tests/test_agent_watch_cost.py and the declared figures directory are unused by the diff.\nVERDICT manifest: read r-20261015T084847450740-srw-price-history-repair/manifest.md; it records the gate command and its '52 passed in 3.37s' EXIT=0 at e0fccca4, the serving-grammar guard at 2 passed, the negative control at EXIT=1, the base-revision reproduction of all three defects, and the after-the-repair row counts 1, 1, 1, 2.\nVERDICT diff: read e0fccca4 (code and tests) and 986bf60e (the evidence fragment) against base cf482436 commit by commit; four files changed, provider_prices.py +54/-20, watch.py +3/-18, tests/test_provider_prices.py +72, the fragment +23, all inside the declared scope.\nCALL_SITES: imas_ambix/agent/watch.py:282, imas_ambix/agent/watch.py:287, imas_ambix/agent/watch.py:933\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/provider_prices.py:370 makes rates the module's public normaliser with imas_ambix/agent/watch.py:282-287 consuming it, provider_prices.py:121 carries the corrected citation, and provider_prices.py:594 records an endpoints row only on a repricing.\nSCORE evidence: 19\nJUSTIFICATION evidence: the reviewed gate log gate.log opens with rev e0fccca4 and closes '52 passed in 3.37s' EXIT=0, with gate-serving-grammar.log recording the serve-registry guard at 2 passed.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: git diff --numstat cf48243664..986bf60e lists only imas_ambix/agent/provider_prices.py, imas_ambix/agent/watch.py, tests/test_provider_prices.py and docs/evidence/fragments/serving-record-warehouse/srw-price-history-repair.html, every one of them declared.\nSCORE durability: 19\nJUSTIFICATION durability: tests/test_provider_prices.py:487 fails if provider_prices.py:594 reverts to comparing the whole serialised listing, which the run's own negative-control.log shows at EXIT=1 (assert 2 == 1).\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/provider_prices.py:370-398 keeps the module's dict-in/dict-out idiom and its docstring voice, and the changed files carry no plan, phase, ticket or version label.\nSCORE reuse: 20\nJUSTIFICATION reuse: imas_ambix/agent/provider_prices.py:370 is now the single owner of the pricing-block normaliser and imas_ambix/agent/watch.py:50 imports it, so the watch-side copy the previous review found at watch.py:278 is gone.\nFINDING imas_ambix/agent/provider_prices.py:554 follow-on: _listing_prices keys each endpoint as (str(provider), prompt, cache_read, completion), so a listing that changes an endpoint's provider field appends a history row although no rate moved; the docstring at provider_prices.py:541 and the repair commit e0fccca4 both claim a renamed provider records nothing, and tests/test_provider_prices.py:481 varies only the tag field, so the claim is untested for the provider field. The row exists to mark a repricing, so a provider rename records a change that did not happen; including the provider name is defensible for keeping two same-priced providers distinct, so the prose is what overclaims.",
+  "review_run_id": "r-20261015T090435554463-review-of-srw-price-history-repair-986bf60e7301",
+  "reviewed_base_sha": "cf48243664c2aef6200512522fa1d6ee8a9a4098",
+  "reviewed_head_sha": "986bf60e73018dcb162c8a3e5901b647fecda26b",
+  "reviewed_run_id": "r-20261015T084847450740-srw-price-history-repair",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T09:16:17+00:00"
+}
