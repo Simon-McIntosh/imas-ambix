@@ -46,4 +46,32 @@
   <ul>
     <li>a test counting <code>watch._span</code> calls over a 12-hour and a 48-hour scheduled period asserts the counts are equal (2 in both); restoring the per-cut read makes it 26 against 98 and the test fails.</li>
   </ul>
+
+  <h4>Correction: the first cut of this change mis-priced one reachable configuration</h4>
+  <p>
+    The first version of the grouping keyed on <em>which listing a cut sat
+    under</em>, on the assumption that the rate is fixed between two listings.
+    The assumption fails wherever the listing yields no median: the walk then
+    borrows the headline, and a row priced by time of day moves its headline
+    between one hour and the next. A day whose only listing is below the
+    precision floor, with no headline in the history, was therefore priced
+    entirely at its <em>first</em> hour's rate — <strong>33.135</strong> for a
+    day that costs <strong>78.255</strong> rendered hour by hour. The live
+    table carries hour-varying schedules for
+    <code>deepseek/deepseek-v4-pro-0813</code>, <code>tencent/hy4-preview</code>
+    and <code>tencent/hy3</code>, so the configuration is reachable even though
+    the slug this node measured has an empty schedule and was unaffected.
+  </p>
+  <p>
+    The claim above that no figure changes held only for the configuration
+    measured; it was not general, and this paragraph is the correction.
+  </p>
+  <p>
+    The grouping now follows the <em>selected rate</em> itself. Hours that
+    select different rates stay one read each, and hours that select the same
+    rate are still totalled together — so the read count the change won is kept
+    wherever the rate really is fixed, and an hour is never priced at another
+    hour's rate. All four costs and all four token totals are byte-identical to
+    the pre-repair render at the same fixed <code>now</code>.
+  </p>
 </section>
