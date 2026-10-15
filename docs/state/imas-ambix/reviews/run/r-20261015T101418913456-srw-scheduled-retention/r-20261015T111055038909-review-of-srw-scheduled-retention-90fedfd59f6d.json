@@ -1,0 +1,70 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "basis: the reviewed run r-20261015T101418913456-srw-scheduled-retention declares neither baseline_suite nor after_suite (both keys empty in its manifest.md), so no base arm exists to difference against. Its head gate log /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T101418913456-srw-scheduled-retention/gate.log opens \"# revision: 78d08350 + the ingest-command retention repair\" and closes \"110 passed in 40.30s\" with EXIT=0 and zero FAILED or ERROR lines, so the head arm has no failing ids; its negative-control log at 90fedfd5 closes EXIT=1 with exactly one failing id (test_the_command_the_service_runs_carries_the_scheduled_retirement) that the head arm passes. added_failure_count is 0 by construction from those facts, not by a differenced measurement.",
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2973",
+    "imas_ambix/cli.py:48",
+    "imas_ambix/agent/telemetry_ingest.py:426"
+  ],
+  "commits_read": [
+    "1847163c3133cb8dd9c854772d45ca3431ad3f0f",
+    "78d08350c4bcafbe354a4f7b594c2bda2da09166",
+    "90fedfd59f6dc6c95c612f6cf947379ca9fd34dd"
+  ],
+  "completed_at": "2026-10-15T11:26:52.350Z",
+  "dispatched_at": "2026-10-15T11:11:09Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_ingest.py",
+      "line": "427",
+      "severity": "follow-on",
+      "text": "follow-on: run() invokes the retention callable in the else branch outside the try that catches sqlite3.OperationalError, and retention_pass catches only RuntimeError (telemetry_ingest.py:134), so an OSError from write_manifest/os.replace or a lock error from index.vacuum propagates and stops the one writer of the index; previously inert, this path is now reached in production by the delta's wiring at cli.py:2979."
+    },
+    {
+      "file": "imas_ambix/agent/cli.py",
+      "line": "2979",
+      "severity": "follow-on",
+      "text": "follow-on: the delta constructs ScheduledRetention here while telemetry_ingest.main constructs ScheduledRetention at telemetry_ingest.py:489, so the cadence is now built at two sites and a later change to its defaults has two places to find."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "read the one commit gained since the prior review (90fedfd5) against its base 78d08350 -- +96/-3 across imas_ambix/agent/cli.py (two click options and the retention= argument on the run call) and tests/test_telemetry_ingest.py (the new end-to-end test) -- every hunk inside the declared scope.",
+    "done_when": "the done_when's ninth clause (the pass runs at most once a day from the ingest loop) is now asserted end-to-end at tests/test_telemetry_ingest.py:554, which drives the real `agent ingest` command over an eligible record; the manifest records the gate at gate.log closing \"110 passed in 40.30s\".",
+    "goal": "the delta's purpose is to make the node's goal reachable in production; imas_ambix/agent/cli.py:2979 now constructs telemetry_ingest.ScheduledRetention and hands it to telemetry_ingest.run at cli.py:2973, so the standing loop the fleet service starts carries the daily retirement the goal names.",
+    "manifest": "read; it declares status complete, commits 1847163c/78d08350/90fedfd5, the gate on fleet node job 1281970, a negative control at EXIT=1, and answers the prior blocking finding f69b8895181 with commit 90fedfd5.",
+    "write_paths": "the repair round's declared scope (resume-1-advice.txt) grants imas_ambix/agent/cli.py and tests/test_telemetry_ingest.py; git diff --name-status 78d08350..90fedfd5 names exactly those two files, both inside the declared scope."
+  },
+  "justifications": {
+    "durability": "tests/test_telemetry_ingest.py:589 asserts the raw file is gone after the real click command ran, and the recorded negative control (reverting the wiring) reddens exactly that assertion.",
+    "evidence": "the gate at /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T101418913456-srw-scheduled-retention is recorded as \"110 passed in 40.30s\" at EXIT=0 (gate.log) and the negative control reddens the new test at 90fedfd5, but the manifest's baseline_suite and after_suite keys are empty so no differenced base arm exists.",
+    "fit": "the added click options at imas_ambix/agent/cli.py:2894 follow the surrounding option idiom, though the module-level helper retention_tier_files at tests/test_telemetry_ingest.py:597 breaks the file's underscore-prefixed helper convention (_retirable_job, _write, _row).",
+    "goal_fidelity": "imas_ambix/agent/cli.py:2979 constructs ScheduledRetention and passes it to run at cli.py:2973, so the loop the fleet service launches now retires raw receipts, answering the prior blocking finding at the command the service actually runs.",
+    "reuse": "the delta reuses ScheduledRetention owned at imas_ambix/agent/telemetry_ingest.py:148 and adds no capability, but constructs it a second time beside the existing construction at imas_ambix/agent/telemetry_ingest.py:489.",
+    "scope_discipline": "the delta changes only imas_ambix/agent/cli.py and tests/test_telemetry_ingest.py, both named in the repair round's write scope in resume-1-advice.txt."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the delta's purpose is to make the node's goal reachable in production; imas_ambix/agent/cli.py:2979 now constructs telemetry_ingest.ScheduledRetention and hands it to telemetry_ingest.run at cli.py:2973, so the standing loop the fleet service starts carries the daily retirement the goal names.\nVERDICT done_when: the done_when's ninth clause (the pass runs at most once a day from the ingest loop) is now asserted end-to-end at tests/test_telemetry_ingest.py:554, which drives the real `agent ingest` command over an eligible record; the manifest records the gate at gate.log closing \"110 passed in 40.30s\".\nVERDICT write_paths: the repair round's declared scope (resume-1-advice.txt) grants imas_ambix/agent/cli.py and tests/test_telemetry_ingest.py; git diff --name-status 78d08350..90fedfd5 names exactly those two files, both inside the declared scope.\nVERDICT manifest: read; it declares status complete, commits 1847163c/78d08350/90fedfd5, the gate on fleet node job 1281970, a negative control at EXIT=1, and answers the prior blocking finding f69b8895181 with commit 90fedfd5.\nVERDICT diff: read the one commit gained since the prior review (90fedfd5) against its base 78d08350 -- +96/-3 across imas_ambix/agent/cli.py (two click options and the retention= argument on the run call) and tests/test_telemetry_ingest.py (the new end-to-end test) -- every hunk inside the declared scope.\nCALL_SITES: imas_ambix/agent/cli.py:2973, imas_ambix/cli.py:48, imas_ambix/agent/telemetry_ingest.py:426\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/cli.py:2979 constructs ScheduledRetention and passes it to run at cli.py:2973, so the loop the fleet service launches now retires raw receipts, answering the prior blocking finding at the command the service actually runs.\nSCORE evidence: 16\nJUSTIFICATION evidence: the gate at /home/ITER/mcintos/.config/reckon/crew/runs/r-20261015T101418913456-srw-scheduled-retention is recorded as \"110 passed in 40.30s\" at EXIT=0 (gate.log) and the negative control reddens the new test at 90fedfd5, but the manifest's baseline_suite and after_suite keys are empty so no differenced base arm exists.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: the delta changes only imas_ambix/agent/cli.py and tests/test_telemetry_ingest.py, both named in the repair round's write scope in resume-1-advice.txt.\nSCORE durability: 17\nJUSTIFICATION durability: tests/test_telemetry_ingest.py:589 asserts the raw file is gone after the real click command ran, and the recorded negative control (reverting the wiring) reddens exactly that assertion.\nSCORE fit: 17\nJUSTIFICATION fit: the added click options at imas_ambix/agent/cli.py:2894 follow the surrounding option idiom, though the module-level helper retention_tier_files at tests/test_telemetry_ingest.py:597 breaks the file's underscore-prefixed helper convention (_retirable_job, _write, _row).\nSCORE reuse: 17\nJUSTIFICATION reuse: the delta reuses ScheduledRetention owned at imas_ambix/agent/telemetry_ingest.py:148 and adds no capability, but constructs it a second time beside the existing construction at imas_ambix/agent/telemetry_ingest.py:489.\nFINDING imas_ambix/agent/telemetry_ingest.py:427 follow-on: run() invokes the retention callable in the else branch outside the try that catches sqlite3.OperationalError, and retention_pass catches only RuntimeError (telemetry_ingest.py:134), so an OSError from write_manifest/os.replace or a lock error from index.vacuum propagates and stops the one writer of the index; previously inert, this path is now reached in production by the delta's wiring at cli.py:2979.\nFINDING imas_ambix/agent/cli.py:2979 follow-on: the delta constructs ScheduledRetention here while telemetry_ingest.main constructs ScheduledRetention at telemetry_ingest.py:489, so the cadence is now built at two sites and a later change to its defaults has two places to find.",
+  "review_run_id": "r-20261015T111055038909-review-of-srw-scheduled-retention-90fedfd59f6d",
+  "reviewed_base_sha": "78d08350c4bcafbe354a4f7b594c2bda2da09166",
+  "reviewed_head_sha": "90fedfd59f6dc6c95c612f6cf947379ca9fd34dd",
+  "reviewed_revision": "90fedfd5",
+  "reviewed_run_id": "r-20261015T101418913456-srw-scheduled-retention",
+  "scores": {
+    "durability": 17,
+    "evidence": 16,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "reuse": 17,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-15T11:26:01.234118+00:00",
+  "total": 105
+}

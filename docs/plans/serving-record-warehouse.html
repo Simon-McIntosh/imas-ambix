@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;done&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;done&quot;,&quot;s22&quot;:&quot;implementable&quot;,&quot;s23&quot;:&quot;implementable&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="265">
+<meta name="plan-version" content="266">
 <meta name="plan-modified" content="2026-10-15">
 </head>
 <body>
@@ -1667,6 +1667,9 @@
 </div>
 <div class="r-comment" data-section="s22" data-id="c-run-r-20261015T104949038780-review-of-srw-scheduled-retention-78d08350c4bc" data-who="reckon-build" data-when="2026-10-15T11:00:52.009Z">
     <div class="r-comment-body"><p>Independent review of run r-20261015T101418913456-srw-scheduled-retention (base 43aa0c8c, head 78d08350) stored at both review-store paths with six dimension scores summing to 86, three findings and three production call sites; one blocking finding: the scheduled retirement is wired only into telemetry_ingest.main, while the fleet-launched "imas-ambix agent ingest" reaches it at cli.py:2945 without a retention argument, so the node's goal is inert in production.</p></div>
+</div>
+<div class="r-comment" data-section="s22" data-id="c-run-r-20261015T111055038909-review-of-srw-scheduled-retention-90fedfd59f6d" data-who="reckon-build" data-when="2026-10-15T11:26:52.350Z">
+    <div class="r-comment-body"><p>Reviewed the one commit the run gained since its prior review (90fedfd5, +96/-3 across imas_ambix/agent/cli.py and tests/test_telemetry_ingest.py): the prior blocking finding f69b8895181 is answered, since cli.py:2979 now constructs ScheduledRetention and hands it to telemetry_ingest.run at cli.py:2973, and the recorded negative control (reverting that wiring) reddens the new end-to-end test; stored a parsed 6-dimension record (total 105) at reviewed_base_sha 78d08350 and reviewed_head_sha 90fedfd5 with added_failure_count 0.</p></div>
 </div>
 <div class="r-comment" data-section="s17" data-id="c-run-r-20261015T074619366002-srw-price-history" data-who="reckon-build" data-when="2026-10-15T08:19:41.331Z">
     <div class="r-comment-body"><p>provider_prices now keeps a change-only append-only price history at openrouter-price-history.jsonl beside the table, seeded on first refresh with the six recovered deepseek/deepseek-v4.1-flash observations in time order ahead of the fetched rows, grown by one row per model whose three rates moved, with refresh gaining a slugs keyword that fetches each named slug's endpoints listing and records it only on change, plus rate_in_force and provider_median_in_force readers and REFRESH_AGE cut from 24 h to 3600 s; measure: tests/test_provider_prices.py 33 passed with the serving-interpreter grammar guard in tests/test_agent_serve_registry.py also passing, EXIT=0</p></div>
