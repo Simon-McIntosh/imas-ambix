@@ -1,0 +1,95 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-18T11:30:48.603Z",
+  "dispatched_at": "2026-10-18T11:17:49Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/local-lane-admission-control.html:160 (s6)",
+      "id": "reasoning-1",
+      "reason": "s6's root-cause sentence and width-writer design must be marked superseded by s14's controller, or an implementer builds the very memory rule that ran the width to the cap.",
+      "text": "\u00a76 opens \"What binds is KV occupancy, not a width knee\" and prescribes a width writer that sets width \"from pool tokens \u00d7 an occupancy target \u00f7 a slowly moving context estimate\"; \u00a76's own landed note (s6) records that this occupancy rule \"does not find a boundary; it runs out of populated bins\" and returns the engine cap, and \u00a714 (s14) measures the knee at about 12 running with KV \u22480.2\u20130.3 and states \"the collapse tracks the running count, not the working set \u2026 the gate width is the lever\", replacing the memory rule with a throughput controller. A node dispatched on s6 would build the occupancy\u00f7context rule that s14 identifies as the defect.",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/local-lane-admission-control.html:824 (s21)",
+      "id": "reasoning-2",
+      "reason": "a coordinator reading the node table dispatches a node to redo work already committed, and the section's landed state is misreported.",
+      "text": "s21 declares itself \"implementable\" and its node table lists the \"One occupancy target\" node as outstanding, but that node is already in the tree: lane.py:43 reads `DEFAULT_OCCUPANCY_TARGET = 0.90` with the exact corrected comment s21 asks for, router.py:162 reads `DEFAULT_AUTO_OCCUPANCY_TARGET = LaneCapacity.OCCUPANCY_TARGET`, and the change landed as commit ca4ee22b (\"fix(agent-lane): read one occupancy target in the estimator and the router\", 2026-09-29).",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/local-lane-admission-control.html:893 (s22)",
+      "id": "done_when-1",
+      "reason": "without a declared negative control the node's gate can pass on a rule that never fires, and adding one changes what the node must produce.",
+      "text": "the router node's done-when lists fixture tests (fair-share formula, unattributed session, 200 s horizon, congested clamp) but names no negative control, unlike its sibling sections; the fair-share rule is exactly the kind of arithmetic a mutation must be shown to break.",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/local-lane-admission-control.html:920 (s25)",
+      "id": "single_goal-1",
+      "reason": "splitting it into two nodes lets each change pass or fail on its own gate rather than bundling a stop-mechanism verdict with a drain-refresh verdict.",
+      "text": "the section carries two independently testable changes to cli.py/slurm.py (a signal-then-wait serve stop with a fallback flag, and a refusal to cancel when every replacement-hosting node is DRAIN/DRAINING) under one done-when, so the node cannot be closed on a single verdict.",
+      "type": "single_goal",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/local-lane-admission-control.html:726 (s3)",
+      "id": "anchors_resolve-1",
+      "reason": "the anchor is a historical record of a since-corrected comment and no implementing node depends on it.",
+      "text": "s3 and s14 both cite \"lane.py:126\" as the location of the \"knee near 22\" comment, but lane.py:126 is now the `mean_context` property docstring; the knee comment was moved and rewritten (lane.py:41\u201343 now states the gate's width holds the knee), so a reader following the anchor finds the opposite statement.",
+      "type": "anchors_resolve",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "5c8ea18f116094b54ede7f91d3c9088e6229163a694aa7c18bc3fb119d0d7a00",
+  "plan_slug": "local-lane-admission-control",
+  "plan_version": 184,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261018T111731722176-plan-review-of-local-lane-admission-control",
+  "reviewed_blob_sha": "2f4299bb52f2abc97d729723325b2b8afa96c4cb",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 \u00a73 and \u00a714 cite lane.py:126 for the \"knee near 22\" comment, which no longer exists at that line.",
+    "done_when": "a finding \u2014 \u00a722 (\"Worker slots are shared fairly when more than one session is working\") names behavioural tests but declares no negative control, while every sibling implementable section (\u00a713, \u00a714, \u00a717, \u00a718, \u00a719, \u00a720, \u00a721, \u00a725) names one.",
+    "evidence_paths": "pass \u2014 gate logs, figures and the evidence record sit on durable repository paths (docs/figures/\u2026, docs/evidence/archive/local-lane-admission-control-landed.html), not in a session scratchpad.",
+    "naming": "pass \u2014 the symbols and files the sections prescribe are behavioural names (worker_slots, live_runs, requests_per_run, ops/lane-cycle/AGENTS.md); no plan label, stage name or ticket number is carried into a symbol, filename or comment.",
+    "reasoning": "a finding \u2014 \u00a76 states a root cause and prescribes a width-writer mechanism that \u00a714's own measurement and landed controller contradict.",
+    "single_goal": "a finding \u2014 \u00a725's title binds two independent deliverables with \"and\", and its single done-when must close both.",
+    "wiring": "pass \u2014 the plan's cross-plan links (s22\u2192reckon:the-local-lane-is-the-default, s23\u2192reckon:crew-observability-truth, s24\u2192serving-record-warehouse#s14) all resolve to plans that exist, and intra-plan dependencies (\u00a76 authored from \u00a73\u2013\u00a75; \u00a717's order-of-operations; \u00a722 consuming \u00a721's published worker_slots) are stated in prose, the plan's established convention."
+  },
+  "section_digests": {
+    "_document": "cc80a862a2f11738a44b34d90c0fa1794384d17dad7d11a63dad52494a6e99d5",
+    "s1": "1b1d1b4500b53c57897447c9a177dece179e88e753686121fc2b84b09e1c760c",
+    "s10": "e458403d24604404f8f0b0d532c7ab2ed558456be0e6eb0b0a8c9eb89cc84b7c",
+    "s11": "0e0c45e067609b58693c36afc6a9d2cbaf3fe5a14c434241dc15c77c058680e4",
+    "s12": "eb93b318f4f4d1cda5651527a949745199b1bf2b5ab0a0983d88259cd206fa36",
+    "s13": "f2fdec5caaa675f5cc049e44561c6c919f0686083509e568cfe1b7f76f348235",
+    "s14": "003d2055d94b7d42122b5ea822c0278e4d20d24fdaef92a0f28710625210a25e",
+    "s15": "4268180cd95ebb2d676fb7f65f75d8111042ab3937c9814dbd2d30214f10f8ea",
+    "s16": "a84afe91c80937fe01f5f5bacf7f4ec231c01ed155d54299f6fb0b0f009b8573",
+    "s17": "38d113a1441a6259b71f33dbfe2ef408a48e7972d188a9704df834066421da39",
+    "s18": "0a8c9f9402c222f13e020bf34faeb9c742726ccba504ab9541cefb04dbb3f2f7",
+    "s19": "ec9128e383534b85c1b86d3e36018d19f6cf34b5fca068a5d6ca21446eb65ce8",
+    "s2": "d9c810c33b810d6ff8b74cadde08242bd6060fbe49bf942a04eb1562e846a941",
+    "s20": "31ae010e68bd00cded83689b140d051c9319dae7e5aa5bc63279634bbed94ff0",
+    "s21": "c7c4d31f97836375364a72929628e0c326b7ae6a94d5fed37c9fa45c9a832909",
+    "s22": "152a8709b3717d309769a09b46355a4b29072424d968cedd493306ea7c0ad5cd",
+    "s23": "2ab2549ef0bf50eb6f108886db1d720a0860b4a9281902bbec968c1eeefd74d4",
+    "s24": "cab191e2f792e15924162d475c033e6c40469d9cf818a3ddf256ff8407419c0c",
+    "s25": "3c86242d607e8e5256c060a28ee74400c8d5420044263465e14f4f42d83e79c7",
+    "s3": "564dc8bf433bd514e5844908120075b7971e91522576425e376c55cc5364aa95",
+    "s4": "c39d3c5235419d0e7d55b9a2815cac98ee3df28cb9d93f392d232b3ed324f0ed",
+    "s5": "9470b9366625e7be8e7b66eac5505aecf8ecfbf7cbd24d62136af5e308784a00",
+    "s6": "0234e45f5118a54e635718d640af5ffe33e9bcc1cd6ad8990469320f2f9365df",
+    "s7": "2cd5b5f631eb986e90526fb5dcd8ab69ddb24d1715c8a384e465db5f7b607cab",
+    "s8": "76158fd44f36a4ab25033c54573c6f38645750c3d460b4994f3a3c1b6b012c9b",
+    "s9": "62fa9c6e7189e9a66ec92c0c3fe0506ed147f89b172415959b846ca83f8fe212"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-18T11:33:44.444076+00:00"
+}
