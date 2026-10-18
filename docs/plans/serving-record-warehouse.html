@@ -24,8 +24,8 @@
   <link rel="stylesheet" href="/_shared/dashboard.css">
 <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;done&quot;,&quot;s15&quot;:&quot;done&quot;,&quot;s16&quot;:&quot;done&quot;,&quot;s17&quot;:&quot;done&quot;,&quot;s18&quot;:&quot;done&quot;,&quot;s19&quot;:&quot;done&quot;,&quot;s20&quot;:&quot;done&quot;,&quot;s21&quot;:&quot;done&quot;,&quot;s22&quot;:&quot;done&quot;,&quot;s23&quot;:&quot;done&quot;,&quot;s24&quot;:&quot;done&quot;}">
 <meta name="plan-impl" content="0.45">
-<meta name="plan-version" content="283">
-<meta name="plan-modified" content="2026-10-15">
+<meta name="plan-version" content="284">
+<meta name="plan-modified" content="2026-10-18">
 </head>
 <body>
   <main class="plan-doc">
@@ -1595,6 +1595,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-20261005T1005-s5-plan-review" data-who="reckon-build" data-when="2026-10-05T10:05:00Z">
     <div class="r-comment-body">Design review r-20261005T095719391442, duplicate_owner against f-srw-020: the proposed hourly rollup (counter difference within the hour's runs, gauge time integral, coverage seconds) re-derives what the hour tier written by telemetry_store.py (around line 596) already stores per window. Before building a second aggregate, the f-srw-020 node must say why the hour tier cannot answer a long window, or extend the query's tier selection so a long window reads it.</div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-20261018-publish-watch-growth" data-who="imas-ambix-a4" data-when="2026-10-18T11:15:00Z">
+    <div class="r-comment-body"><p>The cost f-srw-020 removes is growing fast enough to matter for the fleet node. The <code>publish-watch</code> service log (<code>~/.local/state/fleet/services/ambix-watch-publisher.log</code>) gives these <code>compute_seconds</code> figures:</p><ul><li>203.5 s mean over the first three cycles after the 15 October restart on <code>40f5b90e</code>;</li><li>between 528.79 and 611.51 s per cycle on 18 October, from 08:11Z to 10:49Z.</li></ul><p>Cycles now start about every 14.5 minutes (300 s cadence plus compute), so the service holds one core for roughly two thirds of the time. On 18 October at 12:56 CEST, <code>top</code> showed pid 1543878 at 98.7% CPU. The process has run on the fixed code since 13:47:33Z on 15 October, so this is the whole-table <code>time_weighted_mean</code> scan growing with the index, not stale code. At this rate a cycle will outlast its own cadence within days.</p></div>
 </div>
 <div class="r-comment" data-section="s14" data-id="c-20261005T0810-s14-landed" data-who="reckon-build" data-when="2026-10-05T08:10:00Z">
     <div class="r-comment-body">gate tests passed (40, exit 0); section s14 closed by run r-20261005T074920909576 at merge b0dcb893. impl moves by one of twelve executable sections. Review follow-on: lane._is_finite_number accepts inf and nan, so availability_percent returns nan for a non-finite input; folded as a repair node.</div>
