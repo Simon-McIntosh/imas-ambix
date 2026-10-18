@@ -22,6 +22,10 @@ The live block differences the receipt counters over a trailing window. A
 window that does not hold two rows of one run cannot be differenced, and every
 rate is then ``None`` with a stated reason rather than a zero -- a zero would be
 a measurement claim the record cannot support.
+
+A third block, ``callers``, says whose requests fill the gate. It reads the
+tail of the router's per-request record beside the lane document, and is built
+in :mod:`imas_ambix.agent.lane_callers`.
 """
 
 from __future__ import annotations
@@ -33,6 +37,7 @@ from pathlib import Path
 from typing import Any
 
 from imas_ambix.agent.lane import availability_percent, classify_reading, lane_headroom
+from imas_ambix.agent.lane_callers import callers_block
 from imas_ambix.agent.serving_receipts import tier_paths
 
 #: The trailing window the ``live`` block describes. The recorder appends one
@@ -530,4 +535,7 @@ def live_panel(
     return {
         "lane": read_lane_block(lane_path, now=now),
         "live": live_block(receipts_dir, now=now),
+        # The router writes its request record beside the lane document, so the
+        # caller breakdown reads the same directory the lane block came from.
+        "callers": callers_block(Path(lane_path).parent, now=now),
     }

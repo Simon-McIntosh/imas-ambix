@@ -1376,19 +1376,20 @@ def live_document(
     *,
     now: _dt.datetime | None = None,
 ) -> dict:
-    """The ``lane`` and ``live`` blocks alone, without opening the index.
+    """The ``lane``, ``live`` and ``callers`` blocks alone, without opening the index.
 
-    This is the ``--live`` path: two published sources already carry every live
-    serving figure, and neither needs the telemetry index. It reads the
-    published lane document and the tail of one raw receipt file, so a consumer
-    can call it on a short cadence while index work elsewhere is unfinished.
+    This is the ``--live`` path: published sources already carry every live
+    serving figure, and none needs the telemetry index. It reads the published
+    lane document, the tail of one raw receipt file and the tail of the router's
+    request record, so a consumer can call it on a short cadence while index
+    work elsewhere is unfinished.
 
     Nothing here constructs a :class:`TelemetryIndex`, and nothing here reads or
     refreshes the price table -- a live panel shows what the serve is doing now,
     not what a token cost, and the price fetch lives only on the full document
-    path. The two blocks are the ones :func:`watch_document` appends, so a
-    consumer rendering the live panel and one rendering the whole document read
-    one implementation rather than two that could disagree.
+    path. The blocks are the ones :func:`watch_document` appends, so a consumer
+    rendering the live panel and one rendering the whole document read one
+    implementation rather than two that could disagree.
     """
     from imas_ambix.agent.live_panel import live_panel
 

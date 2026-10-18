@@ -89,6 +89,13 @@ MAX_IDENTITY_CHARS = 128
 MAX_LINE_BYTES = 8 << 20
 HEAD_BYTES = 4 << 20
 
+# A trailing-window read starts this far from a file's end and grows fourfold
+# until it reaches a row that ended before the window opened. A busy minute is a
+# few hundred kilobytes of rows, so the first read nearly always suffices; the
+# ceiling only stops a pathological file from being read whole on every poll.
+RECENT_TAIL_FIRST_BYTES = 1 << 20
+RECENT_TAIL_MAX_BYTES = 32 << 20
+
 # Rows kept per second once the offered request rate is at or below this. Above
 # it, the kept fraction is this rate over the offered one.
 DEFAULT_MAX_ROWS_PER_S = 20.0
@@ -559,6 +566,115 @@ def read_receipt_rows(location: str | Path) -> list[dict[str, Any]]:
     for file in files:
         rows.extend(_read_rows_from(file))
     return rows
+
+
+def receipt_interval(row: Mapping[str, Any]) -> tuple[float, float, float] | None:
+    """When one request arrived, was admitted and ended, as epoch seconds.
+
+    A relayed row's ``timestamp`` is the moment the relay began, after the gate
+    admitted it, so the request arrived ``gate_wait_s`` earlier and ended
+    ``duration_s`` later. ``None`` when the row carries no readable timestamp or
+    duration, because an interval guessed for it would be a figure the record
+    never stated.
+    """
+    stamp = row.get("timestamp")
+    duration = row.get("duration_s")
+    if not isinstance(stamp, str) or isinstance(duration, bool):
+        return None
+    if not isinstance(duration, (int, float)):
+        return None
+    try:
+        admitted = datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+    wait = row.get("gate_wait_s")
+    if isinstance(wait, bool) or not isinstance(wait, (int, float)):
+        wait = 0.0
+    return admitted - max(0.0, wait), admitted, admitted + max(0.0, duration)
+
+
+def _tail_rows_since(path: Path, since: float) -> tuple[list[dict[str, Any]], bool]:
+    """Rows of *path* that ended at or after *since*, read back from its end.
+
+    A row is appended when its request ends, so the file is in end order and a
+    read that reaches a row ending before *since* has covered the window. The
+    read starts at :data:`RECENT_TAIL_FIRST_BYTES` and grows until it does, or
+    until :data:`RECENT_TAIL_MAX_BYTES`; the flag says which. The line the read
+    lands inside is dropped, and so is a final line the writer has not finished;
+    any other line that does not parse is a writer defect and raises, as the
+    full reader does.
+    """
+    size = path.stat().st_size
+    span = RECENT_TAIL_FIRST_BYTES
+    while True:
+        start = max(0, size - span)
+        with path.open("rb") as handle:
+            handle.seek(start)
+            data = handle.read(size - start)
+        lines = data.split(b"\n")
+        if start > 0:
+            lines = lines[1:]
+        rows: list[dict[str, Any]] = []
+        last = len(lines) - 1
+        for number, line in enumerate(lines):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError as error:
+                if number == last:
+                    break
+                raise ValueError(
+                    f"invalid receipt JSON in the tail of {path}"
+                ) from error
+            if isinstance(row, dict):
+                rows.append(row)
+        ends = [
+            interval[2]
+            for interval in (receipt_interval(row) for row in rows)
+            if interval is not None
+        ]
+        covered = start == 0 or (bool(ends) and min(ends) < since)
+        if covered or span >= RECENT_TAIL_MAX_BYTES:
+            kept = []
+            for row in rows:
+                interval = receipt_interval(row)
+                if interval is not None and interval[2] >= since:
+                    kept.append(row)
+            return kept, covered
+        span *= 4
+
+
+def recent_receipt_rows(
+    location: str | Path, *, since: datetime
+) -> tuple[list[dict[str, Any]], bool]:
+    """Every row that ended at or after *since*, and whether the read covered it.
+
+    The trailing-window counterpart of :func:`read_receipt_rows`, for a reader
+    that polls: each file of the rolled set is read back from its end rather
+    than whole, a compressed file is skipped because it holds a closed day, and
+    a file not written since *since* is skipped unread. The flag is false when
+    a file was cut at :data:`RECENT_TAIL_MAX_BYTES` before reaching the window's
+    start, so a figure built from these rows can say it covers less than asked.
+    A location holding no record at all raises :class:`FileNotFoundError`,
+    because an empty answer there would read as a lane nobody used.
+    """
+    path = Path(location)
+    files = _rolled_files(path) if path.is_dir() else [path]
+    if not any(file.is_file() for file in files):
+        raise FileNotFoundError(f"no request record at {path}")
+    cutoff = since.timestamp()
+    rows: list[dict[str, Any]] = []
+    covered = True
+    for file in files:
+        if file.name.endswith(".gz") or not file.is_file():
+            continue
+        if file.stat().st_mtime < cutoff:
+            continue
+        found, reached = _tail_rows_since(file, cutoff)
+        rows.extend(found)
+        covered = covered and reached
+    return rows, covered
 
 
 def _compress(source: Path) -> Path:

@@ -92,13 +92,13 @@ _LANE_DOCUMENT = {
 }
 
 
-def test_live_json_emits_only_the_two_blocks(tmp_path: Path) -> None:
-    """``--json --live`` is the lane and live blocks and nothing else."""
+def test_live_json_emits_only_the_live_blocks(tmp_path: Path) -> None:
+    """``--json --live`` is the lane, live and callers blocks and nothing else."""
     _write_receipts(tmp_path, now=datetime.now(UTC))
     result = _invoke(["watch", "--json", "--live", "--record", str(tmp_path)])
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
-    assert set(payload) == {"lane", "live"}
+    assert set(payload) == {"lane", "live", "callers"}
 
 
 def test_live_path_opens_no_index_and_fetches_no_prices(
@@ -128,7 +128,7 @@ def test_live_path_opens_no_index_and_fetches_no_prices(
     result = _invoke(["watch", "--json", "--live", "--record", str(tmp_path)])
     assert result.exit_code == 0, result.output
     assert fetches == []
-    assert set(json.loads(result.output)) == {"lane", "live"}
+    assert set(json.loads(result.output)) == {"lane", "live", "callers"}
 
 
 def test_live_without_json_is_refused(tmp_path: Path) -> None:
@@ -141,7 +141,7 @@ def test_live_without_json_is_refused(tmp_path: Path) -> None:
 def test_full_json_document_carries_both_blocks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The index-derived document carries the lane and live blocks too."""
+    """The index-derived document carries the live blocks too."""
     monkeypatch.setattr(watch, "_owned_prices", lambda: (None, None))
     _write_receipts(tmp_path, now=datetime.now(UTC))
     result = _invoke(
@@ -157,7 +157,7 @@ def test_full_json_document_carries_both_blocks(
     assert result.exit_code == 0, result.output
     payload = json.loads(result.output)
     assert {"record", "ledger", "periods"} <= set(payload)
-    assert {"lane", "live"} <= set(payload)
+    assert {"lane", "live", "callers"} <= set(payload)
 
 
 def test_live_document_reads_a_supplied_lane_document(tmp_path: Path) -> None:
@@ -165,7 +165,7 @@ def test_live_document_reads_a_supplied_lane_document(tmp_path: Path) -> None:
     lane = tmp_path / "lane.json"
     lane.write_text(json.dumps(_LANE_DOCUMENT), encoding="utf-8")
     payload = watch.live_document(record_dir=tmp_path, now=BASE, lane_path=lane)
-    assert set(payload) == {"lane", "live"}
+    assert set(payload) == {"lane", "live", "callers"}
     assert payload["lane"]["headroom"] == 11
     assert payload["lane"]["engine_headroom"] == 8
     assert payload["lane"]["router_generation_gate"]["effective_width"] == 22

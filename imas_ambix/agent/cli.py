@@ -2690,8 +2690,9 @@ def receipts(
     "as_live",
     is_flag=True,
     help=(
-        "With --json, emit only the lane and live blocks, read from the "
-        "published lane document and one receipt tail without opening the index."
+        "With --json, emit only the lane, live and callers blocks, read from the "
+        "published lane document, one receipt tail and the router's request "
+        "record without opening the index."
     ),
 )
 def watch(
@@ -2717,7 +2718,7 @@ def watch(
         imas-ambix agent watch --record /path/to/receipts --json
 
     \b
-    Emit only the lane and live blocks, without opening the index:
+    Emit only the lane, live and callers blocks, without opening the index:
         imas-ambix agent watch --json --live
     """
     from imas_ambix.agent import watch as watch_mod
