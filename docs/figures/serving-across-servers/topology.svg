@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 800" width="1400" height="800" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="15" fill="#1d1d1f">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3a3a3c"/>
+    </marker>
+    <marker id="arrow-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8e8e93"/>
+    </marker>
+  </defs>
+
+  <!-- clients -->
+  <rect x="20" y="150" width="240" height="150" fill="none" stroke="#6e6e73" stroke-width="1"/>
+  <text x="36" y="178" font-size="16" font-weight="600">clients</text>
+  <text x="36" y="204">reckon workers</text>
+  <text x="36" y="226">interactive sessions</text>
+  <text x="36" y="248">scripts and probes</text>
+  <text x="36" y="280" font-size="14" fill="#3a3a3c">send session and run ids</text>
+  <line x1="260" y1="225" x2="328" y2="225" stroke="#3a3a3c" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- router -->
+  <rect x="330" y="30" width="440" height="400" fill="none" stroke="#6e6e73" stroke-width="1"/>
+  <text x="346" y="58" font-size="16" font-weight="600">router · 98dci4-gpu-0003:18802</text>
+  <text x="346" y="86">catalog: model id → pool of engines</text>
+  <text x="346" y="114" fill="#1f5f99">pool routing: a session stays on one engine,</text>
+  <text x="346" y="136" fill="#1f5f99">moving only when its gate is paused or full</text>
+
+  <rect x="350" y="160" width="400" height="60" fill="none" stroke="#1f5f99" stroke-width="1.5"/>
+  <text x="366" y="185" fill="#1f5f99" font-weight="600">gate · deepseek-v4.1-flash @ gpu-0003</text>
+  <text x="366" y="207" font-size="14" fill="#3a3a3c">own queue, own width, own controller</text>
+
+  <rect x="350" y="240" width="400" height="60" fill="none" stroke="#1f5f99" stroke-width="1.5"/>
+  <text x="366" y="265" fill="#1f5f99" font-weight="600">gate · engine 2 @ B300</text>
+  <text x="366" y="287" font-size="14" fill="#3a3a3c">width measured on that engine</text>
+
+  <rect x="350" y="320" width="400" height="60" fill="none" stroke="#1f5f99" stroke-width="1.5"/>
+  <text x="366" y="345" fill="#1f5f99" font-weight="600">gate · engine 3 @ B300</text>
+  <text x="366" y="367" font-size="14" fill="#3a3a3c">width measured on that engine</text>
+
+  <text x="346" y="412" font-size="14" fill="#3a3a3c">records every request: engine, session, run, wait</text>
+
+  <!-- H200 server -->
+  <rect x="850" y="30" width="530" height="170" fill="none" stroke="#6e6e73" stroke-width="1"/>
+  <text x="866" y="58" font-size="16" font-weight="600">98dci4-gpu-0003 · 8×H200 NVL</text>
+  <rect x="870" y="76" width="490" height="70" fill="none" stroke="#6e6e73" stroke-width="1"/>
+  <text x="886" y="104">engine · deepseek-v4.1-flash · 4×H200 · :18810</text>
+  <text x="886" y="128" font-size="14" fill="#3a3a3c">SGLang, KV pool 4.0M tokens</text>
+  <text x="866" y="180" font-size="14" fill="#3a3a3c">recorder: engine counters, cards, host every 5 s</text>
+
+  <!-- B300 server (planned) -->
+  <rect x="850" y="230" width="530" height="250" fill="none" stroke="#6e6e73" stroke-width="1" stroke-dasharray="6 4"/>
+  <text x="866" y="258" font-size="16" font-weight="600">B300 server · 8×B300 (planned)</text>
+  <rect x="870" y="276" width="490" height="60" fill="none" stroke="#6e6e73" stroke-width="1" stroke-dasharray="6 4"/>
+  <text x="886" y="311">engine 2 · model set by decision · 4×B300</text>
+  <rect x="870" y="352" width="490" height="60" fill="none" stroke="#6e6e73" stroke-width="1" stroke-dasharray="6 4"/>
+  <text x="886" y="387">engine 3 · model set by decision · 4×B300</text>
+  <text x="866" y="456" font-size="14" fill="#3a3a3c">recorder on that server</text>
+
+  <!-- gate to engine -->
+  <line x1="750" y1="190" x2="868" y2="111" stroke="#3a3a3c" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="750" y1="270" x2="868" y2="306" stroke="#3a3a3c" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <line x1="750" y1="350" x2="868" y2="382" stroke="#3a3a3c" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- published documents -->
+  <text x="20" y="528" font-size="14" fill="#3a3a3c">written</text>
+  <rect x="20" y="540" width="320" height="90" fill="none" stroke="#6e6e73" stroke-width="1"/>
+  <text x="36" y="566" font-weight="600">endpoints.json</text>
+  <text x="36" y="590" font-size="14">servers and engines,</text>
+  <text x="36" y="610" font-size="14">written when a serve registers</text>
+
+  <rect x="360" y="540" width="320" height="90" fill="none" stroke="#1f5f99" stroke-width="1.5"/>
+  <text x="376" y="566" font-weight="600" fill="#1f5f99">lanes/&lt;model&gt;.json</text>
+  <text x="376" y="590" font-size="14">one per pool of engines;</text>
+  <text x="376" y="610" font-size="14">lane.json is the default pool</text>
+
+  <rect x="700" y="540" width="320" height="90" fill="none" stroke="#6e6e73" stroke-width="1"/>
+  <text x="716" y="566" font-weight="600">requests.jsonl</text>
+  <text x="716" y="590" font-size="14">one row per request,</text>
+  <text x="716" y="610" font-size="14">naming its engine and session</text>
+
+  <rect x="1040" y="540" width="340" height="90" fill="none" stroke="#6e6e73" stroke-width="1"/>
+  <text x="1056" y="566" font-weight="600">receipts/</text>
+  <text x="1056" y="590" font-size="14">one file per serve,</text>
+  <text x="1056" y="610" font-size="14">a row every 5 s</text>
+
+  <line x1="520" y1="430" x2="520" y2="538" stroke="#8e8e93" stroke-width="1.2" stroke-dasharray="5 4" marker-end="url(#arrow-grey)"/>
+  <line x1="700" y1="430" x2="840" y2="538" stroke="#8e8e93" stroke-width="1.2" stroke-dasharray="5 4" marker-end="url(#arrow-grey)"/>
+  <line x1="1210" y1="480" x2="1210" y2="538" stroke="#8e8e93" stroke-width="1.2" stroke-dasharray="5 4" marker-end="url(#arrow-grey)"/>
+  <text x="1222" y="516" font-size="14" fill="#3a3a3c">from each server's recorder</text>
+
+  <!-- readers -->
+  <text x="20" y="678" font-size="14" fill="#3a3a3c">read by</text>
+  <rect x="20" y="690" width="420" height="90" fill="none" stroke="#6e6e73" stroke-width="1"/>
+  <text x="36" y="716" font-weight="600">reckon dispatch</text>
+  <text x="36" y="740" font-size="14">reads the lane document</text>
+  <text x="36" y="760" font-size="14">of the model it dispatches to</text>
+
+  <rect x="470" y="690" width="440" height="90" fill="none" stroke="#1f5f99" stroke-width="1.5"/>
+  <text x="486" y="716" font-weight="600" fill="#1f5f99">llm-watch · the service</text>
+  <text x="486" y="740" font-size="14">engines, gates, traffic, callers, cost;</text>
+  <text x="486" y="760" font-size="14">reads all four documents</text>
+
+  <rect x="940" y="690" width="440" height="90" fill="none" stroke="#6e6e73" stroke-width="1"/>
+  <text x="956" y="716" font-weight="600">gpu-watch · the machines</text>
+  <text x="956" y="740" font-size="14">cards, power, host, SLURM jobs;</text>
+  <text x="956" y="760" font-size="14">reads endpoints.json, samples each server</text>
+</svg>
