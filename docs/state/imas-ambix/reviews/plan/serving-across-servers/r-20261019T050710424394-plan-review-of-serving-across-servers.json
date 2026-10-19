@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-19T05:13:43.727Z",
+  "dispatched_at": "2026-10-19T05:07:28Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:261",
+      "id": "reasoning-1",
+      "reason": "a node implementing \u00a77 as written would place new sessions on the engine being retired during the overlap window, the exact regression the cited code's own docstring says the rotation rule exists to prevent.",
+      "text": "\u00a77's first placement rule (\"the engine with the most free gate slots relative to its width\") directs a new key to whichever engine is least loaded, so an idle draining width-4 engine (4/4 = 1.0) outranks a width-12 replacement carrying one request (11/12 = 0.92), while \u00a77 says \"an engine replacing a narrower one of the same model on the same server takes every new key, and the old engine drains\" \u2014 the stated mechanism does not produce its own rotation clause, and it inverts the behaviour the existing `_preferred_owner` was written to keep (\"Routing to the widest engine keeps that window free of a capacity regression\", `imas_ambix/agent/router.py:1641`)",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:190",
+      "id": "reasoning-2",
+      "reason": "without a single writer for a multi-engine pool document the summed counts have no owner, so a node would either race two writers or invent the composition step the plan leaves unstated.",
+      "text": "\u00a75 says \"the router runs one publishing loop per engine and writes one document per pool at `lanes/<model id>.json`\", but a pool with several engines (\u00a77's case) then has two per-engine loops writing one path, and the section names no composer that owns the aggregated counts it specifies (running, waiting, ceilings, weighted per-request figures)",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:213",
+      "id": "wiring-1",
+      "reason": "a node implementing \u00a75 would change a schema version owned by another plan with no declared dependency telling it the owner changed the same document, which is how two plans come to disagree about one on-disk shape.",
+      "text": "\u00a75 asserts it \"bumps that schema's version\" of \"the versioned lane schema that local-lane-admission-control owns\", and \u00a74 binds every gate to that plan's `queue-order` decision, yet the plan's only declared relationship is `plan-after: local-lane-admission-control#s14` (a gate-width section)",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:465",
+      "id": "done_when-1",
+      "reason": "a node dispatched for \u00a711 has no red log showing that its own check can fail, which is the measure the review rubric and the node contract require of every implementable section.",
+      "text": "\u00a711 declares four done-when bullets and no negative control, though it is an implementable section committed to a worker (\"Any worker node can build them\", \u00a711 step 1)",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:467",
+      "id": "done_when-2",
+      "reason": "the rollout check as written can never pass after \u00a75 lands, so the operator would either record a false pass or discover the contradiction at deploy time.",
+      "text": "\u00a711 step 2 records `lane.json` \"from before and after the cycle: the same keys\", but \u00a75 has already added a top-level `lanes` index to `lane.json` and bumped the schema version, so the post-cycle document cannot have the same keys",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "c0e85d0c2ef017b302ce6199beb7ffe4955d501773a65ca79b1c30c67d3fa4d4",
+  "plan_slug": "serving-across-servers",
+  "plan_version": 0,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261019T050710424394-plan-review-of-serving-across-servers",
+  "reviewed_blob_sha": "c3ac080c846cbcfdda70b6621d5a434840a72c22",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `topology.svg`, both research files (`serving-capacity-and-b300-projection`, `h200-b300-performance-comparison`), `local-lane-admission-control` (\u00a7s14 and the `queue-order` decision), `serving-record-warehouse`, `ops/lane-cycle/AGENTS.md` and `imas_ambix/agent/AGENTS.md` all resolve, and every cited symbol (`_publish_lane`, `_GenerationGate`, `_record_self_answer`, `_preferred_owner`, `newest_raw_receipt`, `SiteConfig`, `serve_grid`/`callers_table`/`serve_ledger_table`, `RECENT_TAIL_MAX_BYTES`, `reckon.crew.lane_document.read_lane_document`, `lane_callers.py`) exists at the base revision.",
+    "done_when": "a finding \u2014 \u00a711 (\"Rollout, and who does each step\") is an implementable section whose four done-when bullets name no negative control, and its step-2 measure (\"the same keys\") is falsified by \u00a75's own added `lanes` key.",
+    "evidence_paths": "pass \u2014 every gate in \u00a73\u2013\u00a710 is a repo test run, whose log the run contract places on a durable path; \u00a711's operator recordings name no path of their own, which the dispatch manifest supplies.",
+    "naming": "pass \u2014 no plan labels, stage names, ticket numbers or version tags reach a symbol or comment; `b300-role`, `watch-home` and `serving-figures-home` are decision keys, not code names.",
+    "reasoning": "a finding \u2014 \u00a77's placement rule sends a new key to the engine with the most free slots relative to its width, which contradicts the section's own \"the rotation case keeps today's behaviour\" and would regress the replacement window the router's `_preferred_owner` protects; \u00a75's \"one publishing loop per engine writes one document per pool\" names no single composer for a multi-engine pool document.",
+    "single_goal": "pass \u2014 each implementable section (\u00a73\u2013\u00a711) names one deliverable; \u00a711 is the rollout of the others, not a second goal.",
+    "wiring": "a finding \u2014 `plan-after` names only `local-lane-admission-control#s14`, yet \u00a75 states it bumps a lane schema that plan owns and \u00a74 relies on that plan's `queue-order` decision, neither declared."
+  },
+  "section_digests": {
+    "_document": "c3d23354a9f75fdaeb52191c08cd396a707bc09247d04091ab8afa3ccd388a58",
+    "s1": "84abea84a25c5ecad35220751db61c7b49c61973eda4e741e78348e16b694de2",
+    "s10": "d043170b5510af4ee43ad4860c12ab92209f3799c7b35d2bf1fa9b138fbfd358",
+    "s11": "6e15b5ab3d365b6392773e56c5171427e7fd09c93288992ac9c421c28521f6da",
+    "s12": "635129369af591c5ed9cc97e1eca5d88c9bc4726355cb4d15f89c4d4d8bb714b",
+    "s2": "07c84f3703bedbf51b14249471fa10a4580efea08771ba394dd7383ec52328c7",
+    "s3": "93fa836eddd2d6eeb1cb465cd49ee73bc3c78d8e0cfa0ed3f0d1e70ba68c7c7d",
+    "s4": "25c85b76408c586ae9e4663dcb4a97067a667e936157c1eef57de05ecb442ee2",
+    "s5": "fcd06830a901ffa09d7e2837277dbdef1b1ffd3b4cbf65385eeac2428f900e36",
+    "s6": "ceae93e6905a33dc8facd996f608b63d18e72e315ad6e507bce9b5e840ca2dcc",
+    "s7": "d80f83347ced86423e878bada98ae92de2f8ed51f4d140d30797e9b32c909b83",
+    "s8": "e9c4bc895d5a61579d6bdcda7e5341ee8cca71addc581ceba7151985e208d234",
+    "s9": "4bf8b24aaafc6442411234e30c8246ce45405d2bb3faa7e2797c31aa4f52060f"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-19T05:17:55.795852+00:00"
+}
