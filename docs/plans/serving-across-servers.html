@@ -19,7 +19,7 @@
   <meta name="plan-sprint" content="S27">
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment,telemetry">
-  <meta name="plan-after" content="local-lane-admission-control#s14">
+  <meta name="plan-after" content="local-lane-admission-control#s14,local-lane-admission-control">
   <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -170,7 +170,8 @@
     <p>Queue order within each gate is not decided here. It belongs to the
     <code>queue-order</code> decision in
     <a href="/imas-ambix/plans/local-lane-admission-control">local-lane-admission-control</a>, and
-    every gate applies whichever order that decision locks.</p>
+    every gate applies whichever order that decision locks. Until it locks, each gate keeps
+    today's first-come, first-served order, so this section does not wait on it.</p>
     <p><strong>Done when.</strong></p>
     <ul>
       <li>A router test with two fake upstreams of widths 2 and 4 sends six concurrent requests
@@ -187,9 +188,12 @@
 
     <h2 id="s5">&sect;5 &mdash; One lane document per pool, and lane.json stays the default pool</h2>
 <section data-reckon="section" data-id="s5" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
-    <p>The router runs one publishing loop per engine and writes one document per pool at
-    <code>lanes/&lt;model id&gt;.json</code>, beside <code>lane.json</code>. A pool document
-    has today's <code>lane.json</code> shape:</p>
+    <p>Each engine has its own reading loop, which fetches that engine's metrics into that
+    engine's own window. One composer runs once per publishing tick, after the readings. It
+    writes every pool document at <code>lanes/&lt;model id&gt;.json</code>, beside
+    <code>lane.json</code>, and <code>lane.json</code> itself, from the latest reading of each
+    engine. So every document has exactly one writer, even when a pool spans engines. A pool
+    document has today's <code>lane.json</code> shape:</p>
     <ul>
       <li><strong>One engine:</strong> every field is that engine's own, with an unchanged
       meaning.</li>
@@ -209,8 +213,11 @@
     <code>SiteConfig.preferred_release_id</code> names, else the only pool) plus a
     <code>lanes</code> index mapping each model to its document and engines. A reckon backend
     for a second model sets <code>lane_document</code> to that model's file, so model-level
-    routing needs no reckon code change. The shape extends the versioned lane schema that
-    local-lane-admission-control owns, and it bumps that schema's version.</p>
+    routing needs no reckon code change. The <code>lanes</code> index is an added key, so a
+    reader of today's shape is unaffected. The lane document's versioned schema belongs to
+    local-lane-admission-control, which this plan is sequenced after. If that schema has
+    landed when this section runs, this section bumps its version. If it has not, the schema
+    takes the <code>lanes</code> key in when it lands.</p>
     <p><strong>Done when.</strong></p>
     <ul>
       <li>From one engine's fixture readings, a golden test shows <code>lane.json</code>
@@ -258,16 +265,20 @@
     (<code>x-reckon-session</code>), else its run (<code>x-reckon-run-id</code>), else its
     caller host. Routing then follows these rules:</p>
     <ul>
-      <li>A key's first request goes to the engine with the most free gate slots relative to
-      its width. Ties go to the wider engine.</li>
+      <li>When two engines of the model run on the same server, the one
+      <code>_preferred_owner</code> ranks first (wider, then newer) is current, and the other
+      is draining. A draining engine takes no new keys. The keys already pinned to it stay
+      until they expire or fail over. This is today's rotation rule, applied per server.</li>
+      <li>A key's first request goes to the current engine with the fewest pinned keys per
+      unit of gate width, skipping engines whose gate is paused. Ties go to the wider
+      engine. Placement therefore spreads sessions in proportion to width, whatever load
+      each engine happens to carry at the moment of placement.</li>
       <li>Later requests with the same key stay on that engine.</li>
       <li>A key moves only when its engine's gate is paused, the engine is gone, or its queue
       wait passes a bound (30 s by default, set in the control file).</li>
       <li>A pin expires after 180 s idle, the router's existing working horizon.</li>
     </ul>
-    <p>The rotation case keeps today's behaviour. An engine replacing a narrower one of the
-    same model on the same server takes every new key, and the old engine drains. Each
-    request row records why it went where it did: <code>pinned</code>,
+    <p>Each request row records why it went where it did: <code>pinned</code>,
     <code>placed</code> or <code>failed-over</code>.</p>
     <p>The reason is the prefix cache. The projection study measured 96.8% of prompt tokens
     served from cache. A turn sent to the other engine prefills about 120,000 tokens instead
@@ -279,6 +290,9 @@
       session of 1:3.</li>
       <li>Pausing the pinned engine sends that session's next request to the other engine,
       recorded as <code>failed-over</code>.</li>
+      <li>In a rotation overlap on one server, every new key goes to the new engine. The
+      fixture has the old engine at width 4 and idle, and the new one at width 12 carrying
+      one request. Keys already pinned to the old engine stay there.</li>
       <li>The existing rotation tests for <code>_preferred_owner</code> pass.</li>
       <li><strong>Negative control:</strong> with the wait bound at 0 s, a full engine's
       sessions fail over; with no bound set, none fail over while their engine serves.</li>
@@ -464,14 +478,21 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
     </ol>
     <p><strong>Done when.</strong></p>
     <ul>
-      <li>Step 2 records <code>lane.json</code> from before and after the cycle: the same keys,
-      and the H200 gate's same width and verdict.</li>
+      <li>Step 2 records <code>lane.json</code> from before and after the cycle. Every key
+      present before is present after. The keys added are exactly the <code>lanes</code>
+      index, plus the schema version if &sect;5 bumped it. The H200 gate's width and verdict
+      are unchanged.</li>
       <li>Step 2 records a reckon dispatch preflight after the cycle that leaves no lane field
       unknown.</li>
       <li>Step 3 records the router catalog listing every B300 engine, and each one's pool
       document measured within its shelf life.</li>
       <li>Step 4 records a search of the dotfiles, reckon and imas-ambix trees finding no
       reader of <code>--live</code> before the alias goes.</li>
+      <li><strong>Negative control:</strong> before the step 2 cycle, the key comparison and
+      the preflight are each run once against a copy of <code>lane.json</code> with the
+      <code>admission</code> block removed. The comparison must report that key missing, and
+      the preflight must report the admission fields unknown. Step 3's freshness check is run
+      against a pool document older than its shelf life and must report it stale.</li>
     </ul>
 
     <h2 id="s12">&sect;12 &mdash; What this plan leaves to others</h2>
