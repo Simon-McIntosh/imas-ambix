@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="hot-reload-the-serve">
-  <meta name="plan-title"     content="Hot-reload the LLM serve — one imas-ambix agent command swaps the engine without losing a request">
-  <meta name="plan-summary"   content="Add imas-ambix agent reload: swap the serving engine behind the router by overlap when cards allow, else by a paused cycle, and never lose a request">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="hot-reload-the-serve">
+  <meta name="plan-title" content="Hot-reload the LLM serve — one imas-ambix agent command swaps the engine without losing a request">
+  <meta name="plan-summary" content="Add imas-ambix agent reload: swap the serving engine behind the router by overlap when cards allow, else by a paused cycle, and never lose a request">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="11.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="general">
@@ -17,14 +17,16 @@
   <meta name="plan-capability-verification" content="strict">
   <meta name="plan-capability-risk" content="elevated">
   <meta name="plan-milestone" content="OPS">
-  <meta name="plan-sprint"    content="S27">
-  <meta name="plan-owner"     content="Simon McIntosh">
-  <meta name="plan-tags"      content="agent-serving,gpu-deployment">
-  <meta name="plan-after"     content="local-lane-admission-control">
+  <meta name="plan-sprint" content="S27">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <meta name="plan-after" content="local-lane-admission-control">
   <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;deferred&quot;}">
   <title>Hot-reload the LLM serve | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-version" content="1">
+<meta name="plan-modified" content="2026-10-20">
 </head>
 <body>
   <main class="plan-doc">
@@ -41,7 +43,7 @@
 
     <h2 id="s1">§1 — <code>agent reload</code> runs the paused cycle as one command</h2>
     <section data-reckon="section" data-id="s1" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links="hot-reload-the-serve#s2"></section>
-    <p>Add <code>imas-ambix agent reload &lt;slug&gt;</code>, with the settings options <code>restart</code> takes (<code>--gpus</code>, <code>--cpus</code>, <code>--port</code>, <code>--no-speculative</code>, <code>--dspark-block-size</code>, <code>--time</code>, <code>--auth</code>, <code>--api-key</code>) plus <code>--reason</code> and <code>--dry-run</code>. Its orchestration lives in a new module, <code>imas_ambix/agent/reload.py</code>. That module takes the scheduler, the gate file, the lane reading and the validation request through small interfaces, so its tests drive every branch without SLURM or a live lane. The <code>reload</code> command in <code>imas_ambix/agent/cli.py</code> is a thin wrapper that builds the real implementations and reuses <code>restart</code>'s profile resolution, port precedence and engine-environment check. It does not copy them.</p>
+    <p>Add <code>imas-ambix agent reload &lt;slug&gt;</code>, with the options <code>restart</code> already takes (<code>--gpus</code>, <code>--cpus</code>, <code>--port</code>, <code>--no-speculative</code>, <code>--dspark-block-size</code>, <code>--time</code>, <code>--auth</code>, <code>--api-key</code>, <code>--dry-run</code>) plus <code>--reason</code>. Its orchestration lives in a new module, <code>imas_ambix/agent/reload.py</code>. That module takes the scheduler, the gate file, the lane reading and the validation request through small interfaces, so its tests drive every branch without SLURM or a live lane. The <code>reload</code> command in <code>imas_ambix/agent/cli.py</code> is a thin wrapper that builds the real implementations and reuses <code>restart</code>'s profile resolution, port precedence and engine-environment check. It does not copy them.</p>
     <p>The cycle, in order:</p>
     <ol>
       <li>Find the profile's running serve job by job name, exactly one, and save its batch script (<code>scontrol write batch_script &lt;id&gt;</code>) as the rollback. Zero or several matching jobs is a refusal that names them.</li>
@@ -53,7 +55,7 @@
       <li>Resume, in a <code>finally</code>, so every path that paused also resumes, whether the new settings validated, the rollback served, or an exception was raised.</li>
       <li>Print the cycle and append one JSON line to <code>lane-cycles.jsonl</code> beside <code>lane.json</code>: pause start, pause end, peak held, the replaced and new job ids, the settings that changed, and the outcome (<code>reloaded</code>, <code>rolled-back</code>, <code>aborted-before-cancel</code>).</li>
     </ol>
-    <p>Bound the whole pause inside the runbook's 40 minutes, which leaves margin on the clients' 56-minute ride-out (11 attempts of 305 s). If the elapsed pause would pass 40 minutes before validation completes, roll back rather than continue. Announcing the cycle to the live coordinators stays a human or coordinator step, before the command runs.</p>
+    <p>Bound the whole pause inside the runbook's 40 minutes, which leaves margin on the clients' 56-minute ride-out (11 attempts of 305 s), and bound it with two deadlines measured from the moment the pause took effect, because a rollback is a second launch inside the same pause. The new settings must validate by 22 minutes; past that the cycle rolls back without waiting out the readiness bound. That leaves 18 minutes for the rollback, which the 485 s readiness and the validation of the last DSpark launch fit inside. At 40 minutes the command resumes whatever state the engine is in, exits non-zero, and prints that the lane may have no serving engine, naming both job ids. It never holds the pause past the ceiling, because a held request that outlives the client's ride-out is lost, while a resumed one that finds no engine fails visibly. Announcing the cycle to the live coordinators stays a human or coordinator step, before the command runs.</p>
     <p><strong>Done when.</strong> <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_reload.py tests/test_agent_pause_cli.py tests/test_agent_dry_run.py -q</code> passes on the fleet node. <code>tests/test_agent_reload.py</code> drives the cycle through fakes and asserts:</p>
     <ul>
       <li>the success order: pause, a measured zero, cancel by id, submit, <code>RUNNING</code>, ready, validated, resume;</li>
@@ -61,6 +63,7 @@
       <li>a completion under 200 tokens counts as a validation failure and rolls back;</li>
       <li>a drain that never reaches a measured zero resumes and cancels nothing, and a <code>stale</code> or <code>unavailable</code> reading is never taken as a zero;</li>
       <li>an exception raised at each step after the pause still resumes;</li>
+      <li>with a fake clock, new settings still unvalidated at 22 minutes roll back, and a rollback still unvalidated at 40 minutes resumes with a non-zero exit, so no path holds the pause past 40 minutes;</li>
       <li><code>--dry-run</code> prints the steps and the job id it would replace, and calls no cancel, no submit and no gate write.</li>
     </ul>
     <p>The negative control is to delete the <code>finally</code> resume: the exception-path test then fails. The record is checked by a test that reads the appended line back. <code>ops/lane-cycle/AGENTS.md</code> replaces steps 2 to 6 with the command and keeps step 1, the announcement, and step 7, the record. The whole-tree lint gate <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0, and <code>tests/test_agent_serve_registry.py -k 'agent_package_modules_parse_with_serving_python'</code> passes, because the router imports <code>cli.py</code> under the serving interpreter.</p>
@@ -102,18 +105,16 @@
     <section data-reckon="section" data-id="s3" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-status="deferred" data-links="hot-reload-the-serve#s2"></section>
     <p>Restarting the router loses every request in its FIFO, because the queue lives in the router's memory. That is why the runbook restarts the router only inside a pause, after the engine reads a measured zero, and why §2's deployment carries that same risk once. A lossless router deploy needs a handover. One way: start the new router on the same port with <code>SO_REUSEPORT</code>, close the old router's listener so new connections reach only the new one, and let the old router finish its in-flight and held requests before it exits. Two processes then each apply the gate width, so the handover window admits up to twice the width; that has to be bounded or shared before this is built. This section is deferred. Router code deploys are rare, the runbook's paused restart loses only what arrives in the swap instant, and engine reloads, §1 and §2, never restart the router. It becomes implementable when a router change has to land on a lane that cannot be held quiet, or when <code>serving-across-servers</code> moves the router off the engine node.</p>
 
-    <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-    </section>
+    
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-hrs-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-20">
-        <h4 class="r-fu-title">Build §1, the paused-cycle reload, then §2, the overlap path</h4>
-        <div class="r-fu-body"><p>§1 is the path every reload takes while the H200 lacks the cards for a second copy of the serve. §2 writes the same module and command, so it follows §1 rather than running beside it. Its router change takes effect after one router restart, run as a coordinator inline exception.</p></div>
-        <pre class="r-fu-prompt">/reckon-build hot-reload-the-serve §1</pre>
-      </article>
-    </section>
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-hrs-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-20" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Build §1, the paused-cycle reload, then §2, the overlap path</h4>
+    <div class="r-fu-body"><p>§1 is the path every reload takes while the H200 lacks the cards for a second copy of the serve. §2 writes the same module and command, so it follows §1 rather than running beside it. Its router change takes effect after one router restart, run as a coordinator inline exception.</p></div>
+    <pre class="r-fu-prompt">/reckon-build hot-reload-the-serve §1</pre>
+    </article>
+</section>
   </main>
 </body>
 </html>
