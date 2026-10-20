@@ -5,21 +5,32 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
     from pathlib import Path
 
 
 @dataclass(frozen=True)
 class ReloadResult:
+    """Summary of one engine replacement cycle."""
+
     outcome: str
     old_job_id: str | None
     new_job_id: str | None
     pause_started: float | None
     pause_ended: float | None
     peak_held: int
+
+
+def _utc_stamp(clock: Callable[[], datetime]) -> str:
+    """Return a wall-clock timestamp suitable for a durable cycle record."""
+    value = clock()
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def run_reload(
@@ -29,8 +40,6 @@ def run_reload(
     rollback_script: str,
     old_job_id: str | None,
     dry_run: bool,
-    gate_path: Path,
-    lane_path: Path,
     read_jobs: Callable[[], list[dict[str, str]]],
     cancel: Callable[[str], None],
     submit: Callable[[str], str],
@@ -42,34 +51,44 @@ def run_reload(
     ready: Callable[[str], bool],
     validate: Callable[[str], bool],
     clock: Callable[[], float] = time.monotonic,
+    wall_clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     sleep: Callable[[float], None] = time.sleep,
     record_path: Path | None = None,
     reason: str = "agent restart",
+    settings_changed: Mapping[str, object] | None = None,
 ) -> ReloadResult:
-    """Run the paused cycle using small external interfaces for deterministic tests."""
-    del gate_path, lane_path
+    """Run the paused cycle through small, deterministic external interfaces."""
     jobs = [job for job in read_jobs() if job.get("name") == profile]
     if not dry_run and len(jobs) != 1:
         raise RuntimeError(f"expected exactly one running serve job; found {len(jobs)}")
-    original = read_gate()
-    was_paused = original.get("paused") is True
     if dry_run:
         return ReloadResult("dry-run", old_job_id, None, None, None, 0)
 
+    was_paused = read_gate().get("paused") is True
     started: float | None = None
-    ended: float | None = None
+    pause_start_record: str | None = None
+    pause_end_record: str | None = None
     peak = 0
     new_job: str | None = None
+    old_stopped = False
     outcome = "aborted-before-cancel"
     changed_pause = False
-    cycle_started = clock()
-    cycle_deadline = cycle_started + 40 * 60
+    cycle_observed_at = clock()
+    pause_deadline_origin = cycle_observed_at
+    drain_deadline = pause_deadline_origin + 10 * 60
+    replacement_deadline = pause_deadline_origin + 22 * 60
+    cycle_deadline = pause_deadline_origin + 40 * 60
     try:
         if not was_paused:
             pause(reason)
             changed_pause = True
-            started = cycle_started
-        drain_deadline = min(cycle_started + 600, cycle_deadline)
+            started = clock()
+            pause_deadline_origin = started
+            drain_deadline = started + 10 * 60
+            replacement_deadline = started + 22 * 60
+            cycle_deadline = started + 40 * 60
+            pause_start_record = _utc_stamp(wall_clock)
+
         while True:
             reading = read_lane()
             try:
@@ -84,69 +103,90 @@ def run_reload(
             if measured and reading.get("running") == 0:
                 break
             if clock() >= drain_deadline:
-                outcome = "aborted-before-cancel"
                 return ReloadResult(outcome, old_job_id, None, started, clock(), peak)
-            sleep(2)
+            sleep(min(2, max(0, drain_deadline - clock())))
 
         if old_job_id:
             cancel(old_job_id)
-            end = clock() + 60
+            cancel_deadline = min(clock() + 60, cycle_deadline)
             while any(job.get("jobid") == old_job_id for job in read_jobs()):
-                if clock() >= end:
+                if clock() >= cancel_deadline:
                     raise RuntimeError("timed out waiting for old serve to stop")
-                sleep(2)
+                sleep(min(2, max(0, cancel_deadline - clock())))
+            old_stopped = True
+
         new_job = submit(script)
-        submitted_at = clock()
         running_since: float | None = None
-        while clock() - submitted_at < 22 * 60:
+        validated = False
+        while clock() < replacement_deadline:
             if job_running(new_job):
                 if running_since is None:
                     running_since = clock()
                 if ready(new_job):
-                    break
+                    if validate(new_job):
+                        if clock() <= replacement_deadline:
+                            validated = True
+                            break
+                        raise RuntimeError(
+                            "replacement validation finished after 22 minutes"
+                        )
+                    raise RuntimeError("replacement completion validation failed")
                 if clock() - running_since >= 15 * 60:
                     raise RuntimeError(
                         "replacement did not become ready within 15 minutes of RUNNING"
                     )
-            sleep(2)
-        else:
-            raise RuntimeError("replacement was not validated within 22 minutes")
-        if not validate(new_job):
-            raise RuntimeError("replacement completion validation failed")
+            sleep(min(2, max(0, replacement_deadline - clock())))
+        if not validated:
+            raise RuntimeError("replacement was not ready and validated by 22 minutes")
+
         outcome = "reloaded"
         return ReloadResult(outcome, old_job_id, new_job, started, clock(), peak)
-    except Exception:
-        if old_job_id and new_job is not None:
+    except Exception as cycle_error:
+        if old_stopped:
+            outcome = "rollback-failed"
             try:
-                cancel(new_job)
+                if new_job is not None:
+                    cancel(new_job)
                 rollback = submit(rollback_script)
                 new_job = rollback
                 while clock() < cycle_deadline:
-                    if job_running(rollback) and ready(rollback) and validate(rollback):
+                    if (
+                        job_running(rollback)
+                        and ready(rollback)
+                        and validate(rollback)
+                        and clock() <= cycle_deadline
+                    ):
                         outcome = "rolled-back"
                         return ReloadResult(
                             outcome, old_job_id, rollback, started, clock(), peak
                         )
-                    sleep(2)
+                    sleep(min(2, max(0, cycle_deadline - clock())))
+            except Exception as rollback_error:
+                outcome = "rollback-failed"
                 raise RuntimeError(
-                    "rollback did not validate within the 40-minute pause bound"
-                )
-            except Exception:
-                raise
+                    f"replacement failed and rollback failed: {rollback_error}"
+                ) from cycle_error
+            outcome = "rollback-failed"
+            raise RuntimeError(
+                "rollback did not validate within the 40-minute pause bound"
+            ) from cycle_error
         raise
     finally:
-        if changed_pause:
-            ended = clock()
-            resume()
-        if record_path is not None and started is not None:
-            record = {
-                "pause_start": started,
-                "pause_end": ended,
-                "peak_held": peak,
-                "replaced_job_id": old_job_id,
-                "new_job_id": new_job,
-                "outcome": outcome,
-            }
-            record_path.parent.mkdir(parents=True, exist_ok=True)
-            with record_path.open("a", encoding="utf-8") as stream:
-                stream.write(json.dumps(record, sort_keys=True) + "\n")
+        try:
+            if changed_pause:
+                resume()
+        finally:
+            pause_end_record = _utc_stamp(wall_clock)
+            if record_path is not None:
+                record = {
+                    "pause_start": pause_start_record,
+                    "pause_end": pause_end_record,
+                    "peak_held": peak,
+                    "replaced_job_id": old_job_id,
+                    "new_job_id": new_job,
+                    "settings_changed": dict(settings_changed or {}),
+                    "outcome": outcome,
+                }
+                record_path.parent.mkdir(parents=True, exist_ok=True)
+                with record_path.open("a", encoding="utf-8") as stream:
+                    stream.write(json.dumps(record, sort_keys=True) + "\n")

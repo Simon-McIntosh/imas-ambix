@@ -159,7 +159,10 @@ def test_restart_dry_run_names_the_live_job_and_cancels_nothing(scene) -> None:
     cancelled the live engine instead, so the named job and the empty
     destructive log are checked together.
     """
-    result = CliRunner().invoke(main, ["agent", "restart", _PROFILE, "--dry-run"])
+    result = CliRunner().invoke(
+        main,
+        ["agent", "restart", _PROFILE, "--reason", "dry run check", "--dry-run"],
+    )
 
     assert result.exit_code == 0, result.output
     assert f"would replace job {_JOB_ID}" in result.output
@@ -171,7 +174,10 @@ def test_restart_dry_run_leaves_the_endpoint_document_byte_identical(scene) -> N
     """The published document is not republished by a dry run."""
     before = scene.endpoint.read_bytes()
 
-    result = CliRunner().invoke(main, ["agent", "restart", _PROFILE, "--dry-run"])
+    result = CliRunner().invoke(
+        main,
+        ["agent", "restart", _PROFILE, "--reason", "dry run check", "--dry-run"],
+    )
 
     assert result.exit_code == 0, result.output
     assert scene.endpoint.read_bytes() == before

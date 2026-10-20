@@ -2160,8 +2160,7 @@ def _deploy_launcher(name: str, path, content: str, mode: int = 0o755) -> None:
 @agent.command()
 @click.option(
     "--reason",
-    default="agent restart",
-    show_default=True,
+    required=True,
     help="Why the serving lane is being paused.",
 )
 @click.argument("slug", required=False, default=None)
@@ -2282,6 +2281,21 @@ def restart(
         else site.default_port
     )
     resolved_key = _resolve_serve_auth(auth, api_key, site)
+    settings_changed: dict[str, object] = {}
+    if gpus is not None:
+        settings_changed["gpus"] = gpus
+    if cpus is not None:
+        settings_changed["cpus"] = cpus
+    if port is not None:
+        settings_changed["port"] = resolved_port
+    if auth or api_key is not None:
+        settings_changed["auth"] = "enabled"
+    if no_speculative:
+        settings_changed["speculative"] = "disabled"
+    if dspark_block_size is not None:
+        settings_changed["dspark_block_size"] = dspark_block_size
+    if time_limit is not None:
+        settings_changed["time_limit"] = time_limit
     if not dry_run:
         _require_engine_environment(profile, site)
 
@@ -2308,7 +2322,14 @@ def restart(
         return
 
     _execute_restart_cycle(
-        profile, site, old_job, script, resolved_key, resolved_port, reason
+        profile,
+        site,
+        old_job,
+        script,
+        resolved_key,
+        resolved_port,
+        reason,
+        settings_changed,
     )
 
 
@@ -2320,6 +2341,7 @@ def _execute_restart_cycle(
     resolved_key: str | None,
     resolved_port: int,
     reason: str,
+    settings_changed: dict[str, object],
 ) -> None:
     """Bind scheduler, gate, lane and completion interfaces for one reload."""
     import json
@@ -2455,8 +2477,6 @@ def _execute_restart_cycle(
                 rollback_script=rollback_script,
                 old_job_id=old_job["jobid"],
                 dry_run=False,
-                gate_path=gate_path,
-                lane_path=lane_path,
                 read_jobs=read_jobs,
                 cancel=do_cancel,
                 submit=do_submit,
@@ -2471,6 +2491,7 @@ def _execute_restart_cycle(
                 sleep=time.sleep,
                 record_path=lane_path.with_name("lane-cycles.jsonl"),
                 reason=reason,
+                settings_changed=settings_changed,
             )
         except Exception as error:
             raise click.ClickException(str(error)) from error

@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
-from pathlib import Path
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -14,6 +13,7 @@ from imas_ambix.agent.reload import run_reload
 class World:
     def __init__(self, *, gate=None, readings=None, ready=True, valid=True):
         self.now = 0.0
+        self.drain_seconds = 0.0
         self.events = []
         self.gate = gate or {"paused": False}
         stamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -43,13 +43,16 @@ class World:
     def submit(self, script):
         self.submits += 1
         job = f"new-{self.submits}"
-        self.events.append(("submit", script, job))
+        self.events.append(("submit", script, job, self.now))
         self.active.add(job)
         return job
 
     def lane(self):
         self.events.append("lane")
-        return self.readings[0]
+        reading = dict(self.readings[0])
+        if self.now < self.drain_seconds:
+            reading["running"] = 1
+        return reading
 
     def pause(self, reason):
         self.events.append(("pause", reason))
@@ -62,6 +65,9 @@ class World:
     def sleep(self, seconds):
         self.now += seconds
 
+    def wall_clock(self):
+        return datetime(2026, 10, 20, tzinfo=UTC) + timedelta(seconds=self.now)
+
     def run(self, **kwargs):
         return run_reload(
             profile="sample",
@@ -69,8 +75,6 @@ class World:
             rollback_script="saved batch",
             old_job_id="old",
             dry_run=False,
-            gate_path=Path("gate"),
-            lane_path=Path("lane"),
             read_jobs=self.jobs,
             cancel=self.cancel,
             submit=self.submit,
@@ -97,6 +101,7 @@ class World:
                 and self.completion_tokens.get(job, 250) >= 200
             ),
             clock=lambda: self.now,
+            wall_clock=self.wall_clock,
             sleep=self.sleep,
             **kwargs,
         )
@@ -105,7 +110,7 @@ class World:
 def test_success_order_and_cycle_record(tmp_path):
     world = World()
     record = tmp_path / "lane-cycles.jsonl"
-    result = world.run(record_path=record)
+    result = world.run(record_path=record, settings_changed={"gpus": 4})
     assert result.outcome == "reloaded"
     assert world.events.index(("pause", "agent restart")) < world.events.index("lane")
     assert world.events.index(("cancel", "old")) < next(
@@ -114,7 +119,11 @@ def test_success_order_and_cycle_record(tmp_path):
         if isinstance(event, tuple) and event[0] == "submit"
     )
     assert world.events[-1] == "resume"
-    assert json.loads(record.read_text())["outcome"] == "reloaded"
+    saved = json.loads(record.read_text())
+    assert saved["outcome"] == "reloaded"
+    assert saved["settings_changed"] == {"gpus": 4}
+    assert saved["pause_start"] == "2026-10-20T00:00:00Z"
+    assert saved["pause_end"].endswith("Z")
 
 
 def test_readiness_miss_resubmits_saved_script_and_resumes():
@@ -136,6 +145,26 @@ def test_short_completion_rolls_back_and_resumes():
     assert result.outcome == "rolled-back"
     assert any(
         event[:2] == ("submit", "saved batch")
+        for event in world.events
+        if isinstance(event, tuple)
+    )
+    assert world.events[-1] == "resume"
+
+
+def test_submit_failure_after_old_job_stops_submits_saved_script():
+    world = World()
+    submit = world.submit
+
+    def fail_replacement(script):
+        if script == "new script":
+            raise RuntimeError("replacement submission failed")
+        return submit(script)
+
+    world.submit = fail_replacement
+    result = world.run()
+    assert result.outcome == "rolled-back"
+    assert any(
+        event[0:2] == ("submit", "saved batch")
         for event in world.events
         if isinstance(event, tuple)
     )
@@ -184,14 +213,18 @@ def test_exception_after_pause_resumes(failure):
     assert world.events[-1] == "resume"
 
 
-def test_operator_pause_is_preserved():
+def test_operator_pause_is_preserved(tmp_path):
     world = World(gate={"paused": True})
-    world.run()
+    record = tmp_path / "operator-pause-record.jsonl"
+    world.run(record_path=record)
+    saved = json.loads(record.read_text().splitlines()[-1])
     assert not any(
         isinstance(event, tuple) and event[0] == "pause" for event in world.events
     )
     assert "resume" not in world.events
     assert world.gate["paused"] is True
+    assert saved["pause_start"] is None
+    assert saved["pause_end"].endswith("Z")
 
 
 def test_dry_run_has_no_mutations():
@@ -202,8 +235,6 @@ def test_dry_run_has_no_mutations():
         rollback_script="old",
         old_job_id="old",
         dry_run=True,
-        gate_path=Path("gate"),
-        lane_path=Path("lane"),
         read_jobs=world.jobs,
         cancel=world.cancel,
         submit=world.submit,
@@ -233,6 +264,20 @@ def test_unvalidated_settings_roll_back_by_twenty_two_minutes():
     assert world.events[-1] == "resume"
 
 
+def test_nine_minute_drain_keeps_replacement_deadline_anchored_to_pause():
+    world = World(ready=lambda job: job != "new-1")
+    world.drain_seconds = 9 * 60
+    result = world.run()
+    rollback_submits = [
+        event
+        for event in world.events
+        if isinstance(event, tuple) and event[:2] == ("submit", "saved batch")
+    ]
+    assert result.outcome == "rolled-back"
+    assert rollback_submits
+    assert rollback_submits[0][3] <= 22 * 60
+
+
 def test_unvalidated_rollback_resumes_at_forty_minute_ceiling():
     world = World()
     world.running_result = False
@@ -240,3 +285,15 @@ def test_unvalidated_rollback_resumes_at_forty_minute_ceiling():
         world.run()
     assert 40 * 60 <= world.now <= 40 * 60 + 2
     assert world.events[-1] == "resume"
+
+
+def test_failed_rollback_is_recorded_with_non_zero_result(tmp_path):
+    world = World(ready=lambda job: False)
+    world.running_result = lambda _job: True
+    record = tmp_path / "lane-cycles.jsonl"
+    with pytest.raises(RuntimeError, match="40-minute pause bound"):
+        world.run(record_path=record)
+    saved = json.loads(record.read_text().splitlines()[-1])
+    assert saved["outcome"] == "rollback-failed"
+    assert saved["pause_start"] == "2026-10-20T00:00:00Z"
+    assert saved["pause_end"].endswith("Z")

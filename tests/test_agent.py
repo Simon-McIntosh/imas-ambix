@@ -476,6 +476,8 @@ def test_restart_forwards_serve_walltime_and_speculative_override(monkeypatch):
             "agent",
             "restart",
             "glm-5-2",
+            "--reason",
+            "testing the generated launch command",
             "--time",
             "1:23:45",
             "--no-speculative",
@@ -507,11 +509,20 @@ def test_restart_dry_run_cancels_nothing_when_a_serve_is_live(monkeypatch):
 
     monkeypatch.setattr(cli_mod.subprocess, "run", fake_run)
 
-    result = runner.invoke(main, ["agent", "restart", "glm-5-2", "--dry-run"])
+    result = runner.invoke(
+        main,
+        ["agent", "restart", "glm-5-2", "--reason", "test", "--dry-run"],
+    )
 
     assert result.exit_code == 0
     assert "would replace job 4242" in result.output
     assert not [cmd for cmd in calls if cmd[0] == "scancel"]
+
+
+def test_restart_requires_a_reason():
+    result = CliRunner().invoke(main, ["agent", "restart", "glm-5-2", "--dry-run"])
+    assert result.exit_code == 2
+    assert "Missing option '--reason'." in result.output
 
 
 def test_generate_vllm_2x_serve_script():
