@@ -1,0 +1,41 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-20T07:33:12.359Z",
+  "dispatched_at": "2026-10-20T07:17:37Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/hot-reload-the-serve.html:91",
+      "id": "reasoning-1",
+      "reason": "the node would build a confirm step that cannot fail, leaving the release\u2192confirm\u2192cancel ordering's only safety property unverified, and \u00a72's done-when lists no test that could catch it, so the plan must name a discriminating instrument (a completion fingerprint sent direct to the replacement's port) in the step and in its test list.",
+      "text": "\u00a72's overlap sequence confirms the swap with \"Confirm through the router's own `/v1/models` that the model now resolves to the new engine\"; that instrument cannot answer the question, because `_serve_catalog` (`imas_ambix/agent/router.py:2284`) groups upstream cards by model id and, for the duplicate, emits only the card `_preferred_owner` selected, whose launch metadata (`validate_catalog_metadata`, `imas_ambix/agent/vllm_catalog.py:34`) is exactly `accelerator_family`, `accelerator_count` and `checkpoint_precision` \u2014 identical for two copies of one profile, and naming neither the job id nor a start stamp \u2014 so the response is the same before and after the release and \u00a72's own deploy argument (\"a hold is honoured only by a router started from the new code\") is never actually observed; `imas_ambix/agent/AGENTS.md` \u00a73b, the passage \u00a72's overlap path reproduces, tells the two engines apart by a generation fingerprint for exactly this reason",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "b992f8530115cf93777afb2cf16482ce2e12350e3f3da6fc3fc05e87f903d529",
+  "plan_slug": "hot-reload-the-serve",
+  "plan_version": 5,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261020T071705193081-plan-review-of-hot-reload-the-serve",
+  "reviewed_blob_sha": "10be80102889a6cc2e24637bc3fba9e076cb6af2",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every anchor in \u00a72 resolves: `generate_serve_script` (`imas_ambix/agent/slurm.py:432`, its `registry write` step at :863 ahead of the readiness loop), `ServeRegistration` (`imas_ambix/agent/registry.py:33`) and its `write`/`remove`/`publish` subcommands (:511-527 \u2014 no `release` yet, which \u00a72 proposes adding), `_resolve_router_upstreams` (`imas_ambix/agent/cli.py:1507`) with both of its paths present (the registration loop and the scheduler-only loop), `LiveRoute.job_id` on the scheduler-only route so a held job is skippable by id (`cli.py:1446-1500`), `_preferred_owner`'s widest-then-later-start ranking (`imas_ambix/agent/router.py:1639`), `_running_jobs`' operator-scoped `squeue -u` (`cli.py:1219`), `shutdown`'s existing `--all` flag (`cli.py:1073`), `imas_ambix/agent/AGENTS.md` \u00a72's core-ledger recipe and \u00a73b's rotation passage, and `ops/lane-cycle/AGENTS.md`, the runbook the intro links.",
+    "done_when": "pass \u2014 \u00a72 declares its own negative control (\"Removing the skip on either path fails its test, which is the negative control\") and each of its six bullets names an observable outcome; the one measure \u00a72 cannot fail is raised under reasoning instead.",
+    "evidence_paths": "pass \u2014 the cycle's tests run in place on the fleet node, and the record lands in `lane-cycles.jsonl` beside the durable `lane.json`, not in a session scratchpad.",
+    "naming": "pass \u2014 \u00a72 introduces `imas_ambix/agent/reload.py`, `--mode auto|overlap|pause`, `held_registrations` and `registry release`, none of which carries a plan label, stage name, ticket number or version tag, and no comment or docstring in \u00a72 is changelog prose.",
+    "reasoning": "a finding \u2014 \u00a72's overlap confirm step reads the router's `/v1/models`, which cannot distinguish the replacement from the engine it replaces, so that step passes whether or not the release took effect.",
+    "single_goal": "pass \u2014 \u00a72 carries one deliverable, the overlap path of `agent restart`, with its two supporting edits (held registration, `shutdown` refuse-on-two) named as work items inside it rather than as separate goals.",
+    "wiring": "pass \u2014 \u00a72's `data-links` to `hot-reload-the-serve#s1` resolves, followup `f-hrs-001` carries the \u00a71-then-\u00a72 order its own text states, and s3 declares `data-status=\"deferred\"` consistently with \u00a73's \"This section is deferred\"."
+  },
+  "section_digests": {
+    "_document": "a3fcb7bb257fb11d699e94caf9bcf3b3d854984ca1960831dae0bf5e95082e3a",
+    "s1": "3eb946085ced8f71c6dbc090bb4d09a0067f77d791dd06adddf09966a7b35c23",
+    "s2": "cbe127582aae051ec3261c959658bea592db75664b19b1d807311b696486e706",
+    "s3": "d941e9d34d7089285c3f1dcc8a47aa91ff82659be3437feda559d35a52e3bdd8"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-20T07:35:08.962830+00:00"
+}
