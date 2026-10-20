@@ -6,8 +6,8 @@
   <meta name="docs-project"   content="imas-ambix">
   <meta name="reckon-type" content="plan">
   <meta name="plan-slug" content="hot-reload-the-serve">
-  <meta name="plan-title" content="Hot-reload the LLM serve — one imas-ambix agent command swaps the engine without losing a request">
-  <meta name="plan-summary" content="Add imas-ambix agent reload: swap the serving engine behind the router by overlap when cards allow, else by a paused cycle, and never lose a request">
+  <meta name="plan-title" content="Hot-reload the LLM serve — imas-ambix agent restart swaps the engine without losing a request">
+  <meta name="plan-summary" content="Make imas-ambix agent restart swap the engine behind the router by overlap when cards allow, else by a paused cycle, and never lose a request">
   <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="11.0">
@@ -25,13 +25,13 @@
   <title>Hot-reload the LLM serve | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="3">
 <meta name="plan-modified" content="2026-10-20">
 </head>
 <body>
   <main class="plan-doc">
-    <p>Changing the serving engine's settings today takes a seven-step manual procedure, <a href="https://github.com/Simon-McIntosh/imas-ambix/blob/main/ops/lane-cycle/AGENTS.md">the lane-cycle runbook</a>: announce, pause the router, wait for the engine to drain, relaunch, wait for readiness, validate with a real completion, resume. The one command that looks like it does this, <code>imas-ambix agent restart</code>, does not: it cancels the serve and submits a new one with no pause, so requests in flight fail and the lane is down until the new engine is ready, which took 485 s from <code>RUNNING</code> on the last DSpark launch. This plan adds <code>imas-ambix agent reload &lt;slug&gt;</code>, which accepts the same settings options as <code>restart</code> and swaps the engine without losing a request.</p>
-    <p><strong>The router already manages traffic, and an engine swap does not restart it.</strong> <code>RouterApp._reachable_catalogs</code> in <code>imas_ambix/agent/router.py</code> resolves upstreams on every request, with no cache. The resolver, <code>_resolve_router_upstreams</code> in <code>imas_ambix/agent/cli.py</code>, reads the serve registrations and the scheduler's live serve jobs, and keeps an engine only once its <code>/v1/models</code> probe reads ready. <code>_preferred_owner</code> then routes a model id to the widest engine, with the later start stamp breaking a tie. The router re-reads <code>router-gate.json</code> (width, pause, wait) at most once a second. So a newly ready engine receives the next request, and a cancelled one drops out of routing on the next request. What the router cannot do is the scheduler side: submit the replacement, decide when it is fit to take traffic, and cancel the job it replaces. That is the command this plan adds.</p>
+    <p>Changing the serving engine's settings today takes a seven-step manual procedure, <a href="https://github.com/Simon-McIntosh/imas-ambix/blob/main/ops/lane-cycle/AGENTS.md">the lane-cycle runbook</a>: announce, pause the router, wait for the engine to drain, relaunch, wait for readiness, validate with a real completion, resume. The one command that looks like it does this, <code>imas-ambix agent restart</code>, does not: it cancels the serve and submits a new one with no pause, so requests in flight fail and the lane is down until the new engine is ready, which took 485 s from <code>RUNNING</code> on the last DSpark launch. This plan makes <code>imas-ambix agent restart &lt;slug&gt;</code> that command: it keeps its options and swaps the engine without losing a request. No command is added. A cancel-then-submit that drops the requests in flight has no remaining use, and <code>shutdown</code> and <code>serve</code> stay for a deliberate stop and start.</p>
+    <p><strong>The router already manages traffic, and an engine swap does not restart it.</strong> <code>RouterApp._reachable_catalogs</code> in <code>imas_ambix/agent/router.py</code> resolves upstreams on every request, with no cache. The resolver, <code>_resolve_router_upstreams</code> in <code>imas_ambix/agent/cli.py</code>, reads the serve registrations and the scheduler's live serve jobs, and keeps an engine only once its <code>/v1/models</code> probe reads ready. <code>_preferred_owner</code> then routes a model id to the widest engine, with the later start stamp breaking a tie. The router re-reads <code>router-gate.json</code> (width, pause, wait) at most once a second. So a newly ready engine receives the next request, and a cancelled one drops out of routing on the next request. What the router cannot do is the scheduler side: submit the replacement, decide when it is fit to take traffic, and cancel the job it replaces. That is what <code>restart</code> gains.</p>
     <table>
       <thead><tr><th>path</th><th>when</th><th>what a client sees</th><th>section</th></tr></thead>
       <tbody>
@@ -41,28 +41,29 @@
     </table>
     <p>The overlap path is not available on the node as it stands: on 2026-10-20 the four-card DeepSeek V4.1 serve held 4 of the H200's 8 cards and two embedding jobs of another user held 2, leaving 2. The paused cycle is therefore the path every reload takes until cards free up, and §1 delivers it first.</p>
 
-    <h2 id="s1">§1 — <code>agent reload</code> runs the paused cycle as one command</h2>
+    <h2 id="s1">§1 — <code>agent restart</code> runs the paused cycle as one command</h2>
     <section data-reckon="section" data-id="s1" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links="hot-reload-the-serve#s2"></section>
-    <p>Add <code>imas-ambix agent reload &lt;slug&gt;</code>, with the options <code>restart</code> already takes (<code>--gpus</code>, <code>--cpus</code>, <code>--port</code>, <code>--no-speculative</code>, <code>--dspark-block-size</code>, <code>--time</code>, <code>--auth</code>, <code>--api-key</code>, <code>--dry-run</code>) plus <code>--reason</code>. Its orchestration lives in a new module, <code>imas_ambix/agent/reload.py</code>. That module takes the scheduler, the gate file, the lane reading and the validation request through small interfaces, so its tests drive every branch without SLURM or a live lane. The <code>reload</code> command in <code>imas_ambix/agent/cli.py</code> is a thin wrapper that builds the real implementations and reuses <code>restart</code>'s profile resolution, port precedence and engine-environment check. It does not copy them.</p>
+    <p><code>imas-ambix agent restart &lt;slug&gt;</code> keeps its options (<code>--gpus</code>, <code>--cpus</code>, <code>--port</code>, <code>--no-speculative</code>, <code>--dspark-block-size</code>, <code>--time</code>, <code>--auth</code>, <code>--api-key</code>, <code>--dry-run</code>) and gains <code>--reason</code>; §2 adds <code>--mode</code>. That is the whole interface change: no new command, two options. The cycle's orchestration lives in a new module, <code>imas_ambix/agent/reload.py</code>. That module takes the scheduler, the gate file, the lane reading and the validation request through small interfaces, so its tests drive every branch without SLURM or a live lane. <code>restart</code> in <code>imas_ambix/agent/cli.py</code> becomes a thin wrapper that builds the real implementations from its existing profile resolution, port precedence and engine-environment check.</p>
     <p>The cycle, in order:</p>
     <ol>
-      <li>Find the profile's running serve job by job name, exactly one, and save its batch script (<code>scontrol write batch_script &lt;id&gt;</code>) as the rollback. Zero or several matching jobs is a refusal that names them.</li>
+      <li>Find the profile's running serve job, exactly one, and save its batch script (<code>scontrol write batch_script &lt;id&gt;</code>) as the rollback. Zero or several matching jobs is a refusal that names them. The lookup goes through <code>_running_jobs</code> (<code>imas_ambix/agent/cli.py</code>, around line 1219), the repository's scheduler reader, filtered by profile through one helper. <code>shutdown</code> (around line 1117), <code>key --rotate</code> (around line 1994) and today's <code>restart</code> (around line 2317) each carry their own copy of that profile-name filter; all three switch to the helper, so the cycle adds no fourth copy.</li>
       <li>Pause through the same function <code>agent pause</code> calls, with the reason given on the command line, and record when the pause took effect.</li>
       <li>Wait for the engine to drain. Proceed only on a lane reading that <code>classify_reading</code> calls <code>measured</code> with <code>running</code> at 0. A <code>stale</code> or <code>unavailable</code> reading is never a zero. If no such reading arrives within 10 minutes, resume and stop with nothing cancelled. Poll <code>router_generation_gate.waiting</code> while paused and keep the peak.</li>
-      <li>Cancel the saved job by its id, never by name, wait for it to leave the queue, and submit the new serve script, generated as <code>restart</code> generates it.</li>
-      <li>Wait for <code>RUNNING</code>, then for readiness, bounded at 15 minutes from <code>RUNNING</code>, not from submit. Then validate with a real completion against the new engine: 400 <code>max_tokens</code>, requiring <code>usage.completion_tokens</code> of at least 200 and a <code>finish_reason</code> of <code>stop</code> or <code>length</code>. An HTTP 200 alone is not validation, because the DSpark fused-MoE workspace is allocated at the first generation.</li>
+      <li>Cancel the saved job by its id, never by name, wait for it to leave the queue, and submit the new serve script, generated by <code>generate_serve_script</code> as today.</li>
+      <li>Wait for <code>RUNNING</code>, read from the job state <code>_running_jobs</code> returns, then for readiness through <code>_probe_endpoint</code> (<code>imas_ambix/agent/cli.py</code>, around line 1307) reading <code>ready</code>, bounded at 15 minutes from <code>RUNNING</code>, not from submit. Then validate with a real completion against the new engine: 400 <code>max_tokens</code>, requiring <code>usage.completion_tokens</code> of at least 200 and a <code>finish_reason</code> of <code>stop</code> or <code>length</code>. An HTTP 200 alone is not validation, because the DSpark fused-MoE workspace is allocated at the first generation.</li>
       <li>If readiness or validation fails, cancel the new job by id, resubmit the saved batch script, and wait for that engine to answer the same validation.</li>
-      <li>Resume, in a <code>finally</code>, so every path that paused also resumes, whether the new settings validated, the rollback served, or an exception was raised.</li>
+      <li>Resume, in a <code>finally</code>, so every path that paused also resumes, whether the new settings validated, the rollback served, or an exception was raised. One exception: if the gate was already paused when the cycle began, that pause is an operator's, and the cycle leaves it in place and says so.</li>
       <li>Print the cycle and append one JSON line to <code>lane-cycles.jsonl</code> beside <code>lane.json</code>: pause start, pause end, peak held, the replaced and new job ids, the settings that changed, and the outcome (<code>reloaded</code>, <code>rolled-back</code>, <code>aborted-before-cancel</code>).</li>
     </ol>
     <p>Bound the whole pause inside the runbook's 40 minutes, which leaves margin on the clients' 56-minute ride-out (11 attempts of 305 s), and bound it with two deadlines measured from the moment the pause took effect, because a rollback is a second launch inside the same pause. The new settings must validate by 22 minutes; past that the cycle rolls back without waiting out the readiness bound. That leaves 18 minutes for the rollback, which the 485 s readiness and the validation of the last DSpark launch fit inside. At 40 minutes the command resumes whatever state the engine is in, exits non-zero, and prints that the lane may have no serving engine, naming both job ids. It never holds the pause past the ceiling, because a held request that outlives the client's ride-out is lost, while a resumed one that finds no engine fails visibly. Announcing the cycle to the live coordinators stays a human or coordinator step, before the command runs.</p>
-    <p><strong>Done when.</strong> <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_reload.py tests/test_agent_pause_cli.py tests/test_agent_dry_run.py -q</code> passes on the fleet node. <code>tests/test_agent_reload.py</code> drives the cycle through fakes and asserts:</p>
+    <p><strong>Done when.</strong> <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_reload.py tests/test_agent_pause_cli.py tests/test_agent_dry_run.py tests/test_agent.py -q</code> passes on the fleet node. <code>tests/test_agent_reload.py</code> drives the cycle through fakes and asserts:</p>
     <ul>
       <li>the success order: pause, a measured zero, cancel by id, submit, <code>RUNNING</code>, ready, validated, resume;</li>
       <li>a readiness miss resubmits the saved batch script, validates it and resumes;</li>
       <li>a completion under 200 tokens counts as a validation failure and rolls back;</li>
       <li>a drain that never reaches a measured zero resumes and cancels nothing, and a <code>stale</code> or <code>unavailable</code> reading is never taken as a zero;</li>
-      <li>an exception raised at each step after the pause still resumes;</li>
+      <li>an exception raised at each step after the pause still resumes, and a gate already paused before the cycle is still paused after it;</li>
+      <li><code>shutdown</code>, <code>key --rotate</code> and <code>restart</code> select the profile's jobs through the one helper over <code>_running_jobs</code>;</li>
       <li>with a fake clock, new settings still unvalidated at 22 minutes roll back, and a rollback still unvalidated at 40 minutes resumes with a non-zero exit, so no path holds the pause past 40 minutes;</li>
       <li><code>--dry-run</code> prints the steps and the job id it would replace, and calls no cancel, no submit and no gate write.</li>
     </ul>
@@ -79,11 +80,11 @@
     <p>The work:</p>
     <ol>
       <li>A held registration. The registry gains a hold marker per job, written and removed by <code>imas_ambix/agent/registry.py</code>. <code>_resolve_router_upstreams</code> skips a held job on both of its paths: the registration path, and the scheduler-only path that adds live serve jobs without a registration. The router publishes <code>"held_registrations": true</code> in its lane snapshot, so a caller can tell whether the running router honours holds.</li>
-      <li><code>agent reload --mode auto|overlap|pause</code>, with <code>auto</code> the default. <code>auto</code> takes the overlap path only when two things hold: the lane document advertises held registrations, and the live ledger has room for a second copy of the serve's cards, cores and memory. The ledger is <code>scontrol show node</code> <code>AllocTRES</code> for cards and memory, and the <code>gpu_0003_grpA</code> core ledger as <code>imas_ambix/agent/AGENTS.md</code> §2 describes. Otherwise <code>auto</code> takes §1's paused cycle. <code>overlap</code> refuses when either condition fails.</li>
+      <li><code>agent restart --mode auto|overlap|pause</code>, with <code>auto</code> the default. <code>auto</code> takes the overlap path only when two things hold: the lane document advertises held registrations, and the live ledger has room for a second copy of the serve's cards, cores and memory. The ledger takes each job's cards and node from <code>_running_jobs</code>, which already returns them, and takes memory and the <code>gpu_0003_grpA</code> core ledger from <code>scontrol</code> as <code>imas_ambix/agent/AGENTS.md</code> §2 describes. Otherwise <code>auto</code> takes §1's paused cycle. <code>overlap</code> refuses when either condition fails.</li>
       <li>The overlap sequence:
         <ul>
           <li>Submit the replacement on a free port with its registration held. If it pends for more than 120 s, cancel it by id and fall back to the paused cycle under <code>auto</code>, or refuse under <code>overlap</code>.</li>
-          <li>Wait for readiness, bounded at 15 minutes from <code>RUNNING</code>.</li>
+          <li>Wait for readiness through <code>_probe_endpoint</code>, bounded at 15 minutes from <code>RUNNING</code>.</li>
           <li>Validate it with §1's completion, sent directly to its port.</li>
           <li>Release the hold.</li>
           <li>Confirm through the router's own <code>/v1/models</code> that the model now resolves to the new engine.</li>
@@ -115,6 +116,18 @@
     <pre class="r-fu-prompt">/reckon-build hot-reload-the-serve §1</pre>
     </article>
 </section>
-  </main>
+  <section data-reckon="decisions" id="decisions" class="r-decisions">
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="reload-command" data-choice="restart-becomes-the-reload" data-by="reckon-build" data-when="2026-10-20T06:40:12+00:00" data-sections="s1,s2">
+    <p class="r-dec-q">Is the hot reload a mode of agent restart or a new command?</p>
+    <p class="r-dec-ctx">The design review counted the added CLI surface: a new reload command would carry restart&#x27;s full option set while restart kept its own.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="restart-becomes-the-reload">restart becomes the reload</button>
+      <button class="r-opt" data-value="new-reload-command">add agent reload beside restart</button>
+      </p>
+    <p class="r-dec-rat">A cancel-then-submit that drops the requests in flight has no remaining use, and shutdown plus serve stay for a deliberate stop and start, so restart takes the lossless behaviour and the interface grows by two options (--reason, --mode) rather than a command duplicating restart&#x27;s option set.</p>
+    </div>
+</section>
+</main>
 </body>
 </html>
