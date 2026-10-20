@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import asdict
+from types import SimpleNamespace
 
+import pytest
 from click.testing import CliRunner
 
 from imas_ambix.agent import cli as cli_mod
@@ -181,3 +184,27 @@ def test_router_command_runs_injected_resolver_on_requested_port(monkeypatch):
     assert captured["port"] == 19000
     assert isinstance(captured["resolver"], router_mod.DynamicUpstreamResolver)
     assert asyncio.run(captured["resolver"].resolve()) == []
+
+
+@pytest.mark.parametrize("path", ["registration", "scheduler"])
+def test_held_job_is_not_routed_on_either_path(tmp_path, monkeypatch, path):
+    from imas_ambix.agent import registry
+
+    site = SiteConfig(base_dir=str(tmp_path))
+    record = SimpleNamespace(**asdict(_record()), origin=_record().origin)
+    record.held = True
+    monkeypatch.setattr(
+        registry,
+        "read_registrations",
+        lambda *_args, **_kw: SimpleNamespace(current=[record]),
+    )
+    monkeypatch.setattr(cli_mod, "_running_jobs", lambda *_args, **_kw: [_job("42")])
+    monkeypatch.setattr(cli_mod, "_probe_endpoint", lambda *_: _ready())
+    monkeypatch.setattr(
+        cli_mod,
+        "_discover_live_routes",
+        lambda *_: ([_route()] if path == "scheduler" else [], []),
+    )
+    assert cli_mod._resolve_router_upstreams(site, None) == []
+    record.held = False
+    assert len(cli_mod._resolve_router_upstreams(site, None)) == 1

@@ -1,8 +1,9 @@
-"""Orchestrate a bounded, paused serving-engine replacement."""
+"""Orchestrate bounded serving-engine replacements behind the router."""
 
 from __future__ import annotations
 
 import json
+import threading
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -23,6 +24,7 @@ class ReloadResult:
     pause_started: float | None
     pause_ended: float | None
     peak_held: int
+    old_drain_timed_out: bool = False
 
 
 def _utc_stamp(clock: Callable[[], datetime]) -> str:
@@ -31,6 +33,123 @@ def _utc_stamp(clock: Callable[[], datetime]) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+class OverlapPendingError(RuntimeError):
+    """Replacement could not start promptly beside the serving allocation."""
+
+
+def _append_cycle_record(path: Path, record: Mapping[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+def run_overlap(
+    *,
+    script: str,
+    old_job_id: str,
+    submit: Callable[[str], str],
+    cancel: Callable[[str], None],
+    job_state: Callable[[str], str],
+    ready: Callable[[str], bool],
+    validate: Callable[[str], bool],
+    release: Callable[[str], None],
+    confirm: Callable[[str], bool],
+    read_old_running: Callable[[float], int | None],
+    publish: Callable[[], object],
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+    wall_clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    record_path: Path | None = None,
+    settings_changed: Mapping[str, object] | None = None,
+) -> ReloadResult:
+    """Confirm routed handover, then drain the old engine before retiring it."""
+    replacement = submit(script)
+    retiring_old = False
+    drain_timed_out = False
+    drain_seconds: float | None = None
+    last_running: int | None = None
+    outcome = "failed"
+    try:
+        pending_deadline = clock() + 120
+        while True:
+            state = job_state(replacement)
+            if state == "RUNNING":
+                break
+            if state not in {"PENDING", "CONFIGURING"}:
+                raise RuntimeError(f"replacement {replacement} is no longer live")
+            if clock() >= pending_deadline:
+                raise OverlapPendingError(
+                    f"replacement {replacement} did not start within 120 seconds"
+                )
+            sleep(min(2, pending_deadline - clock()))
+
+        readiness_deadline = clock() + 15 * 60
+        while not ready(replacement):
+            if job_state(replacement) != "RUNNING":
+                raise RuntimeError(
+                    f"replacement {replacement} stopped before readiness"
+                )
+            if clock() >= readiness_deadline:
+                raise RuntimeError(
+                    "replacement did not become ready within 15 minutes of RUNNING"
+                )
+            sleep(min(2, max(0, readiness_deadline - clock())))
+        if clock() > readiness_deadline:
+            raise RuntimeError("replacement readiness exceeded 15 minutes of RUNNING")
+        if not validate(replacement):
+            raise RuntimeError("replacement completion validation failed")
+        release(replacement)
+        if not confirm(replacement):
+            raise RuntimeError(
+                "router completion did not confirm the replacement origin; "
+                f"keeping old job {old_job_id}"
+            )
+        # Traffic now uses the replacement. Preserve it if drain telemetry
+        # fails or the scheduler loses the old job's cancellation receipt.
+        retiring_old = True
+        drain_started = clock()
+        drain_deadline = drain_started + 10 * 60
+        drained = False
+        while clock() < drain_deadline:
+            try:
+                last_running = read_old_running(min(5, drain_deadline - clock()))
+            except (OSError, ValueError):
+                last_running = None
+            if last_running == 0 and clock() <= drain_deadline:
+                drained = True
+                break
+            sleep(min(2, max(0, drain_deadline - clock())))
+        drain_seconds = clock() - drain_started
+        drain_timed_out = not drained
+        cancel(old_job_id)
+        publish()
+        outcome = "reloaded"
+        return ReloadResult(
+            outcome, old_job_id, replacement, None, None, 0, drain_timed_out
+        )
+    except Exception:
+        if not retiring_old:
+            cancel(replacement)
+        raise
+    finally:
+        if record_path is not None:
+            _append_cycle_record(
+                record_path,
+                {
+                    "mode": "overlap",
+                    "recorded_at": _utc_stamp(wall_clock),
+                    "replaced_job_id": old_job_id,
+                    "new_job_id": replacement,
+                    "outcome": outcome,
+                    "settings_changed": dict(settings_changed or {}),
+                    "old_drain_seconds": drain_seconds,
+                    "old_drain_last_running": last_running,
+                    "old_drain_timed_out": drain_timed_out,
+                    "in_flight_requests_may_have_been_cut": drain_timed_out,
+                },
+            )
 
 
 def run_reload(
@@ -58,7 +177,7 @@ def run_reload(
     settings_changed: Mapping[str, object] | None = None,
 ) -> ReloadResult:
     """Run the paused cycle through small, deterministic external interfaces."""
-    jobs = [job for job in read_jobs() if job.get("name") == profile]
+    jobs = read_jobs()
     if not dry_run and len(jobs) != 1:
         raise RuntimeError(f"expected exactly one running serve job; found {len(jobs)}")
     if dry_run:
@@ -78,6 +197,31 @@ def run_reload(
     drain_deadline = pause_deadline_origin + 10 * 60
     replacement_deadline = pause_deadline_origin + 22 * 60
     cycle_deadline = pause_deadline_origin + 40 * 60
+    sampling_done = threading.Event()
+    peak_lock = threading.Lock()
+
+    def sample_peak() -> None:
+        nonlocal peak
+        try:
+            gate = read_lane().get("router_generation_gate")
+            if isinstance(gate, dict) and isinstance(gate.get("waiting"), int):
+                with peak_lock:
+                    peak = max(peak, gate["waiting"])
+        except (OSError, TypeError, ValueError):
+            # Missing telemetry cannot supply a peak. Drain still requires a
+            # measured reading through its independent synchronous check.
+            pass
+
+    def sample_until_resumed() -> None:
+        while not sampling_done.wait(1):
+            sample_peak()
+
+    sampler = threading.Thread(target=sample_until_resumed, daemon=True)
+
+    def wait(seconds: float) -> None:
+        sleep(seconds)
+        sample_peak()
+
     try:
         if not was_paused:
             pause(reason)
@@ -89,6 +233,7 @@ def run_reload(
             cycle_deadline = started + 40 * 60
             pause_start_record = _utc_stamp(wall_clock)
 
+        sampler.start()
         while True:
             reading = read_lane()
             try:
@@ -99,12 +244,13 @@ def run_reload(
                 measured = False
             gate = reading.get("router_generation_gate")
             if isinstance(gate, dict) and isinstance(gate.get("waiting"), int):
-                peak = max(peak, gate["waiting"])
+                with peak_lock:
+                    peak = max(peak, gate["waiting"])
             if measured and reading.get("running") == 0:
                 break
             if clock() >= drain_deadline:
                 return ReloadResult(outcome, old_job_id, None, started, clock(), peak)
-            sleep(min(2, max(0, drain_deadline - clock())))
+            wait(min(2, max(0, drain_deadline - clock())))
 
         if old_job_id:
             cancel(old_job_id)
@@ -112,10 +258,11 @@ def run_reload(
             while any(job.get("jobid") == old_job_id for job in read_jobs()):
                 if clock() >= cancel_deadline:
                     raise RuntimeError("timed out waiting for old serve to stop")
-                sleep(min(2, max(0, cancel_deadline - clock())))
+                wait(min(2, max(0, cancel_deadline - clock())))
             old_stopped = True
 
         new_job = submit(script)
+        sample_peak()
         running_since: float | None = None
         validated = False
         while clock() < replacement_deadline:
@@ -124,6 +271,7 @@ def run_reload(
                     running_since = clock()
                 if ready(new_job):
                     if validate(new_job):
+                        sample_peak()
                         if clock() <= replacement_deadline:
                             validated = True
                             break
@@ -135,7 +283,7 @@ def run_reload(
                     raise RuntimeError(
                         "replacement did not become ready within 15 minutes of RUNNING"
                     )
-            sleep(min(2, max(0, replacement_deadline - clock())))
+            wait(min(2, max(0, replacement_deadline - clock())))
         if not validated:
             raise RuntimeError("replacement was not ready and validated by 22 minutes")
 
@@ -157,10 +305,11 @@ def run_reload(
                         and clock() <= cycle_deadline
                     ):
                         outcome = "rolled-back"
+                        sample_peak()
                         return ReloadResult(
                             outcome, old_job_id, rollback, started, clock(), peak
                         )
-                    sleep(min(2, max(0, cycle_deadline - clock())))
+                    wait(min(2, max(0, cycle_deadline - clock())))
             except Exception as rollback_error:
                 outcome = "rollback-failed"
                 raise RuntimeError(
@@ -173,6 +322,9 @@ def run_reload(
         raise
     finally:
         try:
+            sampling_done.set()
+            if sampler.ident is not None:
+                sampler.join()
             if changed_pause:
                 resume()
         finally:
@@ -187,6 +339,4 @@ def run_reload(
                     "settings_changed": dict(settings_changed or {}),
                     "outcome": outcome,
                 }
-                record_path.parent.mkdir(parents=True, exist_ok=True)
-                with record_path.open("a", encoding="utf-8") as stream:
-                    stream.write(json.dumps(record, sort_keys=True) + "\n")
+                _append_cycle_record(record_path, record)

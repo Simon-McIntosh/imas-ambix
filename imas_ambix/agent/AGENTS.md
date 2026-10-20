@@ -314,24 +314,32 @@ administratively prohibited.
 | LLM serving — one engine, internal | `http://98dci4-gpu-0003:<profile port>` | same | `imas-ambix agent serve` |
 | Text embeddings | `http://98dci4-gpu-0002:18765` | custom, **not** OpenAI-shaped | imas-codex |
 
-**A zero-downtime rotation is possible and was demonstrated 2026-09-07.** Bring
-the new topology up on its own port *while the old one still serves*, confirm the
-router prefers it, and only then stop the old one:
+**Rotate a serve through `restart`, after announcing the cycle to its users.**
 
 ```bash
-imas-ambix agent serve deepseek-v4-flash --gpus 4        # old serve still up
-# wait for /v1/models on the new port, then confirm the router:
-curl -s http://98dci4-gpu-0003:18802/v1/models           # expect ONE card, the wider one
-curl -s http://98dci4-gpu-0003:18802/v1/chat/completions -d @body   # expect a tp4 fingerprint
-imas-ambix agent shutdown deepseek-v4-flash-2x --yes     # only now
+imas-ambix agent restart deepseek-v4-1-flash --reason "apply serving settings"
 ```
 
-Two properties make it work, both landed 2026-09-06: the router **collapses a
-duplicate model id onto the widest topology** instead of refusing with 409, and
-the endpoint document **republishes on both serve and shutdown**. Measured across
-18800 → 18809 → 18800 with no operator step. **Traffic moves on health, not on a
-timer** — if the new engine never becomes reachable, the old one simply keeps
-serving and nothing is lost.
+The default `--mode auto` overlaps only when the running router advertises
+`held-registrations` and the node-wide ledger has room for the replacement's
+cards, host memory and reservation cores. Other users' allocations count. The
+replacement starts on a free port with its registration held, generates a real
+completion, then releases its hold. A completion through the router must name
+the replacement in `x-ambix-upstream`. The command then polls the old engine's
+own running-request gauge until a successful scrape reads zero, before cancelling
+that job by id and republishing the endpoint document. Missing or failed scrapes
+never count as zero. The drain is bounded at ten minutes; expiry cancels the old
+job anyway, warns that in-flight requests may have been cut, and records the
+possible cut in `lane-cycles.jsonl`. A pending replacement is cancelled
+after 120 seconds; auto then uses the paused cycle.
+
+Use `--mode overlap` to require that path and refuse if it is unavailable, or
+`--mode pause` to require the bounded paused cycle with saved-script rollback.
+A router without the feature header makes auto choose pause; deploying hold
+support therefore requires one router restart under the
+[lane-cycle runbook](../../ops/lane-cycle/AGENTS.md). During an overlap,
+`shutdown <profile>` refuses to cancel two matching jobs unless `--all` is
+supplied, which deliberately cancels all Ambix jobs.
 
 **Never configure a consumer against a serve port. Use the router, always.**
 A serve port belongs to one profile at one topology, and **the deployment is

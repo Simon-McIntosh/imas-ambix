@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import subprocess
 from pathlib import Path
@@ -52,6 +53,65 @@ _FADVISE_DROP_CODE = (
     "        os.posix_fadvise(fd, 0, os.fstat(fd).st_size, os.POSIX_FADV_DONTNEED)\n"
     "        os.close(fd)\n"
 )
+
+
+def _scheduler_fields(output: str) -> dict[str, str]:
+    return dict(token.split("=", 1) for token in output.split() if "=" in token)
+
+
+def overlap_room(profile: ModelProfile, site: SiteConfig) -> tuple[bool, str]:
+    """Check node-wide cards and RAM, and every user's reserved-core ledger."""
+
+    def query(args: list[str]) -> str:
+        result = subprocess.run(
+            args, capture_output=True, text=True, check=False, timeout=15
+        )
+        if result.returncode:
+            raise ValueError(result.stderr.strip() or "scheduler query failed")
+        return result.stdout
+
+    try:
+        node = _scheduler_fields(
+            query(["scontrol", "show", "node", site.gpu_host, "-o"])
+        )
+        configured = dict(item.split("=", 1) for item in node["CfgTRES"].split(","))
+        allocated = dict(
+            item.split("=", 1) for item in node["AllocTRES"].split(",") if item
+        )
+        cards = int(configured["gres/gpu"]) - int(allocated.get("gres/gpu", "0"))
+        memory = int(node["RealMemory"]) - int(node["AllocMem"])
+        reservation = _scheduler_fields(
+            query(["scontrol", "show", "reservation", site.reservation, "-o"])
+        )
+        cores = int(reservation["CoreCnt"])
+        ledger = query(["squeue", "-h", "-w", site.gpu_host, "-o", "%i|%u|%T|%C|%v"])
+        for row in ledger.splitlines():
+            job_id, user, state, cpus, reserved = (
+                part.strip() for part in row.split("|")
+            )
+            if not job_id or not user:
+                raise ValueError("core ledger lacks job ownership")
+            if reserved == site.reservation and state != "PENDING":
+                cores -= int(cpus)
+        requested = re.fullmatch(
+            r"(\d+(?:\.\d+)?)([KMGT]?)", profile.slurm.memory.upper()
+        )
+        if requested is None or float(requested[1]) <= 0:
+            raise ValueError("serve memory must be a positive bounded request")
+        required_memory = (
+            float(requested[1])
+            * {"K": 1 / 1024, "": 1, "M": 1, "G": 1024, "T": 1024 * 1024}[requested[2]]
+        )
+        deficits = []
+        if cards < profile.slurm.gpus:
+            deficits.append(f"cards {cards} < {profile.slurm.gpus}")
+        if cores < profile.slurm.cpus:
+            deficits.append(f"cores {cores} < {profile.slurm.cpus}")
+        if memory < required_memory:
+            deficits.append(f"memory {memory} MiB < {required_memory:g} MiB")
+        return not deficits, ", ".join(deficits) or "cards, cores and memory available"
+    except (OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
+        return False, f"cannot establish overlap room: {error}"
 
 
 def _sbatch_headers(
@@ -436,6 +496,7 @@ def generate_serve_script(
     api_key: str | None = None,
     *,
     receipts_enabled: bool = True,
+    held: bool = False,
 ) -> str:
     """Generate a SLURM batch script for serving a model profile.
 
@@ -451,6 +512,8 @@ def generate_serve_script(
         receipts recorder against its own engine for the whole life of the
         job, so throughput and speculative-decode receipts accumulate
         without an operator starting one by hand.
+    held : bool
+        Keep the registration out of routing until restart validates and releases it.
     """
     model_dir = site.model_dir(profile)
     catalog_env_block = ""
@@ -490,6 +553,7 @@ def generate_serve_script(
     venv_bin = str(site.python_path(profile.engine.type).parent)
     is_kt = profile.engine.type == "ktransformers"
     repo_root = Path(__file__).resolve().parents[2]
+    held_option = " --held" if held else ""
     registry_dir = registration_directory(site.base_dir)
     registry_python = site.python_path(profile.engine.type)
     checkpoint_precision = profile.model.checkpoint_precision or "unknown"
@@ -852,15 +916,9 @@ def generate_serve_script(
         echo "[$(date)] Host memory"
         free -h
 
-        echo "[$(date)] Starting {profile.model.name} server"
-        {launch_command} &
-        SERVER_PID=$!
-
-        {receipts_launch}
-
         _REGISTRATION_ACTIVE=1
         PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \
-            "$_REGISTRY_PYTHON" -m imas_ambix.agent.registry write \
+            "$_REGISTRY_PYTHON" -m imas_ambix.agent.registry write{held_option} \
             --directory "$_REGISTRY_DIR" \
             --model-id {shlex.quote(profile.model.served_name)} \
             --host "$(hostname)" \
@@ -869,6 +927,13 @@ def generate_serve_script(
             --accelerator-count "${{SLURM_GPUS_ON_NODE:-{profile.slurm.gpus}}}" \
             --checkpoint-precision {shlex.quote(checkpoint_precision)} \
             --accelerator-family {shlex.quote(_ACCELERATOR_FAMILY)}
+
+        echo "[$(date)] Starting {profile.model.name} server"
+        {launch_command} &
+        SERVER_PID=$!
+
+        {receipts_launch}
+
 
         {evictor_block}
 
