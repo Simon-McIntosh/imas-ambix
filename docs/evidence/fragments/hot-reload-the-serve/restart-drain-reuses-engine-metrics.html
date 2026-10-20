@@ -1,0 +1,51 @@
+<section id="restart-drain-reuses-engine-metrics">
+  <h2>Shared running-request reading for restart drains</h2>
+  <p>Commit <code>b6c93478f0c6b846ca4a24d0b284cafbc4eed9c4</code> moves
+  the conservative rank reduction to <code>engine_metrics.running_requests</code>,
+  beside <code>series_first</code>. Both the overlap drain and lane capacity use
+  it. The largest valid rank count is the reading; missing or malformed counts
+  remain unknown. Lane capacity refuses an unknown count. The drain fetch now
+  uses <code>lane.fetch_engine_metrics</code>, the same proxy-free, compression-aware
+  reader as <code>fetch_lane_capacity</code>, with optional bearer authentication.</p>
+  <p>The defect reproduced at base
+  <code>a462d2867928ede9eb6d9d8ec94b37f2d88d3ff4</code>:
+  <code>SGLang ranks 0 and 4: drain=4; lane.running=0</code>;
+  <code>vLLM ranks 0 and 2: drain=2; lane.running=0</code>;
+  <code>SGLang absent running series: drain=None; lane.running=0</code>.
+  The drain's existing malformed-count refusal is preserved in the shared owner.</p>
+  <table>
+    <thead><tr><th>Measure</th><th>Recorded result</th><th>Log</th></tr></thead>
+    <tbody>
+      <tr><td>Required gate at base</td><td>80 passed in 4.09s; EXIT=0</td><td><code>baseline.log</code></td></tr>
+      <tr><td>Required gate at implementation commit</td><td>95 passed in 6.88s; EXIT=0; zero added failures</td><td><code>head.log</code></td></tr>
+      <tr><td>Whole-tree Ruff</td><td>All checks passed! EXIT=0</td><td><code>lint.log</code></td></tr>
+      <tr><td>Serving-interpreter grammar</td><td>1 passed, 13 deselected in 0.61s; EXIT=0</td><td><code>serving-parse.log</code></td></tr>
+      <tr><td>Declared absence-to-zero mutation</td><td>2 failed in 2.04s; EXIT=1</td><td><code>negative-control.log</code></td></tr>
+      <tr><td>Additional reader consumers</td><td>3 failed, 41 passed in 2.12s; EXIT=1</td><td><code>reader-consumers.log</code></td></tr>
+    </tbody>
+  </table>
+  <p>The mutation inserts <code>if not values: return 0</code> before the shared
+  reduction's validation, in the test process only. Both
+  <code>test_running_requests_absence_is_unknown[sglang]</code> and
+  <code>test_running_requests_absence_is_unknown[vllm]</code> fail with
+  <code>assert 0 is None</code>. Those same tests pass in the head arm. Positive
+  controls read rank pairs (0, 4), (4, 2) and (0, 0), through both consumers and
+  both plain and gzip expositions. Failed fetches remain unknown to the drain
+  and raise in the capacity reader.</p>
+  <p><strong>Coordinator follow-on:</strong> three tests in
+  <code>tests/test_agent_lane_counter_series.py</code> supply partial SGLang
+  expositions without any running-request gauge:
+  <code>test_generation_tokens_sums_every_series</code>,
+  <code>test_single_series_counter_is_unchanged</code> and
+  <code>test_single_series_gauge_is_unchanged</code>. They now receive
+  <code>ValueError: engine metrics carry no valid running-request count</code>.
+  That test file is outside this node's write scope; its fixtures need an explicit
+  measured running count. No out-of-scope repair was made.</p>
+  <p>Required gate command:</p>
+  <pre>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/hot-reload-serve/restart-drain-reuses-engine-metrics uv run --no-sync pytest -p no:cacheprovider /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/hot-reload-serve/restart-drain-reuses-engine-metrics/tests/test_engine_metrics.py /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/hot-reload-serve/restart-drain-reuses-engine-metrics/tests/test_agent_reload_overlap.py /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/hot-reload-serve/restart-drain-reuses-engine-metrics/tests/test_agent_lane_sglang.py -q</pre>
+  <p>Logs, reproduction and the mutation driver are in
+  <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261020T133959926152-restart-drain-reuses-engine-metrics</code>. Tests ran locally on fleet allocation 1281970 using the
+  shared project environment and this worker's node-local scratch grant.
+  No live lane, serve, router or operational gate was changed. The coordinator
+  owns integration verification, the fixture follow-on and section closure.</p>
+</section>
