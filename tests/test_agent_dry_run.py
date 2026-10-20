@@ -96,7 +96,9 @@ def scene(tmp_path, monkeypatch):
     monkeypatch.setenv("USER", "operator")
     monkeypatch.delenv("AMBIX_AGENT_API_KEY", raising=False)
 
-    recorder = _SchedulerRecorder(squeue_stdout=f"{_JOB_ID}|{_PROFILE}\n")
+    recorder = _SchedulerRecorder(
+        squeue_stdout=f"{_JOB_ID}|{_PROFILE}|RUNNING|0:00|gpu-node|gpu:4|comment|1:00\n"
+    )
     monkeypatch.setattr("imas_ambix.agent.cli.subprocess", recorder)
     monkeypatch.setattr("imas_ambix.agent.slurm.subprocess", recorder)
 
@@ -157,10 +159,13 @@ def test_restart_dry_run_names_the_live_job_and_cancels_nothing(scene) -> None:
     cancelled the live engine instead, so the named job and the empty
     destructive log are checked together.
     """
-    result = CliRunner().invoke(main, ["agent", "restart", _PROFILE, "--dry-run"])
+    result = CliRunner().invoke(
+        main,
+        ["agent", "restart", _PROFILE, "--reason", "dry run check", "--dry-run"],
+    )
 
     assert result.exit_code == 0, result.output
-    assert f"would cancel 1 active job(s): {_JOB_ID}" in result.output
+    assert f"would replace job {_JOB_ID}" in result.output
     assert any(argv[0] == "squeue" for argv in scene.recorder.argv)
     _assert_inert(scene)
 
@@ -169,7 +174,10 @@ def test_restart_dry_run_leaves_the_endpoint_document_byte_identical(scene) -> N
     """The published document is not republished by a dry run."""
     before = scene.endpoint.read_bytes()
 
-    result = CliRunner().invoke(main, ["agent", "restart", _PROFILE, "--dry-run"])
+    result = CliRunner().invoke(
+        main,
+        ["agent", "restart", _PROFILE, "--reason", "dry run check", "--dry-run"],
+    )
 
     assert result.exit_code == 0, result.output
     assert scene.endpoint.read_bytes() == before
