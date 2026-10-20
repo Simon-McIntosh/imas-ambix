@@ -7,6 +7,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from imas_ambix.agent.cli import _pause_gate
 from imas_ambix.agent.reload import run_reload
 
 
@@ -105,6 +106,29 @@ class World:
             sleep=self.sleep,
             **kwargs,
         )
+
+
+def test_restart_pause_with_stale_cut_withdraws_cut(tmp_path):
+    gate_path = tmp_path / "router-gate.json"
+    gate_path.write_text(
+        json.dumps(
+            {
+                "paused": True,
+                "reason": "earlier pause",
+                "cut": True,
+                "cut_form": "error",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    _pause_gate(gate_path, "agent restart")
+
+    saved = json.loads(gate_path.read_text(encoding="utf-8"))
+    assert saved["paused"] is True
+    assert saved["reason"] == "agent restart"
+    assert "cut" not in saved
+    assert "cut_form" not in saved
 
 
 def test_success_order_and_cycle_record(tmp_path):

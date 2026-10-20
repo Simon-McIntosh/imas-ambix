@@ -1119,10 +1119,6 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
 
     targets = jobs
 
-    if not targets:
-        console.print("No matching jobs to cancel.")
-        return
-
     # Show what will be cancelled
     console.print("[bold]Jobs to cancel:[/]")
     for job_id, job_name in targets:
@@ -2389,18 +2385,10 @@ def _execute_restart_cycle(
             return submit_script(batch)
 
         def do_pause(why: str) -> None:
-            payload = _read_gate_document(gate_path)
-            payload["paused"] = True
-            payload["reason"] = why
-            _write_gate_document(gate_path, payload)
+            _pause_gate(gate_path, why)
 
         def do_resume() -> None:
-            payload = _read_gate_document(gate_path)
-            payload["paused"] = False
-            payload.pop("reason", None)
-            payload.pop("cut", None)
-            payload.pop("cut_form", None)
-            _write_gate_document(gate_path, payload)
+            _resume_gate(gate_path)
 
         def job_running(job_id: str) -> bool:
             return any(
@@ -3721,6 +3709,42 @@ def _write_gate_document(path: Path, payload: dict[str, object]) -> None:
     scratch.replace(path)
 
 
+def _pause_gate(
+    path: Path,
+    reason: str,
+    *,
+    cut: bool = False,
+    cut_form: str | None = None,
+) -> dict[str, object]:
+    """Write the pause and its optional in-flight request cut."""
+    if cut_form is not None and not cut:
+        raise click.UsageError("--cut-form requires --cut")
+    payload = _read_gate_document(path)
+    payload["paused"] = True
+    payload["reason"] = reason
+    if cut:
+        from imas_ambix.agent.router import DEFAULT_GATE_CUT_FORM
+
+        payload["cut"] = True
+        payload["cut_form"] = cut_form or DEFAULT_GATE_CUT_FORM
+    else:
+        payload.pop("cut", None)
+        payload.pop("cut_form", None)
+    _write_gate_document(path, payload)
+    return payload
+
+
+def _resume_gate(path: Path) -> dict[str, object]:
+    """Clear the pause and its request cut from the gate file."""
+    payload = _read_gate_document(path)
+    payload["paused"] = False
+    payload.pop("reason", None)
+    payload.pop("cut", None)
+    payload.pop("cut_form", None)
+    _write_gate_document(path, payload)
+    return payload
+
+
 def _print_lane_counts(site: SiteConfig) -> None:
     """Print the lane's running and waiting counts beside the router's own.
 
@@ -3816,22 +3840,9 @@ def pause(reason: str, cut: bool, cut_form: str | None, gate_file: str | None) -
     ``--cut`` withdraws any cut an earlier pause left declared, so a re-pause
     never inherits a cut it did not ask for.
     """
-    from imas_ambix.agent.router import DEFAULT_GATE_CUT_FORM
-
-    if cut_form is not None and not cut:
-        raise click.UsageError("--cut-form requires --cut")
     site = SiteConfig.from_env()
     path = _gate_document_path(site, gate_file)
-    payload = _read_gate_document(path)
-    payload["paused"] = True
-    payload["reason"] = reason
-    if cut:
-        payload["cut"] = True
-        payload["cut_form"] = cut_form or DEFAULT_GATE_CUT_FORM
-    else:
-        payload.pop("cut", None)
-        payload.pop("cut_form", None)
-    _write_gate_document(path, payload)
+    payload = _pause_gate(path, reason, cut=cut, cut_form=cut_form)
     console.print(f"paused {path}", markup=False, highlight=False)
     if cut:
         console.print(
@@ -3863,12 +3874,7 @@ def resume(gate_file: str | None) -> None:
     """
     site = SiteConfig.from_env()
     path = _gate_document_path(site, gate_file)
-    payload = _read_gate_document(path)
-    payload["paused"] = False
-    payload.pop("reason", None)
-    payload.pop("cut", None)
-    payload.pop("cut_form", None)
-    _write_gate_document(path, payload)
+    _resume_gate(path)
     console.print("resumed", markup=False, highlight=False)
     _print_lane_counts(site)
 
