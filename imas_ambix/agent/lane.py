@@ -459,6 +459,7 @@ def _lane_capacity_from_roles(
     family: str,
     model_id: str,
     pool_tokens: int,
+    running: int,
     read: Callable[[str], float | None],
 ) -> LaneCapacity:
     """Assemble one reading from canonical roles.
@@ -489,7 +490,7 @@ def _lane_capacity_from_roles(
     return LaneCapacity(
         model_id=model_id,
         pool_tokens=pool_tokens,
-        running=int(read("requests_running") or 0),
+        running=running,
         waiting=int(read("requests_queued") or 0),
         kv_occupancy=occupancy if occupancy is not None else 0.0,
         preemptions=int(preemptions) if preemptions is not None else None,
@@ -524,15 +525,29 @@ def parse_lane_capacity(metrics: str) -> LaneCapacity:
     pool_tokens = _lane_pool_tokens(samples, family, read)
     if pool_tokens <= 0:
         raise ValueError("engine metrics carry no KV pool size")
-    return _lane_capacity_from_roles(family, model_id, pool_tokens, read)
+    running = engine_metrics.running_requests(metrics)
+    if running is None:
+        raise ValueError("engine metrics carry no valid running-request count")
+    return _lane_capacity_from_roles(family, model_id, pool_tokens, running, read)
 
 
-def fetch_lane_capacity(origin: str, *, timeout: float = 10.0) -> LaneCapacity:
-    """Read the live lane from a serve origin."""
+def fetch_engine_metrics(
+    origin: str, *, api_key: str | None = None, timeout: float = 10.0
+) -> str:
+    """Read one engine exposition without proxies, decoding its compression."""
     target = f"{origin.rstrip('/')}/metrics"
-    request = urllib.request.Request(target, method="GET")
+    request = urllib.request.Request(
+        target,
+        method="GET",
+        headers={
+            "Accept-Encoding": "identity",
+            **({"Authorization": f"Bearer {api_key}"} if api_key else {}),
+        },
+    )
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with opener.open(request, timeout=timeout) as response:
+        if getattr(response, "status", 200) != 200:
+            raise ValueError(f"engine metrics returned HTTP {response.status}")
         body = response.read()
         encodings = [
             encoding.strip().lower()
@@ -546,7 +561,12 @@ def fetch_lane_capacity(origin: str, *, timeout: float = 10.0) -> LaneCapacity:
             body = zlib.decompress(body)
         else:
             raise ValueError(f"unsupported metrics content encoding: {encoding}")
-    body = body.decode("utf-8", "replace")
+    return body.decode("utf-8", "replace")
+
+
+def fetch_lane_capacity(origin: str, *, timeout: float = 10.0) -> LaneCapacity:
+    """Read the live lane from a serve origin."""
+    body = fetch_engine_metrics(origin, timeout=timeout)
     # Stamped where the reading is taken, not where it is later composed: the
     # interval between two odometer samples is the wall clock at their fetches,
     # and a stamp applied downstream would measure the publisher's cadence

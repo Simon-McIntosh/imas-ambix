@@ -390,6 +390,7 @@ def bound_restart(tmp_path, monkeypatch):
                 raise reading
             response = io.BytesIO(reading)
             response.status = 200
+            response.headers = {}
             return response
         body = json.loads(request.data)
         assert body["max_tokens"] == 400
@@ -417,6 +418,9 @@ def bound_restart(tmp_path, monkeypatch):
     monkeypatch.setattr(slurm, "submit_script", submit)
     monkeypatch.setattr(cli, "_probe_endpoint", lambda *_: cli.ProbeResult("ready"))
     monkeypatch.setattr(urllib.request, "urlopen", completion)
+    monkeypatch.setattr(
+        urllib.request, "build_opener", lambda handler: SimpleNamespace(open=completion)
+    )
     monkeypatch.setattr(
         cli, "_republish_endpoint_document", lambda *_: world.events.append("publish")
     )
@@ -681,9 +685,12 @@ def test_direct_engine_running_count_requires_successful_valid_scrape(
         assert timeout == 3
         response = io.BytesIO(body)
         response.status = status
+        response.headers = {}
         return response
 
-    monkeypatch.setattr(urllib.request, "urlopen", scrape)
+    monkeypatch.setattr(
+        urllib.request, "build_opener", lambda handler: SimpleNamespace(open=scrape)
+    )
     assert (
         cli._engine_running_requests("http://old-engine:18800", "key", timeout=3)
         == expected
@@ -696,7 +703,9 @@ def test_failed_engine_metrics_request_is_unknown(monkeypatch):
     def scrape(*_args, **_kwargs):
         raise OSError("scrape failed")
 
-    monkeypatch.setattr(urllib.request, "urlopen", scrape)
+    monkeypatch.setattr(
+        urllib.request, "build_opener", lambda handler: SimpleNamespace(open=scrape)
+    )
     assert (
         cli._engine_running_requests("http://old-engine:18800", None, timeout=1) is None
     )

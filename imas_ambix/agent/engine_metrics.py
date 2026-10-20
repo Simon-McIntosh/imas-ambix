@@ -28,6 +28,7 @@ text and returns quantities.
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -381,6 +382,37 @@ def series_first(
         if _bare(name) in names:
             return value
     return None
+
+
+def running_requests(metrics: str) -> int | None:
+    """Largest running-request count across ranks, or absent if untrustworthy.
+
+    A zero on one rank cannot establish that another rank has drained. Every
+    reported count must be a nonnegative integer, and a malformed rank must
+    not disappear behind the exposition parser's tolerance of invalid lines.
+    """
+    samples = parse_metrics(metrics)
+    names = {
+        f"{family}:{name}"
+        for family in FAMILIES
+        for name in lane_series("requests_running", family)
+    }
+    values = [value for name, _, value in samples if name in names]
+    expected_samples = sum(
+        1
+        for line in metrics.splitlines()
+        if (tokens := line.split()) and tokens[0].partition("{")[0] in names
+    )
+    if (
+        len(values) != expected_samples
+        or not values
+        or any(
+            not math.isfinite(value) or value < 0 or not value.is_integer()
+            for value in values
+        )
+    ):
+        return None
+    return int(max(values))
 
 
 def series_labels(

@@ -2457,48 +2457,13 @@ def _engine_running_requests(
     origin: str, api_key: str | None, *, timeout: float
 ) -> int | None:
     """Read the old engine's gauges; absent or failed evidence is never zero."""
-    import math
-    import urllib.request
+    from imas_ambix.agent import engine_metrics, lane
 
-    from imas_ambix.agent import engine_metrics
-
-    request = urllib.request.Request(
-        f"{origin.rstrip('/')}/metrics",
-        headers={
-            "Accept-Encoding": "identity",
-            **({"Authorization": f"Bearer {api_key}"} if api_key else {}),
-        },
-    )
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            if response.status != 200:
-                return None
-            body = response.read().decode("utf-8")
-            samples = engine_metrics.parse_metrics(body)
+        body = lane.fetch_engine_metrics(origin, api_key=api_key, timeout=timeout)
     except (OSError, ValueError):
         return None
-    names = {
-        f"{family}:{name}"
-        for family in engine_metrics.FAMILIES
-        for name in engine_metrics.lane_series("requests_running", family)
-    }
-    values = [value for name, _, value in samples if name in names]
-    expected_samples = sum(
-        1
-        for line in body.splitlines()
-        if (tokens := line.split()) and tokens[0].partition("{")[0] in names
-    )
-    if (
-        len(values) != expected_samples
-        or not values
-        or any(
-            not math.isfinite(value) or value < 0 or not value.is_integer()
-            for value in values
-        )
-    ):
-        return None
-    # A zero on one rank is insufficient while another still reports work.
-    return int(max(values))
+    return engine_metrics.running_requests(body)
 
 
 def _execute_restart_cycle(
