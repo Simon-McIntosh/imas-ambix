@@ -1,5 +1,9 @@
 <section id="restart-overlap">
   <h2>Validated overlap restart</h2>
+  <p><strong>Current verification:</strong> the launch-order race and immediate
+  retirement findings are repaired. The fresh gate passes 106 tests; both resolver
+  mutation controls fail as required. The detailed review receipts below supersede
+  the initial delivery's old-engine drain limitation.</p>
   <p>Local commits <code>9c5a52b22d4f32ba4892eafa10e62572638fc8eb</code> and
   <code>5326d4a2ea415901e5c80ded63dfd00337603158</code> implement launch-owned,
   sticky held registrations, explicit release, both resolver exclusions,
@@ -38,8 +42,55 @@
   <p>No real lane was paused, no serve or router was submitted, cancelled or
   restarted, and no operational gate file was written. The coordinator owns
   merged-head verification, the router deployment needed to advertise hold
-  support, and the first live restart. The prescribed overlap sequence does not
-  drain requests already running on the old engine before cancelling it; these
-  tests establish validated handover, not losslessness of those existing streams.
-  That guarantee needs coordinator review before live rollout.</p>
+  support, and the first live restart. The initial delivery did not drain requests
+  already running on the old engine before cancelling it. The review repairs below
+  add that drain and explicitly record possible loss when its authorized bound expires.</p>
+
+  <section id="restart-overlap-review">
+    <h3>Review repairs: hold before launch and drain before cancellation</h3>
+    <p>Commit <code>fd8eb13d18212b7def81d9374c4ecfa120627d24</code> writes the
+    registration before the engine command. The vLLM and SGLang generated-script
+    controls both enforce that order, including failure-aborting shell execution.
+    Commit <code>03fc676cf97ffab144d221684a1c04d0cfede5e8</code> polls the old
+    engine's own metrics origin after routed confirmation, using the shared metric
+    names for <code>sglang:num_running_reqs</code> and
+    <code>vllm:num_requests_running</code>. Before the deadline, cancellation
+    requires a successful scrape with valid, nonnegative, finite integral gauges,
+    all zero.
+    Failed, missing or malformed readings remain unknown.</p>
+    <p>The drain has a 600-second bound, including each scrape's allowed timeout.
+    At the bound the old job is cancelled by id and the confirmed replacement stays
+    alive. The command warns that in-flight requests may have been cut and appends
+    <code>old_drain_timed_out=true</code> and
+    <code>in_flight_requests_may_have_been_cut=true</code> to
+    <code>lane-cycles.jsonl</code>. A completed drain records those flags as false.</p>
+    <table>
+      <thead><tr><th>Measurement</th><th>Result</th><th>Run log</th></tr></thead>
+      <tbody>
+        <tr><td>Defects reproduced at the resumed base</td><td>3 failed, 45 deselected in 1.67s; EXIT=1</td><td><code>review-reproduction.log</code></td></tr>
+        <tr><td>Registration lifecycle and launch order</td><td>14 passed in 6.03s; EXIT=0</td><td><code>registration-order.log</code></td></tr>
+        <tr><td>Drain and paused-cycle controls</td><td>78 passed in 5.40s; EXIT=0</td><td><code>old-engine-drain-fixed.log</code></td></tr>
+        <tr><td>Declared gate at 03fc676cf97ffab144d221684a1c04d0cfede5e8</td><td>106 passed in 16.30s; EXIT=0; zero failures</td><td><code>review-head.log</code></td></tr>
+        <tr><td>Serving-Python grammar</td><td>1 passed, 13 deselected in 0.45s; EXIT=0</td><td><code>review-serving-parse.log</code></td></tr>
+        <tr><td>Whole-tree Ruff</td><td>All checks passed! EXIT=0</td><td><code>review-lint.log</code></td></tr>
+        <tr><td>Remove registration hold exclusion</td><td>2 failed, 6 deselected in 1.57s; EXIT=1</td><td><code>review-negative-registration.log</code></td></tr>
+        <tr><td>Remove scheduler hold exclusion</td><td>1 failed, 1 passed, 6 deselected in 1.30s; EXIT=1</td><td><code>review-negative-scheduler.log</code></td></tr>
+      </tbody>
+    </table>
+    <p>The reproduction trace went straight from the router completion to
+    <code>cancel 101</code>, with no old-engine metrics request. The repaired control
+    reads the old origin's counts <code>2 → 0</code> before cancellation; a separate
+    control waits through a scrape failure before observing zero. Busy and
+    unavailable readings both force cancellation at exactly 600 simulated seconds,
+    and the bound also holds when a scrape consumes its full allowed timeout.
+    Positive metric controls see 4 running requests on SGLang and 2 on vLLM, so an
+    empty or missing result is checked against a working reader. The timeout test
+    reads back the durable possible-cut flag and checks the console warning.</p>
+    <p>Fresh declared gate command:</p>
+    <pre>env UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/hot-reload-serve/restart-overlap TMPDIR=/var/tmp &#x27;PYTEST_ADDOPTS=--timeout=30 --basetemp=/var/tmp/ambix-overlap-6_db_65f&#x27; uv run --no-sync pytest -p no:cacheprovider /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/hot-reload-serve/restart-overlap/tests/test_agent_router_resolution.py /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/hot-reload-serve/restart-overlap/tests/test_agent_reload_overlap.py /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/hot-reload-serve/restart-overlap/tests/test_agent_reload.py /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/hot-reload-serve/restart-overlap/tests/test_agent_serve_registry.py /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/hot-reload-serve/restart-overlap/tests/test_agent_router.py -q</pre>
+    <p>Both mutation controls were restored to the committed source byte-for-byte.
+    All checks used fakes and local fixtures on the fleet allocation; no live lane,
+    serve, router or operational gate file was changed. Merged-head verification,
+    deployment and node closure remain coordinator-owned.</p>
+  </section>
 </section>
