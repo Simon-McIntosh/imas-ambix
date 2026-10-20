@@ -25,7 +25,7 @@
   <title>Hot-reload the LLM serve | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="5">
+<meta name="plan-version" content="7">
 <meta name="plan-modified" content="2026-10-20">
 </head>
 <body>
@@ -79,7 +79,7 @@
     </ul>
     <p>The work:</p>
     <ol>
-      <li>A held registration, armed by the job that writes it. The registration is written by the replacement's own batch script, through the <code>registry write</code> step that <code>generate_serve_script</code> emits before the readiness loop, so a hold written by <code>restart</code> after <code>sbatch</code> would race that write. Instead <code>generate_serve_script</code> takes a held flag and passes <code>--held</code> to <code>registry write</code>, and the registration record in <code>imas_ambix/agent/registry.py</code> carries <code>held</code>. Only <code>registry release --job-id &lt;id&gt;</code>, which <code>restart</code> runs after validation, clears it; any later write by the job preserves it. <code>_resolve_router_upstreams</code> skips a held job on both of its paths: the registration path, and the scheduler-only path that adds live serve jobs without a registration. The router publishes <code>"held_registrations": true</code> in its lane snapshot, so a caller can tell whether the running router honours holds.</li>
+      <li>A held registration, armed by the job that writes it. The registration is written by the replacement's own batch script, through the <code>registry write</code> step that <code>generate_serve_script</code> emits before the readiness loop, so a hold written by <code>restart</code> after <code>sbatch</code> would race that write. Instead <code>generate_serve_script</code> takes a held flag and passes <code>--held</code> to <code>registry write</code>, and the registration record in <code>imas_ambix/agent/registry.py</code> carries <code>held</code>. Only <code>registry release --job-id &lt;id&gt;</code>, which <code>restart</code> runs after validation, clears it; any later write by the job preserves it. <code>_resolve_router_upstreams</code> skips a held job on both of its paths: the registration path, and the scheduler-only path that adds live serve jobs without a registration. The router publishes <code>"held_registrations": true</code> in its lane snapshot, so a caller can tell whether the running router honours holds, and names the upstream origin that served each relayed response in an <code>x-ambix-upstream</code> header, so a caller can tell which engine answered.</li>
       <li>Two jobs under one profile name. During an overlap the old and new serves both carry the profile's job name, and <code>shutdown &lt;slug&gt;</code> today cancels every job whose name matches. Through the helper over <code>_running_jobs</code>, <code>shutdown</code> refuses when the profile has more than one live job, names both job ids and says an overlap restart is in progress, and cancels both only with its existing <code>--all</code>. No option is added.</li>
       <li><code>agent restart --mode auto|overlap|pause</code>, with <code>auto</code> the default. <code>auto</code> takes the overlap path only when two things hold: the lane document advertises held registrations, and the live ledger has room for a second copy of the serve's cards, cores and memory. The room check is node-wide, because the cards that rule overlap out are mostly other users' (on 2026-10-20 two embedding jobs of another user held 2 of the 8). Free cards and memory come from <code>scontrol show node</code>: <code>CfgTRES</code> less <code>AllocTRES</code> for <code>gres/gpu</code>, and <code>RealMemory</code> less <code>AllocMem</code>. Free cores come from the <code>gpu_0003_grpA</code> core ledger summed over every user's jobs on the node (<code>squeue -w</code>), as <code>imas_ambix/agent/AGENTS.md</code> §2 describes. <code>_running_jobs</code> is scoped to the operator's own jobs, so it identifies the serve being replaced and is never the room check. Otherwise <code>auto</code> takes §1's paused cycle. <code>overlap</code> refuses when either condition fails.</li>
       <li>The overlap sequence:
@@ -88,18 +88,19 @@
           <li>Wait for readiness through <code>_probe_endpoint</code>, bounded at 15 minutes from <code>RUNNING</code>.</li>
           <li>Validate it with §1's completion, sent directly to its port.</li>
           <li>Release the hold.</li>
-          <li>Confirm through the router's own <code>/v1/models</code> that the model now resolves to the new engine.</li>
+          <li>Confirm through the router that the new engine now serves: send a completion to the router and require the <code>x-ambix-upstream</code> response header to name the replacement's origin. The router's <code>/v1/models</code> cannot answer this, because <code>_serve_catalog</code> emits one card per model id and two copies of one profile carry identical card metadata.</li>
           <li>Cancel the old job by id, and republish the endpoint document as <code>shutdown</code> does.</li>
         </ul>
         A failure before the release cancels the new job by id and leaves the old engine serving, with nothing paused.</li>
     </ol>
     <p><strong>Deploying it needs one router restart.</strong> The resolver runs inside the router process, so a hold is honoured only by a router started from the new code. That restart is a coordinator inline exception under the runbook's router-restart row: pause, drain to a measured zero, restart, confirm the pause survived, resume. Until then the lane document carries no <code>held_registrations</code>, and <code>auto</code> keeps choosing the paused cycle. That is the point of the advertisement.</p>
-    <p><strong>Done when.</strong> <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_resolution.py tests/test_agent_reload_overlap.py tests/test_agent_reload.py tests/test_agent_serve_registry.py -q</code> passes on the fleet node, with these tests:</p>
+    <p><strong>Done when.</strong> <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_resolution.py tests/test_agent_reload_overlap.py tests/test_agent_reload.py tests/test_agent_serve_registry.py tests/test_agent_router.py -q</code> passes on the fleet node, with these tests:</p>
     <ul>
       <li>A held registration is absent from the resolved upstreams on the registration path, and a held job is absent on the scheduler-only path. Removing the skip on either path fails its test, which is the negative control.</li>
       <li><code>auto</code> picks the paused cycle when the lane document lacks <code>held_registrations</code>, and when the ledger lacks cards, cores or memory, including when the missing cards are held by another user's jobs that <code>_running_jobs</code> does not list.</li>
       <li>An overlap whose replacement fails validation cancels only the replacement's job id and leaves the old job running.</li>
-      <li>A successful overlap releases the hold before it cancels the old job, and cancels by id.</li>
+      <li>A successful overlap releases the hold before it cancels the old job, cancels by id, and cancels only after a completion through the router returns the replacement's origin in <code>x-ambix-upstream</code>; when the header still names the old engine, the old job is not cancelled.</li>
+      <li>A relayed response carries <code>x-ambix-upstream</code> equal to the base URL of the upstream that served it.</li>
       <li><code>generate_serve_script</code> with the held flag emits <code>registry write --held</code>; a held record reads back held, survives a second write by the same job, and is cleared only by <code>registry release</code>.</li>
       <li><code>shutdown &lt;slug&gt;</code> with two live jobs under one profile name refuses and names both, and <code>--all</code> cancels both.</li>
     </ul>
