@@ -163,7 +163,7 @@ def test_readiness_miss_resubmits_saved_script_and_resumes():
 
 
 def test_short_completion_rolls_back_and_resumes():
-    world = World(valid=lambda job: job != "new-1")
+    world = World()
     world.completion_tokens["new-1"] = 199
     result = world.run()
     assert result.outcome == "rolled-back"
@@ -321,3 +321,128 @@ def test_failed_rollback_is_recorded_with_non_zero_result(tmp_path):
     assert saved["outcome"] == "rollback-failed"
     assert saved["pause_start"] == "2026-10-20T00:00:00Z"
     assert saved["pause_end"].endswith("Z")
+
+
+def test_peak_waiting_is_sampled_after_drain(tmp_path):
+    world = World()
+    lane = world.lane
+
+    def growing_queue():
+        reading = lane()
+        reading["router_generation_gate"] = {"waiting": 19 if world.submits else 3}
+        return reading
+
+    world.lane = growing_queue
+    record = tmp_path / "lane-cycles.jsonl"
+    result = world.run(record_path=record)
+    assert result.peak_held == 19
+    assert json.loads(record.read_text())["peak_held"] == 19
+
+
+@pytest.mark.parametrize("tokens, outcome", [(199, "rolled-back"), (200, "reloaded")])
+def test_real_validation_closure_enforces_completion_threshold(
+    tmp_path, monkeypatch, tokens, outcome
+):
+    import io
+    import urllib.request
+    from types import SimpleNamespace
+
+    from imas_ambix.agent import cli, slurm
+    from imas_ambix.agent.profile import SiteConfig, load_profile
+
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+    profile = load_profile("glm-5-3").for_gpus(4)
+    site = SiteConfig(
+        base_dir=str(tmp_path), endpoint_document_path=str(tmp_path / "endpoints.json")
+    )
+    world = World()
+    (tmp_path / "lane.json").write_text(json.dumps(world.lane()))
+    requests = []
+
+    def jobs(_site, **kwargs):
+        return [
+            dict(
+                jobid=job,
+                state="RUNNING",
+                node="engine",
+                comment="ambix-serve;port=18800",
+            )
+            for job in world.active
+            if job in kwargs.get("job_ids", world.active)
+        ]
+
+    def command(args, **kwargs):
+        if args[:3] == ["scontrol", "write", "batch_script"]:
+            from pathlib import Path
+
+            Path(args[-1]).write_text("saved batch")
+        elif args[0] == "scancel":
+            world.cancel(args[1])
+        else:
+            pytest.fail(str(args))
+        return SimpleNamespace(returncode=0, stderr="")
+
+    def completion(request, **kwargs):
+        requests.append(json.loads(request.data))
+        count = tokens if world.submits == 1 else 200
+        return io.BytesIO(
+            json.dumps(
+                {
+                    "usage": {"completion_tokens": count},
+                    "choices": [{"finish_reason": "length"}],
+                }
+            ).encode()
+        )
+
+    monkeypatch.setattr(cli.subprocess, "run", command)
+    monkeypatch.setattr(cli, "_running_jobs", jobs)
+    monkeypatch.setattr(cli, "_probe_endpoint", lambda *_: cli.ProbeResult("ready"))
+    monkeypatch.setattr(slurm, "submit_script", world.submit)
+    monkeypatch.setattr(urllib.request, "urlopen", completion)
+    cli._execute_restart_cycle(
+        profile, site, {"jobid": "old"}, "new script", None, 18800, "test", {}
+    )
+    record = json.loads((tmp_path / "lane-cycles.jsonl").read_text())
+    assert record["outcome"] == outcome
+    assert world.submits == (2 if tokens == 199 else 1)
+    assert all(request["max_tokens"] == 400 for request in requests)
+    assert (
+        ("cancel", "new-1") in world.events
+        if tokens == 199
+        else ("cancel", "new-1") not in world.events
+    )
+
+
+def test_reload_accepts_jobs_already_selected_by_profile():
+    world = World()
+    jobs = world.jobs
+    world.jobs = lambda: [{"jobid": job["jobid"]} for job in jobs()]
+    assert world.run().outcome == "reloaded"
+
+
+def test_peak_sampler_observes_queue_during_blocking_validation(tmp_path):
+    import threading
+
+    world = World()
+    entered = threading.Event()
+    sampled = threading.Event()
+    lane = world.lane
+
+    def reading():
+        result = lane()
+        if entered.is_set():
+            result["router_generation_gate"] = {"waiting": 27}
+            sampled.set()
+        return result
+
+    def validate(_job):
+        entered.set()
+        assert sampled.wait(3), "queue was never sampled during the completion"
+        entered.clear()
+        return True
+
+    world.lane = reading
+    world.valid_result = validate
+    record = tmp_path / "lane-cycles.jsonl"
+    assert world.run(record_path=record).peak_held == 27
+    assert json.loads(record.read_text())["peak_held"] == 27

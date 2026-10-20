@@ -8,12 +8,13 @@ before using it as an upstream.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import logging
 import os
 import re
 import tempfile
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
@@ -40,8 +41,11 @@ class ServeRegistration:
     accelerator_count: int
     checkpoint_precision: str
     accelerator_family: str
+    held: bool = False
 
     def __post_init__(self) -> None:
+        if not isinstance(self.held, bool):
+            raise ValueError("held must be a boolean")
         for name in (
             "model_id",
             "host",
@@ -164,9 +168,32 @@ def _record_path(directory: Path, job_id: str) -> Path:
 
 
 def write_registration(registration: ServeRegistration, directory: str | Path) -> Path:
-    """Atomically replace one serve registration and return its final path."""
+    """Write launch identity without changing an existing admission decision."""
     target_dir = Path(directory)
     target_dir.mkdir(parents=True, exist_ok=True)
+    target = _record_path(target_dir, registration.job_id)
+    with target.with_suffix(".lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if target.exists():
+            previous = ServeRegistration(**json.loads(target.read_text()))
+            registration = replace(registration, held=previous.held)
+        return _write_registration(registration, target_dir)
+
+
+def release_registration(job_id: str, directory: str | Path) -> Path:
+    """Release a validated allocation; subsequent launch writes preserve release."""
+    target_dir = Path(directory)
+    target = _record_path(target_dir, job_id)
+    with target.with_suffix(".lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        registration = ServeRegistration(**json.loads(target.read_text()))
+        if registration.job_id != job_id:
+            raise ValueError("registration job id disagrees with its path")
+        return _write_registration(replace(registration, held=False), target_dir)
+
+
+def _write_registration(registration: ServeRegistration, target_dir: Path) -> Path:
+    """Atomically publish a record while its caller holds the job's lock."""
     target = _record_path(target_dir, registration.job_id)
     payload = json.dumps(asdict(registration), sort_keys=True, separators=(",", ":"))
     temporary_path: Path | None = None
@@ -305,6 +332,8 @@ def build_endpoint_document(
     # model id -> (endpoint, the job id that registered it)
     seen_models: dict[str, tuple[PublishedEndpoint, str]] = {}
     for registration in registrations:
+        if registration.held:
+            continue
         try:
             endpoint = _endpoint_from_catalog(
                 registration, fetch_catalog(registration.origin)
@@ -520,6 +549,10 @@ def _parser() -> argparse.ArgumentParser:
     write.add_argument("--accelerator-count", required=True, type=int)
     write.add_argument("--checkpoint-precision", required=True)
     write.add_argument("--accelerator-family", required=True)
+    write.add_argument("--held", action="store_true")
+    release = subparsers.add_parser("release")
+    release.add_argument("--directory", required=True)
+    release.add_argument("--job-id", required=True)
     remove = subparsers.add_parser("remove")
     remove.add_argument("--directory", required=True)
     remove.add_argument("--job-id", required=True)
@@ -542,9 +575,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 accelerator_count=args.accelerator_count,
                 checkpoint_precision=args.checkpoint_precision,
                 accelerator_family=args.accelerator_family,
+                held=args.held,
             ),
             args.directory,
         )
+    elif args.command == "release":
+        release_registration(args.job_id, args.directory)
     elif args.command == "remove":
         remove_registration(args.job_id, args.directory)
     else:

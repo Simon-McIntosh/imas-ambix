@@ -282,9 +282,7 @@ class _BusyInterval:
 
     __slots__ = ("run_id", "session", "started", "ended")
 
-    def __init__(
-        self, run_id: str | None, session: str | None, started: float
-    ) -> None:
+    def __init__(self, run_id: str | None, session: str | None, started: float) -> None:
         self.run_id = run_id
         self.session = session
         self.started = started
@@ -511,7 +509,8 @@ class _AdmissionLedger:
                         u=len(runs),
                         fair_share=fair_share,
                         others=(
-                            len(other) for name, other in workers.items()
+                            len(other)
+                            for name, other in workers.items()
                             if name != session
                         ),
                         global_slots=global_slots,
@@ -1808,6 +1807,21 @@ class RouterApp:
         if scope_type != "http":
             return
 
+        original_send = send
+
+        async def send(message: dict[str, Any]) -> None:
+            if message["type"] == "http.response.start":
+                message = {
+                    **message,
+                    "headers": [
+                        (name, value)
+                        for name, value in message.get("headers", [])
+                        if name.lower() != b"x-ambix-router-features"
+                    ]
+                    + [(b"x-ambix-router-features", b"held-registrations")],
+                }
+            await original_send(message)
+
         # Stamped before any branch, so a request answered here without a relay
         # still carries the time it spent in the router: a self-answered row
         # whose duration was never observed would read as instantaneous.
@@ -1894,9 +1908,7 @@ class RouterApp:
                     upstream.base_url,
                     _reported_width(upstream, card),
                 )
-        elif not (
-            path in self._GENERATION_PATHS and self._model_is_known(model_id)
-        ):
+        elif not (path in self._GENERATION_PATHS and self._model_is_known(model_id)):
             # An id nothing can serve and no profile names is refused as before:
             # holding every unknown id would make the router a queue for typos.
             await self._json_error(
@@ -2477,7 +2489,17 @@ class RouterApp:
                     {
                         "type": "http.response.start",
                         "status": response.status,
-                        "headers": list(response.raw_headers),
+                        "headers": [
+                            (name, value)
+                            for name, value in response.raw_headers
+                            if name.lower() != b"x-ambix-upstream"
+                        ]
+                        + [
+                            (
+                                b"x-ambix-upstream",
+                                upstream.base_url.rstrip("/").encode(),
+                            )
+                        ],
                     }
                 )
                 while True:

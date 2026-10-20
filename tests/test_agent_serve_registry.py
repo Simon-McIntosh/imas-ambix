@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import ast
+import json
 import re
 import threading
 import tomllib
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import pytest
@@ -131,9 +133,7 @@ def test_generated_serve_script_owns_registration_lifecycle(tmp_path):
     cleanup_publish = script.index("-m imas_ambix.agent.registry publish")
     assert cleanup_start < cleanup_publish < write_pos
     # …and the other fires only after the write, once the engine is ready.
-    assert write_pos < script.index(
-        "-m imas_ambix.agent.registry publish", write_pos
-    )
+    assert write_pos < script.index("-m imas_ambix.agent.registry publish", write_pos)
     assert "readiness poll expired" in script
 
 
@@ -206,9 +206,7 @@ def test_a_dead_registration_sharing_a_port_does_not_empty_the_document():
             ]
         }
 
-    endpoints = build_endpoint_document(
-        (superseded, live), fetch_catalog=catalog
-    )
+    endpoints = build_endpoint_document((superseded, live), fetch_catalog=catalog)
 
     assert len(endpoints) == 1, "one model id must publish exactly one endpoint"
     assert endpoints[0].port == 18800, "the later job's endpoint must win"
@@ -241,3 +239,50 @@ def test_a_second_model_survives_a_duplicate_on_the_first():
     )
 
     assert {endpoint.model_id for endpoint in endpoints} == {"model-a", "model-b"}
+
+
+def test_hold_is_armed_by_launch_and_only_release_clears_it(tmp_path):
+    from imas_ambix.agent.registry import main
+
+    record = replace(_registration(), held=True)
+    args = ["write", "--directory", str(tmp_path)]
+    for name, value in asdict(record).items():
+        if name == "held":
+            args.append("--held")
+        else:
+            args.extend(["--" + name.replace("_", "-"), str(value)])
+    assert main(args) == 0
+    write_registration(replace(record, held=False, port=19444), tmp_path)
+    assert read_registrations(tmp_path, job_is_running=lambda _: True).current[0].held
+    assert main(["release", "--directory", str(tmp_path), "--job-id", "42"]) == 0
+    write_registration(record, tmp_path)
+    released = json.loads((tmp_path / "42.json").read_text())
+    assert released["held"] is False
+    assert released["port"] == record.port
+
+
+def test_held_launch_script_and_publication(tmp_path):
+    profile = load_profile("glm-5-3").for_gpus(4)
+    script = generate_serve_script(
+        profile, SiteConfig(base_dir=str(tmp_path)), held=True
+    )
+    assert "registry write --held" in script
+    assert script.index("registry write --held") < script.index("READINESS_URL=")
+    called = []
+    assert (
+        build_endpoint_document(
+            [replace(_registration(), held=True)],
+            fetch_catalog=lambda url: called.append(url),
+        )
+        == ()
+    )
+    assert called == []
+
+
+def test_legacy_registration_defaults_to_released(tmp_path):
+    payload = asdict(_registration())
+    payload.pop("held")
+    (tmp_path / "42.json").write_text(json.dumps(payload))
+    assert read_registrations(tmp_path, job_is_running=lambda _: True).current == (
+        _registration(),
+    )

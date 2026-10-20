@@ -1117,6 +1117,19 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
         console.print("No imas-ambix agent jobs found.")
         return
 
+    if not cancel_all:
+        duplicates = [
+            name
+            for name in {name for _, name in jobs}
+            if sum(job_name == name for _, job_name in jobs) > 1
+        ]
+        if duplicates:
+            ids = ", ".join(job_id for job_id, name in jobs if name in duplicates)
+            raise click.ClickException(
+                f"overlap restart in progress; multiple live jobs: {ids}. "
+                "Use --all to cancel all jobs deliberately."
+            )
+
     targets = jobs
 
     # Show what will be cancelled
@@ -1533,7 +1546,10 @@ def _resolve_router_upstreams(site: SiteConfig, api_key: str | None) -> list[Ups
     upstreams: list[Upstream] = []
     seen_origins: set[str] = set()
     registered_job_ids: set[str] = set()
+    held_job_ids = {record.job_id for record in records if record.held}
     for record in records:
+        if record.held:
+            continue
         if running_ids is not None and record.job_id not in running_ids:
             continue
         probe = _probe_endpoint(record.origin, None)
@@ -1561,6 +1577,8 @@ def _resolve_router_upstreams(site: SiteConfig, api_key: str | None) -> list[Ups
             return upstreams
         raise
     for route in scheduler_routes:
+        if route.job_id in held_job_ids:
+            continue
         normalized_origin = route.base_url.rstrip("/")
         if route.job_id in registered_job_ids or normalized_origin in seen_origins:
             continue

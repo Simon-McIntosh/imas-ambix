@@ -1,8 +1,9 @@
-"""Orchestrate a bounded, paused serving-engine replacement."""
+"""Orchestrate bounded serving-engine replacements behind the router."""
 
 from __future__ import annotations
 
 import json
+import threading
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -58,7 +59,7 @@ def run_reload(
     settings_changed: Mapping[str, object] | None = None,
 ) -> ReloadResult:
     """Run the paused cycle through small, deterministic external interfaces."""
-    jobs = [job for job in read_jobs() if job.get("name") == profile]
+    jobs = read_jobs()
     if not dry_run and len(jobs) != 1:
         raise RuntimeError(f"expected exactly one running serve job; found {len(jobs)}")
     if dry_run:
@@ -78,6 +79,31 @@ def run_reload(
     drain_deadline = pause_deadline_origin + 10 * 60
     replacement_deadline = pause_deadline_origin + 22 * 60
     cycle_deadline = pause_deadline_origin + 40 * 60
+    sampling_done = threading.Event()
+    peak_lock = threading.Lock()
+
+    def sample_peak() -> None:
+        nonlocal peak
+        try:
+            gate = read_lane().get("router_generation_gate")
+            if isinstance(gate, dict) and isinstance(gate.get("waiting"), int):
+                with peak_lock:
+                    peak = max(peak, gate["waiting"])
+        except (OSError, TypeError, ValueError):
+            # Missing telemetry cannot supply a peak. Drain still requires a
+            # measured reading through its independent synchronous check.
+            pass
+
+    def sample_until_resumed() -> None:
+        while not sampling_done.wait(1):
+            sample_peak()
+
+    sampler = threading.Thread(target=sample_until_resumed, daemon=True)
+
+    def wait(seconds: float) -> None:
+        sleep(seconds)
+        sample_peak()
+
     try:
         if not was_paused:
             pause(reason)
@@ -89,6 +115,7 @@ def run_reload(
             cycle_deadline = started + 40 * 60
             pause_start_record = _utc_stamp(wall_clock)
 
+        sampler.start()
         while True:
             reading = read_lane()
             try:
@@ -99,12 +126,13 @@ def run_reload(
                 measured = False
             gate = reading.get("router_generation_gate")
             if isinstance(gate, dict) and isinstance(gate.get("waiting"), int):
-                peak = max(peak, gate["waiting"])
+                with peak_lock:
+                    peak = max(peak, gate["waiting"])
             if measured and reading.get("running") == 0:
                 break
             if clock() >= drain_deadline:
                 return ReloadResult(outcome, old_job_id, None, started, clock(), peak)
-            sleep(min(2, max(0, drain_deadline - clock())))
+            wait(min(2, max(0, drain_deadline - clock())))
 
         if old_job_id:
             cancel(old_job_id)
@@ -112,10 +140,11 @@ def run_reload(
             while any(job.get("jobid") == old_job_id for job in read_jobs()):
                 if clock() >= cancel_deadline:
                     raise RuntimeError("timed out waiting for old serve to stop")
-                sleep(min(2, max(0, cancel_deadline - clock())))
+                wait(min(2, max(0, cancel_deadline - clock())))
             old_stopped = True
 
         new_job = submit(script)
+        sample_peak()
         running_since: float | None = None
         validated = False
         while clock() < replacement_deadline:
@@ -124,6 +153,7 @@ def run_reload(
                     running_since = clock()
                 if ready(new_job):
                     if validate(new_job):
+                        sample_peak()
                         if clock() <= replacement_deadline:
                             validated = True
                             break
@@ -135,7 +165,7 @@ def run_reload(
                     raise RuntimeError(
                         "replacement did not become ready within 15 minutes of RUNNING"
                     )
-            sleep(min(2, max(0, replacement_deadline - clock())))
+            wait(min(2, max(0, replacement_deadline - clock())))
         if not validated:
             raise RuntimeError("replacement was not ready and validated by 22 minutes")
 
@@ -157,10 +187,11 @@ def run_reload(
                         and clock() <= cycle_deadline
                     ):
                         outcome = "rolled-back"
+                        sample_peak()
                         return ReloadResult(
                             outcome, old_job_id, rollback, started, clock(), peak
                         )
-                    sleep(min(2, max(0, cycle_deadline - clock())))
+                    wait(min(2, max(0, cycle_deadline - clock())))
             except Exception as rollback_error:
                 outcome = "rollback-failed"
                 raise RuntimeError(
@@ -173,6 +204,9 @@ def run_reload(
         raise
     finally:
         try:
+            sampling_done.set()
+            if sampler.ident is not None:
+                sampler.join()
             if changed_pause:
                 resume()
         finally:

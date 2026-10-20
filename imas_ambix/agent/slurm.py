@@ -436,6 +436,7 @@ def generate_serve_script(
     api_key: str | None = None,
     *,
     receipts_enabled: bool = True,
+    held: bool = False,
 ) -> str:
     """Generate a SLURM batch script for serving a model profile.
 
@@ -451,6 +452,8 @@ def generate_serve_script(
         receipts recorder against its own engine for the whole life of the
         job, so throughput and speculative-decode receipts accumulate
         without an operator starting one by hand.
+    held : bool
+        Keep the registration out of routing until restart validates and releases it.
     """
     model_dir = site.model_dir(profile)
     catalog_env_block = ""
@@ -490,6 +493,7 @@ def generate_serve_script(
     venv_bin = str(site.python_path(profile.engine.type).parent)
     is_kt = profile.engine.type == "ktransformers"
     repo_root = Path(__file__).resolve().parents[2]
+    held_option = " --held" if held else ""
     registry_dir = registration_directory(site.base_dir)
     registry_python = site.python_path(profile.engine.type)
     checkpoint_precision = profile.model.checkpoint_precision or "unknown"
@@ -860,7 +864,7 @@ def generate_serve_script(
 
         _REGISTRATION_ACTIVE=1
         PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \
-            "$_REGISTRY_PYTHON" -m imas_ambix.agent.registry write \
+            "$_REGISTRY_PYTHON" -m imas_ambix.agent.registry write{held_option} \
             --directory "$_REGISTRY_DIR" \
             --model-id {shlex.quote(profile.model.served_name)} \
             --host "$(hostname)" \

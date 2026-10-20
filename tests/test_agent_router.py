@@ -267,31 +267,31 @@ def test_requested_output_is_capped_to_a_quarter_of_the_model_window() -> None:
             _server(engine) as engine_url,
             _router([Upstream(engine_url)]) as app,
         ):
-                messages = json.dumps(
-                    {"model": "glm-5.3", "messages": [], "max_tokens": 32_000}
-                ).encode()
-                response = await _invoke(app, "POST", "/v1/messages", messages)
-                assert _status(response) == 200
+            messages = json.dumps(
+                {"model": "glm-5.3", "messages": [], "max_tokens": 32_000}
+            ).encode()
+            response = await _invoke(app, "POST", "/v1/messages", messages)
+            assert _status(response) == 200
 
-                chat = json.dumps(
-                    {
-                        "model": "glm-5.3",
-                        "messages": [],
-                        "max_completion_tokens": 98_304,
-                    }
-                ).encode()
-                response = await _invoke(app, "POST", "/v1/chat/completions", chat)
-                assert _status(response) == 200
+            chat = json.dumps(
+                {
+                    "model": "glm-5.3",
+                    "messages": [],
+                    "max_completion_tokens": 98_304,
+                }
+            ).encode()
+            response = await _invoke(app, "POST", "/v1/chat/completions", chat)
+            assert _status(response) == 200
 
-                within = json.dumps(
-                    {"model": "glm-5.3", "messages": [], "max_tokens": 4_096}
-                ).encode()
-                response = await _invoke(app, "POST", "/v1/messages", within)
-                assert _status(response) == 200
+            within = json.dumps(
+                {"model": "glm-5.3", "messages": [], "max_tokens": 4_096}
+            ).encode()
+            response = await _invoke(app, "POST", "/v1/messages", within)
+            assert _status(response) == 200
 
-                plain = b'{"model": "glm-5.3", "messages": []}'
-                response = await _invoke(app, "POST", "/v1/messages", plain)
-                assert _status(response) == 200
+            plain = b'{"model": "glm-5.3", "messages": []}'
+            response = await _invoke(app, "POST", "/v1/messages", plain)
+            assert _status(response) == 200
 
         assert json.loads(seen[0])["max_tokens"] == 24_576
         assert json.loads(seen[1])["max_completion_tokens"] == 24_576
@@ -388,5 +388,41 @@ def test_sse_bytes_are_identical_and_disconnect_closes_upstream(
                 assert upstream_response_closed.is_set()
                 assert app._generation_gate.in_flight == 0
                 assert app._generation_gate.waiting == 0
+
+    asyncio.run(exercise())
+
+
+def test_router_advertises_holds_on_catalog_errors_and_relay():
+    async def exercise():
+        engine = _catalog_app([_card("sample", context=4096, count=4)])
+
+        async def completion(_request):
+            return web.json_response(
+                {"choices": [{"message": {"content": "answer"}}]},
+                headers={
+                    "x-ambix-upstream": "forged",
+                    "x-ambix-router-features": "forged",
+                },
+            )
+
+        engine.router.add_post("/v1/chat/completions", completion)
+        async with _server(engine) as origin, _router([Upstream(origin)]) as app:
+            requests = [
+                ("GET", "/v1/models", b""),
+                ("GET", "/missing", b""),
+                ("POST", "/v1/chat/completions", b"invalid"),
+                ("POST", "/v1/chat/completions", b'{"model":"missing"}'),
+                ("POST", "/v1/chat/completions", b'{"model":"sample"}'),
+            ]
+            for method, path, body in requests:
+                messages = await _invoke(app, method, path, body)
+                start = next(m for m in messages if m["type"] == "http.response.start")
+                headers = {name.lower(): value for name, value in start["headers"]}
+                assert headers[b"x-ambix-router-features"] == b"held-registrations"
+                if body == b'{"model":"sample"}':
+                    assert headers[b"x-ambix-upstream"] == origin.encode()
+                    assert _status(messages) == 200
+                else:
+                    assert b"x-ambix-upstream" not in headers
 
     asyncio.run(exercise())
