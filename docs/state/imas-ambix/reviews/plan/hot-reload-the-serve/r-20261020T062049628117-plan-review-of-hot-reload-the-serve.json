@@ -1,0 +1,49 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-20T06:26:53.365Z",
+  "dispatched_at": "2026-10-20T06:21:02Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/hot-reload-the-serve.html:56",
+      "id": "reasoning-1",
+      "reason": "a node implementing this literally leaves the lane paused past the bound on any rollback, defeating the pause's stated purpose and the margin it claims on the client ride-out.",
+      "text": "\u00a71's pause bound is contradicted by \u00a71's rollback path: step 5 allows readiness up to 15 minutes from `RUNNING` plus validation, then step 6 on a validation failure cancels the new job, resubmits the saved batch script and waits for the rollback engine to answer the same validation \u2014 all before the step 7 `finally` resume. The plan's remedy (\"if the elapsed pause would pass 40 minutes before validation completes, roll back rather than continue\") starts the rollback without bounding it, so the plan's own numbers (1\u20133 min drain + 15 min readiness + validation, then a second readiness window for the rollback) can exceed the 40-minute ceiling the whole \"no request lost inside the freeze the plan rests on\" argument depends on",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/hot-reload-the-serve.html:44",
+      "id": "anchors_resolve-1",
+      "reason": "a node reading `restart`'s own signature sees `--dry-run` already there, so the mechanism (reuse not copy) is unaffected and only the framing sentence is wrong.",
+      "text": "\u00a71 says reload takes the settings options `restart` takes \"plus `--reason` and `--dry-run`\", which reads `--dry-run` as new; `restart` already declares `dry_run` (`imas_ambix/agent/cli.py:2241`, used at :2300/:2320/:2360), so the command's option set is built on a wrong premise",
+      "type": "anchors_resolve",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "49d04534f8610feeb8573a19d44cb6bc6f4f48498c299bd14a8bfc7f30411e6e",
+  "plan_slug": "hot-reload-the-serve",
+  "plan_version": 0,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261020T062049628117-plan-review-of-hot-reload-the-serve",
+  "reviewed_blob_sha": "02db6db69fe8596ebf95566fac87f97e10295785",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 the \u00a71 option list carries `--dry-run` as an addition to `restart`, but `restart` already declares `dry_run` in its signature at `imas_ambix/agent/cli.py:2241`.",
+    "done_when": "pass \u2014 \u00a71 declares a negative control that can fail (delete the `finally` resume, the exception-path test then fails) and \u00a72 declares one on each resolver path (remove either skip, its test fails); both measures are a named pytest command against named files.",
+    "evidence_paths": "pass \u2014 the cycle record appends to `lane-cycles.jsonl` beside the published `lane.json`, a durable path, and \u00a71's gate is a named pytest command rather than a scratchpad.",
+    "naming": "pass \u2014 new symbols (`reload.py`, `held_registrations`, `--mode`, `lane-cycles.jsonl`) carry no plan labels, version tags or ticket numbers, and no comment states a tracker entry.",
+    "reasoning": "a finding \u2014 \u00a71 asserts the whole pause stays inside the runbook's 40 minutes, but its own rollback step (resubmit the saved batch script and wait for it to answer the same validation) runs a second readiness-and-validation window inside that same pause, so the stated ceiling is not enforced by the described mechanism.",
+    "single_goal": "pass \u2014 \u00a71 is one deliverable (`agent reload` paused cycle plus its runbook edit), \u00a72 one (overlap mode plus the hold mechanism), \u00a73 explicitly deferred.",
+    "wiring": "pass \u2014 `plan-after: local-lane-admission-control` resolves to an existing plan, `data-links` s1\u2194s2 and s3\u2192s2 resolve to real sections, and followup `f-hrs-001` is open and points at \u00a71."
+  },
+  "section_digests": {
+    "_document": "d1e04d1e0b5ef2d72b196b41ce27165db5be10673c7f4a0f0126ec972e764397",
+    "s1": "5fca18d0da2ddb07715004f2d5023dc370e3df32c0099e9e2b97bd6fc461a848",
+    "s2": "5bf261c41dd5a2d4e51c93074c689b7ee60df51160a824c28daf40a7721336a0",
+    "s3": "d941e9d34d7089285c3f1dcc8a47aa91ff82659be3437feda559d35a52e3bdd8"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-20T06:29:37.302326+00:00"
+}
