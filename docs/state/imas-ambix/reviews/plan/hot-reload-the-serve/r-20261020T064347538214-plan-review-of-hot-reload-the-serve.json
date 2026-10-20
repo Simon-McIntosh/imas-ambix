@@ -1,0 +1,41 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-20T06:55:01.255Z",
+  "dispatched_at": "2026-10-20T06:44:52Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/hot-reload-the-serve.html:83",
+      "id": "reasoning-1",
+      "reason": "the node-wide occupancy the decision turns on is invisible to the named source, so an implementer following the plan builds the wrong probe and the `auto` branch fails in exactly the case \u00a7document says is current.",
+      "text": "\u00a72 says the live ledger \"takes each job's cards and node from `_running_jobs`, which already returns them\" and `auto` takes the overlap path only when \"the ledger has room for a second copy of the serve's cards, cores and memory\", but `_running_jobs` (cli.py:1219) queries `squeue -u $USER` unless explicit ids are passed, so it returns only the operator's own jobs; \u00a7document's own evidence for why the overlap path is unavailable is that \"two embedding jobs of **another user** held 2\", and another user's cards are the quantity `auto` must read to decide there is no room \u2014 so the ledger as specified would report room that does not exist and dispatch overlap into a 15-minute readiness wait instead of choosing the paused cycle.",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "60fc98644144667836f4e0c4954fe6bdcd3e879b3aa05e908ee8a1bfa11a776e",
+  "plan_slug": "hot-reload-the-serve",
+  "plan_version": 3,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261020T064347538214-plan-review-of-hot-reload-the-serve",
+  "reviewed_blob_sha": "dd7e3d2e273ea717dff4a4a8aa8ecf9f1efc3846",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `_running_jobs` (cli.py:1219), `_probe_endpoint` (cli.py:1307), the `key --rotate` profile filter (~cli.py:1995), `generate_serve_script` (slurm.py:432), `classify_reading` (lane.py:620), `_preferred_owner` (router.py:1639) and `router_generation_gate.waiting` (router.py:1515) all resolve; the \"three copies of the profile-name filter\" claim in \u00a71 is confirmed at cli.py:1075/2239/1995.",
+    "done_when": "pass \u2014 \u00a71 names a declared negative control (delete the `finally` resume and the exception-path test fails) and \u00a72 names one (remove the hold skip on either resolver path and its test fails), and both gates name runnable pytest targets.",
+    "evidence_paths": "pass \u2014 gate logs and the cycle record sit on durable paths (`lane-cycles.jsonl` beside `lane.json` under `public/imas-ambix/`, confirmed as `Path(site.endpoint_document).with_name(\"lane.json\")` at cli.py:3557), not a scratchpad.",
+    "naming": "pass \u2014 the new symbols are capability-named (`reload.py`, `--mode auto|overlap|pause`, `held_registrations`), and no ticket numbers, version tags or changelog prose reach them.",
+    "reasoning": "a finding \u2014 \u00a72's `auto` room check sources each job's cards and node from `_running_jobs`, which is operator-scoped, so it cannot see the occupancy \u00a7document says governs the decision.",
+    "single_goal": "pass \u2014 \u00a71 delivers the paused-cycle reload in `imas_ambix/agent/reload.py`; \u00a72 delivers the held-registration overlap path and the `--mode` selector; \u00a73 delivers the router handover and is declared deferred.",
+    "wiring": "pass \u2014 `plan-after: local-lane-admission-control` resolves to docs/plans/local-lane-admission-control.html, the s1/s2/s3 section links resolve to sections that exist, and the \u00a72 references to `imas_ambix/agent/AGENTS.md` \u00a72 and \u00a73b resolve to the SLURM-access and live-endpoint sections."
+  },
+  "section_digests": {
+    "_document": "a3fcb7bb257fb11d699e94caf9bcf3b3d854984ca1960831dae0bf5e95082e3a",
+    "s1": "3eb946085ced8f71c6dbc090bb4d09a0067f77d791dd06adddf09966a7b35c23",
+    "s2": "8022dc0703f2db7769c3fd10a7c2658c0bda5b1046ae2b6dbdeacf58eee61e0e",
+    "s3": "d941e9d34d7089285c3f1dcc8a47aa91ff82659be3437feda559d35a52e3bdd8"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-20T06:56:55.630151+00:00"
+}
