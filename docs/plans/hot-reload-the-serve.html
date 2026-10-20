@@ -25,7 +25,7 @@
   <title>Hot-reload the LLM serve | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="3">
+<meta name="plan-version" content="4">
 <meta name="plan-modified" content="2026-10-20">
 </head>
 <body>
@@ -80,7 +80,7 @@
     <p>The work:</p>
     <ol>
       <li>A held registration. The registry gains a hold marker per job, written and removed by <code>imas_ambix/agent/registry.py</code>. <code>_resolve_router_upstreams</code> skips a held job on both of its paths: the registration path, and the scheduler-only path that adds live serve jobs without a registration. The router publishes <code>"held_registrations": true</code> in its lane snapshot, so a caller can tell whether the running router honours holds.</li>
-      <li><code>agent restart --mode auto|overlap|pause</code>, with <code>auto</code> the default. <code>auto</code> takes the overlap path only when two things hold: the lane document advertises held registrations, and the live ledger has room for a second copy of the serve's cards, cores and memory. The ledger takes each job's cards and node from <code>_running_jobs</code>, which already returns them, and takes memory and the <code>gpu_0003_grpA</code> core ledger from <code>scontrol</code> as <code>imas_ambix/agent/AGENTS.md</code> §2 describes. Otherwise <code>auto</code> takes §1's paused cycle. <code>overlap</code> refuses when either condition fails.</li>
+      <li><code>agent restart --mode auto|overlap|pause</code>, with <code>auto</code> the default. <code>auto</code> takes the overlap path only when two things hold: the lane document advertises held registrations, and the live ledger has room for a second copy of the serve's cards, cores and memory. The room check is node-wide, because the cards that rule overlap out are mostly other users' (on 2026-10-20 two embedding jobs of another user held 2 of the 8). Free cards and memory come from <code>scontrol show node</code>: <code>CfgTRES</code> less <code>AllocTRES</code> for <code>gres/gpu</code>, and <code>RealMemory</code> less <code>AllocMem</code>. Free cores come from the <code>gpu_0003_grpA</code> core ledger summed over every user's jobs on the node (<code>squeue -w</code>), as <code>imas_ambix/agent/AGENTS.md</code> §2 describes. <code>_running_jobs</code> is scoped to the operator's own jobs, so it identifies the serve being replaced and is never the room check. Otherwise <code>auto</code> takes §1's paused cycle. <code>overlap</code> refuses when either condition fails.</li>
       <li>The overlap sequence:
         <ul>
           <li>Submit the replacement on a free port with its registration held. If it pends for more than 120 s, cancel it by id and fall back to the paused cycle under <code>auto</code>, or refuse under <code>overlap</code>.</li>
@@ -96,7 +96,7 @@
     <p><strong>Done when.</strong> <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_resolution.py tests/test_agent_reload_overlap.py tests/test_agent_reload.py -q</code> passes on the fleet node, with these tests:</p>
     <ul>
       <li>A held registration is absent from the resolved upstreams on the registration path, and a held job is absent on the scheduler-only path. Removing the skip on either path fails its test, which is the negative control.</li>
-      <li><code>auto</code> picks the paused cycle when the lane document lacks <code>held_registrations</code>, and when the ledger lacks cards, cores or memory.</li>
+      <li><code>auto</code> picks the paused cycle when the lane document lacks <code>held_registrations</code>, and when the ledger lacks cards, cores or memory, including when the missing cards are held by another user's jobs that <code>_running_jobs</code> does not list.</li>
       <li>An overlap whose replacement fails validation cancels only the replacement's job id and leaves the old job running.</li>
       <li>A successful overlap releases the hold before it cancels the old job, and cancels by id.</li>
     </ul>
