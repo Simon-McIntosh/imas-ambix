@@ -1,0 +1,49 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-20T07:12:45.911Z",
+  "dispatched_at": "2026-10-20T06:58:57Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/hot-reload-the-serve.html:78",
+      "id": "reasoning-1",
+      "reason": "a node implementing \u00a72 as written ships a command whose own declared defect is live, and no done-when test would catch it; the plan needs a work item (distinct replacement job name, or name-independent cancel) plus its test.",
+      "text": "\u00a72 lists defect 2 (\"Two copies of one profile carry the same job name. So `agent shutdown` would cancel both.\") as a blocker to a safe overlap, but none of the three work items or four done-when bullets addresses it: the overlap still submits the replacement under the profile slug name, and `shutdown` (cli.py:1117) cancels every job whose `%j` equals the resolved slug, so a coordinator running `agent shutdown <slug>` during the overlap window cancels both the old and the new engine",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/hot-reload-the-serve.html:82",
+      "id": "reasoning-2",
+      "reason": "without the arming path the hold is a race an implementer would resolve arbitrarily, and a hold lost to the job's own write routes traffic to an ungenerated engine, defeating the section's whole mechanism.",
+      "text": "\u00a72 says the replacement is submitted \"with its registration held\" and that the hold marker is \"written and removed by imas_ambix/agent/registry.py\", but the serve registration is written by the *generated batch script* inside the new job (slurm.py's `registry write` step, run before the readiness loop), while \u00a71 line 52 says the script is generated \"as today\" \u2014 the plan names no path by which the submit-time hold reaches that job's own registry write (a `--hold` on `registry write`, or a hold keyed by job id that the job's write preserves), and a hold written by `restart` after `sbatch` can be cleared by the job's later write",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "2b5fa90c63ae0ff1459044e33fabe1e525c7dfc139e0698e7886f6c1bdd93744",
+  "plan_slug": "hot-reload-the-serve",
+  "plan_version": 4,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261020T065844957556-plan-review-of-hot-reload-the-serve",
+  "reviewed_blob_sha": "9b34d26e4edfaa3588bb3f62cef27a9d3f1983e7",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 verified: `restart` (cli.py:2239), `_running_jobs` (:1219, operator-scoped `-u`), `_probe_endpoint` (:1307), `_resolve_router_upstreams` (:1507, with the registration path and the `_discover_live_routes` scheduler-only path both present), the registry-write step in the generated serve script (slurm script writes registration before the readiness loop), `RealMemory`/`AllocMem`/`CfgTRES`/`AllocTRES` all present on `scontrol show node 98dci4-gpu-0003`, AGENTS.md \u00a72 (core ledger), \u00a73b (2026-09-07 zero-downtime rotation), and ops/lane-cycle/AGENTS.md step 7 \"Record the cycle\" all resolve.",
+    "done_when": "pass \u2014 each section names a runnable pytest command and a negative control (\u00a71 deletes the `finally` resume, so its exception-path test fails; \u00a72 removes the hold skip on the registration path and on the scheduler-only path, each failing its own test).",
+    "evidence_paths": "pass \u2014 the cycle's durable record is `lane-cycles.jsonl` beside `lane.json`, and the gates run in place on the fleet node; no scratchpad or node-local path is named.",
+    "naming": "pass \u2014 the proposed symbols (`reload.py`, `--mode`, `held_registry` marker, `lane-cycles.jsonl`) carry no ticket numbers, stage names or version tags.",
+    "reasoning": "a finding \u2014 \u00a72's changed room-check paragraph is sound (its motivating evidence checks out: the two `murawan` embedding jobs each carry `gres/gpu=1` in `scontrol show job`, which `_running_jobs` cannot see), but \u00a72 declares a second defect it never resolves, and it does not name how the hold is armed before the job writes its own registration.",
+    "single_goal": "pass \u2014 \u00a71 is the paused-cycle command, \u00a72 the overlap mode, \u00a73 the deferred router handover; each carries one deliverable.",
+    "wiring": "pass \u2014 \u00a71 and \u00a72 cross-link via data-links (`hot-reload-the-serve#s2` / `#s1`), the \u00a71-then-\u00a72 build order is declared in followup f-hrs-001, and `plan-after` local-lane-admission-control resolves to docs/plans/local-lane-admission-control.html."
+  },
+  "section_digests": {
+    "_document": "a3fcb7bb257fb11d699e94caf9bcf3b3d854984ca1960831dae0bf5e95082e3a",
+    "s1": "3eb946085ced8f71c6dbc090bb4d09a0067f77d791dd06adddf09966a7b35c23",
+    "s2": "c4b9d8abdcffb6fabcfef0f32694ff337625de1a23e6a38d389dd999ec610868",
+    "s3": "d941e9d34d7089285c3f1dcc8a47aa91ff82659be3437feda559d35a52e3bdd8"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-20T07:15:18.903424+00:00"
+}
