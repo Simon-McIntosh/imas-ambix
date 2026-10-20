@@ -1,0 +1,70 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "assertion_analysis": [
+    {
+      "failure_condition": "Reddens on the declared regression: with `EOFError` removed from cli.py:2466's tuple, `gzip.decompress` raises out of `_engine_running_requests` and the test errors at its `is None` assertion - <run>/negative-control.log records exactly this as `1 failed ... EOFError: Compressed file ended before the end-of-stream marker was reached`. The expected `None` is a constant the test supplied, not a value derived from the body it passed in, so it is not self-comparing.",
+      "lines": "tests/test_agent_reload_overlap.py:658-667"
+    },
+    {
+      "failure_condition": "Reddens if `zlib.error` alone is removed from cli.py:2466: the corrupt deflate body raises `zlib.error` out of the reader instead of returning None. The node's declared control removed both exception names together, so this test's own half of the tuple is not isolated by the control, though it would redden on that mutation.",
+      "lines": "tests/test_agent_reload_overlap.py:670-677"
+    },
+    {
+      "failure_condition": "Reddens only against the pair: with both reload.py:119 and cli.py:2466 reverted the exception propagates out of run_overlap and `result.outcome == \"reloaded\"` fails. With cli.py:2466 alone reverted it stays green, as the node's negative-control note states, so it does not guard reload.py:119 in isolation - see the first finding. `world.now == 600` and `old_drain_timed_out is True` are independent of the injected body; they assert the drain polls to its bound rather than aborting.",
+      "lines": "tests/test_agent_reload_overlap.py:679-706"
+    },
+    {
+      "failure_condition": "Reddens on reverting imas_ambix/agent/lane.py:534-536: restoring `raise ValueError(\"engine metrics carry no valid running-request count\")` makes `lane.fetch_lane_capacity(...).running == 0` raise rather than compare, and the test errors. The expected `0` is a literal, not the value the test handed in, and no independent source could move with it, so it is not self-comparing.",
+      "lines": "tests/test_engine_metrics.py:791-806"
+    }
+  ],
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2686 read_old_running -> _engine_running_requests into reload.run_overlap",
+    "imas_ambix/agent/cli.py:3835 fetch_lane_capacity",
+    "imas_ambix/agent/cli.py:3858 fetch_lane_capacity",
+    "imas_ambix/agent/router.py:2138 fetch_lane_capacity via _publish_lane",
+    "imas_ambix/agent/lane.py:575 fetch_engine_metrics inside fetch_lane_capacity"
+  ],
+  "completed_at": "2026-10-20T14:57:08.381Z",
+  "dispatched_at": "2026-10-20T14:41:16Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/reload.py",
+      "line": "119",
+      "severity": "follow-on",
+      "text": "follow-on: the widened `except (OSError, ValueError, EOFError, zlib.error)` at imas_ambix/agent/reload.py:119 is covered by no test that reddens when it alone regresses. The node's own negative-control note on the reviewed manifest records this: removing `EOFError, zlib.error` from the reader's tuple still leaves `test_truncated_gzip_scrape_keeps_the_drain_waiting_to_its_bound` green, because cli.py:2466 returns None before the overlap guard sees anything, and every production caller reaches run_overlap through that reader (imas_ambix/agent/cli.py:2686). A future edit that narrows reload.py's tuple back to `(OSError, ValueError)` therefore passes the whole gate. The guard is genuine defence in depth against any read_old_running that raises, but it is asserted nowhere, so durability for that half of repair (1) rests on the reader alone."
+    },
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": "2140",
+      "severity": "follow-on",
+      "text": "follow-on: the same decode failure the node repaired escapes the lane publisher's handler one call site over. `_publish_lane` catches `(aiohttp.ClientError, OSError, RuntimeError, ValueError)` around `asyncio.to_thread(fetch_lane_capacity, ...)` at imas_ambix/agent/router.py:2138, and EOFError and zlib.error are neither (confirmed: `issubclass(EOFError, OSError)` is False). So a truncated-gzip or corrupt-deflate scrape raises out of the loop and ends the publisher task, where its own docstring at imas_ambix/agent/router.py:2105 says every failure publishes an explicit unavailable state and the loop continues. This is pre-existing and outside the node's declared write paths (router.py is not in its scope), and the node's change does not make it reachable \u2014 fetch_lane_capacity has raised these since it decoded inline \u2014 so it does not hold this node. It is recorded because it is the identical defect at the boundary whose fetch contract the node explicitly left as a follow-on, and it costs one tuple entry to close."
+    }
+  ],
+  "item_verdicts": {
+    "diff": "Read commit by commit against its base 10cb01e56891de011bff5f4c8977cec82b325f79; the single commit a0d2a79d widens two handlers to include EOFError and zlib.error (imas_ambix/agent/cli.py:2466, imas_ambix/agent/reload.py:119), replaces lane.parse_lane_capacity's `ValueError` refusal with a zero default and a why-comment (imas_ambix/agent/lane.py:528-536), adds three overlap tests with a `_compressed_scrape` stub, retargets one engine-metrics assertion from `pytest.raises(ValueError)` to `.running == 0`, and adds the landing fragment; 166 insertions, 8 deletions over six files.",
+    "done_when": "The done-when names `UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD uv run --no-sync pytest -p no:cacheprovider tests/test_engine_metrics.py tests/test_agent_reload_overlap.py tests/test_agent_lane_sglang.py tests/test_agent_lane_counter_series.py -q` judged by delta against a462d286, plus whole-tree ruff and the serving-interpreter parse test; <run>/after-gate.log ends `103 passed in 4.29s` then `EXIT=0`, <run>/baseline-gate.log ends `85 passed in 11.14s` then `EXIT=0`, <run>/ruff.log and <run>/serving-parse.log both end `EXIT=0`, and <run>/negative-control.log ends `EXIT=1` with the named test failed.",
+    "goal": "The node goal is `Keep the shared running-request reduction from changing lane capacity or aborting an overlap restart`; imas_ambix/agent/cli.py:2466 and imas_ambix/agent/reload.py:119 now read a decode failure as an unknown reading instead of aborting, and imas_ambix/agent/lane.py:528-536 restores the lane document's absent-gauge default of zero, which are exactly the goal's two clauses and exactly the two follow-ons the predecessor review at 10cb01e5 named.",
+    "manifest": "Read at <run>/manifest.md; status complete, one commit a0d2a79dc7a07f47a131716eed41bfbd5657f4b4, a bare `negative_control_log` path and nothing else on the line, baseline_suite and after_suite objects both with `completed: true` and `failure_ids: []` that agree with the two arm logs I opened, and its own follow_ons entry naming lane.fetch_engine_metrics' unguarded decode contract.",
+    "write_paths": "Declared: imas_ambix/agent/cli.py, imas_ambix/agent/reload.py, imas_ambix/agent/engine_metrics.py, imas_ambix/agent/lane.py, tests/test_engine_metrics.py, tests/test_agent_reload_overlap.py, docs/evidence/fragments/hot-reload-the-serve/restart-drain-metrics-repair.html and the docs/figures/hot-reload-the-serve/restart-drain-metrics-repair directory; `git diff --stat 10cb01e56891de011bff5f4c8977cec82b325f79 a0d2a79dc7a07f47a131716eed41bfbd5657f4b4` names exactly six files - cli.py, lane.py, reload.py, tests/test_engine_metrics.py, tests/test_agent_reload_overlap.py and the fragment - every one inside that list, with engine_metrics.py and the figures directory untouched."
+  },
+  "project": "imas-ambix",
+  "review": "VERDICT goal: the node goal is `Keep the shared running-request reduction from changing lane capacity or aborting an overlap restart`; imas_ambix/agent/cli.py:2466 and imas_ambix/agent/reload.py:119 now read a decode failure as an unknown reading instead of aborting, and imas_ambix/agent/lane.py:528-536 restores the lane document's absent-gauge default of zero, which are exactly the goal's two clauses and exactly the two follow-ons the predecessor review at 10cb01e5 named.\nVERDICT done_when: the done-when names `UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD uv run --no-sync pytest -p no:cacheprovider tests/test_engine_metrics.py tests/test_agent_reload_overlap.py tests/test_agent_lane_sglang.py tests/test_agent_lane_counter_series.py -q` judged by delta against a462d286 plus ruff and the serving-interpreter parse; <run>/after-gate.log ends `103 passed in 4.29s` then `EXIT=0`, <run>/baseline-gate.log ends `85 passed in 11.14s` then `EXIT=0`, <run>/ruff.log and <run>/serving-parse.log both end `EXIT=0`, and <run>/negative-control.log ends `EXIT=1` with the named test failed.\nVERDICT write_paths: declared cli.py, reload.py, engine_metrics.py, lane.py, tests/test_engine_metrics.py, tests/test_agent_reload_overlap.py and the landing fragment under docs/evidence/fragments/hot-reload-the-serve/; `git diff --stat 10cb01e56891de011bff5f4c8977cec82b325f79 a0d2a79dc7a07f47a131716eed41bfbd5657f4b4` names exactly six files, every one inside that list, with engine_metrics.py and the figures directory untouched.\nVERDICT manifest: read at <run>/manifest.md; status complete, one commit a0d2a79d, a bare `negative_control_log` path, baseline_suite and after_suite objects with `completed: true` and empty failure_ids agreeing with the two arm logs I opened, and its own follow_ons entry naming lane.fetch_engine_metrics' unguarded decode contract.\nVERDICT diff: read commit by commit against base 10cb01e5; the single commit a0d2a79d widens two handlers to include EOFError and zlib.error (cli.py:2466, reload.py:119), replaces lane.parse_lane_capacity's ValueError with a zero default and a why-comment (lane.py:528-536), adds three overlap tests with a `_compressed_scrape` stub, retargets one engine-metrics assertion to `.running == 0`, and adds the landing fragment.\nCALL_SITES: imas_ambix/agent/cli.py:2686 read_old_running -> _engine_running_requests into reload.run_overlap, imas_ambix/agent/cli.py:3835 fetch_lane_capacity, imas_ambix/agent/cli.py:3858 fetch_lane_capacity, imas_ambix/agent/router.py:2138 fetch_lane_capacity via _publish_lane, imas_ambix/agent/lane.py:575 fetch_engine_metrics inside fetch_lane_capacity\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/cli.py:2466 and imas_ambix/agent/lane.py:528-536 close both clauses of the goal, restoring the lane document's zero default and keeping the drain's absence as unknown, verified by tests that fail on revert.\nSCORE evidence: 17\nJUSTIFICATION evidence: <run>/after-gate.log ends `103 passed in 4.29s` / `EXIT=0` against <run>/baseline-gate.log's `85 passed in 11.14s` / `EXIT=0`, but the base arm is a462d286, which precedes the sibling predecessor commits, so the delta conflates this node's tests with theirs.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: `git diff --stat 10cb01e56891de011bff5f4c8977cec82b325f79 a0d2a79dc7a07f47a131716eed41bfbd5657f4b4` names only cli.py, lane.py, reload.py, the two test files and the landing fragment, all inside the declared write paths.\nSCORE durability: 16\nJUSTIFICATION durability: <run>/negative-control.log reddens tests/test_agent_reload_overlap.py:658 by removing EOFError and zlib.error from imas_ambix/agent/cli.py:2466, but no test reddens when imas_ambix/agent/reload.py:119's pair is removed alone.\nSCORE fit: 18\nJUSTIFICATION fit: the deferred `import zlib` at imas_ambix/agent/cli.py:2460 matches that function's existing local `from imas_ambix.agent import ...` idiom, the comments state why rather than what, and the new names carry no plan or version label; the `_compressed_scrape` stub at tests/test_agent_reload_overlap.py:638 is the file's fifth copy of one scrape-stub shape.\nSCORE reuse: 20\nJUSTIFICATION reuse: a search for `EOFError|zlib.error|Content-Encoding` across imas_ambix/ at the reviewed head finds only the single decoder at imas_ambix/agent/lane.py:560 and the two new handlers, so no owner for a decode-failure policy exists to extend, and fetch_lane_capacity already delegates to fetch_engine_metrics rather than forking it; the only added definition is a test-local stub.\nFINDING imas_ambix/agent/reload.py:119 follow-on: the widened except clause is not asserted in isolation, so removing its EOFError and zlib.error alone leaves the whole gate green.\nFINDING imas_ambix/agent/router.py:2140 follow-on: the same decode failure escapes the lane publisher's except tuple and ends the loop its docstring says is never disturbed; pre-existing and outside this node's write paths, recorded as the adjacent instance of the defect the node repaired.",
+  "review_run_id": "r-20261020T144026263094-review-of-restart-drain-metrics-repair-a0d2a79dc7a0",
+  "reviewed_base_sha": "10cb01e56891de011bff5f4c8977cec82b325f79",
+  "reviewed_head_sha": "a0d2a79dc7a07f47a131716eed41bfbd5657f4b4",
+  "reviewed_run_id": "r-20261020T141836671772-restart-drain-metrics-repair",
+  "scores": {
+    "durability": 16,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-20T15:00:35.194581+00:00",
+  "total": 110
+}

@@ -25,7 +25,7 @@
   <title>Hot-reload the LLM serve | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="17">
+<meta name="plan-version" content="18">
 <meta name="plan-modified" content="2026-10-20">
 </head>
 <body>
@@ -160,6 +160,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261020T133959926152-restart-drain-reuses-engine-metrics" data-who="reckon-build" data-when="2026-10-20T13:55:04Z">
     <div class="r-comment-body"><p>Shared engine_metrics.running_requests and lane.fetch_engine_metrics now serve overlap drain and lane capacity; gate 95 passed versus 80 at base, lint and serving grammar passed, absence-to-zero control 2 failed as required. Three counter-fixture follow-ons remain outside scope. [Evidence](/imas-ambix/evidence/fragments/hot-reload-the-serve/restart-drain-reuses-engine-metrics.html#restart-drain-reuses-engine-metrics).</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20261020T144026263094-review-of-restart-drain-metrics-repair-a0d2a79dc7a0" data-who="reckon-build" data-when="2026-10-20T14:57:08.381Z">
+    <div class="r-comment-body"><p>Independent review of 10cb01e56891de011bff5f4c8977cec82b325f79..a0d2a79dc7a07f47a131716eed41bfbd5657f4b4 stored as a parsed six-dimension record scoring 19/17/20/16/18/20 with zero added test failures on the node&#x27;s own gate and two follow-on findings: the overlap guard&#x27;s widened except clause is asserted in isolation by no test, and the same decode failure still escapes router._publish_lane&#x27;s handler one call site over; no blocking finding.</p></div>
 </div>
 </section>
 </main>
