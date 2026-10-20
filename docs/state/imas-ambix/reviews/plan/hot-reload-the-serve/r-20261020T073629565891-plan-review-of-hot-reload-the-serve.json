@@ -1,0 +1,41 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-20T07:46:50.184Z",
+  "dispatched_at": "2026-10-20T07:36:52Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/hot-reload-the-serve.html:82",
+      "id": "reasoning-1",
+      "reason": "the key is the sole gate on the whole overlap path, and leaving its ownership unstated lets an implementation that \"works in the test and never in the lane\" pass every gate \u00a72 declares, sending a later node down the wrong path.",
+      "text": "\u00a72 makes the overlap path reachable only when \"the lane document advertises held registrations\" and says the router publishes `\"held_registrations\": true` in its lane snapshot, but `lane.json` has a second whole-file producer: `write_lane_document` (`imas_ambix/agent/lane.py:757`) builds a fresh document dict and atomically replaces the file without preserving keys it did not write, and the standing refresher job `agent lane --submit` (`cli.py:3475`) generates a script (`generate_lane_refresher_script`, `slurm.py:917`) that runs `agent lane --publish --refresh` \u2014 the loop at `cli.py:3531` \u2014 writing that same `lane.json` every `--refresh` seconds. The router only *merges* its keys in (`_publish_gate_snapshot`, `router.py:2176`), so a refresher write between two router merges erases `held_registrations`, `auto` reads no advertisement, and silently takes \u00a71's paused cycle for ever: the overlap path \u00a72 exists to deliver never runs, and it fails safe so no assertion in \u00a72's done-when can see it. The plan needs to say which producer owns the key (or that both emit it / the refresher preserves it) before \u00a72 is implementable",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "d7a6d3ba4df503b6799018598ec365285a4ea5d229646a889427128b825ab2ce",
+  "plan_slug": "hot-reload-the-serve",
+  "plan_version": 7,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261020T073629565891-plan-review-of-hot-reload-the-serve",
+  "reviewed_blob_sha": "f810273d061d4d60b865c77e5ccc888fe859365c",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 each target resolves: `generate_serve_script` (`imas_ambix/agent/slurm.py:432`) and its `registry write` step (`:863`, emitted before the readiness loop at `:907`); `imas_ambix/agent/registry.py`; `_running_jobs` (`imas_ambix/agent/cli.py:1219`) and `_probe_endpoint` (`:1307`); the two resolver paths in `_resolve_router_upstreams` (`cli.py:1507`, registration path and the `_discover_live_routes` scheduler path at `:1468`); `_serve_catalog` (`router.py:2284`) emitting one card per model id; `imas_ambix/agent/AGENTS.md` \u00a72 (`:25`, the grpA core ledger) and \u00a73b (`:304`, the rotation passage); `ops/lane-cycle/AGENTS.md` (router-restart row at `:230`).",
+    "done_when": "pass \u2014 \u00a72 names the exact pytest invocation, each assertion it must carry, and a declared negative control (\"Removing the skip on either path fails its test\"), and \u00a71's `--dry-run`/`finally` controls are the same shape.",
+    "evidence_paths": "pass \u2014 \u00a72's gate is the named pytest command run in place on the fleet node with the fleet environment, no scratchpad or node-local evidence path is named, and \u00a71 pins the same placement explicitly.",
+    "naming": "pass \u2014 no plan label, stage name, ticket number or version tag reaches the symbols or filenames \u00a72 proposes (`reload.py`, `held`, `--mode`, `x-ambix-upstream`); the names describe the mechanism.",
+    "reasoning": "a finding \u2014 the `held_registrations` advertisement on which the whole overlap path is gated is published into a document that has a second, independent writer, so it can be erased after the deployment the plan describes.",
+    "single_goal": "pass \u2014 \u00a72 delivers one thing, the overlap reload; the shutdown guard, the room check and the held registration are prerequisites of that one deliverable rather than separate ones, and each is asserted by the same gate.",
+    "wiring": "pass \u2014 \u00a72 declares `data-links=\"hot-reload-the-serve#s1\"`, \u00a71 declares the mirror link to s2, the single followup orders \u00a71 before \u00a72 and says why, and the deferred \u00a73 is named by no dependant; the dependency s2 actually needs (the completion validation) is \u00a71's and is declared."
+  },
+  "section_digests": {
+    "_document": "a3fcb7bb257fb11d699e94caf9bcf3b3d854984ca1960831dae0bf5e95082e3a",
+    "s1": "3eb946085ced8f71c6dbc090bb4d09a0067f77d791dd06adddf09966a7b35c23",
+    "s2": "6a8ea256646da901bf74911173baf2d69ef8c5cc1f03db9af8b720092c11fddc",
+    "s3": "d941e9d34d7089285c3f1dcc8a47aa91ff82659be3437feda559d35a52e3bdd8"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-20T07:49:38.153003+00:00"
+}
