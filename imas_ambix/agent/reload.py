@@ -34,6 +34,75 @@ def _utc_stamp(clock: Callable[[], datetime]) -> str:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
+class OverlapPendingError(RuntimeError):
+    """Replacement could not start promptly beside the serving allocation."""
+
+
+def run_overlap(
+    *,
+    script: str,
+    old_job_id: str,
+    submit: Callable[[str], str],
+    cancel: Callable[[str], None],
+    job_state: Callable[[str], str],
+    ready: Callable[[str], bool],
+    validate: Callable[[str], bool],
+    release: Callable[[str], None],
+    confirm: Callable[[str], bool],
+    publish: Callable[[], object],
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+) -> ReloadResult:
+    """Validate beside the old engine, then require proof of routed handover."""
+    replacement = submit(script)
+    retiring_old = False
+    try:
+        pending_deadline = clock() + 120
+        while True:
+            state = job_state(replacement)
+            if state == "RUNNING":
+                break
+            if state not in {"PENDING", "CONFIGURING"}:
+                raise RuntimeError(f"replacement {replacement} is no longer live")
+            if clock() >= pending_deadline:
+                raise OverlapPendingError(
+                    f"replacement {replacement} did not start within 120 seconds"
+                )
+            sleep(min(2, pending_deadline - clock()))
+
+        readiness_deadline = clock() + 15 * 60
+        while not ready(replacement):
+            if job_state(replacement) != "RUNNING":
+                raise RuntimeError(
+                    f"replacement {replacement} stopped before readiness"
+                )
+            if clock() >= readiness_deadline:
+                raise RuntimeError(
+                    "replacement did not become ready within 15 minutes of RUNNING"
+                )
+            sleep(min(2, max(0, readiness_deadline - clock())))
+        if clock() > readiness_deadline:
+            raise RuntimeError("replacement readiness exceeded 15 minutes of RUNNING")
+        if not validate(replacement):
+            raise RuntimeError("replacement completion validation failed")
+        release(replacement)
+        if not confirm(replacement):
+            raise RuntimeError(
+                "router completion did not confirm the replacement origin; "
+                f"keeping old job {old_job_id}"
+            )
+        # Once cancellation is attempted, its receipt may be lost even though
+        # the scheduler accepted it. Preserve the confirmed replacement.
+        retiring_old = True
+        cancel(old_job_id)
+        publish()
+        return ReloadResult("reloaded", old_job_id, replacement, None, None, 0)
+    except Exception:
+        if not retiring_old:
+            cancel(replacement)
+        raise
+
+
 def run_reload(
     *,
     profile: str,

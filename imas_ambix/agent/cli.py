@@ -2173,6 +2173,14 @@ def _deploy_launcher(name: str, path, content: str, mode: int = 0o755) -> None:
 
 @agent.command()
 @click.option(
+    "--mode",
+    type=click.Choice(["auto", "overlap", "pause"]),
+    default="auto",
+    show_default=True,
+    help="Overlap only with router support and room for a second serve; "
+    "otherwise pause.",
+)
+@click.option(
     "--reason",
     required=True,
     help="Why the serving lane is being paused.",
@@ -2260,8 +2268,9 @@ def restart(
     dspark_block_size: int | None,
     time_limit: str | None,
     reason: str,
+    mode: str = "auto",
 ) -> None:
-    """Replace a serving engine while the router holds new requests."""
+    """Replace a serving engine by validated overlap or a bounded router pause."""
     from imas_ambix.agent.slurm import generate_serve_script
 
     profile = _load_profile(slug)
@@ -2324,7 +2333,7 @@ def restart(
         raise click.ClickException(
             f"matching serve job {old_job['jobid']} is not RUNNING"
         )
-    script = generate_serve_script(
+    pause_script = generate_serve_script(
         profile, site, port=resolved_port, api_key=resolved_key
     )
     if dry_run:
@@ -2332,9 +2341,24 @@ def restart(
             f"Dry run: would replace job {old_job['jobid'] if old_job else 'none'}",
             markup=False,
         )
-        console.print(script, markup=False, highlight=False, soft_wrap=True)
+        console.print(
+            f"Mode {mode}: overlap requires held-registrations and node-wide room. "
+            "Overlap: submit held on a free port, RUNNING, ready, validate, release, "
+            "confirm router upstream, cancel old job by id, publish. "
+            "Pause: save rollback, pause, drain, cancel by id, submit, RUNNING, "
+            "ready, validate or roll back, resume.",
+            markup=False,
+        )
+        console.print(pause_script, markup=False, highlight=False, soft_wrap=True)
         return
 
+    selected_mode, router_origin = _restart_mode(profile, site, mode, resolved_key)
+    script = pause_script
+    if selected_mode == "overlap":
+        resolved_port = _overlap_port(site, old_job, resolved_port)
+        script = generate_serve_script(
+            profile, site, port=resolved_port, api_key=resolved_key, held=True
+        )
     _execute_restart_cycle(
         profile,
         site,
@@ -2344,7 +2368,89 @@ def restart(
         resolved_port,
         reason,
         settings_changed,
+        mode=selected_mode,
+        router_origin=router_origin,
+        fallback_script=pause_script if mode == "auto" else None,
     )
+
+
+def _restart_mode(
+    profile: ModelProfile, site: SiteConfig, mode: str, api_key: str | None
+) -> tuple[str, str | None]:
+    """Ask the running router and scheduler before choosing overlap."""
+    import urllib.request
+
+    from imas_ambix.agent.slurm import overlap_room
+
+    if mode == "pause":
+        return "pause", None
+    origins = {
+        f"http://{node}:{port}"
+        for job in _running_jobs(site)
+        if job.get("state") == "RUNNING"
+        and (node := _job_node(job))
+        and (port := _router_port(job.get("comment", "")))
+    }
+    origin = next(iter(origins)) if len(origins) == 1 else site.global_origin
+    supported = False
+    try:
+        request = urllib.request.Request(
+            f"{origin}/v1/models",
+            headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            features = response.headers.get("x-ambix-router-features", "")
+            supported = "held-registrations" in features.replace(",", " ").split()
+    except (OSError, ValueError):
+        pass
+    reason = "router does not advertise held-registrations"
+    if supported:
+        room, reason = overlap_room(profile, site)
+        if room:
+            return "overlap", origin
+    if mode == "overlap":
+        raise click.ClickException(f"overlap unavailable: {reason}")
+    console.print(f"Using paused restart: {reason}", markup=False)
+    return "pause", origin
+
+
+def _overlap_port(site: SiteConfig, old_job: dict[str, str], preferred: int) -> int:
+    """Choose an unreserved port whose listener explicitly refuses a connection."""
+    import socket
+
+    result = subprocess.run(
+        ["squeue", "-h", "-w", site.gpu_host, "-o", "%k"],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=15,
+    )
+    if result.returncode:
+        raise click.ClickException(
+            result.stderr.strip() or "cannot inspect serve ports"
+        )
+    occupied = {
+        port
+        for line in result.stdout.splitlines()
+        if (port := _serve_port(line.strip()) or _router_port(line.strip()))
+    }
+    old_port = _serve_port(old_job.get("comment", "")) or _batch_script_port(
+        old_job["jobid"]
+    )
+    if old_port is None:
+        raise click.ClickException("cannot establish the running serve's port")
+    occupied.add(old_port)
+    for port in range(preferred, min(preferred + 128, 65536)):
+        if port in occupied:
+            continue
+        try:
+            with socket.create_connection((site.gpu_host, port), timeout=1):
+                continue
+        except ConnectionRefusedError:
+            return port
+        except OSError as error:
+            raise click.ClickException(f"cannot verify a free port: {error}") from error
+    raise click.ClickException("no free port available for overlap")
 
 
 def _execute_restart_cycle(
@@ -2356,6 +2462,10 @@ def _execute_restart_cycle(
     resolved_port: int,
     reason: str,
     settings_changed: dict[str, object],
+    *,
+    mode: str = "pause",
+    router_origin: str | None = None,
+    fallback_script: str | None = None,
 ) -> None:
     """Bind scheduler, gate, lane and completion interfaces for one reload."""
     import json
@@ -2364,6 +2474,7 @@ def _execute_restart_cycle(
     import urllib.request
 
     from imas_ambix.agent import reload as reload_module
+    from imas_ambix.agent.registry import registration_directory, release_registration
     from imas_ambix.agent.slurm import submit_script
 
     lane_path = Path(site.endpoint_document).with_name("lane.json")
@@ -2388,7 +2499,7 @@ def _execute_restart_cycle(
             return json.loads(lane_path.read_text(encoding="utf-8"))
 
         def read_jobs() -> list[dict[str, str]]:
-            return _running_jobs(site, job_ids=(old_job["jobid"],))
+            return _profile_jobs(site, profile.slug)
 
         def do_cancel(job_id: str) -> None:
             result = subprocess.run(
@@ -2435,9 +2546,10 @@ def _execute_restart_cycle(
                 and _probe_endpoint(base_url, resolved_key).readiness == "ready"
             )
 
-        def validate(job_id: str) -> bool:
-            base_url = job_url(job_id)
-            if not base_url:
+        def validate(job_id: str, *, routed: bool = False) -> bool:
+            expected_origin = job_url(job_id)
+            base_url = router_origin if routed else expected_origin
+            if not base_url or not expected_origin:
                 return False
             body = json.dumps(
                 {
@@ -2468,6 +2580,12 @@ def _execute_restart_cycle(
             try:
                 with urllib.request.urlopen(request, timeout=300) as response:
                     result = json.load(response)
+                    if (
+                        routed
+                        and response.headers.get("x-ambix-upstream", "").rstrip("/")
+                        != expected_origin
+                    ):
+                        return False
             except Exception:
                 return False
             usage = result.get("usage", {})
@@ -2476,10 +2594,10 @@ def _execute_restart_cycle(
                 "finish_reason"
             ) in {"stop", "length"}
 
-        try:
-            result = reload_module.run_reload(
+        def paused_cycle(batch: str) -> reload_module.ReloadResult:
+            return reload_module.run_reload(
                 profile=profile.slug,
-                script=script,
+                script=batch,
                 rollback_script=rollback_script,
                 old_job_id=old_job["jobid"],
                 dry_run=False,
@@ -2499,6 +2617,59 @@ def _execute_restart_cycle(
                 reason=reason,
                 settings_changed=settings_changed,
             )
+
+        try:
+            if mode == "overlap":
+
+                def job_state(job_id: str) -> str:
+                    return next(
+                        (
+                            row["state"]
+                            for row in _running_jobs(site, job_ids=(job_id,))
+                            if row["jobid"] == job_id
+                        ),
+                        "",
+                    )
+
+                def cancel_overlap(job_id: str) -> None:
+                    do_cancel(job_id)
+                    deadline = time.monotonic() + 60
+                    while _running_jobs(site, job_ids=(job_id,)):
+                        if time.monotonic() >= deadline:
+                            raise RuntimeError(
+                                f"cancelled job {job_id} has not left the queue"
+                            )
+                        time.sleep(2)
+                    _remove_cancelled_registrations(site, [job_id])
+
+                try:
+                    result = reload_module.run_overlap(
+                        script=script,
+                        old_job_id=old_job["jobid"],
+                        submit=do_submit,
+                        cancel=cancel_overlap,
+                        job_state=job_state,
+                        ready=is_ready,
+                        validate=validate,
+                        release=lambda job_id: release_registration(
+                            job_id, registration_directory(site.base_dir)
+                        ),
+                        confirm=lambda job_id: validate(job_id, routed=True),
+                        publish=lambda: _republish_endpoint_document(site),
+                    )
+                except reload_module.OverlapPendingError:
+                    if fallback_script is None:
+                        raise
+                    deadline = time.monotonic() + 60
+                    while len(_profile_jobs(site, profile.slug)) != 1:
+                        if time.monotonic() >= deadline:
+                            raise RuntimeError(
+                                "pending replacement has not left the queue"
+                            ) from None
+                        time.sleep(2)
+                    result = paused_cycle(fallback_script)
+            else:
+                result = paused_cycle(script)
         except Exception as error:
             raise click.ClickException(str(error)) from error
     console.print(

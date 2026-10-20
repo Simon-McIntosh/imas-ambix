@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import subprocess
 from pathlib import Path
@@ -52,6 +53,65 @@ _FADVISE_DROP_CODE = (
     "        os.posix_fadvise(fd, 0, os.fstat(fd).st_size, os.POSIX_FADV_DONTNEED)\n"
     "        os.close(fd)\n"
 )
+
+
+def _scheduler_fields(output: str) -> dict[str, str]:
+    return dict(token.split("=", 1) for token in output.split() if "=" in token)
+
+
+def overlap_room(profile: ModelProfile, site: SiteConfig) -> tuple[bool, str]:
+    """Check node-wide cards and RAM, and every user's reserved-core ledger."""
+
+    def query(args: list[str]) -> str:
+        result = subprocess.run(
+            args, capture_output=True, text=True, check=False, timeout=15
+        )
+        if result.returncode:
+            raise ValueError(result.stderr.strip() or "scheduler query failed")
+        return result.stdout
+
+    try:
+        node = _scheduler_fields(
+            query(["scontrol", "show", "node", site.gpu_host, "-o"])
+        )
+        configured = dict(item.split("=", 1) for item in node["CfgTRES"].split(","))
+        allocated = dict(
+            item.split("=", 1) for item in node["AllocTRES"].split(",") if item
+        )
+        cards = int(configured["gres/gpu"]) - int(allocated.get("gres/gpu", "0"))
+        memory = int(node["RealMemory"]) - int(node["AllocMem"])
+        reservation = _scheduler_fields(
+            query(["scontrol", "show", "reservation", site.reservation, "-o"])
+        )
+        cores = int(reservation["CoreCnt"])
+        ledger = query(["squeue", "-h", "-w", site.gpu_host, "-o", "%i|%u|%T|%C|%v"])
+        for row in ledger.splitlines():
+            job_id, user, state, cpus, reserved = (
+                part.strip() for part in row.split("|")
+            )
+            if not job_id or not user:
+                raise ValueError("core ledger lacks job ownership")
+            if reserved == site.reservation and state != "PENDING":
+                cores -= int(cpus)
+        requested = re.fullmatch(
+            r"(\d+(?:\.\d+)?)([KMGT]?)", profile.slurm.memory.upper()
+        )
+        if requested is None or float(requested[1]) <= 0:
+            raise ValueError("serve memory must be a positive bounded request")
+        required_memory = (
+            float(requested[1])
+            * {"K": 1 / 1024, "": 1, "M": 1, "G": 1024, "T": 1024 * 1024}[requested[2]]
+        )
+        deficits = []
+        if cards < profile.slurm.gpus:
+            deficits.append(f"cards {cards} < {profile.slurm.gpus}")
+        if cores < profile.slurm.cpus:
+            deficits.append(f"cores {cores} < {profile.slurm.cpus}")
+        if memory < required_memory:
+            deficits.append(f"memory {memory} MiB < {required_memory:g} MiB")
+        return not deficits, ", ".join(deficits) or "cards, cores and memory available"
+    except (OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
+        return False, f"cannot establish overlap room: {error}"
 
 
 def _sbatch_headers(

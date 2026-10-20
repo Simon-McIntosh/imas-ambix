@@ -363,6 +363,7 @@ def test_real_validation_closure_enforces_completion_threshold(
         return [
             dict(
                 jobid=job,
+                name=profile.slug,
                 state="RUNNING",
                 node="engine",
                 comment="ambix-serve;port=18800",
