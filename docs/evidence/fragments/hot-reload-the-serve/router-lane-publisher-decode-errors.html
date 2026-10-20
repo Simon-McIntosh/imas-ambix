@@ -1,0 +1,55 @@
+<section id="router-lane-publisher-decode-errors">
+  <h2>Lane publisher survives an undecodable compressed metrics body</h2>
+  <p><strong>A truncated gzip or corrupt deflate metrics body is now an
+  unavailable lane publication, not an exception that ends the publisher
+  loop.</strong> <code>fetch_lane_capacity</code> reaches the network through
+  <code>fetch_engine_metrics</code> (<code>imas_ambix/agent/lane.py</code>),
+  which decodes <code>Content-Encoding: gzip</code> with
+  <code>gzip.decompress</code> and <code>deflate</code> with
+  <code>zlib.decompress</code>. A body cut short raises <code>EOFError</code>
+  ("Compressed file ended before the end-of-stream marker was reached") and a
+  corrupt deflate stream raises <code>zlib.error</code>; neither is an
+  <code>OSError</code> or a <code>ValueError</code>, so both escaped
+  <code>RouterApp._publish_lane</code>'s existing <code>except</code> tuple and
+  ended the publisher task, freezing the lane document at its last reading —
+  exactly the outcome the docstring promises will never happen. The handler now
+  catches <code>EOFError</code> and <code>zlib.error</code> beside its transport
+  and parse failures, so the corrupt body publishes the explicit unavailable
+  state and the loop continues to the next scrape.</p>
+  <p>Reproduced at base <code>39bd6932</code>, before the repair, on the two
+  decode shapes the reader can meet:</p>
+  <pre><code>truncated gzip  -&gt; builtins.EOFError  Compressed file ended before the end-of-stream marker was reached
+corrupt deflate -&gt; zlib.error        Error -3 while decompressing data: incorrect header check
+EOFError subclass of ValueError -&gt; False
+zlib.error subclass of ValueError -&gt; False</code></pre>
+  <p>After the repair, <code>test_lane_publish_survives_a_truncated_gzip_body</code>
+  drives one refresh against a stub engine whose first <code>/metrics</code>
+  response is a gzip body truncated by six bytes and whose second is whole, and
+  asserts the publication order <code>["unavailable", "measured"]</code> with the
+  recovered document at <code>state == "measured"</code>,
+  <code>pool_tokens == 4_000_000</code>.</p>
+  <table>
+    <caption>Gate and controls, all run in place on the fleet node.</caption>
+    <thead><tr><th>Measure</th><th>Recorded result</th><th>Log</th></tr></thead>
+    <tbody>
+      <tr><td>Required gate at base <code>39bd6932</code> (extracted scratch tree)</td><td>18 passed in 1.42s; EXIT=0</td><td><code>gate-base.log</code></td></tr>
+      <tr><td>Required gate at implementation (working tree on <code>39bd6932</code>)</td><td>19 passed in 4.53s; EXIT=0; zero added failures</td><td><code>gate-head.log</code></td></tr>
+      <tr><td>Whole-tree Ruff</td><td>All checks passed!; EXIT=0</td><td><code>ruff.log</code></td></tr>
+      <tr><td>Serving-interpreter grammar</td><td>2 passed, 12 deselected; EXIT=0</td><td><code>serving-parse.log</code></td></tr>
+      <tr><td>Declared mutation: <code>EOFError</code> and <code>zlib.error</code> removed from <code>_publish_lane</code>'s handled failures</td><td>1 failed, 18 passed; EXIT=1</td><td><code>gate-negative-control.log</code></td></tr>
+    </tbody>
+  </table>
+  <p><strong>Delta.</strong> The base arm passes 18 tests with exit 0; the head
+  arm passes 19 with exit 0. Head minus base is the node's own added test, with
+  no test failing in the head arm that the base arm also fails
+  (<code>none</code>).</p>
+  <p><strong>Negative control.</strong> Removing <code>EOFError</code> and
+  <code>zlib.error</code> from <code>_publish_lane</code>'s handled failures, and
+  nothing else, in a scratch copy of the head files makes
+  <code>test_lane_publish_survives_a_truncated_gzip_body</code> fail with the
+  <code>EOFError</code> escaping the handler
+  (<code>&gt; raise EOFError("Compressed file ended before the end-of-stream
+  ...")</code>), which the head arm does not fail; the log's last line is
+  <code>EXIT=1</code>. The other 18 tests still pass, so the mutation is
+  attributable to the guarded behaviour rather than to a broken tree.</p>
+</section>

@@ -128,6 +128,78 @@ def test_lane_publish_reads_gzip_metrics_body(tmp_path, monkeypatch):
     asyncio.run(exercise())
 
 
+def test_lane_publish_survives_a_truncated_gzip_body(tmp_path, monkeypatch):
+    """A decode failure is one unreadable reading, not the end of the loop.
+
+    A truncated gzip body raises EOFError inside the fetch, which the
+    publisher must treat like any other scrape failure: publish the explicit
+    unavailable state, then keep running so the next valid scrape publishes a
+    measured lane. A decode error escaping the handler would end the publisher
+    task and leave the lane document frozen at its last reading.
+    """
+    truncated = gzip.compress(_SGLANG_METRICS.encode("utf-8"))[:-6]
+
+    async def exercise() -> list[str]:
+        calls = {"count": 0}
+
+        async def metrics(_: web.Request) -> web.Response:
+            calls["count"] += 1
+            body = (
+                truncated
+                if calls["count"] == 1
+                else gzip.compress(_SGLANG_METRICS.encode("utf-8"))
+            )
+            return web.Response(body=body, headers={"Content-Encoding": "gzip"})
+
+        application = web.Application()
+        application.router.add_get("/metrics", metrics)
+        runner = web.AppRunner(application)
+        await runner.setup()
+        site = web.TCPSite(runner, "127.0.0.1", 0)
+        await site.start()
+        port = site._server.sockets[0].getsockname()[1]
+
+        published: list[str] = []
+        unavailable_writer = lane.write_unavailable_document
+        measured_writer = lane.write_lane_document
+
+        def record_unavailable(reason, destination):
+            published.append("unavailable")
+            return unavailable_writer(reason, destination)
+
+        def record_measured(capacity, destination, **kwargs):
+            published.append("measured")
+            return measured_writer(capacity, destination, **kwargs)
+
+        monkeypatch.setattr(lane, "write_unavailable_document", record_unavailable)
+        monkeypatch.setattr(lane, "write_lane_document", record_measured)
+        app = RouterApp(
+            _MetricsResolver(f"http://127.0.0.1:{port}"),
+            lane_document=tmp_path / "lane.json",
+            lane_interval=0.05,
+        )
+        task = asyncio.create_task(app._publish_lane())
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + 5
+        try:
+            while loop.time() < deadline and len(published) < 2:
+                await asyncio.sleep(0.02)
+        finally:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+            if app._session is not None:
+                await app._session.close()
+            await runner.cleanup()
+        return published
+
+    published = asyncio.run(exercise())
+    assert published[:2] == ["unavailable", "measured"], published
+    lane_state = json.loads((tmp_path / "lane.json").read_text(encoding="utf-8"))
+    assert lane_state["state"] == "measured"
+    assert lane_state["pool_tokens"] == 4_000_000
+
+
 def _sglang_metrics(pool_tokens: int, occupancy: float, running: int) -> str:
     """One SGLang exposition carrying a known pool, occupancy and running count."""
     labels = '{model_name="fixture",tp_rank="0"}'
