@@ -11,8 +11,8 @@ worker node to finish and charges about an hour of held dispatch to other
 projects. A pause stops admission at the lane's front door instead: the engine
 finishes the requests it already has, later arrivals wait in the router's FIFO,
 and `resume` admits them in arrival order. Nothing is lost while the pause
-holds, so a pause is the right instrument wherever a drain used to be the only
-route.
+holds, so a pause is the right instrument when a drain would hold other dispatches
+while every in-flight worker node finishes.
 
 **Run every command in this runbook from the main checkout**
 (`/home/ITER/mcintos/Code/imas-ambix`), never from a worktree. A serve
@@ -53,123 +53,27 @@ The pause is also published, so a consumer that never got the message can see
 it: `lane.json`'s `router_generation_gate` block carries `paused` and `reason`
 while the pause holds, and admission is FIFO-ordered on resume.
 
-### 2. Pause
+### 2–6. Run the paused engine reload
+
+The command saves the existing batch script for rollback, pauses admission,
+waits for a fresh measured zero, and proceeds only while the paused FIFO holds
+new arrivals. It replaces the serve, waits for scheduler `RUNNING`, waits for
+`/v1/models` readiness, and validates with a real completion. A failed
+readiness or completion restores the saved batch script. The command resumes
+in all paths it paused and appends its measurements to `lane-cycles.jsonl`.
+The complete pause is bounded at 40 minutes; a drain that does not reach a
+measured zero within 10 minutes resumes without cancelling the serve.
+
+Run it from the main checkout, after announcing the pause as in step 1:
 
 ```bash
-uv run imas-ambix agent pause --reason "<why, and the bound>"
+uv run imas-ambix agent restart deepseek-v4-1-flash --reason "<why and bound>"
 ```
 
-The reason is required: a pause has to read as a stated decision rather than
-as a lane that happens to look quiet. The command writes `"paused": true` and
-the reason into `router-gate.json` — the gate file the running router reads
-live, so no restart is needed — and prints the lane's counts. The pause
-outranks the width, including `width 0`.
-
-### 3. Wait for the engine to drain
-
-The drain is the requests already in flight, normally 1–3 minutes. Wait until
-the engine's running count reads **0**, and only from a reading that
-succeeded — a failed scrape is not zero. The published lane document is the
-reading to use; `classify_reading` names whether it is current:
-
-```bash
-uv run python -c "
-import json, pathlib
-from imas_ambix.agent.lane import classify_reading
-doc = json.loads(pathlib.Path.home().joinpath('public/imas-ambix/lane.json').read_text())
-print(classify_reading(doc), 'running=' + str(doc.get('running')), 'waiting=' + str(doc.get('waiting')))
-"
-```
-
-Proceed only on a line that reads `measured` with `running=0`. `stale` and
-`unavailable` are the two ways this check fails, and neither is a zero: a
-lane with nothing running and a lane nobody can read look identical in the
-counters alone. Do not read the router's own `in_flight` as the drain signal —
-that counts requests the router still holds, and it stays non-zero for the
-whole pause by design.
-
-### 4. Relaunch with the new settings
-
-Change the settings first, then relaunch. Settings that are CLI options can be
-passed; a serve setting with no CLI flag is a profile edit
-(`imas_ambix/agent/profiles/<slug>.toml`), committed like any other change.
-
-Check the generated script before submitting it:
-
-```bash
-set -o pipefail
-dry_run_output="$(uv run imas-ambix agent restart deepseek-v4-1-flash --dry-run)" || {
-  status=$?
-  printf 'dry-run failed before script inspection (exit %s)\n' "$status" >&2
-  exit "$status"
-}
-match_count="$(
-  printf '%s\n' "$dry_run_output" |
-    grep -c '\.reckon-worktrees' || test "$?" -eq 1
-)"
-printf 'worktree paths: %s\n' "$match_count"
-test "$match_count" -eq 0
-```
-
-Then relaunch (this is shutdown plus serve, so the endpoint document
-republishes):
-
-```bash
-uv run imas-ambix agent restart deepseek-v4-1-flash
-```
-
-Add `--no-speculative` for a serve without speculative decoding. A depth cell
-that needs a draft-block-size other than the profile's own key changes the
-profile (the relaunch override for the sweep arrives with the sweep tooling).
-
-To stop a serve and not start a new one, use `uv run imas-ambix agent shutdown
-deepseek-v4-1-flash --yes`. **Never `scancel` a serve**: `shutdown` cancels
-the profile's own jobs *and republishes the endpoint document*, and a bare
-`scancel` skips the republish, leaving the published document claiming a lane
-that is gone. Never `scancel` a serve with peer runs live against it.
-
-### 5. Wait for readiness, then validate
-
-Measure readiness **from the job's `RUNNING` transition, not from submit** —
-time spent pending on `Resources` says nothing about whether the engine will
-start. The bound is **15 minutes from `RUNNING`**; a launch carrying the fused
-draft module took 485 s.
-
-`agent status` prints a compact job table and a connection block for each
-RUNNING serve, including a live `/v1/models` readiness probe:
-
-```bash
-uv run imas-ambix agent status
-```
-
-Readiness is not the gate for DSPARK: the fused-MoE workspace allocates
-lazily at generation, so validate with a real multi-hundred-token completion
-and read the completion, not the HTTP status:
-
-```bash
-curl -sS -m 300 http://98dci4-gpu-0003:18810/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -d '{"model":"deepseek-v4.1-flash","max_tokens":400,
-       "messages":[{"role":"user","content":"Write twenty numbered lines about tokamak equilibrium."}]}' \
-  | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('usage'), d.get('choices',[{}])[0].get('finish_reason'))"
-```
-
-Require a `usage.completion_tokens` in the hundreds and a
-`finish_reason` of `stop` or `length`. An empty or absent body means the
-engine is not ready however healthy the process looks.
-
-The engine port is bound so that login and standard compute nodes reach it
-directly; once the engine binds loopback, run this curl and any bench on the
-engine's own node — a bench against the quiet engine is launched there.
-
-### 6. Resume
-
-```bash
-uv run imas-ambix agent resume
-```
-
-The router admits the held requests in arrival order. The command clears
-`paused` and the reason from the gate file and prints the counts.
+Pass launch overrides such as `--no-speculative`, `--dspark-block-size`,
+`--gpus`, `--cpus`, `--time`, `--port`, and authentication options directly to
+`restart`. `--dry-run` prints the replacement script and selected job without
+pausing the lane or changing scheduler state.
 
 ### 7. Record the cycle
 

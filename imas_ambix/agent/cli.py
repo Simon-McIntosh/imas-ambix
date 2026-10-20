@@ -1079,46 +1079,45 @@ def shutdown(slug: str | None, cancel_all: bool, yes: bool) -> None:
     With SLUG, cancels serve jobs for that profile.
     With --all, cancels all ambix jobs (serve, download, setup).
     """
-    user = os.environ.get("USER") or getpass.getuser()
     from imas_ambix.agent.profile import SiteConfig
 
     site = SiteConfig.from_env()
-    result = subprocess.run(
-        ["squeue", "-h", "-u", user, "-A", site.account, "-o", "%i|%j"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        message = result.stderr.strip() or "Failed to query squeue"
-        raise click.ClickException(message)
-
-    # Parse structured output
-    jobs: list[tuple[str, str]] = []
-    for line in result.stdout.strip().splitlines():
-        line = line.strip()
-        if "|" not in line:
-            continue
-        job_id, job_name = line.split("|", 1)
-        job_id = job_id.strip()
-        job_name = job_name.strip()
-        jobs.append((job_id, job_name))
+    if cancel_all:
+        user = os.environ.get("USER") or getpass.getuser()
+        result = subprocess.run(
+            ["squeue", "-h", "-u", user, "-A", site.account, "-o", "%i|%j"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise click.ClickException(
+                result.stderr.strip() or "Failed to query squeue"
+            )
+        jobs = [
+            tuple(part.strip() for part in line.split("|", 1))
+            for line in result.stdout.splitlines()
+            if "|" in line
+        ]
+    else:
+        resolved = _resolve_slug(slug) if slug else _default_profile()
+        if resolved:
+            jobs = [
+                (job["jobid"], job["name"]) for job in _profile_jobs(site, resolved)
+            ]
+        else:
+            known = set(list_profiles())
+            jobs = [
+                (job["jobid"], job["name"])
+                for job in _running_jobs(site)
+                if job["name"] in known
+            ]
 
     if not jobs:
         console.print("No imas-ambix agent jobs found.")
         return
 
-    # Filter by scope
-    if cancel_all:
-        targets = jobs
-    else:
-        resolved = _resolve_slug(slug) if slug else _default_profile()
-        if resolved:
-            targets = [(jid, jn) for jid, jn in jobs if jn == resolved]
-        else:
-            # No slug and no default: match known profile slugs only.
-            known = set(list_profiles())
-            targets = [(jid, jn) for jid, jn in jobs if jn in known]
+    targets = jobs
 
     if not targets:
         console.print("No matching jobs to cancel.")
@@ -1273,6 +1272,15 @@ def _running_jobs(
             entry["timeleft"] = parts[7].strip()
         jobs.append(entry)
     return jobs
+
+
+def _profile_jobs(site: SiteConfig, slug: str) -> list[dict[str, str]]:
+    """Select active scheduler jobs for one serving profile."""
+    return [
+        job
+        for job in _running_jobs(site)
+        if job["name"] == slug and job["state"] in {"RUNNING", "PENDING"}
+    ]
 
 
 def _serving_slugs(site: SiteConfig) -> set[str]:
@@ -1972,27 +1980,12 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
     # The profile's own port, as ``serve`` uses; the site default only when it
     # declares none. Rotating a key must not also move the endpoint.
     port = profile.slurm.port if profile.slurm.port is not None else site.default_port
-    user = os.environ.get("USER") or getpass.getuser()
-
     # Before cancelling anything: a rotation that tears the serve down and then
     # cannot bring it back leaves no endpoint at all.
     _require_engine_environment(profile, site)
 
-    # Cancel active serve jobs
-    result = subprocess.run(
-        ["squeue", "-h", "-u", user, "-A", site.account, "-o", "%i|%j", "-t", "R,PD"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    targets: list[str] = []
-    for line in result.stdout.strip().splitlines():
-        line = line.strip()
-        if "|" not in line:
-            continue
-        job_id, job_name = line.split("|", 1)
-        if job_name.strip() == profile.slug:
-            targets.append(job_id.strip())
+    # Cancel active serve jobs selected through the shared profile filter.
+    targets = [job["jobid"] for job in _profile_jobs(site, profile.slug)]
 
     if targets:
         console.print(f"Cancelling {len(targets)} active job(s): " + ", ".join(targets))
@@ -2165,6 +2158,12 @@ def _deploy_launcher(name: str, path, content: str, mode: int = 0o755) -> None:
 
 
 @agent.command()
+@click.option(
+    "--reason",
+    default="agent restart",
+    show_default=True,
+    help="Why the serving lane is being paused.",
+)
 @click.argument("slug", required=False, default=None)
 @click.option(
     "--dry-run",
@@ -2247,15 +2246,15 @@ def restart(
     no_speculative: bool,
     dspark_block_size: int | None,
     time_limit: str | None,
+    reason: str,
 ) -> None:
-    """Restart a model serving job (shutdown + serve).
+    """Replace a serving engine while the router holds new requests."""
+    import json
+    import tempfile
+    import time
+    import urllib.request
 
-    Cancels any active serve job for the profile, waits for it to
-    finish, then submits a new serve job.  If no active job exists,
-    starts a fresh one.
-    """
-    import time as _time
-
+    from imas_ambix.agent import reload as reload_module
     from imas_ambix.agent.slurm import generate_serve_script, submit_script
 
     profile = _load_profile(slug)
@@ -2281,11 +2280,6 @@ def restart(
     if no_speculative:
         profile = _without_speculation(profile)
     site = SiteConfig.from_env()
-    # Same precedence as ``serve``: an explicit flag, then the profile's own
-    # declared port, then the site default. Skipping the profile here put a
-    # restarted serve on a different port from the one ``serve`` had given it,
-    # so the registration, the router and the profile disagreed about where the
-    # model lived -- and on a site default that another profile already owns.
     resolved_port = (
         port
         if port is not None
@@ -2294,90 +2288,180 @@ def restart(
         else site.default_port
     )
     resolved_key = _resolve_serve_auth(auth, api_key, site)
-
-    # Before cancelling anything: a restart that stops the running serve and
-    # then cannot start the replacement leaves no endpoint at all.
     if not dry_run:
         _require_engine_environment(profile, site)
 
-    # Find active serve jobs for this profile
-    user = os.environ.get("USER") or getpass.getuser()
-    result = subprocess.run(
-        ["squeue", "-h", "-u", user, "-A", site.account, "-o", "%i|%j", "-t", "R,PD"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    targets: list[str] = []
-    for line in result.stdout.strip().splitlines():
-        line = line.strip()
-        if "|" not in line:
-            continue
-        job_id, job_name = line.split("|", 1)
-        if job_name.strip() == profile.slug:
-            targets.append(job_id.strip())
-
-    if targets and dry_run:
-        # A dry run reports what a real restart would stop and stops nothing: the
-        # job it names is typically a live serving lane other sessions depend on.
-        console.print(
-            f"Dry run: would cancel {len(targets)} active job(s): " + ", ".join(targets)
+    jobs = _profile_jobs(site, profile.slug)
+    if len(jobs) != 1 and not dry_run:
+        ids = ", ".join(job["jobid"] for job in jobs) or "none"
+        raise click.ClickException(
+            f"restart requires exactly one matching serve job; found {len(jobs)}: {ids}"
         )
-    elif targets:
-        console.print(f"Cancelling {len(targets)} active job(s): " + ", ".join(targets))
-        cancel = subprocess.run(
-            ["scancel"] + targets,
-            capture_output=True,
-            text=True,
-            check=False,
+    old_job = jobs[0] if len(jobs) == 1 else None
+    if old_job is not None and old_job["state"] != "RUNNING":
+        raise click.ClickException(
+            f"matching serve job {old_job['jobid']} is not RUNNING"
         )
-        if cancel.returncode != 0:
-            raise click.ClickException(cancel.stderr.strip() or "scancel failed")
-
-        # Wait for jobs to drain
-        for _attempt in range(30):
-            _time.sleep(2)
-            check = subprocess.run(
-                ["squeue", "-h", "-j", ",".join(targets), "-o", "%i"],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-            if not check.stdout.strip():
-                break
-        else:
-            raise click.ClickException(
-                "Timed out waiting for old job(s) to stop (60s). Check squeue manually."
-            )
-        console.print("[green]Old job(s) cancelled.[/]")
-    else:
-        console.print("No active serve job found — starting fresh.")
-
-    # Submit new serve job
     script = generate_serve_script(
         profile, site, port=resolved_port, api_key=resolved_key
     )
     if dry_run:
-        if resolved_key:
-            script = script.replace(resolved_key, "****")
+        console.print(
+            f"Dry run: would replace job {old_job['jobid'] if old_job else 'none'}",
+            markup=False,
+        )
         console.print(script, markup=False, highlight=False, soft_wrap=True)
         return
 
-    try:
-        job_id = submit_script(script)
-    except RuntimeError as exc:
-        raise click.ClickException(str(exc)) from exc
-    key_note = " (API key enabled)" if resolved_key else " (NO AUTH — open endpoint)"
-    gpu_note = (
-        f" ({profile.slurm.gpus}×GPU, {profile.slurm.cpus} CPU)"
-        if gpus is not None or cpus is not None
-        else ""
+    lane_path = Path(site.endpoint_document).with_name("lane.json")
+    gate_path = _gate_document_path(site)
+    with tempfile.TemporaryDirectory(
+        prefix="ambix-reload-", dir=os.environ.get("TMPDIR")
+    ) as scratch:
+        rollback_file = Path(scratch) / "rollback.sh"
+        saved = subprocess.run(
+            ["scontrol", "write", "batch_script", old_job["jobid"], str(rollback_file)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if saved.returncode != 0 or not rollback_file.is_file():
+            raise click.ClickException(
+                saved.stderr.strip() or "could not save the running serve batch script"
+            )
+        rollback_script = rollback_file.read_text(encoding="utf-8")
+
+        def read_lane() -> dict[str, object]:
+            return json.loads(lane_path.read_text(encoding="utf-8"))
+
+        def read_jobs() -> list[dict[str, str]]:
+            return _running_jobs(site, job_ids=(old_job["jobid"],))
+
+        def do_cancel(job_id: str) -> None:
+            result = subprocess.run(
+                ["scancel", job_id], capture_output=True, text=True, check=False
+            )
+            if result.returncode:
+                raise RuntimeError(
+                    result.stderr.strip() or f"scancel failed for {job_id}"
+                )
+
+        def do_submit(batch: str) -> str:
+            return submit_script(batch)
+
+        def do_pause(why: str) -> None:
+            payload = _read_gate_document(gate_path)
+            payload["paused"] = True
+            payload["reason"] = why
+            _write_gate_document(gate_path, payload)
+
+        def do_resume() -> None:
+            payload = _read_gate_document(gate_path)
+            payload["paused"] = False
+            payload.pop("reason", None)
+            payload.pop("cut", None)
+            payload.pop("cut_form", None)
+            _write_gate_document(gate_path, payload)
+
+        def job_running(job_id: str) -> bool:
+            return any(
+                row["jobid"] == job_id and row["state"] == "RUNNING"
+                for row in _running_jobs(site, job_ids=(job_id,))
+            )
+
+        def job_url(job_id: str) -> str:
+            row = next(
+                (
+                    item
+                    for item in _running_jobs(site, job_ids=(job_id,))
+                    if item["jobid"] == job_id
+                ),
+                None,
+            )
+            if row is None or row["state"] != "RUNNING":
+                return ""
+            port_value = _serve_port(row.get("comment", "")) or resolved_port
+            return f"http://{row['node']}:{port_value}"
+
+        def is_ready(job_id: str) -> bool:
+            base_url = job_url(job_id)
+            return (
+                bool(base_url)
+                and _probe_endpoint(base_url, resolved_key).readiness == "ready"
+            )
+
+        def validate(job_id: str) -> bool:
+            base_url = job_url(job_id)
+            if not base_url:
+                return False
+            body = json.dumps(
+                {
+                    "model": profile.model.served_name,
+                    "max_tokens": 400,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": (
+                                "Write twenty numbered lines about tokamak equilibrium."
+                            ),
+                        }
+                    ],
+                }
+            ).encode()
+            request = urllib.request.Request(
+                f"{base_url}/v1/chat/completions",
+                data=body,
+                headers={
+                    "Content-Type": "application/json",
+                    **(
+                        {"Authorization": f"Bearer {resolved_key}"}
+                        if resolved_key
+                        else {}
+                    ),
+                },
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=300) as response:
+                    result = json.load(response)
+            except Exception:
+                return False
+            usage = result.get("usage", {})
+            choice = (result.get("choices") or [{}])[0]
+            return usage.get("completion_tokens", 0) >= 200 and choice.get(
+                "finish_reason"
+            ) in {"stop", "length"}
+
+        try:
+            result = reload_module.run_reload(
+                profile=profile.slug,
+                script=script,
+                rollback_script=rollback_script,
+                old_job_id=old_job["jobid"],
+                dry_run=False,
+                gate_path=gate_path,
+                lane_path=lane_path,
+                read_jobs=read_jobs,
+                cancel=do_cancel,
+                submit=do_submit,
+                read_lane=read_lane,
+                read_gate=lambda: _read_gate_document(gate_path),
+                pause=do_pause,
+                resume=do_resume,
+                job_running=job_running,
+                ready=is_ready,
+                validate=validate,
+                clock=time.monotonic,
+                sleep=time.sleep,
+                record_path=lane_path.with_name("lane-cycles.jsonl"),
+                reason=reason,
+            )
+        except Exception as error:
+            raise click.ClickException(str(error)) from error
+    console.print(
+        f"Serving reload {result.outcome}; replaced {result.old_job_id}, "
+        f"new job {result.new_job_id}.",
+        markup=False,
     )
-    message = (
-        f"Submitted serve job {job_id} for {profile.slug}{gpu_note} "
-        f"on port {resolved_port}{key_note}."
-    )
-    console.print(message)
 
 
 @agent.command()
