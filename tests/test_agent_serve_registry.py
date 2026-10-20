@@ -286,3 +286,19 @@ def test_legacy_registration_defaults_to_released(tmp_path):
     assert read_registrations(tmp_path, job_is_running=lambda _: True).current == (
         _registration(),
     )
+
+
+@pytest.mark.parametrize("slug", ["glm-5-3", "deepseek-v4-1-flash"])
+def test_held_registration_precedes_engine_launch(tmp_path, slug):
+    profile = load_profile(slug)
+    script = generate_serve_script(
+        profile, SiteConfig(base_dir=str(tmp_path)), held=True
+    )
+    registration = script.index("registry write --held")
+    launch = script.index(f'echo "[$(date)] Starting {profile.model.name} server"')
+    assert registration < launch, (
+        "engine can answer before its held registration exists"
+    )
+    assert script.index("--accelerator-family", registration) < launch
+    assert script.index("_REGISTRATION_ACTIVE=1") < registration
+    assert "set -euo pipefail" in script[:registration]

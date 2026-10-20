@@ -916,12 +916,6 @@ def generate_serve_script(
         echo "[$(date)] Host memory"
         free -h
 
-        echo "[$(date)] Starting {profile.model.name} server"
-        {launch_command} &
-        SERVER_PID=$!
-
-        {receipts_launch}
-
         _REGISTRATION_ACTIVE=1
         PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \
             "$_REGISTRY_PYTHON" -m imas_ambix.agent.registry write{held_option} \
@@ -933,6 +927,13 @@ def generate_serve_script(
             --accelerator-count "${{SLURM_GPUS_ON_NODE:-{profile.slurm.gpus}}}" \
             --checkpoint-precision {shlex.quote(checkpoint_precision)} \
             --accelerator-family {shlex.quote(_ACCELERATOR_FAMILY)}
+
+        echo "[$(date)] Starting {profile.model.name} server"
+        {launch_command} &
+        SERVER_PID=$!
+
+        {receipts_launch}
+
 
         {evictor_block}
 
