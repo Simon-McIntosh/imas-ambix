@@ -390,6 +390,7 @@ def bound_restart(tmp_path, monkeypatch):
                 raise reading
             response = io.BytesIO(reading)
             response.status = 200
+            response.headers = {}
             return response
         body = json.loads(request.data)
         assert body["max_tokens"] == 400
@@ -417,6 +418,9 @@ def bound_restart(tmp_path, monkeypatch):
     monkeypatch.setattr(slurm, "submit_script", submit)
     monkeypatch.setattr(cli, "_probe_endpoint", lambda *_: cli.ProbeResult("ready"))
     monkeypatch.setattr(urllib.request, "urlopen", completion)
+    monkeypatch.setattr(
+        urllib.request, "build_opener", lambda handler: SimpleNamespace(open=completion)
+    )
     monkeypatch.setattr(
         cli, "_republish_endpoint_document", lambda *_: world.events.append("publish")
     )
@@ -631,6 +635,75 @@ def test_slow_scrape_cannot_extend_old_engine_drain_bound():
     assert world.active == {"replacement"}
 
 
+def _compressed_scrape(monkeypatch, body, encoding):
+    """Serve one compressed exposition body that fails to decode."""
+    import io
+
+    from imas_ambix.agent import lane
+
+    def scrape(request, *, timeout):
+        assert request.full_url == "http://old-engine:18800/metrics"
+        response = io.BytesIO(body)
+        response.status = 200
+        response.headers = {"Content-Encoding": encoding}
+        return response
+
+    monkeypatch.setattr(
+        lane.urllib.request,
+        "build_opener",
+        lambda handler: SimpleNamespace(open=scrape),
+    )
+
+
+def test_undecodable_compressed_scrape_is_an_unknown_reading(monkeypatch):
+    """A body that claims gzip but is truncated reads as unknown, not a crash."""
+    import gzip
+
+    full = gzip.compress(b"vllm:num_requests_running 0\n")
+    _compressed_scrape(monkeypatch, full[: len(full) - 1], "gzip")
+
+    assert (
+        cli._engine_running_requests("http://old-engine:18800", None, timeout=3) is None
+    )
+
+
+def test_corrupt_deflate_scrape_is_an_unknown_reading(monkeypatch):
+    """A corrupt deflate body reads as unknown rather than raising zlib.error."""
+    _compressed_scrape(monkeypatch, b"\x78\x9c\xff\xff\xff", "deflate")
+
+    assert (
+        cli._engine_running_requests("http://old-engine:18800", None, timeout=3) is None
+    )
+
+
+def test_truncated_gzip_scrape_keeps_the_drain_waiting_to_its_bound(
+    tmp_path, monkeypatch
+):
+    """An undecodable scrape leaves the drain polling instead of aborting it."""
+    import gzip
+    import json
+
+    full = gzip.compress(b"vllm:num_requests_running 0\n")
+    _compressed_scrape(monkeypatch, full[: len(full) - 1], "gzip")
+
+    world = OverlapWorld()
+    record = tmp_path / "lane-cycles.jsonl"
+    result = world.run(
+        read_old_running=lambda timeout: cli._engine_running_requests(
+            "http://old-engine:18800", None, timeout=timeout
+        ),
+        record_path=record,
+    )
+
+    assert result.outcome == "reloaded"
+    assert result.old_drain_timed_out is True
+    assert world.now == 600
+    assert world.active == {"replacement"}
+    saved = json.loads(record.read_text())
+    assert saved["old_drain_last_running"] is None
+    assert saved["in_flight_requests_may_have_been_cut"] is True
+
+
 @pytest.mark.parametrize(
     "body, status, expected",
     [
@@ -681,9 +754,12 @@ def test_direct_engine_running_count_requires_successful_valid_scrape(
         assert timeout == 3
         response = io.BytesIO(body)
         response.status = status
+        response.headers = {}
         return response
 
-    monkeypatch.setattr(urllib.request, "urlopen", scrape)
+    monkeypatch.setattr(
+        urllib.request, "build_opener", lambda handler: SimpleNamespace(open=scrape)
+    )
     assert (
         cli._engine_running_requests("http://old-engine:18800", "key", timeout=3)
         == expected
@@ -696,7 +772,9 @@ def test_failed_engine_metrics_request_is_unknown(monkeypatch):
     def scrape(*_args, **_kwargs):
         raise OSError("scrape failed")
 
-    monkeypatch.setattr(urllib.request, "urlopen", scrape)
+    monkeypatch.setattr(
+        urllib.request, "build_opener", lambda handler: SimpleNamespace(open=scrape)
+    )
     assert (
         cli._engine_running_requests("http://old-engine:18800", None, timeout=1) is None
     )

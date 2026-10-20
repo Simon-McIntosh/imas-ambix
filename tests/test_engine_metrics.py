@@ -19,10 +19,15 @@ Coverage
 from __future__ import annotations
 
 import datetime as _dt
+import gzip
+import io
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
-from imas_ambix.agent import engine_metrics, serving_receipts
+import pytest
+
+from imas_ambix.agent import cli, engine_metrics, lane, serving_receipts
 
 _SGLANG_FIXTURE = Path(__file__).parent / "data" / "sglang_metrics_sample.txt"
 
@@ -729,6 +734,95 @@ def test_a_document_from_neither_family_reads_as_nothing() -> None:
 # ---------------------------------------------------------------------------
 # Selection discipline
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(params=["sglang", "vllm"])
+def ranked_running_exposition(request):
+    def exposition(counts):
+        if request.param == "sglang":
+            series, label = "sglang:num_running_reqs", "tp_rank"
+            pool = "sglang:max_total_num_tokens 100\n"
+        else:
+            series, label = "vllm:num_requests_running", "engine"
+            pool = 'vllm:cache_config_info{kv_cache_size_tokens="100"} 1\n'
+        return pool + "".join(
+            f'{series}{{{label}="{rank}"}} {count}\n'
+            for rank, count in enumerate(counts)
+        )
+
+    return exposition
+
+
+def _mock_engine_scrape(monkeypatch, body, *, compressed=False):
+    def build_opener(handler):
+        assert handler.proxies == {}
+
+        def scrape(request, *, timeout):
+            assert request.full_url == "http://engine.invalid/metrics"
+            assert timeout == 3
+            response = io.BytesIO(gzip.compress(body) if compressed else body)
+            response.headers = {"Content-Encoding": "gzip"} if compressed else {}
+            response.status = 200
+            return response
+
+        return SimpleNamespace(open=scrape)
+
+    monkeypatch.setattr(lane.urllib.request, "build_opener", build_opener)
+
+
+@pytest.mark.parametrize("counts, expected", [((0, 4), 4), ((4, 2), 4), ((0, 0), 0)])
+@pytest.mark.parametrize("compressed", [False, True], ids=["plain", "gzip"])
+def test_running_requests_uses_largest_rank_for_drain_and_capacity(
+    monkeypatch, ranked_running_exposition, counts, expected, compressed
+):
+    body = ranked_running_exposition(counts)
+    _mock_engine_scrape(monkeypatch, body.encode(), compressed=compressed)
+
+    assert engine_metrics.running_requests(body) == expected
+    assert (
+        cli._engine_running_requests("http://engine.invalid", None, timeout=3)
+        == expected
+    )
+    assert (
+        lane.fetch_lane_capacity("http://engine.invalid", timeout=3).running == expected
+    )
+
+
+def test_running_requests_absence_is_unknown_to_the_drain(
+    monkeypatch, ranked_running_exposition
+):
+    body = ranked_running_exposition(())
+    # The exposition is populated, but its pool size cannot answer for requests.
+    assert engine_metrics.parse_metrics(body)
+    _mock_engine_scrape(monkeypatch, body.encode())
+
+    assert engine_metrics.running_requests(body) is None
+    assert (
+        cli._engine_running_requests("http://engine.invalid", None, timeout=3) is None
+    )
+    # The lane document cannot express an absent gauge, so its reader keeps the
+    # zero it has always published; only the drain must read absence as unknown.
+    assert lane.fetch_lane_capacity("http://engine.invalid", timeout=3).running == 0
+
+
+def test_failed_metrics_fetch_is_not_a_running_zero(monkeypatch):
+    attempts = []
+
+    def scrape(request, *, timeout):
+        attempts.append((request.full_url, timeout))
+        raise OSError("scrape failed")
+
+    monkeypatch.setattr(
+        lane.urllib.request,
+        "build_opener",
+        lambda handler: SimpleNamespace(open=scrape),
+    )
+    assert (
+        cli._engine_running_requests("http://engine.invalid", None, timeout=3) is None
+    )
+    with pytest.raises(OSError, match="scrape failed"):
+        lane.fetch_lane_capacity("http://engine.invalid", timeout=3)
+    assert attempts == [("http://engine.invalid/metrics", 3)] * 2
 
 
 def test_a_family_scoped_reader_is_not_answered_by_the_other_family() -> None:
