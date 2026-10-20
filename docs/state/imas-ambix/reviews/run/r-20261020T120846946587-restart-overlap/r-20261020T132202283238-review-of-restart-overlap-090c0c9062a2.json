@@ -1,0 +1,73 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "after_suite": {
+    "completed": true,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261020T120846946587-restart-overlap/review-head.log",
+    "revision": "03fc676cf97ffab144d221684a1c04d0cfede5e8"
+  },
+  "baseline_suite": {
+    "completed": true,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261020T120846946587-restart-overlap/baseline-existing.log",
+    "revision": "287a7b8d3165b7b0512bdd199c4a8130b9967b41"
+  },
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2259 restart",
+    "imas_ambix/agent/cli.py:2504 _execute_restart_cycle",
+    "imas_ambix/agent/cli.py:2715 read_old_running wiring",
+    "imas_ambix/agent/slurm.py:492 generate_serve_script",
+    "imas_ambix/agent/reload.py:48 run_overlap"
+  ],
+  "completed_at": "2026-10-20T13:35:17.612Z",
+  "dispatched_at": "2026-10-20T13:22:28Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/cli.py",
+      "line": "2456",
+      "severity": "follow-on",
+      "text": "follow-on: _engine_running_requests duplicates the scrape-and-resolve capability the repository already owns -- imas_ambix/agent/lane.py:531 fetch_lane_capacity reads the same running-request gauge from the same /metrics origin, and imas_ambix/agent/bench.py:779 _fetch_body (imported by serving_receipts.py:393) is the shared authed GET -- so this is a fourth copy of that scrape and a second reduction over requests_running, extending only engine_metrics' name tables instead of the owner; the required max-over-ranks and absence-never-zero semantics belong beside engine_metrics.series_first so the next reader of the same quantity inherits them."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 5 production call site(s)",
+    "diff": "I read commits fd8eb13d, 03fc676c and 090c0c90 against base 287a7b8d; fd8eb13d reorders registration before launch in slurm.py, 03fc676c adds _engine_running_requests and the bounded drain with its record and warning, and 090c0c90 only rewrites the evidence fragment.",
+    "done_when": "The source prompt's done-when at prompt.txt:100 names the five-file gate, whole-tree ruff and the serving-interpreter parse check; the manifest's after_suite names review-head.log (106 passed, EXIT=0) and the surviving logs record ruff EXIT=0 and the parse check EXIT=0.",
+    "goal": "The source node's goal is an overlap restart path that routes to the replacement only after it has generated; the gained commits repair the prior review's two findings, and imas_ambix/agent/slurm.py:919-931 now writes the held registration before the engine launch while imas_ambix/agent/reload.py:112-125 drains the old engine before cancelling it.",
+    "manifest": "Read; it records the six commits, the exact gate command, baseline-existing (39 passed) and review-head (106 passed) receipts, zero added failures, and the negative-control logs re-run at the head.",
+    "write_paths": "The source prompt at prompt.txt:69-82 declares 13 allowed paths; git diff --stat 287a7b8d..090c0c90 changes 7 paths, every one of them declared."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_reload_overlap.py:549 and tests/test_agent_reload_overlap.py:705 fail at 287a7b8d (review-reproduction.log, EXIT=1) and pass at the head, so reinstating either repaired defect reddens them, and tests/test_agent_serve_registry.py:292 pins the registration-before-launch order that had no test at the base.",
+    "evidence": "review-head.log names revision 03fc676c and the reviewed worktree on its header and ends 106 passed with EXIT=0, while review-reproduction.log records the same controls at reviewed base 287a7b8d as 3 failed, EXIT=1.",
+    "fit": "imas_ambix/agent/reload.py:48 keeps the injected-callable and frozen-dataclass idiom of the paused cycle at reload.py:143, and cli.py:2456 follows the local-import, private-helper style of the neighbouring engine probes.",
+    "goal_fidelity": "imas_ambix/agent/slurm.py:919-931 writes the held registration before the engine launch and imas_ambix/agent/reload.py:112-125 waits for the old engine's measured zero before cancel(old_job_id), so the overlap path neither exposes a ready replacement before its hold nor retires the old job with streams in flight.",
+    "reuse": "imas_ambix/agent/cli.py:2456 rebuilds the authed /metrics scrape and the requests_running reduction that imas_ambix/agent/bench.py:779 _fetch_body (shared with serving_receipts.py:393) and imas_ambix/agent/lane.py:531 fetch_lane_capacity already own, extending only engine_metrics' name tables rather than those owners.",
+    "scope_discipline": "Every path in git diff 287a7b8d..090c0c90 is inside the source prompt's declared list at prompt.txt:69-82, and the only change beyond the two repaired mechanisms is the _append_cycle_record extraction at imas_ambix/agent/reload.py:42 that run_overlap's new record needs."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The source node's goal is an overlap restart path that routes to the replacement only after it has generated; the gained commits repair the prior review's two findings, and imas_ambix/agent/slurm.py:919-931 writes the held registration before the engine launch while imas_ambix/agent/reload.py:112-125 drains the old engine before cancelling it.\nVERDICT done_when: The source prompt's done-when at prompt.txt:100 names the five-file gate, whole-tree ruff and the serving-interpreter parse check; the manifest's after_suite names review-head.log (106 passed, EXIT=0) and the surviving logs record ruff EXIT=0 and the parse check EXIT=0.\nVERDICT write_paths: The source prompt at prompt.txt:69-82 declares 13 allowed paths; git diff --stat 287a7b8d..090c0c90 changes 7 paths, every one of them declared.\nVERDICT manifest: Read; it records the six commits, the exact gate command, baseline-existing (39 passed) and review-head (106 passed) receipts, zero added failures, and the negative-control logs re-run at the head.\nVERDICT diff: I read commits fd8eb13d, 03fc676c and 090c0c90 against base 287a7b8d; fd8eb13d reorders registration before launch in slurm.py, 03fc676c adds _engine_running_requests and the bounded drain with its record and warning, and 090c0c90 only rewrites the evidence fragment.\nCALL_SITES: imas_ambix/agent/cli.py:2259 restart, imas_ambix/agent/cli.py:2504 _execute_restart_cycle, imas_ambix/agent/cli.py:2715 read_old_running wiring, imas_ambix/agent/slurm.py:492 generate_serve_script, imas_ambix/agent/reload.py:48 run_overlap\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/agent/slurm.py:919-931 orders the held registration before the engine launch and imas_ambix/agent/reload.py:112-125 waits for a measured zero before cancel(old_job_id).\nSCORE evidence: 18\nJUSTIFICATION evidence: review-head.log names revision 03fc676c and ends 106 passed with EXIT=0, while review-reproduction.log records the same controls at 287a7b8d as 3 failed with EXIT=1.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: every path in git diff 287a7b8d..090c0c90 is inside the source prompt's declared list at prompt.txt:69-82.\nSCORE durability: 19\nJUSTIFICATION durability: tests/test_agent_reload_overlap.py:549 and tests/test_agent_reload_overlap.py:705 fail at 287a7b8d (review-reproduction.log, EXIT=1) and pass at the head, and tests/test_agent_serve_registry.py:292 pins the launch order that had no test at the base.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/reload.py:48 keeps the injected-callable and frozen-dataclass idiom of reload.py:143, and cli.py:2456 follows the local-import private-helper style of the neighbouring engine probes.\nSCORE reuse: 5\nJUSTIFICATION reuse: imas_ambix/agent/cli.py:2456 rebuilds the authed /metrics scrape and the requests_running reduction owned by imas_ambix/agent/lane.py:531 fetch_lane_capacity and imas_ambix/agent/bench.py:779 _fetch_body, extending only engine_metrics' name tables.\nFINDING imas_ambix/agent/cli.py:2456 follow-on: _engine_running_requests duplicates the scrape-and-resolve capability the repository already owns -- imas_ambix/agent/lane.py:531 fetch_lane_capacity reads the same running-request gauge from the same /metrics origin, and imas_ambix/agent/bench.py:779 _fetch_body (imported by serving_receipts.py:393) is the shared authed GET -- so this is a fourth copy of that scrape and a second reduction over requests_running, extending only engine_metrics' name tables instead of the owner; the required max-over-ranks and absence-never-zero semantics belong beside engine_metrics.series_first so the next reader of the same quantity inherits them.\n",
+  "review_run_id": "r-20261020T132202283238-review-of-restart-overlap-090c0c9062a2",
+  "reviewed_base_sha": "287a7b8d3165b7b0512bdd199c4a8130b9967b41",
+  "reviewed_head_sha": "090c0c9062a2a1af6fef5bfd06e185fc4c6dad09",
+  "reviewed_run_id": "r-20261020T120846946587-restart-overlap",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "reuse": 5,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-20T13:36:40.466771+00:00",
+  "total": 96
+}
