@@ -2249,13 +2249,7 @@ def restart(
     reason: str,
 ) -> None:
     """Replace a serving engine while the router holds new requests."""
-    import json
-    import tempfile
-    import time
-    import urllib.request
-
-    from imas_ambix.agent import reload as reload_module
-    from imas_ambix.agent.slurm import generate_serve_script, submit_script
+    from imas_ambix.agent.slurm import generate_serve_script
 
     profile = _load_profile(slug)
     if gpus is not None:
@@ -2312,6 +2306,29 @@ def restart(
         )
         console.print(script, markup=False, highlight=False, soft_wrap=True)
         return
+
+    _execute_restart_cycle(
+        profile, site, old_job, script, resolved_key, resolved_port, reason
+    )
+
+
+def _execute_restart_cycle(
+    profile: ModelProfile,
+    site: SiteConfig,
+    old_job: dict[str, str],
+    script: str,
+    resolved_key: str | None,
+    resolved_port: int,
+    reason: str,
+) -> None:
+    """Bind scheduler, gate, lane and completion interfaces for one reload."""
+    import json
+    import tempfile
+    import time
+    import urllib.request
+
+    from imas_ambix.agent import reload as reload_module
+    from imas_ambix.agent.slurm import submit_script
 
     lane_path = Path(site.endpoint_document).with_name("lane.json")
     gate_path = _gate_document_path(site)
