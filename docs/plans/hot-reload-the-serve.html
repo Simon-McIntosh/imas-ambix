@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="hot-reload-the-serve">
+  <meta name="plan-title"     content="Hot-reload the LLM serve — one imas-ambix agent command swaps the engine without losing a request">
+  <meta name="plan-summary"   content="Add imas-ambix agent reload: swap the serving engine behind the router by overlap when cards allow, else by a paused cycle, and never lose a request">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort-hours" content="11.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="elevated">
+  <meta name="plan-milestone" content="OPS">
+  <meta name="plan-sprint"    content="S27">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-tags"      content="agent-serving,gpu-deployment">
+  <meta name="plan-after"     content="local-lane-admission-control">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;deferred&quot;}">
+  <title>Hot-reload the LLM serve | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <p>Changing the serving engine's settings today takes a seven-step manual procedure, <a href="https://github.com/Simon-McIntosh/imas-ambix/blob/main/ops/lane-cycle/AGENTS.md">the lane-cycle runbook</a>: announce, pause the router, wait for the engine to drain, relaunch, wait for readiness, validate with a real completion, resume. The one command that looks like it does this, <code>imas-ambix agent restart</code>, does not: it cancels the serve and submits a new one with no pause, so requests in flight fail and the lane is down until the new engine is ready, which took 485 s from <code>RUNNING</code> on the last DSpark launch. This plan adds <code>imas-ambix agent reload &lt;slug&gt;</code>, which accepts the same settings options as <code>restart</code> and swaps the engine without losing a request.</p>
+    <p><strong>The router already manages traffic, and an engine swap does not restart it.</strong> <code>RouterApp._reachable_catalogs</code> in <code>imas_ambix/agent/router.py</code> resolves upstreams on every request, with no cache. The resolver, <code>_resolve_router_upstreams</code> in <code>imas_ambix/agent/cli.py</code>, reads the serve registrations and the scheduler's live serve jobs, and keeps an engine only once its <code>/v1/models</code> probe reads ready. <code>_preferred_owner</code> then routes a model id to the widest engine, with the later start stamp breaking a tie. The router re-reads <code>router-gate.json</code> (width, pause, wait) at most once a second. So a newly ready engine receives the next request, and a cancelled one drops out of routing on the next request. What the router cannot do is the scheduler side: submit the replacement, decide when it is fit to take traffic, and cancel the job it replaces. That is the command this plan adds.</p>
+    <table>
+      <thead><tr><th>path</th><th>when</th><th>what a client sees</th><th>section</th></tr></thead>
+      <tbody>
+        <tr><td>paused cycle</td><td>always available</td><td>requests wait in the router's FIFO for the relaunch, then are served in arrival order; none is lost inside the 40-minute pause ceiling</td><td>§1</td></tr>
+        <tr><td>overlap</td><td>only when the node has free cards, cores and memory for a second copy of the serve</td><td>no wait: the old engine serves until the new one has generated, then traffic moves on the next request</td><td>§2</td></tr>
+      </tbody>
+    </table>
+    <p>The overlap path is not available on the node as it stands: on 2026-10-20 the four-card DeepSeek V4.1 serve held 4 of the H200's 8 cards and two embedding jobs of another user held 2, leaving 2. The paused cycle is therefore the path every reload takes until cards free up, and §1 delivers it first.</p>
+
+    <h2 id="s1">§1 — <code>agent reload</code> runs the paused cycle as one command</h2>
+    <section data-reckon="section" data-id="s1" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links="hot-reload-the-serve#s2"></section>
+    <p>Add <code>imas-ambix agent reload &lt;slug&gt;</code>, with the settings options <code>restart</code> takes (<code>--gpus</code>, <code>--cpus</code>, <code>--port</code>, <code>--no-speculative</code>, <code>--dspark-block-size</code>, <code>--time</code>, <code>--auth</code>, <code>--api-key</code>) plus <code>--reason</code> and <code>--dry-run</code>. Its orchestration lives in a new module, <code>imas_ambix/agent/reload.py</code>. That module takes the scheduler, the gate file, the lane reading and the validation request through small interfaces, so its tests drive every branch without SLURM or a live lane. The <code>reload</code> command in <code>imas_ambix/agent/cli.py</code> is a thin wrapper that builds the real implementations and reuses <code>restart</code>'s profile resolution, port precedence and engine-environment check. It does not copy them.</p>
+    <p>The cycle, in order:</p>
+    <ol>
+      <li>Find the profile's running serve job by job name, exactly one, and save its batch script (<code>scontrol write batch_script &lt;id&gt;</code>) as the rollback. Zero or several matching jobs is a refusal that names them.</li>
+      <li>Pause through the same function <code>agent pause</code> calls, with the reason given on the command line, and record when the pause took effect.</li>
+      <li>Wait for the engine to drain. Proceed only on a lane reading that <code>classify_reading</code> calls <code>measured</code> with <code>running</code> at 0. A <code>stale</code> or <code>unavailable</code> reading is never a zero. If no such reading arrives within 10 minutes, resume and stop with nothing cancelled. Poll <code>router_generation_gate.waiting</code> while paused and keep the peak.</li>
+      <li>Cancel the saved job by its id, never by name, wait for it to leave the queue, and submit the new serve script, generated as <code>restart</code> generates it.</li>
+      <li>Wait for <code>RUNNING</code>, then for readiness, bounded at 15 minutes from <code>RUNNING</code>, not from submit. Then validate with a real completion against the new engine: 400 <code>max_tokens</code>, requiring <code>usage.completion_tokens</code> of at least 200 and a <code>finish_reason</code> of <code>stop</code> or <code>length</code>. An HTTP 200 alone is not validation, because the DSpark fused-MoE workspace is allocated at the first generation.</li>
+      <li>If readiness or validation fails, cancel the new job by id, resubmit the saved batch script, and wait for that engine to answer the same validation.</li>
+      <li>Resume, in a <code>finally</code>, so every path that paused also resumes, whether the new settings validated, the rollback served, or an exception was raised.</li>
+      <li>Print the cycle and append one JSON line to <code>lane-cycles.jsonl</code> beside <code>lane.json</code>: pause start, pause end, peak held, the replaced and new job ids, the settings that changed, and the outcome (<code>reloaded</code>, <code>rolled-back</code>, <code>aborted-before-cancel</code>).</li>
+    </ol>
+    <p>Bound the whole pause inside the runbook's 40 minutes, which leaves margin on the clients' 56-minute ride-out (11 attempts of 305 s). If the elapsed pause would pass 40 minutes before validation completes, roll back rather than continue. Announcing the cycle to the live coordinators stays a human or coordinator step, before the command runs.</p>
+    <p><strong>Done when.</strong> <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_reload.py tests/test_agent_pause_cli.py tests/test_agent_dry_run.py -q</code> passes on the fleet node. <code>tests/test_agent_reload.py</code> drives the cycle through fakes and asserts:</p>
+    <ul>
+      <li>the success order: pause, a measured zero, cancel by id, submit, <code>RUNNING</code>, ready, validated, resume;</li>
+      <li>a readiness miss resubmits the saved batch script, validates it and resumes;</li>
+      <li>a completion under 200 tokens counts as a validation failure and rolls back;</li>
+      <li>a drain that never reaches a measured zero resumes and cancels nothing, and a <code>stale</code> or <code>unavailable</code> reading is never taken as a zero;</li>
+      <li>an exception raised at each step after the pause still resumes;</li>
+      <li><code>--dry-run</code> prints the steps and the job id it would replace, and calls no cancel, no submit and no gate write.</li>
+    </ul>
+    <p>The negative control is to delete the <code>finally</code> resume: the exception-path test then fails. The record is checked by a test that reads the appended line back. <code>ops/lane-cycle/AGENTS.md</code> replaces steps 2 to 6 with the command and keeps step 1, the announcement, and step 7, the record. The whole-tree lint gate <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0, and <code>tests/test_agent_serve_registry.py -k 'agent_package_modules_parse_with_serving_python'</code> passes, because the router imports <code>cli.py</code> under the serving interpreter.</p>
+    <p><strong>Placement and authority.</strong> Every test runs in place on the fleet node. The worker never pauses the real lane, submits or cancels a serve, or edits <code>router-gate.json</code>: those are operator actions. The first live reload is a coordinator inline exception under the runbook, recorded in this plan's evidence.</p>
+
+    <h2 id="s2">§2 — Overlap reload: start the replacement beside the old engine and route to it only after it has generated</h2>
+    <section data-reckon="section" data-id="s2" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="hot-reload-the-serve#s1"></section>
+    <p>A zero-wait swap was shown by hand on 2026-09-07: bring the new topology up on its own port while the old one serves, confirm the router prefers it, then stop the old. Two defects stop a command from doing this safely:</p>
+    <ul>
+      <li><strong>The router takes the new engine too early.</strong> The serve script writes its registration right after launching the engine (<code>generate_serve_script</code> in <code>imas_ambix/agent/slurm.py</code>, the <code>registry write</code> step), and the resolver routes to it as soon as <code>/v1/models</code> answers. That is before the first generation that allocates the DSpark workspace, so traffic can move to an engine that then fails.</li>
+      <li><strong>Two copies of one profile carry the same job name.</strong> So <code>agent shutdown</code> would cancel both.</li>
+    </ul>
+    <p>The work:</p>
+    <ol>
+      <li>A held registration. The registry gains a hold marker per job, written and removed by <code>imas_ambix/agent/registry.py</code>. <code>_resolve_router_upstreams</code> skips a held job on both of its paths: the registration path, and the scheduler-only path that adds live serve jobs without a registration. The router publishes <code>"held_registrations": true</code> in its lane snapshot, so a caller can tell whether the running router honours holds.</li>
+      <li><code>agent reload --mode auto|overlap|pause</code>, with <code>auto</code> the default. <code>auto</code> takes the overlap path only when two things hold: the lane document advertises held registrations, and the live ledger has room for a second copy of the serve's cards, cores and memory. The ledger is <code>scontrol show node</code> <code>AllocTRES</code> for cards and memory, and the <code>gpu_0003_grpA</code> core ledger as <code>imas_ambix/agent/AGENTS.md</code> §2 describes. Otherwise <code>auto</code> takes §1's paused cycle. <code>overlap</code> refuses when either condition fails.</li>
+      <li>The overlap sequence:
+        <ul>
+          <li>Submit the replacement on a free port with its registration held. If it pends for more than 120 s, cancel it by id and fall back to the paused cycle under <code>auto</code>, or refuse under <code>overlap</code>.</li>
+          <li>Wait for readiness, bounded at 15 minutes from <code>RUNNING</code>.</li>
+          <li>Validate it with §1's completion, sent directly to its port.</li>
+          <li>Release the hold.</li>
+          <li>Confirm through the router's own <code>/v1/models</code> that the model now resolves to the new engine.</li>
+          <li>Cancel the old job by id, and republish the endpoint document as <code>shutdown</code> does.</li>
+        </ul>
+        A failure before the release cancels the new job by id and leaves the old engine serving, with nothing paused.</li>
+    </ol>
+    <p><strong>Deploying it needs one router restart.</strong> The resolver runs inside the router process, so a hold is honoured only by a router started from the new code. That restart is a coordinator inline exception under the runbook's router-restart row: pause, drain to a measured zero, restart, confirm the pause survived, resume. Until then the lane document carries no <code>held_registrations</code>, and <code>auto</code> keeps choosing the paused cycle. That is the point of the advertisement.</p>
+    <p><strong>Done when.</strong> <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent_router_resolution.py tests/test_agent_reload_overlap.py tests/test_agent_reload.py -q</code> passes on the fleet node, with these tests:</p>
+    <ul>
+      <li>A held registration is absent from the resolved upstreams on the registration path, and a held job is absent on the scheduler-only path. Removing the skip on either path fails its test, which is the negative control.</li>
+      <li><code>auto</code> picks the paused cycle when the lane document lacks <code>held_registrations</code>, and when the ledger lacks cards, cores or memory.</li>
+      <li>An overlap whose replacement fails validation cancels only the replacement's job id and leaves the old job running.</li>
+      <li>A successful overlap releases the hold before it cancels the old job, and cancels by id.</li>
+    </ul>
+    <p>The <code>imas_ambix/agent/AGENTS.md</code> §3b rotation passage names the command in place of the manual sequence. Lint and the serving-interpreter parse test pass as in §1.</p>
+
+    <h2 id="s3">§3 — A router deploy drops the requests the router holds</h2>
+    <section data-reckon="section" data-id="s3" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-status="deferred" data-links="hot-reload-the-serve#s2"></section>
+    <p>Restarting the router loses every request in its FIFO, because the queue lives in the router's memory. That is why the runbook restarts the router only inside a pause, after the engine reads a measured zero, and why §2's deployment carries that same risk once. A lossless router deploy needs a handover. One way: start the new router on the same port with <code>SO_REUSEPORT</code>, close the old router's listener so new connections reach only the new one, and let the old router finish its in-flight and held requests before it exits. Two processes then each apply the gate width, so the handover window admits up to twice the width; that has to be bounded or shared before this is built. This section is deferred. Router code deploys are rare, the runbook's paused restart loses only what arrives in the swap instant, and engine reloads, §1 and §2, never restart the router. It becomes implementable when a router change has to land on a lane that cannot be held quiet, or when <code>serving-across-servers</code> moves the router off the engine node.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-hrs-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-20">
+        <h4 class="r-fu-title">Build §1, the paused-cycle reload, then §2, the overlap path</h4>
+        <div class="r-fu-body"><p>§1 is the path every reload takes while the H200 lacks the cards for a second copy of the serve. §2 writes the same module and command, so it follows §1 rather than running beside it. Its router change takes effect after one router restart, run as a coordinator inline exception.</p></div>
+        <pre class="r-fu-prompt">/reckon-build hot-reload-the-serve §1</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
