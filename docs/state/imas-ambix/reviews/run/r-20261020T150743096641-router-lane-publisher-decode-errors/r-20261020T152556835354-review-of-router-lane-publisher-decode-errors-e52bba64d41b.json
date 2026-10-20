@@ -1,0 +1,66 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "assertion_analysis": [
+    {
+      "failure_condition": "assert published[:2] == [\"unavailable\", \"measured\"]. published is populated only by the monkeypatched writers record_unavailable/record_measured, which append when production _publish_lane actually calls lane.write_unavailable_document/write_lane_document. Reinstate the regression \u2014 drop EOFError (and zlib.error) from router.py:2146-2153 \u2014 and the EOFError raised at lane.py:565 escapes the handler, the publisher task dies, no writer is ever called, published stays [] and the assertion reddens on [] vs the literal two-element list. Observed exactly that in gate-negative-control.log. The expected value is a test-side literal, not a value the code under test supplies, so the two sides do not move together.",
+      "lines": "tests/test_agent_router_lane_publish.py:197"
+    },
+    {
+      "failure_condition": "assert lane_state[\"state\"] == \"measured\" and lane_state[\"pool_tokens\"] == 4_000_000. The document is read from the file production wrote at tmp_path/'lane.json'; 4_000_000 is the pool the fixture _SGLANG_METRICS at line 33 declares and the stub server serves. These fail if the second scrape's body is mis-parsed or the recovered document is not republished \u2014 independent of the exception tuple under test, so they guard the parse-through and recovery half rather than the handler half.",
+      "lines": "tests/test_agent_router_lane_publish.py:199-200"
+    }
+  ],
+  "call_sites": [
+    "imas_ambix/agent/router.py:2022",
+    "imas_ambix/agent/lane.py:565",
+    "imas_ambix/agent/lane.py:567"
+  ],
+  "completed_at": "2026-10-20T15:32:47.741Z",
+  "dispatched_at": "2026-10-20T15:26:32Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": "2152",
+      "severity": "follow-on",
+      "text": "follow-on: the zlib.error member added at router.py:2152 has no test that fails if it regresses. No test in tests/test_agent_router_lane_publish.py feeds a corrupt deflate body to RouterApp._publish_lane \u2014 test_lane_publish_survives_a_truncated_gzip_body at line 131 serves only a truncated gzip, so removing just the zlib.error member leaves every 19 tests green. The declared mutation removes EOFError and zlib.error together and the red log fails on the EOFError raise (gate-negative-control.log), so the control demonstrates only the EOFError half of the change. The sibling drain path carries its own corrupt-deflate test (tests/test_agent_reload_overlap.py:671, test_corrupt_deflate_scrape_is_an_unknown_reading) but it covers cli._engine_running_requests, not this handler. This does not hold the node, because the done_when names only the truncated-gzip test, which exists and is proven to fail on revert."
+    },
+    {
+      "file": ".config/reckon/crew/runs/r-20261020T150743096641-router-lane-publisher-decode-errors/gate-head.log",
+      "line": "1",
+      "severity": "follow-on",
+      "text": "follow-on: the head gate's header names the base revision, not the revision it measured. gate-head.log:1 reads '# rev=39bd6932 tree=/home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/hot-reload-serve/router-lane-publisher-decode-errors', and the manifest's after_suite repeats revision 39bd69326044cca410e6b0671af859b2a3883e3d, because the suite ran at 17:12 with the change uncommitted in the worktree and the commit e52bba64 was created at 17:20. The measurement itself is sound and reconciles with the base arm (19 passed vs 18), but a reader comparing the header's rev against reviewed_head_sha e52bba64 sees a contradiction, and the header names no revision that identifies the code under test."
+    },
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": "2151",
+      "severity": "follow-on",
+      "text": "follow-on: the decode-failure exception set is now spelled a third time in the repository. imas_ambix/agent/lane.py:563-569 is where gzip.decompress and zlib.decompress raise EOFError and zlib.error, and imas_ambix/agent/reload.py:119 and imas_ambix/agent/cli.py:2466 each already carry the literal tuple (OSError, ValueError, EOFError, zlib.error) at exactly that boundary, each with the same explanatory comment. No module owns the tuple \u2014 every caller restates it \u2014 so the router's addition at router.py:2146-2153 is a third restatement rather than an extension of an owner. A shared boundary next to fetch_engine_metrics in lane.py would make the requirement one place instead of three. The router's tuple legitimately carries two extras (aiohttp.ClientError, RuntimeError) for its own try-block, so this is duplication of the decode members only."
+    }
+  ],
+  "item_verdicts": {
+    "call_sites": "Runtime code that reaches the change: imas_ambix/agent/router.py:2022 creates the publisher task (self._lane_task = asyncio.create_task(self._publish_lane())) when the router starts, the only production caller of the changed handler; the exceptions the handler now catches are raised inside imas_ambix/agent/lane.py:565 (gzip.decompress) and lane.py:567 (zlib.decompress) on the path fetch_lane_capacity:573 -> fetch_engine_metrics:540 that _publish_lane:2138 awaits. The node's own test file is excluded.",
+    "diff": "Read commit by commit against the base: one commit, e52bba64, touching three files. imas_ambix/agent/router.py adds 'import zlib' at line 13 and extends _publish_lane's except tuple at lines 2146-2153 with a five-line mechanism comment at 2141-2145. tests/test_agent_router_lane_publish.py adds test_lane_publish_survives_a_truncated_gzip_body at lines 131-200, driving a real aiohttp server whose first /metrics response is a gzip body truncated by six bytes and whose second is whole. The evidence fragment is new. All three are inside the declared write paths; the message carries a conventional subject and a body with no attribution trailer.",
+    "done_when": "Read the done-when in the source prompt (prompt.txt:92): it names the handler change, a test in tests/test_agent_router_lane_publish.py feeding a truncated gzip and asserting one unavailable publication followed by a later successful one, the exact pytest command against a base-revision baseline, whole-tree ruff, and the serving-interpreter parse test. The gate the worker ran is that command (gate-head.log:1), and tests/test_agent_router_lane_publish.py:197 asserts published[:2] == ['unavailable', 'measured'] with lane_state['state'] == 'measured' at line 199. All five named measures were run and their results are on disk; the ruff and serving-parse arms are named in the manifest but their logs carry no base arm, which the done-when does not require.",
+    "goal": "The goal is to keep the router's lane publisher alive through an undecodable compressed metrics body. imas_ambix/agent/router.py:2146-2153 now catches EOFError and zlib.error beside aiohttp.ClientError, OSError, RuntimeError and ValueError, so the truncated-gzip and corrupt-deflate shapes fetch_engine_metrics raises at lane.py:565 and lane.py:567 reach the handler at router.py:2154 that calls write_unavailable_document and keeps the while True loop at router.py:2131 running, which is the outcome _publish_lane's docstring at router.py:2107-2110 promises.",
+    "manifest": "The source manifest reads status complete and records the commit e52bba64, the three changed paths, the head gate (19 passed, EXIT=0) and base arm (18 passed, EXIT=0), ruff, the serving parse test and the negative control, with baseline_suite and after_suite as parseable JSON. Its claims reconcile with the logs on disk except for the revision attribution on the head arm, where both gate-head.log:1 and after_suite.revision name the base 39bd6932 rather than the commit under test (recorded as a finding). Its negative_control_note matches gate-negative-control.log: 1 failed, 18 passed, EXIT=1.",
+    "write_paths": "The source fence (prompt.txt:69-73) grants imas_ambix/agent/router.py, tests/test_agent_router_lane_publish.py, docs/evidence/fragments/hot-reload-the-serve/router-lane-publisher-decode-errors.html and a docs/figures/hot-reload-the-serve/router-lane-publisher-decode-errors tree. git show --stat e52bba64 names exactly the first three paths and no other, and the figure tree was not touched, which is correct because the prompt states the done-when names no artifact."
+  },
+  "project": "imas-ambix",
+  "review_run_id": "r-20261020T152556835354-review-of-router-lane-publisher-decode-errors-e52bba64d41b",
+  "reviewed_base_sha": "39bd69326044cca410e6b0671af859b2a3883e3d",
+  "reviewed_head_sha": "e52bba64d41bc304fa15e2bf9eb4185f721d9073",
+  "reviewed_run_id": "r-20261020T150743096641-router-lane-publisher-decode-errors",
+  "scores": {
+    "durability": 15,
+    "evidence": 15,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 15,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-20T15:33:37.207956+00:00",
+  "total": 103
+}

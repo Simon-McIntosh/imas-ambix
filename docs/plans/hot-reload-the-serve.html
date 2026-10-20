@@ -25,7 +25,7 @@
   <title>Hot-reload the LLM serve | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="20">
+<meta name="plan-version" content="21">
 <meta name="plan-modified" content="2026-10-20">
 </head>
 <body>
@@ -169,6 +169,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-close-s2" data-who="reckon-build" data-when="2026-10-20T15:10:00Z">
     <div class="r-comment-body"><p>§2 landed at <code>a462d286</code> and <code>39bd6932</code>: <code>agent restart --mode auto|overlap|pause</code> holds the replacement out of routing until it has generated, confirms the swap through <code>x-ambix-upstream</code>, and drains the old engine before cancelling it by id. Every gate has zero failures. The overlap path switches on after one router restart, which needs the operator's window. <a href="/imas-ambix/evidence/archive/hot-reload-the-serve-landed.html#s2">evidence</a></p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20261020T152556835354-review-of-router-lane-publisher-decode-errors-e52bba64d41b" data-who="reckon-build" data-when="2026-10-20T15:32:47.741Z">
+    <div class="r-comment-body"><p>Independent review of r-20261020T150743096641-router-lane-publisher-decode-errors at e52bba64d41bc304fa15e2bf9eb4185f721d9073 against base 39bd69326044cca410e6b0671af859b2a3883e3d: a parsed record scoring goal_fidelity 19, evidence 15, scope_discipline 20, durability 15, fit 19, reuse 15 with added_failure_count 0; the handler change at imas_ambix/agent/router.py:2146-2153 meets the goal and its test is proven to fail on revert, with three follow-on findings recorded (the zlib.error member is unguarded by any test, the head gate header names the base revision rather than the commit under test, and the decode-failure exception set is now spelled a third time in the repository).</p></div>
 </div>
 </section>
 </main>
