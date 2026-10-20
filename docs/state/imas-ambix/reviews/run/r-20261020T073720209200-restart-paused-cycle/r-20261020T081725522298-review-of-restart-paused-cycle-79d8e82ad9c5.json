@@ -1,0 +1,86 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "after_suite_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261020T073720209200-restart-paused-cycle/final-gate.log",
+  "assertions_added": [
+    "tests/test_agent_reload.py:264 test_nine_minute_drain_keeps_replacement_deadline_anchored_to_pause fails if the rollback deadline is re-anchored to submit rather than the pause: with a 9-minute drain the rollback submit would land at about 31 minutes, past the asserted 22-minute bound.",
+    "tests/test_agent_reload.py:157 test_submit_failure_after_old_job_stops_submits_saved_script fails if the old_stopped rollback switch is removed, because no submit of the saved script would be recorded.",
+    "tests/test_agent_reload.py:289 test_failed_rollback_is_recorded_with_non_zero_result fails if the record stops writing outcome rollback-failed or the non-zero pause bound is not enforced.",
+    "tests/test_agent_reload.py:118 test_success_order_and_cycle_record fails if settings_changed is dropped from the JSON line, if pause_start stops being a UTC stamp, or if the pause/lane/cancel/submit order changes."
+  ],
+  "base_log_revision": "ef4bffcc",
+  "baseline_suite_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261020T073720209200-restart-paused-cycle/final-gate.log",
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2474",
+    "imas_ambix/agent/cli.py:2336",
+    "imas_ambix/agent/cli.py:1106",
+    "imas_ambix/agent/cli.py:1988",
+    "imas_ambix/agent/cli.py:2302"
+  ],
+  "completed_at": "2026-10-20T08:32:54.310Z",
+  "dispatched_at": "2026-10-20T08:17:46Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/cli.py",
+      "line": "2391",
+      "severity": "follow-on",
+      "text": "follow-on: do_pause sets paused/reason on the gate but omits the cut/cut_form withdrawal that the pause command performs at cli.py:3832, so a restart-triggered pause can inherit a cut an earlier operator pause left declared; and do_resume at cli.py:2397 duplicates the resume command body at cli.py:3867 rather than sharing it."
+    },
+    {
+      "file": "manifest.md",
+      "line": "18",
+      "severity": "follow-on",
+      "text": "follow-on: the after_suite receipt names revision 15eaca6d while the reviewed head is 79d8e82a; the gate and control log headers carry the same stale revision, and final-negative-control.log's '12 deselected' (18 collected) matches the head test inventory, so the label misnames the content that was actually gated."
+    },
+    {
+      "file": "imas_ambix/agent/cli.py",
+      "line": "1123",
+      "severity": "follow-on",
+      "text": "follow-on: after targets = jobs at cli.py:1120 and the empty-jobs return at cli.py:1117, the 'No matching jobs to cancel.' branch is unreachable, making that message dead in the restructured shutdown."
+    }
+  ],
+  "head_log_revision": "15eaca6d",
+  "item_verdicts": {
+    "call_sites": "examined imas_ambix/agent/cli.py:2474 _execute_restart_cycle, cli.py:2336 restart, cli.py:1106 shutdown, cli.py:1988 key_command and cli.py:2302 restart, all reachable through the agent restart/shutdown/key CLI commands.",
+    "diff": "read commit by commit (312e77be feat, 15eaca6d refactor, 79d8e82a fix); reload.py adds run_reload/ReloadResult/_utc_stamp, cli.py adds _profile_jobs and _execute_restart_cycle and rewires shutdown/key/restart, and the tests add the cycle, rollback, deadline and operator-pause checks.",
+    "done_when": "the source brief.md done_when names tests/test_agent_reload.py tests/test_agent_pause_cli.py tests/test_agent_dry_run.py tests/test_agent.py plus whole-tree ruff and the serving-interpreter parse check; final-gate.log records 232 passed/3 failed (EXIT=1) and final-negative-control.log records the declared mutation failing (EXIT=1).",
+    "goal": "the source brief.md goal is to make agent restart swap the serving engine through a bounded paused cycle that never loses a request; imas_ambix/agent/reload.py:36 run_reload now pauses, drains to a measured zero, cancels by id, submits, waits RUNNING/ready, validates and resumes in a finally.",
+    "manifest": "read; it states the combined gate at 232 passes/3 baseline-identical failures, names the three commits and twelve logs, and carries a readable baseline_suite (log_digest sha256:9f1f4e1b63d7e5777237b513a0252f830abce6be24569aa383eedf42802e3c2b) and after_suite.",
+    "write_paths": "the source brief.md grants imas_ambix/agent/reload.py, imas_ambix/agent/cli.py, tests/test_agent_reload.py, tests/test_agent.py, tests/test_agent_dry_run.py, ops/lane-cycle/AGENTS.md and the evidence fragment; the 9d15b0e3..79d8e82a diff changes exactly those paths."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_reload.py:264 fails if the rollback deadline stops being anchored to the pause, and the declared mutation (delete the finally resume) reddens the six exception cases in final-negative-control.log, but the do_pause/do_resume closures and the post-validation 22-minute branch carry no direct test.",
+    "evidence": "final-gate.log records 232 passed/3 failed with the three ids identical to baseline_suite, whose log_digest matches the on-disk base-three.log, but after_suite at manifest.md:18 names revision 15eaca6d while the gated tree is head 79d8e82a.",
+    "fit": "imas_ambix/agent/reload.py follows the frozen-dataclass and small-interface idiom of imas_ambix/agent/lane.py, and cli.py:1277 _profile_jobs carries no plan or ticket identifier.",
+    "goal_fidelity": "imas_ambix/agent/reload.py:83-139 runs pause, measured-zero drain, cancel-by-id, submit, RUNNING/ready/validate and rollback, and cli.py:2336 restart gains only --reason, matching the brief's cycle order.",
+    "reuse": "imas_ambix/agent/cli.py:1277 _profile_jobs extends _running_jobs and replaces three profile-name filters, but cli.py:2391-2404 re-implement the gate-pause and gate-resume payload mutations owned by pause at cli.py:3798 and resume at cli.py:3857.",
+    "scope_discipline": "every path in the 9d15b0e3..79d8e82a diff is inside the declared write paths, and cli.py:1106/1988/2302 switch to _profile_jobs as the brief required."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the source brief.md goal is to make agent restart swap the serving engine through a bounded paused cycle that never loses a request; imas_ambix/agent/reload.py:36 run_reload now pauses, drains to a measured zero, cancels by id, submits, waits RUNNING/ready, validates and resumes in a finally.\nVERDICT done_when: the source brief.md done_when names tests/test_agent_reload.py tests/test_agent_pause_cli.py tests/test_agent_dry_run.py tests/test_agent.py plus whole-tree ruff and the serving-interpreter parse check; final-gate.log records 232 passed/3 failed (EXIT=1) and final-negative-control.log records the declared mutation failing (EXIT=1).\nVERDICT write_paths: the source brief.md grants imas_ambix/agent/reload.py, imas_ambix/agent/cli.py, tests/test_agent_reload.py, tests/test_agent.py, tests/test_agent_dry_run.py, ops/lane-cycle/AGENTS.md and the evidence fragment; the 9d15b0e3..79d8e82a diff changes exactly those paths.\nVERDICT manifest: read; it states the combined gate at 232 passes/3 baseline-identical failures, names the three commits and twelve logs, and carries a readable baseline_suite (log_digest sha256:9f1f4e1b63d7e5777237b513a0252f830abce6be24569aa383eedf42802e3c2b) and after_suite.\nVERDICT diff: read commit by commit (312e77be feat, 15eaca6d refactor, 79d8e82a fix); reload.py adds run_reload/ReloadResult/_utc_stamp, cli.py adds _profile_jobs and _execute_restart_cycle and rewires shutdown/key/restart, and the tests add the cycle, rollback, deadline and operator-pause checks.\nCALL_SITES: imas_ambix/agent/cli.py:2474 (_execute_restart_cycle calls run_reload), imas_ambix/agent/cli.py:2336 (restart), imas_ambix/agent/cli.py:1106 (shutdown), imas_ambix/agent/cli.py:1988 (key_command), imas_ambix/agent/cli.py:2302 (restart _profile_jobs)\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/agent/reload.py:83-139 runs pause, measured-zero drain, cancel-by-id, submit, RUNNING/ready/validate and rollback, and cli.py:2336 restart gains only --reason, matching the brief's cycle order.\nSCORE evidence: 15\nJUSTIFICATION evidence: final-gate.log records 232 passed/3 failed with the three ids identical to baseline_suite, whose log_digest matches the on-disk base-three.log, but after_suite at manifest.md:18 names revision 15eaca6d while the gated tree is head 79d8e82a.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every path in the 9d15b0e3..79d8e82a diff is inside the declared write paths, and cli.py:1106/1988/2302 switch to _profile_jobs as the brief required.\nSCORE durability: 16\nJUSTIFICATION durability: tests/test_agent_reload.py:264 fails if the rollback deadline stops being anchored to the pause, and the declared mutation (delete the finally resume) reddens the six exception cases in final-negative-control.log.\nSCORE fit: 16\nJUSTIFICATION fit: imas_ambix/agent/reload.py follows the frozen-dataclass and small-interface idiom of imas_ambix/agent/lane.py, and cli.py:1277 _profile_jobs carries no plan or ticket identifier.\nSCORE reuse: 15\nJUSTIFICATION reuse: imas_ambix/agent/cli.py:1277 _profile_jobs extends _running_jobs and replaces three profile-name filters, but cli.py:2391-2404 re-implement the gate-pause and gate-resume payload mutations owned by pause at cli.py:3798 and resume at cli.py:3857.\nFINDING imas_ambix/agent/cli.py:2391 follow-on: do_pause sets paused/reason on the gate but omits the cut/cut_form withdrawal that the pause command performs at cli.py:3832, so a restart-triggered pause can inherit a cut an earlier operator pause left declared; and do_resume at cli.py:2397 duplicates the resume command body at cli.py:3867 rather than sharing it.\nFINDING manifest.md:18 follow-on: the after_suite receipt names revision 15eaca6d while the reviewed head is 79d8e82a; the gate and control log headers carry the same stale revision, and final-negative-control.log's '12 deselected' (18 collected) matches the head test inventory, so the label misnames the content that was actually gated.\nFINDING imas_ambix/agent/cli.py:1123 follow-on: after targets = jobs at cli.py:1120 and the empty-jobs return at cli.py:1117, the 'No matching jobs to cancel.' branch is unreachable, making that message dead in the restructured shutdown.",
+  "review_run_id": "r-20261020T081725522298-review-of-restart-paused-cycle-79d8e82ad9c5",
+  "reviewed_base_sha": "9d15b0e38875ee33144e8bcd0027650bab31ad48",
+  "reviewed_commits": [
+    "312e77be",
+    "15eaca6d",
+    "79d8e82a"
+  ],
+  "reviewed_head_sha": "79d8e82ad9c55d13c0ca98a028a0ce31b40e9f06",
+  "reviewed_run_id": "r-20261020T073720209200-restart-paused-cycle",
+  "scores": {
+    "durability": 16,
+    "evidence": 15,
+    "fit": 16,
+    "goal_fidelity": 18,
+    "reuse": 15,
+    "scope_discipline": 19
+  },
+  "self_comparison_assertions": [],
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-20T08:34:03.869109+00:00",
+  "total": 99
+}
