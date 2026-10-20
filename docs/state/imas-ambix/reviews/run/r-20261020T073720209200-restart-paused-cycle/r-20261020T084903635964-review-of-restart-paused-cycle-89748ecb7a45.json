@@ -1,0 +1,70 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "after_suite_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261020T073720209200-restart-paused-cycle/final-delivery-gate.log",
+  "base_log_revision": "ef4bffcc",
+  "baseline_suite_log": "/tmp/claude-39486/-home-ITER-mcintos-Code-imas-ambix/25c693bf-b3c2-4f73-a9ef-fdc5a4a14704/scratchpad/base-three.log",
+  "completed_at": "2026-10-20T09:02:54.186Z",
+  "dispatched_at": "2026-10-20T08:49:21Z",
+  "findings": [
+    {
+      "file": "tests/test_agent_reload.py",
+      "line": "167",
+      "severity": "follow-on",
+      "text": "follow-on: test_short_completion_rolls_back_and_resumes claims to guard the done-when clause 'a completion under 200 tokens counts as a validation failure', but the 199 it installs is never read: the World validate stub at tests/test_agent_reload.py:107-114 short-circuits on valid_result, and the test also passes valid=lambda job: job != 'new-1' at line 166, so completion_tokens['new-1'] = 199 is dead and the assertion reddens at 250 all the same. The 200-token threshold lives only in the untested cli.py:2443 validate closure."
+    },
+    {
+      "file": "imas_ambix/agent/reload.py",
+      "line": "61",
+      "severity": "follow-on",
+      "text": "follow-on: reload.py:61 re-applies the profile-name predicate that cli.py:1273 _profile_jobs owns, so the cycle adds the fourth copy of that filter the plan explicitly forbade ('all three switch to the helper, so the cycle adds no fourth copy'); the injected read_jobs already returns only the selected job, so the filter is redundant as well as duplicated."
+    },
+    {
+      "file": "imas_ambix/agent/reload.py",
+      "line": "100",
+      "severity": "follow-on",
+      "text": "follow-on: peak is sampled only inside the drain loop (reload.py:100-102), which exits as soon as a measured zero is seen, so the recorded peak_held never counts the requests that accumulate during the replacement wait, which is the interval in which a pause actually holds the most; the lane reading is not consulted again for the rest of the cycle, so lane-cycles.jsonl systematically under-reports the peak the plan asks for ('poll router_generation_gate.waiting while paused and keep the peak')."
+    }
+  ],
+  "head_log_revision": "89748ecb",
+  "item_verdicts": {
+    "diff": "read commit by commit (312e77be feat, 15eaca6d refactor, 79d8e82a fix, 6423dad7 fix, 89748ecb docs); reload.py adds run_reload/ReloadResult/_utc_stamp, cli.py adds _profile_jobs/_pause_gate/_resume_gate/_execute_restart_cycle and rewires shutdown/key/restart, and the tests add the cycle, rollback, deadline and operator-pause checks.",
+    "done_when": "the brief's done-when names tests/test_agent_reload.py tests/test_agent_pause_cli.py tests/test_agent_dry_run.py tests/test_agent.py plus whole-tree ruff and the serving-interpreter parse check; final-delivery-gate.log records 233 passed/3 failed (EXIT=1), final-delivery-lint.log EXIT=0 and final-delivery-serving-parse.log EXIT=0.",
+    "goal": "the source brief.txt goal is to make agent restart swap the serving engine through a bounded paused cycle that never loses a request; imas_ambix/agent/reload.py:36 run_reload pauses, drains to a measured zero, cancels by id, submits, waits RUNNING/ready/validate and resumes in a finally, and imas_ambix/agent/cli.py:2233 restart now gains only --reason and delegates.",
+    "manifest": "read; it carries the base/head revisions, five commits, a readable baseline_suite whose log_digest sha256:9f1f4e1b63d7e5777237b513a0252f830abce6be24569aa383eedf42802e3c2b matches the on-disk base-three.log, an after_suite at 89748ecb naming final-delivery-gate.log, and the declared negative-control log.",
+    "write_paths": "the brief grants imas_ambix/agent/reload.py, imas_ambix/agent/cli.py, tests/test_agent_reload.py, tests/test_agent.py, tests/test_agent_dry_run.py, ops/lane-cycle/AGENTS.md, the evidence fragment and a figures directory; the 9d15b0e3..89748ecb diff changes exactly the first seven and writes no figure."
+  },
+  "justifications": {
+    "durability": "the declared mutation reddens six cases in resumed-final-negative-control.log with EXIT=1, but tests/test_agent_reload.py:167's sub-200 completion value is short-circuited away by the World stub at tests/test_agent_reload.py:107-114, and cli.py:2443 validate and the _profile_jobs sharing carry no test.",
+    "evidence": "final-delivery-gate.log's header names revision 89748ecb and the reviewed worktree and its last line is EXIT=1 with 233 passed/3 failed, the same three ids as the verified base-three.log, but resumed-final-negative-control.log is at revision 79d8e82a rather than the head and no gate asserts that shutdown and key --rotate select jobs through cli.py:1273 _profile_jobs.",
+    "fit": "imas_ambix/agent/reload.py:16-25 uses the frozen-dataclass and injected-callable idiom of imas_ambix/agent/lane.py, _pause_gate/_resume_gate are now the single owners used by the pause and resume commands, and no added name carries a plan or ticket identifier.",
+    "goal_fidelity": "imas_ambix/agent/reload.py:81-173 runs pause, a measured-zero drain, cancel-by-id, submit, RUNNING/ready/validation and the rollback, and imas_ambix/agent/cli.py:2233 restart adds only --reason and --dry-run, but reload.py:61 re-adds the profile filter the plan forbade and reload.py:100 samples the peak only while draining.",
+    "reuse": "imas_ambix/agent/cli.py:1273 _profile_jobs extends _running_jobs and cli.py:3712/3729 _pause_gate/_resume_gate are the shared owners the pause and resume commands now call, but imas_ambix/agent/reload.py:61 duplicates the _profile_jobs predicate rather than relying on the injected reader.",
+    "scope_discipline": "every path in the 9d15b0e3..89748ecb diff (cli.py, reload.py, three test files, ops/lane-cycle/AGENTS.md, the evidence fragment) is inside the brief's declared write paths and cli.py:1106/1984/2298 switch to the one helper as required."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the source brief.txt goal is to make agent restart swap the serving engine through a bounded paused cycle that never loses a request; imas_ambix/agent/reload.py:36 run_reload pauses, drains to a measured zero, cancels by id, submits, waits RUNNING/ready/validate and resumes in a finally, and imas_ambix/agent/cli.py:2233 restart now gains only --reason and delegates.\nVERDICT done_when: the brief's done-when names tests/test_agent_reload.py tests/test_agent_pause_cli.py tests/test_agent_dry_run.py tests/test_agent.py plus whole-tree ruff and the serving-interpreter parse check; final-delivery-gate.log records 233 passed/3 failed (EXIT=1), final-delivery-lint.log EXIT=0 and final-delivery-serving-parse.log EXIT=0.\nVERDICT write_paths: the brief grants imas_ambix/agent/reload.py, imas_ambix/agent/cli.py, tests/test_agent_reload.py, tests/test_agent.py, tests/test_agent_dry_run.py, ops/lane-cycle/AGENTS.md, the evidence fragment and a figures directory; the 9d15b0e3..89748ecb diff changes exactly the first seven and writes no figure.\nVERDICT manifest: read; it carries the base/head revisions, five commits, a readable baseline_suite whose log_digest sha256:9f1f4e1b63d7e5777237b513a0252f830abce6be24569aa383eedf42802e3c2b matches the on-disk base-three.log, an after_suite at 89748ecb naming final-delivery-gate.log, and the declared negative-control log.\nVERDICT diff: read commit by commit (312e77be feat, 15eaca6d refactor, 79d8e82a fix, 6423dad7 fix, 89748ecb docs); reload.py adds run_reload/ReloadResult/_utc_stamp, cli.py adds _profile_jobs/_pause_gate/_resume_gate/_execute_restart_cycle and rewires shutdown/key/restart, and the tests add the cycle, rollback, deadline and operator-pause checks.\nCALL_SITES: imas_ambix/agent/cli.py:2462 (_execute_restart_cycle calls reload_module.run_reload), imas_ambix/agent/cli.py:2320 (restart calls _execute_restart_cycle), imas_ambix/agent/cli.py:2298 (restart selects through _profile_jobs), imas_ambix/agent/cli.py:1106 (shutdown selects through _profile_jobs), imas_ambix/agent/cli.py:1984 (key_command selects through _profile_jobs), imas_ambix/agent/cli.py:3841 (pause calls _pause_gate), imas_ambix/agent/cli.py:3876 (resume calls _resume_gate)\nSCORE goal_fidelity: 17\nJUSTIFICATION goal_fidelity: imas_ambix/agent/reload.py:81-173 runs pause, a measured-zero drain, cancel-by-id, submit, RUNNING/ready/validation and the rollback, and imas_ambix/agent/cli.py:2233 restart adds only --reason and --dry-run, but reload.py:61 re-adds the profile filter the plan forbade and reload.py:100 samples the peak only while draining.\nSCORE evidence: 15\nJUSTIFICATION evidence: final-delivery-gate.log's header names revision 89748ecb and the reviewed worktree, and its last line is EXIT=1 with 233 passed/3 failed, the same three ids as the verified base-three.log, but resumed-final-negative-control.log is at revision 79d8e82a rather than the head and no gate asserts that shutdown and key --rotate select jobs through cli.py:1273 _profile_jobs.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every path in the 9d15b0e3..89748ecb diff (cli.py, reload.py, three test files, ops/lane-cycle/AGENTS.md, the evidence fragment) is inside the brief's declared write paths and cli.py:1106/1984/2298 switch to the one helper as required.\nSCORE durability: 14\nJUSTIFICATION durability: the declared mutation reddens six cases in resumed-final-negative-control.log with EXIT=1, but tests/test_agent_reload.py:167's sub-200 completion value is short-circuited away by the World stub at tests/test_agent_reload.py:107-114, and cli.py:2443 validate and the _profile_jobs sharing carry no test.\nSCORE fit: 17\nJUSTIFICATION fit: imas_ambix/agent/reload.py:16-25 uses the frozen-dataclass and injected-callable idiom of imas_ambix/agent/lane.py, _pause_gate/_resume_gate are now the single owners used by the pause and resume commands, and no added name carries a plan or ticket identifier.\nSCORE reuse: 18\nJUSTIFICATION reuse: imas_ambix/agent/cli.py:1273 _profile_jobs extends _running_jobs and cli.py:3712/3729 _pause_gate/_resume_gate are the shared owners the pause and resume commands now call, but imas_ambix/agent/reload.py:61 duplicates the _profile_jobs predicate rather than relying on the injected reader.\nFINDING tests/test_agent_reload.py:167 follow-on: test_short_completion_rolls_back_and_resumes claims to guard the done-when clause 'a completion under 200 tokens counts as a validation failure', but the 199 it installs is never read: the World validate stub at tests/test_agent_reload.py:107-114 short-circuits on valid_result, and the test also passes valid=lambda job: job != 'new-1' at line 166, so completion_tokens['new-1'] = 199 is dead and the assertion reddens at 250 all the same; the 200-token threshold lives only in the untested cli.py:2443 validate closure.\nFINDING imas_ambix/agent/reload.py:61 follow-on: reload.py:61 re-applies the profile-name predicate that cli.py:1273 _profile_jobs owns, so the cycle adds the fourth copy of that filter the plan explicitly forbade; the injected read_jobs already returns only the selected job, so the filter is redundant as well as duplicated.\nFINDING imas_ambix/agent/reload.py:100 follow-on: peak is sampled only inside the drain loop (reload.py:100-102), which exits as soon as a measured zero is seen, so the recorded peak_held never counts the requests that accumulate during the replacement wait, which is the interval in which a pause actually holds the most; lane-cycles.jsonl therefore systematically under-reports the peak the plan asks for.",
+  "review_run_id": "r-20261020T084903635964-review-of-restart-paused-cycle-89748ecb7a45",
+  "reviewed_base_sha": "9d15b0e38875ee33144e8bcd0027650bab31ad48",
+  "reviewed_commits": [
+    "312e77be",
+    "15eaca6d",
+    "79d8e82a",
+    "6423dad7",
+    "89748ecb"
+  ],
+  "reviewed_head_sha": "89748ecb7a45500a25d443486f725842466d0637",
+  "reviewed_run_id": "r-20261020T073720209200-restart-paused-cycle",
+  "scores": {
+    "durability": 14,
+    "evidence": 15,
+    "fit": 17,
+    "goal_fidelity": 17,
+    "reuse": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-20T12:01:51.758217+00:00",
+  "total": 100
+}
