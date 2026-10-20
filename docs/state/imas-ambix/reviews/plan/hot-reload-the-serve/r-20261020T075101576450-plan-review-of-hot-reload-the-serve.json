@@ -1,0 +1,32 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-20T07:59:05.046Z",
+  "dispatched_at": "2026-10-20T07:51:29Z",
+  "findings": [],
+  "plan_fingerprint": "2151705b601ec6399c4aa66c7017ff53c27aaf95868fd50bd55b12efe474f439",
+  "plan_slug": "hot-reload-the-serve",
+  "plan_version": 8,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261020T075101576450-plan-review-of-hot-reload-the-serve",
+  "reviewed_blob_sha": "ce934a851b608ed8965b76675fef1986365b4954",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 the anchors \u00a72 relies on resolve in the tree: `generate_serve_script` (`imas_ambix/agent/slurm.py:432`, registry write step at :862, before the readiness loop at :880), `registry.py` (`ServeRegistration` :33, `registration_directory` :155, `build_endpoint_document` :298), `_resolve_router_upstreams` (`imas_ambix/agent/cli.py:1507`, two paths at :1532 and :1559), `_running_jobs` (`cli.py:1219`, operator-scoped at :1233), `_preferred_owner` (`router.py:1639`), `_serve_catalog` (`router.py:2284`), `write_lane_document` (`lane.py:757`) and the `agent lane --publish --refresh` invocation (`cli.py:3430/3440`); the extensionless AGENTS.md \u00a73b reference resolves to its heading.",
+    "done_when": "pass \u2014 \u00a72 declares a negative control at line 99 (removing the held-skip on either resolver path fails its test) and its gate is a named pytest invocation on the fleet node with per-branch assertions that can fail.",
+    "evidence_paths": "pass \u2014 \u00a72 runs its gate in place on the fleet node and names no scratchpad or node-local temporary path; \u00a71's placement paragraph covers where the record lands.",
+    "naming": "pass \u2014 \u00a72 introduces no plan, sprint, ticket or version label into a symbol, path or comment; `held`, `x-ambix-router-features`, `held-registrations` and `x-ambix-upstream` are mechanism names, and the section/data-ids are data attributes rather than code identifiers.",
+    "reasoning": "pass \u2014 all three checks hold on the code: the stated root cause matches the evidence (the registration is written at `slurm.py:862` immediately after the engine launch at :856 and well before readiness, so the resolver routes to the engine before its first generation), each mechanism can produce its declared done-when, and every mechanism names a real caller (`_resolve_router_upstreams` for the held-skip, `restart` for `registry release` and the `--mode` path, `shutdown` for the two-live-jobs refusal). The two earlier \u00a72 defects were re-checked against the tree and are now correctly stated: the room check that cannot use `_running_jobs` (e.g. the two another-user embedding cards) is confirmed by `_running_jobs`'s `-u $USER` selector at `cli.py:1233`, and `/v1/models` genuinely cannot distinguish two copies of one profile because `_serve_catalog` collapses by model id at `router.py:2307`, so the plan's `x-ambix-upstream` confirmation replaces a check that would have been vacuous.",
+    "single_goal": "pass \u2014 \u00a72 carries one deliverable, the overlap reload, and its done-when list all measures that one behaviour.",
+    "wiring": "pass \u2014 \u00a71's `data-links=\"hot-reload-the-serve#s2\"` and \u00a72's `#s1` point at sections that exist, the followup sequences \u00a71 then \u00a72, `plan-after=local-lane-admission-control` is the only peer-plan relationship and resolves, and \u00a71's \"\u00a72 adds `--mode`\" agrees with \u00a72's `--mode auto|overlap|pause`."
+  },
+  "section_digests": {
+    "_document": "a3fcb7bb257fb11d699e94caf9bcf3b3d854984ca1960831dae0bf5e95082e3a",
+    "s1": "3eb946085ced8f71c6dbc090bb4d09a0067f77d791dd06adddf09966a7b35c23",
+    "s2": "ed86391069b94be49b199354218f4945808ba36dd3bcdac22b9cdb01df681d9b",
+    "s3": "d941e9d34d7089285c3f1dcc8a47aa91ff82659be3437feda559d35a52e3bdd8"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-20T08:04:44.107085+00:00"
+}
