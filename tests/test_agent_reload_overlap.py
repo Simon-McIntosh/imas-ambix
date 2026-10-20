@@ -76,6 +76,9 @@ class OverlapWorld:
             validate=lambda job: self.events.append(("validate", job)) or self.valid,
             release=lambda job: self.events.append(("release", job)),
             confirm=lambda job: self.events.append(("confirm", job)) or self.routed,
+            read_old_running=lambda timeout: (
+                self.events.append(("old-running", 0)) or 0
+            ),
             publish=lambda: self.events.append("publish"),
             clock=lambda: self.now,
             sleep=self.sleep,
@@ -94,6 +97,7 @@ def test_overlap_handover_requires_generation_release_and_routed_confirmation():
         ("validate", "replacement"),
         ("release", "replacement"),
         ("confirm", "replacement"),
+        ("old-running", 0),
         ("cancel", "old"),
         "publish",
     ]
@@ -315,6 +319,9 @@ def bound_restart(tmp_path, monkeypatch):
         tokens=200,
         routed_origin="http://engine:18803",
         pending=False,
+        metrics=[b'vllm:num_requests_running{model_name="sample"} 0\n'],
+        metrics_requests=[],
+        record_path=tmp_path / "lane-cycles.jsonl",
     )
     directory = registry.registration_directory(site.base_dir)
     (tmp_path / "lane.json").write_text(
@@ -373,6 +380,17 @@ def bound_restart(tmp_path, monkeypatch):
         return job_id
 
     def completion(request, **kwargs):
+        if request.full_url.endswith("/metrics"):
+            world.metrics_requests.append(request.full_url)
+            reading = (
+                world.metrics.pop(0) if len(world.metrics) > 1 else world.metrics[0]
+            )
+            world.events.append(("metrics", request.full_url, reading))
+            if isinstance(reading, Exception):
+                raise reading
+            response = io.BytesIO(reading)
+            response.status = 200
+            return response
         body = json.loads(request.data)
         assert body["max_tokens"] == 400
         routed = request.full_url.startswith("http://router:")
@@ -526,3 +544,190 @@ def test_restart_cli_wires_mode_and_launch_owned_hold(monkeypatch, mode):
     assert (captured["kwargs"]["fallback_script"] is not None) is (mode == "auto")
     if selected == "overlap":
         assert captured["args"][5] == 19444
+
+
+def test_bound_overlap_drains_old_origin_before_cancel(bound_restart):
+    world = bound_restart
+    world.metrics = [b"vllm:num_requests_running 2\n", b"vllm:num_requests_running 0\n"]
+    world.run()
+    drained = (
+        "metrics",
+        "http://engine:18800/metrics",
+        b"vllm:num_requests_running 0\n",
+    )
+    assert drained in world.events, "old engine was cancelled without observing a drain"
+    assert world.events.index(
+        ("completion", "http://router:18802/v1/chat/completions")
+    ) < world.events.index(drained)
+    assert world.events.index(drained) < world.events.index(("cancel", "101"))
+    assert world.metrics_requests == ["http://engine:18800/metrics"] * 2
+
+
+@pytest.mark.parametrize("reading", [3, None, OSError("failed scrape")])
+def test_old_engine_drain_bound_records_possible_cut(tmp_path, reading):
+    import json
+
+    world = OverlapWorld()
+    calls = []
+
+    def running(timeout):
+        calls.append((world.now, timeout))
+        assert "old" in world.active
+        if isinstance(reading, Exception):
+            raise reading
+        return reading
+
+    record = tmp_path / "lane-cycles.jsonl"
+    result = world.run(read_old_running=running, record_path=record)
+    assert world.now == 600
+    assert result.old_drain_timed_out is True
+    assert world.active == {"replacement"}
+    assert len(calls) > 1 and all(0 < timeout <= 5 for _, timeout in calls)
+    saved = json.loads(record.read_text())
+    assert saved["replaced_job_id"] == "old"
+    assert saved["old_drain_seconds"] == 600
+    assert saved["old_drain_timed_out"] is True
+    assert saved["in_flight_requests_may_have_been_cut"] is True
+
+
+def test_old_engine_drain_requires_measured_zero_after_scrape_error(tmp_path):
+    import json
+
+    world = OverlapWorld()
+    readings = iter([OSError("failed scrape"), 2, 0])
+
+    def running(timeout):
+        reading = next(readings)
+        world.events.append(("old-running", reading))
+        if isinstance(reading, Exception):
+            raise reading
+        return reading
+
+    record = tmp_path / "lane-cycles.jsonl"
+    result = world.run(read_old_running=running, record_path=record)
+    assert world.now == 4
+    assert result.old_drain_timed_out is False
+    assert world.events.index(("confirm", "replacement")) < world.events.index(
+        ("old-running", 2)
+    )
+    assert world.events.index(("old-running", 0)) < world.events.index(
+        ("cancel", "old")
+    )
+    assert (
+        json.loads(record.read_text())["in_flight_requests_may_have_been_cut"] is False
+    )
+
+
+def test_slow_scrape_cannot_extend_old_engine_drain_bound():
+    world = OverlapWorld()
+
+    def running(timeout):
+        world.now += timeout
+        return None
+
+    result = world.run(read_old_running=running)
+    assert world.now == 600
+    assert result.old_drain_timed_out is True
+    assert world.active == {"replacement"}
+
+
+@pytest.mark.parametrize(
+    "body, status, expected",
+    [
+        (
+            b'sglang:num_running_reqs{tp_rank="0"} 0\n'
+            b'sglang:num_running_reqs{tp_rank="1"} 4\n',
+            200,
+            4,
+        ),
+        (
+            b'sglang:num_running_reqs{tp_rank="0"} 0\n'
+            b'sglang:num_running_reqs{tp_rank="1"} 0\n',
+            200,
+            0,
+        ),
+        (
+            b'vllm:num_requests_running{engine="0"} 0\n'
+            b'vllm:num_requests_running{engine="1"} 2\n',
+            200,
+            2,
+        ),
+        (b"vllm:num_requests_running 0\n", 200, 0),
+        (b"vllm:num_requests_running 0\n", 503, None),
+        (b"vllm:num_requests_waiting 0\n", 200, None),
+        (b"", 200, None),
+        (b"vllm:num_requests_running NaN\n", 200, None),
+        (b"vllm:num_requests_running +Inf\n", 200, None),
+        (b"vllm:num_requests_running -1\n", 200, None),
+        (b"vllm:num_requests_running 0.5\n", 200, None),
+        (b"sglang:num_running_reqs unreadable\n", 200, None),
+        (
+            b"vllm:num_requests_running 0\n"
+            b'vllm:num_requests_running{engine="1"} unreadable\n',
+            200,
+            None,
+        ),
+    ],
+)
+def test_direct_engine_running_count_requires_successful_valid_scrape(
+    monkeypatch, body, status, expected
+):
+    import io
+    import urllib.request
+
+    def scrape(request, *, timeout):
+        assert request.full_url == "http://old-engine:18800/metrics"
+        assert request.get_header("Authorization") == "Bearer key"
+        assert timeout == 3
+        response = io.BytesIO(body)
+        response.status = status
+        return response
+
+    monkeypatch.setattr(urllib.request, "urlopen", scrape)
+    assert (
+        cli._engine_running_requests("http://old-engine:18800", "key", timeout=3)
+        == expected
+    )
+
+
+def test_failed_engine_metrics_request_is_unknown(monkeypatch):
+    import urllib.request
+
+    def scrape(*_args, **_kwargs):
+        raise OSError("scrape failed")
+
+    monkeypatch.setattr(urllib.request, "urlopen", scrape)
+    assert (
+        cli._engine_running_requests("http://old-engine:18800", None, timeout=1) is None
+    )
+
+
+def test_bound_overlap_reports_and_records_drain_timeout(
+    bound_restart, monkeypatch, capsys
+):
+    import json
+
+    from imas_ambix.agent import reload
+
+    world = bound_restart
+    world.metrics = [OSError("scrape failed")]
+    clock = OverlapWorld()
+    original = reload.run_overlap
+    monkeypatch.setattr(
+        reload,
+        "run_overlap",
+        lambda **kwargs: original(**kwargs, clock=lambda: clock.now, sleep=clock.sleep),
+    )
+    world.run()
+    assert clock.now == 600
+    assert set(world.active) == {"102"}
+    assert ("cancel", "101") in world.events
+    assert world.metrics_requests and set(world.metrics_requests) == {
+        "http://engine:18800/metrics"
+    }
+    record = json.loads(world.record_path.read_text())
+    assert record["in_flight_requests_may_have_been_cut"] is True
+    assert record["old_drain_timed_out"] is True
+    assert "in-flight requests may have been cut" in " ".join(
+        capsys.readouterr().out.split()
+    )

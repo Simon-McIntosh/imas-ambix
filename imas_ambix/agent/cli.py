@@ -2453,6 +2453,54 @@ def _overlap_port(site: SiteConfig, old_job: dict[str, str], preferred: int) -> 
     raise click.ClickException("no free port available for overlap")
 
 
+def _engine_running_requests(
+    origin: str, api_key: str | None, *, timeout: float
+) -> int | None:
+    """Read the old engine's gauges; absent or failed evidence is never zero."""
+    import math
+    import urllib.request
+
+    from imas_ambix.agent import engine_metrics
+
+    request = urllib.request.Request(
+        f"{origin.rstrip('/')}/metrics",
+        headers={
+            "Accept-Encoding": "identity",
+            **({"Authorization": f"Bearer {api_key}"} if api_key else {}),
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            if response.status != 200:
+                return None
+            body = response.read().decode("utf-8")
+            samples = engine_metrics.parse_metrics(body)
+    except (OSError, ValueError):
+        return None
+    names = {
+        f"{family}:{name}"
+        for family in engine_metrics.FAMILIES
+        for name in engine_metrics.lane_series("requests_running", family)
+    }
+    values = [value for name, _, value in samples if name in names]
+    expected_samples = sum(
+        1
+        for line in body.splitlines()
+        if (tokens := line.split()) and tokens[0].partition("{")[0] in names
+    )
+    if (
+        len(values) != expected_samples
+        or not values
+        or any(
+            not math.isfinite(value) or value < 0 or not value.is_integer()
+            for value in values
+        )
+    ):
+        return None
+    # A zero on one rank is insufficient while another still reports work.
+    return int(max(values))
+
+
 def _execute_restart_cycle(
     profile: ModelProfile,
     site: SiteConfig,
@@ -2620,6 +2668,15 @@ def _execute_restart_cycle(
 
         try:
             if mode == "overlap":
+                old_node = _job_node(old_job)
+                old_port = _serve_port(
+                    old_job.get("comment", "")
+                ) or _batch_script_port(old_job["jobid"])
+                if old_node is None or old_port is None:
+                    raise RuntimeError(
+                        "cannot establish the old engine's metrics origin"
+                    )
+                old_origin = f"http://{old_node}:{old_port}"
 
                 def job_state(job_id: str) -> str:
                     return next(
@@ -2655,7 +2712,12 @@ def _execute_restart_cycle(
                             job_id, registration_directory(site.base_dir)
                         ),
                         confirm=lambda job_id: validate(job_id, routed=True),
+                        read_old_running=lambda timeout: _engine_running_requests(
+                            old_origin, resolved_key, timeout=timeout
+                        ),
                         publish=lambda: _republish_endpoint_document(site),
+                        record_path=lane_path.with_name("lane-cycles.jsonl"),
+                        settings_changed=settings_changed,
                     )
                 except reload_module.OverlapPendingError:
                     if fallback_script is None:
@@ -2677,6 +2739,11 @@ def _execute_restart_cycle(
         f"new job {result.new_job_id}.",
         markup=False,
     )
+    if result.old_drain_timed_out:
+        console.print(
+            "[yellow]Old engine did not report zero running requests within "
+            "10 minutes; in-flight requests may have been cut.[/]"
+        )
 
 
 @agent.command()

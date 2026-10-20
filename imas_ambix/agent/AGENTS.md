@@ -325,8 +325,12 @@ The default `--mode auto` overlaps only when the running router advertises
 cards, host memory and reservation cores. Other users' allocations count. The
 replacement starts on a free port with its registration held, generates a real
 completion, then releases its hold. A completion through the router must name
-the replacement in `x-ambix-upstream` before the command cancels the old job by
-id and republishes the endpoint document. A pending replacement is cancelled
+the replacement in `x-ambix-upstream`. The command then polls the old engine's
+own running-request gauge until a successful scrape reads zero, before cancelling
+that job by id and republishing the endpoint document. Missing or failed scrapes
+never count as zero. The drain is bounded at ten minutes; expiry cancels the old
+job anyway, warns that in-flight requests may have been cut, and records the
+possible cut in `lane-cycles.jsonl`. A pending replacement is cancelled
 after 120 seconds; auto then uses the paused cycle.
 
 Use `--mode overlap` to require that path and refuse if it is unavailable, or

@@ -24,6 +24,7 @@ class ReloadResult:
     pause_started: float | None
     pause_ended: float | None
     peak_held: int
+    old_drain_timed_out: bool = False
 
 
 def _utc_stamp(clock: Callable[[], datetime]) -> str:
@@ -38,6 +39,12 @@ class OverlapPendingError(RuntimeError):
     """Replacement could not start promptly beside the serving allocation."""
 
 
+def _append_cycle_record(path: Path, record: Mapping[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(record, sort_keys=True) + "\n")
+
+
 def run_overlap(
     *,
     script: str,
@@ -49,13 +56,21 @@ def run_overlap(
     validate: Callable[[str], bool],
     release: Callable[[str], None],
     confirm: Callable[[str], bool],
+    read_old_running: Callable[[float], int | None],
     publish: Callable[[], object],
     clock: Callable[[], float] = time.monotonic,
     sleep: Callable[[float], None] = time.sleep,
+    wall_clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    record_path: Path | None = None,
+    settings_changed: Mapping[str, object] | None = None,
 ) -> ReloadResult:
-    """Validate beside the old engine, then require proof of routed handover."""
+    """Confirm routed handover, then drain the old engine before retiring it."""
     replacement = submit(script)
     retiring_old = False
+    drain_timed_out = False
+    drain_seconds: float | None = None
+    last_running: int | None = None
+    outcome = "failed"
     try:
         pending_deadline = clock() + 120
         while True:
@@ -91,16 +106,50 @@ def run_overlap(
                 "router completion did not confirm the replacement origin; "
                 f"keeping old job {old_job_id}"
             )
-        # Once cancellation is attempted, its receipt may be lost even though
-        # the scheduler accepted it. Preserve the confirmed replacement.
+        # Traffic now uses the replacement. Preserve it if drain telemetry
+        # fails or the scheduler loses the old job's cancellation receipt.
         retiring_old = True
+        drain_started = clock()
+        drain_deadline = drain_started + 10 * 60
+        drained = False
+        while clock() < drain_deadline:
+            try:
+                last_running = read_old_running(min(5, drain_deadline - clock()))
+            except (OSError, ValueError):
+                last_running = None
+            if last_running == 0 and clock() <= drain_deadline:
+                drained = True
+                break
+            sleep(min(2, max(0, drain_deadline - clock())))
+        drain_seconds = clock() - drain_started
+        drain_timed_out = not drained
         cancel(old_job_id)
         publish()
-        return ReloadResult("reloaded", old_job_id, replacement, None, None, 0)
+        outcome = "reloaded"
+        return ReloadResult(
+            outcome, old_job_id, replacement, None, None, 0, drain_timed_out
+        )
     except Exception:
         if not retiring_old:
             cancel(replacement)
         raise
+    finally:
+        if record_path is not None:
+            _append_cycle_record(
+                record_path,
+                {
+                    "mode": "overlap",
+                    "recorded_at": _utc_stamp(wall_clock),
+                    "replaced_job_id": old_job_id,
+                    "new_job_id": replacement,
+                    "outcome": outcome,
+                    "settings_changed": dict(settings_changed or {}),
+                    "old_drain_seconds": drain_seconds,
+                    "old_drain_last_running": last_running,
+                    "old_drain_timed_out": drain_timed_out,
+                    "in_flight_requests_may_have_been_cut": drain_timed_out,
+                },
+            )
 
 
 def run_reload(
@@ -290,6 +339,4 @@ def run_reload(
                     "settings_changed": dict(settings_changed or {}),
                     "outcome": outcome,
                 }
-                record_path.parent.mkdir(parents=True, exist_ok=True)
-                with record_path.open("a", encoding="utf-8") as stream:
-                    stream.write(json.dumps(record, sort_keys=True) + "\n")
+                _append_cycle_record(record_path, record)
