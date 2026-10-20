@@ -1,0 +1,55 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-20T06:38:23.441Z",
+  "dispatched_at": "2026-10-20T06:31:02Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/reload.py (plan \u00a71 step 1)",
+      "id": "duplicate_owner-1",
+      "reason": "naming `_running_jobs` as the single scheduler reader, or extending it, removes a fourth copy and ties \u00a72's ledger check to the same owner.",
+      "text": "the plan has reload.py \"find the profile's running serve job by job name\" itself, but the repository already owns that query, and it is already copy-pasted three times: the owner is `_running_jobs` (imas_ambix/agent/cli.py:1219), the structured scheduler reader, while the duplicated profile-name filters live at imas_ambix/agent/cli.py:1117 (`shutdown`), imas_ambix/agent/cli.py:1994 (`key_command` rotate), and imas_ambix/agent/cli.py:2317 (`restart`); `_discover_live_routes` (cli.py:1446) reaches the same scheduler through `_running_jobs`. A fourth copy in reload.py is a fourth thing to keep in step when the scheduler output format or the account selector changes, and \u00a72's capacity check (\"`scontrol show node` AllocTRES for cards and memory, and the `gpu_0003_grpA` core ledger\") re-derives per-job card/memory/node facts that `_running_jobs` already returns as `gres` and `node`.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/cli.py:1307 (plan \u00a71 step 5; \u00a72 overlap step from plan \u00a72)",
+      "id": "reuse_search-1",
+      "reason": "naming `_probe_endpoint` as the readiness mechanism makes the plan's \"generation validation is not an HTTP 200\" point land on the existing probe instead of leaving readiness latent.",
+      "text": "`_probe_endpoint` already implements the `/v1/models` readiness probe (returning `probe.readiness == \"ready\"`) that the plan's \"wait for readiness\" step re-describes, and `_running_jobs` (cli.py:1219) already reports job `state`, which is the \"wait for RUNNING\" half; the plan names neither, so its readiness half is unspecified machinery beside an existing owner.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/hot-reload-the-serve.html#s1",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the added CLI surface in its own text, which forces the author to decide whether `reload` and `restart` are one command with a mode or two.",
+      "text": "\u00a71 adds `imas-ambix agent reload <slug>` with `--gpus`, `--cpus`, `--port`, `--no-speculative`, `--reason`, `--dspark-block-size`, `--time`, `--auth`, `--api-key`, `--dry-run`, and \u00a72 adds `--mode auto|overlap|pause`, while `restart` keeps its identical option set; against this week's supplied counts (public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0) neither section states that `reload` supersedes, retires or merges any existing command or option, nor why the swap behaviour cannot be a mode of `restart`.",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "a1d83204e8c03379a5eb7dac2406607c9499e006b50176047b8513adfde567c0",
+  "plan_slug": "hot-reload-the-serve",
+  "plan_version": 1,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261020T063046027454-plan-review-of-hot-reload-the-serve",
+  "reviewed_blob_sha": "9911f24185048e441f4bdb97b7aabf20708b6134",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 one module, `imas_ambix/agent/reload.py`, hides the whole pause/drain/cancel/submit/rollback cycle behind a small injected interface, and \u00a72 deliberately writes into the same module and command rather than a parallel one.",
+    "duplicate_owner": "a finding \u2014 the plan re-implements the profile-to-running-job scheduler lookup in `reload.py` rather than extending its owner, and the same lookup is already duplicated three times.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a71 adds a new CLI command (`agent reload`) with `restart`'s full option set plus `--reason`, and \u00a72 adds `--mode`, without either section naming what it retires or merges, or why nothing can be.",
+    "reuse_search": "a finding \u2014 the plan searches well for some mechanisms (it cites `_resolve_router_upstreams` cli.py:1507, `_preferred_owner` router.py:1639, `generate_serve_script` slurm.py:432, `classify_reading` lane.py:620, and `agent pause`) but adds its own readiness/validation wait without naming the `/v1/models` readiness probe that already exists.",
+    "thin_wrapper": "pass \u2014 the `reload` command is thin over the new `reload.py`, and the plan states it reuses `restart`'s profile resolution, port precedence and engine-environment check by name rather than copying them; it adds substantial behaviour (pause, bounded cycle, rollback) that no existing command carries."
+  },
+  "section_digests": {
+    "_document": "d1e04d1e0b5ef2d72b196b41ce27165db5be10673c7f4a0f0126ec972e764397",
+    "s1": "f6125ab8579bc1a90e4064c55beda7493aef099d6fba380815061397e8853273",
+    "s2": "5bf261c41dd5a2d4e51c93074c689b7ee60df51160a824c28daf40a7721336a0",
+    "s3": "d941e9d34d7089285c3f1dcc8a47aa91ff82659be3437feda559d35a52e3bdd8"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-20T06:42:16.514739+00:00"
+}
