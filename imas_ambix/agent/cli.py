@@ -2457,11 +2457,17 @@ def _engine_running_requests(
     origin: str, api_key: str | None, *, timeout: float
 ) -> int | None:
     """Read the old engine's gauges; absent or failed evidence is never zero."""
+    import zlib
+
     from imas_ambix.agent import engine_metrics, lane
 
     try:
         body = lane.fetch_engine_metrics(origin, api_key=api_key, timeout=timeout)
-    except (OSError, ValueError):
+    except (OSError, ValueError, EOFError, zlib.error):
+        # A body that claims gzip or deflate but is truncated or corrupt fails
+        # while decoding, and that failure is evidence of a bad reading rather
+        # than of a drained engine. None keeps the drain polling instead of
+        # aborting the overlap on an unreadable scrape.
         return None
     return engine_metrics.running_requests(body)
 

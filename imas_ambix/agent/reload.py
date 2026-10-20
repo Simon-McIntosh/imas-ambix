@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+import zlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
@@ -115,7 +116,11 @@ def run_overlap(
         while clock() < drain_deadline:
             try:
                 last_running = read_old_running(min(5, drain_deadline - clock()))
-            except (OSError, ValueError):
+            except (OSError, ValueError, EOFError, zlib.error):
+                # A scrape whose compressed body is truncated or corrupt fails
+                # while decoding. That is an unreadable reading, not a drained
+                # engine and not a reason to abort the overlap, so the drain
+                # records unknown and keeps polling to its bound.
                 last_running = None
             if last_running == 0 and clock() <= drain_deadline:
                 drained = True

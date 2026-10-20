@@ -525,10 +525,16 @@ def parse_lane_capacity(metrics: str) -> LaneCapacity:
     pool_tokens = _lane_pool_tokens(samples, family, read)
     if pool_tokens <= 0:
         raise ValueError("engine metrics carry no KV pool size")
+    # This reader publishes the lane document, whose running count has always
+    # defaulted to zero when the exposition carries no running-request gauge:
+    # the document describes a lane whose pool size is known, and absence is
+    # not a state it can express. The drain is the caller that must never treat
+    # absence as zero, and it reads engine_metrics.running_requests directly
+    # rather than through this function, so the two readings stay separate.
     running = engine_metrics.running_requests(metrics)
-    if running is None:
-        raise ValueError("engine metrics carry no valid running-request count")
-    return _lane_capacity_from_roles(family, model_id, pool_tokens, running, read)
+    return _lane_capacity_from_roles(
+        family, model_id, pool_tokens, running if running is not None else 0, read
+    )
 
 
 def fetch_engine_metrics(

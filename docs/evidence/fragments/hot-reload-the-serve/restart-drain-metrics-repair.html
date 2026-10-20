@@ -1,0 +1,69 @@
+<section id="restart-drain-metrics-repair">
+  <h2>Restart drain tolerates an undecodable scrape; lane capacity keeps its published zero</h2>
+  <p>Two repairs on top of <code>10cb01e5</code>, each with a test.</p>
+  <p><strong>(1) A metrics fetch that fails while decoding a compressed body is an
+  unreadable reading, never an exception that aborts the overlap.</strong> The
+  shared exposition reader decodes <code>Content-Encoding: gzip... gzip</code>
+  with <code>gzip.decompress</code> and <code>deflate</code> with
+  <code>zlib.decompress</code>. A truncated gzip body raises
+  <code>EOFError</code> and a corrupt deflate body raises
+  <code>zlib.error</code>, and neither is an <code>OSError</code> or a
+  <code>ValueError</code>. Both therefore escaped the drain reader's existing
+  <code>except</code> clause. The drain reader
+  (<code>imas_ambix/agent/cli.py</code>, <code>_engine_running_requests</code>)
+  and the overlap's own guard (<code>imas_ambix/agent/reload.py</code>,
+  <code>run_overlap</code>) now handle them, so the reading is unknown and the
+  drain keeps polling to its ten-minute bound instead of raising out of the
+  overlap after traffic has already moved to the replacement.</p>
+  <p>Reproduced at base <code>10cb01e5</code>, before the repair, on a scrape
+  whose gzip body is truncated by six bytes:</p>
+  <pre><code>truncated gzip -&gt; EOFError Compressed file ended before the end-of-stream marker was reached
+corrupt deflate -&gt; error Error -3 while decompressing data: invalid block type
+cli._engine_running_requests -&gt; ESCAPED EOFError
+run_overlap -&gt; ABORTED EOFError</code></pre>
+  <p>After the repair the same probe returns <code>None</code> from the drain
+  reader and <code>run_overlap</code> completes with
+  <code>old_drain_timed_out=True</code> at its bound.</p>
+  <p><strong>(2) The lane capacity reader keeps the absent-gauge default it has
+  always published.</strong> <code>engine_metrics.running_requests</code> still
+  returns <code>None</code> on absence — that is what the drain needs. But
+  <code>None</code> is not a reading the lane document can express, so
+  <code>parse_lane_capacity</code> (which <code>fetch_lane_capacity</code>
+  delegates to) now applies the previous default, zero, with a comment stating
+  why, and the two readings stay separate. Previously the shared reduction's
+  <code>None</code> was turned into a <code>ValueError</code>, which broke three
+  tests in <code>tests/test_agent_lane_counter_series.py</code> that supply
+  partial SGLang expositions with no running-request gauge — the follow-on the
+  predecessor fragment named.</p>
+  <table>
+    <caption>Gate and controls, all run in place on the fleet node.</caption>
+    <thead><tr><th>Measure</th><th>Recorded result</th><th>Log</th></tr></thead>
+    <tbody>
+      <tr><td>Required gate at base <code>a462d286</code> (extracted scratch tree)</td><td>85 passed in 11.14s; EXIT=0</td><td><code>baseline-gate.log</code></td></td></tr>
+      <tr><td>Required gate at implementation (working tree on <code>10cb01e5</code>)</td><td>103 passed in 8.06s; EXIT=0; zero added failures</td><td><code>after-gate.log</code></td></tr>
+      <tr><td>Whole-tree Ruff</td><td>EXIT=0</td><td><code>ruff.log</code></td></tr>
+      <tr><td>Serving-interpreter grammar</td><td>2 passed, 12 deselected; EXIT=0</td><td><code>serving-parse.log</code></td></tr>
+      <tr><td>Declared mutation: <code>EOFError</code> and <code>zlib.error</code> removed from the drain reader's handled failures</td><td>1 failed, 1 passed; EXIT=1</td><td><code>negative-control.log</code></td></tr>
+    </tbody>
+  </table>
+  <p><strong>Delta.</strong> The base arm passes 85 tests with exit 0; the head
+  arm passes 103 with exit 0. Head minus base is the node's own added tests
+  (three overlap-drain tests plus the parametrised <code>running_requests</code>
+  matrix carried by the predecessor) and the three repaired counter-series
+  tests, with no test failing in the head arm that the base arm also fails
+  (<code>none</code>).</p>
+  <p><strong>Negative control.</strong> Removing <code>EOFError</code> and
+  <code>zlib.error</code> from the drain reader's handled failures, and nothing
+  else, makes
+  <code>test_undecodable_compressed_scrape_is_an_unknown_reading</code> fail with
+  the <code>EOFError</code> escaping the reader; the log's last line is
+  <code>EXIT=1</code>. The overlap-level drain test still passes under that
+  mutation, because <code>reload.py</code>'s own guard is a second, independent
+  handler — so the mutation isolates the reader rather than the overlap.</p>
+  <p><strong>Follow-ons</strong> the node found but did not act on:
+  <code>lane.fetch_engine_metrics</code> still lets a decoding failure propagate
+  to its callers, which is deliberate and is asserted by
+  <code>test_failed_metrics_fetch_is_not_a_running_zero</code>; any future caller
+  of that function must decide for itself whether an undecodable body is unknown
+  or fatal.</p>
+</section>

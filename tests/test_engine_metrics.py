@@ -788,7 +788,9 @@ def test_running_requests_uses_largest_rank_for_drain_and_capacity(
     )
 
 
-def test_running_requests_absence_is_unknown(monkeypatch, ranked_running_exposition):
+def test_running_requests_absence_is_unknown_to_the_drain(
+    monkeypatch, ranked_running_exposition
+):
     body = ranked_running_exposition(())
     # The exposition is populated, but its pool size cannot answer for requests.
     assert engine_metrics.parse_metrics(body)
@@ -798,8 +800,9 @@ def test_running_requests_absence_is_unknown(monkeypatch, ranked_running_exposit
     assert (
         cli._engine_running_requests("http://engine.invalid", None, timeout=3) is None
     )
-    with pytest.raises(ValueError, match="no valid running-request count"):
-        lane.fetch_lane_capacity("http://engine.invalid", timeout=3)
+    # The lane document cannot express an absent gauge, so its reader keeps the
+    # zero it has always published; only the drain must read absence as unknown.
+    assert lane.fetch_lane_capacity("http://engine.invalid", timeout=3).running == 0
 
 
 def test_failed_metrics_fetch_is_not_a_running_zero(monkeypatch):
