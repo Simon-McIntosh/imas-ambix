@@ -1,0 +1,111 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "measured zero on the node's own gate: baseline_suite (a462d286) records 80 passed, 0 failures and after_suite (b6c93478) records 95 passed, 0 failures, both EXIT=0. The three tests/test_agent_lane_counter_series.py failures above sit outside that gate's file set and are recorded as a finding rather than in this count.",
+  "assertion_analysis": [
+    {
+      "condition_to_fail": "running_requests returns anything other than the largest rank count: a first-rank reduction gives 0 for the (0,4) case, a sum gives 4 for (0,0) and 2 for (4,2), and a zero-on-absence change gives 0 for the empty exposition.",
+      "file": "tests/test_engine_metrics.py",
+      "line": 781
+    },
+    {
+      "condition_to_fail": "cli._engine_running_requests stops delegating to lane.fetch_engine_metrics, because the monkeypatched lane.urllib.request.build_opener would no longer intercept the scrape and the call would read None from a real connection.",
+      "file": "tests/test_engine_metrics.py",
+      "line": 783
+    },
+    {
+      "condition_to_fail": "parse_lane_capacity stops routing its running field through the shared reduction, for example by restoring int(read('requests_running') or 0), which yields 0 for the absent-gauge exposition.",
+      "file": "tests/test_engine_metrics.py",
+      "line": 787
+    },
+    {
+      "condition_to_fail": "running_requests reports a number when the exposition carries a pool size but no running series; the recorded mutation making it return 0 reddens exactly this assertion.",
+      "file": "tests/test_engine_metrics.py",
+      "line": 797
+    },
+    {
+      "condition_to_fail": "parse_lane_capacity accepts an exposition with no running-request series instead of raising ValueError.",
+      "file": "tests/test_engine_metrics.py",
+      "line": 801
+    },
+    {
+      "condition_to_fail": "a failed scrape is reported as a running count of zero, or the drain's reader stops swallowing the fetch failure.",
+      "file": "tests/test_engine_metrics.py",
+      "line": 817
+    },
+    {
+      "condition_to_fail": "either consumer stops issuing the scrape the test counts, or issues it more than once per call.",
+      "file": "tests/test_engine_metrics.py",
+      "line": 822
+    }
+  ],
+  "base_log_revision": "a462d2867928ede9eb6d9d8ec94b37f2d88d3ff4",
+  "call_site_count": 6,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2680 (_execute_restart_cycle drain lambda)",
+    "imas_ambix/agent/reload.py:117 (overlap drain poll loop, guarded by except (OSError, ValueError) at reload.py:118)",
+    "imas_ambix/agent/router.py:2138 (_publish_lane reads fetch_lane_capacity)",
+    "imas_ambix/agent/cli.py:3864 (agent lane capacity read)",
+    "imas_ambix/agent/cli.py:3887 (agent lane capacity read)",
+    "imas_ambix/agent/cli.py:2462 (_engine_running_requests)"
+  ],
+  "completed_at": "2026-10-20T14:08:09.502Z",
+  "dispatched_at": "2026-10-20T13:56:42Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/cli.py",
+      "line": "2464",
+      "severity": "follow-on",
+      "text": "follow-on: The except (OSError, ValueError) clause no longer covers the failures of the call it now wraps - lane.fetch_engine_metrics decodes Content-Encoding at imas_ambix/agent/lane.py:552-556, and gzip.decompress raises EOFError on a truncated body while zlib.decompress raises zlib.error, neither a subclass of OSError or ValueError - so a corrupt compressed scrape escapes the drain reader and reaches imas_ambix/agent/reload.py:117, whose own guard at reload.py:118 catches the same two types only, aborting an overlap whose replacement is already live and whose old job is then left uncancelled."
+    },
+    {
+      "file": "imas_ambix/agent/lane.py",
+      "line": "530",
+      "severity": "follow-on",
+      "text": "follow-on: Refusing an exposition with no valid running-request count turns three previously passing tests red at head - tests/test_agent_lane_counter_series.py::test_generation_tokens_sums_every_series, ::test_single_series_counter_is_unchanged and ::test_single_series_gauge_is_unchanged (3 failed, 41 passed in reader-consumers.log) - because those fixtures build a pool line with no running gauge and previously read running=0; the file is outside the node's declared write scope and the node correctly reported it under follow_ons, so the coordinator must update the fixtures before the merged tree is green."
+    }
+  ],
+  "head_log_revision": "b6c93478f0c6b846ca4a24d0b284cafbc4eed9c4",
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "Read commit by commit from a462d286: b6c93478 moves the rank reduction into imas_ambix/agent/engine_metrics.py:387 as running_requests, extracts lane.fetch_engine_metrics at imas_ambix/agent/lane.py:534, makes cli._engine_running_requests delegate at imas_ambix/agent/cli.py:2462-2466, makes parse_lane_capacity refuse an absent count at lane.py:528-530, and adds three tests to tests/test_engine_metrics.py; 10cb01e5 adds 51 lines of landing evidence only.",
+    "done_when": "The node's measure names the three-file gate tests/test_engine_metrics.py, tests/test_agent_reload_overlap.py, tests/test_agent_lane_sglang.py plus ruff and the serving-interpreter parse test; the manifest records baseline 80 passed and head 95 passed with EXIT=0, lint 'All checks passed!', and serving parse '1 passed, 13 deselected', and each log's last line is a bare EXIT= line.",
+    "goal": "The source node's goal asks that the overlap restart's old-engine drain read running requests through the repository's engine-metrics owner; imas_ambix/agent/cli.py:2456-2466 now fetches through lane.fetch_engine_metrics and reduces through engine_metrics.running_requests, so the drain no longer scrapes or reduces the gauge itself.",
+    "manifest": "Read the source manifest.md: it records commits b6c93478 and 10cb01e5, six changed paths, baseline_suite 80 passed and after_suite 95 passed both with EXIT=0, negative_control_log negative-control.log with 2 failed, and three follow-ons in tests/test_agent_lane_counter_series.py.",
+    "write_paths": "The node's declared write paths are imas_ambix/agent/cli.py, imas_ambix/agent/engine_metrics.py, imas_ambix/agent/lane.py, tests/test_engine_metrics.py, tests/test_agent_reload_overlap.py, the landing fragment and a figures directory; every path in the base-to-head diff lies inside that set and the figures directory is untouched."
+  },
+  "justifications": {
+    "durability": "tests/test_engine_metrics.py:781-787 fails if the reduction stops taking the largest rank or if either consumer stops calling it, and the mutation control proves line 797 reddens when absence returns zero, but no test covers a decompression failure escaping the drain's reader.",
+    "evidence": "The gate named in the measure ran at both arms with EXIT=0 recorded on the last line of baseline.log (80 passed) and head.log (95 passed), and the absence-to-zero mutation is recorded red in negative-control.log (2 failed, EXIT=1).",
+    "fit": "imas_ambix/agent/engine_metrics.py:387 places running_requests beside series_first in the module that owns family and role resolution, and the added names carry no plan, version or ticket label.",
+    "goal_fidelity": "imas_ambix/agent/cli.py:2462-2466 routes the drain through lane.fetch_engine_metrics and engine_metrics.running_requests, so the drain reads the gauge through the repository owner exactly as the goal states.",
+    "reuse": "The change extends the two owners it needed - the rank reduction into imas_ambix/agent/engine_metrics.py:387 and the exposition reader into imas_ambix/agent/lane.py:534 - and removes the drain's private copy rather than adding a third scrape.",
+    "scope_discipline": "Every path in a462d286..10cb01e5 is inside the node's declared write paths, and the final commit 10cb01e5 changes only the evidence fragment after the measured revision b6c93478."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The source node's goal asks that the overlap restart's old-engine drain read running requests through the repository's engine-metrics owner; imas_ambix/agent/cli.py:2456-2466 now fetches through lane.fetch_engine_metrics and reduces through engine_metrics.running_requests, so the drain no longer scrapes or reduces the gauge itself.\nVERDICT done_when: The node's measure names the three-file gate tests/test_engine_metrics.py, tests/test_agent_reload_overlap.py, tests/test_agent_lane_sglang.py plus ruff and the serving-interpreter parse test; the manifest records baseline 80 passed and head 95 passed with EXIT=0, lint 'All checks passed!', and serving parse '1 passed, 13 deselected', and each log's last line is a bare EXIT= line.\nVERDICT write_paths: The node's declared write paths are imas_ambix/agent/cli.py, imas_ambix/agent/engine_metrics.py, imas_ambix/agent/lane.py, tests/test_engine_metrics.py, tests/test_agent_reload_overlap.py, the landing fragment and a figures directory; every path in the base-to-head diff lies inside that set and the figures directory is untouched.\nVERDICT manifest: Read at /home/ITER/mcintos/.config/reckon/crew/runs/r-20261020T133959926152-restart-drain-reuses-engine-metrics/manifest.md: it records commits b6c93478 and 10cb01e5, six changed paths, baseline_suite 80 passed and after_suite 95 passed both with EXIT=0, negative-control.log with 2 failed, and three follow-ons in tests/test_agent_lane_counter_series.py.\nVERDICT diff: Read commit by commit from a462d286: b6c93478 moves the rank reduction into imas_ambix/agent/engine_metrics.py:387 as running_requests, extracts lane.fetch_engine_metrics at imas_ambix/agent/lane.py:534, makes cli._engine_running_requests delegate at imas_ambix/agent/cli.py:2462-2466, makes parse_lane_capacity refuse an absent count at lane.py:528-530, and adds three tests to tests/test_engine_metrics.py; 10cb01e5 adds 51 lines of landing evidence only.\nCALL_SITES: imas_ambix/agent/cli.py:2680, imas_ambix/agent/reload.py:117, imas_ambix/agent/router.py:2138, imas_ambix/agent/cli.py:3864, imas_ambix/agent/cli.py:3887, imas_ambix/agent/cli.py:2462\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/cli.py:2462-2466 routes the drain through lane.fetch_engine_metrics and engine_metrics.running_requests, so the drain reads the gauge through the repository owner exactly as the goal states.\nSCORE evidence: 18\nJUSTIFICATION evidence: The gate named in the measure ran at both arms with EXIT=0 recorded on the last line of baseline.log (80 passed) and head.log (95 passed), and the absence-to-zero mutation is recorded red in negative-control.log (2 failed, EXIT=1).\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: Every path in a462d286..10cb01e5 is inside the node's declared write paths, and the final commit 10cb01e5 changes only the evidence fragment after the measured revision b6c93478.\nSCORE durability: 17\nJUSTIFICATION durability: tests/test_engine_metrics.py:781-787 fails if the reduction stops taking the largest rank or either consumer stops calling it, and the recorded mutation proves line 797 reddens when absence returns zero, but no test covers a decompression failure escaping the drain's reader.\nSCORE fit: 19\nJUSTIFICATION fit: imas_ambix/agent/engine_metrics.py:387 places running_requests beside series_first in the module that owns family and role resolution, and the added names carry no plan, version or ticket label.\nSCORE reuse: 19\nJUSTIFICATION reuse: The change extends the two owners it needed - the rank reduction into imas_ambix/agent/engine_metrics.py:387 and the exposition reader into imas_ambix/agent/lane.py:534 - and removes the drain's private copy rather than adding a third scrape.\nFINDING imas_ambix/agent/cli.py:2464 follow-on: The except (OSError, ValueError) clause no longer covers the failures of the call it now wraps, because gzip.decompress raises EOFError on a truncated body and zlib.decompress raises zlib.error, so a corrupt compressed scrape escapes the drain reader and reaches imas_ambix/agent/reload.py:118, whose guard catches the same two types only.\nFINDING imas_ambix/agent/lane.py:530 follow-on: Refusing an exposition with no valid running-request count turns three previously passing tests red at head in tests/test_agent_lane_counter_series.py; that file is outside the node's declared write scope and was correctly reported under follow_ons, so the coordinator must update the fixtures before the merged tree is green.\n",
+  "review_run_id": "r-20261020T135610529268-review-of-restart-drain-reuses-engine-metrics-10cb01e56891",
+  "reviewed_base_sha": "a462d2867928ede9eb6d9d8ec94b37f2d88d3ff4",
+  "reviewed_commits": [
+    "b6c93478f0c6b846ca4a24d0b284cafbc4eed9c4",
+    "10cb01e56891de011bff5f4c8977cec82b325f79"
+  ],
+  "reviewed_head_sha": "10cb01e56891de011bff5f4c8977cec82b325f79",
+  "reviewed_run_id": "r-20261020T133959926152-restart-drain-reuses-engine-metrics",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 18
+  },
+  "self_comparison_assertions": [],
+  "self_comparison_rule": "No added assertion compares a value against the same variable the test supplied on the other side: every expected value at tests/test_engine_metrics.py:781-822 is an independent parametrized constant, while the url and timeout literals asserted inside _mock_engine_scrape at lines 758-762 are wiring checks on the request the consumer built.",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-20T14:04:21Z",
+  "total": 110
+}

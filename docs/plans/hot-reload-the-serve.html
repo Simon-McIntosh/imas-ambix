@@ -25,7 +25,7 @@
   <title>Hot-reload the LLM serve | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="15">
+<meta name="plan-version" content="16">
 <meta name="plan-modified" content="2026-10-20">
 </head>
 <body>
@@ -154,6 +154,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261020T120846946587-restart-overlap" data-who="reckon-build" data-when="2026-10-20T13:20:54Z">
     <div class="r-comment-body"><p>Overlap registration now precedes engine launch; routed handover drains the old engine to a successfully scraped zero before cancellation, with a 600-second bound and an explicit possible-cut record. Fresh gate: 106 passed; lint and serving parse passed; both resolver mutation controls failed. Evidence: docs/evidence/fragments/hot-reload-the-serve/restart-overlap.html#restart-overlap-review.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-run-r-20261020T135610529268-review-of-restart-drain-reuses-engine-metrics-10cb01e56891" data-who="reckon-build" data-when="2026-10-20T14:08:09.502Z">
+    <div class="r-comment-body"><p>Independent review of a462d2867928ede9eb6d9d8ec94b37f2d88d3ff4..10cb01e56891de011bff5f4c8977cec82b325f79 stored as a parsed six-dimension record scoring 19/18/18/17/19/19 with zero added test failures on the node&#x27;s own gate and two follow-on findings: a decompression failure escaping the drain reader&#x27;s except clause, and three previously green tests in tests/test_agent_lane_counter_series.py turned red by the strict capacity refusal outside the node&#x27;s write scope.</p></div>
 </div>
 </section>
 </main>
