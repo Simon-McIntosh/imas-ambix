@@ -1,0 +1,80 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "after_suite": {
+    "completed": true,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261020T120846946587-restart-overlap/head.log",
+    "revision": "5326d4a2ea415901e5c80ded63dfd00337603158"
+  },
+  "baseline_suite": {
+    "completed": true,
+    "failure_count": 0,
+    "failure_ids": [],
+    "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261020T120846946587-restart-overlap/baseline-existing.log",
+    "revision": "9762345ada1bc758e08b1f0ee10382a7bdff5cc9"
+  },
+  "call_site_count": 6,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:restart",
+    "imas_ambix/agent/cli.py:_execute_restart_cycle",
+    "imas_ambix/agent/cli.py:router",
+    "imas_ambix/agent/registry.py:main",
+    "imas_ambix/agent/slurm.py:generate_serve_script",
+    "imas_ambix/agent/router.py:RouterApp.__call__"
+  ],
+  "completed_at": "2026-10-20T12:52:18Z",
+  "dispatched_at": "2026-10-20T12:42:24Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/slurm.py",
+      "line": "919",
+      "severity": "blocking",
+      "text": "blocking: The engine is launched before registry write --held at line 927; scheduler-only discovery in cli.py:1473-1503 can admit it whenever /v1/models answers in that interval, before the first validated generation."
+    },
+    {
+      "file": "imas_ambix/agent/reload.py",
+      "line": "97",
+      "severity": "follow-on",
+      "text": "follow-on: Old-job cancellation immediately follows one routed completion without waiting for existing generations on the old engine, so streams already in flight can be cut."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 6 production call site(s)",
+    "diff": "I read commits 9c5a52b2, 5326d4a2 and 287a7b8d against base 9762345a; they add held registration, overlap orchestration, tests, guidance and one evidence fragment.",
+    "done_when": "The source prompt's done-when at prompt.txt:100 names the five-file gate and controls; head.log records 83 passed, the two negative-control logs record EXIT=1, and baseline-existing.log records 39 passed.",
+    "goal": "The source prompt's goal is validated overlap routing after generation; imas_ambix/agent/reload.py:86-97 enforces validation before retirement, but imas_ambix/agent/slurm.py:919-927 leaves a pre-registration routing window.",
+    "manifest": "The source manifest.md records three commits, its exact gate command, base and after suite receipts, zero added failures, and the router deployment follow-on.",
+    "write_paths": "The source prompt at prompt.txt:69-82 declares 13 allowed paths; git diff 9762345a..287a7b8d changes 12 paths, all within that list."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_router_resolution.py:187-210 reddens when either held skip is removed, and tests/test_agent_reload_overlap.py checks wrong-origin and short-completion refusals, but tests/test_agent_serve_registry.py:269-270 checks hold before the readiness loop rather than before engine launch.",
+    "evidence": "The reviewed run's head.log ends with 83 passed and EXIT=0, baseline-existing.log ends with 39 passed and EXIT=0, and negative-registration.log and negative-scheduler.log each fail when a held skip is removed.",
+    "fit": "imas_ambix/agent/reload.py:41 places the overlap cycle next to the paused cycle and imas_ambix/agent/registry.py:166-194 keeps hold state in the existing registry owner, with no forbidden transient names added.",
+    "goal_fidelity": "imas_ambix/agent/reload.py:86-97 sequences direct validation, release, routed confirmation and old-job cancellation, while imas_ambix/agent/slurm.py:919-927 starts the engine before arming its hold.",
+    "reuse": "The capability search for node resource ledgers, free-port selection and reload orchestration found the existing imas_ambix/agent/reload.py:106 owner; the new run_overlap at line 41 extends that owner and the other additions extend cli.py, slurm.py and registry.py.",
+    "scope_discipline": "Every path in git diff 9762345a..287a7b8d is declared at prompt.txt:69-82, though imas_ambix/agent/router.py also carries minor formatting churn."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The source prompt's goal is validated overlap routing after generation; imas_ambix/agent/reload.py:86-97 enforces validation before retirement, but imas_ambix/agent/slurm.py:919-927 leaves a pre-registration routing window.\nVERDICT done_when: The source prompt's done-when at prompt.txt:100 names the five-file gate and controls; head.log records 83 passed, the two negative-control logs record EXIT=1, and baseline-existing.log records 39 passed.\nVERDICT write_paths: The source prompt at prompt.txt:69-82 declares 13 allowed paths; git diff 9762345a..287a7b8d changes 12 paths, all within that list.\nVERDICT manifest: The source manifest.md records three commits, its exact gate command, base and after suite receipts, zero added failures, and the router deployment follow-on.\nVERDICT diff: I read commits 9c5a52b2, 5326d4a2 and 287a7b8d against base 9762345a; they add held registration, overlap orchestration, tests, guidance and one evidence fragment.\nCALL_SITES: imas_ambix/agent/cli.py:restart, imas_ambix/agent/cli.py:_execute_restart_cycle, imas_ambix/agent/cli.py:router, imas_ambix/agent/registry.py:main, imas_ambix/agent/slurm.py:generate_serve_script, imas_ambix/agent/router.py:RouterApp.__call__\nSCORE goal_fidelity: 14\nJUSTIFICATION goal_fidelity: imas_ambix/agent/reload.py:86-97 sequences direct validation, release, routed confirmation and old-job cancellation, while imas_ambix/agent/slurm.py:919-927 starts the engine before arming its hold.\nSCORE evidence: 18\nJUSTIFICATION evidence: The reviewed run's head.log ends with 83 passed and EXIT=0, baseline-existing.log ends with 39 passed and EXIT=0, and negative-registration.log and negative-scheduler.log each fail when a held skip is removed.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: Every path in git diff 9762345a..287a7b8d is declared at prompt.txt:69-82, though imas_ambix/agent/router.py also carries minor formatting churn.\nSCORE durability: 16\nJUSTIFICATION durability: tests/test_agent_router_resolution.py:187-210 reddens when either held skip is removed, and tests/test_agent_reload_overlap.py checks wrong-origin and short-completion refusals, but tests/test_agent_serve_registry.py:269-270 checks hold before the readiness loop rather than before engine launch.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/reload.py:41 places the overlap cycle next to the paused cycle and imas_ambix/agent/registry.py:166-194 keeps hold state in the existing registry owner, with no forbidden transient names added.\nSCORE reuse: 20\nJUSTIFICATION reuse: The capability search for node resource ledgers, free-port selection and reload orchestration found the existing imas_ambix/agent/reload.py:106 owner; the new run_overlap at line 41 extends that owner and the other additions extend cli.py, slurm.py and registry.py.\nFINDING imas_ambix/agent/slurm.py:919 blocking: The engine is launched before registry write --held at line 927; scheduler-only discovery in cli.py:1473-1503 can admit it whenever /v1/models answers in that interval, before the first validated generation.\nFINDING imas_ambix/agent/reload.py:97 follow-on: Old-job cancellation immediately follows one routed completion without waiting for existing generations on the old engine, so streams already in flight can be cut.\n",
+  "review_run_id": "r-20261020T124205705879-review-of-restart-overlap-287a7b8d3165",
+  "reviewed_base_sha": "9762345ada1bc758e08b1f0ee10382a7bdff5cc9",
+  "reviewed_head_sha": "287a7b8d3165b7b0512bdd199c4a8130b9967b41",
+  "reviewed_run_id": "r-20261020T120846946587-restart-overlap",
+  "scores": {
+    "durability": 16,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 14,
+    "reuse": 20,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-20T12:53:52.575523+00:00",
+  "total": 104
+}
