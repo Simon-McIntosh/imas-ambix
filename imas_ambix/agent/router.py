@@ -10,6 +10,7 @@ import math
 import os
 import sys
 import time
+import zlib
 from collections import deque
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from contextlib import suppress
@@ -2137,7 +2138,19 @@ class RouterApp:
                 capacity = await asyncio.to_thread(
                     fetch_lane_capacity, upstreams[0].base_url
                 )
-            except (aiohttp.ClientError, OSError, RuntimeError, ValueError) as error:
+            # EOFError and zlib.error are the decode failures a truncated gzip or
+            # corrupt deflate metrics body raises in fetch_engine_metrics; they
+            # are caught beside the transport and parse failures so a corrupt
+            # body publishes the unavailable state and the publisher loop
+            # survives.
+            except (
+                aiohttp.ClientError,
+                OSError,
+                RuntimeError,
+                ValueError,
+                EOFError,
+                zlib.error,
+            ) as error:
                 logger.warning(
                     "lane publisher unavailable target=%s error=%s: %s",
                     target,
