@@ -21,11 +21,11 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
   <meta name="plan-after" content="local-lane-admission-control">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;implementable&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;deferred&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;deferred&quot;}">
   <title>Hot-reload the LLM serve | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="11">
+<meta name="plan-version" content="12">
 <meta name="plan-modified" content="2026-10-20">
 </head>
 <body>
@@ -42,7 +42,7 @@
     <p>The overlap path is not available on the node as it stands: on 2026-10-20 the four-card DeepSeek V4.1 serve held 4 of the H200's 8 cards and two embedding jobs of another user held 2, leaving 2. The paused cycle is therefore the path every reload takes until cards free up, and §1 delivers it first.</p>
 
     <h2 id="s1">§1 — <code>agent restart</code> runs the paused cycle as one command</h2>
-    <section data-reckon="section" data-id="s1" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links="hot-reload-the-serve#s2"></section>
+    <section data-reckon="section" data-id="s1" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="done" data-links="hot-reload-the-serve#s2"></section>
     <p><code>imas-ambix agent restart &lt;slug&gt;</code> keeps its options (<code>--gpus</code>, <code>--cpus</code>, <code>--port</code>, <code>--no-speculative</code>, <code>--dspark-block-size</code>, <code>--time</code>, <code>--auth</code>, <code>--api-key</code>, <code>--dry-run</code>) and gains <code>--reason</code>; §2 adds <code>--mode</code>. That is the whole interface change: no new command, two options. The cycle's orchestration lives in a new module, <code>imas_ambix/agent/reload.py</code>. That module takes the scheduler, the gate file, the lane reading and the validation request through small interfaces, so its tests drive every branch without SLURM or a live lane. <code>restart</code> in <code>imas_ambix/agent/cli.py</code> becomes a thin wrapper that builds the real implementations from its existing profile resolution, port precedence and engine-environment check.</p>
     <p>The cycle, in order:</p>
     <ol>
@@ -142,6 +142,9 @@
 </div>
 <div class="r-comment" data-section="s1" data-id="c-run-r-20261020T073720209200-restart-paused-cycle" data-who="reckon-build" data-when="2026-10-20T08:48:05Z">
     <div class="r-comment-body"><p>Paused restart now uses shared gate helpers that clear stale cuts; final-head gate: 233 passed, with three failures matching the measured main baseline.</p></div>
+</div>
+<div class="r-comment" data-section="s1" data-id="c-close-s1" data-who="reckon-build" data-when="2026-10-20T12:08:00Z">
+    <div class="r-comment-body"><p>§1 landed at <code>1cd328af</code>: <code>agent restart</code> now runs a bounded paused reload that always resumes and rolls back to the replaced job's own batch script. The gate adds zero failures against the three already red on main. Three review follow-ons move to §2. The first live run is still to come. <a href="/imas-ambix/evidence/archive/hot-reload-the-serve-landed.html#s1">evidence</a></p></div>
 </div>
 </section>
 </main>

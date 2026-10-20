@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="hot-reload-the-serve-landed">
+  <meta name="plan-title" content="Hot-reload the LLM serve — imas-ambix agent restart swaps the engine without losing a request — landed record">
+  <meta name="plan-summary" content="Closure synthesis for Hot-reload the LLM serve — imas-ambix agent restart swaps the engine without losing a request: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).">
+  <meta name="plan-evidence-for" content="hot-reload-the-serve">
+  <meta name="plan-verdict" content="qualified">
+  <title>Hot-reload the LLM serve — imas-ambix agent restart swaps the engine without losing a request — landed record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+ <main class="plan-doc">
+  <h1>Hot-reload the LLM serve — imas-ambix agent restart swaps the engine without losing a request — landed record</h1>
+  <p>Closure synthesis for Hot-reload the LLM serve — imas-ambix agent restart swaps the engine without losing a request: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).</p>
+
+
+   <section id="s1">
+    <h2>§1 — agent restart runs the paused cycle as one command</h2>
+    <p>Run <code>r-20261020T073720209200-restart-paused-cycle</code>, merged at <code>1cd328af</code>. <code>imas_ambix/agent/reload.py</code> holds the cycle behind injected interfaces, and <code>restart</code> in <code>imas_ambix/agent/cli.py</code> wraps it:</p><ul><li>it pauses through the same <code>_pause_gate</code> helper <code>agent pause</code> uses, which clears any stale cut, then drains to a measured zero;</li><li>it cancels the old serve by job id, submits the replacement, waits for readiness through <code>_probe_endpoint</code>, and validates with a completion of at least 200 tokens;</li><li>any failure after the cancel resubmits the replaced job's own batch script;</li><li>the new settings must validate within 22 minutes of the pause and the rollback within 40, and the command always resumes unless an operator had already paused the lane;</li><li>each cycle appends a UTC record to <code>lane-cycles.jsonl</code>, and <code>--reason</code> is required.</li></ul><p><code>shutdown</code>, <code>key --rotate</code> and <code>restart</code> select a profile's jobs through one helper, <code>_profile_jobs</code>, over <code>_running_jobs</code>.</p><p>Gate: <code>tests/test_agent_reload.py tests/test_agent_pause_cli.py tests/test_agent_dry_run.py tests/test_agent.py</code> gives 233 passed and 3 failed. All three failures predate this work: they fail identically on main at <code>ef4bffcc</code> (serve help and the clive OpenRouter picker), so the run adds zero. The negative control is to delete the <code>finally</code> resume, which fails all six exception-path cases. Lint and the serving-interpreter parse test pass.</p><p>Two independent reviews passed with no blocking finding. Three follow-ons move to §2, which edits the same files: the 200-token threshold is untested, <code>reload.py</code> re-filters jobs the helper already selected, and the peak held count is sampled only during the drain. The first live run on the DeepSeek V4.1 lane has not happened yet.</p>
+  </section>
+
+</main>
+</body>
+</html>
