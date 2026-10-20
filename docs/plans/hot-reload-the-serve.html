@@ -21,11 +21,11 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
   <meta name="plan-after" content="local-lane-admission-control">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;deferred&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;deferred&quot;}">
   <title>Hot-reload the LLM serve | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="19">
+<meta name="plan-version" content="20">
 <meta name="plan-modified" content="2026-10-20">
 </head>
 <body>
@@ -71,7 +71,7 @@
     <p><strong>Placement and authority.</strong> Every test runs in place on the fleet node. The worker never pauses the real lane, submits or cancels a serve, or edits <code>router-gate.json</code>: those are operator actions. The first live reload is a coordinator inline exception under the runbook, recorded in this plan's evidence.</p>
 
     <h2 id="s2">§2 — Overlap reload: start the replacement beside the old engine and route to it only after it has generated</h2>
-    <section data-reckon="section" data-id="s2" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links="hot-reload-the-serve#s1"></section>
+    <section data-reckon="section" data-id="s2" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-status="done" data-links="hot-reload-the-serve#s1"></section>
     <p>A zero-wait swap was shown by hand on 2026-09-07: bring the new topology up on its own port while the old one serves, confirm the router prefers it, then stop the old. Two defects stop a command from doing this safely:</p>
     <ul>
       <li><strong>The router takes the new engine too early.</strong> The serve script writes its registration right after launching the engine (<code>generate_serve_script</code> in <code>imas_ambix/agent/slurm.py</code>, the <code>registry write</code> step), and the resolver routes to it as soon as <code>/v1/models</code> answers. That is before the first generation that allocates the DSpark workspace, so traffic can move to an engine that then fails.</li>
@@ -165,7 +165,10 @@
     <div class="r-comment-body"><p>Independent review of 10cb01e56891de011bff5f4c8977cec82b325f79..a0d2a79dc7a07f47a131716eed41bfbd5657f4b4 stored as a parsed six-dimension record scoring 19/17/20/16/18/20 with zero added test failures on the node's own gate and two follow-on findings: the overlap guard's widened except clause is asserted in isolation by no test, and the same decode failure still escapes router._publish_lane's handler one call site over; no blocking finding.</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261020T141836671772-restart-drain-metrics-repair" data-who="reckon-build" data-when="2026-10-20T14:38:59.115Z">
-    <div class="r-comment-body"><p>Repair (1) made a truncated-gzip / corrupt-deflate metrics body an unreadable reading in the overlap drain reader and the overlap guard instead of an EOFError/zlib.error that aborted the reload; repair (2) restored the lane capacity reader&#x27;s absent-gauge default of zero with a comment, keeping absence unknown only for the drain. Gate: 85 passed at base a462d286, 103 passed at head, EXIT=0 both arms, zero added failures; ruff and the serving-interpreter parse test pass.</p></div>
+    <div class="r-comment-body"><p>Repair (1) made a truncated-gzip / corrupt-deflate metrics body an unreadable reading in the overlap drain reader and the overlap guard instead of an EOFError/zlib.error that aborted the reload; repair (2) restored the lane capacity reader's absent-gauge default of zero with a comment, keeping absence unknown only for the drain. Gate: 85 passed at base a462d286, 103 passed at head, EXIT=0 both arms, zero added failures; ruff and the serving-interpreter parse test pass.</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-close-s2" data-who="reckon-build" data-when="2026-10-20T15:10:00Z">
+    <div class="r-comment-body"><p>§2 landed at <code>a462d286</code> and <code>39bd6932</code>: <code>agent restart --mode auto|overlap|pause</code> holds the replacement out of routing until it has generated, confirms the swap through <code>x-ambix-upstream</code>, and drains the old engine before cancelling it by id. Every gate has zero failures. The overlap path switches on after one router restart, which needs the operator's window. <a href="/imas-ambix/evidence/archive/hot-reload-the-serve-landed.html#s2">evidence</a></p></div>
 </div>
 </section>
 </main>
