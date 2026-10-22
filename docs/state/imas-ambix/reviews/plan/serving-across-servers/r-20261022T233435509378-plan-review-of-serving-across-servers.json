@@ -1,0 +1,59 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-22T23:45:45.353Z",
+  "dispatched_at": "2026-10-22T23:36:01Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:201",
+      "id": "reasoning-1",
+      "reason": "a worker implementing \u00a75 literally leaves cli.py's flat single-engine publisher writing the composer's own lane.json, so the default-pool document can be overwritten by a one-engine document (or by a submitted refresher job) and the aggregation \u00a75 specifies silently disappears.",
+      "text": "\u00a75 asserts of its named composer that \"No other function writes a lane document\", but `imas_ambix/agent/cli.py`'s `lane()` command is a second writer of the same file: it computes `document_path = Path(site.endpoint_document).with_name(\"lane.json\")` and calls `write_lane_document` (cli.py:3840, 3868), and its `--submit` path generates and submits a long-lived refresher job (`generate_lane_refresher_script`), so the one-writer invariant the section rests its \"no two files carry the same fields\" guarantee on cannot hold as written.",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:556",
+      "id": "done_when-1",
+      "reason": "the gate has to name the tree the renderer actually lands in, or the anti-regression check cannot fire against the artifact it exists to protect.",
+      "text": "\u00a710 moves gpu-watch's renderer into `imas_ambix/agent/gpu_watch/` (line 538) but then says \"The done-when's symbol check runs against dotfiles after that commit\", while the check itself (line 563) is on \"gpu-watch's source\" carrying no `serve_grid`/`callers_table`/`serve_ledger_table` and no hard-coded node name. The checked source is therefore the package module, not dotfiles, and a leftover serve-panel symbol or hard-coded node name in the package module passes a dotfiles-only grep.",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "bfab3419bed684fb4fb0b2e18448150ecb10e095d4da8a31116e6c0697d32d56",
+  "plan_slug": "serving-across-servers",
+  "plan_version": 23,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261022T233435509378-plan-review-of-serving-across-servers",
+  "reviewed_blob_sha": "8f4b00ee37d82d5b62ec6f45929f49ecaa57b129",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every cited anchor resolves: RouterApp._publish_lane (router.py:2105), node_probe.NodeProbe and its read_cards/read_host/read_jobs, bin/gpu-watch, bin/_gpu_sample.py and bin/_gpu_watch_test.py (all present in dotfiles), the serve_grid/callers_table/serve_ledger_table names (present in dotfiles gpu-watch), and the watch-home / serving-figures-home decisions; the extensionless plan link resolves as <path>.html.",
+    "done_when": "a finding \u2014 \u00a710 directs its anti-regression symbol check at dotfiles while the source it names moved into the imas-ambix package.",
+    "evidence_paths": "pass \u2014 the changed units introduce no session-scratch or node-local temporary path; the two run-on-node gates (\u00a79 ten-minute live run, \u00a710 one-shot on gpu-0003) name the host, not a scratch location.",
+    "naming": "pass \u2014 no plan labels, stage names, ticket numbers or version tags reach the changed text's symbols or comments.",
+    "reasoning": "a finding \u2014 \u00a75's \"No other function writes a lane document\" is contradicted by the lane publisher in the same package that writes the same lane.json.",
+    "single_goal": "pass \u2014 each changed section keeps one deliverable: \u00a75 one composer producing one document per pool, \u00a79 the structured llm-watch view, \u00a710 the machine view.",
+    "wiring": "pass \u2014 plan-section-depends-on declares s9\u2192s8 and s10\u2192s3,s9, each target section exists, and each matches what the changed unit reads from (s9 renders \u00a78's document; s10 needs \u00a73's servers and \u00a79's shared style)."
+  },
+  "section_digests": {
+    "_document": "76b1319ed44987cfbc438a729b9cb1ce7ec5acd208da6926236790a26efb6ee0",
+    "s1": "84abea84a25c5ecad35220751db61c7b49c61973eda4e741e78348e16b694de2",
+    "s10": "39ac886cbf67c8c0ef652250ad175847426f861becb41c62f6742abce9188ea8",
+    "s11": "62f1493b298180fcbe06fee10cb81673164f37dc646739667214e8c6aec4d812",
+    "s12": "635129369af591c5ed9cc97e1eca5d88c9bc4726355cb4d15f89c4d4d8bb714b",
+    "s13": "d6a25041d94de4d2edca565f9547a2318892f456c088170892456d55f5ad8bdd",
+    "s2": "07c84f3703bedbf51b14249471fa10a4580efea08771ba394dd7383ec52328c7",
+    "s3": "00fd83fbad872f21eb8f9f5434e1a3b6963ca67f6613df3c84a0de4c2ede025b",
+    "s4": "25bebe082ae8eefd4294ed18a8119c22a616dac41902d3de2da67458deb06918",
+    "s5": "fd5dd2976e6065b8095afafbecddfc254f7ed0b5e3d37652ae29010080419d88",
+    "s6": "ceae93e6905a33dc8facd996f608b63d18e72e315ad6e507bce9b5e840ca2dcc",
+    "s7": "f0eb3d24d868bfaf352c4a849435a0432daa643483a73cd3179e2648759af011",
+    "s8": "57e5d85784a405ff2b2f89090545733d248313eb01eeec8036460c7d0c8ef624",
+    "s9": "c6f7f46acd0028a4141d94a8ccfeda90f3e785256e3b1419650c0e8e08bd10ac"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-22T23:47:39.296564+00:00"
+}
