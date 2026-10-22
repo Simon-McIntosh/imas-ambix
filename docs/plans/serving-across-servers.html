@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="serving-across-servers">
   <meta name="plan-title" content="Serving Across Servers — one router, a gate per engine, and two watch tools">
   <meta name="plan-summary" content="Make the router, lane documents and recorder serve any number of servers, and split the watches: llm-watch for the service, gpu-watch for the machines">
-  <meta name="plan-status" content="draft">
+  <meta name="plan-status" content="active">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="36.0">
   <meta name="plan-capability-version" content="1.0">
@@ -20,10 +20,13 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment,telemetry">
   <meta name="plan-after" content="local-lane-admission-control#s14,local-lane-admission-control">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;implementable&quot;}">
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-version" content="11">
+<meta name="plan-modified" content="2026-10-22">
+<meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;]}">
 </head>
 <body>
   <main class="plan-doc">
@@ -318,7 +321,7 @@
           <td>Pool document</td><td>Capacity band</td></tr>
         <tr><td>Gate per engine: in flight over width, router queue, oldest wait, verdict, headroom, worker slots, availability</td>
           <td>Pool document</td><td>Gate band and the engines table</td></tr>
-        <tr><td>Who holds each gate: session, user, host, runs, held, held per run, wait</td>
+        <tr><td>Who holds each gate: per-account totals, per-project rows for each account, and the per-session list, each with sessions, runs, held, held per run and wait</td>
           <td>Request record</td><td>Callers table, with an engine column when there are several engines</td></tr>
         <tr><td>Outcomes per engine over 5 min: completed, aborted, failed, gate expiries</td>
           <td>Request record</td><td>One outcomes line</td></tr>
@@ -334,10 +337,25 @@
           <td>Sampler, SLURM</td><td>Not here: gpu-watch</td></tr>
       </tbody>
     </table>
-    <p>The user column keeps today's limits and says so. The router sees addresses, not
-    accounts. A session is named by the project its transcript or reckon mount belongs to.
-    A request with no session is named by its host, and a tunnelled caller shows the tunnel's
-    host.</p>
+    <p><strong>Callers are grouped by account, then by project, from identity the caller
+    reports.</strong> The callers block carries two levels. <code>accounts</code> has one
+    entry per account: the number of sessions and runs, held, held per run, mean gate
+    wait, and its share of the gate. Requests that reported no account are totalled under
+    a single <code>unattributed</code> entry, which lists the hosts they came from.
+    <code>projects</code> has one entry per (account, project): the number of sessions and
+    runs, held, held per run, and mean gate wait. The per-session list stays as it is, with
+    each entry gaining <code>account</code> and <code>project</code>. Both new fields come
+    from the request record (&sect;13), and the builder copies them without inferring
+    anything. The accounts' held figures sum to the block's <code>held</code>, and an
+    account's projects sum to that account's held.</p>
+    <p>This deletes the inference the dotfiles watcher does today. Its
+    <code>_Resolver</code> searches the viewer's own <code>~/.claude/projects</code> for a
+    session transcript (about 2 s on GPFS), matches reckon session names against
+    <code>&lt;project&gt;-YYYYMMDD</code>, and runs reverse DNS and <code>squeue</code> on
+    the caller's host. Its answers depend on who is viewing. It cannot attribute another
+    account's sessions, and it marks <code>?</code> on a session named any other way. On
+    2026-10-22, <code>s21-nova</code>, one of the viewer's own coordinators, was marked
+    <code>?</code> because of this. None of that machinery carries over.</p>
     <p><strong>Done when.</strong></p>
     <ul>
       <li>On fixtures copied from today's live files (<code>lane.json</code>, a receipts tail
@@ -350,6 +368,15 @@
       hand.</li>
       <li>Each refresh reads the request record once, bounded by
       <code>RECENT_TAIL_MAX_BYTES</code>.</li>
+      <li>On a fixture of two accounts, three projects and one unattributed host, the
+      accounts' held figures sum to the block's <code>held</code> within 0.01, and each
+      account's projects sum to its held within 0.01. Rows with no <code>account</code>
+      land in <code>unattributed</code> and carry their hosts.</li>
+      <li>No code under <code>imas_ambix/</code> reads <code>~/.claude/projects</code>,
+      runs <code>squeue</code> or does a reverse DNS lookup to name a caller.</li>
+      <li><strong>Negative control:</strong> a fixture row whose <code>account</code> is
+      absent, on a host where only one account holds SLURM jobs, still lands in
+      <code>unattributed</code> and is never assigned to that account.</li>
       <li><strong>Negative control:</strong> a missing receipts directory makes one engine's
       live entry unavailable, with a reason, while its gate figures are still
       present.</li>
@@ -372,10 +399,17 @@
     in flight router queue  oldest wait      verdict     headroom worker slots  available %
         12/12           23          22s    congested          -23            0      ░░░░░ 0
 
-callers 5m    user          host            runs     held   held/run     wait s
-hanney        mcintos       srv-1006           4    12.09       3.02       31.0
-reckon 3635   mcintos       clu-2002           3     1.62       0.54       29.4
-no session    llealsa+2     clu-3080           —     0.10          —        0.2
+accounts 5m       sessions         runs       in use      per run       wait s      share %
+mcintos                 11           23         12.4          0.5            2   █████ 99
+llealsa                  1            2          0.1          0.1            0   ░░░░░  1
+unattributed             2            —          0.0            —            —   ░░░░░  0
+
+mcintos 5m        sessions         runs       in use      per run       wait s
+power-convertor          4           11          7.0          0.6            2
+reckon                   2            3          2.0          0.7            2
+nova                     1            1          1.0          1.0            1
+imas-codex               1            1          0.4          0.4            2
++2 more                                          0.6
 
 history 30m   in flight ▁▂▃▅▇█████████▇▆▅▅▆▇█████   wait ▁▁▁▁▁▁▂▅▇██▇▅▃▂▁▁▁▁
 outcomes 5m   412 completed · 3 aborted · 0 failed · 0 expired at the gate
@@ -388,8 +422,8 @@ ledger          tok in     cached %      tok out       util %       cost $      
       <li>an engines table with one row per engine, on the same column grid.</li>
     </ul>
     <p>Each engine's three bands follow when the terminal is tall enough. Otherwise only the
-    engine under most pressure gets them, or the one <code>--engine</code> names. The callers
-    table gains an engine column, the history strip gets one line per engine, and the ledger
+    engine under most pressure gets them, or the one <code>--engine</code> names. The
+    account-detail table gains an engine column, the history strip gets one line per engine, and the ledger
     is grouped by model. Illustrative, assuming the B300 carries a DeepSeek engine and a GLM
     engine:</p>
     <pre>router 98dci4-gpu-0003:18802 · 14:02:11 · 2 servers · 3 engines · 2 models
@@ -401,17 +435,31 @@ glm-5.3 b300-1          6.0          0        210       35.0       1.1    █░
 
   … the three bands for dsv4.1 gpu-0003, the engine under most pressure …
 
-callers 5m    user        engine            runs     held   held/run     wait s
-hanney        mcintos     dsv4.1 gpu-0003      4    12.09       3.02       31.0
-reckon 3635   mcintos     dsv4.1 b300-1        3     1.62       0.54        0.1
+mcintos 5m        engine            sessions     runs   in use  per run   wait s
+power-convertor   dsv4.1 gpu-0003          4       11      7.0      0.6       31
+reckon            dsv4.1 b300-1            2        3      1.6      0.5        0
 
 history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆   wait ▁▁▂▅▇██▇▅▃
               dsv4.1 b300-1     ▂▂▃▃▃▄▄▄▅▅▅▄▄▄▃▃   wait ▁▁▁▁▁▁▁▁▁▁
               glm-5.3 b300-1    ▁▁▁▂▂▂▁▁▁▂▂▂▁▁▁▁   wait ▁▁▁▁▁▁▁▁▁▁</pre>
+    <p><strong>The running-workers view has two levels.</strong> The first table is
+    <code>accounts</code>: one row for every account that holds the gate, heaviest first,
+    then <code>unattributed</code>, with share drawn as a bar like every other
+    percentage. The second table is the detail for one account: by default the viewer's
+    login, and the account <code>--account NAME</code> names otherwise. It has one row per
+    project, heaviest first, and shows at most six rows; the rest fold into one
+    <code>+N more</code> row that carries their summed in-use. <code>--sessions</code>
+    replaces the project rows with one row per coordinator session, labelled project plus
+    the session's first four characters. Other accounts never get a detail table unless
+    <code>--account</code> names them, so the default view stays short however many
+    sessions hold the gate. The columns are named for what they measure: <code>in
+    use</code> is the router's <code>held</code>, and <code>wait s</code> is the only
+    figure that measures waiting.</p>
     <p>The flags are <code>--live</code> (refresh every 5 s), <code>--engine ID</code>,
-    <code>--json</code> and <code>--window</code> (the callers window). The tool is the
-    <code>llm-watch</code> console script, and the <code>watch-home</code> decision says where
-    it lives.</p>
+    <code>--account NAME</code>, <code>--sessions</code>, <code>--json</code> and
+    <code>--window</code> (the callers window). The tool is the <code>llm-watch</code>
+    console script in imas-ambix (<code>watch-home</code>: both-in-imas-ambix), and dotfiles
+    <code>bin/llm-watch</code> is a launcher that execs it.</p>
     <p><strong>Done when.</strong></p>
     <ul>
       <li>Golden render tests at 120 columns cover a one-engine and a three-engine fixture, and
@@ -421,8 +469,13 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
       <li>No rendered line exceeds the terminal width at 100 or 120 columns.</li>
       <li>A ten-minute <code>--live</code> run on the login node refreshes every 5 s, and its
       resident memory stays within 10% of its value after the first minute.</li>
+      <li>A golden render of the two-account fixture from &sect;8 shows the accounts table,
+      then the viewer's per-project table with at most six project rows and a
+      <code>+N more</code> row. <code>--sessions</code> and <code>--account llealsa</code>
+      each have a committed golden of their own.</li>
       <li><strong>Negative control:</strong> an unavailable engine renders one yellow line
-      naming the reason, never a row of zeros.</li>
+      naming the reason, never a row of zeros. An <code>--account</code> that holds
+      nothing in the window renders one dim line saying so, never an empty table.</li>
     </ul>
 
     <h2 id="s10">&sect;10 &mdash; gpu-watch shows the machines</h2>
@@ -515,86 +568,98 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
       serving-record-warehouse.</li>
     </ul>
 
+    <h2 id="s13">§13 — Callers report their account and project</h2>
+<section data-reckon="section" data-id="s13" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+<p><strong>Why the account cannot be shown today.</strong> The router's request record holds the peer address, the user agent, and the two identities reckon dispatch reports in headers: <code>x-reckon-run-id</code> and <code>x-reckon-session</code> (<code>request_receipts.identity_from_headers</code>). Every caller authenticates with one shared key, so nothing in the record names an account or a project. The callers table in dotfiles gpu-watch therefore guesses them on the viewer's side, from the viewer's own transcripts and from <code>squeue</code> on the caller's host. Any figure that is a total per account is impossible until the account is reported at the source.</p>
+<p><strong>The caller reports it, and the router copies it.</strong></p>
+<ul>
+<li><strong>clive</strong> (<code>clive.py</code>, the generated wrapper) appends two lines to <code>ANTHROPIC_CUSTOM_HEADERS</code> before it execs <code>claude</code>: <code>X-Ambix-Account: $(id -un)</code>, and <code>X-Ambix-Project:</code> followed by the base name of the main checkout. That name comes from the parent of <code>git rev-parse --path-format=absolute --git-common-dir</code>, so a reckon worktree reports its repository rather than its node directory. Outside a repository it falls back to the base name of the working directory. It appends to any inherited value, so the run and session headers that reckon dispatch adds survive. Every local-lane worker launches through clive, as does every interactive clive session, so both are covered without a change to reckon.</li>
+<li><strong>The record.</strong> <code>request_receipts.py</code> gains <code>ACCOUNT_HEADER = "x-ambix-account"</code> and <code>PROJECT_HEADER = "x-ambix-project"</code>, read under the same rules as the existing tokens (<code>_identity_token</code>). <code>RequestReceipt</code> gains <code>account</code> and <code>project</code>, each null unless reported. The router passes both through at its two call sites of <code>identity_from_headers</code>. The router infers neither field.</li>
+</ul>
+<p><strong>Trust.</strong> The headers are self-reported, just as the session header is. That is enough to attribute load on a cluster whose users share one key. It is not enough to enforce a share, and the docstrings say so. Per-account keys would be needed to enforce one, and that is out of scope here.</p>
+<p><strong>Deployment.</strong> The router change takes effect at the next lane cycle under <code>ops/lane-cycle/AGENTS.md</code>, which is operator work. The clive change takes effect once the coordinator regenerates the installed clive script. Until then, new rows read <code>unattributed</code>, which is the truth about them.</p>
+<p><strong>Left to reckon.</strong> A worker dispatched on a non-clive lane, codex or another tool, stays unattributed. Making reckon dispatch send <code>X-Ambix-Account</code> for every backend is proposed to reckon as a followup, not changed here.</p>
+<p><strong>Write paths.</strong> <code>imas_ambix/agent/clive.py</code>, <code>imas_ambix/agent/request_receipts.py</code>, <code>imas_ambix/agent/router.py</code>, <code>tests/test_request_receipts.py</code>, <code>tests/test_agent_clive_interactive.py</code>, <code>tests/test_agent_router_telemetry.py</code>.</p>
+<p><strong>Done when.</strong></p>
+<ul>
+<li>A generated clive script, run with a stub <code>claude</code> that prints its environment from inside a git worktree of a repository named <code>demo</code>, shows both reckon headers it inherited, then <code>X-Ambix-Account: &lt;login&gt;</code> and <code>X-Ambix-Project: demo</code>.</li>
+<li>A router test request carrying both headers writes a receipt with <code>account</code> and <code>project</code> set. A request without them writes nulls.</li>
+<li>The whole-tree lint gate exits 0.</li>
+<li><strong>Negative control:</strong> an <code>x-ambix-account</code> value carrying a control character, or longer than <code>MAX_IDENTITY_CHARS</code>, records null rather than the value.</li>
+</ul>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">&sect;</span> Decisions</h2>
-      <div class="r-dec" data-key="b300-role" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">What does the B300 server serve first?</p>
-        <p class="r-dec-ctx">The projection study recommends different models on different
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="b300-role" data-choice="" data-by="" data-when="" data-sections="s7,s11">
+    <p class="r-dec-q">What does the B300 server serve first?</p>
+    <p class="r-dec-ctx">The projection study recommends different models on different
         servers at first: model-level routing needs nothing new, and every prefix cache
-        stays warm. A second copy of the H200 model needs &sect;7's session affinity.
+        stays warm. A second copy of the H200 model needs §7&#x27;s session affinity.
         Splitting the node runs DeepSeek on four B300 cards and GLM-5.3 at FP8 on the other
-        four, which also needs &sect;7.</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="other-models">models the H200 lane does not serve</button>
-          <button class="r-opt" data-value="same-model">a second copy of the H200 lane's model</button>
-          <button class="r-opt" data-value="split">the H200 model on four cards, another model on four</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="watch-home" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Where do the two watch tools live?</p>
-        <p class="r-dec-ctx">Recommended: both in imas-ambix, sharing one style module and
+        four, which also needs §7.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="other-models">models the H200 lane does not serve</button>
+      <button class="r-opt" data-value="same-model">a second copy of the H200 lane&#x27;s model</button>
+      <button class="r-opt" data-value="split">the H200 model on four cards, another model on four</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+<div class="r-dec" data-key="watch-home" data-choice="both-in-imas-ambix" data-by="Simon McIntosh" data-when="2026-10-22T20:18:36+00:00">
+    <p class="r-dec-q">Where do the two watch tools live?</p>
+    <p class="r-dec-ctx">Recommended: both in imas-ambix, sharing one style module and
         tested with the rest of the package, with dotfiles keeping two launchers. Workers
         cannot write to dotfiles, so gpu-watch changes have always landed through the
         coordinator, and gpu-watch has no tests. Keeping gpu-watch in dotfiles means the
         style helpers exist twice.</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="both-in-imas-ambix">both in imas-ambix; dotfiles keeps launchers</button>
-          <button class="r-opt" data-value="split-homes">llm-watch in imas-ambix; gpu-watch stays in dotfiles</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-      <div class="r-dec" data-key="serving-figures-home" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Where do the model performance figures live?</p>
-        <p class="r-dec-ctx">Recommended: llm-watch only. With several servers, an engine's
-        figures have no single machine to sit under, and the router's queue sits on no
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="both-in-imas-ambix">both in imas-ambix; dotfiles keeps launchers</button>
+      <button class="r-opt" data-value="split-homes">llm-watch in imas-ambix; gpu-watch stays in dotfiles</button>
+      </p>
+    <p class="r-dec-rat">Both tools live in imas-ambix as console scripts that share one style module and are tested with the package. dotfiles keeps two thin launchers so the command names stay on PATH. The cost of the alternative was measured: dotfiles gpu-watch grew to 1,819 untested lines. Its serve panel, ledger, lane availability and callers table all landed after serve-telemetry-spine §5 had declared the watcher moved, because the lead watches gpu-watch and workers cannot write dotfiles. The review of 2026-09-21 raised the unthinned launcher, finding f9ff54483cc, and that finding stayed open for a month. Accepted cost: the on-node sampler moves into the package too, and gpu-watch gains the package&#x27;s dependencies.</p>
+    </div>
+<div class="r-dec" data-key="serving-figures-home" data-choice="llm-watch-only" data-by="Simon McIntosh" data-when="2026-10-22T20:18:36+00:00">
+    <p class="r-dec-q">Where do the model performance figures live?</p>
+    <p class="r-dec-ctx">Recommended: llm-watch only. With several servers, an engine&#x27;s
+        figures have no single machine to sit under, and the router&#x27;s queue sits on no
         machine. gpu-watch keeps one identity row per engine so cards can still be matched to
         what they serve.</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="llm-watch-only">llm-watch only; gpu-watch names each engine's cards</button>
-          <button class="r-opt" data-value="summary-in-both">llm-watch, plus a one-row performance summary per engine in gpu-watch</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="llm-watch-only">llm-watch only; gpu-watch names each engine&#x27;s cards</button>
+      <button class="r-opt" data-value="summary-in-both">llm-watch, plus a one-row performance summary per engine in gpu-watch</button>
+      </p>
+    <p class="r-dec-rat">The lead&#x27;s ruling of 2026-10-22 is that the running-workers listing and every LLM-specific figure leave gpu-watch for a redesigned llm-watch. gpu-watch keeps the machines, plus one dim identity row per engine so cards can be matched to what they serve. A one-row performance summary in gpu-watch would recreate the mixed panel this split removes.</p>
+    </div>
+</section>
 
     <section data-reckon="questions" id="questions" class="r-questions">
-      <h2><span class="sec">&sect;</span> Open questions</h2>
-      <div class="r-q" data-id="b300-host-facts" data-section="s3" data-status="open"
-           data-opened-by="Simon McIntosh" data-opened-at="2026-10-19">
-        <p class="r-q-body">Is the B300 host a SLURM node in the same cluster with
+<h2><span class="sec">§</span> Open questions</h2>
+<div class="r-q" data-id="b300-host-facts" data-section="s3" data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-19" data-resolved-at="" data-resolved-by="">
+    <p class="r-q-body">Is the B300 host a SLURM node in the same cluster with
         <code>/work</code> mounted, and does the router stay on <code>98dci4-gpu-0003</code>?
         The router discovers engines from registrations whose jobs it checks with the
         scheduler, so a server outside the cluster needs a statically declared engine
         instead. A router on the H200 node also stops when that node drains.</p>
-      </div>
-    </section>
+    </div>
+</section>
 
     <section data-reckon="research" id="research" class="r-research-list">
-      <h2><span class="sec">&sect;</span> Research</h2>
-      <div class="r-research" data-id="b300-projection" data-type="reference"
-           data-source="repository" data-added-by="Simon McIntosh" data-when="2026-10-19">
-        <span class="r-research-title">Serving capacity and the 8×B300 projection: per-upstream gates and session affinity (&sect;8)</span>
-      </div>
-      <div class="r-research" data-id="h200-b300-comparison" data-type="reference"
-           data-source="repository" data-added-by="Simon McIntosh" data-when="2026-10-19">
-        <span class="r-research-title">H200 and B300 compared: buy B300 for serving and training</span>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Research</h2>
+<div class="r-research" data-id="b300-projection" data-type="reference" data-source="repository" data-added-by="Simon McIntosh" data-when="2026-10-19">
+    <span class="r-research-title">Serving capacity and the 8×B300 projection: per-upstream gates and session affinity (§8)</span></div>
+<div class="r-research" data-id="h200-b300-comparison" data-type="reference" data-source="repository" data-added-by="Simon McIntosh" data-when="2026-10-19">
+    <span class="r-research-title">H200 and B300 compared: buy B300 for serving and training</span></div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">&sect;</span> Followups</h2>
-      <article class="r-fu" data-id="f-sas-001" data-status="open"
-               data-capability-version="1.0" data-capability-class="general"
-               data-written-by="reckon-create" data-written-at="2026-10-19"
-               data-recommends-skill="/reckon-build serving-across-servers §3">
-        <h4 class="r-fu-title">Declare servers once (&sect;3)</h4>
-        <div class="r-fu-body">The first section with no service impact and no open
-        decision. &sect;6 and &sect;8 can run beside it once <code>watch-home</code> is
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-sas-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-19" data-recommends-skill="/reckon-build serving-across-servers §3" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Declare servers once (§3)</h4>
+    <div class="r-fu-body">The first section with no service impact and no open
+        decision. §6 and §8 can run beside it once <code>watch-home</code> is
         locked.</div>
-        <pre class="r-fu-prompt">/reckon-build serving-across-servers §3</pre>
-      </article>
-    </section>
+    <pre class="r-fu-prompt">/reckon-build serving-across-servers §3</pre>
+    </article>
+</section>
   </main>
 </body>
 </html>
