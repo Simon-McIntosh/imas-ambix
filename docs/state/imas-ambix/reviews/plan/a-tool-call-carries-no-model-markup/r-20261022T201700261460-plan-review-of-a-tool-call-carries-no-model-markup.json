@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-22T20:34:20.250Z",
+  "dispatched_at": "2026-10-22T20:18:01Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/a-tool-call-carries-no-model-markup.html:40",
+      "id": "reasoning-1",
+      "reason": "the candidate set should drop or demote the middleware (naming the SGLang engine in \u00a72's Why, as the investigation is only told to state it afterwards), since a node that names it spends \u00a73 fixing a layer that is not in the path.",
+      "text": "\u00a72 lists `OrphanThinkMarkerMiddleware` as one of \"three places the markup can survive\" and cites \"the launch in `imas_ambix/agent/slurm.py`\" as its caller, but that launch attaches it only inside the vLLM branch (`slurm.py:359\u2013383`, `--middleware`), while the model this plan is about is served by the SGLang branch: `profiles/deepseek-v4-1-flash.toml:71` declares `type = \"sglang\"`, `slurm.py:355\u2013356` builds that launch from `_build_sglang_args` (`slurm.py:180`) which adds no middleware, and the repo states the fact directly \u2014 \"(SGLang takes no middleware)\" at `registry.py:292` and `clive.py:423` \u2014 with the only live endpoint for `deepseek-v4.1-flash` being that 4\u00d7H200 SGLang serve (`~/public/imas-ambix/endpoints.json`). The named caller therefore reaches a mechanism that cannot run on this model's response path, and the layer is the most superficially attractive of the three (a re-serialiser that \"can mis-split one\"), so \u00a73, which is written \"against the layer it names\", can be aimed at a component that never runs.",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/a-tool-call-carries-no-model-markup.html:43",
+      "id": "done_when-1",
+      "reason": "without a deterministic parser-side test, the likely report names no layer, and the deferred \u00a73 then has no premise to be written against.",
+      "text": "\u00a72's primary instrument is a replay to recover the engine's raw completion (\"up to twenty samples a call\", three calls), but \u00a71's own census bounds the per-call leak rate at 20 leaks over 93,565 tool calls (log: `clive runs 1383; tool calls 93565; calls carrying '<\uff5cDSML\uff5c': 20`), so three calls \u00d7 twenty samples carries an expectation of roughly 0.06 reproductions; the plan's fallback then drops the engine-layer comparison entirely (\"the fixture holds the delivered block from the run's `stream.jsonl` with the replay's request\", no raw completion), leaving no evidence about where the markup entered. The done-when still admits that outcome (\"says which of the three it cannot rule out and why\"), so the section can close green having named no layer \u2014 which is exactly the input \u00a73 declares it needs (\"Written once \u00a72 lands, against the layer it names\"). Making a raw completion with two encoded calls pass through the engine's parser directly, as \u00a72 already does for the middleware, is the deterministic test that is missing.",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "6a56118e458e479c7ed3efcba3eb39e4ff9a05098f74a8bb6a6402a19f7d3e91",
+  "plan_slug": "a-tool-call-carries-no-model-markup",
+  "plan_version": 5,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261022T201700261460-plan-review-of-a-tool-call-carries-no-model-markup",
+  "reviewed_blob_sha": "451af42c98f7c6d502ca64aa79908554e1359c6e",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every cited path opens: `imas_ambix/agent/clive.py` (`ANTHROPIC_BASE_URL=\"$GLOBAL_ORIGIN\"` at :960, local branch), `RouterApp._relay` (`router.py:2402`), `litellm_config.py` (hybrid-only, per its own docstring), `vllm_think_marker.py` (`OrphanThinkMarkerMiddleware` at :161), `slurm.py` (`:39`, attached at `:380\u2013383`), `RequestReceipt` (`request_receipts.py:158`), the profile, `census.py`, `census-baseline.log`, and both fig-01 and fig-07 run directories. Non-blocking note, outside the changed unit: the followup body still quotes \"20 of 93,862 clive tool calls\" while \u00a71 and its own log say 93,565 (20 of 93,565) \u2014 a stale figure in a sentence, not a claim any node can act on.",
+    "done_when": "a finding \u2014 \u00a72's escape hatch (\"names exactly one layer as the origin, or says which of the three it cannot rule out and why\") lets the node complete without the one output the section exists to produce, while its own capture instrument is expected to fail at the measured leak rate.",
+    "evidence_paths": "pass \u2014 `report.md` and `fixtures/` are declared write paths under `~/.config/reckon/crew/reports/imas-ambix/a-tool-call-carries-no-model-markup/`, a durable location outside any session scratchpad, matching the census artifacts already there; \"written under the run directory\" is loose wording for that same plan directory, but the two retrieval paths are explicit.",
+    "naming": "pass \u2014 \u00a72's symbols and section names describe the mechanism (layer, parser, middleware, fixture); no plan label, ticket number or stage name appears in it, and \"fig-07\" is the identity of a review input file rather than a plan label.",
+    "reasoning": "two findings \u2014 \u00a72's middleware candidate is attached by a launch branch that does not serve this model, and \u00a72's replay mechanism is unlikely to produce the engine-layer evidence its report requires.",
+    "single_goal": "pass \u2014 \u00a72 carries one deliverable (name the layer the markup survives, or name what cannot be ruled out), and the fig-07 question has been narrowed to a single attribution sentence that \u00a74 owns when the answer is \"no\" (the earlier over-reach here was answered by that narrowing).",
+    "wiring": "pass \u2014 `plan-section-depends-on` gives s3\u2190s2 and s4\u2190s2, both correct (\u00a73 is authored against the layer \u00a72 names; \u00a74 owns the fig-07 case only if it does not share \u00a72's origin), and the `plan-blocks` target `reckon:a-review-can-see-the-figure` resolves and carries the `id=\"s20\"` section the followup's body describes."
+  },
+  "section_digests": {
+    "_document": "cabca4e3cdf617871996874d475221f72381d21c94d63f0cad1a75900c2c3ad8",
+    "s1": "5f8c49e3d7e51c0174a76ddfea229d085b20b6e290dcf0a017c94c993156cdda",
+    "s2": "9284d1ef4b579e62ca81bbceed71bef0aabbb1b4121d7de60cc8a2d5267ba85e",
+    "s3": "e8859d4b7f6c591d2c3ed491329301da0b4d930fa904901dc302babf0eacdd23",
+    "s4": "73433c178790d5f6f90c5a57799d16eb9d4fcf7a0039fc4044d9886609d0e472"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-22T22:59:26.974746+00:00"
+}
