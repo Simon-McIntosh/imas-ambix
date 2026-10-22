@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-22T23:28:31.705Z",
+  "dispatched_at": "2026-10-22T23:20:18Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/a-tool-call-carries-no-model-markup.html:41",
+      "id": "reasoning-1",
+      "reason": "",
+      "text": "- s2 reconstructs each leaked call's parser input from the delivered argument in that run's `stream.jsonl` and tests that the parser, given that text, delivers exactly that argument; the delivered argument contains the census token `<\uff5cDSML\uff5c` by construction (that is how the census selected the call), so the test asserts a fixed point of the parser on text the delivered argument produced. It holds whether the parser leaked the token or the model wrote it into a string, and it fails only when the reconstruction is wrong, which the done-when gives no meaning to - so the twenty-call leg, stated as the per-leaked-call evidence, cannot discriminate the parser origin from the model origin it is weighed against - WOULD_CHANGE_THE_PLAN: yes - REASON: the twenty-call cross-check is the only per-leaked-call evidence the section offers, and as written it can never change the origin it is presented as settling.",
+      "type": "reasoning",
+      "would_change": null
+    },
+    {
+      "anchor": "docs/plans/a-tool-call-carries-no-model-markup.html:41",
+      "id": "reasoning-2",
+      "reason": "",
+      "text": "- the chunking to be run is \"chunks cut at the model's token boundaries\", but no token set is named and none exists at hand: the model's tokenizer lives in the container `/work/projects/imas_gpu/containers/sglang-dev-dsv41.sif` under `/sgl-workspace`, so a worker must guess which tokenizer to load and whether its boundaries are the ones the serve produced. The done-when then requires the origin verdict to report findings \"under any chunking\", which makes an unreproducible chunking set load-bearing for the verdict - WOULD_CHANGE_THE_PLAN: yes - REASON: a differently-tokenized chunking set is a differently-scoped search, so the same parser could be named the origin or cleared depending on a choice the plan leaves free.",
+      "type": "reasoning",
+      "would_change": null
+    }
+  ],
+  "plan_fingerprint": "c51e1789248971db76d2e6760d6d060a504af372c0d5a247f5b16bf2ad95ce33",
+  "plan_slug": "a-tool-call-carries-no-model-markup",
+  "plan_version": 8,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261022T231915678735-plan-review-of-a-tool-call-carries-no-model-markup",
+  "reviewed_blob_sha": "a0e0717b126ec4dfb5da35b827e157ca6f1c0cc4",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 census script and baseline log, `clive.py`, `router.py`/`RouterApp._relay`, `request_receipts.py`/`RequestReceipt`, the profile, the container `sif_path` and the census token `<\uff5cDSML\uff5c` all resolve as the plan describes them.",
+    "done_when": "pass \u2014 s2's done-when names measurable results (the fixture directory's contents, a per-leaked-call delivery match, one named origin with its entry point and chunking) and declares a negative control that can fail: three clean completions through both entry points under every chunking must parse to their one call with no token in its argument.",
+    "evidence_paths": "pass \u2014 the report and the new `fixtures/` tree are both declared write paths under the plan's own evidence directory, not a scratchpad; the sentence \"Every log is written under the run directory\" is loose wording, but the paths it names are durable and main-checkout-absolute.",
+    "naming": "pass \u2014 s2 introduces no symbol, file or comment; the only names it adds are SGLang's own entry points, and no plan label or ticket reference reaches code.",
+    "reasoning": "a finding \u2014 s2's per-leaked-call cross-check reconstructs the delivered argument from `stream.jsonl` and then tests the parser against that same text with the census token `<\uff5cDSML\uff5c` already inside it, so the check cannot separate the two origins it exists to separate.",
+    "single_goal": "pass \u2014 s2 carries one deliverable, naming the layer the markup survives; the fig-07 question is now a single clause with \u00a74 holding it when the origin differs from the one s2 reports, which an earlier review's answer folded in.",
+    "wiring": "pass \u2014 `plan-section-declarations` marks s2 `implementable`, `plan-section-depends-on` wires s3 and s4 to `a-tool-call-carries-no-model-markup#s2`, and `plan-blocks` names `reckon:a-review-can-see-the-figure`; every target resolves."
+  },
+  "section_digests": {
+    "_document": "cabca4e3cdf617871996874d475221f72381d21c94d63f0cad1a75900c2c3ad8",
+    "s1": "5f8c49e3d7e51c0174a76ddfea229d085b20b6e290dcf0a017c94c993156cdda",
+    "s2": "0e9396962b411d7307267a0713c5647e8361286aadd72a49f86a6088cc7a90de",
+    "s3": "e8859d4b7f6c591d2c3ed491329301da0b4d930fa904901dc302babf0eacdd23",
+    "s4": "73433c178790d5f6f90c5a57799d16eb9d4fcf7a0039fc4044d9886609d0e472"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-22T23:32:11.408174+00:00"
+}
