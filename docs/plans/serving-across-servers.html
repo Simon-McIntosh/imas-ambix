@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="20">
+<meta name="plan-version" content="23">
 <meta name="plan-modified" content="2026-10-23">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -198,7 +198,7 @@
     <h2 id="s5">&sect;5 &mdash; One lane document per pool, and lane.json stays the default pool</h2>
 <section data-reckon="section" data-id="s5" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
     <p>Each engine has its own reading loop, which fetches that engine's metrics into that
-    engine's own window. One composer runs once per publishing tick, after the readings. It
+    engine's own window. One composer runs once per publishing tick, after the readings. The composer is <code>RouterApp._publish_lane</code> itself, rewritten to iterate the engines instead of reading <code>upstreams[0]</code>. No other function writes a lane document. It
     writes the default pool's document at <code>lane.json</code> and every other pool's
     document at <code>lanes/&lt;model id&gt;.json</code>, from the latest reading of each
     engine. The default pool is never written a second time under <code>lanes/</code>, so
@@ -506,9 +506,11 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
       <li>No rendered line exceeds the terminal width at 100 or 120 columns.</li>
       <li>A ten-minute <code>--live</code> run on the login node refreshes every 5 s, and its
       resident memory stays within 10% of its value after the first minute.</li>
-      <li>A golden render of the two-account fixture from &sect;8 shows the accounts table,
-      then the viewer's per-project table with at most six project rows and a
-      <code>+N more</code> row. <code>--sessions</code> and <code>--account llealsa</code>
+      <li>A golden render of a fixture with two accounts, in which the viewer's account
+      holds eight projects, shows the accounts table, then the viewer's per-project table
+      with six project rows and a <code>+2 more</code> row whose in-use is the other two
+      projects' sum. A second golden, from &sect;8's three-project fixture, shows no fold
+      row. <code>--sessions</code> and <code>--account llealsa</code>
       each have a committed golden of their own.</li>
       <li><strong>Negative control:</strong> an unavailable engine renders one yellow line
       naming the reason, never a row of zeros. An <code>--account</code> that holds
@@ -543,6 +545,15 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
       <li>it shares one style module with llm-watch;</li>
       <li>dotfiles <code>bin/gpu-watch</code> becomes a launcher.</li>
     </ul>
+    <p><strong>Who writes what.</strong> Workers cannot write dotfiles, so this section is
+    split. The worker node writes only inside imas-ambix: the package, the
+    <code>NodeProbe</code> streaming entry point, the console scripts and the tests. The
+    coordinator does the dotfiles half at landing, as it has done for every gpu-watch
+    change so far. It replaces <code>bin/gpu-watch</code> and adds
+    <code>bin/llm-watch</code> as launchers that exec the console scripts, deletes
+    <code>bin/_gpu_sample.py</code> and <code>bin/_gpu_watch_test.py</code>, and commits that
+    in the dotfiles repository. The done-when's symbol check runs against dotfiles after
+    that commit.</p>
     <p><strong>Done when.</strong></p>
     <ul>
       <li>On <code>98dci4-gpu-0003</code>, a one-shot run shows the same cards, host row and job
