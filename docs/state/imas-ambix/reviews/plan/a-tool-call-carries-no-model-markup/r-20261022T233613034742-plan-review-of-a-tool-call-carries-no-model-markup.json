@@ -1,0 +1,50 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-22T23:44:54.639Z",
+  "dispatched_at": "2026-10-22T23:37:12Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/a-tool-call-carries-no-model-markup.html:41",
+      "id": "reasoning-1",
+      "reason": "the section's single deliverable is naming the origin, and the instrument cannot observe the real completion (the receipts hold no response body), so its clearing rule can send \u00a73's fix at the model when the parser is the cause.",
+      "text": "\u00a72 tests each leaked call only by reconstructing a two-call completion that is always well-formed, while its own case list allows the leak to arise from the malformed shape \"a second call that begins before the first call's argument closes\"; a parser that leaks on the malformed shape but splits a well-formed completion is cleared by the per-call test, and \u00a72 then names the model as the origin",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/a-tool-call-carries-no-model-markup.html:43",
+      "id": "reasoning-2",
+      "reason": "the plan's whole \u00a73 fix is selected by the origin \u00a72 names, so an unsound discrimination routes the repair at the wrong layer.",
+      "text": "the done-when's clearing condition, \"the completion splits into two calls, which leaves the model writing the token inside a string as the only way to the delivered argument\", does not follow: a merge of the synthetic completion is equally consistent with the model having written the token in a single string, and a split is equally consistent with the parser failing on a shape the reconstruction never builds, so neither branch isolates one origin; the fig-01 argument re-read from `stream.jsonl` (`file_path` truncated to `...` and the second call's `<\uff5cDSML\uff5c invoke name=\"Bash\">`/`<\uff5cDSML\uff5c parameter name=\"command\">` markup absorbed into it) shows the leak arriving in a shape the reconstruction's assumption of two well-formed calls does not cover",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "824f84ebe17ee7b92b237a394d40cd74592e533a0b820ec284b7baf7be546e90",
+  "plan_slug": "a-tool-call-carries-no-model-markup",
+  "plan_version": 9,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261022T233613034742-plan-review-of-a-tool-call-carries-no-model-markup",
+  "reviewed_blob_sha": "2cda8832e8ca329fc785a170aa388cbbcc8896d1",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 clive/router/slurm/profile/receipt anchors resolve, the container's parser file and both entry points resolve, and the tokenizer path exists; the census artifacts exist.",
+    "done_when": "pass \u2014 \u00a72's done-when names a negative control (three clean completions, through both entry points under every chunking) that can fail if the parser injects the token on clean input.",
+    "evidence_paths": "pass \u2014 the report and `fixtures/` sit under `~/.config/reckon/crew/reports/imas-ambix/a-tool-call-carries-no-model-markup/`, a durable path, with every log under the run directory.",
+    "naming": "pass \u2014 s2 introduces no plan label, stage name, ticket number or version tag.",
+    "reasoning": "a finding \u2014 \u00a72 decides the origin from a synthetic two-call completion built from the delivered argument, which cannot separate a parser leak from the model writing the token in a string, so the mechanism does not produce the origin its done-when requires.",
+    "single_goal": "pass \u2014 \u00a72 names one origin; fig-07's disposition is handed to \u00a74, which depends on \u00a72.",
+    "wiring": "pass \u2014 `plan-section-depends-on` declares s3\u2192s2 and s4\u2192s2, both correct, and the block on `reckon:a-review-can-see-the-figure` is recorded in `plan-blocks`."
+  },
+  "section_digests": {
+    "_document": "cabca4e3cdf617871996874d475221f72381d21c94d63f0cad1a75900c2c3ad8",
+    "s1": "5f8c49e3d7e51c0174a76ddfea229d085b20b6e290dcf0a017c94c993156cdda",
+    "s2": "bd1d5cb4ea62f6baccb30ed9e023bd655a807d550bff1eedac562408d870dc58",
+    "s3": "e8859d4b7f6c591d2c3ed491329301da0b4d930fa904901dc302babf0eacdd23",
+    "s4": "73433c178790d5f6f90c5a57799d16eb9d4fcf7a0039fc4044d9886609d0e472"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-22T23:48:00.721627+00:00"
+}
