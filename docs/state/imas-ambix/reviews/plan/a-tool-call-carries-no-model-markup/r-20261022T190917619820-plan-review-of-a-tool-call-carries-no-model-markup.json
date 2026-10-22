@@ -1,0 +1,81 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-22T19:28:58.083Z",
+  "dispatched_at": "2026-10-22T19:16:53Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/a-tool-call-carries-no-model-markup.html:43",
+      "id": "done_when-1",
+      "reason": "a node following the stated definition will either report a count it was not told to expect and look wrong, or trim to twenty and discard leaks the same plan wants fixed.",
+      "text": "\u00a72's done-when requires the report to list \"the twenty leaked calls\" while itself defining the census as a live query (clive runs from 2026-10-20 onward, tool-use inputs containing DSML); the population grows with every new clive run, so a node dispatched later cannot produce exactly twenty. Measured today over the same window: 25 calls in 21 runs (Edit 6 and Read 4 match \u00a71 exactly; Bash 15 against \u00a71's 10)",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/a-tool-call-carries-no-model-markup.html:49",
+      "id": "done_when-2",
+      "reason": "the gate can never read clean, so a correct fix would be reported as a failure and \u00a73 could not be closed on its own stated evidence.",
+      "text": "\u00a73's closing measure is \"A re-run of the census over clive runs made after the fix lands finds no leaked argument\", but the census criterion is a bare substring match on the tool input, which counts a command that deliberately writes the string; the census node is itself dispatched on the local lane and its own `grep`/`python` commands that search for DSML register as leaked calls (7 of my 15 Bash hits this run)",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/a-tool-call-carries-no-model-markup.html:49",
+      "id": "reasoning-1",
+      "reason": "\u00a72 and \u00a73 are separate dispatches, and without \u00a72 handing forward a replayable artifact \u00a73's entire done-when and its declared negative control are unmeasurable.",
+      "text": "\u00a73's gate is \"replaying \u00a72's captured leaked responses through the fixed layer\", and its negative control reverts the fix against those same responses, but \u00a72 is required only to *show* the engine raw output and router block \"side by side, quoted\" in a report; it names no fixture path, format or capture step, so \u00a73 may be dispatched with nothing to replay",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/a-tool-call-carries-no-model-markup.html:35",
+      "id": "evidence_paths-1",
+      "reason": "\u00a73's landing condition is a re-run of this census, so a baseline with no recorded instrument cannot be compared against, and my independent re-run already diverges from it.",
+      "text": "\u00a71 states \"20 of 93,862 tool calls \u2026 10 Bash, 6 Edit and 4 Read, in 20 runs\" as a completed measurement but names no command, script or log path; \u00a72 is then told to re-run \"the census below\" as if it were a defined procedure",
+      "type": "evidence_paths",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/a-tool-call-carries-no-model-markup.html:43",
+      "id": "single_goal-1",
+      "reason": "the answer \u00a72 must give can establish a live defect the plan then drops, so either \u00a73's section or a followup should hold the case explicitly.",
+      "text": "\u00a72 is required both to name the markup's origin and to say whether the fig-07 truncated-path case shares that origin, a defect \u00a71 itself says \"carries no markup and may have a different cause\"; if it does not share the origin, no section or followup owns it",
+      "type": "single_goal",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/a-tool-call-carries-no-model-markup.html:41",
+      "id": "anchors_resolve-1",
+      "reason": "the reference resolves to a census that exists and is unambiguous in context; only its direction is wrong.",
+      "text": "\u00a72 refers to \"the census below\", but the census it means is in \u00a71, the preceding section",
+      "type": "anchors_resolve",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "463fafb30446e17f428245902ba0bbfae381a6ef558896d028325756acd9f325",
+  "plan_slug": "a-tool-call-carries-no-model-markup",
+  "plan_version": 2,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261022T190917619820-plan-review-of-a-tool-call-carries-no-model-markup",
+  "reviewed_blob_sha": "dabbacf3fb6cd4c504aeff0dc1270c02094e4f46",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every cited file, run id and plan section resolves (extensionless hrefs resolved as `<path>.html`; `reckon:a-review-can-see-the-figure` resolved in the reckon repo, its \u00a720 confirming the claim made about it).",
+    "done_when": "a finding \u2014 \u00a72's done-when requires the report to list \"the twenty leaked calls\", a frozen count over a population the done-when itself defines as a live query, and \u00a73's done-when re-runs that same query and requires zero hits from a criterion that counts a deliberate mention.",
+    "evidence_paths": "a finding \u2014 \u00a71 asserts counts with no recorded command, script or log path, so the baseline is not reproducible. \u00a72's own write path (`~/.config/reckon/crew/reports/imas-ambix/a-tool-call-carries-no-model-markup/report.md`) is durable and correctly stated; \u00a73 states none, but \u00a73 is deferred until \u00a72 names the layer.",
+    "naming": "pass \u2014 no plan, sprint or ticket labels reach code; `fig-01` / `fig-07` are run-name artifacts, and the section numerics stay in the plan document.",
+    "reasoning": "a finding \u2014 \u00a73's gate replays \"\u00a72's captured leaked responses\" through the fixed layer, but \u00a72 requires only that the responses be *quoted* in a report, never preserved as a replayable fixture at a named path; the mechanism \u00a73 declares has no artifact to run on. The stated root cause itself does match its evidence, and the caller is named (`router.py`, `litellm_config.py`, and the engine's `deepseekv41` parser).",
+    "single_goal": "a finding \u2014 \u00a72 carries the layer investigation plus adjudication of the fig-07 truncated-path defect, which \u00a71 says \"may have a different cause\" and which no section owns if it does.",
+    "wiring": "pass \u2014 `plan-section-depends-on` gives s3 \u2192 s2, correct and sufficient; `plan-blocks` `reckon:a-review-can-see-the-figure` resolves in the reckon repository and its \u00a720 matches the followup's description; followup `f-atccnmm-001` points at \u00a72, the section that resolves it."
+  },
+  "section_digests": {
+    "_document": "8f6604a96ced923f320dc0fe60efba886bdeddea91bc0ccc8b1005c911a6fe08",
+    "s1": "03a6c00e8f1ccba3c5402bb8ad737ac457cc1baa4ae2584edc59a73305875e12",
+    "s2": "d5e85da38f91bea014a4119608e2cd67bf91f12b3f99a2989077f212216c5491",
+    "s3": "7dc94e7a4544fc2d27ada077e74029c224c45ed9395093e1174ba54899abd1c1"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-22T19:34:49.203586+00:00"
+}
