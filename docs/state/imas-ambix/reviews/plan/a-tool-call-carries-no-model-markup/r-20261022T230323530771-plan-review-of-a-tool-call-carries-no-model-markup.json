@@ -1,0 +1,42 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-22T23:11:57.199Z",
+  "dispatched_at": "2026-10-22T23:04:09Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/a-tool-call-carries-no-model-markup.html:41",
+      "id": "reasoning-1",
+      "reason": "the named origin selects which layer \u00a73 fixes, and a whole-text parse clears the streaming parser that actually carries the leak, so the plan would fix the wrong layer.",
+      "text": "\u00a72's Change makes the primary instrument \"runs SGLang's DeepSeek-V4.1 tool-call parser \u2026 offline on raw completion text\", and the done-when then decides the origin on what a whole-text parse returns (\"the parser, when an input with two encoded calls yields one call carrying the token; or the model, when the parser splits every such input correctly\"); but the parser class it names, `DeepSeekV41Detector` in the container, extends `DeepSeekV32Detector` and has two distinct entry points \u2014 `detect_and_parse(text)` for a full completion and `parse_streaming_increment(new_text)` driving a separate `self._buffer` state machine (`deepseekv32_detector.py:209` and `:250\u2013:276`, `base_format_detector.py:125\u2013:159`); Claude Code consumes the serve as a stream, so the leak the census recorded was produced by the incremental parser emitting argument deltas that the client concatenated, and a bug in the partial-tag buffering would not appear at all in a full-text parse; the section would then find every constructed input splitting correctly and name the model, sending \u00a73 to a router-side guard instead of repairing the parser",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "1e8106cfb31e2f4214a141a9913081cb64ec615bf6f93bdf3dac0c06be15eef8",
+  "plan_slug": "a-tool-call-carries-no-model-markup",
+  "plan_version": 7,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261022T230323530771-plan-review-of-a-tool-call-carries-no-model-markup",
+  "reviewed_blob_sha": "134301194f3f1843e90d29cab1cad01ddde5d8ab",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `imas_ambix/agent/clive.py:960` exports `ANTHROPIC_BASE_URL=\"$GLOBAL_ORIGIN\"` on the local branch while the hybrid branch sets the LiteLLM port at `clive.py:1023`; `RouterApp._relay` exists at `imas_ambix/agent/router.py:2402` and relays response body chunks unchanged; `request_receipts.py` defines `RequestReceipt`; the profile carries `type = \"sglang\"`, `sif_path = \"/work/projects/imas_gpu/containers/sglang-dev-dsv41.sif\"` and `[engine.parsers] tool_call = \"auto\"`; `slurm.py:380\u2013383` attaches `--middleware` only in the vLLM branch; and the cited in-container directory `/sgl-workspace/sglang/python/sglang/srt/function_call/` exists in the SIF, holding `deepseekv41_detector.py`.",
+    "done_when": "pass \u2014 \u00a72's done-when is measurable (the twenty leaked calls listed by run and tool against `census-baseline.log`, each constructed parser input with the calls it returned quoted, fixtures for the leaking cases and three clean ones) and declares a negative control of three clean completions; its instrument is nonetheless aimed at the wrong parser entry point, which is the finding below.",
+    "evidence_paths": "pass \u2014 `report.md` and `fixtures/` sit under `~/.config/reckon/crew/reports/imas-ambix/a-tool-call-carries-no-model-markup/`, a durable path outside any node-local temporary directory.",
+    "naming": "pass \u2014 \u00a72 introduces no plan labels, stage names, ticket numbers or changelog prose.",
+    "reasoning": "a finding \u2014 \u00a72's stated instrument parses whole completion text offline, but the path that delivered the leaked argument is the engine's incremental streaming parser, so the measurement cannot reach the mechanism it is asked to blame or clear.",
+    "single_goal": "pass \u2014 \u00a72 carries one deliverable, naming the layer that leaks the markup; the fig-07 question is handed onward to \u00a74 when it does not share that origin.",
+    "wiring": "pass \u2014 `plan-section-depends-on` routes s3 and s4 to s2, both of which exist, s2 needs no further dependency for the \u00a71 census it consumes, and `plan-blocks` (`reckon:a-review-can-see-the-figure`) resolves in the reckon project to \u00a720 \"A figure review runs only on an unmetered image lane\"."
+  },
+  "section_digests": {
+    "_document": "cabca4e3cdf617871996874d475221f72381d21c94d63f0cad1a75900c2c3ad8",
+    "s1": "5f8c49e3d7e51c0174a76ddfea229d085b20b6e290dcf0a017c94c993156cdda",
+    "s2": "c791790c464034ba8be39af6d08aeb44b7213afc12ba35739b295c2fc49e95d2",
+    "s3": "e8859d4b7f6c591d2c3ed491329301da0b4d930fa904901dc302babf0eacdd23",
+    "s4": "73433c178790d5f6f90c5a57799d16eb9d4fcf7a0039fc4044d9886609d0e472"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-22T23:15:35.081405+00:00"
+}
