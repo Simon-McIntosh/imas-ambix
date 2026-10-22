@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="23">
+<meta name="plan-version" content="25">
 <meta name="plan-modified" content="2026-10-23">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -198,7 +198,7 @@
     <h2 id="s5">&sect;5 &mdash; One lane document per pool, and lane.json stays the default pool</h2>
 <section data-reckon="section" data-id="s5" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
     <p>Each engine has its own reading loop, which fetches that engine's metrics into that
-    engine's own window. One composer runs once per publishing tick, after the readings. The composer is <code>RouterApp._publish_lane</code> itself, rewritten to iterate the engines instead of reading <code>upstreams[0]</code>. No other function writes a lane document. It
+    engine's own window. One composer runs once per publishing tick, after the readings. The composer is <code>RouterApp._publish_lane</code> itself, rewritten to iterate the engines instead of reading <code>upstreams[0]</code>. Today there is a second writer of <code>lane.json</code>: the <code>imas-ambix agent lane</code> command (<code>cli.py</code>), whose <code>--submit</code> form runs a long-lived refresher job (<code>generate_lane_refresher_script</code>). This section retires that writer. Before it does, the node searches the reckon, dotfiles and imas-ambix trees and the scheduler's running job names for the command and the refresher, and records what it found. After this section, no function but the composer writes a lane document, and a test asserts it by searching the package for calls to <code>write_lane_document</code>. It
     writes the default pool's document at <code>lane.json</code> and every other pool's
     document at <code>lanes/&lt;model id&gt;.json</code>, from the latest reading of each
     engine. The default pool is never written a second time under <code>lanes/</code>, so
@@ -552,8 +552,10 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
     change so far. It replaces <code>bin/gpu-watch</code> and adds
     <code>bin/llm-watch</code> as launchers that exec the console scripts, deletes
     <code>bin/_gpu_sample.py</code> and <code>bin/_gpu_watch_test.py</code>, and commits that
-    in the dotfiles repository. The done-when's symbol check runs against dotfiles after
-    that commit.</p>
+    in the dotfiles repository. The done-when's symbol check runs against both
+    <code>imas_ambix/agent/gpu_watch/</code> and dotfiles <code>bin/gpu-watch</code>,
+    the second after that commit. A serve-panel symbol or hard-coded node name in either
+    place fails it.</p>
     <p><strong>Done when.</strong></p>
     <ul>
       <li>On <code>98dci4-gpu-0003</code>, a one-shot run shows the same cards, host row and job
