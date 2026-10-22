@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="14">
+<meta name="plan-version" content="20">
 <meta name="plan-modified" content="2026-10-23">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -144,6 +144,12 @@
     <code>servers</code> array listing each server's name, host, accelerators and engines.
     Readers outside the package, such as gpu-watch and reckon, read servers from that
     document and never from the site configuration.</p>
+    <p>The <code>servers</code> array is written by the existing owner,
+    <code>registry.build_endpoint_document</code>, never by a second registry. Its
+    model-id dedup (keep the later job for a model) becomes a dedup on engine id
+    (<code>&lt;host short name&gt;:&lt;port&gt;</code>). That way, two engines serving one
+    model both appear in <code>endpoints</code> as well as in <code>servers</code>, while
+    a restarted job on the same engine still replaces its predecessor.</p>
     <p><strong>Done when.</strong></p>
     <ul>
       <li>With no <code>servers</code> configured, <code>imas-ambix agent serve
@@ -193,9 +199,11 @@
 <section data-reckon="section" data-id="s5" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
     <p>Each engine has its own reading loop, which fetches that engine's metrics into that
     engine's own window. One composer runs once per publishing tick, after the readings. It
-    writes every pool document at <code>lanes/&lt;model id&gt;.json</code>, beside
-    <code>lane.json</code>, and <code>lane.json</code> itself, from the latest reading of each
-    engine. So every document has exactly one writer, even when a pool spans engines. A pool
+    writes the default pool's document at <code>lane.json</code> and every other pool's
+    document at <code>lanes/&lt;model id&gt;.json</code>, from the latest reading of each
+    engine. The default pool is never written a second time under <code>lanes/</code>, so
+    no two files carry the same fields. The <code>lanes</code> index maps the default
+    model to <code>lane.json</code> itself. So every document has exactly one writer, even when a pool spans engines. A pool
     document has today's <code>lane.json</code> shape:</p>
     <ul>
       <li><strong>One engine:</strong> every field is that engine's own, with an unchanged
@@ -306,9 +314,18 @@
     <p>One builder produces the document that the view renders and
     <code>llm-watch --json</code> prints. It reads only published sources:
     <code>endpoints.json</code>, the lane documents, the tail of the router's request record,
-    the recorder receipts and <code>watch.json</code>. <code>lane_callers.py</code> moves into
-    the tool's package. <code>imas-ambix agent watch --json --live</code> becomes an alias for
-    the same builder, so its existing readers keep working until &sect;11 retires it.</p>
+    the recorder receipts and <code>watch.json</code>. <strong>That builder already
+    exists and is extended, not rebuilt.</strong> <code>live_panel.live_panel</code>
+    composes the live, lane and callers blocks, and <code>watch.live_document</code>
+    serves it. That chain is what <code>agent watch --json --live</code> prints and what
+    dotfiles gpu-watch renders its serve panel from today. <code>llm-watch --json</code>
+    prints the same function's output. <code>lane_callers.py</code> stays where it is and
+    gains the account and project levels. No second builder or alias layer is written, so
+    <code>agent watch --json --live</code> keeps working unchanged until &sect;11 retires
+    the flag.</p>
+    <p><strong>Write paths.</strong> <code>imas_ambix/agent/lane_callers.py</code>,
+    <code>imas_ambix/agent/live_panel.py</code>, <code>tests/test_lane_callers.py</code>,
+    <code>tests/test_live_panel.py</code>.</p>
     <p>What the document carries, and where each item is drawn:</p>
     <table>
       <thead>
@@ -465,8 +482,19 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
     use</code> is the router's <code>held</code>, and <code>wait s</code> is the only
     figure that measures waiting.</p>
     <p>The flags are <code>--live</code> (refresh every 5 s), <code>--engine ID</code>,
-    <code>--account NAME</code>, <code>--sessions</code>, <code>--json</code> and
-    <code>--window</code> (the callers window). The tool is the <code>llm-watch</code>
+    <code>--account NAME</code>, <code>--sessions</code> and <code>--json</code>. There is
+    no window flag: the callers window is the router's own 300 s, stated in the
+    table's heading.</p>
+    <p><strong>What this retires.</strong> The serve panel, callers table and ledger in
+    dotfiles gpu-watch, about 900 lines with their name resolver, are deleted in &sect;10.
+    The text renderer behind <code>imas-ambix agent watch</code> without
+    <code>--json</code> (<code>watch.watch_text</code>) is retired here: the command prints
+    a one-line pointer to <code>llm-watch</code>. <code>--live</code> and
+    <code>--json</code> carry over unchanged from <code>agent watch</code>.
+    <code>--account</code> and <code>--sessions</code> replace the guessed user column.
+    <code>--engine</code> has no predecessor, because one engine needed no choice. It
+    stays because the multi-engine view cannot show every engine's bands at once.</p>
+    <p> The tool is the <code>llm-watch</code>
     console script in imas-ambix (<code>watch-home</code>: both-in-imas-ambix), and dotfiles
     <code>bin/llm-watch</code> is a launcher that execs it.</p>
     <p><strong>Done when.</strong></p>
@@ -503,9 +531,15 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
     <p><code>--server NAME</code> limits the view to one server; the default shows all of them,
     stacked. Reservation-group labels come from the server's declaration instead of
     constants.</p>
-    <p>If <code>watch-home</code> chooses imas-ambix for both tools:</p>
+    <p><code>watch-home</code> is locked to both-in-imas-ambix, so:</p>
     <ul>
-      <li>gpu-watch and its on-node sampler move into <code>imas_ambix/agent/gpu_watch/</code>;</li>
+      <li>gpu-watch's renderer moves into <code>imas_ambix/agent/gpu_watch/</code>;</li>
+      <li><strong>the on-node readings come from <code>node_probe.NodeProbe</code></strong>
+      (<code>read_cards</code>, <code>read_host</code>, <code>read_jobs</code>), the reader
+      the recorder and the retention pass already use. It is extended with a streaming
+      entry point that one long-lived SLURM step runs on the node. The dotfiles
+      <code>_gpu_sample.py</code> is deleted rather than moved, so cgroup and
+      <code>SLURM_STEP_GPUS</code> handling has one owner;</li>
       <li>it shares one style module with llm-watch;</li>
       <li>dotfiles <code>bin/gpu-watch</code> becomes a launcher.</li>
     </ul>
@@ -587,7 +621,7 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 <p><strong>Why the account cannot be shown today.</strong> The router's request record holds the peer address, the user agent, and the two identities reckon dispatch reports in headers: <code>x-reckon-run-id</code> and <code>x-reckon-session</code> (<code>request_receipts.identity_from_headers</code>). Every caller authenticates with one shared key, so nothing in the record names an account or a project. The callers table in dotfiles gpu-watch therefore guesses them on the viewer's side, from the viewer's own transcripts and from <code>squeue</code> on the caller's host. Any figure that is a total per account is impossible until the account is reported at the source.</p>
 <p><strong>The caller reports it, and the router copies it.</strong></p>
 <ul>
-<li><strong>clive</strong> (<code>clive.py</code>, the generated wrapper) appends two lines to <code>ANTHROPIC_CUSTOM_HEADERS</code> before it execs <code>claude</code>: <code>X-Ambix-Account: $(id -un)</code>, and <code>X-Ambix-Project:</code> followed by the base name of the main checkout. That name comes from the parent of <code>git rev-parse --path-format=absolute --git-common-dir</code>, so a reckon worktree reports its repository rather than its node directory. Outside a repository it falls back to the base name of the working directory. It appends to any inherited value, so the run and session headers that reckon dispatch adds survive. Every local-lane worker launches through clive, as does every interactive clive session, so both are covered without a change to reckon.</li>
+<li><strong>clive</strong> (<code>clive.py</code>, the generated wrapper) appends two lines to <code>ANTHROPIC_CUSTOM_HEADERS</code> before it execs <code>claude</code>: <code>X-Ambix-Account: $(id -un)</code>, and <code>X-Ambix-Project:</code> followed by the base name of the main checkout. That name comes from the parent of <code>git rev-parse --path-format=absolute --git-common-dir</code>, so a reckon worktree reports its repository rather than its node directory. Outside a repository it falls back to the base name of the working directory. reckon's dispatch already composes the variable for every worker it launches, writing the run and session headers in <code>dispatch_launch._worker_runtime_environment</code>. clive does not compose it a second time. It appends a line only when the inherited value carries no header of that name, and it never rewrites or reorders what it inherited. clive is the writer here because it is the one launcher both a dispatched local-lane worker and an interactive session pass through, and it is in this repository. Making reckon's dispatch the writer for every backend is the proposal under <em>Left to reckon</em> below. Once reckon writes the headers, clive's absent-only rule leaves them alone. Every local-lane worker launches through clive, as does every interactive clive session, so both are covered without a change to reckon.</li>
 <li><strong>The record.</strong> <code>request_receipts.py</code> gains <code>ACCOUNT_HEADER = "x-ambix-account"</code> and <code>PROJECT_HEADER = "x-ambix-project"</code>, read under the same rules as the existing tokens (<code>_identity_token</code>). <code>RequestReceipt</code> gains <code>account</code> and <code>project</code>, each null unless reported. The router passes both through at its two call sites of <code>identity_from_headers</code>. The router infers neither field.</li>
 </ul>
 <p><strong>Trust.</strong> The headers are self-reported, just as the session header is. That is enough to attribute load on a cluster whose users share one key. It is not enough to enforce a share, and the docstrings say so. Per-account keys would be needed to enforce one, and that is out of scope here.</p>
