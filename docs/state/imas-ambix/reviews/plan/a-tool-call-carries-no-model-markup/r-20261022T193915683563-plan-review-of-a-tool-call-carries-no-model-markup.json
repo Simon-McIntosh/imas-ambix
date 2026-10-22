@@ -1,0 +1,58 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-22T20:04:41.290Z",
+  "dispatched_at": "2026-10-22T19:50:30Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/a-tool-call-carries-no-model-markup.html:40",
+      "id": "reasoning-1",
+      "reason": "a \u00a72 node will trace router.py looking for a translation step that is not there, and may spend its search in litellm_config.py, which no census run ever reaches, so both the layer it names and the code path it inspects would be wrong.",
+      "text": "\u00a72's second candidate layer reads \"the router can carry an unparsed fragment through when it translates the engine's response into the Anthropic `tool_use` blocks Claude Code reads (`imas_ambix/agent/router.py`, `litellm_config.py`)\", but router.py performs no such translation and litellm_config.py is not on the local lane's path: `RouterApp._relay` forwards each response body chunk unchanged (`body: chunk`), its only payload rewrites are request-side (`_repair_system_roles`, `_clamp_output_tokens`), and the string `tool_use` does not occur in the file at all \u2014 the Anthropic blocks are the engine's own, since `imas_ambix/agent/slurm.py:367-384` launches `vllm.entrypoints.openai.api_server` with `--middleware imas_ambix.agent.vllm_think_marker.OrphanThinkMarkerMiddleware`, middleware that itself parses and re-serialises every `/v1/messages` and `/v1/chat/completions` response payload (`imas_ambix/agent/vllm_think_marker.py:117-137`). `litellm_config.py` renders the LiteLLM proxy used only by clive's hybrid branch (`imas_ambix/agent/clive.py:1023` sets `ANTHROPIC_BASE_URL=\"http://127.0.0.1:$LITELLM_PORT\"`), while the local lane the census covers points Claude Code straight at the routing origin (`imas_ambix/agent/clive.py:960`, `export ANTHROPIC_BASE_URL=\"$GLOBAL_ORIGIN\"`).",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/a-tool-call-carries-no-model-markup.html:41",
+      "id": "reasoning-2",
+      "reason": "\u00a73's replay gate consumes exactly these fixtures, so a node whose replays do not reproduce the leak holds no fixture to hand on and no instruction for that case.",
+      "text": "\u00a72 recovers the engine's raw completion \"from the request receipts or the engine's logs where they hold the raw completion; where they do not, it reproduces the call by replaying the run's conversation up to that turn against the serve\", but the receipts cannot hold it: `RequestReceipt` (`imas_ambix/agent/request_receipts.py:158-185`) carries timestamp, model, upstream, dialect, token counts, timings and caller identity and no response text, and the module states the body is never buffered in full (\"the router relays bytes it does not consume \u2026 the body is never buffered in full\"). That leaves replay as the only route, and a replay is a fresh sample of the same decoding behaviour \u2014 the plan's own \u00a71 establishes that 20 of 93,565 calls leaked, so a re-sample need not reproduce the markup \u2014 while the done-when requires a raw completion and a delivered block for each traced leaked call with no stated route when a replay does not reproduce one. The delivered block itself is recoverable from each run's `stream.jsonl`; the raw completion is the half with no recorded source.",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/a-tool-call-carries-no-model-markup.html:42",
+      "id": "evidence_paths-1",
+      "reason": "a node dispatched against \u00a72 is fenced to the write paths; the fixture directory it is required to create would be refused, and \u00a73 has nothing to replay.",
+      "text": "\u00a72 declares \"Write paths: \u2026/a-tool-call-carries-no-model-markup/report.md\" while its Change and done-when require a new directory tree, `\u2026/a-tool-call-carries-no-model-markup/fixtures/`, to hold the raw completion and delivered block for each traced leaked call and three clean ones. The section whose whole purpose is to produce those fixtures names a write scope that excludes them.",
+      "type": "evidence_paths",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "563e1a9d110171bef887f026aeb3e9ddecb3f78f13d143e2bc77fbfd75ebfbfc",
+  "plan_slug": "a-tool-call-carries-no-model-markup",
+  "plan_version": 4,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261022T193915683563-plan-review-of-a-tool-call-carries-no-model-markup",
+  "reviewed_blob_sha": "9785d05d52da0f36ce72a08d1bf384b70cf86a26",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `census.py`, `census-baseline.log`, both run directories, `imas_ambix/agent/profiles/deepseek-v4-1-flash.toml` (with `[engine.parsers] tool_call = \"auto\"` at line 484), `imas_ambix/agent/router.py` and `imas_ambix/agent/litellm_config.py` all resolve; the extensionless styled anchors are the house convention.",
+    "done_when": "pass \u2014 \u00a72's measure is countable (every leaked call in `census-baseline.log`, a fixed 2026-10-20T00:00Z\u20132026-10-22T19:00Z window, plus later ones separately) and it names a negative control: three clean calls from the same runs traced the same way show no markup at any layer.",
+    "evidence_paths": "a finding \u2014 \u00a72's declared write path is `report.md` alone, while the fixture tree it must produce is not covered.",
+    "naming": "pass \u2014 the changed prose introduces no plan label, stage name, ticket number or version tag, and the new artifact names describe the capability (`census.py`, `fixtures/`, `census-baseline.log`).",
+    "reasoning": "two findings \u2014 the router/litellm layer \u00a72 names is not on the local lane's path, and the one route \u00a72 offers to a raw completion cannot return one.",
+    "single_goal": "pass \u2014 \u00a72 carries one deliverable (name the origin layer) plus the fixtures that record it; the fig-07 question is now bounded to \"shares that origin, y/n\", with \u00a74 owning the case where it does not.",
+    "wiring": "pass \u2014 `s3` and `s4` both declare `depends-on` \u2192 `s2`, both sections exist, and the one `blocks` entry (`reckon:a-review-can-see-the-figure`, a cross-project slug) resolves to `/home/ITER/mcintos/Code/reckon/docs/plans/a-review-can-see-the-figure.html`, whose \u00a720 is the figure-review lane section the followup names."
+  },
+  "section_digests": {
+    "_document": "cabca4e3cdf617871996874d475221f72381d21c94d63f0cad1a75900c2c3ad8",
+    "s1": "5f8c49e3d7e51c0174a76ddfea229d085b20b6e290dcf0a017c94c993156cdda",
+    "s2": "9bb0c131017f7b15315002068a71dce0b95679630e2c5628b2da08a7a5183481",
+    "s3": "e8859d4b7f6c591d2c3ed491329301da0b4d930fa904901dc302babf0eacdd23",
+    "s4": "73433c178790d5f6f90c5a57799d16eb9d4fcf7a0039fc4044d9886609d0e472"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-22T20:13:57.056000+00:00"
+}
