@@ -1,0 +1,67 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-22T23:26:25.877Z",
+  "dispatched_at": "2026-10-22T23:16:13Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:544",
+      "id": "reasoning-1",
+      "reason": "the plan must hand \u00a710's dotfiles half to the coordinator the way \u00a711 step 2 does for router deployment, or the node cannot be dispatched to a worker and cannot close.",
+      "text": "\u00a710 requires edits inside dotfiles (`_gpu_sample.py` deleted at line 541, `bin/gpu-watch` reduced to a launcher here) while \u00a711 line 563 says \"Any worker node can build them\" and the plan's own `watch-home` decision records that workers cannot write dotfiles, so a dispatched \u00a710 node stops at the write fence",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:201",
+      "id": "reasoning-2",
+      "reason": "naming the composer's home, and that it supersedes `_publish_lane`, is what prevents the two-writers-to-one-path defect this section exists to fix.",
+      "text": "\u00a75 introduces \"one composer\" that writes every pool document but names no function or file for it, while \u00a71 line 56 records the defect as `RouterApp._publish_lane` reading `upstreams[0]`; nothing states that the composer replaces that publisher, so a worker can leave `_publish_lane` in place and add a second writer to `lane.json`",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:510",
+      "id": "done_when-1",
+      "reason": "a worker implementing \u00a79 exactly is blocked, and the plan would need to name a fixture whose viewer account holds more than six projects.",
+      "text": "\u00a79's golden requires the viewer's per-project table to show \"at most six project rows and a `+N more` row\" rendered from \"the two-account fixture from \u00a78\", but that fixture (line 397) carries three projects in total, so the `+N more` row cannot appear and the gate cannot pass as written",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "8fffcd29e1e78948a8388ff8a3c12cda0c4cd2c0c27e68a73d7e727e76a912f5",
+  "plan_slug": "serving-across-servers",
+  "plan_version": 20,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261022T231533658763-plan-review-of-serving-across-servers",
+  "reviewed_blob_sha": "8d6e35bce92c28e6cb4fe9840d849d5f2639c225",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `docs/research/serving-capacity-and-b300-projection.html`, `docs/plans/local-lane-admission-control.html`, `docs/plans/serving-record-warehouse.html`, `docs/figures/serving-across-servers/topology.svg` and `ops/lane-cycle/AGENTS.md` all exist (extensionless hrefs resolve as `<path>.html`), and every cited symbol exists (`registry.build_endpoint_document` does the model-id dedup \u00a73 describes, `live_panel.live_panel` does compose the live, lane and callers blocks, `identity_from_headers` has exactly the two router call sites \u00a713 names, `_GenerationGate`/`_preferred_owner`/`_record_self_answer`/`newest_raw_receipt`/`live_document`/`NodeProbe`/`MAX_IDENTITY_CHARS`/`_worker_runtime_environment` all present), and `reckon.crew.lane_document.read_lane_document` degrades per field and never rejects an unknown key, so \u00a75's added `lanes` index leaves reckon unchanged as \u00a72 claims.",
+    "done_when": "a finding \u2014 every in-scope node names a negative control, but \u00a79's per-project golden requires a `+N more` row that \u00a78's named fixture cannot produce.",
+    "evidence_paths": "pass \u2014 \u00a79's goldens are committed text and \u00a78's fixtures are repository files; nothing in the in-scope units writes a gate result into a scratchpad or node-local temporary directory.",
+    "naming": "pass \u2014 the in-scope units carry no plan labels, ticket numbers or version tags into code; the write paths named (`lane_callers.py`, `live_panel.py`, `request_receipts.py`, `clive.py`, `gpu_watch/`) are mechanism-named, and `s21-nova` and the review-finding id appear only as evidence in the plan document itself.",
+    "reasoning": "a finding \u2014 \u00a710's dotfiles edits contradict \"any worker node can build them\" and \u00a75's composer is introduced with no caller or home named.",
+    "single_goal": "pass \u2014 \u00a73 declares servers, \u00a75 publishes one document per pool, \u00a78 builds the document, \u00a79 renders it, \u00a710 shows the machines, \u00a713 records caller identity; each is one deliverable with its own verdict.",
+    "wiring": "pass \u2014 the declared relationships resolve (s9\u2192s8, s10\u2192s3,s9, and `plan-after: local-lane-admission-control#s14`), \u00a78's use of \u00a713's two optional row keys is stated as a fixture-carried contract with no dependency, and \u00a75's schema sequencing against local-lane-admission-control is explicit."
+  },
+  "section_digests": {
+    "_document": "76b1319ed44987cfbc438a729b9cb1ce7ec5acd208da6926236790a26efb6ee0",
+    "s1": "84abea84a25c5ecad35220751db61c7b49c61973eda4e741e78348e16b694de2",
+    "s10": "617de0699cc7b832ea6e961f4a5bac9043de67556195e632a9a98967e3bbc583",
+    "s11": "62f1493b298180fcbe06fee10cb81673164f37dc646739667214e8c6aec4d812",
+    "s12": "635129369af591c5ed9cc97e1eca5d88c9bc4726355cb4d15f89c4d4d8bb714b",
+    "s13": "d6a25041d94de4d2edca565f9547a2318892f456c088170892456d55f5ad8bdd",
+    "s2": "07c84f3703bedbf51b14249471fa10a4580efea08771ba394dd7383ec52328c7",
+    "s3": "00fd83fbad872f21eb8f9f5434e1a3b6963ca67f6613df3c84a0de4c2ede025b",
+    "s4": "25bebe082ae8eefd4294ed18a8119c22a616dac41902d3de2da67458deb06918",
+    "s5": "d1e4262db457c0e9d9afb47158479a18d06f90f9b60e77dc5fc435fe38180ec1",
+    "s6": "ceae93e6905a33dc8facd996f608b63d18e72e315ad6e507bce9b5e840ca2dcc",
+    "s7": "f0eb3d24d868bfaf352c4a849435a0432daa643483a73cd3179e2648759af011",
+    "s8": "57e5d85784a405ff2b2f89090545733d248313eb01eeec8036460c7d0c8ef624",
+    "s9": "8100e503db6c8533871fb8f8515e92e8e29bf3c36b4ce60860d34aaf01bc4ad2"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-22T23:31:29.422728+00:00"
+}
