@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="a-tool-call-carries-no-model-markup">
+  <meta name="plan-title" content="A Tool Call Carries No Model Markup">
+  <meta name="plan-summary" content="A DeepSeek-V4.1-Flash tool call can reach a clive worker with the model&#x27;s own DSML markup inside an argument; find the layer and stop it">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="3.5">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="general">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint" content="S27">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving">
+  <meta name="plan-blocks" content="reckon:a-review-can-see-the-figure">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;deferred&quot;}">
+  <meta name="plan-section-depends-on" content="{&quot;s3&quot;:[&quot;a-tool-call-carries-no-model-markup#s2&quot;]}">
+  <title>A Tool Call Carries No Model Markup | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-version" content="2">
+<meta name="plan-modified" content="2026-10-22">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — The defect, measured</h2>
+<section data-reckon="section" data-id="s1" data-effort-hours="0.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
+    <p>Some tool calls from the local lane (<code>clive</code>, serving <code>deepseek-v4.1-flash</code>) reach the Claude Code worker with the model's own tool-call markup inside an argument. Reckon's figure-review evaluation on 2026-10-22 found it in run <code>r-20261022T124012688022-clive-judges-pair-fig-01</code>. The run's first <code>Read</code> carried a <code>file_path</code> that began with the right directory and then continued as <code>...</code> followed by <code>&lt;｜DSML｜ calls&gt;</code> and <code>&lt;｜DSML｜ invoke name="Bash"&gt;</code>. The model had emitted a second tool call, and it arrived as text inside the first call's argument instead of as a second call. The harness answered <code>File does not exist</code>. Nothing reported a parse failure, and the run went on to make a correct Read.</p>
+    <p>Across the 1,381 clive runs in <code>~/.config/reckon/crew/runs/</code> from 2026-10-20 to 2026-10-22, 20 of 93,862 tool calls carried <code>DSML</code> in their arguments: 10 <code>Bash</code>, 6 <code>Edit</code> and 4 <code>Read</code>, in 20 runs. The rate is low, but every occurrence is silent, and it can turn a correct action into a failed one or, for <code>Bash</code> and <code>Edit</code>, into a different action. A second defect appeared beside it: in <code>r-20261022T125056443470-clive-judges-pair-fig-07</code> a <code>Read</code> path was truncated to a literal <code>...</code>. That one carries no markup and may have a different cause.</p>
+    <p>The serve leaves parsing to the engine: <code>[engine.parsers] tool_call = "auto"</code> in <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>, which the engine resolves to <code>deepseekv41</code>. The profile records one correct tool-calling round trip as verification, which a single call cannot show to be false for this case.</p>
+
+    <h2 id="s2">§2 — Find the layer the markup survives</h2>
+<section data-reckon="section" data-id="s2" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+    <p><strong>Why.</strong> The markup can survive in three places, and the fix is different in each. The engine's <code>deepseekv41</code> parser can leave a second call's markup inside the first call's argument. The router can carry an unparsed fragment through when it translates the engine's response into the Anthropic <code>tool_use</code> blocks Claude Code reads (<code>imas_ambix/agent/router.py</code>, <code>litellm_config.py</code>). Or the model itself can write the markup into a string argument, where no parser is wrong to leave it.</p>
+    <p><strong>Change.</strong> An investigation takes at least three of the twenty leaked calls named in the census below. For each, it recovers what the engine actually returned, from the request receipts or the engine's logs where they hold the raw completion; where they do not, it reproduces the call by replaying the run's conversation up to that turn against the serve. It then follows each one through the router to the <code>tool_use</code> block the worker received, and names the layer where the markup first appears as argument text instead of as a separate call.</p>
+    <p><strong>Write paths:</strong> <code>~/.config/reckon/crew/reports/imas-ambix/a-tool-call-carries-no-model-markup/report.md</code>.</p>
+    <p><strong>Done when</strong> the report lists the twenty leaked calls by run and tool (the census: clive runs whose <code>worker.json</code> names backend <code>clive</code>, from 2026-10-20, tool-use inputs containing <code>DSML</code>). For at least three of them it shows the engine's raw output and the router's translated block side by side, quoted, with where each came from. It names exactly one layer as the origin, or says which of the three it cannot rule out and why. It also says whether the truncated-path case in fig-07 shares that origin. Every log is written under the run directory, starts with its revision and the literal command, and ends in <code>EXIT=</code>. <strong>Negative control:</strong> three clean tool calls from the same runs, traced the same way, show no markup at any layer.</p>
+
+    <h2 id="s3">§3 — Stop the markup at the layer that leaks it</h2>
+<section data-reckon="section" data-id="s3" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="deferred" data-links=""></section>
+    <p><strong>Why.</strong> Once §2 names the layer, the fix belongs there. A parser or router fix splits the markup into the calls it encodes, or refuses the response as malformed so the harness sees an error instead of a wrong action. A model-side cause needs a guard at the router instead.</p>
+    <p><strong>Change.</strong> Written once §2 lands, against the layer it names. Whatever the layer, a tool call whose argument carries the model's tool-call markup is never delivered to the worker as a well-formed call. Either it becomes the calls the markup encodes, or it reaches the worker as an explicit error.</p>
+    <p><strong>Done when</strong> replaying §2's captured leaked responses through the fixed layer delivers no tool argument containing <code>DSML</code>, and each response either yields the calls its markup encodes or an explicit error. Replaying §2's clean responses delivers byte-identical calls to before. A re-run of the census over clive runs made after the fix lands finds no leaked argument. <strong>Negative control:</strong> with the fix reverted, the captured leaked responses deliver the markup again.</p>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-atccnmm-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-22" data-recommends-skill="" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Find where the DSML markup survives (§2)</h4>
+    <div class="r-fu-body"><p>§1 measured the leak: 20 of 93,862 clive tool calls since 2026-10-20 carried the model's own tool-call markup inside an argument. §2 traces at least three of them through the engine and the router and names the layer. Reckon's <code>a-review-can-see-the-figure</code> holds its §20, which routes figure reviews only to the local lane, until this is fixed.</p></div>
+    <pre class="r-fu-prompt">/reckon-build a-tool-call-carries-no-model-markup §2</pre>
+    </article>
+</section>
+  </main>
+</body>
+</html>
