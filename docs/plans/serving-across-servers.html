@@ -24,8 +24,8 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="11">
-<meta name="plan-modified" content="2026-10-22">
+<meta name="plan-version" content="14">
+<meta name="plan-modified" content="2026-10-23">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;]}">
 </head>
 <body>
@@ -348,6 +348,13 @@
     from the request record (&sect;13), and the builder copies them without inferring
     anything. The accounts' held figures sum to the block's <code>held</code>, and an
     account's projects sum to that account's held.</p>
+    <p><strong>The contract with &sect;13 is two optional row keys.</strong> The builder
+    reads <code>row.get("account")</code> and <code>row.get("project")</code> from each
+    request-record row. A row without them is unattributed, and so is every row written
+    before &sect;13 deploys. &sect;8's fixtures carry the two keys by hand, so &sect;8 does
+    not wait for &sect;13 to land, and neither section invents a name the other has not
+    stated. When an account is reported without a project, the project reads
+    <code>unattributed</code> within that account.</p>
     <p>This deletes the inference the dotfiles watcher does today. Its
     <code>_Resolver</code> searches the viewer's own <code>~/.claude/projects</code> for a
     session transcript (about 2 s on GPFS), matches reckon session names against
@@ -359,9 +366,11 @@
     <p><strong>Done when.</strong></p>
     <ul>
       <li>On fixtures copied from today's live files (<code>lane.json</code>, a receipts tail
-      and a request-record tail), the first engine's live and gate figures and the callers
-      block equal what <code>agent watch --json --live</code> emits at the base
-      revision.</li>
+      and a request-record tail), the first engine's live and gate figures equal what
+      <code>agent watch --json --live</code> emits at the base revision. So does every key
+      the base callers block already carries, block-level and per-session. The only
+      differences allowed are the added <code>accounts</code> and <code>projects</code>
+      levels and the per-session <code>account</code> and <code>project</code> keys.</li>
       <li>A two-engine fixture yields two engine entries, and each caller's held figures per
       engine sum to its total within 0.01.</li>
       <li>History bins over a fixture with a known request schedule match occupancy computed by
@@ -517,9 +526,14 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 <section data-reckon="section" data-id="s11" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links=""></section>
     <ol>
       <li><strong>No service impact.</strong> &sect;3, &sect;6, &sect;8, &sect;9 and &sect;10
-      land and are used on today's single engine. Any worker node can build them.</li>
-      <li><strong>The router.</strong> &sect;4 and &sect;5, and &sect;7 if it runs, deploy
-      under a lane cycle per <code>ops/lane-cycle/AGENTS.md</code>. Router deployment is
+      land and are used on today's single engine. Any worker node can build them. &sect;13 is
+      built in this step too, and the coordinator regenerates the installed clive script
+      once it lands. Until step 2 deploys &sect;13's router change, every live caller reads
+      <code>unattributed</code> in llm-watch's accounts table.</li>
+      <li><strong>The router.</strong> &sect;13's receipt fields, then &sect;4 and &sect;5,
+      and &sect;7 if it runs, deploy under a lane cycle per
+      <code>ops/lane-cycle/AGENTS.md</code>. &sect;13 needs no other section, so it may go
+      out in a cycle of its own before &sect;4. Router deployment is
       operator work under <code>imas_ambix/agent/AGENTS.md</code> &sect;4, so only a node
       assigned that authority runs it.</li>
       <li><strong>The B300.</strong> Declare the server, serve the decided model or models,
