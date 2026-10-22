@@ -1,0 +1,97 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-22T23:04:19.799Z",
+  "dispatched_at": "2026-10-22T22:55:05Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/serving-across-servers.html#s10",
+      "id": "reuse_search-1",
+      "reason": "the \u00a71 search would gain the two mechanisms it is about to reimplement, and \u00a710's \"move the sampler into the package\" would become \"extend `node_probe.NodeProbe`\".",
+      "text": "the plan proposes moving an on-node sampler into `imas_ambix/agent/gpu_watch/` and a new builder for the serve document without citing that the package already owns both: `node_probe.py` samples cards, host and jobs and is consumed by `serving_receipts.py:75` and `telemetry_retention.py:61`, and `live_panel.py`/`watch.py` already render the serve panel from published sources",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/node_probe.py:708",
+      "id": "duplicate_owner-1",
+      "reason": "a second on-node sampler beside the existing owner drifts on cgroup/`SLURM_STEP_GPUS` handling and doubles the cgroup-visibility logic the current module documents at length.",
+      "text": "\u00a710 (docs/plans/serving-across-servers.html#s10) moves the dotfiles sampler (`~/Code/dotfiles/bin/_gpu_sample.py`) into `imas_ambix/agent/gpu_watch/`, beside `node_probe.NodeProbe` (`read_cards:404`, `read_host:591`, `read_jobs:667`), which already makes exactly those three readings on the GPU node inside the serve's allocation and already feeds the recorder and the retention pass; the plan never names it",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/live_panel.py:356",
+      "id": "duplicate_owner-2",
+      "reason": "\u00a78's done-when compares its output to `agent watch --json --live` field by field, so the section must say whether it extends `live_document` or replaces it, and the write paths must name the file.",
+      "text": "\u00a78's \"one builder produces the document that the view renders and `llm-watch --json` prints  (docs/plans/serving-across-servers.html#s8) is a second builder over the same published sources; the existing builder is `live_panel.live_block:356` / `live_panel.live_panel:515` reached through `watch.py:1373 live_document`, which is exactly what `dotfiles/bin/gpu-watch` already renders its serve panel from. \u00a78 names only the helper `lane_callers.py` (whose one consumer is `live_panel.py:40 callers_block`) and never names `live_panel.py` or `watch.py`",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/registry.py:325",
+      "id": "duplicate_owner-3",
+      "reason": "\u00a77 depends on a pool spanning two engines and \u00a73 says both must appear, so the dedup owner must be extended to key on engine rather than on model id, or \u00a73 must state why `endpoints` stays collapsed.",
+      "text": "\u00a73 (docs/plans/serving-across-servers.html#s3) adds a `servers` array to `endpoints.json` as a second engine registry beside the existing `endpoints` array produced by `build_endpoint_document:325` / `write_endpoint_document:383`, and leaves the model-id dedup at `registry.py:355-377` in place \u2014 that dedup keeps only the later job for a model id, so with the \u00a77 pool (`docs/plans/serving-across-servers.html#s7`) of two engines on one model the `endpoints` array silently carries one engine while `servers` carries two",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/clive.py:44",
+      "id": "duplicate_owner-4",
+      "reason": "the section should name reckon's dispatch environment as the existing owner and state why the account cannot be added there (it can \u2014 reckon knows the project), rather than adding a second composer whose append-to-inherited behaviour the plan has to defend.",
+      "text": "\u00a713 (docs/plans/serving-across-servers.html#s13) has the generated clive script append `X-Ambix-Account`/`X-Ambix-Project` to `ANTHROPIC_CUSTOM_HEADERS`, but that variable is already composed by a different owner outside the package: reckon's dispatch sets it for clive workers so Claude Code forwards the run and session headers (the mechanism `local-lane-admission-control` relies on for `x-reckon-run-id`/`x-reckon-session`; `grep -rn ANTHROPIC_CUSTOM_HEADERS` finds no producer in imas-ambix or dotfiles). Two writers compose one env var",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/lane.py:783",
+      "id": "thin_wrapper-1",
+      "reason": "the duplication is avoidable by pointing the default backend at `lanes/<default>.json`, so the section must either do that or state why the copy is required (the \u00a711 done-when already requires `lane.json` to be key-comparable, which a pointer would satisfy).",
+      "text": "\u00a75 (docs/plans/serving-across-servers.html#s5) writes every pool document at `lanes/<model id>.json` and then writes `lane.json` as a byte-for-byte copy of the default pool's document plus a `lanes` index, through the same `write_lane_document:783`, so two files carry the same fields and can drift \u2014 while the section's own text says a reckon backend already sets `lane_document` to a named file with no reckon code change",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/serving-across-servers.html#s9",
+      "id": "interface_budget-1",
+      "reason": "on the supplied counts (cli_options 0) each new option is net-new surface, and the section must state in its own text what it retires or merges, or why nothing can be.",
+      "text": "\u00a79 adds the `llm-watch` console script and the options `--engine ID`, `--account NAME`, `--sessions` and `--window` (plus `--live`/`--json`), and \u00a73 adds `serve --server <name>`; \u00a79's own text names no option it retires or merges, leaving the only stated retirement (`agent watch --json --live`) to \u00a711 step 4, and nothing accounts for `--account`/`--sessions`/`--engine`",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "c71bc47eb10e1141d50ad17edf84bf6dd7c5371bbbd89e1924ac9a54e5bdd0c6",
+  "plan_slug": "serving-across-servers",
+  "plan_version": 14,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261022T225410104474-plan-review-of-serving-across-servers",
+  "reviewed_blob_sha": "bdd4d00cd4c5f5644eaff67462492a8342849640",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 \u00a74 gets one gate per engine by instantiating the existing `_GenerationGate` (`router.py:641`) once per engine inside `RouterApp`, one class with N instances rather than a family of wrappers, and \u00a75/\u00a78 keep a single composer and a single builder over published sources.",
+    "duplicate_owner": "a finding \u2014 four mechanisms are duplicated rather than extended; the owning files are named on each instance below.",
+    "interface_budget": "a finding \u2014 supplied counts public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a79 adds a new `llm-watch` console script and four CLI options (`--engine`, `--account`, `--sessions`, `--window`) without naming in its own text what it retires or merges, or why nothing can be.",
+    "reuse_search": "a finding \u2014 \u00a71's census names nine single-server sites, but the search stopped at the modules the plan already touches and missed three existing owners the design rebuilds: `imas_ambix/agent/node_probe.py`, the serve-panel builder in `imas_ambix/agent/live_panel.py` and `imas_ambix/agent/watch.py`, and `imas_ambix/agent/registry.py`'s endpoint document. The plan mentions none of `node_probe`, `telemetry_ingest` or `registry.py` anywhere.",
+    "thin_wrapper": "a finding \u2014 \u00a75 writes `lane.json` as a second copy of the default pool's document beside `lanes/<model id>.json`, over the same `write_lane_document` (`lane.py:783`), and its own text shows the alternative (`lane_document` already names a file per backend)."
+  },
+  "section_digests": {
+    "_document": "76b1319ed44987cfbc438a729b9cb1ce7ec5acd208da6926236790a26efb6ee0",
+    "s1": "84abea84a25c5ecad35220751db61c7b49c61973eda4e741e78348e16b694de2",
+    "s10": "d043170b5510af4ee43ad4860c12ab92209f3799c7b35d2bf1fa9b138fbfd358",
+    "s11": "62f1493b298180fcbe06fee10cb81673164f37dc646739667214e8c6aec4d812",
+    "s12": "635129369af591c5ed9cc97e1eca5d88c9bc4726355cb4d15f89c4d4d8bb714b",
+    "s13": "bcd55143be51125b7293800147195d44de8ee944b325a9db6ec15c3c3fc7918f",
+    "s2": "07c84f3703bedbf51b14249471fa10a4580efea08771ba394dd7383ec52328c7",
+    "s3": "93fa836eddd2d6eeb1cb465cd49ee73bc3c78d8e0cfa0ed3f0d1e70ba68c7c7d",
+    "s4": "25bebe082ae8eefd4294ed18a8119c22a616dac41902d3de2da67458deb06918",
+    "s5": "c6c353adeae6085a98f8cfae4f9cf71d620b0a13e4e43edfe6396e74e0a89aaa",
+    "s6": "ceae93e6905a33dc8facd996f608b63d18e72e315ad6e507bce9b5e840ca2dcc",
+    "s7": "f0eb3d24d868bfaf352c4a849435a0432daa643483a73cd3179e2648759af011",
+    "s8": "f3f575450b291bbca89e66bcbef27b20cd0d25c1ba8e63a2eb187302b23fbe01",
+    "s9": "75bf46fd03ecd43d11021db573c224a1b676a4c70b42a783b9d27390c9d4ec4b"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-22T23:12:28.755304+00:00"
+}
