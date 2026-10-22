@@ -1,0 +1,67 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-22T22:42:38.772Z",
+  "dispatched_at": "2026-10-22T22:32:22Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:29",
+      "id": "wiring-1",
+      "reason": "a missing depends-on lets the sections land in an order where \u00a78's central gate cannot pass, and a worker would either fail or invent the account fields itself.",
+      "text": "\u00a78's callers block is two levels of `account` and `project` drawn \"from the request record (\u00a713)\" (line 348), but `plan-section-depends-on` declares only `s9\u2192s8` and `s10\u2192s3,s9`, so nothing records that s8 needs s13; s8 can therefore be dispatched before s13 exists and its fixture with two accounts and three projects cannot be built",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:519",
+      "id": "wiring-2",
+      "reason": "a section that needs an operator lane cycle is scheduled by no step, so a coordinator reads \u00a78 as deployable in step 1 and the accounts table is inert in production with no step owning its activation.",
+      "text": "\u00a711's four rollout steps carry \u00a73/\u00a76/\u00a78/\u00a79/\u00a710 (step 1, \"no service impact\"), \u00a74/\u00a75/\u00a77 (step 2, operator lane cycle), the B300 and the alias, and never name \u00a713, although \u00a713 edits `router.py` and `request_receipts.py` and its own paragraph places it at \"the next lane cycle\" under operator authority; step 1's \"\u00a78 ... land and are used on today's single engine\" is therefore wrong for the accounts half of \u00a78, which stays unattributed until the \u00a713 router change deploys",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:363",
+      "id": "reasoning-1",
+      "reason": "a worker taking the gate literally must drop the account grouping to make it pass, and one taking the prose literally fails a gate the plan's own design guarantees will be red.",
+      "text": "\u00a78's first done-when requires \"the callers block equal what `agent watch --json --live` emits at the base revision\", while \u00a78's mechanism (lines 340-350) adds an `accounts` level, a `projects` level and an `account`/`project` field on every per-session entry; the base block at `imas_ambix/agent/lane_callers.py:98` groups only by session or host and emits none of those keys, so the equality cannot hold",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "e355de3f2622639fc3883e66cc96808609bb8f68cf825680d25ebbd04b52c608",
+  "plan_slug": "serving-across-servers",
+  "plan_version": 11,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261022T223134987406-plan-review-of-serving-across-servers",
+  "reviewed_blob_sha": "d4d0bb401ff9db25b3b6759d61eb314eb9aea8b0",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `/imas-ambix/research/serving-capacity-and-b300-projection`, `/imas-ambix/plans/local-lane-admission-control`, `/imas-ambix/plans/serving-record-warehouse`, `docs/figures/serving-across-servers/topology.svg` and `ops/lane-cycle/AGENTS.md` all resolve with `.html` appended where extensionless, and the cited code anchors all exist (`RouterApp._publish_lane` reads `upstreams[0]` at router.py:2131, `_GenerationGate`, `_record_self_answer`, `SELF_ANSWERED_UPSTREAM = \"(router)\"` in request_receipts.py:68, `_preferred_owner`, `WORKING_HORIZON_SECONDS = 180.0`, `newest_raw_receipt`, `SiteConfig.preferred_release_id`, `identity_from_headers` with exactly two router call sites at router.py:2087 and :2654, `_identity_token`, and `reckon.crew.lane_document.read_lane_document`).",
+    "done_when": "pass \u2014 every implementable section (\u00a73, \u00a74, \u00a75, \u00a76, \u00a77, \u00a78, \u00a79, \u00a710, \u00a711, \u00a713) now names at least one negative control, and each control is a condition that can fail (an undeclared server, an over-wide pause, a stopped engine, a malformed tail, an expired bound, an over-long header).",
+    "evidence_paths": "pass \u2014 the sections gate through the repository's own tests and the rollout's recorded artifacts, and no section routes evidence to a session scratchpad or a node-local temporary path.",
+    "naming": "pass \u2014 the proposed symbols and headers state what they measure (`x-ambix-account`, `ACCOUNT_HEADER`, `lanes/<model id>.json`) and carry no plan label, stage name or ticket number.",
+    "reasoning": "a finding \u2014 \u00a78's first done-when asserts an equality its own mechanism makes impossible.",
+    "single_goal": "pass \u2014 \u00a73\u2013\u00a710 and \u00a713 each carry one deliverable with one gate; \u00a711 is the rollout narrative rather than a build node.",
+    "wiring": "a finding \u2014 \u00a78's callers-by-account block is built from `account`/`project`, which \u00a713 adds to the request record, and no `depends-on` relationship declares that dependency; the rollout's \u00a713 step is also missing (\u00a711 lists \u00a73/\u00a76/\u00a78/\u00a79/\u00a710, then \u00a74/\u00a75/\u00a77, then the B300, then the alias)."
+  },
+  "section_digests": {
+    "_document": "76b1319ed44987cfbc438a729b9cb1ce7ec5acd208da6926236790a26efb6ee0",
+    "s1": "84abea84a25c5ecad35220751db61c7b49c61973eda4e741e78348e16b694de2",
+    "s10": "d043170b5510af4ee43ad4860c12ab92209f3799c7b35d2bf1fa9b138fbfd358",
+    "s11": "e263d6ed8f5ed3b685cb9335c0fb6d0e0a6937e64d0738e509b03f0208582fcc",
+    "s12": "635129369af591c5ed9cc97e1eca5d88c9bc4726355cb4d15f89c4d4d8bb714b",
+    "s13": "bcd55143be51125b7293800147195d44de8ee944b325a9db6ec15c3c3fc7918f",
+    "s2": "07c84f3703bedbf51b14249471fa10a4580efea08771ba394dd7383ec52328c7",
+    "s3": "93fa836eddd2d6eeb1cb465cd49ee73bc3c78d8e0cfa0ed3f0d1e70ba68c7c7d",
+    "s4": "25bebe082ae8eefd4294ed18a8119c22a616dac41902d3de2da67458deb06918",
+    "s5": "c6c353adeae6085a98f8cfae4f9cf71d620b0a13e4e43edfe6396e74e0a89aaa",
+    "s6": "ceae93e6905a33dc8facd996f608b63d18e72e315ad6e507bce9b5e840ca2dcc",
+    "s7": "f0eb3d24d868bfaf352c4a849435a0432daa643483a73cd3179e2648759af011",
+    "s8": "8c23a9558351e4f7cb57fd5f6210097ba52ec583d74477829ea43af3b0c38467",
+    "s9": "75bf46fd03ecd43d11021db573c224a1b676a4c70b42a783b9d27390c9d4ec4b"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-22T22:51:37.206391+00:00"
+}
