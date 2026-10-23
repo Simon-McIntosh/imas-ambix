@@ -24,7 +24,7 @@
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="36">
+<meta name="plan-version" content="37">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -462,6 +462,9 @@
 </div>
 <div class="r-comment" data-section="s11" data-id="c-close-s11" data-who="reckon-build" data-when="2026-10-23T19:18:00Z">
     <div class="r-comment-body"><p>§11 landed: the rebuild predicate, index installation with journal cleanup, and the counter difference each have one owner, and the counter test depends on the rollup (merged <code>1f83e6f1</code> and <code>1cdfe5cd</code>; reviews 118/120 and 118/120). <a href="/imas-ambix/evidence/archive/watch-index-lifecycle-landed.html#s11">evidence</a></p></div>
+</div>
+<div class="r-comment" data-section="s11" data-id="c-run-r-20261023T174829412224-wil-ingest-uses-the-index-install-owner" data-who="reckon-build" data-when="2026-10-23T18:11:45Z">
+    <div class="r-comment-body"><p>Ingest now uses index_placement.snapshot_exists and install_index; the three-file suite passed 65 tests at head versus 64 at baseline, the serving guard passed 1, whole-tree Ruff passed, and skipping install_index journal cleanup failed the stale-WAL test with the rebuild refusal; evidence: docs/evidence/fragments/watch-index-lifecycle/wil-ingest-uses-the-index-install-owner.html</p></div>
 </div>
 </section>
 </main>
