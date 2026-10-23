@@ -283,6 +283,10 @@ def test_publish_command_without_router_preserves_endpoint_document(
                 "port": 19002,
             },
         ],
+        # Neither registration here names a checkpoint, and a document that
+        # carries none publishes an empty map rather than leaving the key out,
+        # so a reader finds one shape whatever the site serves.
+        "checkpoints": {},
         "routing_origins": [],
         "servers": [
             # The publish command passes the site's declared servers, and a
@@ -713,12 +717,14 @@ def test_serve_on_changed_port_republishes_document_naming_new_port_and_cards(
 
 
 def test_endpoint_document_publishes_the_registration_checkpoint(tmp_path):
-    """The engine's entry carries the checkpoint its registration loaded.
+    """The document names what each engine loaded, beside unchanged entries.
 
     The served name is stable across a rotation, so the checkpoint travels
-    beside it in the published document. A registration written before the field
-    existed publishes ``null`` rather than being dropped, so an older record
-    still yields a routable engine.
+    beside it -- at the document's top level, keyed by engine id, because a
+    standalone launcher validates an engine entry against a fixed key set and
+    fails closed on any field it does not know. An engine whose registration
+    predates the field is absent from the map rather than published as null, and
+    its entry still makes a routable engine.
     """
     pinned = ServeRegistration(
         model_id="deepseek-v4.1-flash",
@@ -755,12 +761,27 @@ def test_endpoint_document_publishes_the_registration_checkpoint(tmp_path):
     target = tmp_path / "endpoints.json"
     publish_endpoint_document((pinned, legacy), target, fetch_catalog=fetch)
 
-    published = {
-        endpoint.model_id: endpoint.checkpoint
-        for endpoint in read_endpoint_document(target)
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    engines = {
+        endpoint.model_id: endpoint for endpoint in read_endpoint_document(target)
     }
-    assert published["deepseek-v4.1-flash"] == pinned.checkpoint
-    assert published["glm-5.3"] is None
+    assert payload["checkpoints"] == {
+        engines["deepseek-v4.1-flash"].engine_id: pinned.checkpoint
+    }
+    # The entry key set is the contract a deployed launcher validates against,
+    # so it is named from the base revision's fields rather than read off the
+    # entry object, which would agree with whatever field was added to it.
+    for entry in payload["endpoints"]:
+        assert set(entry) == {
+            "model_id",
+            "host",
+            "port",
+            "accelerator_family",
+            "accelerator_count",
+            "checkpoint_precision",
+            "max_context",
+        }
+    assert legacy.model_id in engines
 
 
 def test_shutdown_cancels_and_republishes_removing_the_release(tmp_path, monkeypatch):

@@ -363,13 +363,15 @@ def _catalog_for(model_id: str, precision: str) -> dict[str, object]:
 
 
 def test_generated_script_records_the_profile_checkpoint_and_publishes_it(tmp_path):
-    """A serve names the release the profile pins, and the endpoint carries it.
+    """A serve names the release the profile pins, and the document carries it.
 
     The served name is held stable across a rotation, so the name no longer says
     which weights answered. The serve job writes the profile's
     ``<hf_repo>@<revision>`` onto its registration, the record round-trips that
-    value, and the endpoint builder publishes it verbatim so a launcher reads
-    the release without reaching into the registry directory.
+    value, and the endpoint builder publishes it verbatim -- at the document's
+    top level, keyed by engine id, so a launcher reads the release without
+    reaching into the registry directory and without its engine entries changing
+    shape.
     """
     profile = load_profile("deepseek-v4-1-flash")
     expected = f"{profile.model.hf_repo}@{profile.model.revision}"
@@ -397,7 +399,18 @@ def test_generated_script_records_the_profile_checkpoint_and_publishes_it(tmp_pa
             profile.model.served_name, profile.model.checkpoint_precision
         ),
     )
-    assert endpoints[0].checkpoint == expected
+    assert endpoints.checkpoints == {endpoints[0].engine_id: expected}
+    # The engine entry keeps the key set a deployed launcher validates against,
+    # named here from the base revision's fields rather than read off the entry.
+    assert set(asdict(endpoints[0])) == {
+        "model_id",
+        "host",
+        "port",
+        "accelerator_family",
+        "accelerator_count",
+        "checkpoint_precision",
+        "max_context",
+    }
 
 
 def test_profile_without_a_revision_writes_an_unpinned_checkpoint(tmp_path):
@@ -428,4 +441,6 @@ def test_registration_without_a_checkpoint_reads_null_and_still_builds(tmp_path)
         fetch_catalog=lambda _origin: _catalog_for("glm-5.3", "int4"),
     )
     assert len(endpoints) == 1
-    assert endpoints[0].checkpoint is None
+    # Absent, not null: an engine that never named its checkpoint has no entry
+    # in the map, so a reader reports unknown rather than reading a null as one.
+    assert endpoints.checkpoints == {}
