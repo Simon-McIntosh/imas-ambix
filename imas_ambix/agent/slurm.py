@@ -120,9 +120,12 @@ def overlap_room(profile: ModelProfile, site: SiteConfig) -> tuple[bool, str]:
         return False, f"cannot establish overlap room: {error}"
 
 
-def slurm_log_path(output_name: str) -> Path:
-    """Resolve stdout outside the submit directory; create its parent before sbatch."""
-    return Path.home() / ".local" / "state" / "ambix" / "slurm-logs" / output_name
+def slurm_log_path(output_name: str, *, ensure_directory: bool = False) -> Path:
+    """Resolve stdout outside the submit directory and prepare it for submission."""
+    directory = Path.home() / ".local" / "state" / "ambix" / "slurm-logs"
+    if ensure_directory:
+        directory.mkdir(parents=True, exist_ok=True)
+    return directory / output_name
 
 
 def _sbatch_headers(
@@ -1262,6 +1265,7 @@ def generate_download_script(
 
 def submit_script(script: str) -> str:
     """Submit a generated SLURM script to ``sbatch`` and return the job ID."""
+    slurm_log_path("", ensure_directory=True)
     result = subprocess.run(
         ["sbatch", "--parsable"],
         input=script,

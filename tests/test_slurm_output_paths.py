@@ -1,11 +1,13 @@
 """SLURM stdout stays in the user's state directory."""
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
 
 from imas_ambix.agent import cli as agent_cli
+from imas_ambix.agent import slurm as slurm_mod
 from imas_ambix.agent.profile import SiteConfig, load_profile
 from imas_ambix.agent.slurm import (
     generate_download_script,
@@ -61,6 +63,7 @@ def test_generated_scripts_use_absolute_state_log_path(
     for output in outputs:
         assert output.is_absolute()
         assert output.parent == tmp_path / ".local/state/ambix/slurm-logs"
+    assert not (tmp_path / ".local/state/ambix/slurm-logs").exists()
 
 
 @pytest.mark.parametrize(
@@ -84,17 +87,41 @@ def test_setup_submission_names_both_state_logs(
 ) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     submitted = []
+    log_dir = tmp_path / ".local/state/ambix/slurm-logs"
+    assert not log_dir.exists()
 
     def submit(script: str) -> str:
+        assert log_dir.is_dir()
         submitted.append(script)
+        if len(submitted) == 1:
+            log_dir.rmdir()
         return str(40 + len(submitted))
 
     monkeypatch.setattr("imas_ambix.agent.slurm.submit_script", submit)
     result = CliRunner().invoke(main, ["agent", "setup", "vllm"])
 
     assert result.exit_code == 0, result.output
-    log_dir = tmp_path / ".local/state/ambix/slurm-logs"
     message = result.output.replace("\n", "")
     assert str(log_dir / "ambix-setup-vllm-41.log") in message
     assert str(log_dir / "ambix-runtime-check-vllm-42.log") in message
     assert len(submitted) == 2
+    assert log_dir.is_dir()
+
+
+def test_submit_creates_log_directory_before_sbatch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    log_dir = tmp_path / ".local/state/ambix/slurm-logs"
+    assert not log_dir.exists()
+
+    def run(argv: list[str], **kwargs: object) -> SimpleNamespace:
+        assert argv == ["sbatch", "--parsable"]
+        assert kwargs["input"] == "#!/bin/bash"
+        assert log_dir.is_dir()
+        return SimpleNamespace(returncode=0, stdout="31415\n", stderr="")
+
+    monkeypatch.setattr(slurm_mod, "subprocess", SimpleNamespace(run=run))
+
+    assert slurm_mod.submit_script("#!/bin/bash") == "31415"
+    assert log_dir.is_dir()

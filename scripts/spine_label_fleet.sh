@@ -4,6 +4,7 @@
 #SBATCH --cpus-per-task=9
 #SBATCH --mem=96G
 #SBATCH --time=01:00:00
+# Create /home/ITER/mcintos/.local/state/ambix/slurm-logs before sbatch.
 #SBATCH --output=/home/ITER/mcintos/.local/state/ambix/slurm-logs/_spine_label_fleet_%j.log
 # Spine label factory fleet: shard the train manifest across parallel per-shot
 # chains (each chain is sequential by design — warm-started along the time

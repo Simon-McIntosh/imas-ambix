@@ -332,14 +332,24 @@ def _generate_at_revision(revision: str, site: SiteConfig, **kwargs) -> str:
 def _without_unset_line(script: str) -> str:
     """The no-option script with its single unset line removed.
 
-    The pre-option revision had no gate-path line at all, so stripping this one
-    line recovers the script the generator produced before the option existed --
-    the strongest available statement that the option changed nothing else.
+    The reference revision has no gate-path line. Removing it isolates that
+    behavior; the stdout destination is normalized separately.
     """
     lines = script.splitlines(keepends=True)
     kept = [line for line in lines if not line.startswith(f"unset {GATE_PATH_ENV}")]
     assert len(kept) == len(lines) - 1, script
     return "".join(kept)
+
+
+def _normalise_router_output(script: str) -> str:
+    """Ignore only the stdout destination in a historical router comparison."""
+    lines = script.splitlines(keepends=True)
+    outputs = [
+        i for i, line in enumerate(lines) if line.startswith("#SBATCH --output=")
+    ]
+    assert len(outputs) == 1, script
+    lines[outputs[0]] = "#SBATCH --output=<router-stdout>\n"
+    return "".join(lines)
 
 
 def test_generated_script_without_the_option_unsets_the_gate_path(tmp_path) -> None:
@@ -358,9 +368,10 @@ def test_generated_script_without_the_option_unsets_the_gate_path(tmp_path) -> N
     )
     assert f"unset {GATE_PATH_ENV}" in current
     assert f"export {GATE_PATH_ENV}=" not in current
-    # The option is additive: the no-option script differs from the pre-option
-    # revision by exactly the unset line, and by nothing else.
-    assert _without_unset_line(current) == base
+    # The output destination has its own test; every other line remains exact.
+    assert _normalise_router_output(_without_unset_line(current)) == (
+        _normalise_router_output(base)
+    )
 
     probed = slurm_mod.generate_router_script(
         site, port=18802, cpus=3, memory="12G", prefix_probe=True
@@ -373,7 +384,9 @@ def test_generated_script_without_the_option_unsets_the_gate_path(tmp_path) -> N
         memory="12G",
         prefix_probe=True,
     )
-    assert _without_unset_line(probed) == probed_base
+    assert _normalise_router_output(_without_unset_line(probed)) == (
+        _normalise_router_output(probed_base)
+    )
 
 
 def test_named_gate_path_is_embedded_in_the_generated_script(tmp_path) -> None:

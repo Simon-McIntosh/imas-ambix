@@ -7,6 +7,7 @@
 #SBATCH --mem=192G
 #SBATCH --time=08:00:00
 #SBATCH --job-name=temporal-op-cycle
+# Create /home/ITER/mcintos/.local/state/ambix/slurm-logs before sbatch.
 #SBATCH --output=/home/ITER/mcintos/.local/state/ambix/slurm-logs/_temporal_operator_cycle_%j.log
 # Full temporal-operator train/gate cycle with the topology-aware training
 # signal: unit tests -> residual-arm sweep (leash x ridge x terminator

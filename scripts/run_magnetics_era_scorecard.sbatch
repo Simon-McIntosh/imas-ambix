@@ -4,6 +4,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
 #SBATCH --time=01:00:00
+# Create /home/ITER/mcintos/.local/state/ambix/slurm-logs before sbatch.
 #SBATCH --output=/home/ITER/mcintos/.local/state/ambix/slurm-logs/_mag_scorecard_%j.log
 
 set -euo pipefail

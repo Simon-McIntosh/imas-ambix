@@ -4533,15 +4533,17 @@ def setup(engine: str, dry_run: bool) -> None:
         return
 
     try:
+        slurm_log_path("", ensure_directory=True)
         job_id = submit_script(script)
-    except RuntimeError as exc:
+    except (OSError, RuntimeError) as exc:
         raise click.ClickException(str(exc)) from exc
     runtime_check_script = _engine_runtime_check_script(
         engine, site, job_id, setup_identity
     )
     try:
+        slurm_log_path("", ensure_directory=True)
         runtime_check_job_id = submit_script(runtime_check_script)
-    except RuntimeError as exc:
+    except (OSError, RuntimeError) as exc:
         raise click.ClickException(
             f"Network install job {job_id} was submitted, but its serving-node "
             f"verification could not be scheduled: {exc}. The environment is not ready."
