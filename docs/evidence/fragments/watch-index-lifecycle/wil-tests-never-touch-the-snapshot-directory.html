@@ -1,0 +1,24 @@
+<section class="evidence-fragment" data-reckon="evidence" id="wil-tests-never-touch-the-snapshot-directory">
+  <header>
+    <h3>Tests keep index snapshots in per-test storage</h3>
+    <p>Implementation commit <code>0367045219c50987bf416fdb2bbf491df1fc6607</code>.</p>
+  </header>
+  <p>Before the change, replacing <code>SNAPSHOT_DIR</code> in memory left all four
+    callable defaults bound to <code>~/.local/state/ambix/index-snapshots</code>.
+    Snapshot, restore, daily scheduling and the worker scheduler now resolve the
+    directory at call time. An autouse fixture assigns each test a separate
+    temporary directory.</p>
+  <table id="wil-tests-never-touch-the-snapshot-directory-measures">
+    <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Ingest command restore and snapshot</td><td>Created one snapshot, removed the local index and receipt, then restored one sample through a second command run. A path guard refused reads or writes under the production snapshot directory.</td></tr>
+      <tr><td>Affected tests</td><td>53 passed in 20.29 s; exit 0.</td></tr>
+      <tr><td>Scheduled retirement bound</td><td>1 passed in 0.91 s under a 30 s command bound; exit 0.</td></tr>
+      <tr><td>Serving interpreter guard</td><td>1 passed, 14 deselected; exit 0.</td></tr>
+      <tr><td>Whole-tree Ruff</td><td>All checks passed; exit 0.</td></tr>
+      <tr><td>Fixture-removal control</td><td>The command test failed with <code>ingest accessed production snapshots: /home/ITER/mcintos/.local/state/ambix/index-snapshots</code>; exit 1 before production I/O.</td></tr>
+    </tbody>
+  </table>
+  <p>Gate and negative-control logs are in
+    <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T093835977451-wil-tests-never-touch-the-snapshot-directory/</code>.</p>
+</section>
