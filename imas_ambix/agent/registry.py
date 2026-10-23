@@ -26,8 +26,80 @@ _LOGGER = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
+    from imas_ambix.agent.profile import SiteServerConfig
+
 _SAFE_JOB_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
 _ROUTER_COMMENT_PREFIX = "ambix-router;"
+
+
+def _short_host(host: str) -> str:
+    """Return a host's short name: the node name without its cluster component.
+
+    The component is dropped only when what follows it still reads as a node
+    name, which needs the second separator: ``98dci4-gpu-0003`` is
+    ``gpu-0003``, while ``gpu-0003`` and ``node-a`` are already short names and
+    come back unchanged.
+    """
+    parts = host.split("-")
+    return "-".join(parts[1:]) if len(parts) >= 3 else host
+
+
+def _engine_id(host: str, port: int) -> str:
+    """Return an engine's identity: its host short name and its port."""
+    return f"{_short_host(host)}:{port}"
+
+
+def _server_index(servers: Sequence[SiteServerConfig]) -> dict[str, str]:
+    """Map every spelling of a declared server onto its declared name.
+
+    A registration may name its server by declaration name or carry only the
+    host it ran on, and the host may be spelled with or without its cluster
+    component, so all three are accepted. The first spelling of a name wins, so
+    a declaration order decides between two servers that share one.
+    """
+    index: dict[str, str] = {}
+    for server in servers:
+        for key in (server.name, server.host, _short_host(server.host)):
+            if key:
+                index.setdefault(key, server.name)
+    return index
+
+
+def _server_key(registration: ServeRegistration, index: dict[str, str]) -> str:
+    """Return the servers-array entry this engine belongs under.
+
+    A registration that names a declared server is grouped under it. Anything
+    else -- a record written before servers had names, or a name this site does
+    not declare -- is grouped under an entry named by the host it ran on, so no
+    engine is dropped from the document for want of a declaration.
+    """
+    for candidate in (registration.server, registration.host):
+        if candidate and candidate in index:
+            return index[candidate]
+    return registration.host
+
+
+def server_for_registration(
+    registration: ServeRegistration, servers: Sequence[SiteServerConfig]
+) -> SiteServerConfig | None:
+    """Return the declared server a registration belongs to, or ``None``.
+
+    This is the one owner of "which declared server is this serve on", because
+    a registration carries several spellings of its placement and a second
+    implementation drifts from it. A registration may name its server by
+    declaration name, or carry only the host it ran on, spelled with or without
+    its cluster component: ``gpu-0004``, ``98dci4-gpu-0004`` and the declared
+    name all resolve to the same server. A name the site does not declare falls
+    back to the host, so renaming a server does not lose the serve running on
+    it, and a host the site does not declare resolves to ``None`` -- the engine
+    is still published, under its host, but there is no declaration to place a
+    replacement on.
+    """
+    key = _server_key(registration, _server_index(servers))
+    for server in servers:
+        if server.name == key:
+            return server
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,7 +113,13 @@ class ServeRegistration:
     accelerator_count: int
     checkpoint_precision: str
     accelerator_family: str
+    server: str = ""
     held: bool = False
+
+    @property
+    def engine_id(self) -> str:
+        """Identity of the engine this allocation serves: host short name and port."""
+        return _engine_id(self.host, self.port)
 
     def __post_init__(self) -> None:
         if not isinstance(self.held, bool):
@@ -58,6 +136,14 @@ class ServeRegistration:
                 raise ValueError(f"{name} must be a non-empty string")
         if not _SAFE_JOB_ID.fullmatch(self.job_id):
             raise ValueError("job_id contains characters unsafe for a record name")
+        # Absent server names are accepted: a record written before a site
+        # declared its servers names no server, and reading it must not fail.
+        if not isinstance(self.server, str):
+            raise ValueError("server must be text")
+        if any(
+            ord(character) < 32 or ord(character) == 127 for character in self.server
+        ):
+            raise ValueError("server contains control characters")
         if not isinstance(self.port, int) or isinstance(self.port, bool):
             raise ValueError("port must be an integer")
         if not 1 <= self.port <= 65535:
@@ -131,6 +217,57 @@ class PublishedEndpoint:
     def origin(self) -> str:
         """Direct HTTP origin for this engine."""
         return f"http://{self.host}:{self.port}"
+
+    @property
+    def engine_id(self) -> str:
+        """Identity of this engine: host short name and port."""
+        return _engine_id(self.host, self.port)
+
+
+@dataclass(frozen=True, slots=True)
+class PublishedServer:
+    """One server and the engines on it, as the document reports them.
+
+    It is the site's declaration rather than a summary of its engines: a
+    declared server appears whether or not anything is running on it, with the
+    accelerators and card count it declares, and an empty ``engines`` list says
+    so. ``accelerator_family`` and ``accelerator_count`` are ``None`` where the
+    site declares neither, which is what an unconfigured site's single entry
+    does: both are properties of the node, an engine is one serve placed on it,
+    and a serve's own family and count are reported on that engine. Neither is
+    filled in from a default or from a serve. ``power_cap_watts`` and
+    ``reservation_groups`` are carried because they are declared here and read
+    from this document, not from the site configuration.
+    """
+
+    name: str
+    host: str
+    accelerator_family: str | None
+    accelerator_count: int | None
+    power_cap_watts: int | None
+    reservation_groups: tuple[str, ...]
+    engines: tuple[str, ...]
+
+
+class EndpointDocument(tuple):
+    """The accepted endpoints, carrying the server grouping they were built from.
+
+    It is a tuple of endpoints so every reader that wants only the engines is
+    unchanged, and it carries the servers array beside them. One builder
+    produces both, because a server grouping computed somewhere else would
+    disagree with the engines it claims to group.
+    """
+
+    servers: tuple[PublishedServer, ...]
+
+    def __new__(
+        cls,
+        endpoints: Sequence[PublishedEndpoint] = (),
+        servers: Sequence[PublishedServer] = (),
+    ) -> EndpointDocument:
+        document = super().__new__(cls, endpoints)
+        document.servers = tuple(servers)
+        return document
 
 
 @dataclass(frozen=True, slots=True)
@@ -326,11 +463,22 @@ def build_endpoint_document(
     registrations: Sequence[ServeRegistration],
     *,
     fetch_catalog: Callable[[str], object],
-) -> tuple[PublishedEndpoint, ...]:
-    """Probe registrations anonymously and retain complete live endpoints."""
+    servers: Sequence[SiteServerConfig] = (),
+) -> EndpointDocument:
+    """Probe registrations anonymously and retain complete live endpoints.
+
+    Two engines serving one model both publish, because that is what a second
+    server is for; what is deduplicated is the engine, so a restarted job on
+    the same engine still replaces its predecessor.
+
+    ``servers`` is the site's declaration, passed in by the caller rather than
+    read from the configuration here: every declared server appears in the
+    document's servers array whether or not an engine is running on it, and the
+    running engines are grouped under the server their registration names.
+    """
     endpoints: list[PublishedEndpoint] = []
-    # model id -> (endpoint, the job id that registered it)
-    seen_models: dict[str, tuple[PublishedEndpoint, str]] = {}
+    # engine id -> (endpoint, the job id that registered it, its server)
+    seen_engines: dict[str, tuple[PublishedEndpoint, str, SiteServerConfig | None]] = {}
     for registration in registrations:
         if registration.held:
             continue
@@ -353,31 +501,100 @@ def build_endpoint_document(
                 error,
             )
             continue
-        prior = seen_models.get(endpoint.model_id)
+        server = server_for_registration(registration, servers)
+        engine = endpoint.engine_id
+        prior = seen_engines.get(engine)
         if prior is not None:
-            previous, previous_job = prior
-            # Two registrations claiming one model id is almost always a dead
+            previous, previous_job, previous_server = prior
+            # Two registrations describing one engine is almost always a dead
             # job whose successor took the port it released: both probe the one
             # live serve, so both look current. Resolve to the later job rather
             # than refusing, and never abort the build -- raising here empties
-            # the document for EVERY model, so one stale file takes the whole
+            # the document for EVERY engine, so one stale file takes the whole
             # routing lane down while the serve it names is answering.
             newer = registration.job_id > previous_job
             keep = endpoint if newer else previous
             keep_job = registration.job_id if newer else previous_job
+            keep_server = server if newer else previous_server
             _LOGGER.warning(
-                "duplicate registrations publish %s at %s and %s; keeping job %s",
-                endpoint.model_id,
+                "duplicate registrations publish engine %s at %s and %s; "
+                "keeping job %s",
+                engine,
                 previous.origin,
                 endpoint.origin,
                 keep_job,
             )
             endpoints[endpoints.index(previous)] = keep
-            seen_models[endpoint.model_id] = (keep, keep_job)
+            seen_engines[engine] = (keep, keep_job, keep_server)
             continue
         endpoints.append(endpoint)
-        seen_models[endpoint.model_id] = (endpoint, registration.job_id)
-    return tuple(sorted(endpoints, key=lambda endpoint: endpoint.model_id))
+        seen_engines[engine] = (endpoint, registration.job_id, server)
+    ordered = tuple(
+        sorted(endpoints, key=lambda endpoint: (endpoint.model_id, endpoint.engine_id))
+    )
+    return EndpointDocument(
+        ordered, _published_servers(ordered, seen_engines, servers)
+    )
+
+
+def _published_servers(
+    endpoints: Sequence[PublishedEndpoint],
+    seen_engines: dict[str, tuple[PublishedEndpoint, str, SiteServerConfig | None]],
+    servers: Sequence[SiteServerConfig],
+) -> tuple[PublishedServer, ...]:
+    """Report every declared server, with the engines grouped under each.
+
+    The declaration is the authority for a declared server's host, accelerator
+    family and card count: a serve may take fewer cards than its node has, so
+    an engine is not a reading of the node it places on, and neither is any
+    other engine. A family and a card count are published only where the site
+    declares them; otherwise they are unknown, and the engine's own values stay
+    on that engine's endpoint rather than being promoted to statements about
+    the node.
+
+    A server the site does not declare still appears, under the host its
+    registration ran on, so an engine is never dropped from the document for
+    want of a declaration. Nothing declares that host, so its family and count
+    are unknown too, for the same reason. Declared servers keep declaration
+    order and the remaining entries follow, sorted by name.
+    """
+    grouped: dict[str, list[PublishedEndpoint]] = {}
+    for endpoint in endpoints:
+        server = seen_engines[endpoint.engine_id][2]
+        # An engine with no declared server groups under the host it ran on,
+        # which is the name its own row carries below.
+        name = server.name if server is not None else endpoint.host
+        grouped.setdefault(name, []).append(endpoint)
+    published: list[PublishedServer] = []
+    for server in servers:
+        engines = sorted(grouped.get(server.name, ()), key=lambda item: item.engine_id)
+        published.append(
+            PublishedServer(
+                name=server.name,
+                host=server.host,
+                accelerator_family=server.accelerator_family,
+                accelerator_count=server.accelerator_count,
+                power_cap_watts=server.power_cap_watts,
+                reservation_groups=tuple(server.reservation_groups),
+                engines=tuple(endpoint.engine_id for endpoint in engines),
+            )
+        )
+    declared_names = {server.name for server in servers}
+    for name in sorted(set(grouped) - declared_names):
+        engines = sorted(grouped[name], key=lambda item: item.engine_id)
+        first = engines[0]
+        published.append(
+            PublishedServer(
+                name=name,
+                host=first.host,
+                accelerator_family=None,
+                accelerator_count=None,
+                power_cap_watts=None,
+                reservation_groups=(),
+                engines=tuple(endpoint.engine_id for endpoint in engines),
+            )
+        )
+    return tuple(published)
 
 
 def write_endpoint_document(
@@ -401,6 +618,9 @@ def write_endpoint_document(
         {
             "endpoints": [asdict(endpoint) for endpoint in endpoints],
             "routing_origins": [asdict(origin) for origin in routing_origins],
+            "servers": [
+                asdict(server) for server in getattr(endpoints, "servers", ())
+            ],
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -449,9 +669,11 @@ def read_endpoint_document(path: str | Path) -> tuple[PublishedEndpoint, ...]:
         ) from error
     if not endpoints:
         raise ValueError("endpoint document contains no endpoints")
-    model_ids = [endpoint.model_id for endpoint in endpoints]
-    if len(model_ids) != len(set(model_ids)):
-        raise ValueError("endpoint document repeats a model id")
+    # Engines are unique; model ids are not, because a pool of more than one
+    # engine repeats its model id by design.
+    engine_ids = [endpoint.engine_id for endpoint in endpoints]
+    if len(engine_ids) != len(set(engine_ids)):
+        raise ValueError("endpoint document repeats an engine")
     return endpoints
 
 
@@ -460,11 +682,14 @@ def publish_endpoint_document(
     path: str | Path,
     *,
     fetch_catalog: Callable[[str], object],
+    servers: Sequence[SiteServerConfig] = (),
     routing_origins: Sequence[PublishedOrigin] = (),
 ) -> Path:
     """Build and atomically write the current anonymous endpoint document."""
     return write_endpoint_document(
-        build_endpoint_document(registrations, fetch_catalog=fetch_catalog),
+        build_endpoint_document(
+            registrations, fetch_catalog=fetch_catalog, servers=servers
+        ),
         path,
         routing_origins=routing_origins,
     )
@@ -549,6 +774,7 @@ def _parser() -> argparse.ArgumentParser:
     write.add_argument("--accelerator-count", required=True, type=int)
     write.add_argument("--checkpoint-precision", required=True)
     write.add_argument("--accelerator-family", required=True)
+    write.add_argument("--server", default="")
     write.add_argument("--held", action="store_true")
     release = subparsers.add_parser("release")
     release.add_argument("--directory", required=True)
@@ -575,6 +801,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 accelerator_count=args.accelerator_count,
                 checkpoint_precision=args.checkpoint_precision,
                 accelerator_family=args.accelerator_family,
+                server=args.server,
                 held=args.held,
             ),
             args.directory,
@@ -603,7 +830,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             directory, job_is_running=job_is_running
         ).current
         endpoints = build_endpoint_document(
-            registrations, fetch_catalog=_fetch_anonymous_catalog
+            registrations,
+            fetch_catalog=_fetch_anonymous_catalog,
+            servers=site.declared_servers,
         )
         write_endpoint_document(
             endpoints,

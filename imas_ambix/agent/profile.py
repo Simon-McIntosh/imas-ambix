@@ -10,6 +10,7 @@ separately via environment variables — see :class:`SiteConfig`.
 
 from __future__ import annotations
 
+import json
 import os
 import tomllib
 from importlib import resources
@@ -475,6 +476,10 @@ def _default_endpoint_document_path() -> str:
 # over it.
 GATE_CONTROL_PATH_ENV = "AMBIX_AGENT_GATE_CONTROL_PATH"
 
+# The declared servers, as a JSON array of server objects. Unset means the
+# flat site fields above are the whole site.
+SERVERS_ENV = "AMBIX_AGENT_SERVERS"
+
 
 def _default_gate_control_path(base_dir: str) -> str:
     """Return the group control file path under the project base.
@@ -485,6 +490,55 @@ def _default_gate_control_path(base_dir: str) -> str:
     from imas_ambix.agent.router import GATE_FILENAME
 
     return str(Path(base_dir) / "agents" / "control" / GATE_FILENAME)
+
+
+def _servers_from_env() -> list[SiteServerConfig]:
+    """Parse the declared server list, refusing a value that is not a list.
+
+    Configuration is operator input, so a malformed declaration stops the
+    launch rather than falling back to the flat fields: silently serving from
+    a partition nobody asked for is worse than refusing to serve at all.
+    """
+    raw = os.environ.get(SERVERS_ENV)
+    if raw is None or not raw.strip():
+        return []
+    parsed = json.loads(raw)
+    if not isinstance(parsed, list):
+        raise ValueError(f"{SERVERS_ENV} must be a JSON array of server objects")
+    return [SiteServerConfig(**entry) for entry in parsed]
+
+
+class SiteServerConfig(BaseModel):
+    """One physical serving server declared by the site.
+
+    A server is the host whose cards, power, SLURM jobs and recorder share one
+    identity; an engine is one serve on it. A site that declares no servers
+    resolves to exactly one, synthesized from the flat site fields for the host
+    they already describe, so an existing configuration is unchanged.
+    """
+
+    name: str
+    host: str
+    partition: str
+    account: str
+    reservation: str = ""
+    # The family a site declares for a server, and None where it declares none.
+    # Unset means unknown rather than a default: the flat fields carry no
+    # family, so an unconfigured site's single entry declares none and the
+    # document publishes null, exactly as it does for an undeclared card count.
+    # A serve still records the family of the cards it runs on in its own
+    # registration, which is where that reading belongs.
+    accelerator_family: str | None = None
+    accelerator_count: int | None = Field(default=None, ge=1)
+    power_cap_watts: int | None = Field(default=None, ge=1)
+    reservation_groups: tuple[str, ...] = ()
+
+    @field_validator("name", "host", "partition", "account")
+    @classmethod
+    def _require_text(cls, value: object) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("server declarations must be non-empty text")
+        return value.strip()
 
 
 class SiteConfig(BaseModel):
@@ -509,6 +563,10 @@ class SiteConfig(BaseModel):
     gpu_host: str = "98dci4-gpu-0003"
     global_origin: str = "http://98dci4-gpu-0003:18800"
     endpoint_document_path: str = Field(default_factory=_default_endpoint_document_path)
+    # The servers a site declares. Empty means the flat partition, account,
+    # reservation and gpu_host above are the single server, which is what keeps
+    # a configuration written before sites could hold more than one working.
+    servers: list[SiteServerConfig] = Field(default_factory=list)
     preferred_release_id: str | None = None
     # Control lives in the group-owned directory beside the model store, not in
     # the personal public directory the lane document is published from. The
@@ -612,6 +670,7 @@ class SiteConfig(BaseModel):
             endpoint_document_path=os.environ.get(
                 "AMBIX_AGENT_ENDPOINT_DOCUMENT", _default_endpoint_document_path()
             ),
+            servers=_servers_from_env(),
             preferred_release_id=os.environ.get("AMBIX_AGENT_PREFERRED_RELEASE"),
             **gate_override,
         )
@@ -620,6 +679,48 @@ class SiteConfig(BaseModel):
     def endpoint_document(self) -> Path:
         """Public document from which standalone launchers discover engines."""
         return Path(self.endpoint_document_path).expanduser()
+
+    @property
+    def declared_servers(self) -> tuple[SiteServerConfig, ...]:
+        """The site's servers; the flat fields stand in when none is declared.
+
+        The flat fields name a host, a partition, the account and the
+        reservation, and nothing about the cards, so the stand-in server
+        declares no accelerator family and no card count. A caller that needs
+        the family of the cards an engine runs on reads it from that engine's
+        registration; a document that needs the node's reads nothing, because
+        this site did not say, and states the value as unknown.
+        """
+        if self.servers:
+            return tuple(self.servers)
+        return (
+            SiteServerConfig(
+                name=self.gpu_host,
+                host=self.gpu_host,
+                partition=self.partition,
+                account=self.account,
+                reservation=self.reservation,
+            ),
+        )
+
+    def resolve_server(self, name: str | None = None) -> SiteServerConfig:
+        """Resolve a server by name, or the sole default server when unnamed.
+
+        A name that no declaration matches is refused here rather than being
+        carried to a script that would request a partition, account and
+        reservation nobody declared. The refusal names the declared servers,
+        because the caller's next move is to write one.
+        """
+        servers = self.declared_servers
+        if name is None:
+            return servers[0]
+        for server in servers:
+            if server.name == name:
+                return server
+        declared = ", ".join(server.name for server in servers)
+        raise ValueError(
+            f"undeclared server {name!r}; this site declares: {declared}"
+        )
 
     def _engine_key(self, engine_type: str) -> str:
         """Map engine type to venv directory name.

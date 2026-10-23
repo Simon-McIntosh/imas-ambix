@@ -1,0 +1,199 @@
+<section id="servers-declared-once">
+  <h2>A site declares its servers once, and the document lists each one</h2>
+  <p>Work at <code>12bf8d57</code>, node servers-declared-once. A site could
+  describe exactly one GPU host: every partition, account and reservation came
+  from flat fields, so a second host could not be expressed at all, and the
+  endpoint document had no way to say which host an engine ran on.</p>
+  <p><strong>Declarations.</strong> <code>SiteConfig</code> gains a
+  <code>servers</code> list (<code>SiteServerConfig</code>): name, host, SLURM
+  partition, account and reservation, accelerator family and card count, the
+  per-card power cap, and the reservation groups the job table labels. A site
+  that declares none resolves to a single entry built from its flat fields
+  (<code>SiteConfig.declared_servers</code>), so nothing an existing
+  configuration does changes. <code>AMBIX_AGENT_SERVERS</code> carries the list
+  as JSON for a site configured by environment.</p>
+  <p><strong>Placement.</strong> <code>imas-ambix agent serve &lt;profile&gt;
+  --server &lt;name&gt;</code> resolves the name through
+  <code>SiteConfig.resolve_server</code> and generates the script for that
+  server's partition, account and reservation. A name no declaration matches
+  raises before any script is generated, naming the servers the site does
+  declare, because the alternative is a job requesting a partition, account and
+  reservation nobody configured. The generated script records the placement
+  (<code>registry write --server &lt;name&gt;</code>) only when the site
+  declares servers; an unconfigured site writes no such flag, which is what
+  keeps its script byte-identical. The accelerator family a serve registers
+  follows its placement rather than a module constant.</p>
+  <p><strong>A replacement keeps the placement it is replacing.</strong>
+  <code>restart</code> and <code>agent key --rotate</code> regenerate a serve's
+  script, and both now resolve the server from the running serve's registration
+  — the server name it recorded, else the declared server whose host it ran on
+  — and pass it through. Generating from the site instead would resolve the
+  first server's partition, account and reservation for a serve running on the
+  second, moving the replacement off the node it was running on; on a site
+  whose servers carry their own reservations, the replacement would not be
+  admitted where the job it replaces was. The placement is read before the old
+  job is cancelled. A registration that names no server the site still declares
+  falls back to its recorded host, so renaming a server does not move a serve.</p>
+  <p><strong>One owner resolves a placement, and it is the registry's.</strong>
+  A registration spells its placement in more than one way — the declared name,
+  the host, the host without its cluster component — and
+  <code>registry.server_for_registration</code> resolves all of them onto the
+  declared server, built on the same index the document's servers array groups
+  engines with. The document builder and the placement helper both call it.
+  A second comparison beside the CLI's call sites drifted the moment it met a
+  spelling it did not anticipate: stripping the first dot component matches
+  neither <code>gpu-0004</code> against a declared
+  <code>98dci4-gpu-0004</code> nor the reverse, so a serve running there read as
+  unplaced and a restart would have moved it to the site's first server.</p>
+  <p><strong>The document.</strong> <code>registry.build_endpoint_document</code>
+  — the document's existing owner, so the grouping cannot disagree with the
+  engines it groups — now returns the endpoints plus a <code>servers</code>
+  array, and the caller passes the site's declared servers into it rather than
+  the registry reading site configuration itself.
+  <code>endpoints.json</code> carries the array beside <code>endpoints</code>
+  and <code>routing_origins</code>.</p>
+  <p><strong>Each declared server is a row, engines or none.</strong> The array
+  is the site's declaration, not a summary of what is running: every declared
+  server appears with its name, host, accelerator family and card count as
+  declared, plus the power cap and reservation groups, and an
+  <code>engines</code> list that is empty when nothing runs there. A reader that
+  renders the site's servers therefore shows an idle server as idle instead of
+  omitting it, which reads the same as a server nobody declared. Running engines
+  are grouped under the server their registration named, and an engine whose
+  registration names no declared server falls under an entry named by its host,
+  so nothing is dropped for want of a declaration.</p>
+  <p><strong>The card count and the accelerator family are the node's, not the
+  serve's, and are published only where the site declares them.</strong> A serve
+  may take fewer cards than its node has, so deriving the count from an
+  eight-card engine would publish a four-card node wherever a four-card serve
+  ran; and a family filled in from a declaration default states, as a property
+  of a server, a fact nobody wrote down. Nothing an engine reports is a
+  statement about its node and no unset field is, so no declaration means
+  <code>null</code>: an unconfigured site's single entry declares neither, its
+  document entry carries <code>accelerator_count: null</code> and
+  <code>accelerator_family: null</code>, and the node's real card count comes
+  from the hardware probe. A server the site does not declare at all is in the
+  same position, so its entry carries <code>null</code> for both as well. Each
+  engine's own values stay on its endpoint, where they belong.</p>
+  <p>A serve still records the family of the cards it runs on, because routing
+  reads topology from the registration and the engine's catalogue middleware
+  requires a label. That value is the placement's family where the site
+  declares one, and otherwise the launch's own statement of this site's
+  hardware (<code>slurm._SITE_ENGINE_ACCELERATOR_FAMILY</code>) — never the
+  declaration class default, which would silently answer for a site that
+  declares nothing and would keep answering after a card change. A second
+  server of another family therefore registers under its own family, and an
+  unconfigured site's script is unchanged byte for byte.</p>
+  <p><strong>The deduplication key moves from the model id to the engine id
+  (<code>&lt;host short name&gt;:&lt;port&gt;</code>).</strong> Two engines
+  serving one model are two engines and now both appear in
+  <code>endpoints</code> and in their server's engine list, so a second serve of
+  a release is capacity instead of a replacement. A restarted job keeps its
+  predecessor's engine and still supersedes it, which is what the model-id key
+  was there to do. A host short name drops the cluster component only when a
+  node name remains after it, so <code>98dci4-gpu-0003</code> is
+  <code>gpu-0003</code> while <code>gpu-0003</code> is itself.</p>
+  <p>Two tests in the gate files were stale against landings that preceded this
+  work (the publish fixtures supplied scheduler rows with no <code>jobid</code>
+  and one with two fields where the parser reads seven or eight; a registry test
+  gave two live registrations different ports while asserting the shared-port
+  behaviour its own docstring describes). They are repaired here rather than
+  triaged, since the gate measures this change and the files are in this node's
+  scope.</p>
+  <table id="servers-declared-once-gate">
+    <caption>Gate, run in place on the fleet node (98dci4-clu-2068, job
+    1291586). Full output: <code>gate.log</code> in the run directory.</caption>
+    <thead><tr><th>Measure</th><th>Recorded result</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code>pytest tests/test_agent_serve_registry.py
+        tests/test_agent_endpoint_discovery.py
+        tests/test_agent_site_servers.py</code></td>
+        <td>49 passed, <code>EXIT=0</code></td>
+      </tr>
+      <tr>
+        <td><code>ruff check imas_ambix tests</code></td>
+        <td>All checks passed, <code>EXIT=0</code></td>
+      </tr>
+      <tr>
+        <td>No servers configured: serve <code>--dry-run</code> script for
+        <code>deepseek-v4-1-flash</code></td>
+        <td>sha256 of the checkout-root-normalised script equals the base
+        revision's: <code>d83d58cb79e1801b…</code></td>
+      </tr>
+    </tbody>
+  </table>
+  <table id="servers-declared-once-controls">
+    <caption>Negative controls. Each mutation was applied to the tree, measured,
+    then reverted; <code>EXIT</code> is pytest's own.</caption>
+    <thead><tr><th>Mutation</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Deduplicate on the model id again
+        (<code>registry.build_endpoint_document</code>)</td>
+        <td><code>FAILED
+        tests/test_agent_serve_registry.py::test_two_engines_serving_one_model_both_stay_addressable</code>,
+        <code>EXIT=1</code>; one engine published where two were declared</td>
+      </tr>
+      <tr>
+        <td>Drop the declared-server check
+        (<code>profile.SiteConfig.resolve_server</code>)</td>
+        <td><code>FAILED
+        tests/test_agent_site_servers.py::test_serve_refuses_a_server_that_no_declaration_names</code>,
+        <code>EXIT=1</code>; <code>--server gpu-9999</code> exited 0 and wrote a
+        script</td>
+      </tr>
+      <tr>
+        <td>Derive a declared server's card count from its first engine again
+        (<code>registry._published_servers</code>)</td>
+        <td><code>FAILED
+        tests/test_agent_site_servers.py::test_a_servers_card_count_comes_from_its_declaration</code>
+        and <code>::test_a_declared_server_with_no_engine_is_still_listed</code>,
+        <code>EXIT=1</code>; an eight-card node with a four-card serve was
+        published as four cards, an idle node as <code>null</code></td>
+      </tr>
+      <tr>
+        <td>Let a declaration that states no card count take its first engine's
+        count (<code>registry._published_servers</code>)</td>
+        <td><code>FAILED
+        tests/test_agent_site_servers.py::test_a_server_declared_without_a_card_count_publishes_none</code>,
+        <code>EXIT=1</code>; <code>assert 4 is None</code> — an undeclared count
+        was filled in from the serve</td>
+      </tr>
+      <tr>
+        <td>Put the declaration class default back for a server's accelerator
+        family (<code>SiteServerConfig.accelerator_family</code>)</td>
+        <td><code>FAILED
+        tests/test_agent_site_servers.py::test_a_server_declared_without_an_accelerator_family_publishes_none</code>,
+        <code>EXIT=1</code>; <code>assert 'H200' is None</code> — a server that
+        declares no family published the default</td>
+      </tr>
+      <tr>
+        <td>Let the CLI compare hosts itself again instead of resolving through
+        the registry (<code>cli._placement_of_running_serve</code>)</td>
+        <td><code>FAILED
+        tests/test_agent_site_servers.py::test_a_registration_naming_the_short_host_still_resolves_its_server</code>,
+        <code>EXIT=1</code>; the serve read as unplaced and the restart carried
+        the first server's <code>betelgeuse</code> partition</td>
+      </tr>
+      <tr>
+        <td>Drop the <code>server</code> argument at the restart call so
+        <code>slurm.generate_serve_script</code> falls back to
+        <code>site.declared_servers[0]</code> (<code>cli.restart</code>)</td>
+        <td><code>FAILED
+        tests/test_agent_site_servers.py::test_restart_keeps_a_serve_on_the_server_it_runs_on</code>,
+        <code>EXIT=1</code>; the replacement carried the first server's
+        <code>betelgeuse</code> partition</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>Two declared fields have no consumer inside the package yet:
+  <code>SiteServerConfig.power_cap_watts</code> and
+  <code>reservation_groups</code> are declarations the job table and gpu-watch
+  read from the document and the site configuration, which is work outside this
+  section. <code>accelerator_count</code> is deliberately not wired into the
+  launch topology: the static engine catalog would then disagree with the
+  runtime registration's <code>--accelerator-count</code>, and the document
+  builder refuses an endpoint whose catalog contradicts its registration, so
+  wiring it here would drop the endpoint rather than describe it.</p>
+</section>

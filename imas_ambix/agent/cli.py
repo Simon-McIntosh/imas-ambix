@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from typing import TextIO
 
     from imas_ambix.agent.bench import BenchReport
+    from imas_ambix.agent.profile import SiteServerConfig
     from imas_ambix.agent.router import Upstream
     from imas_ambix.agent.telemetry_ingest import TickReport
 
@@ -531,6 +532,13 @@ def download(
     "readable only inside one storage group would lock consumers out of it.",
 )
 @click.option(
+    "--server",
+    "server",
+    default=None,
+    help="Name of the declared server to place this serve on. A site that "
+    "declares no servers has one, named by its configured GPU host.",
+)
+@click.option(
     "--gpus",
     type=int,
     default=None,
@@ -581,6 +589,7 @@ def serve(
     port: int | None,
     api_key: str | None,
     auth: bool,
+    server: str | None,
     gpus: int | None,
     cpus: int | None,
     no_speculative: bool,
@@ -621,8 +630,19 @@ def serve(
         else site.default_port
     )
     resolved_key = _resolve_serve_auth(auth, api_key, site)
+    # Place on the declared server before anything is generated or submitted: a
+    # name no declaration matches must stop the launch rather than place a
+    # serve on a partition, account and reservation nobody asked for.
+    try:
+        placement = site.resolve_server(server)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
     script = generate_serve_script(
-        profile, site, port=resolved_port, api_key=resolved_key
+        profile,
+        site,
+        port=resolved_port,
+        api_key=resolved_key,
+        server=placement,
     )
 
     if dry_run:
@@ -1183,7 +1203,9 @@ def _republish_endpoint_document(site: SiteConfig) -> Path | None:
             job_is_running=lambda _job_id: True,
         ).current
         endpoints = build_endpoint_document(
-            registrations, fetch_catalog=_fetch_anonymous_catalog
+            registrations,
+            fetch_catalog=_fetch_anonymous_catalog,
+            servers=site.declared_servers,
         )
         return write_endpoint_document(
             endpoints,
@@ -1290,6 +1312,43 @@ def _profile_jobs(site: SiteConfig, slug: str) -> list[dict[str, str]]:
         for job in _running_jobs(site)
         if job["name"] == slug and job["state"] in {"RUNNING", "PENDING"}
     ]
+
+
+def _placement_of_running_serve(
+    site: SiteConfig, job_id: str | None
+) -> SiteServerConfig | None:
+    """The declared server a running serve sits on, or ``None`` when unknown.
+
+    A replacement serve belongs where the serve it replaces was. Resolving the
+    placement from the site instead would answer a different question -- the
+    server the site lists first -- and move a serve running on the second
+    server onto the first, or refuse to start at all once the first server's
+    reservation is not the one the job was admitted under.
+
+    The registration is where a serve's placement is recorded, and it carries
+    every spelling of it: the server name when the serve was placed on a
+    declared server, and the host the job ran on, with or without the cluster
+    component. Resolving those belongs to the registry, which already resolves
+    them for the document's servers array, so this reads the registration and
+    asks it -- a second comparison here would answer differently the moment the
+    spellings reached it in a form it did not anticipate.
+    """
+    if job_id is None or not site.servers:
+        return None
+    from imas_ambix.agent.registry import (
+        read_registrations,
+        registration_directory,
+        server_for_registration,
+    )
+
+    records = read_registrations(
+        registration_directory(site.base_dir),
+        job_is_running=lambda _job_id: True,
+    ).current
+    record = next((item for item in records if item.job_id == job_id), None)
+    if record is None:
+        return None
+    return server_for_registration(record, site.servers)
 
 
 def _serving_slugs(site: SiteConfig) -> set[str]:
@@ -2000,6 +2059,11 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
 
     # Cancel active serve jobs selected through the shared profile filter.
     targets = [job["jobid"] for job in _profile_jobs(site, profile.slug)]
+    # Read the placement before cancelling: the replacement goes back where the
+    # serve being replaced sits, not onto whichever server the site lists first.
+    placement = _placement_of_running_serve(
+        site, targets[0] if targets else None
+    )
 
     if targets:
         console.print(f"Cancelling {len(targets)} active job(s): " + ", ".join(targets))
@@ -2022,7 +2086,9 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
         console.print("[green]Old job(s) cancelled.[/]")
 
     # Submit new serve job with the new key
-    script = generate_serve_script(profile, site, port=port, api_key=token)
+    script = generate_serve_script(
+        profile, site, port=port, api_key=token, server=placement
+    )
     try:
         job_id = submit_script(script)
     except RuntimeError as exc:
@@ -2333,8 +2399,11 @@ def restart(
         raise click.ClickException(
             f"matching serve job {old_job['jobid']} is not RUNNING"
         )
+    placement = _placement_of_running_serve(
+        site, old_job["jobid"] if old_job is not None else None
+    )
     pause_script = generate_serve_script(
-        profile, site, port=resolved_port, api_key=resolved_key
+        profile, site, port=resolved_port, api_key=resolved_key, server=placement
     )
     if dry_run:
         console.print(
@@ -2357,7 +2426,12 @@ def restart(
     if selected_mode == "overlap":
         resolved_port = _overlap_port(site, old_job, resolved_port)
         script = generate_serve_script(
-            profile, site, port=resolved_port, api_key=resolved_key, held=True
+            profile,
+            site,
+            port=resolved_port,
+            api_key=resolved_key,
+            held=True,
+            server=placement,
         )
     _execute_restart_cycle(
         profile,
