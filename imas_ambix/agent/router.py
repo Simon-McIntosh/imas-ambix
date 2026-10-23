@@ -2074,7 +2074,7 @@ class RouterApp:
     @staticmethod
     def _request_identity(
         scope: Mapping[str, Any],
-    ) -> tuple[str | None, str | None]:
+    ) -> tuple[str | None, str | None, str | None, str | None]:
         """The run id, session, account and project the request declared.
 
         The same reader the receipt uses, called once at admission so the run's
