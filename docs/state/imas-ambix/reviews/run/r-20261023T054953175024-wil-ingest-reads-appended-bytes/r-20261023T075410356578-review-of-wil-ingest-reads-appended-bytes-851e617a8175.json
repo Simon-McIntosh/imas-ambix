@@ -1,0 +1,60 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed manifest records no baseline_suite and no after_suite JSON, so no paired arm is filed there; the run's own logs supply both. lazy-open-baseline.log runs the new test at revision 5ef2f87419b38d164225c720d9990ad5106ec956+new-test and reports 1 failed (tests/test_telemetry_index.py::test_opening_writer_does_not_read_closed_verified_sources), EXIT=1. The completed head arm lazy-named-gate.log runs at 8e2a5396, whose telemetry_index.py and test file are byte-identical to reviewed head 851e617a (sha256 715be726... and 543b0a96...), and reports 98 passed, EXIT=0, no failing ids. added_failure_count is therefore 0: the change removes a failure and adds none.",
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/telemetry_ingest.py:361 index.ingest(discovered) each tick, imas_ambix/agent/telemetry_ingest.py:527 TelemetryIndex(args.index_path), imas_ambix/agent/cli.py:3383 TelemetryIndex(resolved_index), imas_ambix/agent/watch.py:1311 TelemetryIndex.readonly(target, timeout=timeout), imas_ambix/agent/watch.py:1437 TelemetryIndex.readonly(target, timeout=timeout)"
+  ],
+  "completed_at": "2026-10-23T08:13:03.578Z",
+  "dispatched_at": "2026-10-23T07:55:18Z",
+  "failure_evidence": {
+    "head_gate_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T054953175024-wil-ingest-reads-appended-bytes/lazy-named-gate.log",
+    "mutation_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T054953175024-wil-ingest-reads-appended-bytes/lazy-negative-control.log",
+    "pre_repair_arm_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T054953175024-wil-ingest-reads-appended-bytes/lazy-open-baseline.log",
+    "ruff_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T054953175024-wil-ingest-reads-appended-bytes/lazy-ruff.log",
+    "serving_guard_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T054953175024-wil-ingest-reads-appended-bytes/lazy-serving-guard.log"
+  },
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "36",
+      "severity": "follow-on",
+      "text": "follow-on: the module docstring still reads \"A new process seeds each existing source's hash before its first tick\", which is the eager seeding this commit deleted, so the file's primary statement of its read-cost contract now contradicts its own code and the evidence fragment the same commit updates to \"the first changed tick in a process reads the whole committed prefix once\". This is the same docstring/condition drift the prior review raised at :1383 and which this change repaired in _tier_has_no_row, left standing here."
+    }
+  ],
+  "item_verdicts": {
+    "call_sites": "CALL_SITES: imas_ambix/agent/telemetry_ingest.py:361 index.ingest(discovered) each tick, imas_ambix/agent/telemetry_ingest.py:527 TelemetryIndex(args.index_path), imas_ambix/agent/cli.py:3383 TelemetryIndex(resolved_index), imas_ambix/agent/watch.py:1311 TelemetryIndex.readonly(target, timeout=timeout), imas_ambix/agent/watch.py:1437 TelemetryIndex.readonly(target, timeout=timeout)",
+    "diff": "VERDICT diff: read commit by commit against 5ef2f874: 8e2a5396 removes _seed_hashes, _unverified_sources and the dead _digest_of and repairs the three prior follow-ons, and 851e617a changes only the evidence fragment.",
+    "done_when": "VERDICT done_when: prompt.txt's FENCE-EVIDENCE line names the three test files, the serving-interpreter guard and ruff; the manifest records lazy-named-gate.log (98 passed, EXIT=0), lazy-serving-guard.log (1 passed) and lazy-ruff.log (EXIT=0), the byte bound is asserted at tests/test_telemetry_index.py:1500, :1518 and :1531, and the independent prefix digest at :1506, :1524 and :1537.",
+    "goal": "VERDICT goal: the node goal (prompt.txt:30) is to make an ingest tick read only the bytes appended to a grown receipt file plus a bounded identity probe; the landed change deletes the constructor's _seed_hashes() call (imas_ambix/agent/telemetry_index.py:911) so opening the writer reads no receipt bytes, and _was_rewritten (imas_ambix/agent/telemetry_index.py:1465) rebuilds a source's whole-prefix hash on its first changed tick.",
+    "manifest": "VERDICT manifest: manifest.md reads status: complete, names the nine commits and four gate logs, records the lazy-negative-control.log mutation (4 opens, 969,850 bytes) and leaves baseline_suite and after_suite empty.",
+    "write_paths": "VERDICT write_paths: prompt.txt:69-73 grants imas_ambix/agent/telemetry_index.py, tests/test_telemetry_index.py and the landing fragment; git diff --name-status 5ef2f874 851e617a lists exactly those three paths and no figure directory."
+  },
+  "justifications": {
+    "durability": "SCORE durability: 19\nJUSTIFICATION durability: tests/test_telemetry_index.py:1448 is a positive control proving the new open counter observes a known read, and lazy-negative-control.log reddens tests/test_telemetry_index.py:1452 with EXIT=1 when the constructor seeding is restored, so the guard is falsified rather than merely green.",
+    "evidence": "SCORE evidence: 18\nJUSTIFICATION evidence: lazy-named-gate.log records 98 passed and EXIT=0 at 8e2a5396, whose imas_ambix/agent/telemetry_index.py and tests/test_telemetry_index.py are byte-identical to reviewed head 851e617a, and the run's own lazy-open-baseline.log (1 failed) and lazy-negative-control.log (1 failed) supply the two arms the empty baseline_suite and after_suite fields omit.",
+    "fit": "SCORE fit: 15\nJUSTIFICATION fit: the change keeps the module's docstring-and-dataclass idiom and removes the dead _digest_of, but leaves the module docstring at imas_ambix/agent/telemetry_index.py:36 asserting a seeding step it deleted.",
+    "goal_fidelity": "SCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/telemetry_index.py:911 no longer seeds at construction and imas_ambix/agent/telemetry_index.py:1465 rebuilds one hash per changed source per process, so an unchanged tick opens nothing.",
+    "reuse": "SCORE reuse: 20\nJUSTIFICATION reuse: the commit adds no definition and deletes _digest_of, a thin wrapper over _hash_of at imas_ambix/agent/telemetry_index.py:1871; a capability search over imas_ambix/agent found no other owner of bounded source-identity probing.",
+    "scope_discipline": "SCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-status 5ef2f874 851e617a changes only imas_ambix/agent/telemetry_index.py, tests/test_telemetry_index.py and docs/evidence/fragments/watch-index-lifecycle/wil-ingest-reads-appended-bytes.html, all inside the prompt.txt:69-73 grants."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal (prompt.txt:30) is to make an ingest tick read only the bytes appended to a grown receipt file plus a bounded identity probe; the landed change deletes the constructor's _seed_hashes() call (imas_ambix/agent/telemetry_index.py:911) so opening the writer reads no receipt bytes, and _was_rewritten (imas_ambix/agent/telemetry_index.py:1465) rebuilds a source's whole-prefix hash on its first changed tick.\nVERDICT done_when: prompt.txt's FENCE-EVIDENCE line names the three test files, the serving-interpreter guard and ruff; the manifest records lazy-named-gate.log (98 passed, EXIT=0), lazy-serving-guard.log (1 passed) and lazy-ruff.log (EXIT=0), the byte bound is asserted at tests/test_telemetry_index.py:1500, :1518 and :1531, and the independent prefix digest at :1506, :1524 and :1537.\nVERDICT write_paths: prompt.txt:69-73 grants imas_ambix/agent/telemetry_index.py, tests/test_telemetry_index.py and the landing fragment; git diff --name-status 5ef2f874 851e617a lists exactly those three paths and no figure directory.\nVERDICT manifest: manifest.md reads status: complete, names the nine commits and four gate logs, records the lazy-negative-control.log mutation (4 opens, 969,850 bytes) and leaves baseline_suite and after_suite empty.\nVERDICT diff: read commit by commit against 5ef2f874: 8e2a5396 removes _seed_hashes, _unverified_sources and the dead _digest_of and repairs the three prior follow-ons, and 851e617a changes only the evidence fragment.\nCALL_SITES: imas_ambix/agent/telemetry_ingest.py:361 index.ingest(discovered) each tick, imas_ambix/agent/telemetry_ingest.py:527 TelemetryIndex(args.index_path), imas_ambix/agent/cli.py:3383 TelemetryIndex(resolved_index), imas_ambix/agent/watch.py:1311 TelemetryIndex.readonly(target, timeout=timeout), imas_ambix/agent/watch.py:1437 TelemetryIndex.readonly(target, timeout=timeout)\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/telemetry_index.py:911 no longer seeds at construction and imas_ambix/agent/telemetry_index.py:1465 rebuilds one hash per changed source per process, so an unchanged tick opens nothing.\nSCORE evidence: 18\nJUSTIFICATION evidence: lazy-named-gate.log records 98 passed and EXIT=0 at 8e2a5396, whose imas_ambix/agent/telemetry_index.py and tests/test_telemetry_index.py are byte-identical to reviewed head 851e617a, and the run's own lazy-open-baseline.log (1 failed) and lazy-negative-control.log (1 failed) supply the two arms the empty baseline_suite and after_suite fields omit.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --name-status 5ef2f874 851e617a changes only imas_ambix/agent/telemetry_index.py, tests/test_telemetry_index.py and docs/evidence/fragments/watch-index-lifecycle/wil-ingest-reads-appended-bytes.html, all inside the prompt.txt:69-73 grants.\nSCORE durability: 19\nJUSTIFICATION durability: tests/test_telemetry_index.py:1448 is a positive control proving the new open counter observes a known read, and lazy-negative-control.log reddens tests/test_telemetry_index.py:1452 with EXIT=1 when the constructor seeding is restored, so the guard is falsified rather than merely green.\nSCORE fit: 15\nJUSTIFICATION fit: the change keeps the module's docstring-and-dataclass idiom and removes the dead _digest_of, but leaves the module docstring at imas_ambix/agent/telemetry_index.py:36 asserting a seeding step it deleted.\nSCORE reuse: 20\nJUSTIFICATION reuse: the commit adds no definition and deletes _digest_of, a thin wrapper over _hash_of at imas_ambix/agent/telemetry_index.py:1871; a capability search over imas_ambix/agent found no other owner of bounded source-identity probing.\nFINDING imas_ambix/agent/telemetry_index.py:36 follow-on: the module docstring still reads \"A new process seeds each existing source's hash before its first tick\", which is the eager seeding this commit deleted, so the file's read-cost contract now contradicts its own code and the evidence fragment the same commit updates.",
+  "review_run_id": "r-20261023T075410356578-review-of-wil-ingest-reads-appended-bytes-851e617a8175",
+  "reviewed_base_sha": "5ef2f87419b38d164225c720d9990ad5106ec956",
+  "reviewed_head_sha": "851e617a81758ca0d35c3011c5ed599ba8dea9a3",
+  "reviewed_run_id": "r-20261023T054953175024-wil-ingest-reads-appended-bytes",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 15,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T08:14:52.931508+00:00",
+  "total": 111
+}
