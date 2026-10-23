@@ -20,11 +20,11 @@
   <meta name="plan-tags" content="agent-serving">
   <meta name="plan-blocks" content="serving-record-warehouse">
   <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;],&quot;s10&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s11&quot;:[&quot;watch-index-lifecycle#s7&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;implementable&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="24">
+<meta name="plan-version" content="25">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -220,7 +220,7 @@
     </ul>
 
     <h2 id="s6">§6 — The ingest publishes the watch document, and the standalone publisher is retired</h2>
-    <section data-reckon="section" data-id="s6" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
+    <section data-reckon="section" data-id="s6" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="done" data-links=""></section>
     <p>The <code>ingest</code> command composes publication into its <code>on_tick</code> hook:</p>
     <ul>
       <li>When at least <code>--publish-every</code> seconds (default 300) have passed since the last publication attempt, successful or failed, it publishes. A failing derivation is therefore retried at the publication cadence, not on every 60 s tick, and the previous file keeps its <code>published_at</code>, which shows how old it is. It publishes by calling <code>watch_publish.one_iteration</code> with the resolved index path. That function already implements the whole contract: an atomic write through <code>os.replace</code>, <code>published_at</code> and <code>compute_seconds</code> at top level, mode 0644, one flushed line, and a failure leaving the previous file byte-identical. Nothing in it is re-implemented, so the contract keeps one owner.</li>
@@ -284,7 +284,7 @@
     </ul>
 
     <h2 id="s10">§10 — A schema change rebuilds the index instead of crash-looping the ingest</h2>
-    <section data-reckon="section" data-id="s10" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-attempts="0" data-status="implementable" data-links=""></section>
+    <section data-reckon="section" data-id="s10" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-attempts="0" data-status="done" data-links=""></section>
     <p>§5 made <code>TelemetryIndex</code> refuse an index without the name dictionary (<code>the measurement dictionary requires an index rebuild</code>). Nothing in the ingest command answers that refusal, so two ordinary events crash-loop the service under its supervisor:</p>
     <ul>
       <li><strong>Any restart of the running ingest.</strong> It still holds pre-§5 code in memory, and the editable install already serves §5, so a restart for any reason, a fleet-node failure included, opens the old-schema live index and raises.</li>
@@ -423,11 +423,17 @@
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261023T111422415003-wil-ingest-publishes-the-watch-document" data-who="reckon-build" data-when="2026-10-23T12:20:01Z">
     <div class="r-comment-body"><p>Ingest publishes watch.json at the attempt cadence, including after failures; autouse test isolation keeps real HOME watch.json unchanged. Base/head suites 47/48 passed; parser guard and Ruff passed; three negative-control tests failed as expected. Evidence: docs/evidence/fragments/watch-index-lifecycle/wil-ingest-publishes-the-watch-document.html.</p></div>
 </div>
+<div class="r-comment" data-section="s6" data-id="c-close-s6" data-who="reckon-build" data-when="2026-10-23T13:58:00Z">
+    <div class="r-comment-body"><p>§6 landed and deployed: the ingest publishes <code>watch.json</code> itself, the first in 3.62 s at 13:52:57Z against 1,305.95 s before, and the standalone publisher is retired (merged <code>2b31c7b4</code>). <a href="/imas-ambix/evidence/archive/watch-index-lifecycle-landed.html#s6">evidence</a></p></div>
+</div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20261023T124345710692-review-of-wil-schema-change-rebuilds-the-index-c1c0967a18bc" data-who="reckon-build" data-when="2026-10-23T12:59:53.655Z">
     <div class="r-comment-body"><p>Independent review of wil-schema-change-rebuilds-the-index at c1c0967a: goal_fidelity 19, evidence 18, scope_discipline 20, durability 19, fit 14, reuse 5; 0 added failures against the after_suite arm; two non-blocking findings (the schema-refusal predicate is duplicated from telemetry_index, and cli.py calls a private snapshot helper).</p></div>
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20261023T122142119208-wil-schema-change-rebuilds-the-index" data-who="reckon-build" data-when="2026-10-23T12:42:40Z">
     <div class="r-comment-body"><p>Old live indexes rebuild atomically from receipts and tick; incompatible snapshots are skipped and kept with fallback to an older copy or rebuild. Full gate 62 passed in 167.14s; serving parser 1 passed; Ruff passed; two negative-control tests failed as expected. Evidence: docs/evidence/fragments/watch-index-lifecycle/wil-schema-change-rebuilds-the-index.html.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-close-s10" data-who="reckon-build" data-when="2026-10-23T13:58:00Z">
+    <div class="r-comment-body"><p>§10 landed and deployed: the old-schema live index was rebuilt from receipts and swapped in at the deployment restart (merged <code>fbef8c0c</code>). A stale-WAL adoption after the swap caused one restart loop, which the coordinator stopped; its repair is in flight. <a href="/imas-ambix/evidence/archive/watch-index-lifecycle-landed.html#s6">evidence</a></p></div>
 </div>
 </section>
 </main>
