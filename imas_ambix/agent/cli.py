@@ -1326,14 +1326,20 @@ def _placement_of_running_serve(
     reservation is not the one the job was admitted under.
 
     The registration is where a serve's placement is recorded, and it carries
-    both spellings: the server name when the serve was placed on a declared
-    server, and the host the job ran on. A registration naming a server that is
-    no longer declared falls back to the host, so a site that renamed its
-    servers still resolves.
+    every spelling of it: the server name when the serve was placed on a
+    declared server, and the host the job ran on, with or without the cluster
+    component. Resolving those belongs to the registry, which already resolves
+    them for the document's servers array, so this reads the registration and
+    asks it -- a second comparison here would answer differently the moment the
+    spellings reached it in a form it did not anticipate.
     """
     if job_id is None or not site.servers:
         return None
-    from imas_ambix.agent.registry import read_registrations, registration_directory
+    from imas_ambix.agent.registry import (
+        read_registrations,
+        registration_directory,
+        server_for_registration,
+    )
 
     records = read_registrations(
         registration_directory(site.base_dir),
@@ -1342,19 +1348,7 @@ def _placement_of_running_serve(
     record = next((item for item in records if item.job_id == job_id), None)
     if record is None:
         return None
-    if record.server:
-        named = next(
-            (item for item in site.servers if item.name == record.server), None
-        )
-        if named is not None:
-            return named
-    if not record.host:
-        return None
-    registered = record.host.split(".", 1)[0].lower()
-    for server in site.servers:
-        if server.host.split(".", 1)[0].lower() == registered:
-            return server
-    return None
+    return server_for_registration(record, site.servers)
 
 
 def _serving_slugs(site: SiteConfig) -> set[str]:

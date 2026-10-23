@@ -79,6 +79,29 @@ def _server_key(registration: ServeRegistration, index: dict[str, str]) -> str:
     return registration.host
 
 
+def server_for_registration(
+    registration: ServeRegistration, servers: Sequence[SiteServerConfig]
+) -> SiteServerConfig | None:
+    """Return the declared server a registration belongs to, or ``None``.
+
+    This is the one owner of "which declared server is this serve on", because
+    a registration carries several spellings of its placement and a second
+    implementation drifts from it. A registration may name its server by
+    declaration name, or carry only the host it ran on, spelled with or without
+    its cluster component: ``gpu-0004``, ``98dci4-gpu-0004`` and the declared
+    name all resolve to the same server. A name the site does not declare falls
+    back to the host, so renaming a server does not lose the serve running on
+    it, and a host the site does not declare resolves to ``None`` -- the engine
+    is still published, under its host, but there is no declaration to place a
+    replacement on.
+    """
+    key = _server_key(registration, _server_index(servers))
+    for server in servers:
+        if server.name == key:
+            return server
+    return None
+
+
 @dataclass(frozen=True, slots=True)
 class ServeRegistration:
     """Resolved identity written by one serving allocation."""
@@ -454,9 +477,8 @@ def build_endpoint_document(
     running engines are grouped under the server their registration names.
     """
     endpoints: list[PublishedEndpoint] = []
-    index = _server_index(servers)
     # engine id -> (endpoint, the job id that registered it, its server)
-    seen_engines: dict[str, tuple[PublishedEndpoint, str, str]] = {}
+    seen_engines: dict[str, tuple[PublishedEndpoint, str, SiteServerConfig | None]] = {}
     for registration in registrations:
         if registration.held:
             continue
@@ -479,7 +501,7 @@ def build_endpoint_document(
                 error,
             )
             continue
-        server = _server_key(registration, index)
+        server = server_for_registration(registration, servers)
         engine = endpoint.engine_id
         prior = seen_engines.get(engine)
         if prior is not None:
@@ -517,7 +539,7 @@ def build_endpoint_document(
 
 def _published_servers(
     endpoints: Sequence[PublishedEndpoint],
-    seen_engines: dict[str, tuple[PublishedEndpoint, str, str]],
+    seen_engines: dict[str, tuple[PublishedEndpoint, str, SiteServerConfig | None]],
     servers: Sequence[SiteServerConfig],
 ) -> tuple[PublishedServer, ...]:
     """Report every declared server, with the engines grouped under each.
@@ -538,7 +560,11 @@ def _published_servers(
     """
     grouped: dict[str, list[PublishedEndpoint]] = {}
     for endpoint in endpoints:
-        grouped.setdefault(seen_engines[endpoint.engine_id][2], []).append(endpoint)
+        server = seen_engines[endpoint.engine_id][2]
+        # An engine with no declared server groups under the host it ran on,
+        # which is the name its own row carries below.
+        name = server.name if server is not None else endpoint.host
+        grouped.setdefault(name, []).append(endpoint)
     published: list[PublishedServer] = []
     for server in servers:
         engines = sorted(grouped.get(server.name, ()), key=lambda item: item.engine_id)

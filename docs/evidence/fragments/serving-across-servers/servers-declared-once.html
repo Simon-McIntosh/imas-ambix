@@ -34,6 +34,17 @@
   admitted where the job it replaces was. The placement is read before the old
   job is cancelled. A registration that names no server the site still declares
   falls back to its recorded host, so renaming a server does not move a serve.</p>
+  <p><strong>One owner resolves a placement, and it is the registry's.</strong>
+  A registration spells its placement in more than one way — the declared name,
+  the host, the host without its cluster component — and
+  <code>registry.server_for_registration</code> resolves all of them onto the
+  declared server, built on the same index the document's servers array groups
+  engines with. The document builder and the placement helper both call it.
+  A second comparison beside the CLI's call sites drifted the moment it met a
+  spelling it did not anticipate: stripping the first dot component matches
+  neither <code>gpu-0004</code> against a declared
+  <code>98dci4-gpu-0004</code> nor the reverse, so a serve running there read as
+  unplaced and a restart would have moved it to the site's first server.</p>
   <p><strong>The document.</strong> <code>registry.build_endpoint_document</code>
   — the document's existing owner, so the grouping cannot disagree with the
   engines it groups — now returns the endpoints plus a <code>servers</code>
@@ -98,7 +109,7 @@
         <td><code>pytest tests/test_agent_serve_registry.py
         tests/test_agent_endpoint_discovery.py
         tests/test_agent_site_servers.py</code></td>
-        <td>47 passed, <code>EXIT=0</code></td>
+        <td>49 passed, <code>EXIT=0</code></td>
       </tr>
       <tr>
         <td><code>ruff check imas_ambix tests</code></td>
@@ -156,6 +167,14 @@
         tests/test_agent_site_servers.py::test_a_server_declared_without_an_accelerator_family_publishes_none</code>,
         <code>EXIT=1</code>; <code>assert 'H200' is None</code> — a server that
         declares no family published the default</td>
+      </tr>
+      <tr>
+        <td>Let the CLI compare hosts itself again instead of resolving through
+        the registry (<code>cli._placement_of_running_serve</code>)</td>
+        <td><code>FAILED
+        tests/test_agent_site_servers.py::test_a_registration_naming_the_short_host_still_resolves_its_server</code>,
+        <code>EXIT=1</code>; the serve read as unplaced and the restart carried
+        the first server's <code>betelgeuse</code> partition</td>
       </tr>
       <tr>
         <td>Drop the <code>server</code> argument at the restart call so

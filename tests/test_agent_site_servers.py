@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import types
 from pathlib import Path
 
 from click.testing import CliRunner
@@ -386,6 +387,124 @@ def test_restart_keeps_a_serve_on_the_server_it_runs_on(tmp_path, monkeypatch):
     assert f"#SBATCH --account={_B300.account}" in result.output
     assert f"#SBATCH --partition={_H200.partition}" not in result.output
     assert f"--server {_B300.name}" in result.output
+
+
+def test_a_registration_naming_the_short_host_still_resolves_its_server(
+    tmp_path, monkeypatch
+):
+    """A placement is spelled in more than one way, and all of them resolve.
+
+    A registration may carry only the host its job ran on, and a site may
+    declare that host in full. Comparing the two by stripping the first dot
+    component matches neither spelling: the cluster prefix stays on the
+    declared side and there is nothing on the other to strip, so the serve
+    reads as unplaced and the replacement falls back to the site's first
+    server. The registry already resolves every spelling of a declaration for
+    the document's servers array, so the placement resolves through it.
+    """
+    site_base = tmp_path / "site"
+    monkeypatch.setenv("AMBIX_AGENT_BASE_DIR", str(site_base))
+    monkeypatch.setenv(
+        "AMBIX_AGENT_SERVERS", json.dumps([_H200.model_dump(), _B300.model_dump()])
+    )
+    write_registration(
+        ServeRegistration(
+            "deepseek-v4-1-flash",
+            "gpu-0004",
+            18801,
+            "42",
+            8,
+            "fp8",
+            "B300",
+            server="",
+        ),
+        registration_directory(site_base),
+    )
+    monkeypatch.setattr(
+        agent_cli,
+        "_profile_jobs",
+        lambda _site, slug: [{"jobid": "42", "name": slug, "state": "RUNNING"}],
+    )
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "agent",
+            "restart",
+            "deepseek-v4-1-flash",
+            "--reason",
+            "the host spelling does not decide the placement",
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert f"#SBATCH --partition={_B300.partition}" in result.output
+    assert f"#SBATCH --reservation={_B300.reservation}" in result.output
+    assert f"#SBATCH --account={_B300.account}" in result.output
+    assert f"#SBATCH --partition={_H200.partition}" not in result.output
+
+
+def test_key_rotation_keeps_a_serve_on_the_server_it_runs_on(tmp_path, monkeypatch):
+    """Rotating the key replaces a serve where it runs, not where the site starts.
+
+    The rotation path tears the serve down before it generates the
+    replacement, so a placement resolved from the site would leave a serve that
+    ran on the second server restarted onto the first, carrying a partition,
+    account and reservation its job was never admitted under.
+    """
+    site_base = tmp_path / "site"
+    monkeypatch.setenv("AMBIX_AGENT_BASE_DIR", str(site_base))
+    monkeypatch.setenv(
+        "AMBIX_AGENT_SERVERS", json.dumps([_H200.model_dump(), _B300.model_dump()])
+    )
+    write_registration(
+        ServeRegistration(
+            "deepseek-v4-1-flash",
+            _B300.host,
+            18801,
+            "42",
+            8,
+            "fp8",
+            "B300",
+            server=_B300.name,
+        ),
+        registration_directory(site_base),
+    )
+    submitted: list[str] = []
+
+    # Rotation writes the key file, cancels the running job and submits the
+    # replacement. None of that is what this test measures, and the scheduler
+    # calls would reach the real cluster, so every one of them is stood in for
+    # and the generated script is what the assertions read.
+    monkeypatch.setattr(agent_cli, "_read_key_file", lambda _path: None)
+    monkeypatch.setattr(agent_cli, "_update_dotenv_key", lambda *a, **k: None)
+    monkeypatch.setattr(agent_cli, "_default_profile", lambda: "deepseek-v4-1-flash")
+    monkeypatch.setattr(agent_cli, "_require_engine_environment", lambda *a, **k: None)
+    monkeypatch.setattr(
+        agent_cli,
+        "_profile_jobs",
+        lambda _site, slug: [{"jobid": "42", "name": slug, "state": "RUNNING"}],
+    )
+    monkeypatch.setattr(
+        agent_cli.subprocess, "run", lambda *a, **k: types.SimpleNamespace(stdout="")
+    )
+
+    def _capture(script: str) -> str:
+        submitted.append(script)
+        return "4351"
+
+    monkeypatch.setattr("imas_ambix.agent.slurm.submit_script", _capture)
+
+    result = CliRunner().invoke(main, ["agent", "key", "--rotate"])
+
+    assert result.exit_code == 0, result.output
+    (script,) = submitted
+    assert f"#SBATCH --partition={_B300.partition}" in script
+    assert f"#SBATCH --reservation={_B300.reservation}" in script
+    assert f"#SBATCH --account={_B300.account}" in script
+    assert f"#SBATCH --partition={_H200.partition}" not in script
+    assert f"--server {_B300.name}" in script
 
 
 def test_serve_refuses_a_server_that_no_declaration_names(monkeypatch):
