@@ -1,0 +1,70 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T12:43:05.624Z",
+  "dispatched_at": "2026-10-23T12:27:45Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:587",
+      "id": "done_when-1",
+      "reason": "steps 2, 3 and 4 do name \u00a74, \u00a75, \u00a77, \u00a714, \u00a715 and \u00a716, so a coordinator working the whole rollout still sees every section; the omission misleads only a reader who takes step 1's list as the complete remainder.",
+      "text": "\u00a711 step 1 reads \"the sections still to land are \u00a76, the rest of \u00a79 (retiring `agent watch`'s text view, and the ten-minute live run) and \u00a710\", but the plan's `plan-section-declarations` mark \u00a74, \u00a75, \u00a77, \u00a714, \u00a715 and \u00a716 `implementable` as well, so the step's list of outstanding sections disagrees with the plan's own declaration map",
+      "type": "done_when",
+      "would_change": false
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:687",
+      "id": "reasoning-1",
+      "reason": "an implementer reading \"would pass with or without the fix\" is told the release is reachable from the lifespan handler, which is exactly the placement the section's gap paragraph says is too late; the plan should say the test must exercise the real signal path *because* the release now lives there, or it invites the superseded design back.",
+      "text": "\u00a716's first done-when bullet says the test \"does not call the lifespan handler directly, which would pass with or without the fix\", but the fix \u00a716 now specifies puts the release on the shutdown *signal* and explicitly leaves the lifespan handler to its existing cleanup, so a direct lifespan call cannot observe the release at all and would fail rather than pass; the clause states the reason the earlier review rejected (the release living in `lifespan.shutdown`) and so re-describes the mechanism the section removed",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:29",
+      "id": "wiring-1",
+      "reason": "\u00a711 step 2 already carries \u00a77 as a conditional (\"\u00a77 if it runs\") and \u00a77's first line states its own run condition, so no node is dispatched wrongly; the plan would only gain by naming `h200-role` as the gate rather than `b300-role`.",
+      "text": "`plan-section-depends-on` leaves `s7:[]` after dropping the bake-off dependency, while the `b300-role` decision it was replaced by says in its own rationale that \"Whether the H200 keeps serving beside the B300, which is the only case that needs \u00a77, is that plan's open question `h200-role`\", so the decision \u00a77's text gates on does not in fact settle whether \u00a77 runs",
+      "type": "wiring",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "db0ce5394648a0dd9550b2f468765f8f1006e9d45bf7c13ea9e1a4a163bc2608",
+  "plan_slug": "serving-across-servers",
+  "plan_version": 60,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T122722703078-plan-review-of-serving-across-servers",
+  "reviewed_blob_sha": "e33d77f7f7c6bad9effdd6a6299c29d776e39e43",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `ops/lane-cycle/AGENTS.md` exists, and `imas_ambix/agent/AGENTS.md` \u00a74 (\"Composable Agent CLI\", line 1456 \"Operator authority (binding)... deployment are operator work\") does state the operator authority \u00a711 cites it for; \u00a716's code claims also resolve (`router.py:2016` lifespan handler closing the lane task, session and receipts and answering no waiter; `router.py:2383-2392` the 529 with Retry-After; `router.py:3039` the `uvicorn.run` launch with no `timeout_graceful_shutdown`).",
+    "done_when": "a finding \u2014 \u00a711 step 1's \"still to land\" list names three sections while the plan's own declarations mark six more implementable.",
+    "evidence_paths": "pass \u2014 \u00a711's records are operator-written manifests and the plan's landed-evidence archive under `docs/evidence/`, and \u00a716's gate logs land under the run's evidence dir, not a scratchpad or node-local path.",
+    "naming": "pass \u2014 the changed text carries no plan labels, stage names, ticket numbers or version tags into any symbol, path or code comment.",
+    "reasoning": "a finding \u2014 \u00a716's done-when still justifies its shape with the mechanism the plan has just replaced.",
+    "single_goal": "pass \u2014 \u00a711 carries the rollout and its recorded evidence, \u00a716 carries the shutdown release; neither carries a second deliverable.",
+    "wiring": "pass \u2014 every declaration in `plan-section-depends-on` points at a section that exists (s9\u2192s8, s10\u2192s3,s9, s14\u2192s5,s6,s9, s15\u2192s16), and the `s7:[]` left where the bake-off dependency was removed matches \u00a77's rewritten text, which now gates \u00a77 on the `b300-role` decision alone."
+  },
+  "section_digests": {
+    "_document": "268eeeca8609b7925a28e57dce46bcdbac97e1e8a898cc066153423ca49fa72b",
+    "s1": "84abea84a25c5ecad35220751db61c7b49c61973eda4e741e78348e16b694de2",
+    "s10": "fe30c5bee7553576dc5c7fb89b35c24667e24c55ebd8fad98687847b2c74f1bf",
+    "s11": "f856980fae764e86f6d2a96f2014314fbdab9843a35e17b5cfb925da90268102",
+    "s12": "635129369af591c5ed9cc97e1eca5d88c9bc4726355cb4d15f89c4d4d8bb714b",
+    "s13": "d6a25041d94de4d2edca565f9547a2318892f456c088170892456d55f5ad8bdd",
+    "s14": "0e17e1001edcfa86d833f0f919327f28fbf48f5a79d8ad1e3d2574126b81a702",
+    "s15": "9d90f0ecdac2fe6969042aebf155bf919b568c37381873c3709ba79e704c988c",
+    "s16": "d795e89e0372e79b474f4644d9dafb9619ed9021c35ce96f7f8ad7428944f869",
+    "s2": "07c84f3703bedbf51b14249471fa10a4580efea08771ba394dd7383ec52328c7",
+    "s3": "00fd83fbad872f21eb8f9f5434e1a3b6963ca67f6613df3c84a0de4c2ede025b",
+    "s4": "25bebe082ae8eefd4294ed18a8119c22a616dac41902d3de2da67458deb06918",
+    "s5": "af47ca049930ce3c95174fdb9fc4657b0dd503aae1ccdd776d048c40c86116d2",
+    "s6": "ceae93e6905a33dc8facd996f608b63d18e72e315ad6e507bce9b5e840ca2dcc",
+    "s7": "f0eb3d24d868bfaf352c4a849435a0432daa643483a73cd3179e2648759af011",
+    "s8": "a93017191ce26f06aac707c835d9d303dbc507e05dbf08ff1500e55f87d09deb",
+    "s9": "ba409da1d166329e7fa4417b0520bf07528a5dabde5c93876650d86737b04fb4"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T12:47:08.903744+00:00"
+}
