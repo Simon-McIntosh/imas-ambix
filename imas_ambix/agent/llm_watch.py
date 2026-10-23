@@ -48,7 +48,7 @@ import os
 import sys
 import time as _time
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import TYPE_CHECKING, Any
 
 from rich import box
 from rich.console import Console, Group
@@ -72,6 +72,9 @@ from imas_ambix.agent.watch_style import (
     ramp,
     spark,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable
 
 #: How long the ``--live`` view waits between refreshes.
 LIVE_REFRESH_SECONDS = 5.0
@@ -692,8 +695,6 @@ def render(
 ) -> Group:
     """The whole view as one group of rich renderables."""
     callers = document.get("callers") or {}
-    engine = document.get("engine") or {}
-    endpoint = engine_endpoint(engine, (document.get("lane") or {}).get("model_id"))
     parts: list[object] = [Text.from_markup(head_line(document))]
     parts.extend(bands(document))
     parts.append(accounts_table(callers, account=account))
@@ -746,7 +747,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", dest="as_json", action="store_true",
                         help="emit the document as JSON")
     parser.add_argument("--live", action="store_true",
-                        help="refresh every %ds" % int(LIVE_REFRESH_SECONDS))
+                        help=f"refresh every {int(LIVE_REFRESH_SECONDS)}s")
     parser.add_argument("--width", type=int, default=GOLDEN_WIDTH)
     args = parser.parse_args(argv)
 
