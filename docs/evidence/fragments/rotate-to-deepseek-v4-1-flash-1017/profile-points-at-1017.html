@@ -1,0 +1,55 @@
+<section id="profile-points-at-1017" data-node="profile-points-at-1017">
+  <h2 id="profile-points-at-1017-heading">The profile names the 1017 release</h2>
+
+  <p id="profile-points-at-1017-change">
+    <code>ModelConfig</code> gained an optional <code>revision</code> field, and the
+    <code>deepseek-v4-1-flash</code> profile now declares the 1017 release by repository
+    (<code>deepseek-ai/DeepSeek-V4.1-Flash-1017</code>), by the commit
+    <code>1bae0e1088993b9b82de08f59de5be5a34e42170</code>, and by a weights directory of
+    its own (<code>weights_slug = "deepseek-v4-1-flash-1017"</code>). The directory matters
+    because the update publishes weights at a commit of a repository rather than under a
+    new repo id: one directory per release is what keeps two releases from sharing a shard
+    set. <code>served_name</code> is unchanged, so the release answers to the one
+    client-visible name <code>deepseek-v4.1-flash</code>.
+  </p>
+
+  <p id="profile-points-at-1017-serve">
+    The generated serve script moves exactly one line for this change, its
+    <code>MODEL_DIR</code>, now
+    <code>/work/projects/imas_gpu/agents/deepseek-v4-1-flash-1017/model</code>. The test
+    asserts equality modulo the weights directory rather than a substring, so a serving
+    setting that moved alongside the checkpoint would fail it.
+  </p>
+
+  <p id="profile-points-at-1017-shards">
+    The 48 shards already in that directory were verified against the repository's own
+    listing at the pinned commit — size and SHA-256 per shard, all 48 matching — by SLURM
+    job 1294295 on <code>sirius</code>. The log is
+    <code>shard-verify.log</code> beside this fragment; its
+    <code>slurmstepd</code> warnings are inherited <code>TMPDIR</code> noise from the
+    five-day-old allocation the job was submitted from, not a fault of the run, whose last
+    line reads <code>EXIT=0</code>. <strong>Not delivered on this node:</strong> the
+    download script does not yet pass <code>--revision</code> to the Hugging Face client,
+    so the pin this profile declares is not enforced by a download. That needs
+    <code>imas_ambix/agent/slurm.py</code>, which is outside this node's write grant —
+    see the manifest's <code>blockers</code>.
+  </p>
+
+  <p id="profile-points-at-1017-negative-control">
+    The shard verifier was shown to fail: a scratch directory holding 47 symlinks to the
+    real shards and one full copy of
+    <code>model-00001-of-00048.safetensors</code> with a single byte flipped at offset
+    5,000,000 reported <code>MISMATCH</code> for that shard and
+    <code>VERDICT: FAIL</code>. Its first attempt also failed honestly: the recursive
+    listing endpoint paginates at fifty entries and returned no shard at all, which the
+    verifier's own control refused rather than reporting 48 shards missing. The control log
+    is outside the tree, at
+    <code>~/.config/reckon/crew/runs/r-20261023T140736542637-profile-points-at-1017/</code>.
+  </p>
+
+  <p id="profile-points-at-1017-gate">
+    Gate: <code>pytest -p no:cacheprovider tests/test_agent_dspark_profile.py</code> — 9
+    passed, of which two are new; whole-tree
+    <code>ruff check imas_ambix tests</code> exits 0.
+  </p>
+</section>
