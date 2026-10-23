@@ -1,0 +1,71 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T08:35:27.861Z",
+  "dispatched_at": "2026-10-23T08:21:34Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/watch-index-lifecycle.html#s7",
+      "id": "reasoning-1",
+      "reason": "a node would close \u00a77 on a green gate while root-level logs keep being created, leaving \u00a77's headline and \u00a72's artefact table (\"a log directory, not the repository root\") false and the archive to be re-populated.",
+      "text": "\u00a77's goal \"SLURM job logs leave the repository root\" is not produced by its mechanism: `imas_ambix/data/cli.py:663`, `scripts/spine_label_fleet.sh:7`, `scripts/temporal_operator_cycle.sh:10` and `scripts/run_magnetics_era_scorecard.sbatch:7` still write an `--output` into the submitting directory / repository root, and \u00a77 neither names nor covers them",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/watch-index-lifecycle.html#s7",
+      "id": "done_when-1",
+      "reason": "the node must be told whether the count means archived-only or archived-plus-retained-with-a-reason, or it fails a gate that is unsatisfiable as written.",
+      "text": "the done-when \"The archive step's printed list accounts for all 451 files\" cannot hold as written, because step 1 retains in place every log whose job is still in squeue (the live serve job's repo-root log is one of the stored 451), and no archive tooling sits inside the declared write scope (`slurm.py`, `cli.py`, the tests covering generated scripts)",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/watch-index-lifecycle.html#s7",
+      "id": "anchors_resolve-1",
+      "reason": "the plan should name both logs, since a node updating only the one named leaves half the console message pointing at a path that no longer exists.",
+      "text": "\u00a77 states the setup command's console message \"names `ambix-runtime-check-<engine>-<job>.log`\", but `imas_ambix/agent/cli.py:4499-4502` emits two names (`ambix-setup-{engine}-{job_id}.log` and `ambix-runtime-check-{engine}-{runtime_check_job_id}.log`), and the done-when (\"names the log under the new directory\") cannot catch the second being left stale",
+      "type": "anchors_resolve",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/watch-index-lifecycle.html#s4",
+      "id": "wiring-1",
+      "reason": "\u00a76 refers to \u00a74 in the past tense while the declaration table and f-wil-001's dispatch order (\"\u00a76 after \u00a74 and \u00a75\") tell a dispatcher \u00a74 is unbuilt, so plan state disagrees with the code it describes and the reading of one section changes the reading of another.",
+      "text": "\u00a74 has landed (`aa4a09b4` \"feat(agent): place watch index on local disk\" is an ancestor of HEAD, `imas_ambix/agent/index_placement.py` is present, `imas_ambix/agent/watch.py:68` imports `resolve_index_path`, and the plan's own s4 comments record its reviews and landed repairs in `2fefa896`/`5a1477b0`), yet the declaration table still reads s4 \"implementable\" and \u00a74's body and write scope still cite `DEFAULT_INDEX_PATH (watch.py:91)`, a symbol that landing deleted",
+      "type": "wiring",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "72b66cdf9c57b4812d9250b78e843ababe4b7cd927955cb8512a5383e13fc71a",
+  "plan_slug": "watch-index-lifecycle",
+  "plan_version": 9,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T082111788509-plan-review-of-watch-index-lifecycle",
+  "reviewed_blob_sha": "ddc310f192167f6c53e9969e156f9852a5decf21",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "findings \u2014 \u00a77's setup-message anchor names one log where the code emits two, and \u00a74's body cites a symbol its own landing deleted.",
+    "done_when": "a finding \u2014 \u00a77's archive done-when (\"accounts for all 451 files\") contradicts \u00a77's own step 1, which retains every log whose job is still in squeue.",
+    "evidence_paths": "pass \u2014 no gate or evidence lands in a scratchpad or node-local temp path; the archive target (~/.local/state/ambix/slurm-logs/archive/<YYYY-MM>/) and \u00a78's research doc path are durable.",
+    "naming": "pass \u2014 no plan label, stage name or ticket number reaches a symbol, path or comment in \u00a76 or \u00a77.",
+    "reasoning": "a finding \u2014 \u00a77's stated goal is not produced by the mechanism it names; generators outside its scope still write SLURM logs into the submitting directory.",
+    "single_goal": "pass \u2014 \u00a76 and \u00a77 each carry one deliverable, and \u00a77's gate is conjunctive with each item separately measurable.",
+    "wiring": "a finding \u2014 the section-declaration table still reads s4 \"implementable\" although \u00a74 has landed in the tree, so the declared graph disagrees with the code."
+  },
+  "section_digests": {
+    "_document": "11a66c1bf9b55c27aa69a6cc14d0a7c6104d411234cec8fe79aa4229ec3338cd",
+    "s1": "3d0d4a4b2f4087609ba3ffca49ccea0ed64b9473687ecd3c5d6d6135d6ba4340",
+    "s2": "32189637430822acde78e34d53cbed7c3f0ae26c9fe044e99dc013e4e1d0db9d",
+    "s3": "404fc86a0b4c4e77af4febf31149dba78e8566091b87bc977876eabdf52a44f5",
+    "s4": "214ae5abf0b93b92e7479cda3f691edea3bc60b7b7ec1485dcced5899519843e",
+    "s5": "b3847fea2b52f54b9e97eb5f000c0350591da166379ceb27d152c7c0ec235695",
+    "s6": "8b2f491041fb3179e6d53c7859fcb72db3906597e5226962e054b04770cb0773",
+    "s7": "07d451112b28c087e5ca8e2d5e47919af464e84ae71a903ee2598e1568dd2007",
+    "s8": "83ac32d54d4394cd1d9f11da1f46b1eb6420b70f2911084121a031e6f7aff225",
+    "s9": "62bf93e7fec684aebfaadc4ad598642503ca8ee4691eeec898a8aad77e03adf1"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T08:37:20.177287+00:00"
+}
