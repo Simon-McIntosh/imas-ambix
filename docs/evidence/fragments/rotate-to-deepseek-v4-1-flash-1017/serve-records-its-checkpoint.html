@@ -1,0 +1,49 @@
+<section data-reckon="evidence" data-id="serve-records-its-checkpoint">
+  <h3 id="serve-records-its-checkpoint-landing">A serve records the checkpoint it loaded</h3>
+  <p id="serve-records-its-checkpoint-summary">
+    A registration carries a new optional <code>checkpoint</code> field, written
+    by the generated serve script from its profile as
+    <code>&lt;hf_repo&gt;@&lt;revision&gt;</code>. The profile's
+    <code>hf_repo</code> and <code>revision</code> are joined at script
+    generation (<code>slurm.py</code>); a profile that pins no revision writes
+    <code>&lt;hf_repo&gt;@unpinned</code>, so an absent pin is visible rather
+    than passed off as an identity. The published endpoint republishes it from
+    the registration (<code>_endpoint_from_catalog</code>), for the same reason
+    the topology is republished: the launch owns what it loaded, and the served
+    name is deliberately held stable across a rotation, so the name cannot carry
+    it. A record written before the field existed reads <code>null</code> and
+    the document still builds. The recorder's <code>serve_config</code> gains
+    <code>model_path</code>, read from the engine's own <code>/server_info</code>
+    report rather than from the launcher, because every checkpoint has its own
+    directory and the engine's resolved path is what identifies the weights a row
+    was measured against.
+  </p>
+  <p id="serve-records-its-checkpoint-measure">
+    In-scope measure: <code>ruff check imas_ambix tests</code> exits 0, and the
+    12 checkpoint- and serve-config-shaped tests across the three declared files
+    pass (<code>12 passed, 69 deselected</code>). Negative control: with
+    <code>_merge_serve_config</code> mutated to let the caller's (profile)
+    <code>model_path</code> win over the engine's report, the as-reported test
+    fails on a fixture whose engine path differs from the profile, giving
+    <code>1 failed, 1 passed</code> and <code>EXIT=1</code> in the red run and
+    naming
+    <code>test_record_receipts_records_the_engine_reported_model_path</code>.
+    The red log is the run's
+    <code>logs/negative-control-model-path.log</code>.
+  </p>
+  <p id="serve-records-its-checkpoint-blocker">
+    <strong>Blocker — the declared gate cannot pass within this node's write
+    scope.</strong> Publishing <code>checkpoint</code> on the endpoint entry is
+    required by this section's own done-when, but the launcher rejects any such
+    entry: <code>clive.py</code> validates each entry with
+    <code>set(entry) != required</code>
+    (<code>imas_ambix/agent/clive.py:328</code>), an exact seven-key equality, so
+    the eighth key makes every entry read as incomplete and the launcher fails
+    closed. Eight tests in <code>tests/test_agent_endpoint_discovery.py</code>
+    drive the launcher and fail for that one reason
+    (<code>8 failed, 73 passed</code> over the three declared files).
+    <code>clive.py</code> is outside this node's write fence, so the required
+    one-line relaxation -- fail only on a <em>missing</em> key, as in
+    <code>not required.issubset(entry)</code> -- is reported rather than applied.
+  </p>
+</section>
