@@ -26,6 +26,8 @@
   <title>B300 Bring-up and Open-Model Bake-off | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-version" content="1">
+<meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
   <main class="plan-doc">
@@ -228,34 +230,34 @@
     §4's interval and §6's knee for every candidate.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="bakeoff-spend" data-choice="" data-by="" data-when="">
-        <p class="r-dec-q">Where does §4 run, and on what budget?</p>
-        <p class="r-dec-ctx">All four models are listed on OpenRouter, so the quality bake-off can run this week on metered spend, leaving the B300's first week for throughput. Running it locally instead waits for the hardware and occupies it for several days. The order of magnitude, before §3 measures tokens per task: 30 tasks, 3 attempts and 3 to 4 models make 270 to 360 attempts, at very roughly $0.5 to $3 each with prompt caching.</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="openrouter-capped-low">OpenRouter now, cap $300, without Kimi K3</button>
-          <button class="r-opt" data-value="openrouter-capped-high">OpenRouter now, cap $800, with Kimi K3</button>
-          <button class="r-opt" data-value="local-after-arrival">Local only, after the B300 arrives</button>
-        </p>
-        <p class="r-dec-rat"></p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="bakeoff-spend" data-choice="" data-by="" data-when="" data-sections="s4">
+    <p class="r-dec-q">Where does §4 run, and on what budget?</p>
+    <p class="r-dec-ctx">All four models are listed on OpenRouter, so the quality bake-off can run this week on metered spend, leaving the B300&#x27;s first week for throughput. Running it locally instead waits for the hardware and occupies it for several days. The order of magnitude, before §3 measures tokens per task: 30 tasks, 3 attempts and 3 to 4 models make 270 to 360 attempts, at very roughly $0.5 to $3 each with prompt caching.</p>
+    <p class="r-dec-opts">
+      <button class="r-opt" data-value="openrouter-capped-low">OpenRouter now, cap $300, without Kimi K3</button>
+      <button class="r-opt" data-value="openrouter-capped-high">OpenRouter now, cap $800, with Kimi K3</button>
+      <button class="r-opt" data-value="local-after-arrival">Local only, after the B300 arrives</button>
+      </p>
+    <p class="r-dec-rat"></p>
+    </div>
+</section>
 
     <section data-reckon="questions" id="questions" class="r-questions">
-      <h2><span class="sec">§</span> Open questions</h2>
-      <div class="r-q" data-id="b300-arrival-facts" data-section="s5" data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-23">
-        <p class="r-q-body">On arrival: the B300 node's host name, partition, account and reservation, and the CUDA driver version it ships with. §5 fills them into the server declaration, and the driver version bounds which engine builds can run.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Open questions</h2>
+<div class="r-q" data-id="b300-arrival-facts" data-section="s5" data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-23" data-resolved-at="" data-resolved-by="">
+    <p class="r-q-body">On arrival: the B300 node's host name, partition, account and reservation, and the CUDA driver version it ships with. §5 fills them into the server declaration, and the driver version bounds which engine builds can run.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-bob-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build b300-bring-up-and-open-model-bakeoff">
-        <h4 class="r-fu-title">Start the downloads, the harness and the launchers (§2, §3, §5)</h4>
-        <div class="r-fu-body"><p>§2, §3 and §5 can run at once; the profile files they share are split so that §2 creates the two new profiles and §5 edits them only after §2 lands. §4 waits on <code>bakeoff-spend</code>, and §6 waits on the hardware.</p></div>
-        <pre class="r-fu-prompt">/reckon-build b300-bring-up-and-open-model-bakeoff</pre>
-      </article>
-    </section>
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-bob-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build b300-bring-up-and-open-model-bakeoff" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Start the downloads, the harness and the launchers (§2, §3, §5)</h4>
+    <div class="r-fu-body"><p>§2, §3 and §5 can run at once; the profile files they share are split so that §2 creates the two new profiles and §5 edits them only after §2 lands. §4 waits on <code>bakeoff-spend</code>, and §6 waits on the hardware.</p></div>
+    <pre class="r-fu-prompt">/reckon-build b300-bring-up-and-open-model-bakeoff</pre>
+    </article>
+</section>
   </main>
 </body>
 </html>
