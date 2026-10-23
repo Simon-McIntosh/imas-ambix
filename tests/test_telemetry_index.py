@@ -1380,11 +1380,7 @@ def test_one_file_spanning_a_reboot_keys_each_of_its_rows_apart(tmp_path):
 
 
 def test_a_source_consumed_whole_and_untouched_is_not_read_again(tmp_path):
-    """Re-proving a finished serve unchanged costs the record and learns nothing.
-
-    Measured 2026-09-23 over 49 sources and 220 MB: a pass with nothing to add
-    spent 8.6 s re-digesting serves that had already exited.
-    """
+    """An unchanged source needs no sample scan after its identity probe."""
     source = tmp_path / "serve.jsonl"
     _write(source, [_row(0), _row(5)])
     index_path = tmp_path / "index.db"
@@ -1407,6 +1403,58 @@ def test_a_source_that_grew_is_read_again_despite_the_skip(tmp_path):
 
     assert report.files_scanned == 1
     assert report.rows_inserted == 1
+
+
+def test_grown_source_reads_only_appended_bytes_and_identity_probes(
+    tmp_path, monkeypatch
+):
+    source = tmp_path / "serve.jsonl"
+    _write(source, _many_rows(1000))
+    real_open = Path.open
+    bytes_read = 0
+
+    class CountingReader:
+        def __init__(self, handle):
+            self.handle = handle
+
+        def __enter__(self):
+            self.handle.__enter__()
+            return self
+
+        def __exit__(self, *args):
+            return self.handle.__exit__(*args)
+
+        def __getattr__(self, name):
+            return getattr(self.handle, name)
+
+        def read(self, size=-1):
+            nonlocal bytes_read
+            data = self.handle.read(size)
+            bytes_read += len(data)
+            return data
+
+    def counting_open(path, *args, **kwargs):
+        handle = real_open(path, *args, **kwargs)
+        if path == source and args and args[0] == "rb":
+            return CountingReader(handle)
+        return handle
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index.ingest([source])
+        monkeypatch.setattr(Path, "open", counting_open)
+        for row in (_row(1001), _row(1002)):
+            with real_open(source, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(row) + "\n")
+            appended = len((json.dumps(row) + "\n").encode())
+            bytes_read = 0
+            assert index.ingest([source]).rows_inserted == 1
+            assert bytes_read <= appended + 128 * 1024
+            stored = index._conn.execute(
+                "SELECT offset, prefix_sha FROM source ORDER BY offset DESC LIMIT 1"
+            ).fetchone()
+            with real_open(source, "rb") as handle:
+                expected = hashlib.sha256(handle.read(stored["offset"])).hexdigest()
+            assert stored["prefix_sha"] == expected
 
 
 def test_a_rewrite_that_moves_the_modification_time_is_still_caught(tmp_path):
@@ -1441,6 +1489,65 @@ def test_a_rewrite_that_moves_the_modification_time_is_still_caught(tmp_path):
             source, ns=(before.st_mtime_ns + 1_000_000, before.st_mtime_ns + 1_000_000)
         )
         assert index.ingest([source]).files_scanned == 1, "skipped a rewritten source"
+
+
+def test_mid_file_rewrite_waits_for_full_identity_interval(tmp_path):
+    source = tmp_path / "serve.jsonl"
+    _write(source, _many_rows(1000))
+    original = source.read_bytes()
+    changed = original.replace(
+        b'"prefix_cache_query_delta": 510',
+        b'"prefix_cache_query_delta": 910',
+    )
+    assert changed != original and len(changed) == len(original)
+    midpoint = changed.index(b'"prefix_cache_query_delta": 910')
+    assert 64 * 1024 < midpoint < len(changed) - 64 * 1024
+    clock = [1000.0]
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index._identity_clock = lambda: clock[0]
+        index.ingest([source])
+        source.write_bytes(changed)
+        assert index.ingest([source]).files_scanned == 0
+        assert (
+            index.sum_measurements("prefix_cache_query_delta", _at(500), _at(501))
+            == 510
+        )
+
+        clock[0] += telemetry_index.FULL_IDENTITY_INTERVAL + 1
+        assert index.ingest([source]).files_scanned == 1
+        assert (
+            index.sum_measurements("prefix_cache_query_delta", _at(500), _at(501))
+            == 910
+        )
+        stored = index._conn.execute(
+            "SELECT offset, prefix_sha FROM source ORDER BY offset DESC LIMIT 1"
+        ).fetchone()
+        assert (
+            stored["prefix_sha"]
+            == hashlib.sha256(changed[: stored["offset"]]).hexdigest()
+        )
+
+
+def test_head_window_rewrite_is_detected_on_next_tick(tmp_path):
+    source = tmp_path / "serve.jsonl"
+    _write(source, _many_rows(1000))
+    original = source.read_bytes()
+    changed = original.replace(
+        b'"prefix_cache_query_delta": 10,',
+        b'"prefix_cache_query_delta": 40,',
+        1,
+    )
+    assert changed != original and len(changed) == len(original)
+    assert len(changed) > 128 * 1024
+    clock = [1000.0]
+
+    with TelemetryIndex(tmp_path / "index.db") as index:
+        index._identity_clock = lambda: clock[0]
+        index.ingest([source])
+        source.write_bytes(changed)
+        assert index.ingest([source]).files_scanned == 1
+        assert index.sum_measurements("prefix_cache_query_delta", _at(0), _at(1)) == 40
 
 
 def test_a_row_written_before_the_time_was_recorded_is_not_assumed_unchanged(tmp_path):
@@ -1833,18 +1940,17 @@ def test_a_batched_ingest_records_the_whole_region_digest(tmp_path):
     assert batched == single == whole
 
 
-def test_a_reboot_spanning_source_consumed_to_its_end_is_not_read_again(
+def test_a_reboot_spanning_source_uses_only_identity_probes_when_unchanged(
     tmp_path, monkeypatch
 ):
-    """A file keyed by two boots is skipped once it is consumed to its end.
+    """A file keyed by two boots probes the row that reached its end.
 
     One receipts file spanning a reboot is keyed by two boots, so a batched pass
     writes a pre-reboot source row at its batch boundary beside a post-reboot
     row at the file's end. Reading an arbitrary one of the two sees a file
     consumed only to the boundary -- the pre-reboot row's offset is below its
-    size -- so the fast path declines and the pass re-digests the whole consumed
-    region on every pass forever. The file is judged by the row that recorded
-    its end, so the skip fires and the second pass neither opens nor digests it.
+    size -- so the fast path would decline and re-digest the consumed region.
+    The row that reached the end needs just the bounded probe on the next tick.
     """
     source = tmp_path / "serve.jsonl"
     source_bytes = [
@@ -1888,7 +1994,7 @@ def test_a_reboot_spanning_source_consumed_to_its_end_is_not_read_again(
         second = index.ingest([source], batch_rows=2)
 
     assert second.files_scanned == 0, "re-read a source consumed to its end"
-    assert opened == [], f"opened a consumed source: {opened}"
+    assert opened == [str(source)], f"unexpected source reads: {opened}"
     assert digested == [], f"re-digested a consumed source up to {digested}"
 
     appended = _row(20, host="node-a", boot_id=_BOOT_AFTER)
