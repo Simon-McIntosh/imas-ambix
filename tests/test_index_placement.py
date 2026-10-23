@@ -122,6 +122,54 @@ def test_snapshot_round_trip_preserves_rows_and_dump(tmp_path):
     assert _digest(origin) == _digest(restored)
 
 
+def test_ingest_command_restores_and_snapshots_only_in_test_directory(
+    tmp_path, monkeypatch
+):
+    production = Path.home() / ".local/state/ambix/index-snapshots"
+    snapshots = tmp_path / "index-snapshots"
+
+    def reject_production(path):
+        if path == production or production in path.parents:
+            raise AssertionError(f"ingest accessed production snapshots: {path}")
+
+    for method in ("is_dir", "mkdir", "glob", "open"):
+        original = getattr(Path, method)
+
+        def guarded(path, *args, _original=original, **kwargs):
+            reject_production(path)
+            return _original(path, *args, **kwargs)
+
+        monkeypatch.setattr(Path, method, guarded)
+
+    records = tmp_path / "records"
+    records.mkdir()
+    receipt = records / "receipt.jsonl"
+    _receipt(receipt, 0)
+    index_path = tmp_path / "watch-index.sqlite3"
+    command = [
+        "agent",
+        "ingest",
+        "--once",
+        "--no-retention",
+        "--record",
+        str(records),
+        "--index",
+        str(index_path),
+    ]
+    first = CliRunner().invoke(main, command)
+    assert first.exit_code == 0, (first.output, first.exception)
+    stored = list(snapshots.glob("*.zst"))
+    assert len(stored) == 1
+    assert _counts(index_path)[1] == 1
+
+    receipt.unlink()
+    index_path.unlink()
+    second = CliRunner().invoke(main, command)
+    assert second.exit_code == 0, (second.output, second.exception)
+    assert _counts(index_path)[1] == 1
+    assert list(snapshots.glob("*.zst")) == stored
+
+
 def test_slow_snapshot_does_not_delay_ticks_or_start_another(tmp_path, monkeypatch):
     source = tmp_path / "receipts.jsonl"
     _receipt(source, 0)
