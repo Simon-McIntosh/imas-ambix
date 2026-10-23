@@ -20,11 +20,11 @@
   <meta name="plan-tags" content="agent-serving">
   <meta name="plan-blocks" content="serving-record-warehouse">
   <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;],&quot;s10&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s11&quot;:[&quot;watch-index-lifecycle#s7&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="25">
+<meta name="plan-version" content="26">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -284,7 +284,7 @@
     </ul>
 
     <h2 id="s10">§10 — A schema change rebuilds the index instead of crash-looping the ingest</h2>
-    <section data-reckon="section" data-id="s10" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-attempts="0" data-status="done" data-links=""></section>
+    <section data-reckon="section" data-id="s10" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-attempts="0" data-status="implementable" data-links=""></section>
     <p>§5 made <code>TelemetryIndex</code> refuse an index without the name dictionary (<code>the measurement dictionary requires an index rebuild</code>). Nothing in the ingest command answers that refusal, so two ordinary events crash-loop the service under its supervisor:</p>
     <ul>
       <li><strong>Any restart of the running ingest.</strong> It still holds pre-§5 code in memory, and the editable install already serves §5, so a restart for any reason, a fleet-node failure included, opens the old-schema live index and raises.</li>
@@ -311,7 +311,7 @@
     <ul>
       <li><code>index_placement.index_requires_rebuild</code> re-implements the predicate that <code>TelemetryIndex</code> owns, the absent <code>name_id</code> column, so the sentinel lives in two modules. <code>TelemetryIndex</code> exposes the predicate publicly and <code>index_placement</code> calls it.</li>
       <li>The <code>ingest</code> command asks whether a snapshot exists through the private <code>index_placement._snapshot_paths</code>. <code>index_placement</code> exposes a public predicate, and <code>cli.py</code> uses only that.</li>
-      <li>The <code>hourly_rollup.counter_diff</code> column is written but never read, because <code>_counter_window_rows</code> reconstructs the difference from the segments. The column and its assertion are deleted, or the reader uses the column, whichever leaves one source of the counter difference.</li>
+      <li>The <code>hourly_rollup.counter_diff</code> column is written but never read, because <code>_counter_window_rows</code> reconstructs the difference from the segments. The column, its two writes and its assertion are deleted. The reader already derives the difference from <code>segments</code>, so <code>segments</code> stays the one source; keeping <code>counter_diff</code> and reading it instead would leave <code>segments</code> written but unread.</li>
       <li>The counter-rollup test never forces whole hours through <code>hourly_rollup</code>, so a regression that answers a whole-day counter period from raw rows passes it. The test is made to fail on such a regression.</li>
     </ul>
     <p>Write scope: <code>imas_ambix/agent/telemetry_index.py</code>, <code>imas_ambix/agent/index_placement.py</code>, <code>imas_ambix/agent/cli.py</code>, <code>tests/test_telemetry_index.py</code>, <code>tests/test_agent_telemetry_watch.py</code>, <code>tests/test_index_placement.py</code>. It follows §7, which also writes <code>cli.py</code>.</p>
@@ -351,7 +351,7 @@
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
 <article class="r-fu" data-id="f-wil-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build watch-index-lifecycle" data-resolved-at="" data-resolved-by="">
-    <h4 class="r-fu-title">Dispatch §3, §4 and §8 now; §5 after §3; §6 after §4 and §5; §7 and §10 after §6; deploy only after §10</h4>
+    <h4 class="r-fu-title">Dispatch §3, §4 and §8 now; §5 after §3; §6 after §4 and §5; §7 and §10 after §6; §11 after §7; deploy only after §10</h4>
     <div class="r-fu-body"><p>The write scopes fix this order. §3 and §5 both write <code>telemetry_index.py</code>; §4 and §5 both write <code>watch.py</code>; and §4, §6 and §7 each write <code>cli.py</code>. §8 writes only its research document. Restarting a fleet service is a deployment step that needs the lead's authority each time; record each deployment's measurement in its section. The ingest must not restart onto §5's schema before §10 lands, because without §10 an old-schema index or snapshot makes it exit and loop under the supervisor. The deployment of §5, §6 and §10 is therefore one restart, made after §10 merges.</p></div>
     <pre class="r-fu-prompt">/reckon-build watch-index-lifecycle</pre>
     </article>
@@ -433,7 +433,7 @@
     <div class="r-comment-body"><p>Old live indexes rebuild atomically from receipts and tick; incompatible snapshots are skipped and kept with fallback to an older copy or rebuild. Full gate 62 passed in 167.14s; serving parser 1 passed; Ruff passed; two negative-control tests failed as expected. Evidence: docs/evidence/fragments/watch-index-lifecycle/wil-schema-change-rebuilds-the-index.html.</p></div>
 </div>
 <div class="r-comment" data-section="s10" data-id="c-close-s10" data-who="reckon-build" data-when="2026-10-23T13:58:00Z">
-    <div class="r-comment-body"><p>§10 landed and deployed: the old-schema live index was rebuilt from receipts and swapped in at the deployment restart (merged <code>fbef8c0c</code>). A stale-WAL adoption after the swap caused one restart loop, which the coordinator stopped; its repair is in flight. <a href="/imas-ambix/evidence/archive/watch-index-lifecycle-landed.html#s6">evidence</a></p></div>
+    <div class="r-comment-body"><p>§10 landed and deployed: the old-schema live index was rebuilt from receipts and swapped in at the deployment restart (merged <code>fbef8c0c</code>). A stale-WAL adoption after the swap caused one restart loop, which the coordinator stopped; its repair is in flight. <a href="/imas-ambix/evidence/archive/watch-index-lifecycle-landed.html#s10">evidence</a></p></div>
 </div>
 </section>
 </main>
