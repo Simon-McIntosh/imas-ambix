@@ -1,0 +1,71 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The head named-final.log has zero failing test IDs, so the added set is empty for its selected command regardless of baseline; baseline_suite and after_suite are blank, so no two-arm delta was measured.",
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/agent/watch_publish.py:116",
+    "imas_ambix/agent/cli.py:3157",
+    "imas_ambix/agent/telemetry_ingest.py:361",
+    "imas_ambix/agent/watch.py:653"
+  ],
+  "completed_at": "2026-10-23T10:18:22Z",
+  "dispatched_at": "2026-10-23T10:05:23Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/watch-index-lifecycle/wil-watch-reads-hourly-rollups.html",
+      "line": "35",
+      "severity": "blocking",
+      "text": "blocking: the live-index rollup perturbation first changes index.age_seconds through file mtime, so it does not demonstrate a rollup-derived field mismatch on the rebuilt index required by the done-when."
+    },
+    {
+      "file": "manifest.md",
+      "line": "15",
+      "severity": "blocking",
+      "text": "blocking: the named three-file test gate deselects test_the_command_the_service_runs_carries_the_scheduled_retirement, so it has not established that all named tests pass."
+    },
+    {
+      "file": "manifest.md",
+      "line": "21",
+      "severity": "blocking",
+      "text": "blocking: baseline_suite and after_suite are both empty, so there is no two-arm gate receipt from which to measure the required added-failure delta."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 4 production call site(s)",
+    "diff": "the seven commits from cef31adf to bc21a13f add the dictionary, hourly summaries, bounded read paths, raw-reference tests, cached-counter repair, and landing evidence in the four declared files.",
+    "done_when": "prompt.txt's FENCE EVIDENCE requires live equality, a rollup mutation, sub-five-second read, sub-one-second maintenance, size, and named gates; live-final.log records equality and timings but its mutation first differs at index age, while named-final.log deselects one test.",
+    "goal": "prompt.txt:25 asks watch_document to read hourly summaries and raw edges, and imas_ambix/agent/telemetry_index.py:1864 and :2076 implement those reads.",
+    "manifest": "manifest.md:14-25 reports a 473215-row rebuild, 3.959-second watch read, 0.024-second rollup maintenance, 120 passing tests with one deselection, and empty baseline_suite and after_suite fields.",
+    "write_paths": "prompt.txt's FENCE SCOPE lists four code/test paths and the landing fragment, and git diff 2292e509..bc21a13 changes only telemetry_index.py, watch.py, test_agent_telemetry_watch.py, and that fragment."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_telemetry_watch.py:457-478 compares the candidate with a raw reader and fails when a populated gauge rollup is perturbed, while :500-513 fails on the reproduced cached-counter regression; no added assertion makes a raw whole-history read fail.",
+    "evidence": "live-final.log records equality, 3.959 seconds, and 0.024 seconds, while docs/evidence/fragments/watch-index-lifecycle/wil-watch-reads-hourly-rollups.html:35 and manifest.md:15,21-22 expose an ineffective live mutation, a deselected gate, and missing suite arms.",
+    "fit": "imas_ambix/agent/telemetry_index.py:1633-1787 keeps rollup maintenance in the existing index owner and uses source, sample, and measurement keys already used there.",
+    "goal_fidelity": "imas_ambix/agent/telemetry_index.py:1864 and :2076 read whole-hour rollups plus bounded raw edge rows, and imas_ambix/agent/watch.py:653 batches the card query.",
+    "reuse": "the capability search found imas_ambix/agent/telemetry_store.py:714 as a per-receipt compactor, while imas_ambix/agent/telemetry_index.py:314 adds the distinct per-source hourly query summary to the index owner.",
+    "scope_discipline": "the diff touches only imas_ambix/agent/telemetry_index.py, imas_ambix/agent/watch.py, tests/test_agent_telemetry_watch.py, and the declared landing fragment."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: prompt.txt:25 asks watch_document to read hourly summaries and raw edges, and imas_ambix/agent/telemetry_index.py:1864 and :2076 implement those reads.\nVERDICT done_when: prompt.txt's FENCE EVIDENCE requires live equality, a rollup mutation, sub-five-second read, sub-one-second maintenance, size, and named gates; live-final.log records equality and timings but its mutation first differs at index age, while named-final.log deselects one test.\nVERDICT write_paths: prompt.txt's FENCE SCOPE lists four code/test paths and the landing fragment, and git diff 2292e509..bc21a13 changes only telemetry_index.py, watch.py, test_agent_telemetry_watch.py, and that fragment.\nVERDICT manifest: manifest.md:14-25 reports a 473215-row rebuild, 3.959-second watch read, 0.024-second rollup maintenance, 120 passing tests with one deselection, and empty baseline_suite and after_suite fields.\nVERDICT diff: the seven commits from cef31adf to bc21a13f add the dictionary, hourly summaries, bounded read paths, raw-reference tests, cached-counter repair, and landing evidence in the four declared files.\nCALL_SITES: imas_ambix/agent/watch_publish.py:116, imas_ambix/agent/cli.py:3157, imas_ambix/agent/telemetry_ingest.py:361, imas_ambix/agent/watch.py:653\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/telemetry_index.py:1864 and :2076 read whole-hour rollups plus bounded raw edge rows, and imas_ambix/agent/watch.py:653 batches the card query.\nSCORE evidence: 10\nJUSTIFICATION evidence: live-final.log records equality, 3.959 seconds, and 0.024 seconds, while docs/evidence/fragments/watch-index-lifecycle/wil-watch-reads-hourly-rollups.html:35 and manifest.md:15,21-22 expose an ineffective live mutation, a deselected gate, and missing suite arms.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff touches only imas_ambix/agent/telemetry_index.py, imas_ambix/agent/watch.py, tests/test_agent_telemetry_watch.py, and the declared landing fragment.\nSCORE durability: 16\nJUSTIFICATION durability: tests/test_agent_telemetry_watch.py:457-478 compares the candidate with a raw reader and fails when a populated gauge rollup is perturbed, while :500-513 fails on the reproduced cached-counter regression; no added assertion makes a raw whole-history read fail.\nSCORE fit: 19\nJUSTIFICATION fit: imas_ambix/agent/telemetry_index.py:1633-1787 keeps rollup maintenance in the existing index owner and uses source, sample, and measurement keys already used there.\nSCORE reuse: 20\nJUSTIFICATION reuse: the capability search found imas_ambix/agent/telemetry_store.py:714 as a per-receipt compactor, while imas_ambix/agent/telemetry_index.py:314 adds the distinct per-source hourly query summary to the index owner.\nFINDING docs/evidence/fragments/watch-index-lifecycle/wil-watch-reads-hourly-rollups.html:35 blocking: the live-index rollup perturbation first changes index.age_seconds through file mtime, so it does not demonstrate a rollup-derived field mismatch on the rebuilt index required by the done-when.\nFINDING manifest.md:15 blocking: the named three-file test gate deselects test_the_command_the_service_runs_carries_the_scheduled_retirement, so it has not established that all named tests pass.\nFINDING manifest.md:21 blocking: baseline_suite and after_suite are both empty, so there is no two-arm gate receipt from which to measure the required added-failure delta.\n",
+  "review_run_id": "r-20261023T100455492543-review-of-wil-watch-reads-hourly-rollups-bc21a13f9dee",
+  "reviewed_base_sha": "2292e5099f0e878a7a15aef8f8d69ad48803a0da",
+  "reviewed_head_sha": "bc21a13f9deedaad9fbe9104807f96faf6643f9f",
+  "reviewed_run_id": "r-20261023T082420427390-wil-watch-reads-hourly-rollups",
+  "scores": {
+    "durability": 16,
+    "evidence": 10,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T10:20:59.354381+00:00",
+  "total": 104
+}
