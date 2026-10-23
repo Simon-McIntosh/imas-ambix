@@ -98,6 +98,13 @@ def _decompress_and_check(source: Path, destination: Path) -> None:
             raise ValueError(f"snapshot quick_check failed: {source}: {result}")
 
 
+def index_requires_rebuild(path: Path) -> bool:
+    """Match the measurement schema refusal made by the ingest writer."""
+    with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as db:
+        columns = {row[1] for row in db.execute("PRAGMA table_info(measurement)")}
+    return bool(columns and "name_id" not in columns)
+
+
 def _signature(path: Path) -> tuple[int, int, int, int, int]:
     info = path.stat()
     return (
@@ -236,7 +243,7 @@ def snapshot_index(
 
 
 def restore_index(path: Path, *, directory: Path | None = None) -> Path | None:
-    """Restore the newest valid copy, falling back on damage."""
+    """Restore the newest usable copy, falling back on damage or old schema."""
     target = require_local(path)
     directory = SNAPSHOT_DIR if directory is None else directory
     if target.exists() or not directory.is_dir():
@@ -247,6 +254,13 @@ def restore_index(path: Path, *, directory: Path | None = None) -> Path | None:
             candidate = Path(scratch) / "restored.sqlite3"
             try:
                 _decompress_and_check(source, candidate)
+                if index_requires_rebuild(candidate):
+                    print(
+                        f"snapshot skipped (incompatible schema): {source}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    continue
                 os.replace(candidate, target)
             except (
                 OSError,

@@ -9,6 +9,7 @@ import secrets
 import shlex
 import subprocess
 import sys
+import tempfile
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -3396,7 +3397,7 @@ def ingest(
         telemetry_retention,
         watch_publish,
     )
-    from imas_ambix.agent.telemetry_index import TelemetryIndex
+    from imas_ambix.agent.telemetry_index import TelemetryIndex, discover
     from imas_ambix.agent.watch import default_record_dir
 
     resolved_record = (
@@ -3410,6 +3411,29 @@ def ingest(
     resolved_index = resolved_index.resolve()
     resolved_index.parent.mkdir(parents=True, exist_ok=True)
     index_placement.restore_index(resolved_index)
+    if (
+        resolved_index.exists()
+        and index_placement.index_requires_rebuild(resolved_index)
+    ) or (
+        not resolved_index.exists()
+        and index_placement.SNAPSHOT_DIR.is_dir()
+        and bool(index_placement._snapshot_paths(index_placement.SNAPSHOT_DIR))
+    ):
+        started = time.monotonic()
+        descriptor, staged_name = tempfile.mkstemp(
+            prefix=f".{resolved_index.name}.rebuild-", dir=resolved_index.parent
+        )
+        os.close(descriptor)
+        staged = Path(staged_name)
+        try:
+            with TelemetryIndex(staged) as rebuilt:
+                rebuilt.rebuild(discover(resolved_record))
+            os.replace(staged, resolved_index)
+        finally:
+            staged.unlink(missing_ok=True)
+        elapsed = time.monotonic() - started
+        sys.stdout.write(f"index rebuild {resolved_index} duration={elapsed:.2f}s\n")
+        sys.stdout.flush()
     index = TelemetryIndex(resolved_index)
     index_placement.enable_wal(index)
     snapshots = index_placement.SnapshotScheduler(resolved_index)

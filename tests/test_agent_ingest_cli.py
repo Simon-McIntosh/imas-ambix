@@ -10,6 +10,7 @@ happens to hold.
 
 from __future__ import annotations
 
+import sqlite3
 import types
 from datetime import UTC, datetime
 
@@ -18,6 +19,60 @@ from click.testing import CliRunner
 from imas_ambix.agent.telemetry_index import IngestReport
 from imas_ambix.agent.telemetry_ingest import TickReport
 from imas_ambix.cli import main
+
+
+def _old_schema_index(path) -> None:
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "CREATE TABLE source (mtime_ns INTEGER, head_sha TEXT, tail_sha TEXT)"
+        )
+        connection.execute("CREATE TABLE measurement (name TEXT)")
+
+
+def test_old_schema_index_rebuilds_before_first_tick(tmp_path, monkeypatch) -> None:
+    from imas_ambix.agent import watch_publish
+
+    records = tmp_path / "receipts"
+    records.mkdir()
+    (records / "serve.jsonl").write_text(
+        '{"timestamp":"2026-10-23T00:00:00Z","job_id":"123","engine":{"generation_tokens":7}}\n'
+    )
+    index_path = tmp_path / "watch-index.sqlite3"
+    _old_schema_index(index_path)
+    monkeypatch.setattr(
+        watch_publish, "one_iteration", lambda *_args, **_kwargs: "published"
+    )
+    result = CliRunner().invoke(
+        main, ["agent", "ingest", "--once", "--no-retention", *_ingest_args(tmp_path)]
+    )
+    assert result.exit_code == 0, (result.output, result.exception)
+    assert result.output.count("index rebuild") == 1
+    assert "duration=" in result.output
+    assert "ingest tick" in result.output
+    with sqlite3.connect(index_path) as connection:
+        assert connection.execute("SELECT count(*) FROM sample").fetchone()[0] == 1
+
+
+def test_failed_rebuild_keeps_old_index(tmp_path, monkeypatch) -> None:
+    from imas_ambix.agent import telemetry_index
+
+    index_path = tmp_path / "watch-index.sqlite3"
+    _old_schema_index(index_path)
+    before = index_path.read_bytes()
+
+    def fail_rebuild(self, sources):
+        self._conn.execute("CREATE TABLE partial_rebuild (value INTEGER)")
+        self._conn.commit()
+        raise RuntimeError("rebuild interrupted")
+
+    monkeypatch.setattr(telemetry_index.TelemetryIndex, "rebuild", fail_rebuild)
+    result = CliRunner().invoke(
+        main, ["agent", "ingest", "--once", "--no-retention", *_ingest_args(tmp_path)]
+    )
+    assert result.exit_code != 0
+    assert isinstance(result.exception, RuntimeError)
+    assert index_path.read_bytes() == before
+    assert not list(tmp_path.glob("*rebuild*"))
 
 
 def _ingest_args(tmp_path) -> list[str]:
