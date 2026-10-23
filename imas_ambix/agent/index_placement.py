@@ -13,12 +13,10 @@ import threading
 from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from compression import zstd
 
-if TYPE_CHECKING:
-    from imas_ambix.agent.telemetry_index import TelemetryIndex
+from imas_ambix.agent.telemetry_index import TelemetryIndex
 
 NETWORK_FILESYSTEM_TYPES = frozenset(
     {
@@ -89,6 +87,11 @@ def _snapshot_paths(directory: Path) -> list[Path]:
     return sorted(directory.glob(f"{SNAPSHOT_PREFIX}*{SNAPSHOT_SUFFIX}"), reverse=True)
 
 
+def snapshot_exists(*, directory: Path | None = None) -> bool:
+    """Whether any durable index snapshot is available for restore."""
+    return bool(_snapshot_paths(SNAPSHOT_DIR if directory is None else directory))
+
+
 def _decompress_and_check(source: Path, destination: Path) -> None:
     with zstd.open(source, "rb") as compressed, destination.open("wb") as plain:
         shutil.copyfileobj(compressed, plain, length=1024 * 1024)
@@ -100,9 +103,15 @@ def _decompress_and_check(source: Path, destination: Path) -> None:
 
 def index_requires_rebuild(path: Path) -> bool:
     """Match the measurement schema refusal made by the ingest writer."""
-    with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as db:
-        columns = {row[1] for row in db.execute("PRAGMA table_info(measurement)")}
-    return bool(columns and "name_id" not in columns)
+    return TelemetryIndex.requires_rebuild(path)
+
+
+def install_index(source: Path, target: Path) -> None:
+    """Replace a closed index after clearing sidecars from its former inode."""
+    require_local(target)
+    for suffix in ("-wal", "-shm"):
+        target.with_name(target.name + suffix).unlink(missing_ok=True)
+    os.replace(source, target)
 
 
 def _signature(path: Path) -> tuple[int, int, int, int, int]:
@@ -261,7 +270,7 @@ def restore_index(path: Path, *, directory: Path | None = None) -> Path | None:
                         flush=True,
                     )
                     continue
-                os.replace(candidate, target)
+                install_index(candidate, target)
             except (
                 OSError,
                 ValueError,

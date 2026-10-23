@@ -118,9 +118,44 @@ def test_snapshot_round_trip_preserves_rows_and_dump(tmp_path):
         stored = index_placement.snapshot_index(index, directory=snapshots)
     restored = tmp_path / "restored.sqlite3"
     assert stored.suffix == ".zst"
+    assert index_placement.snapshot_exists(directory=snapshots)
     assert index_placement.restore_index(restored, directory=snapshots) == stored
     assert _counts(origin) == _counts(restored)
     assert _digest(origin) == _digest(restored)
+
+
+def test_restore_clears_stale_wal_before_replacing_index(tmp_path, monkeypatch):
+    source = tmp_path / "receipts.jsonl"
+    _receipt(source, 0)
+    snapshots = tmp_path / "snapshots"
+    with TelemetryIndex(tmp_path / "source.sqlite3") as index:
+        index.ingest([source])
+        stored = index_placement.snapshot_index(index, directory=snapshots)
+    target = tmp_path / "restored.sqlite3"
+    original = index_placement._decompress_and_check
+    stale_connections = []
+
+    def create_stale_wal(snapshot, candidate):
+        stale = sqlite3.connect(target)
+        stale_connections.append(stale)
+        stale.execute("PRAGMA journal_mode=WAL")
+        stale.execute("PRAGMA wal_autocheckpoint=0")
+        stale.execute("CREATE TABLE stale_marker (value INTEGER)")
+        stale.commit()
+        assert target.with_name(target.name + "-wal").exists()
+        original(snapshot, candidate)
+
+    monkeypatch.setattr(index_placement, "_decompress_and_check", create_stale_wal)
+    try:
+        assert index_placement.restore_index(target, directory=snapshots) == stored
+        with sqlite3.connect(target) as restored:
+            assert restored.execute("SELECT COUNT(*) FROM measurement").fetchone()[0]
+            assert not restored.execute(
+                "SELECT 1 FROM sqlite_master WHERE name = 'stale_marker'"
+            ).fetchone()
+    finally:
+        for stale in stale_connections:
+            stale.close()
 
 
 def test_old_schema_snapshot_is_skipped_and_kept(tmp_path, capsys, monkeypatch):
@@ -135,6 +170,7 @@ def test_old_schema_snapshot_is_skipped_and_kept(tmp_path, capsys, monkeypatch):
         connection.execute("CREATE TABLE measurement (name TEXT)")
     with source.open("rb") as plain, zstd.open(old, "wb") as compressed:
         compressed.write(plain.read())
+    assert TelemetryIndex.requires_rebuild(source)
     target = tmp_path / "restored.sqlite3"
     assert index_placement.restore_index(target, directory=snapshots) is None
     assert old.exists()
@@ -164,6 +200,25 @@ def test_old_schema_snapshot_is_skipped_and_kept(tmp_path, capsys, monkeypatch):
     assert "ingest tick" in result.output
     assert old.exists()
     assert _counts(target)[1] == 1
+
+
+def test_legacy_counter_column_remains_compatible(tmp_path):
+    target = tmp_path / "index.sqlite3"
+    with TelemetryIndex(target):
+        pass
+    with sqlite3.connect(target) as connection:
+        assert "counter_diff" not in {
+            row[1] for row in connection.execute("PRAGMA table_info(hourly_rollup)")
+        }
+    with sqlite3.connect(target) as connection:
+        connection.execute("ALTER TABLE hourly_rollup ADD COLUMN counter_diff REAL")
+    assert not TelemetryIndex.requires_rebuild(target)
+    source = tmp_path / "receipts.jsonl"
+    _receipt(source, 0)
+    _receipt(source, 5)
+    with TelemetryIndex(target) as index:
+        assert index.ingest([source]).rows_inserted == 2
+        assert index._conn.execute("SELECT COUNT(*) FROM hourly_rollup").fetchone()[0]
 
 
 def test_old_schema_snapshot_falls_back_to_compatible_copy(tmp_path, capsys):
