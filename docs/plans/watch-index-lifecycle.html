@@ -24,7 +24,7 @@
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="28">
+<meta name="plan-version" content="29">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -438,6 +438,9 @@
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20261023T141151886442-review-of-wil-rebuild-swap-clears-the-old-wal-154a7f96d84b" data-who="reckon-build" data-when="2026-10-23T14:39:11.221Z">
     <div class="r-comment-body"><p>Reviewed run r-20261023T135323383381-wil-rebuild-swap-clears-the-old-wal at head 154a7f96d84b8a60c1342835d56eae44c40327bb from base 5eff4e926b4e136eed1333504216abe08b87bee5; scores goal_fidelity 20, evidence 19, scope_discipline 20, durability 19, fit 18, reuse 18; 0 added failures; two non-blocking findings (cli.py:3431 the journal discard sits in cli.py rather than its lifecycle owner index_placement.py:264; tests/test_agent_ingest_cli.py:70 patches the global os.replace); record written under review-records/ in the reviewed run's directory.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-run-r-20261023T135323383381-wil-rebuild-swap-clears-the-old-wal" data-who="reckon-build" data-when="2026-10-23T14:11:05Z">
+    <div class="r-comment-body"><p>The incompatible-index rebuild now removes the replaced database WAL and SHM after rebuilding and before os.replace; a crashed old-schema WAL reproduced the refusal under mutation, while the repaired ingest ticked and an interrupted rebuild preserved the original database and WAL. Required gate 62 passed in 40.94s, parser 1 passed, Ruff passed. Evidence: docs/evidence/fragments/watch-index-lifecycle/wil-rebuild-swap-clears-the-old-wal.html.</p></div>
 </div>
 </section>
 </main>
