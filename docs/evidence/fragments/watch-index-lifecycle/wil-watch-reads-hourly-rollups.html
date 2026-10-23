@@ -14,13 +14,13 @@
   versus raw 9,500 device tokens and 75 versus raw 2,375 external tokens.
   Classifying both in the shared cumulative dictionary made the regression
   pass. A fresh index rebuilt from 108 offered receipt files selected 32,
-  inserted 473,215 rows, and read 1,279,656,948 receipt bytes in 544 seconds.
-  Its 3,810,488,320 bytes compare with the old 8,678,658,048 bytes and the
+  inserted 473,578 rows, and read 1,281,016,059 receipt bytes in 554 seconds.
+  Its 3,814,936,576 bytes compare with the old 8,678,658,048 bytes and the
   2.11 GB estimate.</p>
   <p>With the live block frozen for both readers, <code>watch_document</code>
   returned exact field-by-field equality against the raw computation over that
-  rebuilt index. It took 3.959 seconds; a prior full call after the query-plan
-  repair took 4.475 seconds, both under five seconds. Rollup maintenance added
+  rebuilt index. It took 0.847 seconds; earlier fresh calls took 3.959 and
+  4.475 seconds, all under five seconds. Rollup maintenance added
   0.024 seconds to a 60-row ingest tick (1.925 seconds total). A 15.279-second
   cold call at the repaired revision was not repeatable: a later profile at
   that revision took 5.607 seconds and then 1.151 seconds. The instrumented
@@ -29,12 +29,12 @@
   other document work and cold I/O occupy the uninstrumented remainder. The
   query plan uses bounded edge rows and a sample-key join, so the measured
   delay does not show a return to raw whole-history reads.</p>
-  <p>A populated gauge rollup perturbation made the current-revision fixture
-  comparison fail at <code>$.ledger[1].utilisation</code> (EXIT=1); the normal
-  comparison passed. The live perturbation run first reported
-  <code>$.index.age_seconds</code> because its edit advanced the database
-  modification time, so that particular first difference does not establish
-  a ledger mismatch. The full named three-file suite passed all 121 tests,
+  <p>On the rebuilt fleet index, the unperturbed document matched the raw reader
+  exactly. One populated card rollup row was changed while the index file's
+  modification time was held constant: index metadata remained equal, and the
+  first differing field was <code>$.ledger[1].utilisation</code>. Restoring the
+  row restored exact equality. The current-revision fixture mutation also
+  failed at that field (EXIT=1). The full named three-file suite passed all 121 tests,
   including the command's scheduled-retirement test. Its launcher used a
   node-local temporary home: its snapshot directory was empty while the
   operator's snapshot directory held one archive. The serving-interpreter
