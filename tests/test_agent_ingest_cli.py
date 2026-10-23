@@ -46,7 +46,7 @@ def _old_schema_index_with_wal(path) -> None:
 
 
 def test_old_schema_index_rebuilds_before_first_tick(tmp_path, monkeypatch) -> None:
-    from imas_ambix.agent import cli, watch_publish
+    from imas_ambix.agent import index_placement, watch_publish
 
     records = tmp_path / "receipts"
     records.mkdir()
@@ -56,7 +56,13 @@ def test_old_schema_index_rebuilds_before_first_tick(tmp_path, monkeypatch) -> N
     index_path = tmp_path / "watch-index.sqlite3"
     _old_schema_index_with_wal(index_path)
     replace = os.replace
+    install = index_placement.install_index
     swap_checked = []
+    installed = []
+
+    def check_install(source, destination):
+        installed.append((source, destination))
+        install(source, destination)
 
     def check_swap(source, destination):
         if destination == index_path:
@@ -67,7 +73,8 @@ def test_old_schema_index_rebuilds_before_first_tick(tmp_path, monkeypatch) -> N
             )
         replace(source, destination)
 
-    monkeypatch.setattr(cli.os, "replace", check_swap)
+    monkeypatch.setattr(index_placement, "install_index", check_install)
+    monkeypatch.setattr(index_placement.os, "replace", check_swap)
     monkeypatch.setattr(
         watch_publish, "one_iteration", lambda *_args, **_kwargs: "published"
     )
@@ -75,6 +82,8 @@ def test_old_schema_index_rebuilds_before_first_tick(tmp_path, monkeypatch) -> N
         main, ["agent", "ingest", "--once", "--no-retention", *_ingest_args(tmp_path)]
     )
     assert result.exit_code == 0, (result.output, result.exception)
+    assert len(installed) == 1
+    assert installed[0][1] == index_path
     assert swap_checked == [True]
     assert result.output.count("index rebuild") == 1
     assert "duration=" in result.output
@@ -83,6 +92,28 @@ def test_old_schema_index_rebuilds_before_first_tick(tmp_path, monkeypatch) -> N
     assert not index_path.with_name(index_path.name + "-shm").exists()
     with sqlite3.connect(index_path) as connection:
         assert connection.execute("SELECT count(*) FROM sample").fetchone()[0] == 1
+
+
+def test_absent_index_uses_snapshot_predicate_to_rebuild(tmp_path, monkeypatch) -> None:
+    from imas_ambix.agent import index_placement, watch_publish
+
+    seen = []
+
+    def snapshot_exists():
+        seen.append(True)
+        return True
+
+    monkeypatch.setattr(index_placement, "restore_index", lambda _path: None)
+    monkeypatch.setattr(index_placement, "snapshot_exists", snapshot_exists)
+    monkeypatch.setattr(
+        watch_publish, "one_iteration", lambda *_args, **_kwargs: "published"
+    )
+    result = CliRunner().invoke(
+        main, ["agent", "ingest", "--once", "--no-retention", *_ingest_args(tmp_path)]
+    )
+    assert result.exit_code == 0, (result.output, result.exception)
+    assert seen == [True]
+    assert "index rebuild" in result.output
 
 
 def test_failed_rebuild_keeps_old_index(tmp_path, monkeypatch) -> None:
