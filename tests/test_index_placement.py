@@ -61,6 +61,17 @@ def test_resolver_uses_override_then_local_runtime_then_none(tmp_path, monkeypat
     assert index_placement.resolve_index_path() is None
 
 
+def test_runtime_candidate_on_network_filesystem_is_skipped(tmp_path, monkeypatch):
+    monkeypatch.setenv("FLEET_RUNTIME_DIR", str(tmp_path))
+    monkeypatch.delenv("AMBIX_WATCH_INDEX", raising=False)
+    monkeypatch.setattr(
+        index_placement,
+        "filesystem_type",
+        lambda path: 0x47504653 if Path(path).name == "watch-index.sqlite3" else 0,
+    )
+    assert index_placement.resolve_index_path() is None
+
+
 def test_network_filesystem_refuses_wal(tmp_path, monkeypatch):
     with TelemetryIndex(tmp_path / "local.sqlite3") as index:
         index_placement.enable_wal(index)
@@ -159,4 +170,7 @@ def test_watch_without_local_index_reads_published_stamp(tmp_path, monkeypatch):
     assert watch.watch_document()["published_at"] == "2026-10-23T06:00:00Z"
     result = CliRunner().invoke(main, ["agent", "watch", "--json"])
     assert result.exit_code == 0, result.output
-    assert json.loads(result.output)["published_at"] == "2026-10-23T06:00:00Z"
+    assert result.output == published.read_text()
+    result = CliRunner().invoke(main, ["agent", "watch"])
+    assert result.exit_code == 0, result.output
+    assert result.output == published.read_text()

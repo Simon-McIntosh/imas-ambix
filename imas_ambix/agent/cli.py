@@ -3135,6 +3135,7 @@ def watch(
     Emit only the lane, live and callers blocks, without opening the index:
         imas-ambix agent watch --json --live
     """
+    from imas_ambix.agent import index_placement
     from imas_ambix.agent import watch as watch_mod
 
     if as_live and not as_json:
@@ -3146,6 +3147,9 @@ def watch(
         click.echo(
             _json.dumps(watch_mod.live_document(record_dir=record_dir), indent=2)
         )
+        return
+    if index_placement.resolve_index_path(index_path) is None:
+        click.echo(watch_mod.PUBLISHED_WATCH_PATH.read_text(encoding="utf-8"), nl=False)
         return
     if as_json:
         click.echo(

@@ -67,8 +67,9 @@ def resolve_index_path(explicit: str | Path | None = None) -> Path | None:
     runtime = os.environ.get("FLEET_RUNTIME_DIR")
     if runtime:
         root = Path(runtime).expanduser()
-        if root.is_dir() and filesystem_type(root) not in NETWORK_FILESYSTEM_TYPES:
-            return root / "ambix" / "watch-index.sqlite3"
+        candidate = root / "ambix" / "watch-index.sqlite3"
+        if root.is_dir() and filesystem_type(candidate) not in NETWORK_FILESYSTEM_TYPES:
+            return candidate
     return None
 
 
