@@ -1129,13 +1129,21 @@ def test_a_new_shape_is_added_as_a_dialect_entry_not_as_parsing_code() -> None:
 
 
 def _identity_headers(
-    run_id: bytes | None, session: bytes | None
+    run_id: bytes | None,
+    session: bytes | None,
+    *,
+    account: bytes | None = None,
+    project: bytes | None = None,
 ) -> list[tuple[bytes, bytes]]:
     headers: list[tuple[bytes, bytes]] = [(b"content-type", b"application/json")]
     if run_id is not None:
         headers.append((b"x-reckon-run-id", run_id))
     if session is not None:
         headers.append((b"x-reckon-session", session))
+    if account is not None:
+        headers.append((b"x-ambix-account", account))
+    if project is not None:
+        headers.append((b"x-ambix-project", project))
     return headers
 
 
@@ -1168,6 +1176,42 @@ def test_a_relayed_request_records_the_session_identity_it_carried(
     asyncio.run(exercise())
 
 
+def test_a_relayed_request_records_the_account_and_project_it_carried(
+    tmp_path: Path,
+) -> None:
+    """The account and project a caller reports land on the row it produced.
+
+    They ride beside the run and session tokens: every caller shares one key, so
+    nothing else on the connection names who asked, and the row's only account
+    is the one the caller declared.
+    """
+
+    async def exercise() -> None:
+        receipts = tmp_path / "requests.jsonl"
+        engine = _sse_engine()
+        async with (
+            _server(engine) as engine_url,
+            _router_with_receipts([Upstream(engine_url)], receipts) as app,
+        ):
+            response = await _invoke(
+                app,
+                "POST",
+                "/v1/chat/completions",
+                _request_body(),
+                headers=_identity_headers(
+                    b"r-abc", b"s-1", account=b"mcintos", project=b"demo"
+                ),
+            )
+            assert _status(response) == 200
+
+        rows = _read_rows(receipts)
+        assert len(rows) == 1
+        assert rows[0]["account"] == "mcintos"
+        assert rows[0]["project"] == "demo"
+
+    asyncio.run(exercise())
+
+
 def test_a_request_reported_while_unkeyed_records_both_identities_null(
     tmp_path: Path,
 ) -> None:
@@ -1189,6 +1233,55 @@ def test_a_request_reported_while_unkeyed_records_both_identities_null(
         assert len(rows) == 1
         assert rows[0]["run_id"] is None
         assert rows[0]["coordinator_session"] is None
+        assert rows[0]["account"] is None
+        assert rows[0]["project"] is None
+
+    asyncio.run(exercise())
+
+
+def test_an_over_long_or_control_bearing_account_is_recorded_as_absent(
+    tmp_path: Path,
+) -> None:
+    """A malformed account is null rather than a value, and the project survives.
+
+    The account and project follow the tokens' rule, so an over-long or
+    control-bearing value is recorded absent rather than truncated to something
+    that could collide with a different caller's.
+    """
+
+    async def exercise() -> None:
+        receipts = tmp_path / "requests.jsonl"
+        engine = _sse_engine()
+        async with (
+            _server(engine) as engine_url,
+            _router_with_receipts([Upstream(engine_url)], receipts) as app,
+        ):
+            await _invoke(
+                app,
+                "POST",
+                "/v1/chat/completions",
+                _request_body(),
+                headers=_identity_headers(
+                    None,
+                    None,
+                    account=b"a" * (MAX_IDENTITY_CHARS + 1),
+                    project=b"demo",
+                ),
+            )
+            await _invoke(
+                app,
+                "POST",
+                "/v1/chat/completions",
+                _request_body(),
+                headers=_identity_headers(None, None, account=b"u\x07ser"),
+            )
+
+        rows = _read_rows(receipts)
+        assert len(rows) == 2
+        assert rows[0]["account"] is None
+        assert rows[0]["project"] == "demo"
+        assert rows[1]["account"] is None
+        assert rows[1]["project"] is None
 
     asyncio.run(exercise())
 
@@ -1277,17 +1370,48 @@ def test_an_identity_that_is_not_a_well_formed_token_is_rejected_at_the_boundary
     assert identity_from_headers([(b"x-reckon-run-id", at_limit)]) == (
         at_limit.decode(),
         None,
+        None,
+        None,
     )
     assert identity_from_headers(
         [(b"x-reckon-run-id", b"a" * (MAX_IDENTITY_CHARS + 1))]
     ) == (
         None,
         None,
+        None,
+        None,
     )
-    assert identity_from_headers([(b"X-Reckon-Session", b"s-1")]) == (None, "s-1")
-    assert identity_from_headers([(b"x-reckon-run-id", b"")]) == (None, None)
-    assert identity_from_headers([(b"x-reckon-run-id", b"r\x07x")]) == (None, None)
-    assert identity_from_headers([]) == (None, None)
+    assert identity_from_headers([(b"X-Reckon-Session", b"s-1")]) == (
+        None,
+        "s-1",
+        None,
+        None,
+    )
+    assert identity_from_headers([(b"x-reckon-run-id", b"")]) == (
+        None,
+        None,
+        None,
+        None,
+    )
+    assert identity_from_headers([(b"x-reckon-run-id", b"r\x07x")]) == (
+        None,
+        None,
+        None,
+        None,
+    )
+    assert identity_from_headers(
+        [(b"X-Ambix-Account", b"mcintos"), (b"x-ambix-project", b"demo")]
+    ) == (None, None, "mcintos", "demo")
+    assert identity_from_headers(
+        [(b"x-ambix-account", b"a" * (MAX_IDENTITY_CHARS + 1))]
+    ) == (None, None, None, None)
+    assert identity_from_headers([(b"x-ambix-project", b"d\x07mo")]) == (
+        None,
+        None,
+        None,
+        None,
+    )
+    assert identity_from_headers([]) == (None, None, None, None)
 
 
 def test_the_gate_timeout_receipt_also_carries_the_session_identity(

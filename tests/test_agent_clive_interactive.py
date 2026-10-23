@@ -20,6 +20,8 @@ import subprocess
 import threading
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from pwd import getpwuid
 
 import pytest
 
@@ -101,13 +103,21 @@ def _serve_catalog(items: list[dict[str, object]]):
         thread.join(timeout=2)
 
 
-def _typed_terminal_run(tmp_path, items, answer: str | None, *extra: str):
+def _typed_terminal_run(
+    tmp_path,
+    items,
+    answer: str | None,
+    *extra: str,
+    environment_extra: dict[str, str] | None = None,
+    cwd=None,
+):
     """Run the generated launcher with stdin attached to a pseudo-terminal.
 
     ``answer`` is written to the master side as a whole line, which is what the
     launcher reads back through the duplicated descriptor. A ``None`` answer
     leaves the terminal untouched, so a launcher that does not prompt still
-    exits.
+    exits. ``environment_extra`` adds variables the launcher inherits, and
+    ``cwd`` sets the directory it starts in.
     """
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
@@ -128,6 +138,8 @@ def _typed_terminal_run(tmp_path, items, answer: str | None, *extra: str):
         launcher.chmod(0o755)
         environment = os.environ.copy()
         environment["PATH"] = f"{fake_bin}:{environment['PATH']}"
+        if environment_extra:
+            environment.update(environment_extra)
         master, slave = pty.openpty()
         try:
             process = subprocess.Popen(
@@ -136,6 +148,7 @@ def _typed_terminal_run(tmp_path, items, answer: str | None, *extra: str):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=environment,
+                cwd=cwd,
             )
         finally:
             os.close(slave)
@@ -188,6 +201,67 @@ class _Run:
             for line in self.environment_file.read_text(encoding="utf-8").splitlines()
             if "=" in line
         )
+
+    def harness_variable(self, name: str) -> str:
+        """One variable's full value from the stub's environment dump.
+
+        ``env`` prints a value's newlines literally, so a multi-line variable is
+        read from its own line up to the next ``NAME=`` line rather than by the
+        single-line parse above, which would truncate it at the first line.
+        """
+        lines = self.environment_file.read_text(encoding="utf-8").splitlines()
+        start = f"{name}="
+        index = next(i for i, line in enumerate(lines) if line.startswith(start))
+        value = [lines[index][len(start) :]]
+        for line in lines[index + 1 :]:
+            if "=" in line and line.split("=", 1)[0].isidentifier():
+                break
+            value.append(line)
+        return "\n".join(value)
+
+
+def _demo_worktree(tmp_path) -> Path:
+    """A detached git worktree of a repository named ``demo``.
+
+    The launcher derives the project from the *common* git directory's parent so
+    that a worktree reports its repository rather than its own node directory,
+    which is why the fixture needs a real worktree and not merely a repository.
+    """
+    repository = tmp_path / "demo"
+    repository.mkdir()
+    (repository / "seed.txt").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(repository)], check=True)
+    subprocess.run(["git", "-C", str(repository), "add", "seed.txt"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "-c",
+            "user.email=test@example.invalid",
+            "-c",
+            "user.name=Test",
+            "commit",
+            "-qm",
+            "seed",
+        ],
+        check=True,
+    )
+    worktree = tmp_path / "demo-node"
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repository),
+            "worktree",
+            "add",
+            "-q",
+            "--detach",
+            str(worktree),
+        ],
+        check=True,
+    )
+    return worktree
 
 
 def test_each_release_is_rendered_once_at_its_own_index(tmp_path):
@@ -246,3 +320,60 @@ def test_an_explicit_selection_renders_no_prompt(tmp_path):
     assert "Select model" not in run.stderr
     assert run.rows == []
     assert run.harness_environment["ANTHROPIC_MODEL"] == "release-alpha"
+
+
+def test_the_launcher_reports_the_callers_account_and_project(tmp_path):
+    """The two headers ride after whatever custom headers the caller inherited.
+
+    Run from a worktree of a repository named ``demo`` with the reckon run and
+    session headers already in the environment, the launcher must keep those
+    inherited lines in order and append its own account and project. The
+    project is the repository the worktree belongs to, not the node directory.
+    """
+    items = _served_releases()
+    worktree = _demo_worktree(tmp_path)
+
+    run = _typed_terminal_run(
+        tmp_path,
+        items,
+        "1",
+        environment_extra={
+            "ANTHROPIC_CUSTOM_HEADERS": (
+                "X-Reckon-Run-Id: r-abc\nX-Reckon-Session: s-1"
+            )
+        },
+        cwd=worktree,
+    )
+
+    assert run.returncode == 0, run.stderr
+    assert run.harness_variable("ANTHROPIC_CUSTOM_HEADERS").splitlines() == [
+        "X-Reckon-Run-Id: r-abc",
+        "X-Reckon-Session: s-1",
+        f"X-Ambix-Account: {getpwuid(os.getuid()).pw_name}",
+        "X-Ambix-Project: demo",
+    ]
+
+
+def test_an_already_present_account_header_is_left_untouched(tmp_path):
+    """A header the caller composed itself is neither rewritten nor duplicated."""
+    items = _served_releases()
+    worktree = _demo_worktree(tmp_path)
+
+    run = _typed_terminal_run(
+        tmp_path,
+        items,
+        "1",
+        environment_extra={
+            "ANTHROPIC_CUSTOM_HEADERS": (
+                "X-Ambix-Account: someone-else\nX-Reckon-Run-Id: r-abc"
+            )
+        },
+        cwd=worktree,
+    )
+
+    assert run.returncode == 0, run.stderr
+    assert run.harness_variable("ANTHROPIC_CUSTOM_HEADERS").splitlines() == [
+        "X-Ambix-Account: someone-else",
+        "X-Reckon-Run-Id: r-abc",
+        "X-Ambix-Project: demo",
+    ]

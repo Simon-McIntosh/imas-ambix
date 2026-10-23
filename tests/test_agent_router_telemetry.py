@@ -92,6 +92,70 @@ def test_a_relayed_request_lands_a_row_beside_the_lane_document(
     asyncio.run(exercise())
 
 
+def test_the_account_and_project_reach_the_row_the_launch_derives(
+    tmp_path: Path,
+) -> None:
+    """The caller's account and project are recorded through the real wiring.
+
+    Driven through the launch-shaped router, so the fields arrive at the
+    location the launch derives rather than only at an explicitly handed-over
+    path. The project and account are self-reported: a row's null means the
+    caller declared nothing, not that the router failed to read it.
+    """
+
+    async def exercise() -> None:
+        lane = tmp_path / "lane.json"
+        engine = _sse_engine()
+        async with (
+            _server(engine) as engine_url,
+            _router_on(lane, [Upstream(engine_url)]) as app,
+        ):
+            response = await _invoke(
+                app,
+                "POST",
+                "/v1/chat/completions",
+                _request_body(),
+                headers=[
+                    (b"content-type", b"application/json"),
+                    (b"x-ambix-account", b"mcintos"),
+                    (b"x-ambix-project", b"demo"),
+                ],
+            )
+            assert _status(response) == 200
+
+        rows = _read_rows(tmp_path / "requests.jsonl")
+        assert len(rows) == 1
+        assert rows[0]["account"] == "mcintos"
+        assert rows[0]["project"] == "demo"
+
+    asyncio.run(exercise())
+
+
+def test_a_launch_shaped_row_records_the_account_and_project_null_when_absent(
+    tmp_path: Path,
+) -> None:
+    """A caller that declares neither leaves nulls, as the tokens do."""
+
+    async def exercise() -> None:
+        lane = tmp_path / "lane.json"
+        engine = _sse_engine()
+        async with (
+            _server(engine) as engine_url,
+            _router_on(lane, [Upstream(engine_url)]) as app,
+        ):
+            response = await _invoke(
+                app, "POST", "/v1/chat/completions", _request_body()
+            )
+            assert _status(response) == 200
+
+        rows = _read_rows(tmp_path / "requests.jsonl")
+        assert len(rows) == 1
+        assert rows[0]["account"] is None
+        assert rows[0]["project"] is None
+
+    asyncio.run(exercise())
+
+
 def test_a_caller_that_departs_before_the_body_is_read_leaves_one_aborted_row(
     tmp_path: Path,
 ) -> None:

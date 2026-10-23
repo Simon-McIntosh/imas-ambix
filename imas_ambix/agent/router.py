@@ -1948,7 +1948,7 @@ class RouterApp:
             return True
 
         if path in self._GENERATION_PATHS:
-            run_id, session = self._request_identity(scope)
+            run_id, session, _, _ = self._request_identity(scope)
             admission = await self._generation_gate.acquire(
                 receive,
                 run_id=run_id,
@@ -2075,7 +2075,7 @@ class RouterApp:
     def _request_identity(
         scope: Mapping[str, Any],
     ) -> tuple[str | None, str | None]:
-        """The run id and coordinator session the request declared.
+        """The run id, session, account and project the request declared.
 
         The same reader the receipt uses, called once at admission so the run's
         occupancy and the session it shares the lane with are attributed when it
@@ -2086,7 +2086,7 @@ class RouterApp:
         try:
             return identity_from_headers(scope.get("headers") or ())
         except (TypeError, ValueError):
-            return None, None
+            return None, None, None, None
 
     @staticmethod
     def _caller_hint(scope: Mapping[str, Any]) -> str:
@@ -2650,8 +2650,10 @@ class RouterApp:
             return
         run_id: str | None = None
         coordinator_session: str | None = None
+        account: str | None = None
+        project: str | None = None
         try:
-            run_id, coordinator_session = identity_from_headers(
+            run_id, coordinator_session, account, project = identity_from_headers(
                 scope.get("headers") or ()
             )
         except (TypeError, ValueError) as error:
@@ -2671,6 +2673,8 @@ class RouterApp:
                 gate_wait_s=gate_wait_s,
                 run_id=run_id,
                 coordinator_session=coordinator_session,
+                account=account,
+                project=project,
                 timestamp=started_at,
             )
         except (OSError, TypeError, ValueError) as error:
