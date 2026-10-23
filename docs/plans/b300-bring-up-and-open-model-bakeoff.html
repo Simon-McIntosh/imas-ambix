@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="b300-bring-up-and-open-model-bakeoff">
+  <meta name="plan-title" content="B300 Bring-up and Open-Model Bake-off">
+  <meta name="plan-summary" content="Have every candidate model downloaded, launchable and measured on our own work before the 8xB300 arrives, and switch only if one beats DSv4.1-Flash-1017">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="20.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="moderate">
+  <meta name="plan-sprint" content="S27">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <meta name="plan-after" content="rotate-to-deepseek-v4-1-flash-1017">
+  <meta name="plan-blocks" content="serving-across-servers">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-depends-on" content="{&quot;s4&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s3&quot;],&quot;s5&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s2&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s6&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s2&quot;,&quot;b300-bring-up-and-open-model-bakeoff#s5&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s7&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s4&quot;,&quot;b300-bring-up-and-open-model-bakeoff#s6&quot;]}">
+  <title>B300 Bring-up and Open-Model Bake-off | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — The question, and what is already known</h2>
+    <p>An 8×B300 node arrives in about two weeks. Its host is in the same SLURM cluster, with
+    <code>/work</code> mounted (answer of 2026-10-23). This plan has the hardware's first
+    week spent measuring rather than downloading. Every candidate is downloaded, has a
+    launcher, and has been scored on our own agentic work before the node is racked. The rule
+    is set in advance: <strong>we switch only if a candidate beats the incumbent,
+    DeepSeek-V4.1-Flash-1017, on our work by more than noise, at a throughput we can
+    afford</strong>. The incumbent is chosen by the rotation plan.</p>
+    <p>Published evidence as of 2026-10-23. The independent rows come first; vendor rows are
+    marked as such.</p>
+    <table>
+      <thead><tr><th>Measure</th><th>DSv4.1-Flash-1017</th><th>GLM-5.3</th><th>MiMo-V2.6-Pro</th><th>Kimi K3</th></tr></thead>
+      <tbody>
+        <tr><td>Terminal-Bench 4.0, <a href="https://www.vals.ai/benchmarks/terminal-bench-4">Vals</a>, one harness for all (independent)</td><td>31.8</td><td>38.9</td><td>31.3</td><td>17.2</td></tr>
+        <tr><td><a href="https://artificialanalysis.ai/models/deepseek-v4-1-flash-1017">Artificial Analysis</a> Intelligence Index (independent)</td><td>45</td><td>45</td><td>46</td><td>44</td></tr>
+        <tr><td>Terminal-Bench 4.0, DeepSeek's own table (vendor)</td><td>42.3</td><td>37.9</td><td>34.9 (Xiaomi)</td><td>12.6</td></tr>
+        <tr><td>DeepSWE v1.1 (vendor)</td><td>77.0</td><td>66.9</td><td>71.9 (Xiaomi)</td><td>67.5</td></tr>
+        <tr><td>Active / total parameters</td><td>16B / 552B</td><td>~40B / 744B</td><td>42B / 1.02T</td><td>104B / 2.8T</td></tr>
+        <tr><td>Projected 8×B300 aggregate, from the <a href="/imas-ambix/research/serving-capacity-and-b300-projection">capacity study</a></td><td>2,100–3,400 tok/s</td><td>600–1,400</td><td>900–1,800</td><td>800–1,500</td></tr>
+      </tbody>
+    </table>
+    <p>What this already says: on the one independent agentic benchmark, GLM-5.3 leads 1017 by
+    7 points. MiMo ties it. Kimi K3 is far behind and is the largest by a wide margin. Each
+    candidate costs 2.5 to 6.5 times 1017's active parameters per token, which is roughly the
+    factor by which it serves fewer tokens per second on the same cards. A public benchmark is
+    not our workload: Terminal-Bench measures terminal tasks under a generic harness, and our
+    lane runs Claude Code workers on this repository's plans. So the deciding measurement is
+    §3–§4 on our own nodes. Kimi K3 is still downloaded and launchable (§2, §5) so that the
+    record is complete and the decision does not rest on one benchmark, but it is
+    run in §4 only if the decision <code>bakeoff-spend</code> allows it.</p>
+
+    <h2 id="s2">§2 — Download the candidates</h2>
+<section data-reckon="section" data-id="s2" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+    <p>GLM-5.3 at FP8 is already on disk: <code>/work/projects/imas_gpu/agents/glm-5-3/model</code>,
+    704 GB. This section confirms it is the complete <code>zai-org/GLM-5.3</code> release
+    rather than a partial or requantised copy, and adds two profiles with pinned revisions:</p>
+    <ul>
+      <li><code>kimi-k3</code>: <code>moonshotai/Kimi-K3</code>, MXFP4, about 1.42 TiB;</li>
+      <li><code>mimo-v2-6-pro</code>: whichever <code>XiaomiMiMo/MiMo-V2.6-Pro-*</code> variant
+      (<code>-RL</code> or <code>-MOPD</code>) the model card names as the release for
+      agentic use and SGLang's cookbook serves. The node records which, and why.</li>
+    </ul>
+    <p>Both download through <code>imas-ambix agent download &lt;profile&gt;</code>, which runs
+    as a resumable SLURM job. <code>/work/projects</code> has 286 TB free, against about 2.1 TB
+    added here. The B300 launch topology is left to §5; this section's profiles carry identity
+    and weights only.</p>
+    <p><strong>Write paths.</strong> <code>imas_ambix/agent/profiles/kimi-k3.toml</code> (new),
+    <code>imas_ambix/agent/profiles/mimo-v2-6-pro.toml</code> (new),
+    <code>tests/test_agent_candidate_profiles.py</code> (new).</p>
+    <p><strong>Done when.</strong></p>
+    <ul>
+      <li>Every shard of Kimi K3 and of the chosen MiMo variant is on disk, with size and
+      SHA-256 matching the repository listing at the pinned commit. The comparison is
+      recorded.</li>
+      <li>The GLM-5.3 directory's shard list and sizes match <code>zai-org/GLM-5.3</code> at
+      a named commit.</li>
+      <li><strong>Negative control:</strong> the verification run against a copy of one
+      shard with its last byte changed reports that shard as a mismatch.</li>
+    </ul>
+
+    <h2 id="s3">§3 — A bake-off measured on our own work</h2>
+<section data-reckon="section" data-id="s3" data-effort-hours="5.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+    <p>The task set is real work this lane has already done. From the imas-ambix and reckon
+    run ledgers, select 30 promoted implementation nodes that ran on the local lane, and
+    stratify them across small, medium and large briefs. Each task is the node's brief, its
+    base commit and its recorded gate command. A model attempts a task as a worker would:
+    in a fresh detached worktree at the base commit, through Claude Code pointed at an
+    Anthropic-compatible endpoint, with the node's write paths and time budget. Its result is
+    graded by running the node's own gate command against the worktree it leaves.</p>
+    <p>Per attempt, the harness records:</p>
+    <ul>
+      <li>gate pass or fail;</li>
+      <li>wall time;</li>
+      <li>input, cached and output tokens;</li>
+      <li>tool calls that failed to parse;</li>
+      <li>whether the worker stayed inside its write paths.</li>
+    </ul>
+    <p>The endpoint is a parameter, so the same harness runs against the local lane, an
+    OpenRouter model or a B300 engine.</p>
+    <p>The harness is validated now, at no metered cost, against the local lane's incumbent.
+    Every one of the 30 tasks runs once there, which also gives 1017's baseline on our work
+    once the rotation has landed.</p>
+    <p><strong>Write paths.</strong> <code>imas_ambix/agent/bakeoff/</code> (new),
+    <code>tests/test_agent_bakeoff.py</code> (new),
+    <code>docs/research/open-model-bakeoff-tasks.html</code> (new; the task list and how it
+    was drawn).</p>
+    <p><strong>Done when.</strong></p>
+    <ul>
+      <li>The task list of 30 nodes is committed with each node's run id, base commit and
+      gate command, and the sampling rule is stated.</li>
+      <li>One full pass against the local lane completes, with a pass rate and a per-task
+      record.</li>
+      <li>Each task's gate command is checked twice: it passes at the node's own promoted
+      head and fails at its base commit. A task whose gate passes at its base cannot
+      discriminate and is replaced.</li>
+      <li><strong>Negative control:</strong> an endpoint that always returns an empty
+      completion scores a pass rate of 0 with every attempt classified, never as an error
+      that crashes the harness.</li>
+    </ul>
+
+    <h2 id="s4">§4 — Run the candidates on our work</h2>
+<section data-reckon="section" data-id="s4" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+    <p>Run §3's 30 tasks, three attempts each, against 1017, GLM-5.3 and MiMo-V2.6-Pro, and
+    against Kimi K3 if <code>bakeoff-spend</code> includes it. All models go through one
+    provider path, so serving differences do not leak into the quality comparison. If the
+    decision is OpenRouter, every model runs there, including 1017
+    (<code>deepseek/deepseek-v4.1-flash-1017</code>). The run is capped at the decision's
+    budget and stops, with partial results recorded, when the cap is reached.</p>
+    <p>The comparison is paired by task: per-task pass rates, and the difference against 1017
+    with a 95% bootstrap interval over tasks. Tokens and wall time per passed task are
+    reported beside the pass rate. A model that passes the same share of tasks but spends
+    twice the tokens is not equal on our lane.</p>
+    <p><strong>Write paths.</strong> <code>docs/research/open-model-bakeoff-results.html</code>
+    (new), <code>docs/figures/open-model-bakeoff</code> (new).</p>
+    <p><strong>Done when.</strong></p>
+    <ul>
+      <li>Every model in scope has 90 graded attempts, or the budget stop is recorded with
+      the attempts completed.</li>
+      <li>The results document shows each model's pass rate and its paired difference
+      against 1017 with the interval, and one figure of the per-task differences.</li>
+      <li><strong>Negative control:</strong> the bootstrap is run once on 1017 against a copy
+      of its own results, and its interval must contain zero.</li>
+    </ul>
+
+    <h2 id="s5">§5 — Launchers for 8×B300</h2>
+<section data-reckon="section" data-id="s5" data-effort-hours="5.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+    <p>For each of 1017, GLM-5.3 FP8, MiMo-V2.6-Pro and Kimi K3, research and write down how
+    it runs on eight B300 cards:</p>
+    <ul>
+      <li>the engine (SGLang or vLLM) and the earliest version supporting both Blackwell
+      (sm_100) and the model;</li>
+      <li>the container image or wheel set, pulled to <code>/work</code> so launch day needs
+      no network;</li>
+      <li>tensor and expert parallelism;</li>
+      <li>KV-cache dtype (FP8 KV, which Hopper could not give GLM-5.3);</li>
+      <li>speculative decoding, which the capacity study found helps only at low
+      concurrency;</li>
+      <li>the memory budget per card.</li>
+    </ul>
+    <p>The B300 is declared in <code>SiteConfig.servers</code>, using the machinery
+    <code>serving-across-servers</code> §3 landed. Its host name and reservation are filled
+    from the operator's answer at arrival. Each profile gains a B300 topology, so
+    <code>imas-ambix agent serve &lt;profile&gt; --server b300 --dry-run</code> prints a
+    complete script today.</p>
+    <p><strong>Write paths.</strong> <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>,
+    <code>imas_ambix/agent/profiles/glm-5-3.toml</code>,
+    <code>imas_ambix/agent/profiles/kimi-k3.toml</code>,
+    <code>imas_ambix/agent/profiles/mimo-v2-6-pro.toml</code>,
+    <code>tests/test_agent_b300_launchers.py</code> (new),
+    <code>docs/research/b300-launch-recipes.html</code> (new).</p>
+    <p><strong>Done when.</strong></p>
+    <ul>
+      <li>For each of the four models, <code>--server b300 --dry-run</code> prints a script
+      naming an image or wheel present under <code>/work</code>, the weights directory, TP8,
+      and the KV dtype. A test pins each script's placement and topology lines.</li>
+      <li>The recipes document cites, for each model, the engine release notes or cookbook
+      page that the version choice rests on.</li>
+      <li><strong>Negative control:</strong> asking for the B300 topology of a profile that
+      has none refuses, naming the profiles that have one.</li>
+    </ul>
+
+    <h2 id="s6">§6 — Throughput on the B300, on arrival</h2>
+<section data-reckon="section" data-id="s6" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+    <p>Serve each model in turn at TP8 on the B300 with §5's launcher, then sweep concurrency
+    from 1 to 64 with prompts drawn from the receipts' measured prompt-size distribution, not
+    the 128-token prompts the published benchmark used. Record aggregate tokens per second,
+    tokens per second per request, time to first token, and the knee: the concurrency beyond
+    which aggregate throughput gains less than 5%. The knee becomes the engine's starting
+    gate width.</p>
+    <p><strong>Write paths.</strong> <code>docs/research/b300-throughput.html</code> (new),
+    <code>docs/figures/b300-throughput</code> (new).</p>
+    <p><strong>Done when.</strong></p>
+    <ul>
+      <li>Each model has a sweep with its knee, and one figure with every model on shared
+      axes.</li>
+      <li><strong>Negative control:</strong> a repeat of 1017's sweep point at 16 concurrent
+      requests lies within 10% of the first measurement, or the sweep is reported as noisy
+      and repeated.</li>
+    </ul>
+
+    <h2 id="s7">§7 — Decide what the B300 serves</h2>
+<section data-reckon="section" data-id="s7" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+    <p>The rule is stated before any result exists, so a result cannot shape it. A candidate
+    replaces 1017 as the primary model only if both of these hold:</p>
+    <ul>
+      <li>its paired pass-rate difference over 1017 on §4 is at least <strong>5 percentage
+      points</strong>, with the 95% interval excluding zero;</li>
+      <li>its measured B300 aggregate at the knee (§6) is at least <strong>half</strong> of
+      1017's.</li>
+    </ul>
+    <p>If a candidate passes the first test but not the second, it is offered as a second
+    model on half the node, routed by name. That choice goes to the lead and is not made
+    automatically. If no candidate passes, 1017 serves the B300 alone and the H200 returns to
+    physics. The outcome locks <code>serving-across-servers</code>' <code>b300-role</code>
+    decision, with this plan's results document as its rationale.</p>
+    <p><strong>Done when</strong> <code>b300-role</code> is locked, and its rationale cites
+    §4's interval and §6's knee for every candidate.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="bakeoff-spend" data-choice="" data-by="" data-when="">
+        <p class="r-dec-q">Where does §4 run, and on what budget?</p>
+        <p class="r-dec-ctx">All four models are listed on OpenRouter, so the quality bake-off can run this week on metered spend, leaving the B300's first week for throughput. Running it locally instead waits for the hardware and occupies it for several days. The order of magnitude, before §3 measures tokens per task: 30 tasks, 3 attempts and 3 to 4 models make 270 to 360 attempts, at very roughly $0.5 to $3 each with prompt caching.</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="openrouter-capped-low">OpenRouter now, cap $300, without Kimi K3</button>
+          <button class="r-opt" data-value="openrouter-capped-high">OpenRouter now, cap $800, with Kimi K3</button>
+          <button class="r-opt" data-value="local-after-arrival">Local only, after the B300 arrives</button>
+        </p>
+        <p class="r-dec-rat"></p>
+      </div>
+    </section>
+
+    <section data-reckon="questions" id="questions" class="r-questions">
+      <h2><span class="sec">§</span> Open questions</h2>
+      <div class="r-q" data-id="b300-arrival-facts" data-section="s5" data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-23">
+        <p class="r-q-body">On arrival: the B300 node's host name, partition, account and reservation, and the CUDA driver version it ships with. §5 fills them into the server declaration, and the driver version bounds which engine builds can run.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-bob-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build b300-bring-up-and-open-model-bakeoff">
+        <h4 class="r-fu-title">Start the downloads, the harness and the launchers (§2, §3, §5)</h4>
+        <div class="r-fu-body"><p>§2, §3 and §5 can run at once; the profile files they share are split so that §2 creates the two new profiles and §5 edits them only after §2 lands. §4 waits on <code>bakeoff-spend</code>, and §6 waits on the hardware.</p></div>
+        <pre class="r-fu-prompt">/reckon-build b300-bring-up-and-open-model-bakeoff</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

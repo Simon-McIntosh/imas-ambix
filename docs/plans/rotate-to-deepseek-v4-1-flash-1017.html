@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="rotate-to-deepseek-v4-1-flash-1017">
+  <meta name="plan-title" content="Rotate the Lane to DeepSeek-V4.1-Flash-1017">
+  <meta name="plan-summary" content="Replace the September V4.1-Flash weights with the 1017 release on the running lane, keep the served name, and record which release answered">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
+  <meta name="plan-effort-hours" content="6.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-capability-risk" content="elevated">
+  <meta name="plan-sprint" content="S27">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <meta name="plan-blocks" content="b300-bring-up-and-open-model-bakeoff">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s3&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s4&quot;]}">
+  <title>Rotate to DeepSeek-V4.1-Flash-1017 | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — Why rotate, and the evidence</h2>
+    <p>The lane serves <code>deepseek-ai/DeepSeek-V4.1-Flash</code>, downloaded on 2026-09-14
+    to <code>/work/projects/imas_gpu/agents/deepseek-v4-1-flash/model</code>. On 2026-10-17
+    DeepSeek published <code>deepseek-ai/DeepSeek-V4.1-Flash-1017</code> (commit
+    <code>1bae0e1088993b9b82de08f59de5be5a34e42170</code>) and switched its own API to it. It is
+    a weights-only update: the same <code>deepseek_v41</code> model type, 48 safetensors
+    shards and 510.3 GB, against our local copy's 48 shards and 510.3 GB.</p>
+    <p>Independent measurements agree with the vendor's claim:</p>
+    <table>
+      <thead><tr><th>Measure</th><th>V4.1-Flash (served)</th><th>V4.1-Flash-1017</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td>Terminal-Bench 4.0, Mini-SWE-agent harness</td><td>19.7</td><td>31.8</td><td><a href="https://www.vals.ai/benchmarks/terminal-bench-4">Vals, 2026-10-22</a></td></tr>
+        <tr><td>Artificial Analysis Intelligence Index</td><td>39–40</td><td>45</td><td><a href="https://artificialanalysis.ai/models/deepseek-v4-1-flash-1017">Artificial Analysis</a></td></tr>
+        <tr><td>AA-Omniscience non-hallucination rate</td><td>4%</td><td>33%</td><td><a href="https://officechai.com/ai/deepseek-v4-1-flash-1017-places-ahead-of-glm-5-3-kimi-k3-on-artificial-analysis-intelligence-index/">AA, via OfficeChai</a></td></tr>
+        <tr><td>Terminal-Bench 4.0, Claude Code harness (vendor)</td><td>31.2</td><td>42.3</td><td><a href="https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017">model card</a></td></tr>
+      </tbody>
+    </table>
+    <p>Two caveats are carried forward rather than dismissed. 1017 is verbose: Artificial
+    Analysis counted 210M output tokens on its index against a median of 140M. One review
+    also rates its reliability 3/5. A user report says it keeps the earlier tool-call pattern
+    while using about 20% fewer tokens at each reasoning effort, but no source tested our
+    parsers. That is why §3 exists.</p>
+
+    <h2 id="s2">§2 — Download the 1017 release into its own directory</h2>
+<section data-reckon="section" data-id="s2" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+    <p>The release lands in its own directory, <code>deepseek-v4-1-flash-1017</code>, for the
+    reason the profile already gives: a shared directory would leave one release's shards
+    beside the other's index, with no record of which checkpoint a run loaded. The profile
+    <code>deepseek-v4-1-flash</code> gains a <code>revision</code> field pinning the commit
+    above. Its <code>hf_repo</code>, <code>weights_slug</code> and <code>revision</code> name
+    the 1017 release, and <code>served_name</code> stays <code>deepseek-v4.1-flash</code>
+    (decision <code>served-name</code>). The September directory is kept until §5 has held
+    for a week, as the rollback target.</p>
+    <p>Changing the profile does not touch the running serve. It is read only at launch, and
+    nothing relaunches until §5. The download runs through <code>imas-ambix agent download
+    deepseek-v4-1-flash</code> as a SLURM job, which resumes if cut, and the generator passes
+    the pinned revision to the Hugging Face client.</p>
+    <p><strong>Write paths.</strong> <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>,
+    <code>imas_ambix/agent/profile.py</code>, <code>imas_ambix/agent/slurm.py</code>,
+    <code>tests/test_agent_dspark_profile.py</code>.</p>
+    <p><strong>Done when.</strong></p>
+    <ul>
+      <li>The download job ends with 48 shards in
+      <code>/work/projects/imas_gpu/agents/deepseek-v4-1-flash-1017/model</code>, and each
+      shard's size and SHA-256 match the repository's listing at the pinned commit. The
+      comparison is recorded.</li>
+      <li><code>imas-ambix agent serve deepseek-v4-1-flash --dry-run</code> names the new
+      weights directory and the pinned revision, and is otherwise byte-identical to the base
+      revision's script.</li>
+      <li><strong>Negative control:</strong> a profile whose <code>revision</code> names a
+      commit absent from the repository makes the download script refuse before transferring
+      anything.</li>
+    </ul>
+
+    <h2 id="s3">§3 — The relaunch validates a tool call, not only a completion</h2>
+<section data-reckon="section" data-id="s3" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+    <p><code>imas-ambix agent restart</code> already restores the saved script when the new
+    engine fails readiness or a real completion. A completion is the wrong test for this
+    rotation. 1017 ships a new prompt encoding (<code>encoding.py</code> and
+    <code>deepseek-recipe</code>, no Jinja template), and every worker on the lane makes
+    tool calls. A release that completes text but returns tool calls our parser cannot read
+    would pass validation and then fail every worker.</p>
+    <p>The validation step gains three probes, each sent through the router to the new
+    engine before <code>resume</code>:</p>
+    <ul>
+      <li><strong>Tool call.</strong> A chat request offering one tool must come back as a
+      parsed <code>tool_calls</code> entry with arguments that parse as JSON.</li>
+      <li><strong>Interleaved thinking.</strong> A multi-turn exchange with a prior tool
+      result must keep reasoning out of the visible content and out of the tool arguments.
+      This is the leak the <code>a-tool-call-carries-no-model-markup</code> plan tracks.</li>
+      <li><strong>Anthropic dialect.</strong> The same tool call made through the dialect
+      clive uses must return a <code>tool_use</code> block.</li>
+    </ul>
+    <p>Any probe failing restores the saved script and resumes, exactly as a failed completion
+    does today.</p>
+    <p><strong>Write paths.</strong> <code>imas_ambix/agent/cli.py</code> (the restart
+    validation), <code>imas_ambix/agent/serve_probe.py</code> (new),
+    <code>tests/test_agent_serve_probe.py</code> (new).</p>
+    <p><strong>Done when.</strong></p>
+    <ul>
+      <li>The three probes pass against today's served engine through the router, run once
+      from the fleet node, as the positive control on known-good weights. The log is
+      recorded.</li>
+      <li>Unit tests cover each probe's pass and fail on recorded fixture responses.</li>
+      <li><strong>Negative control:</strong> a fixture whose tool call arrives as text in
+      <code>content</code>, with no <code>tool_calls</code>, fails the tool-call probe and
+      selects the rollback path in a restart test.</li>
+    </ul>
+
+    <h2 id="s4">§4 — Record which release answered</h2>
+<section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+    <p>The served name stays <code>deepseek-v4.1-flash</code> through the rotation, so the name
+    no longer says which weights answered. The serve's registration therefore carries a
+    <code>release</code>: <code>&lt;hf_repo&gt;@&lt;revision&gt;</code>, written by the serve
+    job from its profile at start. <code>endpoints.json</code> publishes it on the engine's
+    entry. A receipt already names its <code>upstream</code> engine, so a reader joins
+    receipts to releases through the registration in force at the receipt's time. That needs
+    no router change and no router restart. A registration written before this section reads
+    <code>release: null</code>, which the reader reports as unknown and never guesses.</p>
+    <p><strong>Write paths.</strong> <code>imas_ambix/agent/registry.py</code>,
+    <code>imas_ambix/agent/slurm.py</code>, <code>tests/test_agent_serve_registry.py</code>,
+    <code>tests/test_agent_endpoint_discovery.py</code>.</p>
+    <p><strong>Done when.</strong></p>
+    <ul>
+      <li>A registration written by a generated serve script carries the profile's
+      <code>hf_repo@revision</code>, and <code>endpoints.json</code> publishes it on the
+      engine's entry.</li>
+      <li>A registration with no <code>release</code> key is read as <code>null</code> and the
+      document still builds.</li>
+      <li><strong>Negative control:</strong> a profile with no revision writes
+      <code>&lt;hf_repo&gt;@unpinned</code>, never a commit read from the downloaded
+      directory's cache.</li>
+    </ul>
+
+    <h2 id="s5">§5 — The rotation itself</h2>
+<section data-reckon="section" data-id="s5" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links=""></section>
+    <p>An engine relaunch under the lane-cycle runbook
+    (<code>ops/lane-cycle/AGENTS.md</code>), run by the coordinator as a reported inline exception. A cycle is an
+    operational action on a shared service, so it is never a worker node. The router does not
+    restart: an engine relaunch drops nothing, because in-flight requests finish and later
+    arrivals wait in the router's FIFO. The steps:</p>
+    <ol>
+      <li>Announce to the live coordinators, with the bound: a pause of at most 40 minutes.</li>
+      <li>From the main checkout, run <code>imas-ambix agent restart deepseek-v4-1-flash
+      --reason "rotate to V4.1-Flash-1017"</code>. It pauses, drains to a measured zero,
+      relaunches on the 1017 directory, waits for readiness, runs §3's probes, and resumes
+      on every path.</li>
+      <li>Record the cycle's four figures (pause start and end, peak held, final failures)
+      in the landing record.</li>
+      <li>Watch the first hour of receipts. The failed-request share and the gate-expiry
+      count must stay at the previous day's levels.</li>
+    </ol>
+    <p><strong>Rollback</strong> is the same command with the profile pointed back at the
+    September directory, which §2 keeps for a week.</p>
+    <p><strong>Done when.</strong></p>
+    <ul>
+      <li><code>endpoints.json</code> shows the engine's <code>release</code> as
+      <code>deepseek-ai/DeepSeek-V4.1-Flash-1017@1bae0e10…</code>, and
+      <code>/v1/models</code> still lists <code>deepseek-v4.1-flash</code>.</li>
+      <li>A reckon worker dispatched on the local lane after the cycle completes its node and
+      promotes.</li>
+      <li>Over the first hour, the share of requests ending <code>failed</code> stays within
+      one percentage point of the same hour the previous day.</li>
+      <li><strong>Negative control:</strong> before the cycle, the restart is dry-run against
+      a profile pointing at an empty weights directory, and refuses before pausing the
+      lane.</li>
+    </ul>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="served-name" data-choice="keep-name-record-release" data-by="Simon McIntosh" data-when="2026-10-23">
+        <p class="r-dec-q">Under what name is 1017 served?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt chosen" data-value="keep-name-record-release">keep deepseek-v4.1-flash; record the release</button>
+          <button class="r-opt" data-value="new-name">serve as deepseek-v4.1-flash-1017</button>
+        </p>
+        <p class="r-dec-rat">Keeping the name means clive, every reckon backend and the price table keep working with no change at cutover. A new name would have to change in all of them in the same cycle, or workers fail. The cost is that the name alone no longer identifies the weights, so §4 records the release on the registration and in the endpoint document.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-r1017-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build rotate-to-deepseek-v4-1-flash-1017">
+        <h4 class="r-fu-title">Build §2–§4, then rotate (§5)</h4>
+        <div class="r-fu-body"><p>§2, §3 and §4 write disjoint files and run in parallel. §5 is the coordinator's lane cycle, once all three land.</p></div>
+        <pre class="r-fu-prompt">/reckon-build rotate-to-deepseek-v4-1-flash-1017</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
