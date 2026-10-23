@@ -8,24 +8,27 @@
   download header, setup and runtime-check headers, and three tracked batch
   headers use that destination too. The setup message prints both resolved
   log paths; <code>_job_stdout_path</code> still reads the scheduler's
-  <code>StdOut</code> field.</p>
+  <code>StdOut</code> field. The shared submit path creates the directory before
+  <code>sbatch</code>; setup ensures it before each of its two submissions.
+  A fake <code>sbatch</code> observed the directory already present after the
+  test started with it absent. The setup test removed it after the first
+  submission and observed it recreated before the second.</p>
   <p>A comparable base arm loaded the recorded revision's three changed Python
   modules from git blobs in memory because the worker fence refused a scratch
-  tree under <code>/tmp</code>. It failed nine of 22 cases: eight output-path
-  checks and the new normalized serve-script digest. The current arm passed
-  all 22. The digest now normalizes the home and checkout roots; its expected
+  tree under <code>/tmp</code>. It failed ten of 41 cases: nine output and
+  submission checks and the new normalized serve-script digest. The current
+  arm passed all 41. The digest now normalizes the home and checkout roots; its expected
   value is <code>87e59fa736232e8bb0d63bf4b3d93bf342a3dbba7f6bb7b94e248dd47f122653</code>.
   Restoring the bare relative output name in the shared writer made four
   generated-script cases fail (EXIT=1); the writer was restored afterward.</p>
   <p>A positive-control search found 96 tracked output directives and zero
-  relative or repository-root targets. The targeted new and golden tests
-  passed 25 of 25, whole-tree Ruff exited zero, and the serving-interpreter
-  parse guard passed. The broader 20-file gate passed 464 tests and failed
-  five. Four unchanged <code>test_agent.py</code> failures reproduced against
-  the base blobs. The new failure is a historical full-router-script
-  comparison in <code>tests/test_agent_gate_control_path.py</code> that still
-  expects the relative output directive; a scope decision is pending for
-  that test.</p>
+  relative or repository-root targets. The targeted path, golden and router
+  tests passed 44 of 44, whole-tree Ruff exited zero, and the
+  serving-interpreter parse guard passed. The broader 20-file gate passed
+  466 tests and failed four <code>test_agent.py</code> cases; all four also
+  failed against the base blobs. The historical router comparison now
+  normalizes only its output directive, preserving its byte-for-byte check
+  of every other line.</p>
   <p>The following seven main-checkout scripts are untracked and were not
   edited: <code>scripts/_d3_arm.sh</code>,
   <code>scripts/_disc_regate.sh</code>,
@@ -33,8 +36,8 @@
   <code>scripts/_r2_fix_cycle.sh</code>,
   <code>scripts/_r2_pipeline.sh</code>,
   <code>scripts/slurm/_m1_run_suite.sh</code>, and
-  <code>scripts/slurm/excited_cohort_scan.sbatch</code>. The destination
-  directory was absent when checked. SLURM needs it to exist before job
-  submission; the coordinator creates it and archives the existing root
-  logs.</p>
+  <code>scripts/slurm/excited_cohort_scan.sbatch</code>. Each of the three
+  tracked batch scripts submitted by hand now comments that the directory
+  must exist before submission. The coordinator owns archival of the
+  existing repository-root logs.</p>
 </section>
