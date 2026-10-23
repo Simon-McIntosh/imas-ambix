@@ -1,0 +1,55 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T06:43:56.221Z",
+  "dispatched_at": "2026-10-23T06:25:51Z",
+  "findings": [
+    {
+      "anchor": "plan.html:110 (\u00a73)",
+      "id": "done_when-1",
+      "reason": "the hourly whole-prefix pass is the section's stated reason a rewrite outside both probe windows is still caught \"within an hour\", so a worker that reads the skip literally exempts 106 of 108 files from the only check that backs that guarantee.",
+      "text": "the changed bullet says an unchanged source is \"still skipped without being opened, as today\", while the bullet immediately below re-verifies each source's whole consumed prefix once per `FULL_IDENTITY_INTERVAL`; the two cannot both hold for the same file, and the section never states whether the 106 unchanged sources of a typical tick are opened at the interval or exempt from it",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html:249 (\u00a77)",
+      "id": "reasoning-1",
+      "reason": "\u00a77's own done-when bullet (\"the runtime-check reader finds its log in the new place\") still fails unless the message that names the file is updated, so an implementer converges on the correct site.",
+      "text": "\"the runtime check, which reads `ambix-runtime-check-<engine>-<job>.log`\" is not true of the code: the sole reader, `_job_stdout_path` (`cli.py:988`), resolves a job's log from `scontrol show job`'s `StdOut` and needs no change, while the only site holding that literal is the setup command's console message (`cli.py:4477\u20134478`); the risk is a node rewriting the working scheduler-metadata reader to build the path itself",
+      "type": "reasoning",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "284d1d3966161961120582908947ef84f8c0819c653c8a94d082508674c45dc0",
+  "plan_slug": "watch-index-lifecycle",
+  "plan_version": 0,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T062512223721-plan-review-of-watch-index-lifecycle",
+  "reviewed_blob_sha": "324f85530a917cffff0165dd4c809e964f9991ad",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every citation in the changed units resolves: `_resume`/`_was_rewritten`/`_digest_of`, `FULL_IDENTITY_INTERVAL` (new, so nothing is renamed away), `tests/test_telemetry_index.py`, `tests/test_telemetry_ingest.py`, `tests/test_ingest_carrier_overlap.py` and `tests/test_agent_serve_registry.py::test_agent_package_modules_parse_with_serving_python` all exist; `slurm.py`/`cli.py` and the `ambix-runtime-check-<engine>-<job>.log` literal resolve; the extensionless figure and plan hrefs resolve as `<path>.html`.",
+    "done_when": "a finding \u2014 \u00a73's per-tick probe is now scoped to changed sources, but the scoping sentence \"skipped without being opened\" collides with the next bullet's per-source hourly whole-prefix re-verification, so the section never says whether an unchanged source is opened at the interval.",
+    "evidence_paths": "pass \u2014 \u00a73's gates run in place on the fleet allocation and its two deployment figures are recorded in the section; \u00a77's durable artefacts go to GPFS under `~/.local/state/ambix/\u2026`, and no gate writes to a session scratchpad or a node-local temporary path.",
+    "naming": "pass \u2014 `FULL_IDENTITY_INTERVAL`, `index_placement.py` and the `-pre-rollup` suffix name mechanisms; the `ambix-runtime-check-` and `ambix-setup-` literals are cited, not introduced; no plan label, ticket number or version tag reaches a symbol, filename or comment in the changed units.",
+    "reasoning": "a finding \u2014 \u00a77 names the runtime check as the reader of `ambix-runtime-check-<engine>-<job>.log`, but no code reads that file: the only log reader resolves the path from `scontrol show job`'s `StdOut` field, and the named string is emitted by the setup command's operator message.",
+    "single_goal": "pass \u2014 \u00a73 carries one deliverable (\"an ingest tick reads the bytes it takes in\") and \u00a77's forward change and its one-off archive are two arms of the single \"job logs leave the repository root\" goal, not two goals.",
+    "wiring": "pass \u2014 `s5\u2192{s3,s4}`, `s6\u2192{s4,s5}`, `s7\u2192{s6}` and `s9\u2192{s8}` each resolve to a node that exists, match the ordering `f-wil-001` states, and serialise the three sections that write `cli.py` (\u00a74, \u00a76, \u00a77) and the two that write `telemetry_index.py` (\u00a73, \u00a75)."
+  },
+  "section_digests": {
+    "_document": "11a66c1bf9b55c27aa69a6cc14d0a7c6104d411234cec8fe79aa4229ec3338cd",
+    "s1": "3d0d4a4b2f4087609ba3ffca49ccea0ed64b9473687ecd3c5d6d6135d6ba4340",
+    "s2": "32189637430822acde78e34d53cbed7c3f0ae26c9fe044e99dc013e4e1d0db9d",
+    "s3": "012ef48f22b5e939dbc5a0322d2ec3101d4ea5990d45e556ef6f7b43c63ca734",
+    "s4": "214ae5abf0b93b92e7479cda3f691edea3bc60b7b7ec1485dcced5899519843e",
+    "s5": "b3847fea2b52f54b9e97eb5f000c0350591da166379ceb27d152c7c0ec235695",
+    "s6": "6ab02fd3ce3c63f2aac6d699f3ab474f874d34cbc600826bf78a9ba342e8f3a8",
+    "s7": "01ad894dce983e9cf1a493bd2b59aafec90a61970ea9e5663df4f042feb9bbc2",
+    "s8": "83ac32d54d4394cd1d9f11da1f46b1eb6420b70f2911084121a031e6f7aff225",
+    "s9": "62bf93e7fec684aebfaadc4ad598642503ca8ee4691eeec898a8aad77e03adf1"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T06:54:59.089152+00:00"
+}
