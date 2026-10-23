@@ -43,7 +43,17 @@
     drive the launcher and fail for that one reason
     (<code>8 failed, 73 passed</code> over the three declared files).
     <code>clive.py</code> is outside this node's write fence, so the required
-    one-line relaxation -- fail only on a <em>missing</em> key, as in
+    relaxation -- fail only on a <em>missing</em> key, as in
     <code>not required.issubset(entry)</code> -- is reported rather than applied.
+    The guard lives inside the generator's launcher template (the
+    <code>template = r"""..."""</code> block at
+    <code>imas_ambix/agent/clive.py:65-1020</code>), not in a module-level
+    function: <code>import imas_ambix.agent.clive</code> exposes only
+    <code>generate_clive_script</code>, so the edit belongs in that template and
+    reaches consumers on the next <code>agent clive --deploy</code>. That also
+    fixes the release order: the deployed launcher fails closed on any unfamiliar
+    entry, so the template fix has to be deployed before a serve writes the first
+    checkpoint-carrying document, or every consumer's launcher refuses the
+    catalog in the interval.
   </p>
 </section>
