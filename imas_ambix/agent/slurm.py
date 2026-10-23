@@ -597,6 +597,13 @@ def generate_serve_script(
     registry_dir = registration_directory(site.base_dir)
     registry_python = site.python_path(profile.engine.type)
     checkpoint_precision = profile.model.checkpoint_precision or "unknown"
+    # The checkpoint this serve loads, as ``<hf_repo>@<revision>``. The served
+    # name is deliberately held stable across a rotation, so the registration
+    # and the published endpoint carry this instead: the name says which release
+    # is answered under, not which weights are loaded. An unpinned profile names
+    # its repository with ``unpinned`` in place of the commit, so the absence of
+    # a pin is visible rather than silently reading as an identity.
+    checkpoint_id = f"{profile.model.hf_repo}@{profile.model.revision or 'unpinned'}"
     # A pinned profile carries the commit its weights were fetched at into the
     # serve's own log. The weights directory alone does not identify the
     # checkpoint a run loaded: one repository can publish more than one release,
@@ -978,6 +985,7 @@ def generate_serve_script(
             --job-id "$SLURM_JOB_ID" \
             --accelerator-count "${{SLURM_GPUS_ON_NODE:-{profile.slurm.gpus}}}" \
             --checkpoint-precision {shlex.quote(checkpoint_precision)} \
+            --checkpoint {shlex.quote(checkpoint_id)} \
             --accelerator-family {shlex.quote(engine_family)}
 
         echo "[$(date)] Starting {profile.model.name} server"

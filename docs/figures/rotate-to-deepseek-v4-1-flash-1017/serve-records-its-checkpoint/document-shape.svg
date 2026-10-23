@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="31.1cm" height="16cm" viewBox="0 0 1400 720" role="img">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#929292"/>
+    </marker>
+  </defs>
+  <rect width="1400" height="720" fill="#ffffff"/>
+  <g font-family="sans-serif" font-size="16" fill="#333333">
+    <text x="40" y="60" font-size="18">before: the checkpoint on the entry</text>
+    <line x1="40" y1="74" x2="660" y2="74" stroke="#d0d0d0" stroke-width="1.2"/>
+
+    <rect x="40" y="96" width="620" height="142" fill="none" stroke="#929292" stroke-width="1.2"/>
+    <text x="60" y="128">entry = {</text>
+    <text x="80" y="156">model_id, host, port, accelerator_family,</text>
+    <text x="80" y="184">accelerator_count, checkpoint_precision, max_context,</text>
+    <text x="80" y="212" fill="#b03030">checkpoint }</text>
+
+    <line x1="350" y1="248" x2="350" y2="288" stroke="#b03030" stroke-width="2.6" marker-end="url(#arrow)"/>
+    <text x="40" y="326" fill="#b03030">the key set is no longer the seven a deployed</text>
+    <text x="40" y="352" fill="#b03030">launcher validates, so every entry reads as</text>
+    <text x="40" y="378" fill="#b03030">incomplete and the document is refused</text>
+
+    <text x="740" y="60" font-size="18">now: the checkpoint beside the entries</text>
+    <line x1="740" y1="74" x2="1360" y2="74" stroke="#d0d0d0" stroke-width="1.2"/>
+
+    <rect x="740" y="96" width="620" height="86" fill="none" stroke="#929292" stroke-width="1.2"/>
+    <text x="760" y="128">entry = { model_id, host, port, accelerator_family,</text>
+    <text x="780" y="156">accelerator_count, checkpoint_precision, max_context }</text>
+
+    <rect x="740" y="204" width="620" height="116" fill="none" stroke="#3b6ea5" stroke-width="1.2"/>
+    <text x="760" y="236">checkpoints: {</text>
+    <text x="780" y="264">"98dci4-gpu-0003:18810":</text>
+    <text x="800" y="292">"deepseek-ai/DeepSeek-V4.1-Flash-1017@1bae0e10" }</text>
+
+    <line x1="1050" y1="336" x2="1050" y2="376" stroke="#3b6ea5" stroke-width="2.6" marker-end="url(#arrow)"/>
+    <text x="740" y="414" fill="#3b6ea5">an entry is the same seven keys, so it reads as</text>
+    <text x="740" y="440" fill="#3b6ea5">before; a top-level key a launcher does not name</text>
+    <text x="740" y="466" fill="#3b6ea5">is never read and cannot fail the document closed</text>
+  </g>
+  <g font-family="sans-serif" font-size="16" fill="#333333">
+    <text x="40" y="520" font-size="18">where the checkpoint is recorded</text>
+    <line x1="40" y1="534" x2="1360" y2="534" stroke="#d0d0d0" stroke-width="1.2"/>
+    <text x="40" y="572">registration</text>
+    <text x="260" y="572" fill="#555555">the job's json gains a checkpoint field: &lt;hf_repo&gt;@&lt;revision&gt;, or @unpinned where the profile pins none</text>
+    <text x="40" y="608">serve script</text>
+    <text x="260" y="608" fill="#555555">writes --checkpoint from the profile at generation time</text>
+    <text x="40" y="644">endpoints.json</text>
+    <text x="260" y="644" fill="#555555">top-level checkpoints map keyed by engine id; the engine entries are unchanged</text>
+    <text x="40" y="680">recorder row</text>
+    <text x="260" y="680" fill="#555555">serve_config.model_path, read from the engine's own report rather than from the profile</text>
+  </g>
+</svg>

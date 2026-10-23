@@ -24,7 +24,7 @@ from imas_ambix.agent.vllm_catalog import validate_catalog_metadata
 _LOGGER = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Mapping, Sequence
 
     from imas_ambix.agent.profile import SiteServerConfig
 
@@ -115,6 +115,14 @@ class ServeRegistration:
     accelerator_family: str
     server: str = ""
     held: bool = False
+    #: The checkpoint this serve loaded, as ``<hf_repo>@<revision>``. The served
+    #: name stays stable across a rotation, so the name alone does not say which
+    #: weights answered; this field does. A profile whose weights are not pinned
+    #: to a revision still names the repository, writing ``unpinned`` in place of
+    #: the commit, so an absent pin is visible rather than guessed. ``None`` is a
+    #: record written before this field existed, which a reader reports as
+    #: unknown rather than backfilling.
+    checkpoint: str | None = None
 
     @property
     def engine_id(self) -> str:
@@ -144,6 +152,18 @@ class ServeRegistration:
             ord(character) < 32 or ord(character) == 127 for character in self.server
         ):
             raise ValueError("server contains control characters")
+        # Absent checkpoints are accepted for the same reason absent server names
+        # are: a record written before the field existed names none, and reading
+        # it must not fail. A checkpoint that IS present must name something.
+        if self.checkpoint is not None and (
+            not isinstance(self.checkpoint, str) or not self.checkpoint.strip()
+        ):
+            raise ValueError("checkpoint must be non-empty text when present")
+        if self.checkpoint is not None and any(
+            ord(character) < 32 or ord(character) == 127
+            for character in self.checkpoint
+        ):
+            raise ValueError("checkpoint contains control characters")
         if not isinstance(self.port, int) or isinstance(self.port, bool):
             raise ValueError("port must be an integer")
         if not 1 <= self.port <= 65535:
@@ -250,23 +270,35 @@ class PublishedServer:
 
 
 class EndpointDocument(tuple):
-    """The accepted endpoints, carrying the server grouping they were built from.
+    """The accepted endpoints, carrying the groupings they were built from.
 
     It is a tuple of endpoints so every reader that wants only the engines is
-    unchanged, and it carries the servers array beside them. One builder
-    produces both, because a server grouping computed somewhere else would
-    disagree with the engines it claims to group.
+    unchanged, and it carries the servers array and the checkpoints map beside
+    them. One builder produces all three, because a grouping computed somewhere
+    else would disagree with the engines it claims to group.
+
+    ``checkpoints`` maps an engine id to the checkpoint that engine loaded, as
+    ``<hf_repo>@<revision>``. It is a top-level map rather than a field on the
+    engine entry because a standalone launcher validates an entry against a
+    fixed key set and fails closed on any it does not know: an unfamiliar entry
+    field takes the whole catalog down for every consumer, while an unfamiliar
+    top-level key is ignored. An engine whose registration carries no checkpoint
+    is absent from the map, which a reader reports as unknown rather than
+    guesses.
     """
 
     servers: tuple[PublishedServer, ...]
+    checkpoints: dict[str, str]
 
     def __new__(
         cls,
         endpoints: Sequence[PublishedEndpoint] = (),
         servers: Sequence[PublishedServer] = (),
+        checkpoints: Mapping[str, str] | None = None,
     ) -> EndpointDocument:
         document = super().__new__(cls, endpoints)
         document.servers = tuple(servers)
+        document.checkpoints = dict(checkpoints or {})
         return document
 
 
@@ -475,10 +507,19 @@ def build_endpoint_document(
     read from the configuration here: every declared server appears in the
     document's servers array whether or not an engine is running on it, and the
     running engines are grouped under the server their registration names.
+
+    Each engine's checkpoint is carried out to the document's top-level map,
+    keyed by engine id, because an entry cannot hold it: a standalone launcher
+    validates an entry against a fixed key set and fails closed on an unfamiliar
+    field, so an added entry key would take the catalog down for every consumer,
+    while an added top-level key passes unread.
     """
     endpoints: list[PublishedEndpoint] = []
     # engine id -> (endpoint, the job id that registered it, its server)
     seen_engines: dict[str, tuple[PublishedEndpoint, str, SiteServerConfig | None]] = {}
+    # engine id -> the checkpoint that engine loaded, or None where its
+    # registration carries none; absent keys are dropped before publishing.
+    checkpoints: dict[str, str | None] = {}
     for registration in registrations:
         if registration.held:
             continue
@@ -526,14 +567,23 @@ def build_endpoint_document(
             )
             endpoints[endpoints.index(previous)] = keep
             seen_engines[engine] = (keep, keep_job, keep_server)
+            if newer:
+                checkpoints[engine] = registration.checkpoint
             continue
         endpoints.append(endpoint)
         seen_engines[engine] = (endpoint, registration.job_id, server)
+        checkpoints[engine] = registration.checkpoint
     ordered = tuple(
         sorted(endpoints, key=lambda endpoint: (endpoint.model_id, endpoint.engine_id))
     )
     return EndpointDocument(
-        ordered, _published_servers(ordered, seen_engines, servers)
+        ordered,
+        _published_servers(ordered, seen_engines, servers),
+        {
+            engine: loaded
+            for engine, loaded in checkpoints.items()
+            if loaded is not None
+        },
     )
 
 
@@ -621,6 +671,7 @@ def write_endpoint_document(
             "servers": [
                 asdict(server) for server in getattr(endpoints, "servers", ())
             ],
+            "checkpoints": dict(getattr(endpoints, "checkpoints", {})),
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -775,6 +826,7 @@ def _parser() -> argparse.ArgumentParser:
     write.add_argument("--checkpoint-precision", required=True)
     write.add_argument("--accelerator-family", required=True)
     write.add_argument("--server", default="")
+    write.add_argument("--checkpoint", default=None)
     write.add_argument("--held", action="store_true")
     release = subparsers.add_parser("release")
     release.add_argument("--directory", required=True)
@@ -802,6 +854,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 checkpoint_precision=args.checkpoint_precision,
                 accelerator_family=args.accelerator_family,
                 server=args.server,
+                checkpoint=args.checkpoint,
                 held=args.held,
             ),
             args.directory,
