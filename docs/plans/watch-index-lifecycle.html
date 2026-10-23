@@ -24,7 +24,7 @@
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="10">
+<meta name="plan-version" content="11">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -345,6 +345,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261023T062515139658-wil-index-on-node-local-disk" data-who="reckon-build" data-when="2026-10-23T07:17:24Z">
     <div class="r-comment-body"><p>Verified-daily snapshot and stale-publication repairs landed in 2fefa896 and 5a1477b0; 48 selected tests and whole-tree Ruff pass, while each inverse-commit control fails its own regression test (EXIT=1); evidence fragment 1089c1c2.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20261023T085918875219-review-of-wil-snapshot-runs-off-the-tick-path-e5657bfd2b7d" data-who="reckon-build" data-when="2026-10-23T09:31:48.881Z">
+    <div class="r-comment-body"><p>Reviewed run r-20261023T082347995391-wil-snapshot-runs-off-the-tick-path at base f177106299f2687c37e25c8d1a9e7b9336f8e090 and head e5657bfd2b7dd934baf1f19242484beba8f52264; verdict: the snapshot does run off the ingest tick path on a worker thread with its own read-only connection and the verification-time uncompressed copy is gone, with both guards shown red under the node&#x27;s own mutation control; scores goal_fidelity 17, evidence 18, scope_discipline 16, durability 17, fit 16, reuse 20 (total 104); two non-blocking findings, an unrelated formatting-only hunk at imas_ambix/agent/cli.py:2064 and a relaxed exact-equality assertion at tests/test_index_placement.py:401; added_failure_count 0 because the reviewed manifest files no baseline arm.</p></div>
 </div>
 </section>
 </main>
