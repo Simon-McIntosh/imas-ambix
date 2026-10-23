@@ -227,7 +227,8 @@
       <li>A failed publication never fails the tick.</li>
       <li><code>publish-watch</code> keeps <code>--once</code> for manual use and loses its loop. This narrows the interface to one standing process.</li>
     </ul>
-    <p>Write scope: <code>imas_ambix/agent/cli.py</code>, <code>imas_ambix/agent/watch_publish.py</code>, <code>tests/test_agent_publish_watch.py</code>, <code>tests/test_agent_ingest_cli.py</code>. It follows §4, which writes <code>cli.py</code>, and §5, which makes publication cheap.</p>
+    <p>The published document's path keeps one declaration. §4 added <code>PUBLISHED_WATCH_PATH</code> in <code>watch.py</code> beside <code>watch_publish.DEFAULT_OUTPUT</code>, and this section makes one of them refer to the other, so the reader and the producer cannot drift apart.</p>
+    <p>Write scope: <code>imas_ambix/agent/cli.py</code>, <code>imas_ambix/agent/watch_publish.py</code>, <code>imas_ambix/agent/watch.py</code>, <code>tests/test_agent_publish_watch.py</code>, <code>tests/test_agent_ingest_cli.py</code>. It follows §4, which writes <code>cli.py</code>, and §5, which makes publication cheap and also writes <code>watch.py</code>.</p>
     <p><strong>Done when:</strong></p>
     <ul>
       <li>Tests with an injected clock show:
