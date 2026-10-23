@@ -1,0 +1,73 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T12:59:53.921Z",
+  "dispatched_at": "2026-10-23T12:49:44Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/bench.py:202",
+      "id": "reuse_search-1",
+      "reason": "the author should cite `bench.py`, reuse its tool definition and JSON-arguments check (or state why a validation-time probe cannot call the benchmark helper), otherwise a second tool-call client is maintained beside the first.",
+      "text": "\u00a73 proposes a tool-call probe (\"a chat request offering one tool must come back as a parsed `tool_calls` entry with arguments that parse as JSON\") while `bench.py` already ships exactly that: a `tool_use` prompt category offering the `get_weather` function (`bench.py:202`), a request through `_chat(..., tools=tools, ...)` (`bench.py:1280`), and the validation that `msg.get(\"tool_calls\", [])` is non-empty and that `json.loads(tc[\"function\"][\"arguments\"])` succeeds (`bench.py:1297`, `bench.py:1316`). The second probe (Anthropic `tool_use` block) has no existing owner, but the OpenAI-dialect probe is a re-implementation. Neither \u00a73's prose nor its write paths (`cli.py`, `serve_probe.py`, `test_agent_serve_probe.py`) cite `bench.py`, so the plan gives no account of the search for this mechanism.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/registry.py:106",
+      "id": "deep_module-1",
+      "reason": "the plan must name the durable, time-stamped store `release_at` reads (or drop the function and describe the join differently), or the first implementation node will invent a history mechanism the plan never sized.",
+      "text": "\u00a74 states \"The join has one owner, `registry.release_at(engine_id, when)`, which returns the release of the registration serving that engine at that instant\", and its done-when requires `release_at` to distinguish two registrations of one engine (September then 1017) by time. Nothing in `registry.py` can answer that: `ServeRegistration` (`registry.py:106`) has no timestamp. `_record_path` stores one file per job, keyed `<job_id>.json` (`registry.py:301`), `write_registration` overwrites that same path on every write (`registry.py:307`), and `remove_registration` unlinks it when the job ends (`registry.py:363`). So the store holds only current/stale live registrations, not a time-indexed history, and `release_at` has no owner to extend \u2014 it would be a thin fa\u00e7ade demanding a new history store the plan does not name.",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/registry.py:320",
+      "id": "duplicate_owner-1",
+      "reason": "the field should be named for what it holds (`weights_revision`/`weights_commit`), as the plan itself reasons on the `served-name` decision that a name must not be overloaded; a third meaning of `release` on the registration object invites a reader to confuse a held allocation with a weights commit.",
+      "text": "\u00a74 puts a `release` field carrying `<hf_repo>@<revision>` on `ServeRegistration` and `PublishedEndpoint`, but \"release\" is already load-bearing twice in this same subsystem with different meanings: `release_registration` (`registry.py:320`) means \"clear the hold on a validated allocation\" and is already a public subcommand (`registry.py:779`), and clive's `release_id = item[\"id\"]` (`clive.py:277`, `discover_routing_origins` at `registry.py:701`) means \"a served endpoint/model id\". The plan edits `registry.py` and `slurm.py` \u2014 the two files where the first meaning lives \u2014 while adding the third.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "rotate-to-deepseek-v4-1-flash-1017#s2",
+      "id": "interface_budget-1",
+      "reason": "the interface_budget rule is that an adding section says in its own text what it retires or merges, or why nothing can be; \u00a72, \u00a73 and \u00a74 each add surface and none does.",
+      "text": "\u00a72 adds a `revision` field to `ModelConfig` (`imas_ambix/agent/profile.py:25-45` currently carries `name`, `hf_repo`, `served_name`, `size_gb`, `max_context`, `checkpoint_precision`, `weights_slug`, `tokenizer_source_slug`) and passes it as a new `--revision` argument in `generate_download_script` (`imas_ambix/agent/slurm.py:1176`, which today passes only `hf_repo`, `--local-dir` and `--max-workers`). The section names nothing it retires or merges, and does not state why nothing can be. Whether the new field is a `public_definitions` addition is the author's call, but the section adds surface without accounting for it.",
+      "type": "interface_budget",
+      "would_change": true
+    },
+    {
+      "anchor": "rotate-to-deepseek-v4-1-flash-1017#s4",
+      "id": "interface_budget-2",
+      "reason": "each adding section must account for the surface in its own text; \u00a72\u2013\u00a74 currently leave three new surface families unaccounted for against a 0/0/0/0 budget.",
+      "text": "\u00a74 adds a public function `registry.release_at`, a `release` field on `ServeRegistration` and on the published endpoint, and \u00a73 adds a new public module `imas_ambix/agent/serve_probe.py`; none of the three sections names an interface it retires or merges, or states why none can be \u2014 even though \u00a73 itself observes that the existing `validate` callback is the extension point and the last commit in this tree (`7ed95902 docs(plans): cover restart's overlap path\u2026`) shows this surface is actively growing.",
+      "type": "interface_budget",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "96dfc64750931d86a6090b4a5f1d8b141ec5d8c88f2612b9c07082ee3cd8300d",
+  "plan_slug": "rotate-to-deepseek-v4-1-flash-1017",
+  "plan_version": 9,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T124927726062-plan-review-of-rotate-to-deepseek-v4-1-flash-1017",
+  "reviewed_blob_sha": "75130370400aeed076941b575b61b5320db9870b",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 \u00a74's `registry.release_at(engine_id, when)` promises a time-indexed join over registration history, but `registry.py` stores one record per `job_id` with no timestamp field and removes records at cleanup, so the interface names no store holding the behaviour it must hide.",
+    "duplicate_owner": "a finding \u2014 \u00a74 adds a third meaning of \"release\" inside one subsystem: `registry.release_registration` (`registry.py:320`) already releases a held allocation, and clive's \"release id\" (`clive.py:277`) already names a served endpoint, so `<hf_repo>@<revision>` collides with both.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a72 adds a `ModelConfig.revision` field, \u00a74 adds a `ServeRegistration.release` field plus the public function `registry.release_at`, and \u00a73 adds the public module `imas_ambix/agent/serve_probe.py`, and no section names what it retires or merges, or why nothing can be.",
+    "reuse_search": "a finding \u2014 \u00a73 adds `imas_ambix/agent/serve_probe.py` for a chat-with-tool probe whose request-and-parse behaviour already exists as `bench.py`'s `tools` category, and neither \u00a73's text nor its write paths cite `imas_ambix/agent/bench.py`.",
+    "thin_wrapper": "pass \u2014 \u00a72 extends the existing profile/download-script generator and \u00a73 extends the existing `validate` callback at `imas_ambix/agent/cli.py:2641` (`run_reload`/`run_overlap` already take `validate`), so neither adds a parallel path; they extend the mechanism they resemble."
+  },
+  "section_digests": {
+    "_document": "db2ecdde5472286c88a918f63b4ec8ce3b8116204bde0d78e6a76f64f123e6c8",
+    "s1": "8deac0a58e020378e898a334465e0ec83803b509b7e5a610b21591def4c21d25",
+    "s2": "a23e81a77c9227613a42419b5fefc7dfd90022596cc8ae2a2b9264290cada17c",
+    "s3": "489084815a19c3ee2c8b899f76c620ee598bbfe0415b65d991aef0e812d4e595",
+    "s4": "9177d6ed3092abc47cfd2ad09269444058b08a76f916ae88d1558422583db73b",
+    "s5": "eb050b0a6cd780f17a09c63fdd67fff20d388c41dcdfe8677c2a8e6462eaf5a0"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T13:05:09.018555+00:00"
+}
