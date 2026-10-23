@@ -1,0 +1,75 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T14:26:40.670Z",
+  "dispatched_at": "2026-10-23T14:14:16Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/bench.py:1407",
+      "id": "reuse_search-1",
+      "reason": "\u00a75 should drive `imas-ambix agent bench` with an explicit 1\u201364 ladder and land its result as a saved run, so the B300 knee is comparable to the H200's through `compare_runs` and the node writes a research page over an existing instrument rather than a second one.",
+      "text": "\u00a75 (\"Measure the B300 on arrival\") specifies \"run the rotation's tool-call probes through it, then sweep concurrency from 1 to 64 ... Record aggregate and per-request tokens per second, time to first token, and the knee\" and never names `imas-ambix agent bench`, which is the repository's benchmark suite and already does all of it: `DEFAULT_CONCURRENCY_LEVELS: tuple[int, ...] = (1, 2, 4, 8, 16, 32)` at `imas_ambix/agent/bench.py:1407` is the ladder, `_run_concurrency(..., levels=...)` at `:1410` takes a caller-supplied ladder, `run_benchmark(concurrency_levels=...)` at `:1495` drives it from the CLI, `run_tool_call_bench` at `:1625` is the tool-call probe, and `imas_ambix/agent/bench_report.py:490` (`describe_run`) already reduces a saved run to \"peak aggregate rate with the concurrency that produced it\" with the per-level table below it. The CLI help text at `imas_ambix/agent/cli.py:2825` states the knee is the reason the ladder became a flag, and `tests/test_agent_sweep_options.py:1` documents that this was landed precisely so \"a sweep could not resolve the plank around a measured knee\". The plan therefore proposes, as new work, a measurement campaign whose harness, probe, default ladder, saved-run format and reduction already exist \u2014 and it would produce a B300 result that `bench_report.compare_runs` (`bench_report.py:620`) could not compare against the H200 sweep \u00a75 wants beside it, because the plan's numbers would not be in the saved-run format the comparison tooling reads. The same census reaches \u00a77, whose design (\"Replay about 30 of our own promoted worker nodes, each graded by its own gate command ... compare paired pass rates with a 95% bootstrap interval\") is the shape reckon's capability derivation already implements from committed run ledgers, grouping by `(model, role, spec_level)` and emitting `pass_rate` per cell (`/home/ITER/mcintos/Code/reckon/reckon/capabilities.py:693`, `:826`, `:882`); \u00a77 is deferred, so this instance is weaker than \u00a75's, but the owner is named here so the deferred design starts from it rather than beside it.",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/profiles",
+      "id": "deep_module-1",
+      "reason": "naming one reader module (its write path, its function signatures, and a test that pins the positive-control row) turns \u00a72 from a one-shot table into the thing \u00a73 and every later prune depends on, and costs nothing in scope the plan has not already committed.",
+      "text": "\u00a72 is the plan's only section that produces a mechanism rather than a document, and it produces the document only: its sole declared write path is `docs/research/model-store-audit.html`, with the commands that produced each figure to be \"recorded beside the table\". The checks themselves \u2014 shard presence against the index, first-shard SHA-256 against the repository's LFS hash at the pinned commit, mapping a directory to the profiles whose `weights_slug` names it, and the timestamps of the receipts that last named it \u2014 are each a read of one store whose callers are already plural inside this plan: \u00a73 consumes \u00a72's verdict to decide whether GLM-5.3 FP8 needs completing, \u00a71's \"the other open models are downloaded as backups\" presumes the store is legible at every arrival, and the plan's own \u00a72 recommendation column (\"keep, backup or prune\") implies the same checks run again at the next prune decision. Under the current design each of those consumers re-derives the checks, and the only artifact that survives a re-run is a table in an HTML page \u2014 which is the failure mode the section exists to prevent (\"Nothing records which are complete, which a profile still references, or which are superseded\"). The plan names no module for this, so no interface is fixed and no test can pin it; the profile-side half in particular is a read of `list_profiles` (`imas_ambix/agent/profile.py:838`) and `weights_directory_slug` (`profile.py:447`) and belongs next to it.",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "tests/test_agent_site_servers.py:54",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a74 should extend `tests/test_agent_site_servers.py` (adding the `(server, gpus)` variant cases) instead of adding a parallel module whose fixtures are copies of that file's own.",
+      "text": "\u00a74 declares `tests/test_agent_b300_launchers.py` as a new write path for the launcher checks, but the file it duplicates already exists and already holds both fixtures and two of the four done-when measures. The existing module declares a `b300` server in exactly the plan's sense (`_B300 = SiteServerConfig(..., accelerator_family=\"B300\", accelerator_count=8, power_cap_watts=1000, ...)` at `tests/test_agent_site_servers.py:54`), builds a two-server site with `_two_server_site()` at `:67`, and already pins the byte-identity half of \u00a74's done-when: `_BASE_SCRIPT_DIGEST` at `:39` with `test_no_declared_servers_prints_the_script_it_printed_before` at `:71` asserting the no-declaration script hashes to the pre-multi-server value. \u00a74's remaining measures are there too: placement onto a named server at `:324` (`test_a_configured_serve_is_placed_on_the_named_server`) and `:339` (`test_restart_keeps_a_serve_on_the_server_it_runs_on`, which is the restart path \u00a74 promises to keep passing the resolved server on), and the refusal half of \u00a74's negative control at `:510` (`test_serve_refuses_a_server_that_no_declaration_names`). A second module would carry a second `b300` `SiteServerConfig` literal and a second base-digest guard, which is exactly the drift the digest exists to detect \u2014 two guards on one invariant eventually disagree, and the one nobody reads is the one that is right; I searched for every section advancing the same machinery and these are the instances.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/bench.py:1407",
+      "id": "duplicate_owner-2",
+      "reason": "naming the owner in \u00a75 makes the difference plain between \"extend the ladder\" (one flag, already supported) and \"build a second measurement path\" (which the plan does not justify and which its own cross-server comparison requires the existing one).",
+      "text": "the same census as the `reuse_search` finding, recorded here against the owner it names: \u00a75's sweep, probe set, rate recording and knee resolution are all owned by `imas_ambix/agent/bench.py:1407` (ladder), `:1410` (`_run_concurrency`), `:1495` (`run_benchmark`), `:1625` (`run_tool_call_bench`, the tool-call probe) together with the reduction in `imas_ambix/agent/bench_report.py:490` and `:620`, and \u00a75's figure must be drawn from a saved run for the H200 comparison \u00a75 itself asks for to mean anything. The plan proposes no change to that owner and no reason one is needed, so as written it would produce a B300 knee that no existing comparison can read.",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/profiles/kimi-k3.toml",
+      "id": "interface_budget-1",
+      "reason": "one sentence naming the two profiles as new releases with no predecessor would satisfy the rule, and it changes no scope, no write path and no done-when; the finding is recorded because the section's silence is indistinguishable from an unchecked catalogue.",
+      "text": "public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0. \u00a73 adds two entries to the repository's public model catalogue (`kimi-k3`, `mimo-v2-6-pro`), a surface the operator documentation presents as the product of the agent CLI, and does not state what it retires or merges or why nothing can be. The accounting is genuinely easy here \u2014 both are new releases with no predecessor to fold into `kimi-k2-6` or `mimo-v2-5-pro`, and the catalogue also has a live derivation the section could lean on instead (`mimo-v2-6-pro` must name its `weights_slug` so the download path stays distinct from the `mimo-v2-5-pro` directory the same store already holds, per `profile.py:450`) \u2014 but \u00a73 says none of it, so a reader cannot tell whether the catalogue was considered at all. Nothing else in the plan adds surface: \u00a74 states \"No new option\" and accounts for the `for_gpus` extension in its own text, and \u00a74's refusal for an undeclared card count is a new refusal family the section does describe.",
+      "type": "interface_budget",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "38b1bdf9ae67fa27611647e381fcb81420b490b9abb3551b82fae3495f75433e",
+  "plan_slug": "b300-bring-up-and-open-model-bakeoff",
+  "plan_version": 11,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T141200585563-plan-review-of-b300-bring-up-and-open-model-bakeoff",
+  "reviewed_blob_sha": "5fd543d0b1aa85f9ab7dd0b80efb10534382bca1",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 \u00a72 gives the model-store checks no home at all: its only write path is a research document, so the shard/index/hash checks that \u00a73 then consumes and any later prune decision would re-derive live in one-off commands rather than behind one reader.",
+    "duplicate_owner": "a finding \u2014 \u00a75 re-implements the measurement owner, and \u00a74's new test module duplicates a fixture and a base-revision guard that already exist in `tests/test_agent_site_servers.py`.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 adds two profiles to the public model catalogue without naming what it retires or merges, or why nothing can be.",
+    "reuse_search": "a finding \u2014 \u00a75 designs a throughput campaign (concurrency sweep with a stated knee, tool-call probes, aggregate and per-request rates) without naming `imas-ambix agent bench`, which already implements every one of those parts, and \u00a77 designs a model-comparison harness whose scoring already has an owner in reckon's run-ledger capability derivation.",
+    "thin_wrapper": "pass \u2014 \u00a74 is a genuine extension of an existing seam rather than a layer over it: `ModelProfile.for_gpus` (`imas_ambix/agent/profile.py:432`) gains a `(server, gpus)` key beside its existing `gpus` key, and the plan states in its own text that `server=None` leaves every existing lookup unchanged and that \"that is an extension of the existing mapping, not a second one\"."
+  },
+  "section_digests": {
+    "_document": "1406f9ee270da0e9b2ab84b2d20bde8cf96d1fc299996d177e8135ef43291b1f",
+    "s1": "d9b20b2462b714c588777137a3f84dbe6a6285a13698086ef6821d81debdb695",
+    "s2": "ef2e8b754c4b28e05b82f3535fc7322406b9d18639938cf7c46f1c11284568df",
+    "s3": "874e6db9ee4f2713837fc6786123cdafcc611ca8412b1c41989f5bf77d7b75f8",
+    "s4": "9b009b6dd8570d47ddc3e1b052d144f547bed75928f2b7600a5902dd07aa6dc6",
+    "s5": "5edf46e6f134cf940793ed0fcb96058b59158f2cfb4143029e2e4aa8eade952e",
+    "s6": "674a0529c4ddc184440560b0b1af0260b0d8fe8ca872c01962bb449d503609bc",
+    "s7": "c1f33679b46a5b2d5f8b8876f25f4d795a4e027b15c00400090e7ee070000a1c"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T14:31:15.115834+00:00"
+}
