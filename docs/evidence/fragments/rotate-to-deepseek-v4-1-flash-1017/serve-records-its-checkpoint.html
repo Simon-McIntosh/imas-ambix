@@ -7,53 +7,45 @@
     <code>hf_repo</code> and <code>revision</code> are joined at script
     generation (<code>slurm.py</code>); a profile that pins no revision writes
     <code>&lt;hf_repo&gt;@unpinned</code>, so an absent pin is visible rather
-    than passed off as an identity. The published endpoint republishes it from
-    the registration (<code>_endpoint_from_catalog</code>), for the same reason
-    the topology is republished: the launch owns what it loaded, and the served
-    name is deliberately held stable across a rotation, so the name cannot carry
-    it. A record written before the field existed reads <code>null</code> and
-    the document still builds. The recorder's <code>serve_config</code> gains
-    <code>model_path</code>, read from the engine's own <code>/server_info</code>
-    report rather than from the launcher, because every checkpoint has its own
-    directory and the engine's resolved path is what identifies the weights a row
-    was measured against.
+    than passed off as an identity, and a record written before the field
+    existed reads <code>null</code> and still builds. The published document
+    carries the checkpoint in a new <code>checkpoints</code> map at its top
+    level, keyed by the engine id, and the recorder's <code>serve_config</code>
+    gains <code>model_path</code>, read from the engine's own
+    <code>/server_info</code> report rather than from the launcher, because
+    every checkpoint has its own directory and the engine's resolved path is
+    what identifies the weights a row was measured against.
   </p>
+  <figure id="serve-records-its-checkpoint-document-shape">
+    <img src="/imas-ambix/figures/rotate-to-deepseek-v4-1-flash-1017/serve-records-its-checkpoint/document-shape.svg" alt="Left: a checkpoint published as an eighth field on an engine entry, which makes the entry's key set differ from the seven a deployed launcher validates, so the whole document is refused. Right: the same seven entry keys unchanged, with the checkpoint in a separate top-level map keyed by engine id, which a launcher never reads. Below, the four places the checkpoint is now recorded: the registration field, the serve script's generation-time argument, the document's top-level map, and the recorder row's serve_config.model_path.">
+    <figcaption>
+      Where the checkpoint is published, and why not on the engine entry. A
+      deployed launcher validates each entry against a fixed key set and fails
+      closed on any field it does not know, so an added entry key does not go
+      unread — it takes the catalog down for every consumer. An added top-level
+      key is ignored, which is how the <code>servers</code> array was added
+      before it.
+    </figcaption>
+  </figure>
   <p id="serve-records-its-checkpoint-measure">
-    In-scope measure: <code>ruff check imas_ambix tests</code> exits 0, and the
-    12 checkpoint- and serve-config-shaped tests across the three declared files
-    pass (<code>12 passed, 69 deselected</code>). Negative control: with
-    <code>_merge_serve_config</code> mutated to let the caller's (profile)
-    <code>model_path</code> win over the engine's report, the as-reported test
-    fails on a fixture whose engine path differs from the profile, giving
-    <code>1 failed, 1 passed</code> and <code>EXIT=1</code> in the red run and
-    naming
-    <code>test_record_receipts_records_the_engine_reported_model_path</code>.
-    The red log is the run's
+    Measure: <code>ruff check imas_ambix tests</code> exits 0, and the three
+    declared test files pass with the new tests
+    (<code>81 passed</code>, <code>EXIT=0</code>). The engine entry's key set is
+    asserted against the base revision's seven fields — <code>model_id</code>,
+    <code>host</code>, <code>port</code>, <code>accelerator_family</code>,
+    <code>accelerator_count</code>, <code>checkpoint_precision</code>,
+    <code>max_context</code> — rather than read off the entry object, which
+    would agree with whatever field had been added to it. Negative control:
+    restoring <code>checkpoint</code> as an entry field fails that assertion
+    with <code>'checkpoint'</code> reported as an extra item in the entry key
+    set, and turns the document red against the published launcher, giving
+    <code>10 failed, 29 passed</code> and <code>EXIT=1</code>. A second
+    negative control covers the recorder: with <code>_merge_serve_config</code>
+    mutated to let the caller's (profile) <code>model_path</code> win over the
+    engine's report, the as-reported test fails on a fixture whose engine path
+    differs from the profile, giving <code>1 failed, 1 passed</code> and
+    <code>EXIT=1</code>. Red logs:
+    <code>logs/negative-control-entry-key-set.log</code> and
     <code>logs/negative-control-model-path.log</code>.
-  </p>
-  <p id="serve-records-its-checkpoint-blocker">
-    <strong>Blocker — the declared gate cannot pass within this node's write
-    scope.</strong> Publishing <code>checkpoint</code> on the endpoint entry is
-    required by this section's own done-when, but the launcher rejects any such
-    entry: <code>clive.py</code> validates each entry with
-    <code>set(entry) != required</code>
-    (<code>imas_ambix/agent/clive.py:328</code>), an exact seven-key equality, so
-    the eighth key makes every entry read as incomplete and the launcher fails
-    closed. Eight tests in <code>tests/test_agent_endpoint_discovery.py</code>
-    drive the launcher and fail for that one reason
-    (<code>8 failed, 73 passed</code> over the three declared files).
-    <code>clive.py</code> is outside this node's write fence, so the required
-    relaxation -- fail only on a <em>missing</em> key, as in
-    <code>not required.issubset(entry)</code> -- is reported rather than applied.
-    The guard lives inside the generator's launcher template (the
-    <code>template = r"""..."""</code> block at
-    <code>imas_ambix/agent/clive.py:65-1020</code>), not in a module-level
-    function: <code>import imas_ambix.agent.clive</code> exposes only
-    <code>generate_clive_script</code>, so the edit belongs in that template and
-    reaches consumers on the next <code>agent clive --deploy</code>. That also
-    fixes the release order: the deployed launcher fails closed on any unfamiliar
-    entry, so the template fix has to be deployed before a serve writes the first
-    checkpoint-carrying document, or every consumer's launcher refuses the
-    catalog in the interval.
   </p>
 </section>
