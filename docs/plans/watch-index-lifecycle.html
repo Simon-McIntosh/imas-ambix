@@ -20,11 +20,11 @@
   <meta name="plan-tags" content="agent-serving">
   <meta name="plan-blocks" content="serving-record-warehouse">
   <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;],&quot;s10&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s11&quot;:[&quot;watch-index-lifecycle#s7&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;implementable&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="31">
+<meta name="plan-version" content="32">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -248,7 +248,7 @@
     </ul>
 
     <h2 id="s7">§7 — SLURM job logs leave the repository root, and the existing ones are archived compressed</h2>
-    <section data-reckon="section" data-id="s7" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
+    <section data-reckon="section" data-id="s7" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="done" data-links=""></section>
     <p>Every <code>#SBATCH --output</code> that <code>imas_ambix/agent/slurm.py</code> and <code>imas_ambix/agent/cli.py</code> generate is written under <code>~/.local/state/ambix/slurm-logs/</code> instead of the submitting directory. The serve, lane, router and download scripts are changed at the single <code>#SBATCH --output=</code> writer in <code>slurm.py</code>. The runtime-check and setup scripts write their own directive in <code>cli.py</code>, at the <code>ambix-runtime-check-</code> and <code>ambix-setup-</code> literals, and are routed through the same output-path function. The change adds no environment variable. Four other tracked writers name a relative or repository-root output and move to the same directory: <code>imas_ambix/data/cli.py</code> (<code>%x-%j.log</code>), <code>scripts/spine_label_fleet.sh</code>, <code>scripts/temporal_operator_cycle.sh</code> and <code>scripts/run_magnetics_era_scorecard.sbatch</code>. The one code path that reads a job's log back, <code>_job_stdout_path</code> in <code>cli.py</code>, takes the path from <code>scontrol show job</code>'s <code>StdOut</code>. It follows the new location without change and must not be rewritten. The setup command's console message names two logs, <code>ambix-setup-&lt;engine&gt;-&lt;job&gt;.log</code> and <code>ambix-runtime-check-&lt;engine&gt;-&lt;job&gt;.log</code>, and both are updated to name the new directory.</p>
     <p>The 451 existing root-level logs are archived by the coordinator as a separate step after the node lands. The step is not part of the node's write scope:</p>
     <ol>
@@ -447,6 +447,9 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261023T144418272856-wil-slurm-logs-leave-the-repository-root" data-who="reckon-build" data-when="2026-10-23T15:50:01Z">
     <div class="r-comment-body"><p>Generated and named tracked SLURM output paths use the state directory; submitting code creates it before sbatch, 41/41 comparable tests pass, the broad gate adds zero failures, and the relative-path mutant fails four cases.</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-close-s7" data-who="reckon-build" data-when="2026-10-23T16:35:00Z">
+    <div class="r-comment-body"><p>§7 landed: SLURM job logs resolve outside the repository root and the submit path creates the directory (merged <code>9c11873a</code>). 193 existing job logs were archived with zstd and verified by SHA-256 (497 MB to 30 MB), the 2 live jobs' logs kept, and 256 ad-hoc session logs left to their owners. <a href="/imas-ambix/evidence/archive/watch-index-lifecycle-landed.html#s7">evidence</a></p></div>
 </div>
 </section>
 </main>
