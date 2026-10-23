@@ -1,0 +1,73 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T14:06:06.172Z",
+  "dispatched_at": "2026-10-23T13:56:39Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/watch-index-lifecycle.html:353",
+      "id": "wiring-1",
+      "reason": "a coordinator dispatching verbatim from the followup never queues \u00a711, so the four duplicated-fact repairs are never built and \u00a711's done-when never runs.",
+      "text": "`f-wil-001` is the only open dispatch order, and its title and body enumerate \u00a73, \u00a74, \u00a78, \u00a75, \u00a76, \u00a77 and \u00a710 while omitting \u00a711, which is `implementable`, writes `cli.py` alongside \u00a77 and `telemetry_index.py` alongside \u00a75, and declares `depends-on` \u00a77",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/watch-index-lifecycle.html:436",
+      "id": "done_when-1",
+      "reason": "\u00a74 was deliberately left `implementable` until its open snapshot repair landed, so the same rule applied to \u00a710 keeps its status honest or adds the repair as a followup rather than as prose in a comment nothing tracks.",
+      "text": "the \u00a710 close comment records that the post-swap service entered a \"restart loop, which the coordinator stopped; its repair is in flight\", yet the same commit sets \u00a710 `done`",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/watch-index-lifecycle.html:436",
+      "id": "anchors_resolve-1",
+      "reason": "a reader checking \u00a710's landing is sent to \u00a76's evidence, so \u00a710's record is unreadable at the anchor it names and needs repointing once its own anchor is written.",
+      "text": "the \u00a710 landed comment links `<a href=\"/imas-ambix/evidence/archive/watch-index-lifecycle-landed.html#s6\">evidence</a>`, the same href \u00a76's own close comment uses, and `docs/evidence/archive/watch-index-lifecycle-landed.html` has no `#s10` anchor",
+      "type": "anchors_resolve",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/watch-index-lifecycle.html:314",
+      "id": "reasoning-1",
+      "reason": "the second branch makes `segments` a written-but-never-read column, reproducing the defect \u00a711 exists to remove in a column the done-when's two greps do not cover, so a node may take that branch and pass.",
+      "text": "\u00a711 item 3 offers \"the column and its assertion are deleted, or the reader uses the column\" as equal ways to leave one source of the counter difference, but `counter_diff` is unread today precisely because `_counter_window_rows` (imas_ambix/agent/telemetry_index.py:2126-2131) rebuilds the difference from `segments`, whose only other production appearances are the two writes at imas_ambix/agent/telemetry_index.py:1787 and :1794",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "e85607398934d40191406e30ef913f4606e1742ab583b647b9199e6e79eb85f1",
+  "plan_slug": "watch-index-lifecycle",
+  "plan_version": 25,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T135616336007-plan-review-of-watch-index-lifecycle",
+  "reviewed_blob_sha": "1a9d278cc972283469af960d1213c2a8601b2d5d",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 the \u00a710 landed comment's evidence href points at `#s6`, and the landed archive carries `id=\"s3\"`, `id=\"s4\"`, `id=\"s5\"`, `id=\"s6\"`, `id=\"s8\"` but no `id=\"s10\"`.",
+    "done_when": "a finding \u2014 \u00a710 is declared `done` in the same document whose \u00a710 close comment records an unresolved restart loop and an in-flight repair, and no followup carries that repair.",
+    "evidence_paths": "pass \u2014 every gate named in \u00a711 (\"on the fleet allocation\") is the same durable-placement convention the landed sections used, and the report's own evidence sits under the run's report directory.",
+    "naming": "pass \u2014 \u00a711's heading and body name mechanisms (`name_id`, `_snapshot_paths`, `counter_diff`) rather than tickets, stages or versions; the four claims it folds come from review records, not from a plan identifier.",
+    "reasoning": "a finding \u2014 \u00a711 item 3's second alternative (\"the reader uses the column\") does not leave one source of the counter difference: it leaves `segments`, the column that is read today, written but never read.",
+    "single_goal": "pass \u2014 \u00a711 carries four small dedup items, but they share one goal (one owner per index fact) and share three files, so one verdict closes it.",
+    "wiring": "a finding \u2014 \u00a711 is implementable and writes `cli.py`, `telemetry_index.py`, `index_placement.py` and three test files, but the only open dispatch followup (`f-wil-001`) orders \u00a73, \u00a74, \u00a78, \u00a75, \u00a76, \u00a77, \u00a710 and never \u00a711."
+  },
+  "section_digests": {
+    "_document": "8748a5e1e4606b82b90471ebdb089699ad9f274a5c080b293ac5bbb2925615f1",
+    "s1": "3d0d4a4b2f4087609ba3ffca49ccea0ed64b9473687ecd3c5d6d6135d6ba4340",
+    "s10": "77280074af71988f813c07c968531d496bbaaf5103e75e28f87813569c15eaa2",
+    "s11": "96d050158b4d3d28d9c18814a9d977db35f61dd658f750f565e401c6a220ad66",
+    "s2": "32189637430822acde78e34d53cbed7c3f0ae26c9fe044e99dc013e4e1d0db9d",
+    "s3": "404fc86a0b4c4e77af4febf31149dba78e8566091b87bc977876eabdf52a44f5",
+    "s4": "214ae5abf0b93b92e7479cda3f691edea3bc60b7b7ec1485dcced5899519843e",
+    "s5": "07220ee6b71f94c5bd9e6352dc2c18ff164dd9bba3eb996685e8bb2b38ef8c10",
+    "s6": "dda4b45beb908619af51ad68c93a9ab8d50d2d37e8a5e652821fa1494d2b34df",
+    "s7": "36856e4c38398072d521cb951fd28492f3357e9b319f4265621c68931da13552",
+    "s8": "83ac32d54d4394cd1d9f11da1f46b1eb6420b70f2911084121a031e6f7aff225",
+    "s9": "62bf93e7fec684aebfaadc4ad598642503ca8ee4691eeec898a8aad77e03adf1"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T14:09:47.897089+00:00"
+}
