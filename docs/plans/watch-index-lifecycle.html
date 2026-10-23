@@ -19,7 +19,7 @@
   <meta name="plan-owner"     content="Simon McIntosh">
   <meta name="plan-tags"      content="agent-serving">
   <meta name="plan-blocks"    content="serving-record-warehouse">
-  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;,&quot;watch-index-lifecycle#s4&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;]}">
+  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;,&quot;watch-index-lifecycle#s4&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;]}">
   <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;deferred&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -37,7 +37,7 @@
     </ul>
     <p>What the ingest does each tick, and why it reads gigabytes to take in kilobytes:</p>
     <ul>
-      <li><strong>Every 60 s, each grown file is read twice in full.</strong> For a file that grew, <code>_was_rewritten</code> hashes the whole consumed prefix to prove the file was not rewritten. <code>_read_new</code> then reads that same prefix again (<code>head = handle.read(start)</code>) to seed the next digest. The cost grows with the file's size, not with what was appended.</li>
+      <li><strong>Every 60 s, each grown file is read twice in full.</strong> For a file that grew, <code>_was_rewritten</code> hashes the whole consumed prefix to prove the file was not rewritten. <code>_resume</code> then reads that same prefix again (<code>head = handle.read(start)</code>) to seed the next digest. The cost grows with the file's size, not with what was appended.</li>
       <li><strong>The live serve's raw record is one 1.02 GB file, and its minute tier is 0.29 GB.</strong> Both are <code>deepseek-v4-1-flash-1280470*.jsonl</code>. They have not rolled daily, because serving-record-warehouse §21's daily roll takes effect only at the next serve restart. Two reads of 1.31 GB a minute is about 2.6 GB a minute, which matches the 2.8 GB a minute the storage session measured. One tick takes in about 50 KB.</li>
     </ul>
     <p>How the bytes compare:</p>
@@ -111,7 +111,7 @@
       <li><strong>On a slower cadence: the whole-prefix digest</strong>, re-verified per source at most once per <code>FULL_IDENTITY_INTERVAL</code> (default 3,600 s). The process also builds each source's hash state once at start-up, with a full read that doubles as that verification.</li>
     </ul>
     <p>The trade is stated in the decision below. A rewrite in place that touches neither probe window is detected within an hour, rather than within a tick. Receipts are append-only by contract, and no writer other than the recorder has ever touched one.</p>
-    <p>Write scope: <code>imas_ambix/agent/telemetry_index.py</code> (the source read path: <code>_read_new</code>, <code>_was_rewritten</code>, <code>_digest_of</code> and the source columns they need), <code>tests/test_telemetry_index.py</code>.</p>
+    <p>Write scope: <code>imas_ambix/agent/telemetry_index.py</code> (the source read path: <code>_resume</code>, <code>_was_rewritten</code>, <code>_digest_of</code> and the source columns they need), <code>tests/test_telemetry_index.py</code>.</p>
     <p><strong>Done when:</strong></p>
     <ul>
       <li>A test that counts bytes read through the file handle shows a source grown by <em>k</em> bytes reads at most <em>k</em> + 128 KiB on each tick after the first.</li>
@@ -127,7 +127,7 @@
       <li>The serving-interpreter guard passes: <code>pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python</code>.</li>
       <li><code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</li>
       <li>All gates run in place on the fleet allocation.</li>
-      <li><strong>After deployment</strong> (the coordinator restarts <code>ambix-ingest</code> with the lead's authority): the ingest pid's <code>read_bytes</code> in <code>/proc/&lt;pid&gt;/io</code> advances by at most 100 MB over 300 s, against about 13 GB before. The coordinator records that figure here.</li>
+      <li><strong>After deployment</strong> (the coordinator restarts <code>ambix-ingest</code> with the lead's authority): the ingest pid's <code>rchar</code> in <code>/proc/&lt;pid&gt;/io</code> is measured twice, and the coordinator records both figures here.<ul><li>Over a 300 s window that holds no full verification, it advances by at most 100 MB, against about 13 GB before.</li><li>Over 3,600 s, it advances by at most one whole-prefix pass of each source plus the appended bytes. At today's file sizes that is about 1.4 GB an hour, against about 156 GB an hour before.</li></ul></li>
     </ul>
 
     <h2 id="s4">§4 — The index lives on node-local disk, with compressed snapshots on GPFS</h2>
@@ -221,7 +221,7 @@
     <section data-reckon="section" data-id="s6" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
     <p>The <code>ingest</code> command composes publication into its <code>on_tick</code> hook:</p>
     <ul>
-      <li>When at least <code>--publish-every</code> seconds (default 300) have passed since the last successful publication, it publishes by calling <code>watch_publish.one_iteration</code>. That function already implements the whole contract: an atomic write through <code>os.replace</code>, <code>published_at</code> and <code>compute_seconds</code> at top level, mode 0644, one flushed line, and a failure leaving the previous file byte-identical. The section passes it the index the closure captures, rather than re-implementing any of it, so the contract keeps one owner.</li>
+      <li>When at least <code>--publish-every</code> seconds (default 300) have passed since the last successful publication, it publishes by calling <code>watch_publish.one_iteration</code> with the resolved index path. That function already implements the whole contract: an atomic write through <code>os.replace</code>, <code>published_at</code> and <code>compute_seconds</code> at top level, mode 0644, one flushed line, and a failure leaving the previous file byte-identical. Nothing in it is re-implemented, so the contract keeps one owner.</li>
       <li>A failed publication never fails the tick.</li>
       <li><code>publish-watch</code> keeps <code>--once</code> for manual use and loses its loop. This narrows the interface to one standing process.</li>
     </ul>
@@ -246,7 +246,7 @@
 
     <h2 id="s7">§7 — SLURM job logs leave the repository root, and the existing ones are archived compressed</h2>
     <section data-reckon="section" data-id="s7" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
-    <p>Every <code>#SBATCH --output</code> that <code>imas_ambix/agent/slurm.py</code> and <code>imas_ambix/agent/cli.py</code> generate is written under <code>~/.local/state/ambix/slurm-logs/</code> instead of the submitting directory. For the serve, lane, router and download scripts, the change is made at the single <code>#SBATCH --output=</code> writer in <code>slurm.py</code>. It adds no environment variable. The places that read a job's log back resolve it through the same function. These include the runtime check, which reads <code>ambix-runtime-check-&lt;engine&gt;-&lt;job&gt;.log</code>.</p>
+    <p>Every <code>#SBATCH --output</code> that <code>imas_ambix/agent/slurm.py</code> and <code>imas_ambix/agent/cli.py</code> generate is written under <code>~/.local/state/ambix/slurm-logs/</code> instead of the submitting directory. The serve, lane, router and download scripts are changed at the single <code>#SBATCH --output=</code> writer in <code>slurm.py</code>. The runtime-check and setup scripts write their own directive in <code>cli.py</code>, at the <code>ambix-runtime-check-</code> and <code>ambix-setup-</code> literals, and are routed through the same output-path function. The change adds no environment variable. The places that read a job's log back resolve it through the same function. These include the runtime check, which reads <code>ambix-runtime-check-&lt;engine&gt;-&lt;job&gt;.log</code>.</p>
     <p>The 451 existing root-level logs are archived by the coordinator as a separate step:</p>
     <ol>
       <li>Leave in place every log whose job is still in <code>squeue</code>.</li>
@@ -260,7 +260,7 @@
       <li>Generated serve, router, lane, setup, download and runtime-check scripts name an output path under the log directory. A test asserts that no generated <code>--output</code> is a bare file name.</li>
       <li>The runtime-check reader finds its log in the new place.</li>
       <li>The guard and the whole-tree ruff gate pass.</li>
-      <li>The archive step's printed list accounts for all 451 files, with no SHA mismatch.</li>
+      <li>The archive step's printed list accounts for all 451 files, with no SHA mismatch.</li><li>The archive step's guard is shown to refuse: run against a scratch copy whose archive is made to decompress to different bytes, the original stays in place and the mismatch is printed. Run against a matching archive, the original is removed.</li>
     </ul>
 
     <h2 id="s8">§8 — Why retention has retired nothing since 2026-10-17, and what fills the index</h2>
