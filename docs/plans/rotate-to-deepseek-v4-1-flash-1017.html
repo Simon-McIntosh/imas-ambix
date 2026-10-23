@@ -25,6 +25,8 @@
   <title>Rotate to DeepSeek-V4.1-Flash-1017 | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-version" content="4">
+<meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
   <main class="plan-doc">
@@ -86,32 +88,40 @@
 <section data-reckon="section" data-id="s3" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
     <p><code>imas-ambix agent restart</code> already restores the saved script when the new
     engine fails readiness or a real completion. A completion is the wrong test for this
-    rotation. 1017 ships a new prompt encoding (<code>encoding.py</code> and
-    <code>deepseek-recipe</code>, no Jinja template), and every worker on the lane makes
-    tool calls. A release that completes text but returns tool calls our parser cannot read
-    would pass validation and then fail every worker.</p>
-    <p>The validation step gains three probes, each sent through the router to the new
-    engine before <code>resume</code>:</p>
+    rotation. The <a href="https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017">1017
+    model card</a> ships its prompt encoding as <code>encoding/encoding.py</code> and points
+    production use to <code>deepseek-recipe</code>, with no Jinja template. Every worker on
+    the lane makes tool calls. A release that completes text but returns tool calls our
+    parser cannot read would pass validation and then fail every worker.</p>
+    <p>The validation step gains two probes, each sent through the router to the new engine
+    before <code>resume</code>:</p>
     <ul>
       <li><strong>Tool call.</strong> A chat request offering one tool must come back as a
       parsed <code>tool_calls</code> entry with arguments that parse as JSON.</li>
-      <li><strong>Interleaved thinking.</strong> A multi-turn exchange with a prior tool
-      result must keep reasoning out of the visible content and out of the tool arguments.
-      This is the leak the <code>a-tool-call-carries-no-model-markup</code> plan tracks.</li>
       <li><strong>Anthropic dialect.</strong> The same tool call made through the dialect
       clive uses must return a <code>tool_use</code> block.</li>
     </ul>
+    <p>A probe for reasoning leaking into tool arguments is deliberately not added. The
+    <code>a-tool-call-carries-no-model-markup</code> plan records that today's engine still
+    leaks in some calls, so such a probe would fail its own positive control. That plan owns
+    the probe and adds it to this validation once its fix lands.</p>
     <p>Any probe failing restores the saved script and resumes, exactly as a failed completion
-    does today.</p>
+    does today. Before pausing anything, <code>restart</code> also runs a <strong>weights
+    preflight</strong>: the profile's weights directory must hold
+    <code>model.safetensors.index.json</code> and every shard it names. If not, the restart
+    refuses and the lane is never paused. The preflight runs in a real restart, not only in
+    <code>--dry-run</code>.</p>
     <p><strong>Write paths.</strong> <code>imas_ambix/agent/cli.py</code> (the restart
     validation), <code>imas_ambix/agent/serve_probe.py</code> (new),
     <code>tests/test_agent_serve_probe.py</code> (new).</p>
     <p><strong>Done when.</strong></p>
     <ul>
-      <li>The three probes pass against today's served engine through the router, run once
-      from the fleet node, as the positive control on known-good weights. The log is
+      <li>Both probes pass against today's served engine through the router, run once from
+      the fleet node, as the positive control on known-good weights. The log is
       recorded.</li>
       <li>Unit tests cover each probe's pass and fail on recorded fixture responses.</li>
+      <li>A restart test with a weights directory lacking its index, or missing one shard
+      the index names, refuses before writing the pause, and names the missing file.</li>
       <li><strong>Negative control:</strong> a fixture whose tool call arrives as text in
       <code>content</code>, with no <code>tool_calls</code>, fails the tool-call probe and
       selects the rollback path in a restart test.</li>
@@ -125,8 +135,11 @@
     job from its profile at start. <code>endpoints.json</code> publishes it on the engine's
     entry. A receipt already names its <code>upstream</code> engine, so a reader joins
     receipts to releases through the registration in force at the receipt's time. That needs
-    no router change and no router restart. A registration written before this section reads
-    <code>release: null</code>, which the reader reports as unknown and never guesses.</p>
+    no router change and no router restart. The join has one owner,
+    <code>registry.release_at(engine_id, when)</code>, which returns the release of the
+    registration serving that engine at that instant. A registration written before this
+    section reads <code>release: null</code>, and <code>release_at</code> returns
+    <code>None</code> for it: unknown, never guessed.</p>
     <p><strong>Write paths.</strong> <code>imas_ambix/agent/registry.py</code>,
     <code>imas_ambix/agent/slurm.py</code>, <code>tests/test_agent_serve_registry.py</code>,
     <code>tests/test_agent_endpoint_discovery.py</code>.</p>
@@ -171,31 +184,32 @@
       promotes.</li>
       <li>Over the first hour, the share of requests ending <code>failed</code> stays within
       one percentage point of the same hour the previous day.</li>
-      <li><strong>Negative control:</strong> before the cycle, the restart is dry-run against
-      a profile pointing at an empty weights directory, and refuses before pausing the
-      lane.</li>
+      <li><strong>Negative control:</strong> before the cycle, a real (not dry-run) restart is
+      run against a copy of the profile pointing at an empty weights directory. §3's
+      preflight must refuse it before the pause is written, and <code>lane.json</code>'s
+      gate block must still read <code>paused: false</code> afterwards.</li>
     </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="served-name" data-choice="keep-name-record-release" data-by="Simon McIntosh" data-when="2026-10-23">
-        <p class="r-dec-q">Under what name is 1017 served?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt chosen" data-value="keep-name-record-release">keep deepseek-v4.1-flash; record the release</button>
-          <button class="r-opt" data-value="new-name">serve as deepseek-v4.1-flash-1017</button>
-        </p>
-        <p class="r-dec-rat">Keeping the name means clive, every reckon backend and the price table keep working with no change at cutover. A new name would have to change in all of them in the same cycle, or workers fail. The cost is that the name alone no longer identifies the weights, so §4 records the release on the registration and in the endpoint document.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="served-name" data-choice="keep-name-record-release" data-by="Simon McIntosh" data-when="2026-10-23">
+    <p class="r-dec-q">Under what name is 1017 served?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="keep-name-record-release">keep deepseek-v4.1-flash; record the release</button>
+      <button class="r-opt" data-value="new-name">serve as deepseek-v4.1-flash-1017</button>
+      </p>
+    <p class="r-dec-rat">Keeping the name means clive, every reckon backend and the price table keep working with no change at cutover. A new name would have to change in all of them in the same cycle, or workers fail. The cost is that the name alone no longer identifies the weights, so §4 records the release on the registration and in the endpoint document.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-r1017-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build rotate-to-deepseek-v4-1-flash-1017">
-        <h4 class="r-fu-title">Build §2–§4, then rotate (§5)</h4>
-        <div class="r-fu-body"><p>§2, §3 and §4 write disjoint files and run in parallel. §5 is the coordinator's lane cycle, once all three land.</p></div>
-        <pre class="r-fu-prompt">/reckon-build rotate-to-deepseek-v4-1-flash-1017</pre>
-      </article>
-    </section>
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-r1017-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build rotate-to-deepseek-v4-1-flash-1017" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Build §2–§4, then rotate (§5)</h4>
+    <div class="r-fu-body"><p>§2, §3 and §4 write disjoint files and run in parallel. §5 is the coordinator's lane cycle, once all three land.</p></div>
+    <pre class="r-fu-prompt">/reckon-build rotate-to-deepseek-v4-1-flash-1017</pre>
+    </article>
+</section>
   </main>
 </body>
 </html>
