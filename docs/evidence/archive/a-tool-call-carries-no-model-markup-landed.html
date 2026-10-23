@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="a-tool-call-carries-no-model-markup-landed">
+  <meta name="plan-title" content="A Tool Call Carries No Model Markup — landed record">
+  <meta name="plan-summary" content="Closure synthesis for A Tool Call Carries No Model Markup: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).">
+  <meta name="plan-evidence-for" content="a-tool-call-carries-no-model-markup">
+  <meta name="plan-verdict" content="qualified">
+  <title>A Tool Call Carries No Model Markup — landed record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+ <main class="plan-doc">
+  <h1>A Tool Call Carries No Model Markup — landed record</h1>
+  <p>Closure synthesis for A Tool Call Carries No Model Markup: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).</p>
+
+
+   <section id="s2-the-model-writes-the-markup">
+    <h2>§2 — the model writes the DSML markup into the argument; the parser does not</h2>
+    <p>Run <code>r-20261023T000714944866-dsml-markup-leak-origin</code> drove the DeepSeek-V4.1 tool-call parser from the serve's container (<code>/sgl-workspace/sglang/python/sglang/srt/function_call/deepseekv41_detector.py</code> in <code>/work/projects/imas_gpu/containers/sglang-dev-dsv41.sif</code>) offline over the 20 leaked calls in <code>census-baseline.log</code>. It rebuilt each call in three candidate shapes and ran every candidate through <code>detect_and_parse</code>, <code>parse_streaming_increment</code> one character at a time, all 7 cuts inside the opening token, every cut at the boundaries of the serve's tokenizer, and the serve's <code>FunctionCallParser</code> path. The reconstruction is faithful for 20 of 20 calls.</p><table><thead><tr><th>shape</th><th>what the completion holds</th><th>delivered arguments reproduced byte for byte</th><th>tokenizer-boundary cuts with a token-carrying call</th></tr></thead><tbody><tr><td>(a)</td><td>two well-formed calls, split at the opening token</td><td>0 of 20, on every path</td><td>0 of 5,500</td></tr><tr><td>(b)</td><td>the first argument never closed before the second call opens</td><td>20 of 20, on every path</td><td>5,224 of 5,224</td></tr><tr><td>(c)</td><td>the markup inside one closed string argument</td><td>20 of 20, on every path</td><td>5,207 of 5,207</td></tr></tbody></table><p>No path turns a well-formed two-call completion into a call carrying the token. The leaked arguments are exactly what the parser correctly delivers when the model's own output puts the markup inside an argument. The delivered text shows how: inside a string argument, the model writes <code>&lt;/think&gt;</code>, then opens a fresh <code>&lt;｜DSML｜ calls&gt;</code> block and restarts the call. The router relays each response chunk unchanged (<code>RouterApp._relay</code>, <code>imas_ambix/agent/router.py</code>). Origin: <strong>the model</strong>. The negative control, three clean completions through every path, parsed to one call each with no token (<code>negative-control.log</code>, <code>RESULT=CLEAN</code>).</p><p>Caveats. Four of the calls were never parsed as JSON by the harness (<code>__unparsedToolInput</code>); their records end mid-string, one clipped at 300 characters, so those four fixtures test a prefix. No live replay was run, and no census was taken after 2026-10-22T19:00Z. In fig-07 (<code>r-20261022T125056443470-clive-judges-pair-fig-07</code>) the truncated <code>Read</code> carries no markup, so §2 establishes no origin for it and §4 holds it. The coordinator's audit of the first attempt found its two-call rebuild of the unparsed calls still JSON-escaped, and its tokenizer cuts scoring only byte equality; the resumed attempt fixed both before these figures were taken.</p><p>A sibling leak, seen in this run itself: in one of the resumed worker's own <code>Bash</code> calls the model wrote its reasoning prose as the <code>command</code>, and the shell ran it; the <code>&gt;</code> characters in the prose created two empty files in the worktree. The model's reasoning text reached an executed argument. That call quoted the token as subject matter, but a reasoning leak need not carry it.</p><p>Artefacts: <code>~/.config/reckon/crew/reports/imas-ambix/a-tool-call-carries-no-model-markup/report.md</code>, <code>fixtures/</code> (20 leaking, 3 generic, 3 clean), and the run's <code>work/</code> directory (<code>results.json</code>, <code>summary.json</code>, <code>parser-run.log</code>, <code>negative-control.log</code>).</p>
+  </section>
+
+</main>
+</body>
+</html>
