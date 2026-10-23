@@ -234,6 +234,40 @@ def test_scheduler_uses_its_own_connection_for_backup(tmp_path):
     assert _counts(restored) == _counts(tmp_path / "index.sqlite3")
 
 
+def test_existing_snapshot_verifies_by_stream_after_restart(tmp_path, monkeypatch):
+    source = tmp_path / "receipts.jsonl"
+    _receipt(source, 0)
+    with TelemetryIndex(tmp_path / "index.sqlite3") as index:
+        index.ingest([source])
+        stored = index_placement.snapshot_index(index, directory=tmp_path / "snapshots")
+        receipt = index_placement._digest_path(stored)
+        assert receipt.exists()
+        index_placement._VERIFIED_SIGNATURES.clear()
+        monkeypatch.setattr(
+            index_placement,
+            "_decompress_and_check",
+            lambda source, destination: pytest.fail("unexpected uncompressed copy"),
+        )
+        assert (
+            index_placement.snapshot_if_due(
+                index.path, directory=tmp_path / "snapshots"
+            )
+            is None
+        )
+
+
+def test_changed_snapshot_digest_receipt_is_refused(tmp_path, capsys):
+    source = tmp_path / "receipts.jsonl"
+    _receipt(source, 0)
+    with TelemetryIndex(tmp_path / "index.sqlite3") as index:
+        index.ingest([source])
+        stored = index_placement.snapshot_index(index, directory=tmp_path / "snapshots")
+    index_placement._VERIFIED_SIGNATURES.clear()
+    index_placement._digest_path(stored).write_text("0" * 64 + "\n")
+    assert not index_placement._snapshot_is_verified(stored, tmp_path)
+    assert "snapshot digest mismatch" in capsys.readouterr().err
+
+
 def test_snapshot_checks_scratch_and_verifies_stream_without_second_copy(
     tmp_path, monkeypatch
 ):
@@ -298,6 +332,7 @@ def test_retention_keeps_three_verified_snapshots(tmp_path):
             for day in range(1, 5)
         ]
     assert not created[0].exists()
+    assert not index_placement._digest_path(created[0]).exists()
     assert all(path.exists() for path in created[1:])
     assert len(list(snapshots.glob("*.zst"))) == 3
 

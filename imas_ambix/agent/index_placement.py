@@ -109,17 +109,48 @@ def _signature(path: Path) -> tuple[int, int, int, int, int]:
     )
 
 
+def _digest_path(snapshot: Path) -> Path:
+    return snapshot.with_name(f"{snapshot.name}.sha256")
+
+
+def _stream_digest(snapshot: Path) -> str:
+    digest = hashlib.sha256()
+    with zstd.open(snapshot, "rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _snapshot_is_verified(source: Path, local_dir: Path) -> bool:
     """Verify changed snapshot bytes, reusing only an unchanged prior verdict."""
     try:
         signature = _signature(source)
         if _VERIFIED_SIGNATURES.get(source) == signature:
             return True
-        with tempfile.TemporaryDirectory(dir=local_dir) as scratch:
-            _decompress_and_check(source, Path(scratch) / "check.sqlite3")
+        receipt = _digest_path(source)
+        if receipt.exists():
+            receipt_signature = _signature(receipt)
+            expected = receipt.read_text(encoding="ascii").strip()
+            if len(expected) != 64 or any(
+                c not in "0123456789abcdef" for c in expected
+            ):
+                raise ValueError(f"invalid snapshot digest receipt: {receipt}")
+            if _stream_digest(source) != expected:
+                raise ValueError(f"snapshot digest mismatch: {source}")
+            if _signature(receipt) != receipt_signature:
+                raise ValueError("snapshot digest receipt changed while it was checked")
+        else:
+            with tempfile.TemporaryDirectory(dir=local_dir) as scratch:
+                _decompress_and_check(source, Path(scratch) / "check.sqlite3")
         if _signature(source) != signature:
             raise ValueError("snapshot changed while it was checked")
-    except (OSError, ValueError, sqlite3.DatabaseError, zstd.ZstdError) as error:
+    except (
+        OSError,
+        UnicodeError,
+        ValueError,
+        sqlite3.DatabaseError,
+        zstd.ZstdError,
+    ) as error:
         _VERIFIED_SIGNATURES.pop(source, None)
         print(
             f"snapshot verification failed: {source}: {error}",
@@ -167,6 +198,8 @@ def snapshot_index(
             if result is None or result[0] != "ok":
                 raise ValueError(f"snapshot scratch quick_check failed: {result}")
         staged = directory / f".{final.name}.{os.getpid()}.tmp"
+        receipt = _digest_path(final)
+        staged_receipt = directory / f".{receipt.name}.{os.getpid()}.tmp"
         try:
             digest = hashlib.sha256()
             with plain.open("rb") as source, zstd.open(staged, "wb") as compressed:
@@ -177,23 +210,27 @@ def snapshot_index(
                 os.fsync(stream.fileno())
             os.replace(staged, final)
             signature = _signature(final)
-            verified = hashlib.sha256()
-            with zstd.open(final, "rb") as stream:
-                while chunk := stream.read(1024 * 1024):
-                    verified.update(chunk)
-            if verified.digest() != digest.digest():
+            if _stream_digest(final) != digest.hexdigest():
                 raise ValueError(f"snapshot digest mismatch: {final}")
             if _signature(final) != signature:
                 raise ValueError("snapshot changed while it was checked")
+            with staged_receipt.open("w", encoding="ascii") as stream:
+                stream.write(digest.hexdigest() + "\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(staged_receipt, receipt)
             _VERIFIED_SIGNATURES[final] = signature
         except Exception:
             final.unlink(missing_ok=True)
+            receipt.unlink(missing_ok=True)
             raise
         finally:
             staged.unlink(missing_ok=True)
+            staged_receipt.unlink(missing_ok=True)
         verified = _verified_snapshots(directory, index_path.parent)
         for old in verified[3:]:
             old.unlink()
+            _digest_path(old).unlink(missing_ok=True)
     return final
 
 
