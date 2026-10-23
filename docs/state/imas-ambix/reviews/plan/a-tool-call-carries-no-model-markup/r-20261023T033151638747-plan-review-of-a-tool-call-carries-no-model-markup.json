@@ -1,0 +1,52 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T03:48:46.340Z",
+  "dispatched_at": "2026-10-23T03:33:22Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/a-tool-call-carries-no-model-markup.html:48",
+      "id": "reasoning-1",
+      "reason": "if the retry body differs by even a byte the digest never matches, the guard fires on every attempt of a turn that deterministically quotes the markup (the case the dedup exists for), the local lane's turn livelocks instead of costing one retry, and no arm in the done-when could show it; the fix is one cheap observation the plan does not ask for (compare the router's logged digest for a fired request against the digest of its retry) or a dedup key the retry is known to preserve.",
+      "text": "\u00a73's anti-livelock mechanism keys on the digest of the request body (\"It keeps the digests of the request bodies it stopped in the last hour \u2026 When an identical request body produces a structural opening again, the relay forwards that response untouched\"), and then concludes \"A turn that must quote the markup therefore costs one retry, never a livelock\"; the retry is a client-side act outside this repo, and the plan's evidence for it \u2014 \"its operator cut already ends a stream in a close form that a streaming client retries\" \u2014 establishes only that a retry *happens*, never that the retried request body is byte-identical. The only arm that touches this is the relay test that \"sends one request body twice\" against a synthetic upstream, which assumes identity rather than observing it; the population pass and every other test are blind to it.",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/a-tool-call-carries-no-model-markup.html:49",
+      "id": "anchors_resolve-1",
+      "reason": "the intent is unambiguous (\"so neither is written twice\") and extracting the traversal is behaviour-preserving on a report artifact the node itself owns, so a worker reaches the same implementation without a decision from the author.",
+      "text": "the done-when requires the population pass to \"import \u2026 the run walk from `census.py`, so neither is written twice\", but `census.py` has no importable walk: `import census` exposes `TOKEN`, `PLAN_NODES`, `parse`, `main` (and stdlib re-exports), with the `listdir`/`worker.json`/`stream.jsonl`/`tool_use` traversal written inline inside `main()`; the node can only satisfy the instruction by first extracting that walk into a function, an unlisted change to the \u00a71 instrument.",
+      "type": "anchors_resolve",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "2be8d0ae547648c5e25b01a0ae62dcb363d773ff167514819bb9156da54e9975",
+  "plan_slug": "a-tool-call-carries-no-model-markup",
+  "plan_version": 17,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T033151638747-plan-review-of-a-tool-call-carries-no-model-markup",
+  "reviewed_blob_sha": "88c1c2040b9099aa80701182c271239721784023",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 s3's done-when says the population pass \"imports \u2026 the run walk from `census.py`\", but that module exposes only `TOKEN`, `PLAN_NODES`, `parse` and `main`; the walk is inline in `main()`.",
+    "done_when": "pass \u2014 s3 carries a real negative control (watch verdict ignored \u2192 every leaked-stream test fails on the client's `content_block_stop`) plus a bare-token not-firing case; the \"exactly the twenty\" expectation is satisfiable (20 of 20 leak fixtures verified to carry a structural opening) and the stray-firing clause is a reporting requirement.",
+    "evidence_paths": "pass \u2014 gate inputs and outputs land on durable paths: `fixtures/` and the population-pass log under the plan reports directory, and the firing log beside the router's receipt sink (`~/public/imas-ambix/`, rolled daily), not a scratchpad.",
+    "naming": "pass \u2014 `tool_input_markup.py` and `tool-input-markup.jsonl` are named by mechanism; no plan labels, stage names, ticket numbers or version tags reach a symbol, and the plan's references to `\u00a73`, `STATUS_ABORTED` and the run ids stay in the document and in evidence data.",
+    "reasoning": "a finding \u2014 the root cause matches \u00a72's evidence and the guard mechanism does produce the section's measure over the fixture set, but the \"never a livelock\" half of the mechanism runs on a premise about the client's retry that no arm of the done-when can falsify.",
+    "single_goal": "pass \u2014 s3 has one deliverable, the router-side guard; the capture fixture, unit tests, relay tests and population pass are all arms of that one gate.",
+    "wiring": "pass \u2014 s3\u2192s2 and s5\u2192s3 in `plan-section-depends-on` match s3's \"\u00a72 found\" premise and s5's need for the deployed guard; \u00a76's reference to \u00a73 is rationale, not a dependency."
+  },
+  "section_digests": {
+    "_document": "403da21a79cbe327f0935fd41d2a294ae9f63b57b37ed27f5ac61e33601230ae",
+    "s1": "5f8c49e3d7e51c0174a76ddfea229d085b20b6e290dcf0a017c94c993156cdda",
+    "s2": "f22bd920ddbf54ebe86243b05d2d8c24bd970608d7794349574f97d6eaea2201",
+    "s3": "df7857f3485124ef34956974780fb3d05a77e19c61d049c2cc2c9df1c3231b8a",
+    "s4": "73433c178790d5f6f90c5a57799d16eb9d4fcf7a0039fc4044d9886609d0e472",
+    "s5": "b29d34846a70039b1a632b3890af491cf2018b4435bdf18b55e429eb124d853a",
+    "s6": "0629f0c30cab8733b2150eadf81ec757fe59a4a2742e8c7c636580d856b53d9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T03:53:13.751097+00:00"
+}
