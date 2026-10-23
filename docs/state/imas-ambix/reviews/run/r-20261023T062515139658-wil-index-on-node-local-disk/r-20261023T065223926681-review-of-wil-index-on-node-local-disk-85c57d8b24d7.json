@@ -1,0 +1,124 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "assertion_analysis": [
+    "tests/test_index_placement.py:48-50 fails if the fleet default is absent or routed away from ambix/watch-index.sqlite3.",
+    "tests/test_index_placement.py:54 fails if the environment override loses precedence to the fleet default.",
+    "tests/test_index_placement.py:55-58 fails if an explicit path is ignored, but an unvalidated echo survives; the expected path is the same input supplied to the resolver.",
+    "tests/test_index_placement.py:61 fails if an unset environment still resolves a path.",
+    "tests/test_index_placement.py:72 fails if the runtime candidate is accepted when injected statfs reports GPFS.",
+    "tests/test_index_placement.py:78 fails if enable_wal does not leave SQLite in WAL mode on local storage.",
+    "tests/test_index_placement.py:80-81 fails if the resolver stops raising on an injected network filesystem.",
+    "tests/test_index_placement.py:82-86 fails if enable_wal stops raising on an injected network filesystem; the source run's mutation produced this failure.",
+    "tests/test_index_placement.py:97 fails if two receipts are not ingested.",
+    "tests/test_index_placement.py:100 fails if the snapshot path loses its zst suffix; it does not prove compression by itself.",
+    "tests/test_index_placement.py:101 fails if restore does not select the snapshot just written.",
+    "tests/test_index_placement.py:102-103 fails if backup, compression or restore changes source, sample or measurement row counts or SQLite dump content.",
+    "tests/test_index_placement.py:118-120 fails if four valid snapshots leave other than the newest three; it does not test a corrupt snapshot in retention.",
+    "tests/test_index_placement.py:137 fails if restore chooses the corrupt newest instead of the older snapshot.",
+    "tests/test_index_placement.py:138 fails if corrupt-snapshot failure is not printed.",
+    "tests/test_index_placement.py:139 fails if fallback deletes the older snapshot.",
+    "tests/test_index_placement.py:140 fails if the restored row counts diverge from the original index.",
+    "tests/test_index_placement.py:153 fails if the continuous index misses the appended receipt.",
+    "tests/test_index_placement.py:158-159 fails if restored catch-up misses the new receipt or ingests it twice.",
+    "tests/test_index_placement.py:160-161 fails if restored and continuous indexes differ in row counts or SQLite dump.",
+    "tests/test_index_placement.py:170 fails if no-local watch_document does not return the published stamp.",
+    "tests/test_index_placement.py:172-173 fails if agent watch --json errors or changes the published bytes.",
+    "tests/test_index_placement.py:175-176 fails if agent watch text mode errors or changes the published bytes; neither mode exercises publish-watch."
+  ],
+  "call_site_count": 8,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:3151",
+    "imas_ambix/agent/cli.py:3392",
+    "imas_ambix/agent/cli.py:3399",
+    "imas_ambix/agent/cli.py:3401",
+    "imas_ambix/agent/cli.py:3406",
+    "imas_ambix/agent/watch.py:1305",
+    "imas_ambix/agent/watch.py:1434",
+    "imas_ambix/agent/watch_publish.py:116"
+  ],
+  "completed_at": "2026-10-23T07:04:27Z",
+  "dispatched_at": "2026-10-23T06:52:54Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/index_placement.py",
+      "line": "186",
+      "severity": "blocking",
+      "text": "blocking: snapshot_if_due accepts any same-day filename without verification, so a damaged newest file suppresses further snapshots that day despite the verified-daily-copy requirement."
+    },
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "1435",
+      "severity": "blocking",
+      "text": "blocking: watch_publish.py:116 can read an old watch.json through this fallback and write it back with a new published_at at watch_publish.py:119, falsely presenting stale measurements as fresh."
+    },
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "90",
+      "severity": "follow-on",
+      "text": "follow-on: PUBLISHED_WATCH_PATH duplicates watch_publish.DEFAULT_OUTPUT at watch_publish.py:39 and can drift from the producer's path."
+    },
+    {
+      "file": "tests/test_index_placement.py",
+      "line": "56",
+      "severity": "follow-on",
+      "text": "follow-on: the explicit-path assertion compares the returned path with the same path supplied to the resolver; a mere echo passes without proving validation, so the locality refusal must be judged by the separate injected-network assertion."
+    },
+    {
+      "file": "tests/test_index_placement.py",
+      "line": "118",
+      "severity": "follow-on",
+      "text": "follow-on: the retention assertions use only valid snapshots, so pruning by filename rather than by verified copies would also keep three files and pass."
+    },
+    {
+      "file": "manifest.md",
+      "line": "19",
+      "severity": "follow-on",
+      "text": "follow-on: baseline_suite and after_suite are empty, leaving no structured suite-delta receipt even though placement-and-cli-tests.log and final-placement-gate.log both report 16 passed and no failure ids."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 8 production call site(s)",
+    "diff": "read aa4a09b4, 0802d6d7, d99a8955 and 85c57d8b commit by commit from 01f7736e; the last two repair the runtime candidate check and update the evidence fragment.",
+    "done_when": "prompt.txt:95-96 names placement, WAL refusal, snapshots, restore and gates; final-all-tests.log:20 records 46 passed and final-all-ruff.log:4 records a clean gate, but no assertion tests a damaged same-day snapshot before scheduling.",
+    "goal": "prompt.txt:30 requires a node-local WAL index and verified daily snapshots; index_placement.py:60-191 implements the route but the daily verification check has a gap.",
+    "manifest": "manifest.md reports four commits, 46 passed, Ruff clean and a red WAL negative control; its baseline_suite and after_suite fields are empty although comparable gate logs exist.",
+    "write_paths": "prompt.txt:69-76 grants index_placement.py, its test, cli.py, watch.py and the evidence fragment; the five changed paths in the 01f7736e..85c57d8b diff are within that scope."
+  },
+  "justifications": {
+    "durability": "tests/test_index_placement.py:75-86 reddens when network refusal is removed, but lines 106-140 never test same-day corruption before scheduling and lines 164-176 never call the publisher.",
+    "evidence": "final-all-tests.log:20 and final-all-ruff.log:4 record green gates and final-negative-control.log:24 records the WAL guard turning red, while manifest.md leaves the structured suite arms empty.",
+    "fit": "imas_ambix/agent/cli.py:3403 follows the ingest tick callback idiom and its new names are semantic, though watch.py:90 repeats a publication path owned elsewhere.",
+    "goal_fidelity": "imas_ambix/agent/index_placement.py:186 treats a dated file as a successful snapshot, so the promised verified daily copy can be absent.",
+    "reuse": "imas_ambix/agent/watch.py:90 duplicates the published document location already defined by imas_ambix/agent/watch_publish.py:39, rather than extending that owner; searches for quick_check, statfs and SQLite backup found no prior index snapshot owner.",
+    "scope_discipline": "the 01f7736e..85c57d8b diff changes only the five files listed at prompt.txt:69-76."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: prompt.txt:30 requires a node-local WAL index and verified daily snapshots; index_placement.py:60-191 implements the route but the daily verification check has a gap.\nVERDICT done_when: prompt.txt:95-96 names placement, WAL refusal, snapshots, restore and gates; final-all-tests.log:20 records 46 passed and final-all-ruff.log:4 records a clean gate, but no assertion tests a damaged same-day snapshot before scheduling.\nVERDICT write_paths: prompt.txt:69-76 grants index_placement.py, its test, cli.py, watch.py and the evidence fragment; the five changed paths in the 01f7736e..85c57d8b diff are within that scope.\nVERDICT manifest: manifest.md reports four commits, 46 passed, Ruff clean and a red WAL negative control; its baseline_suite and after_suite fields are empty although comparable gate logs exist.\nVERDICT diff: read aa4a09b4, 0802d6d7, d99a8955 and 85c57d8b commit by commit from 01f7736e; the last two repair the runtime candidate check and update the evidence fragment.\nCALL_SITES: imas_ambix/agent/cli.py:3151, imas_ambix/agent/cli.py:3392, imas_ambix/agent/cli.py:3399, imas_ambix/agent/cli.py:3401, imas_ambix/agent/cli.py:3406, imas_ambix/agent/watch.py:1305, imas_ambix/agent/watch.py:1434, imas_ambix/agent/watch_publish.py:116\nSCORE goal_fidelity: 12\nJUSTIFICATION goal_fidelity: imas_ambix/agent/index_placement.py:186 treats a dated file as a successful snapshot, so the promised verified daily copy can be absent.\nSCORE evidence: 14\nJUSTIFICATION evidence: final-all-tests.log:20 and final-all-ruff.log:4 record green gates and final-negative-control.log:24 records the WAL guard turning red, while manifest.md leaves the structured suite arms empty.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the 01f7736e..85c57d8b diff changes only the five files listed at prompt.txt:69-76.\nSCORE durability: 11\nJUSTIFICATION durability: tests/test_index_placement.py:75-86 reddens when network refusal is removed, but lines 106-140 never test same-day corruption before scheduling and lines 164-176 never call the publisher.\nSCORE fit: 15\nJUSTIFICATION fit: imas_ambix/agent/cli.py:3403 follows the ingest tick callback idiom and its new names are semantic, though watch.py:90 repeats a publication path owned elsewhere.\nSCORE reuse: 5\nJUSTIFICATION reuse: imas_ambix/agent/watch.py:90 duplicates the published document location already defined by imas_ambix/agent/watch_publish.py:39, rather than extending that owner; searches for quick_check, statfs and SQLite backup found no prior index snapshot owner.\nFINDING imas_ambix/agent/index_placement.py:186 blocking: snapshot_if_due accepts any same-day filename without verification, so a damaged newest file suppresses further snapshots that day despite the verified-daily-copy requirement.\nFINDING imas_ambix/agent/watch.py:1435 blocking: watch_publish.py:116 can read an old watch.json through this fallback and write it back with a new published_at at watch_publish.py:119, falsely presenting stale measurements as fresh.\nFINDING imas_ambix/agent/watch.py:90 follow-on: PUBLISHED_WATCH_PATH duplicates watch_publish.DEFAULT_OUTPUT at watch_publish.py:39 and can drift from the producer's path.\nFINDING tests/test_index_placement.py:56 follow-on: the explicit-path assertion compares the returned path with the same path supplied to the resolver; a mere echo passes without proving validation, so the locality refusal must be judged by the separate injected-network assertion.\nFINDING tests/test_index_placement.py:118 follow-on: the retention assertions use only valid snapshots, so pruning by filename rather than by verified copies would also keep three files and pass.\nFINDING manifest.md:19 follow-on: baseline_suite and after_suite are empty, leaving no structured suite-delta receipt even though placement-and-cli-tests.log and final-placement-gate.log both report 16 passed and no failure ids.\n",
+  "review_run_id": "r-20261023T065223926681-review-of-wil-index-on-node-local-disk-85c57d8b24d7",
+  "reviewed_base_sha": "01f7736ef59a61ac4a3bcf93124977d8bd5ae896",
+  "reviewed_head_sha": "85c57d8b24d7823aefda6831d1ba46419231a9ce",
+  "reviewed_run_id": "r-20261023T062515139658-wil-index-on-node-local-disk",
+  "scores": {
+    "durability": 11,
+    "evidence": 14,
+    "fit": 15,
+    "goal_fidelity": 12,
+    "reuse": 5,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "suite_delta_evidence": {
+    "after_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T062515139658-wil-index-on-node-local-disk/final-placement-gate.log",
+    "after_result": "16 passed, 14 deselected, EXIT=0",
+    "baseline_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T062515139658-wil-index-on-node-local-disk/placement-and-cli-tests.log",
+    "baseline_result": "16 passed, 14 deselected, EXIT=0",
+    "limitation": "The source manifest does not populate baseline_suite or after_suite; these comparable gate logs carry the observed zero failure ids."
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T07:07:11.313788+00:00",
+  "total": 77
+}
