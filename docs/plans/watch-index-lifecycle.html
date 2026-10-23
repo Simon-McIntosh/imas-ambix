@@ -19,7 +19,7 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving">
   <meta name="plan-blocks" content="serving-record-warehouse">
-  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;,&quot;watch-index-lifecycle#s4&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;]}">
+  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;]}">
   <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -208,7 +208,7 @@
     </ul>
     <p>This rollup is not a second copy of the compaction tiers in <code>telemetry_store.py</code>. Those tiers, raw, minute and hour, are per receipt file, and the index already reads only the finest tier offered for each job. The rollup's axis is per source, per measurement and per hour. It carries gauge time integrals and coverage, which a file-level tier does not carry. The rollup reads samples the index already holds, and it does not replace any tier.</p>
     <p>A period sums its whole hours from the rollup and reads raw samples only for the partial hours at its two edges. Every remaining raw-sample query is bounded to its window plus each source's last sample before the window, and all cards of one period are read in one statement rather than one statement per card.</p>
-    <p>Write scope: <code>imas_ambix/agent/telemetry_index.py</code>, <code>imas_ambix/agent/watch.py</code>, <code>tests/test_telemetry_index.py</code>, <code>tests/test_agent_telemetry_watch.py</code>. It follows §3, which also writes <code>telemetry_index.py</code>, and §4, which also writes <code>watch.py</code>.</p>
+    <p>Write scope: <code>imas_ambix/agent/telemetry_index.py</code>, <code>imas_ambix/agent/watch.py</code>, <code>tests/test_telemetry_index.py</code>, <code>tests/test_agent_telemetry_watch.py</code>. It follows §3, which also writes <code>telemetry_index.py</code>. §4's change to <code>watch.py</code> is merged, and its open snapshot repair does not touch that file, so §5 no longer waits on §4.</p>
     <p><strong>Done when</strong>, measured on the fleet allocation against a node-local copy of the live index rebuilt with the new schema:</p>
     <ul>
       <li><code>watch_document</code> gives the same value in every field as the raw computation over that rebuilt index. The comparison is exact equality, made field by field by a script that prints any mismatching path.</li>
