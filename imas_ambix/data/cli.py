@@ -22,6 +22,7 @@ import click
 from rich.console import Console
 from rich.table import Table
 
+from imas_ambix.agent.slurm import slurm_log_path
 from imas_ambix.data.paths import (
     CAMERA_SOURCES,
     LEVEL1_DIR,
@@ -660,7 +661,7 @@ def _render_slurm_script(
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=32G
 #SBATCH --time={time_limit}
-#SBATCH --output=%x-%j.log
+#SBATCH --output={slurm_log_path("%x-%j.log")}
 
 set -euo pipefail
 export TMPDIR=/scratch_local/$SLURM_JOB_ID && mkdir -p "$TMPDIR"
