@@ -3428,6 +3428,10 @@ def ingest(
         try:
             with TelemetryIndex(staged) as rebuilt:
                 rebuilt.rebuild(discover(resolved_record))
+            for suffix in ("-wal", "-shm"):
+                resolved_index.with_name(resolved_index.name + suffix).unlink(
+                    missing_ok=True
+                )
             os.replace(staged, resolved_index)
         finally:
             staged.unlink(missing_ok=True)
