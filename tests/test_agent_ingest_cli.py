@@ -10,7 +10,10 @@ happens to hold.
 
 from __future__ import annotations
 
+import os
 import sqlite3
+import subprocess
+import sys
 import types
 from datetime import UTC, datetime
 
@@ -21,16 +24,29 @@ from imas_ambix.agent.telemetry_ingest import TickReport
 from imas_ambix.cli import main
 
 
-def _old_schema_index(path) -> None:
-    with sqlite3.connect(path) as connection:
-        connection.execute(
-            "CREATE TABLE source (mtime_ns INTEGER, head_sha TEXT, tail_sha TEXT)"
-        )
-        connection.execute("CREATE TABLE measurement (name TEXT)")
+def _old_schema_index_with_wal(path) -> None:
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import os, sqlite3, sys; "
+            "db = sqlite3.connect(sys.argv[1]); "
+            "db.execute('PRAGMA journal_mode=WAL'); "
+            "db.execute('CREATE TABLE source ("
+            "mtime_ns INTEGER, head_sha TEXT, tail_sha TEXT)'); "
+            "db.execute('CREATE TABLE measurement (name TEXT)'); "
+            "db.execute(\"INSERT INTO measurement VALUES ('stale')\"); "
+            "db.commit(); os._exit(0)",
+            str(path),
+        ],
+        check=True,
+    )
+    assert path.with_name(path.name + "-wal").stat().st_size > 0
+    assert path.with_name(path.name + "-shm").exists()
 
 
 def test_old_schema_index_rebuilds_before_first_tick(tmp_path, monkeypatch) -> None:
-    from imas_ambix.agent import watch_publish
+    from imas_ambix.agent import cli, watch_publish
 
     records = tmp_path / "receipts"
     records.mkdir()
@@ -38,7 +54,20 @@ def test_old_schema_index_rebuilds_before_first_tick(tmp_path, monkeypatch) -> N
         '{"timestamp":"2026-10-23T00:00:00Z","job_id":"123","engine":{"generation_tokens":7}}\n'
     )
     index_path = tmp_path / "watch-index.sqlite3"
-    _old_schema_index(index_path)
+    _old_schema_index_with_wal(index_path)
+    replace = os.replace
+    swap_checked = []
+
+    def check_swap(source, destination):
+        if destination == index_path:
+            assert source.exists()
+            swap_checked.append(
+                not index_path.with_name(index_path.name + "-wal").exists()
+                and not index_path.with_name(index_path.name + "-shm").exists()
+            )
+        replace(source, destination)
+
+    monkeypatch.setattr(cli.os, "replace", check_swap)
     monkeypatch.setattr(
         watch_publish, "one_iteration", lambda *_args, **_kwargs: "published"
     )
@@ -46,9 +75,12 @@ def test_old_schema_index_rebuilds_before_first_tick(tmp_path, monkeypatch) -> N
         main, ["agent", "ingest", "--once", "--no-retention", *_ingest_args(tmp_path)]
     )
     assert result.exit_code == 0, (result.output, result.exception)
+    assert swap_checked == [True]
     assert result.output.count("index rebuild") == 1
     assert "duration=" in result.output
     assert "ingest tick" in result.output
+    assert not index_path.with_name(index_path.name + "-wal").exists()
+    assert not index_path.with_name(index_path.name + "-shm").exists()
     with sqlite3.connect(index_path) as connection:
         assert connection.execute("SELECT count(*) FROM sample").fetchone()[0] == 1
 
@@ -57,8 +89,11 @@ def test_failed_rebuild_keeps_old_index(tmp_path, monkeypatch) -> None:
     from imas_ambix.agent import telemetry_index
 
     index_path = tmp_path / "watch-index.sqlite3"
-    _old_schema_index(index_path)
+    _old_schema_index_with_wal(index_path)
     before = index_path.read_bytes()
+    wal_path = index_path.with_name(index_path.name + "-wal")
+    before_wal = wal_path.read_bytes()
+    shm_path = index_path.with_name(index_path.name + "-shm")
 
     def fail_rebuild(self, sources):
         self._conn.execute("CREATE TABLE partial_rebuild (value INTEGER)")
@@ -72,6 +107,8 @@ def test_failed_rebuild_keeps_old_index(tmp_path, monkeypatch) -> None:
     assert result.exit_code != 0
     assert isinstance(result.exception, RuntimeError)
     assert index_path.read_bytes() == before
+    assert wal_path.read_bytes() == before_wal
+    assert shm_path.exists()
     assert not list(tmp_path.glob("*rebuild*"))
 
 
