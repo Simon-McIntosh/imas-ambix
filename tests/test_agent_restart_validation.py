@@ -16,7 +16,7 @@ import click
 import pytest
 
 from imas_ambix.agent import bench
-from imas_ambix.agent.cli import _serving_validator, restart, weights_preflight
+from imas_ambix.agent.cli import _serving_validator, weights_preflight
 from imas_ambix.agent.profile import SiteConfig, load_profile
 from imas_ambix.agent.reload import run_overlap, run_reload
 
@@ -93,7 +93,9 @@ class Engine:
         self.messages_calls: list[str] = []
 
 
-def _install_engines(monkeypatch: pytest.MonkeyPatch, engines: dict[str, Engine]) -> None:
+def _install_engines(
+    monkeypatch: pytest.MonkeyPatch, engines: dict[str, Engine]
+) -> None:
     """Serve each engine's recorded responses through bench's transports."""
 
     def chat(base_url, model, messages, max_tokens=512, tools=None, **kwargs):
@@ -132,7 +134,9 @@ def _profile_and_site(tmp_path):
 
 def _write_index(model_dir, shards: list[str]) -> None:
     (model_dir / INDEX_NAME).write_text(
-        json.dumps({"metadata": {}, "weight_map": {f"t{i}": s for i, s in enumerate(shards)}}),
+        json.dumps(
+            {"metadata": {}, "weight_map": {f"t{i}": s for i, s in enumerate(shards)}}
+        ),
     )
 
 
@@ -147,8 +151,10 @@ def test_weights_preflight_names_a_missing_index(tmp_path) -> None:
 def test_weights_preflight_names_a_missing_shard(tmp_path) -> None:
     profile, site = _profile_and_site(tmp_path)
     model_dir = site.model_dir(profile)
-    _write_index(model_dir, ["model-00001-of-00002.safetensors",
-                             "model-00002-of-00002.safetensors"])
+    _write_index(
+        model_dir,
+        ["model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors"],
+    )
     (model_dir / "model-00001-of-00002.safetensors").write_bytes(b"x")
 
     missing = weights_preflight(profile, site)
@@ -172,14 +178,20 @@ def test_restart_refuses_a_missing_shard_before_pausing(
     """An incomplete checkpoint stops the restart while the lane still serves."""
     profile, site = _profile_and_site(tmp_path)
     model_dir = site.model_dir(profile)
-    _write_index(model_dir, ["model-00001-of-00002.safetensors",
-                             "model-00002-of-00002.safetensors"])
+    _write_index(
+        model_dir,
+        ["model-00001-of-00002.safetensors", "model-00002-of-00002.safetensors"],
+    )
     (model_dir / "model-00001-of-00002.safetensors").write_bytes(b"x")
 
     monkeypatch.setattr(cli_module(), "SiteConfig", _site_class(site))
-    monkeypatch.setattr(cli_module(), "_require_engine_environment", lambda *a, **k: None)
+    monkeypatch.setattr(
+        cli_module(), "_require_engine_environment", lambda *a, **k: None
+    )
     paused: list[str] = []
-    monkeypatch.setattr(cli_module(), "_pause_gate", lambda *a, **k: paused.append("pause"))
+    monkeypatch.setattr(
+        cli_module(), "_pause_gate", lambda *a, **k: paused.append("pause")
+    )
     inspected: list[str] = []
     monkeypatch.setattr(
         cli_module(), "_profile_jobs", lambda *a, **k: inspected.append("jobs") or []
@@ -205,7 +217,9 @@ def test_restart_refuses_a_missing_shard_before_pausing(
     assert inspected == []
 
 
-def test_restart_dry_run_prints_the_preflight_verdict(tmp_path, monkeypatch, capsys) -> None:
+def test_restart_dry_run_prints_the_preflight_verdict(
+    tmp_path, monkeypatch, capsys
+) -> None:
     profile, site = _profile_and_site(tmp_path)
     model_dir = site.model_dir(profile)
     _write_index(model_dir, ["model-00001-of-00001.safetensors"])
@@ -249,7 +263,9 @@ def _validator(engines: dict[str, Engine], origin_by_job: dict[str, str], monkey
     """The real restart validator, with completion stubbed and probes recorded."""
     monkeypatch.setattr(cli_module(), "_completion_verdict", lambda *a, **k: True)
     profile = load_profile("deepseek-v4-flash")
-    return _serving_validator(profile, None, None, lambda job: origin_by_job.get(job, ""))
+    return _serving_validator(
+        profile, None, None, lambda job: origin_by_job.get(job, "")
+    )
 
 
 class PausedWorld:
@@ -303,7 +319,9 @@ def test_pause_restart_rolls_back_when_the_tool_call_arrives_as_text(
     }
     _install_engines(monkeypatch, engines)
     validate = _validator(
-        engines, {"new-1": "http://node/new-1", "new-2": "http://node/new-2"}, monkeypatch
+        engines,
+        {"new-1": "http://node/new-1", "new-2": "http://node/new-2"},
+        monkeypatch,
     )
     world = PausedWorld()
 

@@ -716,10 +716,12 @@ def _text_only_response() -> dict:
 
 
 def _tool_call_response() -> dict:
+    import copy
+
     return {
         "choices": [
             {
-                "message": {"content": None, "tool_calls": [_TOOL_CALL]},
+                "message": {"content": None, "tool_calls": [copy.deepcopy(_TOOL_CALL)]},
                 "finish_reason": "tool_calls",
             }
         ],
@@ -862,6 +864,6 @@ def test_tools_category_scores_the_single_tool_probe_through_check_tool_call(
 
     single = [r for r in results if r.test_name == "tool_single"]
     assert len(single) == 1
-    assert single[0].status == "passed"
+    assert single[0].status == "passed", single[0].error
     assert single[0].metadata["tool_call_count"] == 1
     assert seen[0] == bench.TOOL_CALL_PROMPT
