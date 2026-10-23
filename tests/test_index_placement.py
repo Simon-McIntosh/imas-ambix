@@ -5,14 +5,17 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import threading
+import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
 
-from imas_ambix.agent import index_placement, watch, watch_publish
-from imas_ambix.agent.telemetry_index import TelemetryIndex
+from imas_ambix.agent import index_placement, telemetry_ingest, watch, watch_publish
+from imas_ambix.agent.telemetry_index import IngestReport, TelemetryIndex
+from imas_ambix.agent.telemetry_ingest import TickReport
 from imas_ambix.cli import main
 
 
@@ -39,6 +42,22 @@ def _counts(path: Path) -> tuple[int, int, int]:
         return tuple(
             connection.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
             for table in ("source", "sample", "measurement")
+        )
+
+
+def _logical_rows(path: Path) -> tuple[list[tuple], list[tuple], list[tuple]]:
+    with sqlite3.connect(path) as connection:
+        source_columns = [
+            row[1]
+            for row in connection.execute("PRAGMA table_info(source)")
+            if row[1] != "mtime_ns"
+        ]
+        return (
+            connection.execute(
+                f"SELECT {', '.join(source_columns)} FROM source"
+            ).fetchall(),
+            connection.execute("SELECT * FROM sample").fetchall(),
+            connection.execute("SELECT * FROM measurement").fetchall(),
         )
 
 
@@ -101,6 +120,169 @@ def test_snapshot_round_trip_preserves_rows_and_dump(tmp_path):
     assert index_placement.restore_index(restored, directory=snapshots) == stored
     assert _counts(origin) == _counts(restored)
     assert _digest(origin) == _digest(restored)
+
+
+def test_slow_snapshot_does_not_delay_ticks_or_start_another(tmp_path, monkeypatch):
+    source = tmp_path / "receipts.jsonl"
+    _receipt(source, 0)
+    started = threading.Event()
+    release = threading.Event()
+    calls = []
+    scheduled = []
+    tick_times = []
+
+    def slow_snapshot(index, *, directory):
+        calls.append(threading.get_ident())
+        started.set()
+        assert release.wait(2)
+        return directory / "snapshot.zst"
+
+    monkeypatch.setattr(index_placement, "snapshot_index", slow_snapshot)
+    with TelemetryIndex(tmp_path / "index.sqlite3") as index:
+        index_placement.enable_wal(index)
+        index.ingest([source])
+        scheduler = index_placement.SnapshotScheduler(
+            index.path, directory=tmp_path / "snapshots"
+        )
+        try:
+            start = time.monotonic()
+            reports = telemetry_ingest.run(
+                index,
+                tmp_path,
+                pattern="*.jsonl",
+                cadence=0.02,
+                iterations=6,
+                on_tick=lambda report: (
+                    tick_times.append(time.monotonic()),
+                    scheduled.append(scheduler.schedule()),
+                ),
+            )
+            elapsed = time.monotonic() - start
+            assert started.is_set()
+            assert len(reports) == 6
+            assert scheduled == [True, False, False, False, False, False]
+            assert elapsed < 0.5
+            assert (
+                max(b - a for a, b in zip(tick_times, tick_times[1:], strict=False))
+                < 0.15
+            )
+            assert len(calls) == 1
+            assert calls[0] != threading.get_ident()
+            assert index._conn.execute("SELECT count(*) FROM sample").fetchone()[0] == 1
+        finally:
+            release.set()
+            scheduler.join()
+
+
+def test_ingest_cli_ticks_continue_during_slow_snapshot(tmp_path, monkeypatch):
+    release = threading.Event()
+    calls = []
+    tick_times = []
+    report = TickReport(0, 0, 0, IngestReport(0, 0, 0, 0, 0), {})
+
+    def slow_snapshot(index, *, directory=index_placement.SNAPSHOT_DIR):
+        calls.append(threading.get_ident())
+        release.wait(0.4)
+
+    def fake_run(index, directory, *, on_tick, **kwargs):
+        try:
+            for _ in range(6):
+                on_tick(report)
+                tick_times.append(time.monotonic())
+                time.sleep(0.02)
+        finally:
+            release.set()
+
+    monkeypatch.setattr(index_placement, "restore_index", lambda path: None)
+    monkeypatch.setattr(index_placement, "snapshot_if_due", slow_snapshot)
+    monkeypatch.setattr(telemetry_ingest, "run", fake_run)
+    result = CliRunner().invoke(
+        main,
+        [
+            "agent",
+            "ingest",
+            "--once",
+            "--no-retention",
+            "--index",
+            str(tmp_path / "index.sqlite3"),
+            "--record",
+            str(tmp_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert len(tick_times) == 6
+    assert max(b - a for a, b in zip(tick_times, tick_times[1:], strict=False)) < 0.15
+    assert calls == [calls[0]]
+    assert calls[0] != threading.get_ident()
+
+
+def test_scheduler_uses_its_own_connection_for_backup(tmp_path):
+    source = tmp_path / "receipts.jsonl"
+    _receipt(source, 0)
+    snapshots = tmp_path / "snapshots"
+    with TelemetryIndex(tmp_path / "index.sqlite3") as index:
+        index_placement.enable_wal(index)
+        index.ingest([source])
+        scheduler = index_placement.SnapshotScheduler(index.path, directory=snapshots)
+        assert scheduler.schedule()
+        scheduler.join()
+        assert index._conn.execute("SELECT count(*) FROM sample").fetchone()[0] == 1
+    stored = list(snapshots.glob("*.zst"))
+    assert len(stored) == 1
+    restored = tmp_path / "restored.sqlite3"
+    assert index_placement.restore_index(restored, directory=snapshots) == stored[0]
+    assert _counts(restored) == _counts(tmp_path / "index.sqlite3")
+
+
+def test_snapshot_checks_scratch_and_verifies_stream_without_second_copy(
+    tmp_path, monkeypatch
+):
+    source = tmp_path / "receipts.jsonl"
+    _receipt(source, 0)
+    checks = []
+    original_connect = sqlite3.connect
+
+    class TracedConnection(sqlite3.Connection):
+        def execute(self, sql, *args, **kwargs):
+            checks.append(sql)
+            return super().execute(sql, *args, **kwargs)
+
+    def traced_connect(database, *args, **kwargs):
+        if "backup.sqlite3" in str(database):
+            kwargs["factory"] = TracedConnection
+        return original_connect(database, *args, **kwargs)
+
+    monkeypatch.setattr(index_placement.sqlite3, "connect", traced_connect)
+    with TelemetryIndex(tmp_path / "index.sqlite3") as index:
+        index.ingest([source])
+        stored = index_placement.snapshot_index(index, directory=tmp_path / "snapshots")
+    assert stored.exists()
+    assert "PRAGMA journal_mode=OFF" in checks
+    assert "PRAGMA synchronous=OFF" in checks
+    assert "PRAGMA quick_check" in checks
+    assert not list(tmp_path.glob("tmp*/backup.sqlite3"))
+    assert not list(tmp_path.glob("tmp*/check.sqlite3"))
+
+
+def test_stream_verification_refuses_corrupt_written_snapshot(tmp_path, monkeypatch):
+    source = tmp_path / "receipts.jsonl"
+    _receipt(source, 0)
+    with TelemetryIndex(tmp_path / "index.sqlite3") as index:
+        index.ingest([source])
+        original_replace = index_placement.os.replace
+
+        def corrupt_written_snapshot(staged, final):
+            original_replace(staged, final)
+            data = bytearray(final.read_bytes())
+            data[-1] ^= 1
+            final.write_bytes(data)
+
+        monkeypatch.setattr(index_placement.os, "replace", corrupt_written_snapshot)
+        with pytest.raises((ValueError, index_placement.zstd.ZstdError)):
+            index_placement.snapshot_index(index, directory=tmp_path / "snapshots")
+
+    assert not list((tmp_path / "snapshots").glob("*.zst"))
+    assert not list(tmp_path.glob("tmp*/backup.sqlite3"))
 
 
 def test_retention_keeps_three_verified_snapshots(tmp_path):
@@ -180,7 +362,8 @@ def test_restored_index_catches_up_without_duplicate_rows(tmp_path):
         assert index.ingest([source]).rows_inserted == 1
         assert index.ingest([source]).rows_inserted == 0
     assert _counts(restored) == _counts(continuous)
-    assert _digest(restored) == _digest(continuous)
+    # A fresh process can verify source mtime later; the indexed rows agree.
+    assert _logical_rows(restored) == _logical_rows(continuous)
 
 
 def test_watch_cli_without_local_index_reads_published_stamp(tmp_path, monkeypatch):

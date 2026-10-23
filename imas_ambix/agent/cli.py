@@ -2061,9 +2061,7 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
     targets = [job["jobid"] for job in _profile_jobs(site, profile.slug)]
     # Read the placement before cancelling: the replacement goes back where the
     # serve being replaced sits, not onto whichever server the site lists first.
-    placement = _placement_of_running_serve(
-        site, targets[0] if targets else None
-    )
+    placement = _placement_of_running_serve(site, targets[0] if targets else None)
 
     if targets:
         console.print(f"Cancelling {len(targets)} active job(s): " + ", ".join(targets))
@@ -3399,11 +3397,12 @@ def ingest(
     index_placement.restore_index(resolved_index)
     index = TelemetryIndex(resolved_index)
     index_placement.enable_wal(index)
+    snapshots = index_placement.SnapshotScheduler(resolved_index)
 
     def _on_tick(report: TickReport) -> None:
-        """Log the tick and snapshot the TelemetryIndex captured by this closure."""
+        """Log the tick and schedule a snapshot of the captured index's path."""
         _emit_ingest_tick(report)
-        index_placement.snapshot_if_due(index)
+        snapshots.schedule()
 
     try:
         telemetry_ingest.run(
@@ -3427,6 +3426,7 @@ def ingest(
             ),
         )
     finally:
+        snapshots.join()
         index.close()
 
 
