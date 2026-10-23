@@ -1,0 +1,53 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T13:40:19.333Z",
+  "dispatched_at": "2026-10-23T13:27:11Z",
+  "findings": [
+    {
+      "anchor": "plan.html:153",
+      "id": "reasoning-1",
+      "reason": "a node implementing \u00a74 without that reconciliation either duplicates the existing per-card-count mechanism or ships two launch axes with undefined precedence, and the plan's own \"every existing invocation is unchanged\" claim cannot be tested.",
+      "text": "\u00a74 states that `agent serve` and `agent restart` \"have no way to choose among a profile's topologies today\" and adds a new `--topology <name>` axis, but `ModelProfile.gpu_variants` (imas_ambix/agent/profile.py:430) with `for_gpus` (profile.py:432) already carries per-card-count configuration overrides for one profile, and it is reached on both the serve and restart paths through `_scale_profile` (imas_ambix/agent/cli.py:248, called at cli.py:606 and cli.py:2344). Two of \u00a74's three configurations (`b300-8x`, `b300-4x`) are keyed on the card count, which is exactly what that existing mechanism keys on, and \u00a74 does not say whether `--topology` is built on top of `gpu_variants` or beside it, nor which wins when a launch carries both `--topology` and `--gpus` (which rescales tensor-parallel width inside whatever variant it resolved)",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html:156",
+      "id": "done_when-1",
+      "reason": "the default is the one degree of freedom the byte-identical and unchanged-invocation bullets both hinge on, and choosing it wrongly ships a launch that fails on arrival day, so the plan should state it.",
+      "text": "\u00a74 says the new option's \"default is the profile's default topology, so every existing invocation is unchanged\", and the table row above it labels `b300-8x` \"The default from day one\", but no line of \u00a74 names which of the three topologies the profile's own default is; a node that reads \"default from day one\" as making `b300-8x` the profile default would change what a bare `agent serve deepseek-v4-1-flash` launches (an 8-card B300 serve on a host whose name, partition and reservation are unknown until the `b300-arrival-facts` answer), which is the opposite of the unchanged-invocation bullet it also has to satisfy",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "c5c748a0b5dddeb652864fdda2d2861dcc439a62b49f9d976f07880ea34ca6b1",
+  "plan_slug": "b300-bring-up-and-open-model-bakeoff",
+  "plan_version": 6,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T132648961976-plan-review-of-b300-bring-up-and-open-model-bakeoff",
+  "reviewed_blob_sha": "0745fae63ce054f5991fc05c74e12c9eed616448",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `serving-capacity-and-b300-projection` resolves as `.html` and its \u00a76 table does carry the like-for-like column the plan quotes (1017 2,300\u20133,600; GLM-5.3 600\u20131,400; MiMo-V2.6-Pro 900\u20131,800; Kimi K3 800\u20131,500), `question b300-arrival-facts` exists, `serving-across-servers` \u00a73 is `done` and \u00a77 `implementable`, `rotate-to-deepseek-v4-1-flash-1017` \u00a72/\u00a73/\u00a75 exist, `_preferred_owner`, `imas_ambix/agent/{cli,profile,slurm}.py` all resolve, and \u00a72's positive control was checked against the store itself (see below).",
+    "done_when": "a finding \u2014 \u00a74's done-when rests on which topology is the profile's default, and the plan never names it.",
+    "evidence_paths": "pass \u2014 \u00a72\u2013\u00a75 write to `docs/research/*.html` and `docs/figures/...` under the repository, and \u00a76's hour-long measures read the router's own durable request records and outcomes line, not a scratchpad.",
+    "naming": "pass \u2014 `--topology` and the topology names `h200-4x`/`b300-8x`/`b300-4x` name hardware configurations rather than plan items, and no changelog prose or tracker reference appears in the changed units.",
+    "reasoning": "a finding \u2014 \u00a74 argues the gap is total (\"no way to choose among a profile's topologies today\") while `ModelProfile.gpu_variants` already selects a per-card-count configuration at launch, and the plan never reconciles the new axis with it.",
+    "single_goal": "pass \u2014 \u00a72 audits the store, \u00a74 produces the launchers and their recipes, \u00a76 performs the cutover; one deliverable each.",
+    "wiring": "pass \u2014 `s3\u2192s2`, `s4\u2192rotate#s2,#s3`, `s5\u2192s4`, `s6\u2192s5,rotate#s5,serving-across-servers#s7` all resolve, and the `s6 \u2192 serving-across-servers#s7` edge is load-bearing and correctly declared: `_preferred_owner` (router.py:1639, called on the request path at router.py:1888) ranks by width, so without \u00a77 both engines of `deepseek-v4.1-flash` would send every key to the B300 (the H200 idle) rather than sharing them."
+  },
+  "section_digests": {
+    "_document": "1406f9ee270da0e9b2ab84b2d20bde8cf96d1fc299996d177e8135ef43291b1f",
+    "s1": "d9b20b2462b714c588777137a3f84dbe6a6285a13698086ef6821d81debdb695",
+    "s2": "ef2e8b754c4b28e05b82f3535fc7322406b9d18639938cf7c46f1c11284568df",
+    "s3": "874e6db9ee4f2713837fc6786123cdafcc611ca8412b1c41989f5bf77d7b75f8",
+    "s4": "37d15e31a89ab012b965737d5c672d099e34b9375a33f658e84b560de85a2b1d",
+    "s5": "5edf46e6f134cf940793ed0fcb96058b59158f2cfb4143029e2e4aa8eade952e",
+    "s6": "674a0529c4ddc184440560b0b1af0260b0d8fe8ca872c01962bb449d503609bc",
+    "s7": "c1f33679b46a5b2d5f8b8876f25f4d795a4e027b15c00400090e7ee070000a1c"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T13:46:04.803158+00:00"
+}
