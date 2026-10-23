@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="llm-watch-view-module">
+      <p>The <code>llm-watch</code> console script renders one engine's live
+      serving document as text. <code>imas_ambix/agent/llm_watch.py</code>
+      builds the view's whole input — <code>watch.live_document</code> for the
+      <code>lane</code>, <code>live</code> and <code>callers</code> blocks,
+      the published endpoint document for the head line, and the published
+      watch document for the period ledger — and renders it as three bands
+      (throughput, capacity, gate), the two levels of the running-workers
+      view, the history strip, the outcomes line and the ledger.
+      <code>imas_ambix/agent/watch_style.py</code> owns the column grid, the
+      colour ramps and the figure formatters so the bands, the three tables and
+      the ledger share one pitch.</p>
+    </section>
+    <section id="llm-watch-view-geometry">
+      <p><strong>The grid is one character narrower than the serve panel's, and
+      that is forced by the width rule.</strong> Seven columns at gpu-watch's
+      own pitch (a 13-character label column and 12-character figure columns,
+      one space of padding either side) render 105 characters wide, which does
+      not fit the 100-column terminal §9 requires. The view therefore uses a
+      12-character label column and 11-character figure columns, which render
+      99 characters — measured, and asserted at both 100 and 120 columns over
+      every fixture. Three column labels are shortened to fit that pitch:
+      <code>router queue</code> → <code>router q</code>,
+      <code>worker slots</code> → <code>slots</code> and
+      <code>eng headroom</code> → <code>eng headrm</code>. The figures in each
+      cell are the serve panel's own, read from the same block by the same
+      names, which is what the cell-for-cell comparison checks.</p>
+    </section>
+    <section id="llm-watch-view-capacity-band">
+      <p><strong>The capacity band renders what the document carries, and a
+      dash where it carries nothing.</strong> The band replaces the serve
+      panel's card conditions (°C, kW, % of cap), which belong to gpu-watch,
+      with the engine's capacity. Its figures come from two places:
+      <code>kv pool %</code> from <code>live.pool_occupancy</code>, the
+      engine's own counter, and <code>host tier %</code>,
+      <code>mean ctx</code>, <code>ceiling</code>, <code>eng headrm</code> and
+      <code>preemptions</code> from the lane block, under the names the lane
+      document publishes them by —
+      <code>hicache_host.used_fraction</code>, <code>mean_context</code>,
+      <code>concurrent_requests</code> and <code>preemptions</code>. The block
+      copies those under the names the lane document publishes them by, and it
+      omits one the lane does not publish rather than writing a null: a figure
+      absent from the document and a figure the engine measured as zero are
+      different facts, and only one of them is a dash. A lane publishing
+      <code>preemptions: null</code>, as the lane does for an engine that
+      reported no such count, is the dash case and not the zero case.</p>
+    </section>
+    <section id="llm-watch-view-capacity-copy">
+      <p><strong>The band is only as full as the lane block's copy of the
+      document, and the copy is what a live render rests on.</strong> The lane
+      document published these fields all along; the block carried only the
+      gate, admission, headroom and worker-slot figures, so a live render drew
+      dashes over a lane that had published every one of them. The test copies
+      the lane document the router published on 2026-10-23 key for key, asserts
+      the band's figure row against it, and then deletes the copied keys and
+      asserts the same row read as dashes instead — so the check fails on the
+      state it exists to catch, rather than merely on the copy being present.</p>
+    </section>
+    <section id="llm-watch-view-per-worker-colour">
+      <p><strong><code>tok/s each</code> is coloured against a share of the
+      per-worker reference, so one rate takes one colour on both tools.</strong>
+      The serve panel ramps <code>100 × rate / 40.0</code> against 60 and 30.
+      The view ramped the raw rate against those same two thresholds, which
+      calls the deployment's own best single-stream rate — the reference
+      itself, 40 tok/s — cautionary from a view that calls the same figure
+      healthy. The view ramps the panel's expression now, and the test asserts
+      the colour class at the reference rather than restating the arithmetic:
+      green at 40 tok/s, yellow at half of it. The reference is a level on this
+      deployment rather than a constant of this view, so it is named once and
+      both tools ramp it the same way.</p>
+    </section>
+    <section id="llm-watch-view-engine-flag">
+      <p><strong><code>--engine</code> is refused when it names an engine that
+      is not the one served, and the refusal names the served engine.</strong>
+      This view renders one engine — the lane the record, the pool figures and
+      the gate all came from — so an id naming another one is a barrier the
+      document cannot answer. Ignoring the flag was the worse failure: the
+      caller would have read this lane's figures under another engine's name,
+      and nothing on the screen would have said which had happened. The refusal
+      goes to stderr with exit status 2 and states the engine that is served; a
+      document naming no engine refuses every id and says so, because there is
+      no served engine to name.</p>
+    </section>
+    <section id="llm-watch-view-accounts-level">
+      <p><strong>The accounts table is built from the <code>accounts</code>
+      level, never from the per-session list.</strong> A session's
+      <code>account</code> is the account its rows <em>most often</em> named
+      (§8), so a table assembled from sessions would list one account once per
+      session, count a session that reported two accounts under whichever
+      dominated, and drop every request whose row carried no session at all.
+      The level exists so the table cannot do that, and the two-account
+      golden shows three account rows against two session entries. The
+      declared negative control mutates exactly this: rendering the table from
+      the per-session list fails the two-account golden.</p>
+    </section>
+    <section id="llm-watch-view-fold">
+      <p>The detail table lists at most six rows of the account named — the
+      viewer's login by default, <code>--account NAME</code> otherwise — and
+      folds the rest into one <code>+N more</code> row carrying their summed
+      in-use. On the eight-project fixture the fold row reads
+      <code>+2 more</code> with <code>0.3</code>, the sum of the two projects
+      below the cut (0.2 + 0.1); the three-project fixture carries no fold row.
+      <code>--sessions</code> replaces the project rows with one row per
+      coordinator session, and the session's first four characters take the
+      column the session count occupied on the project rows — the count is
+      always one there, so the column carries the identifier a reader actually
+      needs.</p>
+    </section>
+    <section id="llm-watch-view-negative-controls">
+      <p><strong>An unavailable live entry renders one line, never a row of
+      zeros.</strong> When <code>live.state</code> is not
+      <code>measured</code>, the throughput band is replaced by one line naming
+      the block's own reason; the capacity and gate bands still appear, because
+      they are read from the lane document, a different published source. The
+      golden for a document whose newest receipt file is unreadable shows
+      <code>live entry unavailable — no raw receipt file with a readable
+      row</code> and no <code>tok/s out</code> cell and no <code>11.3</code>
+      anywhere: the fixture's reading is asserted absent, not merely
+      uninspected.</p>
+      <p><strong>An account holding nothing in the window renders one dim
+      line.</strong> <code>--account llealsa</code> against a document whose
+      only account is <code>mcintos</code> prints <code>llealsa holds nothing
+      in the window — no finished request in the record named it</code>, and
+      the golden asserts no detail table follows it. An empty table would be
+      indistinguishable from one that failed to build.</p>
+    </section>
+    <section id="llm-watch-view-live-cadence">
+      <p><code>--live</code> refreshes on <code>LIVE_REFRESH_SECONDS</code>,
+      read as 5.0. The loop takes its sleep and its tick bound as parameters,
+      so a test drives the same code path a terminal run uses rather than
+      restating the interval — the assertion is on the module's own constant
+      and on the intervals the loop actually slept.</p>
+    </section>
+  </main>
+</body>
+</html>

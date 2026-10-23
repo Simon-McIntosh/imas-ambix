@@ -113,6 +113,21 @@ SESSION_SLOT_FIELDS = (
     "sessions",
 )
 
+#: The engine's capacity figures the lane block copies when the lane publishes
+#: them. They describe the pool the engine holds and the load it carries --
+#: ``hicache_host`` carries ``used_fraction``, the share of the host-tier store
+#: in use. Each is copied under the name the lane document publishes it by,
+#: because a reader comparing the block against the document it came from must
+#: find the same field named the same way. A lane that has not published one
+#: leaves it absent rather than null, which is a different fact from a lane that
+#: measured a zero.
+ENGINE_CAPACITY_FIELDS = (
+    "hicache_host",
+    "mean_context",
+    "concurrent_requests",
+    "preemptions",
+)
+
 #: The engine counters differenced over the window. A run ends when the job
 #: changes or any of these falls below its predecessor.
 COUNTER_NAMES = ("generation_tokens", "prompt_tokens", "uncached_prompt_tokens")
@@ -484,6 +499,9 @@ def lane_block(
     gate = document.get("router_generation_gate")
     if isinstance(gate, dict):
         block["router_generation_gate"] = {key: gate.get(key) for key in GATE_FIELDS}
+    for key in ENGINE_CAPACITY_FIELDS:
+        if key in document:
+            block[key] = document[key]
     # Copy the published percentage, or derive it with the same functions the
     # router published it with when the document predates the field. A reader
     # sees the figure before the router is next restarted; an omitted figure
