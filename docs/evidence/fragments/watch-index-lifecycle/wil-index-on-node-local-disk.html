@@ -1,0 +1,32 @@
+<section class="evidence-fragment" data-reckon="evidence" id="wil-index-on-node-local-disk">
+  <header>
+    <h3>Watch index on local disk, with verified daily snapshots</h3>
+    <p>Commit <code>aa4a09b4f6db8073d4d9b7a552a4f6813c1013b3</code>.</p>
+  </header>
+  <p>The recorded defect reproduced before the edit: the default resolved as
+    <code>current index: /home/ITER/mcintos/.cache/ambix/watch-index.sqlite3</code>,
+    a home path on GPFS. The resolver now takes an explicit path or
+    <code>AMBIX_WATCH_INDEX</code> first, then a local
+    <code>FLEET_RUNTIME_DIR/ambix/watch-index.sqlite3</code>. In the absence of a
+    resolved local index, <code>agent watch</code> reads the published document,
+    including <code>published_at</code>. The ingest restores the newest verified
+    snapshot before opening the writer, enables WAL only on a local filesystem,
+    then catches up from the receipt offsets.</p>
+  <table id="wil-index-on-node-local-disk-measures">
+    <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Placement, ingest CLI and serving interpreter tests</td><td>16 passed; 14 unrelated registry cases deselected; exit 0</td></tr>
+      <tr><td>Adjacent watch and publisher tests</td><td>29 passed; exit 0</td></tr>
+      <tr><td>Whole-tree Ruff</td><td>All checks passed; exit 0</td></tr>
+      <tr><td>Snapshot round trip</td><td>2 ingested samples; source and restored row counts and SQLite dump SHA-256 equal</td></tr>
+      <tr><td>Retention and recovery</td><td>3 verified snapshots retained after a fourth; corrupt newest falls back to its predecessor; restored index catches up to 3 samples with no duplicate</td></tr>
+      <tr><td>Negative control</td><td>Removing the network filesystem refusal failed <code>test_network_filesystem_refuses_wal</code> with “DID NOT RAISE”; 1 failed, 1 passed; exit 1</td></tr>
+    </tbody>
+  </table>
+  <p>The gate logs are <code>final-placement-gate.log</code>,
+    <code>watch-tests.log</code>, <code>final-ruff-gate.log</code>, and
+    <code>negative-control.log</code> under
+    <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T062515139658-wil-index-on-node-local-disk/</code>.
+    The coordinator owns migration of the live GPFS index, the service restart,
+    and the post-deployment equality check.</p>
+</section>
