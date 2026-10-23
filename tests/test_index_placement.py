@@ -7,6 +7,7 @@ import json
 import sqlite3
 import threading
 import time
+from compression import zstd
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -120,6 +121,72 @@ def test_snapshot_round_trip_preserves_rows_and_dump(tmp_path):
     assert index_placement.restore_index(restored, directory=snapshots) == stored
     assert _counts(origin) == _counts(restored)
     assert _digest(origin) == _digest(restored)
+
+
+def test_old_schema_snapshot_is_skipped_and_kept(tmp_path, capsys, monkeypatch):
+    snapshots = index_placement.SNAPSHOT_DIR
+    snapshots.mkdir()
+    old = snapshots / "watch-index-20261023T000000000000Z.sqlite3.zst"
+    source = tmp_path / "old.sqlite3"
+    with sqlite3.connect(source) as connection:
+        connection.execute(
+            "CREATE TABLE source (mtime_ns INTEGER, head_sha TEXT, tail_sha TEXT)"
+        )
+        connection.execute("CREATE TABLE measurement (name TEXT)")
+    with source.open("rb") as plain, zstd.open(old, "wb") as compressed:
+        compressed.write(plain.read())
+    target = tmp_path / "restored.sqlite3"
+    assert index_placement.restore_index(target, directory=snapshots) is None
+    assert old.exists()
+    assert not target.exists()
+    assert "schema" in capsys.readouterr().err
+    records = tmp_path / "records"
+    records.mkdir()
+    _receipt(records / "serve.jsonl", 0)
+    monkeypatch.setattr(
+        watch_publish, "one_iteration", lambda *_args, **_kwargs: "published"
+    )
+    result = CliRunner().invoke(
+        main,
+        [
+            "agent",
+            "ingest",
+            "--once",
+            "--no-retention",
+            "--record",
+            str(records),
+            "--index",
+            str(target),
+        ],
+    )
+    assert result.exit_code == 0, (result.output, result.exception)
+    assert "index rebuild" in result.output
+    assert "ingest tick" in result.output
+    assert old.exists()
+    assert _counts(target)[1] == 1
+
+
+def test_old_schema_snapshot_falls_back_to_compatible_copy(tmp_path, capsys):
+    snapshots = tmp_path / "snapshots"
+    record = tmp_path / "serve.jsonl"
+    _receipt(record, 0)
+    with TelemetryIndex(tmp_path / "source.sqlite3") as index:
+        index.ingest([record])
+        older = index_placement.snapshot_index(
+            index, directory=snapshots, now=datetime(2026, 10, 22, tzinfo=UTC)
+        )
+    source = tmp_path / "old.sqlite3"
+    with sqlite3.connect(source) as connection:
+        connection.execute("CREATE TABLE source (mtime_ns INTEGER)")
+        connection.execute("CREATE TABLE measurement (name TEXT)")
+    newer = snapshots / "watch-index-20261023T000000000000Z.sqlite3.zst"
+    with source.open("rb") as plain, zstd.open(newer, "wb") as compressed:
+        compressed.write(plain.read())
+    target = tmp_path / "restored.sqlite3"
+    assert index_placement.restore_index(target, directory=snapshots) == older
+    assert newer.exists()
+    assert "snapshot skipped" in capsys.readouterr().err
+    assert _counts(target)[1] == 1
 
 
 def test_ingest_command_restores_and_snapshots_only_in_test_directory(

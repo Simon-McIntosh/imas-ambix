@@ -1,0 +1,27 @@
+<section class="evidence-fragment" data-reckon="evidence" id="wil-schema-change-rebuilds-the-index">
+  <header>
+    <h3>Schema changes rebuild the watch index</h3>
+    <p>Implementation commit <code>192f92760a73d04ce587935955dad9c14d8c271d</code>.</p>
+  </header>
+  <p>An old measurement table without <code>name_id</code> was confirmed to make the
+    ingest command raise <code>ValueError('the measurement dictionary requires an index rebuild')</code>.
+    The same schema in a compressed snapshot passed the previous restore check and was
+    installed at the resolved index path. The command now rebuilds a staged sibling
+    from discovered receipts and atomically replaces the live file only after success.
+    Restore skips incompatible snapshots without deleting them, then tries the next
+    snapshot. If no usable snapshot remains, ingest rebuilds from receipts.</p>
+  <table id="wil-schema-change-rebuilds-the-index-measures">
+    <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Old live index</td><td>One rebuild line with duration preceded the tick; the replacement held one receipt sample.</td></tr>
+      <tr><td>Old snapshot</td><td>The snapshot was skipped and remained on disk; the command rebuilt and ticked. A compatible older snapshot was selected when present.</td></tr>
+      <tr><td>Interrupted rebuild</td><td>A raised rebuild left the original index byte-identical and removed the staged file.</td></tr>
+      <tr><td>Required suites</td><td>62 passed in 167.14 s at the committed head; the serving parser guard passed 1 test with 14 deselected; whole-tree Ruff passed.</td></tr>
+      <tr><td>Negative control</td><td>Disabling the incompatible-index rebuild and accepting incompatible snapshots failed the two dedicated tests; exit 1. The committed head failed neither.</td></tr>
+    </tbody>
+  </table>
+  <p>Logs: <code>baseline-schema.log</code>, <code>head-schema-gate.log</code>,
+    <code>serve-parse-gate.log</code>, <code>ruff-schema.log</code> and
+    <code>negative-schema.log</code> under
+    <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T122142119208-wil-schema-change-rebuilds-the-index/</code>.</p>
+</section>
