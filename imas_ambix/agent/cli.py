@@ -3838,10 +3838,13 @@ def _engine_runtime_check_script(
     this dependent job verifies the consumer-visible path after the producer
     has exited.
     """
+    from imas_ambix.agent.slurm import slurm_log_path
+
     python = site.python_path(engine)
     python_q = shlex.quote(str(python))
     identity_file_q = shlex.quote(str(site.env_dir(engine) / ".ambix-setup-identity"))
     expected_identity_q = shlex.quote(expected_identity)
+    log_path = slurm_log_path(f"ambix-runtime-check-{engine}-%j.log")
     lines = [
         "#!/bin/bash",
         f"#SBATCH --job-name=ambix-runtime-check-{engine}",
@@ -3860,7 +3863,7 @@ def _engine_runtime_check_script(
         "#SBATCH --cpus-per-task=1",
         "#SBATCH --mem=1G",
         "#SBATCH --time=00:10:00",
-        f"#SBATCH --output=ambix-runtime-check-{engine}-%j.log",
+        f"#SBATCH --output={log_path}",
         "",
         "set -euo pipefail",
         "export TMPDIR=/tmp",
@@ -4324,9 +4327,10 @@ def setup(engine: str, dry_run: bool) -> None:
     pyproject_content = _engine_pyproject(engine)
     setup_identity = secrets.token_hex(16)
 
-    from imas_ambix.agent.slurm import submit_script
+    from imas_ambix.agent.slurm import slurm_log_path, submit_script
 
     env_dir_q = shlex.quote(str(env_dir))
+    setup_log_path = slurm_log_path(f"ambix-setup-{engine}-%j.log")
     lines = [
         "#!/bin/bash",
         f"#SBATCH --job-name=ambix-setup-{engine}",
@@ -4336,7 +4340,7 @@ def setup(engine: str, dry_run: bool) -> None:
         "#SBATCH --cpus-per-task=4",
         "#SBATCH --mem=16G",
         "#SBATCH --time=01:00:00",
-        f"#SBATCH --output=ambix-setup-{engine}-%j.log",
+        f"#SBATCH --output={setup_log_path}",
         "",
         "set -euo pipefail",
         "",
@@ -4529,15 +4533,17 @@ def setup(engine: str, dry_run: bool) -> None:
         return
 
     try:
+        slurm_log_path("", ensure_directory=True)
         job_id = submit_script(script)
-    except RuntimeError as exc:
+    except (OSError, RuntimeError) as exc:
         raise click.ClickException(str(exc)) from exc
     runtime_check_script = _engine_runtime_check_script(
         engine, site, job_id, setup_identity
     )
     try:
+        slurm_log_path("", ensure_directory=True)
         runtime_check_job_id = submit_script(runtime_check_script)
-    except RuntimeError as exc:
+    except (OSError, RuntimeError) as exc:
         raise click.ClickException(
             f"Network install job {job_id} was submitted, but its serving-node "
             f"verification could not be scheduled: {exc}. The environment is not ready."
@@ -4554,7 +4560,8 @@ def setup(engine: str, dry_run: bool) -> None:
     )
     console.print(f"  Environment: {env_dir}")
     console.print(f"  Monitor: squeue -j {job_id},{runtime_check_job_id}")
-    console.print(
-        f"  Logs: ambix-setup-{engine}-{job_id}.log, "
+    setup_log = slurm_log_path(f"ambix-setup-{engine}-{job_id}.log")
+    runtime_log = slurm_log_path(
         f"ambix-runtime-check-{engine}-{runtime_check_job_id}.log"
     )
+    console.print(f"  Logs: {setup_log}, {runtime_log}")
