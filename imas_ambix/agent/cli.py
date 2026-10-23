@@ -531,6 +531,13 @@ def download(
     "readable only inside one storage group would lock consumers out of it.",
 )
 @click.option(
+    "--server",
+    "server",
+    default=None,
+    help="Name of the declared server to place this serve on. A site that "
+    "declares no servers has one, named by its configured GPU host.",
+)
+@click.option(
     "--gpus",
     type=int,
     default=None,
@@ -581,6 +588,7 @@ def serve(
     port: int | None,
     api_key: str | None,
     auth: bool,
+    server: str | None,
     gpus: int | None,
     cpus: int | None,
     no_speculative: bool,
@@ -621,8 +629,19 @@ def serve(
         else site.default_port
     )
     resolved_key = _resolve_serve_auth(auth, api_key, site)
+    # Place on the declared server before anything is generated or submitted: a
+    # name no declaration matches must stop the launch rather than place a
+    # serve on a partition, account and reservation nobody asked for.
+    try:
+        placement = site.resolve_server(server)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
     script = generate_serve_script(
-        profile, site, port=resolved_port, api_key=resolved_key
+        profile,
+        site,
+        port=resolved_port,
+        api_key=resolved_key,
+        server=placement,
     )
 
     if dry_run:

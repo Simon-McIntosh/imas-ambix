@@ -14,7 +14,7 @@ from imas_ambix.agent.registry import registration_directory
 from imas_ambix.agent.vllm_catalog import validate_catalog_metadata
 
 if TYPE_CHECKING:
-    from imas_ambix.agent.profile import ModelProfile, SiteConfig
+    from imas_ambix.agent.profile import ModelProfile, SiteConfig, SiteServerConfig
 
 # Drain-forensics sidecar (scripts/slurm/drain_sidecar.sh): a SIGTERM-immune
 # per-second sampler injected into every long-running GPU job. Resolved at
@@ -23,10 +23,6 @@ _DRAIN_SIDECAR = (
     Path(__file__).resolve().parents[2] / "scripts" / "slurm" / "drain_sidecar.sh"
 )
 
-# Accelerator family for this site. Recorded on every registration, not only
-# on the vLLM catalog block, because routing now reads topology from the
-# registration rather than from whatever the engine can echo back.
-_ACCELERATOR_FAMILY = "H200"
 # SLURM reads --time=0 as no limit. The router, the lane refresher and the
 # telemetry-ingest service are standing services that every session depends
 # on; a finite limit ends them on a schedule nobody is watching.
@@ -495,6 +491,7 @@ def generate_serve_script(
     port: int = 18800,
     api_key: str | None = None,
     *,
+    server: SiteServerConfig | None = None,
     receipts_enabled: bool = True,
     held: bool = False,
 ) -> str:
@@ -507,6 +504,10 @@ def generate_serve_script(
         on ``/v1/*`` endpoints.  Injected via ``VLLM_API_KEY`` env var
         (vLLM) or ``--api-key`` flag (SGLang) to avoid leaking in
         ``ps aux`` output.
+    server : SiteServerConfig | None
+        The declared server this serve is placed on. ``None`` resolves the
+        site's sole default server, whose partition, account, reservation and
+        accelerator family are the flat site fields.
     receipts_enabled : bool
         When true (the default), the generated script starts a background
         receipts recorder against its own engine for the whole life of the
@@ -516,6 +517,7 @@ def generate_serve_script(
         Keep the registration out of routing until restart validates and releases it.
     """
     model_dir = site.model_dir(profile)
+    placement = server if server is not None else site.declared_servers[0]
     catalog_env_block = ""
     if profile.engine.type == "vllm":
         precision = profile.model.checkpoint_precision
@@ -523,7 +525,7 @@ def generate_serve_script(
             raise ValueError("vLLM catalog serving requires model.checkpoint_precision")
         metadata = {
             profile.model.served_name: {
-                "accelerator_family": _ACCELERATOR_FAMILY,
+                "accelerator_family": placement.accelerator_family,
                 "accelerator_count": profile.slurm.gpus,
                 "checkpoint_precision": precision,
             }
@@ -539,9 +541,9 @@ def generate_serve_script(
         )
     headers = _sbatch_headers(
         job_name=profile.slug,
-        partition=site.partition,
-        account=site.account,
-        reservation=site.reservation,
+        partition=placement.partition,
+        account=placement.account,
+        reservation=placement.reservation,
         gpus=profile.slurm.gpus,
         cpus=profile.slurm.cpus,
         memory=profile.slurm.memory,
@@ -554,6 +556,16 @@ def generate_serve_script(
     is_kt = profile.engine.type == "ktransformers"
     repo_root = Path(__file__).resolve().parents[2]
     held_option = " --held" if held else ""
+    # The server a serve is placed on is recorded so the endpoint document can
+    # group its engines by it. A site that declares no servers writes none: its
+    # single implicit server is the host the flat fields already name, and
+    # recording it would change a script for a configuration that has not.
+    server_option = (
+        f" \\\n        --server {shlex.quote(placement.name)}" if site.servers else ""
+    )
+    registry_write = (
+        f"-m imas_ambix.agent.registry write{held_option}{server_option}"
+    )
     registry_dir = registration_directory(site.base_dir)
     registry_python = site.python_path(profile.engine.type)
     checkpoint_precision = profile.model.checkpoint_precision or "unknown"
@@ -918,7 +930,7 @@ def generate_serve_script(
 
         _REGISTRATION_ACTIVE=1
         PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}} \
-            "$_REGISTRY_PYTHON" -m imas_ambix.agent.registry write{held_option} \
+            "$_REGISTRY_PYTHON" {registry_write} \
             --directory "$_REGISTRY_DIR" \
             --model-id {shlex.quote(profile.model.served_name)} \
             --host "$(hostname)" \
@@ -926,7 +938,7 @@ def generate_serve_script(
             --job-id "$SLURM_JOB_ID" \
             --accelerator-count "${{SLURM_GPUS_ON_NODE:-{profile.slurm.gpus}}}" \
             --checkpoint-precision {shlex.quote(checkpoint_precision)} \
-            --accelerator-family {shlex.quote(_ACCELERATOR_FAMILY)}
+            --accelerator-family {shlex.quote(placement.accelerator_family)}
 
         echo "[$(date)] Starting {profile.model.name} server"
         {launch_command} &

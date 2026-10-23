@@ -41,11 +41,13 @@ def _agent_package_modules() -> tuple[Path, ...]:
     return tuple(sorted(_AGENT_PACKAGE.rglob("*.py")))
 
 
-def _registration(job_id: str = "42", model_id: str = "glm-5.3") -> ServeRegistration:
+def _registration(
+    job_id: str = "42", model_id: str = "glm-5.3", port: int = 18801
+) -> ServeRegistration:
     return ServeRegistration(
         model_id=model_id,
         host="98dci4-gpu-0003",
-        port=18801,
+        port=port,
         job_id=job_id,
         accelerator_count=4,
         checkpoint_precision="int4",
@@ -180,7 +182,9 @@ def test_a_dead_registration_sharing_a_port_does_not_empty_the_document():
     healthy serve answered, which reads to every consumer as no endpoint at
     all -- observed three times in one day. Resolve to the later job instead.
     """
-    superseded = _registration(job_id="1270620", model_id="deepseek-v4-flash")
+    superseded = _registration(
+        job_id="1270620", model_id="deepseek-v4-flash", port=18800
+    )
     live = ServeRegistration(
         model_id="deepseek-v4-flash",
         host="98dci4-gpu-0003",
@@ -216,7 +220,7 @@ def test_a_second_model_survives_a_duplicate_on_the_first():
     """The document must lose at most the ambiguous entry, never every entry."""
     first = _registration(job_id="100", model_id="model-a")
     duplicate = _registration(job_id="101", model_id="model-a")
-    other = _registration(job_id="102", model_id="model-b")
+    other = _registration(job_id="102", model_id="model-b", port=18802)
 
     def catalog(_origin: str) -> object:
         return {
@@ -239,6 +243,40 @@ def test_a_second_model_survives_a_duplicate_on_the_first():
     )
 
     assert {endpoint.model_id for endpoint in endpoints} == {"model-a", "model-b"}
+
+
+def test_two_engines_serving_one_model_both_stay_addressable():
+    """One model on two engines is two routes, and both must publish.
+
+    The deduplication key is the engine, not the model. Two engines of one
+    model are two things a consumer can be pointed at, so collapsing them on
+    the model id hides half the capacity the site declared -- while a restarted
+    job keeps its predecessor's engine and still has to replace it.
+    """
+    first = _registration(job_id="100", model_id="glm-5.3", port=18801)
+    second = _registration(job_id="101", model_id="glm-5.3", port=18802)
+
+    def catalog(_origin: str) -> object:
+        return {
+            "data": [
+                {
+                    "id": "glm-5.3",
+                    "max_model_len": 1048576,
+                    "ambix": {
+                        "accelerator_family": "H200",
+                        "accelerator_count": 4,
+                        "checkpoint_precision": "int4",
+                    },
+                }
+            ]
+        }
+
+    endpoints = build_endpoint_document((first, second), fetch_catalog=catalog)
+
+    assert [endpoint.engine_id for endpoint in endpoints] == [
+        "gpu-0003:18801",
+        "gpu-0003:18802",
+    ]
 
 
 def test_hold_is_armed_by_launch_and_only_release_clears_it(tmp_path):

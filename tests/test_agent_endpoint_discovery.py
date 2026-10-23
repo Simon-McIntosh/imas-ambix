@@ -156,8 +156,20 @@ def _publish_with_router_jobs(tmp_path, monkeypatch, jobs, probes):
         records[1].origin: _catalog("beta", "H200", 8, "fp8", 262144),
     }
     target = tmp_path / "endpoints.json"
+    # The two serves are live in the scheduler alongside whatever router jobs
+    # the caller supplies, so the registrations survive the liveness filter.
+    serve_rows = [
+        {
+            "jobid": record.job_id,
+            "name": record.model_id,
+            "state": "RUNNING",
+            "node": record.host,
+            "comment": f"ambix-serve;port={record.port}",
+        }
+        for record in records
+    ]
     monkeypatch.setattr(registry_mod, "_fetch_anonymous_catalog", catalogs.__getitem__)
-    monkeypatch.setattr(agent_cli, "_running_jobs", lambda _site: jobs)
+    monkeypatch.setattr(agent_cli, "_running_jobs", lambda _site: [*serve_rows, *jobs])
     monkeypatch.setattr(
         agent_cli,
         "_probe_endpoint",
@@ -193,6 +205,7 @@ def test_publish_command_records_router_covering_every_release(tmp_path, monkeyp
         monkeypatch,
         [
             {
+                "jobid": "43",
                 "state": "RUNNING",
                 "node": "router-node",
                 "comment": "ambix-router;port=19003",
@@ -213,6 +226,7 @@ def test_publish_command_omits_router_covering_only_some_releases(
         monkeypatch,
         [
             {
+                "jobid": "43",
                 "state": "RUNNING",
                 "node": "router-node",
                 "comment": "ambix-router;port=19003",
@@ -231,6 +245,7 @@ def test_publish_command_omits_unreachable_router(tmp_path, monkeypatch):
         monkeypatch,
         [
             {
+                "jobid": "43",
                 "state": "RUNNING",
                 "node": "router-node",
                 "comment": "ambix-router;port=19003",
@@ -269,6 +284,22 @@ def test_publish_command_without_router_preserves_endpoint_document(
             },
         ],
         "routing_origins": [],
+        "servers": [
+            {
+                "accelerator_count": 2,
+                "accelerator_family": "H100",
+                "engines": ["node-a:19001"],
+                "host": "node-a",
+                "name": "node-a",
+            },
+            {
+                "accelerator_count": 8,
+                "accelerator_family": "H200",
+                "engines": ["node-b:19002"],
+                "host": "node-b",
+                "name": "node-b",
+            },
+        ],
     }
 
 
@@ -667,7 +698,26 @@ def test_shutdown_cancels_and_republishes_removing_the_release(tmp_path, monkeyp
     target = tmp_path / "endpoints.json"
     monkeypatch.setenv("AMBIX_AGENT_BASE_DIR", str(site_dir))
     monkeypatch.setenv("AMBIX_AGENT_ENDPOINT_DOCUMENT", str(target))
-    monkeypatch.setattr(agent_cli, "_running_jobs", lambda _site: [])
+    monkeypatch.setattr(
+        agent_cli,
+        "_running_jobs",
+        lambda _site, **_kwargs: [
+            {
+                "jobid": "41",
+                "name": "alpha",
+                "state": "RUNNING",
+                "node": "node-a",
+                "comment": "ambix-serve;port=19001",
+            },
+            {
+                "jobid": "42",
+                "name": "beta",
+                "state": "RUNNING",
+                "node": "node-b",
+                "comment": "ambix-serve;port=19002",
+            },
+        ],
+    )
 
     directory = registry_mod.registration_directory(site_dir)
     alpha = ServeRegistration("alpha", "node-a", 19001, "41", 2, "bf16", "H100")
@@ -686,8 +736,6 @@ def test_shutdown_cancels_and_republishes_removing_the_release(tmp_path, monkeyp
     }
 
     def fake_subprocess(command, *args, **kwargs):
-        if command[0] == "squeue":
-            return subprocess.CompletedProcess(command, 0, "41|alpha\n", "")
         if command[0] == "scancel":
             return subprocess.CompletedProcess(command, 0, "", "")
         raise AssertionError(f"unexpected subprocess call: {command}")

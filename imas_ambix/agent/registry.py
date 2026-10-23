@@ -30,6 +30,20 @@ _SAFE_JOB_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
 _ROUTER_COMMENT_PREFIX = "ambix-router;"
 
 
+def _engine_id(host: str, port: int) -> str:
+    """Return an engine's identity: its host short name and its port.
+
+    The short name drops the cluster component, so ``98dci4-gpu-0003`` is
+    ``gpu-0003`` and the id reads as ``gpu-0003:18810``. The component is
+    dropped only when what follows it still reads as a node name, which needs
+    the second separator: ``gpu-0003`` and ``node-a`` are already short names
+    and come back unchanged.
+    """
+    parts = host.split("-")
+    short_name = "-".join(parts[1:]) if len(parts) >= 3 else host
+    return f"{short_name}:{port}"
+
+
 @dataclass(frozen=True, slots=True)
 class ServeRegistration:
     """Resolved identity written by one serving allocation."""
@@ -41,7 +55,13 @@ class ServeRegistration:
     accelerator_count: int
     checkpoint_precision: str
     accelerator_family: str
+    server: str = ""
     held: bool = False
+
+    @property
+    def engine_id(self) -> str:
+        """Identity of the engine this allocation serves: host short name and port."""
+        return _engine_id(self.host, self.port)
 
     def __post_init__(self) -> None:
         if not isinstance(self.held, bool):
@@ -58,6 +78,14 @@ class ServeRegistration:
                 raise ValueError(f"{name} must be a non-empty string")
         if not _SAFE_JOB_ID.fullmatch(self.job_id):
             raise ValueError("job_id contains characters unsafe for a record name")
+        # Absent server names are accepted: a record written before a site
+        # declared its servers names no server, and reading it must not fail.
+        if not isinstance(self.server, str):
+            raise ValueError("server must be text")
+        if any(
+            ord(character) < 32 or ord(character) == 127 for character in self.server
+        ):
+            raise ValueError("server contains control characters")
         if not isinstance(self.port, int) or isinstance(self.port, bool):
             raise ValueError("port must be an integer")
         if not 1 <= self.port <= 65535:
@@ -131,6 +159,43 @@ class PublishedEndpoint:
     def origin(self) -> str:
         """Direct HTTP origin for this engine."""
         return f"http://{self.host}:{self.port}"
+
+    @property
+    def engine_id(self) -> str:
+        """Identity of this engine: host short name and port."""
+        return _engine_id(self.host, self.port)
+
+
+@dataclass(frozen=True, slots=True)
+class PublishedServer:
+    """One physical host and the engines on it, as the document reports them."""
+
+    name: str
+    host: str
+    accelerator_family: str
+    accelerator_count: int
+    engines: tuple[str, ...]
+
+
+class EndpointDocument(tuple):
+    """The accepted endpoints, carrying the server grouping they were built from.
+
+    It is a tuple of endpoints so every reader that wants only the engines is
+    unchanged, and it carries the servers array beside them. One builder
+    produces both, because a server grouping computed somewhere else would
+    disagree with the engines it claims to group.
+    """
+
+    servers: tuple[PublishedServer, ...]
+
+    def __new__(
+        cls,
+        endpoints: Sequence[PublishedEndpoint] = (),
+        servers: Sequence[PublishedServer] = (),
+    ) -> EndpointDocument:
+        document = super().__new__(cls, endpoints)
+        document.servers = tuple(servers)
+        return document
 
 
 @dataclass(frozen=True, slots=True)
@@ -326,11 +391,16 @@ def build_endpoint_document(
     registrations: Sequence[ServeRegistration],
     *,
     fetch_catalog: Callable[[str], object],
-) -> tuple[PublishedEndpoint, ...]:
-    """Probe registrations anonymously and retain complete live endpoints."""
+) -> EndpointDocument:
+    """Probe registrations anonymously and retain complete live endpoints.
+
+    Two engines serving one model both publish, because that is what a second
+    server is for; what is deduplicated is the engine, so a restarted job on
+    the same engine still replaces its predecessor.
+    """
     endpoints: list[PublishedEndpoint] = []
-    # model id -> (endpoint, the job id that registered it)
-    seen_models: dict[str, tuple[PublishedEndpoint, str]] = {}
+    # engine id -> (endpoint, the job id that registered it, its server name)
+    seen_engines: dict[str, tuple[PublishedEndpoint, str, str]] = {}
     for registration in registrations:
         if registration.held:
             continue
@@ -353,31 +423,63 @@ def build_endpoint_document(
                 error,
             )
             continue
-        prior = seen_models.get(endpoint.model_id)
+        server = registration.server or registration.host
+        engine = endpoint.engine_id
+        prior = seen_engines.get(engine)
         if prior is not None:
-            previous, previous_job = prior
-            # Two registrations claiming one model id is almost always a dead
+            previous, previous_job, previous_server = prior
+            # Two registrations describing one engine is almost always a dead
             # job whose successor took the port it released: both probe the one
             # live serve, so both look current. Resolve to the later job rather
             # than refusing, and never abort the build -- raising here empties
-            # the document for EVERY model, so one stale file takes the whole
+            # the document for EVERY engine, so one stale file takes the whole
             # routing lane down while the serve it names is answering.
             newer = registration.job_id > previous_job
             keep = endpoint if newer else previous
             keep_job = registration.job_id if newer else previous_job
+            keep_server = server if newer else previous_server
             _LOGGER.warning(
-                "duplicate registrations publish %s at %s and %s; keeping job %s",
-                endpoint.model_id,
+                "duplicate registrations publish engine %s at %s and %s; "
+                "keeping job %s",
+                engine,
                 previous.origin,
                 endpoint.origin,
                 keep_job,
             )
             endpoints[endpoints.index(previous)] = keep
-            seen_models[endpoint.model_id] = (keep, keep_job)
+            seen_engines[engine] = (keep, keep_job, keep_server)
             continue
         endpoints.append(endpoint)
-        seen_models[endpoint.model_id] = (endpoint, registration.job_id)
-    return tuple(sorted(endpoints, key=lambda endpoint: endpoint.model_id))
+        seen_engines[engine] = (endpoint, registration.job_id, server)
+    ordered = tuple(
+        sorted(endpoints, key=lambda endpoint: (endpoint.model_id, endpoint.engine_id))
+    )
+    return EndpointDocument(ordered, _published_servers(ordered, seen_engines))
+
+
+def _published_servers(
+    endpoints: Sequence[PublishedEndpoint],
+    seen_engines: dict[str, tuple[PublishedEndpoint, str, str]],
+) -> tuple[PublishedServer, ...]:
+    """Group the accepted engines by the server their registration named."""
+    grouped: dict[str, list[PublishedEndpoint]] = {}
+    for endpoint in endpoints:
+        server = seen_engines[endpoint.engine_id][2]
+        grouped.setdefault(server, []).append(endpoint)
+    servers: list[PublishedServer] = []
+    for name in sorted(grouped):
+        engines = sorted(grouped[name], key=lambda endpoint: endpoint.engine_id)
+        first = engines[0]
+        servers.append(
+            PublishedServer(
+                name=name,
+                host=first.host,
+                accelerator_family=first.accelerator_family,
+                accelerator_count=first.accelerator_count,
+                engines=tuple(endpoint.engine_id for endpoint in engines),
+            )
+        )
+    return tuple(servers)
 
 
 def write_endpoint_document(
@@ -401,6 +503,9 @@ def write_endpoint_document(
         {
             "endpoints": [asdict(endpoint) for endpoint in endpoints],
             "routing_origins": [asdict(origin) for origin in routing_origins],
+            "servers": [
+                asdict(server) for server in getattr(endpoints, "servers", ())
+            ],
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -449,9 +554,11 @@ def read_endpoint_document(path: str | Path) -> tuple[PublishedEndpoint, ...]:
         ) from error
     if not endpoints:
         raise ValueError("endpoint document contains no endpoints")
-    model_ids = [endpoint.model_id for endpoint in endpoints]
-    if len(model_ids) != len(set(model_ids)):
-        raise ValueError("endpoint document repeats a model id")
+    # Engines are unique; model ids are not, because a pool of more than one
+    # engine repeats its model id by design.
+    engine_ids = [endpoint.engine_id for endpoint in endpoints]
+    if len(engine_ids) != len(set(engine_ids)):
+        raise ValueError("endpoint document repeats an engine")
     return endpoints
 
 
@@ -549,6 +656,7 @@ def _parser() -> argparse.ArgumentParser:
     write.add_argument("--accelerator-count", required=True, type=int)
     write.add_argument("--checkpoint-precision", required=True)
     write.add_argument("--accelerator-family", required=True)
+    write.add_argument("--server", default="")
     write.add_argument("--held", action="store_true")
     release = subparsers.add_parser("release")
     release.add_argument("--directory", required=True)
@@ -575,6 +683,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 accelerator_count=args.accelerator_count,
                 checkpoint_precision=args.checkpoint_precision,
                 accelerator_family=args.accelerator_family,
+                server=args.server,
                 held=args.held,
             ),
             args.directory,
