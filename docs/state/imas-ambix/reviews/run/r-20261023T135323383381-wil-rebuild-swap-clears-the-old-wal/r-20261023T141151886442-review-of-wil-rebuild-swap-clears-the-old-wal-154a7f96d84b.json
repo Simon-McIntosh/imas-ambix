@@ -1,0 +1,50 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_sites": [
+    "imas_ambix/cli.py:48",
+    "imas_ambix/cli.py:53",
+    "pyproject.toml:161"
+  ],
+  "completed_at": "2026-10-23T14:39:11.221Z",
+  "dispatched_at": "2026-10-23T14:22:46Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/cli.py",
+      "line": 3431,
+      "severity": "non-blocking",
+      "text": "the replaced index's journal sidecars are discarded inline in cli.py, while index_placement owns index-file lifecycle and installs a database into the same directory by os.replace at index_placement.py:264 with no journal handling, so a second caller that installs an index inherits the stale-journal hazard this node repaired with nothing in the owning module to reuse."
+    },
+    {
+      "file": "tests/test_agent_ingest_cli.py",
+      "line": 70,
+      "severity": "non-blocking",
+      "text": "monkeypatch.setattr(cli.os, \"replace\", check_swap) patches the process-global os module attribute rather than a cli-local seam, so the interceptor also sees unrelated os.replace calls made through the same module object, including index_placement's restore."
+    }
+  ],
+  "item_verdicts": {
+    "diff": "Read commit by commit against 5eff4e92; 8f681afb adds the four-line sidecar loop and the abrupt-stop fixture plus two test bodies, d59e9486 and 10201b7f change only those two tests, and 154a7f96 adds the evidence fragment, 75 insertions and 9 deletions across three files.",
+    "done_when": "The done_when names the swap ordering, a reproduction of the deployed failure, a failed-rebuild preservation test, three suites, the serving parser guard and ruff on the fleet allocation; the manifest records required-suite-final.log 62 passed EXIT=0, serving-parser.log 1 passed 14 deselected EXIT=0, ruff-final.log All checks passed EXIT=0, head-arm.log 1 passed EXIT=0 and negative-control-final.log 1 failed EXIT=1, all opened and read.",
+    "goal": "The node goal is to make the incompatible-index rebuild discard the replaced database's WAL and shared-memory files before the swap; imas_ambix/agent/cli.py:3431-3434 unlinks both sidecars of resolved_index with missing_ok=True after the staged TelemetryIndex closes at cli.py:3429 and before os.replace runs at cli.py:3435.",
+    "manifest": "Read; tests carries the literal gate command, test_logs names five existing logs ending in EXIT= lines, after_suite carries revision 154a7f96 with failure_count 0 and empty failure_ids, baseline_suite is empty, and negative_control_log names negative-control-final.log whose FAILED id and EXIT=1 line were read.",
+    "write_paths": "The declared paths are imas_ambix/agent/cli.py, imas_ambix/agent/index_placement.py, tests/test_index_placement.py, tests/test_agent_ingest_cli.py, the evidence fragment and the figures directory; git diff --stat 5eff4e92 154a7f96 names only cli.py, tests/test_agent_ingest_cli.py and the fragment, every one inside that set."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The node goal is to make the incompatible-index rebuild discard the replaced database's WAL and shared-memory files before the swap; imas_ambix/agent/cli.py:3431-3434 unlinks both sidecars of resolved_index with missing_ok=True after the staged TelemetryIndex closes at cli.py:3429 and before os.replace runs at cli.py:3435.\nVERDICT done_when: The done_when names the swap ordering, a reproduction of the deployed failure, a failed-rebuild preservation test, three suites, the serving parser guard and ruff on the fleet allocation; the manifest records required-suite-final.log 62 passed EXIT=0, serving-parser.log 1 passed 14 deselected EXIT=0, ruff-final.log All checks passed EXIT=0, head-arm.log 1 passed EXIT=0 and negative-control-final.log 1 failed EXIT=1, all opened and read.\nVERDICT write_paths: The declared paths are imas_ambix/agent/cli.py, imas_ambix/agent/index_placement.py, tests/test_index_placement.py, tests/test_agent_ingest_cli.py, docs/evidence/fragments/watch-index-lifecycle/wil-rebuild-swap-clears-the-old-wal.html and docs/figures/watch-index-lifecycle/wil-rebuild-swap-clears-the-old-wal; git diff --stat 5eff4e92 154a7f96 names only imas_ambix/agent/cli.py, tests/test_agent_ingest_cli.py and the fragment, every one inside that set, and two granted paths went unused.\nVERDICT manifest: Read; tests carries the literal gate command, test_logs names five logs that all exist and end with an EXIT= line, after_suite carries revision 154a7f96 with failure_count 0 and empty failure_ids, baseline_suite is empty, and negative_control_log names negative-control-final.log whose FAILED id and EXIT=1 line were read.\nVERDICT diff: Read commit by commit against 5eff4e92; 8f681afb adds the four-line sidecar loop in cli.py and the abrupt-stop fixture plus two test bodies, d59e9486 and 10201b7f change only those two tests, and 154a7f96 adds the 25-line evidence fragment, 75 insertions and 9 deletions across three files.\nCALL_SITES: imas_ambix/cli.py:48, imas_ambix/cli.py:53, pyproject.toml:161\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: imas_ambix/agent/cli.py:3431-3434 discards resolved_index's -wal and -shm after the rebuild returns and before cli.py:3435 runs os.replace, which is the ordering the goal states.\nSCORE evidence: 19\nJUSTIFICATION evidence: required-suite-final.log records 62 passed EXIT=0 at revision 10201b7f and tests/test_agent_ingest_cli.py:44 asserts the fixture's -wal is non-empty, so reproduction.log measured the refusal against a real stale journal rather than a vacuous fixture.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --stat 5eff4e92 154a7f96 names only imas_ambix/agent/cli.py, tests/test_agent_ingest_cli.py and the node's evidence fragment, all inside the six declared write paths.\nSCORE durability: 19\nJUSTIFICATION durability: tests/test_agent_ingest_cli.py:78 asserts swap_checked == [True], an observation of the real filesystem taken inside the patched cli.os.replace, so deleting the loop at cli.py:3431 reddens it as negative-control-final.log records rather than leaving it green.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/cli.py:3431-3434 uses Path.unlink(missing_ok=True) in the manner of the staged.unlink at cli.py:3437, and none of the added names carries a plan, ticket or version label.\nSCORE reuse: 18\nJUSTIFICATION reuse: a search of imas_ambix/ for -wal and -shm sidecar handling found no owner that removes a replaced database's journals (index_placement.py:83 and index_placement.py:200 only set PRAGMA journal_mode, slurm.py:846 reads /dev/shm), so nothing is forked, though the lifecycle owner index_placement.py:264 was not the module extended.\nFINDING imas_ambix/agent/cli.py:3431 non-blocking: the replaced index's journal sidecars are discarded inline in cli.py, while index_placement owns index-file lifecycle and installs a database into the same directory by os.replace at index_placement.py:264 with no journal handling, so a second caller that installs an index inherits the stale-journal hazard this node repaired with nothing in the owning module to reuse.\nFINDING tests/test_agent_ingest_cli.py:70 non-blocking: monkeypatch.setattr(cli.os, \"replace\", check_swap) patches the process-global os module attribute rather than a cli-local seam, so the interceptor also sees unrelated os.replace calls made through the same module object, including index_placement's restore.\n",
+  "review_run_id": "r-20261023T141151886442-review-of-wil-rebuild-swap-clears-the-old-wal-154a7f96d84b",
+  "reviewed_base_sha": "5eff4e926b4e136eed1333504216abe08b87bee5",
+  "reviewed_head_sha": "154a7f96d84b8a60c1342835d56eae44c40327bb",
+  "reviewed_run_id": "r-20261023T135323383381-wil-rebuild-swap-clears-the-old-wal",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 18,
+    "goal_fidelity": 20,
+    "reuse": 18,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T14:41:03.853332+00:00",
+  "total": 114
+}
