@@ -1421,6 +1421,10 @@ def watch_document(
     period rows are empty, because a read is not what keeps the store current.
     The ``lane`` and ``live`` blocks come from :func:`live_document`, which
     reads the published sources and never touches the index.
+    A caller deriving a new document needs a resolved local index. The CLI
+    reads an existing publication separately when it has no local index;
+    derivation refuses that case so a publisher cannot give old figures a new
+    publication timestamp.
 
     An index file that exists but cannot be read -- a zero-byte file the writer
     has opened and not yet written, or one whose lock is held past *timeout* --
@@ -1433,7 +1437,9 @@ def watch_document(
     directory = Path(record_dir or default_record_dir())
     target = resolve_index_path(index_path)
     if target is None:
-        return json.loads(PUBLISHED_WATCH_PATH.read_text(encoding="utf-8"))
+        raise FileNotFoundError(
+            "no local watch index resolves; set AMBIX_WATCH_INDEX or FLEET_RUNTIME_DIR"
+        )
     status = index_status(target, when)
     if status["exists"]:
         try:

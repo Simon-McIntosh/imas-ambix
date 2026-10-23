@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from imas_ambix.agent import index_placement, watch
+from imas_ambix.agent import index_placement, watch, watch_publish
 from imas_ambix.agent.telemetry_index import TelemetryIndex
 from imas_ambix.cli import main
 
@@ -140,6 +140,28 @@ def test_corrupt_newest_falls_back_and_keeps_older(tmp_path, capsys):
     assert _counts(restored) == _counts(tmp_path / "index.sqlite3")
 
 
+def test_corrupt_same_day_snapshot_does_not_suppress_replacement(tmp_path, capsys):
+    source = tmp_path / "receipts.jsonl"
+    _receipt(source, 0)
+    snapshots = tmp_path / "snapshots"
+    with TelemetryIndex(tmp_path / "index.sqlite3") as index:
+        index.ingest([source])
+        older = index_placement.snapshot_index(
+            index, directory=snapshots, now=datetime.now(UTC) - timedelta(days=1)
+        )
+        damaged = index_placement.snapshot_index(index, directory=snapshots)
+        assert index_placement.snapshot_if_due(index, directory=snapshots) is None
+        damaged.write_bytes(b"damaged compressed data")
+        replacement = index_placement.snapshot_if_due(index, directory=snapshots)
+
+    assert replacement is not None and replacement != damaged
+    assert replacement.exists() and older.exists()
+    assert "snapshot verification failed" in capsys.readouterr().err
+    restored = tmp_path / "restored.sqlite3"
+    assert index_placement.restore_index(restored, directory=snapshots) == replacement
+    assert _counts(restored) == _counts(tmp_path / "index.sqlite3")
+
+
 def test_restored_index_catches_up_without_duplicate_rows(tmp_path):
     source = tmp_path / "receipts.jsonl"
     _receipt(source, 0)
@@ -161,16 +183,29 @@ def test_restored_index_catches_up_without_duplicate_rows(tmp_path):
     assert _digest(restored) == _digest(continuous)
 
 
-def test_watch_without_local_index_reads_published_stamp(tmp_path, monkeypatch):
+def test_watch_cli_without_local_index_reads_published_stamp(tmp_path, monkeypatch):
     published = tmp_path / "watch.json"
     published.write_text('{"published_at":"2026-10-23T06:00:00Z","record":{}}')
     monkeypatch.setattr(watch, "PUBLISHED_WATCH_PATH", published)
     monkeypatch.delenv("AMBIX_WATCH_INDEX", raising=False)
     monkeypatch.delenv("FLEET_RUNTIME_DIR", raising=False)
-    assert watch.watch_document()["published_at"] == "2026-10-23T06:00:00Z"
     result = CliRunner().invoke(main, ["agent", "watch", "--json"])
     assert result.exit_code == 0, result.output
     assert result.output == published.read_text()
     result = CliRunner().invoke(main, ["agent", "watch"])
     assert result.exit_code == 0, result.output
     assert result.output == published.read_text()
+
+
+def test_publisher_refuses_to_refresh_old_published_document(tmp_path, monkeypatch):
+    published = tmp_path / "watch.json"
+    original = b'{"published_at":"2026-10-23T06:00:00Z","record":{}}'
+    published.write_bytes(original)
+    monkeypatch.setattr(watch, "PUBLISHED_WATCH_PATH", published)
+    monkeypatch.delenv("AMBIX_WATCH_INDEX", raising=False)
+    monkeypatch.delenv("FLEET_RUNTIME_DIR", raising=False)
+
+    line = watch_publish.one_iteration(published)
+
+    assert "publish-watch failed: no local watch index" in line
+    assert published.read_bytes() == original
