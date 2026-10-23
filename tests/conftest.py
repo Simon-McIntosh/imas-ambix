@@ -25,6 +25,7 @@ import pytest
 
 from imas_ambix._thread_pools import pin_thread_pools
 from imas_ambix.agent import index_placement
+from imas_ambix.agent import watch as watch_mod
 from imas_ambix.agent.profile import GATE_CONTROL_PATH_ENV
 
 
@@ -38,6 +39,12 @@ def _no_production_gate_control_path(monkeypatch: pytest.MonkeyPatch) -> None:
 def _isolated_index_snapshots(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     """Give every test its own snapshot directory, including ingest commands."""
     monkeypatch.setattr(index_placement, "SNAPSHOT_DIR", tmp_path / "index-snapshots")
+
+
+@pytest.fixture(autouse=True)
+def _isolated_published_watch(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Keep ingest and manual publication away from the live watch document."""
+    monkeypatch.setattr(watch_mod, "PUBLISHED_WATCH_PATH", tmp_path / "watch.json")
 
 
 # ---------------------------------------------------------------------------

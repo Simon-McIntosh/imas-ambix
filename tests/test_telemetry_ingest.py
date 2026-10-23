@@ -739,6 +739,39 @@ def test_the_command_the_service_runs_carries_the_scheduled_retirement(
     ], "the pass removed a compaction with the raw file"
 
 
+def test_ingest_command_keeps_the_live_watch_document_unchanged(tmp_path) -> None:
+    """A suite-run ingest publishes to its fixture path, never the live path."""
+    from click.testing import CliRunner
+
+    from imas_ambix.agent import watch as watch_mod
+    from imas_ambix.agent.cli import ingest
+
+    live = Path.home() / "public" / "imas-ambix" / "watch.json"
+    published = watch_mod.PUBLISHED_WATCH_PATH
+    assert published != live
+    before = (live.stat().st_mtime_ns, live.read_bytes()) if live.exists() else None
+    records = tmp_path / "receipts"
+    records.mkdir()
+
+    result = CliRunner().invoke(
+        ingest,
+        [
+            "--once",
+            "--no-retention",
+            "--record",
+            str(records),
+            "--index",
+            str(tmp_path / "index.sqlite"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "publish-watch wrote" in result.output
+    assert published.is_file()
+    after = (live.stat().st_mtime_ns, live.read_bytes()) if live.exists() else None
+    assert after == before
+
+
 def retention_tier_files(directory: Path) -> list[Path]:
     """Every compacted tier under *directory*, by the markers their names carry."""
     return [

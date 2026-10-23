@@ -325,7 +325,6 @@ def test_failed_publication_preserves_file_and_next_tick_ingests(
     from imas_ambix.agent import (
         cli,
         telemetry_ingest,
-        watch_publish,
     )
     from imas_ambix.agent import (
         watch as watch_mod,
@@ -334,7 +333,7 @@ def test_failed_publication_preserves_file_and_next_tick_ingests(
     target = tmp_path / "watch.json"
     previous = b'{"published_at": "earlier", "keep": true}\n'
     target.write_bytes(previous)
-    monkeypatch.setattr(watch_publish, "DEFAULT_OUTPUT", target)
+    monkeypatch.setattr(watch_mod, "PUBLISHED_WATCH_PATH", target)
     clock = [0.0]
     monkeypatch.setattr(cli, "_publication_clock", lambda: clock[0])
     seen: list[bytes] = []

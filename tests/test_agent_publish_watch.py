@@ -162,7 +162,10 @@ def test_manual_command_requires_once() -> None:
     assert "requires --once" in result.output
 
 
-def test_published_path_has_one_declaration() -> None:
-    from imas_ambix.agent.watch import PUBLISHED_WATCH_PATH
+def test_published_path_is_resolved_for_each_call(tmp_path, monkeypatch) -> None:
+    from imas_ambix.agent import watch as watch_mod
 
-    assert watch_publish.DEFAULT_OUTPUT is PUBLISHED_WATCH_PATH
+    assert watch_publish.default_output_path() is watch_mod.PUBLISHED_WATCH_PATH
+    replacement = tmp_path / "another-watch.json"
+    monkeypatch.setattr(watch_mod, "PUBLISHED_WATCH_PATH", replacement)
+    assert watch_publish.default_output_path() is replacement

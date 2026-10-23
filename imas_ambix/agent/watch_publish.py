@@ -39,9 +39,10 @@ from imas_ambix.agent import watch as watch_mod
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-#: Where the document is published by default. It sits beside the lane document
-#: in ``~/public/imas-ambix`` so a consumer reads both from one directory.
-DEFAULT_OUTPUT = watch_mod.PUBLISHED_WATCH_PATH
+
+def default_output_path() -> Path:
+    """Use the reader's current published path for each new publication."""
+    return watch_mod.PUBLISHED_WATCH_PATH
 
 
 def _utcnow() -> _dt.datetime:

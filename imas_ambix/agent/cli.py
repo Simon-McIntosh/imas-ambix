@@ -3227,7 +3227,9 @@ def publish_watch(
             "publish-watch requires --once; ingest schedules publication"
         )
     output = (
-        Path(output_path).expanduser() if output_path else watch_publish.DEFAULT_OUTPUT
+        Path(output_path).expanduser()
+        if output_path
+        else watch_publish.default_output_path()
     )
     line = watch_publish.one_iteration(
         output, record_dir=record_dir, index_path=index_path
@@ -3426,7 +3428,7 @@ def ingest(
             or _publication_clock() - last_published >= publish_every
         ):
             line = watch_publish.one_iteration(
-                watch_publish.DEFAULT_OUTPUT,
+                watch_publish.default_output_path(),
                 record_dir=resolved_record,
                 index_path=resolved_index,
                 on_success=_mark_published,
