@@ -25,7 +25,7 @@
   <title>Rotate to DeepSeek-V4.1-Flash-1017 | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="25">
+<meta name="plan-version" content="26">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -277,6 +277,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261023T171410276801-review-of-restart-probes-tool-calls-5757fedcce75" data-who="reckon-build" data-when="2026-10-23T17:38:51.709Z">
     <div class="r-comment-body"><p>reviewed r-20261023T140807838269-restart-probes-tool-calls at a8c33202..5757fedc: parsed, scores goal_fidelity 19, evidence 20, scope_discipline 20, durability 18, fit 17, reuse 20, added_failure_count 0, two non-blocking findings (bench.py:1494 dead tool_single row, tests/test_agent_restart_validation.py:115 unexercised tool_use failure branch).</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20261023T140807838269-restart-probes-tool-calls" data-who="reckon-build" data-when="2026-10-23T17:13:35.361Z">
+    <div class="r-comment-body"><p>A restart validates a tool call in both dialects and reads the checkpoint index before pausing: bench.check_tool_call (factored out of the tools benchmark) and bench.check_tool_use are wired into the validate callback of the paused and overlap cycles, and weights_preflight refuses a checkpoint missing its index or a named shard while the lane still serves, printing the same verdict in --dry-run. Gate: pytest tests/test_bench.py tests/test_agent_restart_validation.py -&gt; 31 passed, ruff check imas_ambix tests -&gt; exit 0.</p></div>
 </div>
 </section>
 </main>
