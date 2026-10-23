@@ -6,13 +6,23 @@
   end. The committed implementation stores measurement names and kinds once,
   maintains source-hour counter and gauge summaries in the ingest transaction,
   reads raw samples at the two partial hours, and reads each period's cards in
-  one bounded statement.</p>
+  one bounded statement. A live query-plan check exposed a full measurement
+  scan in that statement; the repaired join searches measurements by sample
+  primary key after selecting bounded edge rows.</p>
   <p>A 30-hour receipt fixture produced exact field-by-field equality between
   <code>watch_document</code> and an independent raw-row reader (1 passed).
   Perturbing a populated gauge summary made that test fail at
-  <code>$.ledger[1].utilisation</code> (EXIT=1). The full receipt rebuild and
-  live timings remain unmeasured. The node-local <code>/tmp</code> scratch path
-  refused directory creation as read-only; the attempted measurement was
-  stopped after 50 ingest batches and is not treated as evidence. Its derived
-  partial index was removed from the worktree and run directory.</p>
+  <code>$.ledger[1].utilisation</code> (EXIT=1). A node-local rebuild from 108
+  offered receipt files selected 32 files, inserted 472,827 rows, and read
+  1,278,209,182 receipt bytes in 1,498 seconds. The rebuilt index used
+  3,805,589,504 bytes, beside the old index's 8,678,658,048 bytes and the
+  2.11 GB estimate. A fresh <code>watch_document</code> call took 4.475 seconds;
+  a later warm call took 0.675 seconds.</p>
+  <p>The live field comparison is unresolved: after fixing moving auxiliary
+  caller data in the measurement script, the rollup and raw readers disagreed
+  at <code>$.ledger[1].cached</code>. The worker stopped at its retry fence.
+  The ingest-tick timing was therefore not run. The three named test files
+  produced 119 passes and one timeout while a test restored an existing
+  8.67 GB snapshot onto the shared slow scratch disk. The serving-interpreter
+  parse guard and whole-tree ruff check passed.</p>
 </section>
