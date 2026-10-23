@@ -1,0 +1,79 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T06:19:36.556Z",
+  "dispatched_at": "2026-10-23T06:12:00Z",
+  "findings": [
+    {
+      "anchor": "plan.html:106 (\u00a73)",
+      "id": "anchors_resolve-1",
+      "reason": "the node's declared write scope names a symbol it cannot resolve, and \u00a71's evidence trace for the double read cannot be checked as written.",
+      "text": "`_read_new` is named as a write target in `imas_ambix/agent/telemetry_index.py` and cited in \u00a71 as the second reader of the consumed prefix, but no symbol of that name exists anywhere in `imas_ambix/` or `tests/`; the generator that performs both reads is `_resume` (`telemetry_index.py:1341`), and the `head = handle.read(start)` \u00a71 quotes sits inside it at line 1404",
+      "type": "anchors_resolve",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html:122 (\u00a73)",
+      "id": "reasoning-1",
+      "reason": "as written the measure fails once an hour by construction, so a coordinator reads a non-defect as a failed deployment or a worker removes the hourly verification the negative controls depend on to make the number pass.",
+      "text": "the post-deployment acceptance \"the ingest pid's `read_bytes` advances by at most 100 MB over 300 s\" is contradicted by the section's own mechanism, which re-verifies each source's whole consumed prefix once per `FULL_IDENTITY_INTERVAL` (3,600 s), and the live sources \u00a71 measures are ~1.31 GB, so one 300 s window in every hour carries a ~1.3 GB read",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html:241 (\u00a77)",
+      "id": "reasoning-2",
+      "reason": "a node that edits the single named writer leaves two of the six script kinds, including the log the runtime-check reader at `cli.py:4478` resolves, still writing to the submitting directory, and fails its own done-when.",
+      "text": "\"the change is made at the single `#SBATCH --output=` writer in `slurm.py`\" is not true of the scripts the section's own done-when names: `cli.py:3782` (runtime-check, `ambix-runtime-check-<engine>-%j.log`) and `cli.py:4258` (setup, `ambix-setup-<engine>-%j.log`) emit their own literal directives inside `cli.py` and never reach `slurm.py:150`",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html:255 (\u00a77)",
+      "id": "done_when-1",
+      "reason": "this is the plan's only irreversible deletion of existing files, and without a control the node can neither show its guard refuses nor show the step did its work.",
+      "text": "the archive step \"removes an original only after its archive decompresses to the same SHA-256\", but no done-when bullet requires showing that a mismatching archive leaves the original in place; \"the archive step's printed list accounts for all 451 files, with no SHA mismatch\" is satisfied by an archive step that compresses and never removes anything",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html:23",
+      "id": "wiring-1",
+      "reason": "\u00a79 is declared `deferred` and is not dispatched, so nothing consumes the edge.",
+      "text": "`plan-section-depends-on` declares `{s5:[s3,s4], s6:[s4,s5], s7:[s6]}`, so \u00a79 carries no edge to \u00a78 although \u00a79's text (\"deferred until \u00a78's breakdown says how much the pruning would recover\") makes \u00a78 its gate",
+      "type": "wiring",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "02e55bc740a43da4819a99ffb6d06124773d1cf6a7140da08f87facf82cc9ca2",
+  "plan_slug": "watch-index-lifecycle",
+  "plan_version": 0,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T061027640518-plan-review-of-watch-index-lifecycle",
+  "reviewed_blob_sha": "45c1e656f818e631d326c74036a24e5878cc9807",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 `_read_new` (\u00a71 line 40, \u00a73 line 106) resolves nowhere in `imas_ambix/` or `tests/`; every other anchor checked resolves: `watch.py:91` is `DEFAULT_INDEX_PATH` with exactly two `Path(index_path or DEFAULT_INDEX_PATH)` fallbacks (1306, 1433) and three `--index` help strings in `cli.py` (3092, 3193, 3288), `_was_rewritten` (1421) and `_digest_of` (1804) exist, `UNIQUE (host, boot_id, inode, offset)` is at `telemetry_index.py:266` as \u00a74 assumes, `watch_publish.one_iteration` is at `watch_publish.py:124`, `imas_ambix/gs/artifact_resolution.py` exists, the guard test `tests/test_agent_serve_registry.py::test_agent_package_modules_parse_with_serving_python` exists, `docs/figures/watch-index-lifecycle/data-flow.svg` exists, and `serving-record-warehouse` \u00a721, \u00a724 and followup `f-srw-020` all resolve with the content the plan attributes to them.",
+    "done_when": "a finding \u2014 \u00a73, \u00a74, \u00a75 and \u00a76 each name a control that can fail, and \u00a73's three rewrite cases are stated with the time they must be detected at, but \u00a77's delete-after-verify step asks for no demonstration that a mismatching archive leaves its original in place.",
+    "evidence_paths": "pass \u2014 gates land under the repository (\u00a73's guard and ruff gate, \u00a78's `docs/research/watch-index-size-and-retention.html` and its figure) or in the section's own \"recorded here\" bullet, and the durable artefacts \u00a74 and \u00a77 create go to GPFS under `~/.local/state/ambix/`; no gate writes to a scratchpad.",
+    "naming": "pass \u2014 no plan label, ticket number or version tag enters a symbol, filename or comment; `FULL_IDENTITY_INTERVAL`, `index_placement.py` and the `-pre-rollup` snapshot suffix all name the mechanism, and `f-srw-020` appears only in plan prose in the plan that inherits it.",
+    "reasoning": "a finding \u2014 \u00a71's root cause is supported by the cited code (verified: `time_weighted_mean` filters only `ts_epoch IS NOT NULL` and windows over every row, `telemetry_index.py:1559`), and \u00a75's rollup mechanism can produce its done-when, but \u00a73's stated mechanism cannot satisfy \u00a73's own post-deployment measure.",
+    "single_goal": "pass \u2014 each of \u00a73\u2013\u00a78 carries one deliverable, and \u00a77's forward change and its one-off archive of the existing logs are two arms of the single \"job logs leave the repository root\" goal rather than two goals.",
+    "wiring": "a finding \u2014 the declared edges s5\u2192{s3,s4}, s6\u2192{s4,s5} and s7\u2192{s6} each resolve to a node that exists and match the ordering the followup states, but `plan-section-depends-on` carries no `s9` entry although \u00a79's own text makes it wait on \u00a78."
+  },
+  "section_digests": {
+    "_document": "11a66c1bf9b55c27aa69a6cc14d0a7c6104d411234cec8fe79aa4229ec3338cd",
+    "s1": "121d9eb93ee04437b7c1489c20c509f1dc57031b8448781757d658176d8f76ab",
+    "s2": "32189637430822acde78e34d53cbed7c3f0ae26c9fe044e99dc013e4e1d0db9d",
+    "s3": "0535431499e06d5c8b98b95094a526eb14fba0870d008556cfbc7d6536631116",
+    "s4": "214ae5abf0b93b92e7479cda3f691edea3bc60b7b7ec1485dcced5899519843e",
+    "s5": "b3847fea2b52f54b9e97eb5f000c0350591da166379ceb27d152c7c0ec235695",
+    "s6": "09ac62d2036d434f953ab7c058852fd5e32d708a7847787d1185b17832801e62",
+    "s7": "e14fb6007d97a9f1df93b3c2c6952a8e16930dbb3d41c37594325643803c0f8d",
+    "s8": "83ac32d54d4394cd1d9f11da1f46b1eb6420b70f2911084121a031e6f7aff225",
+    "s9": "62bf93e7fec684aebfaadc4ad598642503ca8ee4691eeec898a8aad77e03adf1"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T06:22:45.460633+00:00"
+}
