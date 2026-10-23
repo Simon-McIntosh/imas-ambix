@@ -33,8 +33,9 @@ match its consumed row is skipped without opening it. When either differs, the
 index compares the first and last 64 KiB of the consumed region with stored
 probe digests, and checks size and mtime direction. A running hash extends the
 stored whole-prefix digest with appended lines, so an ordinary changed-source
-tick reads only the new bytes and the probes. A new process seeds each existing
-source's hash before its first tick. The stored mtime remains the last fully
+tick reads only the new bytes and the probes. A new process verifies a source
+when it changes or its full identity check comes due. The stored mtime remains
+the last fully
 verified one while a changed source passes only the probes, which keeps that
 source on the changed path until the hourly full check. A rewrite confined to
 the middle is detected at that check even when no further bytes are appended.
@@ -105,6 +106,7 @@ import dataclasses
 import datetime as _dt
 import hashlib
 import json
+import math
 import re
 import sqlite3
 import subprocess
@@ -288,16 +290,40 @@ CREATE TABLE IF NOT EXISTS sample (
     UNIQUE (host, boot_id, inode, offset)
 );
 
+CREATE TABLE IF NOT EXISTS measurement_name (
+    id   INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS measurement (
     sample_id INTEGER NOT NULL REFERENCES sample(id) ON DELETE CASCADE,
-    name      TEXT    NOT NULL,
-    kind      TEXT    NOT NULL,
+    name_id   INTEGER NOT NULL REFERENCES measurement_name(id),
     value     REAL    NOT NULL,
-    PRIMARY KEY (sample_id, name)
+    PRIMARY KEY (sample_id, name_id)
 );
 
 CREATE INDEX IF NOT EXISTS measurement_lookup
-    ON measurement (name, kind, sample_id);
+    ON measurement (name_id, sample_id);
+
+CREATE INDEX IF NOT EXISTS sample_source_time
+    ON sample (host, boot_id, inode, ts_epoch, offset);
+
+CREATE TABLE IF NOT EXISTS hourly_rollup (
+    host             TEXT NOT NULL,
+    boot_id          TEXT NOT NULL,
+    inode            INTEGER NOT NULL,
+    name_id          INTEGER NOT NULL REFERENCES measurement_name(id),
+    hour             INTEGER NOT NULL,
+    counter_diff     REAL,
+    gauge_integral   REAL,
+    coverage_seconds REAL NOT NULL,
+    segments         TEXT,
+    PRIMARY KEY (host, boot_id, inode, name_id, hour)
+);
+
+CREATE INDEX IF NOT EXISTS hourly_rollup_window
+    ON hourly_rollup (name_id, hour);
 
 CREATE INDEX IF NOT EXISTS sample_time
     ON sample (ts_epoch);
@@ -907,10 +933,24 @@ class TelemetryIndex:
         self._conn = sqlite3.connect(str(self.path), timeout=timeout)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
-        self._conn.executescript(_SCHEMA)
+        columns = {
+            row["name"] for row in self._conn.execute("PRAGMA table_info(measurement)")
+        }
+        self._requires_rebuild = bool(columns and "name_id" not in columns)
+        if not self._requires_rebuild:
+            self._conn.executescript(_SCHEMA)
         self._migrate()
         self._identity_clock = time.monotonic
         self._hashes: dict[tuple[int, int], _SourceHash] = {}
+        self._rollup_dirty: set[tuple[str, str, int, int]] = set()
+        self._names = (
+            {
+                row["name"]: int(row["id"])
+                for row in self._conn.execute("SELECT id, name FROM measurement_name")
+            }
+            if not self._requires_rebuild
+            else {}
+        )
 
     @classmethod
     def readonly(
@@ -947,6 +987,9 @@ class TelemetryIndex:
         index._conn.row_factory = sqlite3.Row
         index._identity_clock = time.monotonic
         index._hashes = {}
+        index._rollup_dirty = set()
+        index._requires_rebuild = False
+        index._names = {}
         return index
 
     def _migrate(self) -> None:
@@ -1031,6 +1074,10 @@ class TelemetryIndex:
             identity,
         )
         self._conn.execute(
+            "DELETE FROM hourly_rollup WHERE host = ? AND boot_id = ? AND inode = ?",
+            identity,
+        )
+        self._conn.execute(
             "DELETE FROM source WHERE host = ? AND boot_id = ? AND inode = ?",
             identity,
         )
@@ -1098,6 +1145,8 @@ class TelemetryIndex:
         trace, because its transaction is rolled back when the pass raises.
         """
         offered = [Path(source) for source in sources]
+        if self._requires_rebuild:
+            raise ValueError("the measurement dictionary requires an index rebuild")
         # A tier file the recorder has created but not yet written a row to is
         # not a tier the job offers: selecting it would pin the job to a file
         # with no samples, and its window would read as uncovered while the
@@ -1266,6 +1315,7 @@ class TelemetryIndex:
         the previous mtime until the whole consumed prefix has been verified.
         """
         with self._conn:
+            self._refresh_rollups()
             self._conn.execute(
                 "INSERT INTO source "
                 "(host, boot_id, key_kind, path, inode, size, offset, rows, "
@@ -1559,15 +1609,189 @@ class TelemetryIndex:
         if cursor.rowcount == 0:
             return False
         sample_id = cursor.lastrowid
+        values = measure_row(row)
+        for name in values:
+            if name in self._names:
+                continue
+            cursor = self._conn.execute(
+                "INSERT INTO measurement_name (name, kind) VALUES (?, ?)",
+                (name, _kind(name)),
+            )
+            self._names[name] = int(cursor.lastrowid)
         self._conn.executemany(
-            "INSERT OR REPLACE INTO measurement "
-            "(sample_id, name, kind, value) VALUES (?, ?, ?, ?)",
-            [
-                (sample_id, name, _kind(name), value)
-                for name, value in measure_row(row).items()
-            ],
+            "INSERT OR REPLACE INTO measurement (sample_id, name_id, value) "
+            "VALUES (?, ?, ?)",
+            [(sample_id, self._names[name], value) for name, value in values.items()],
         )
+        stamp = _parse_timestamp(row.get("timestamp"))
+        if stamp is not None:
+            self._mark_rollup_dirty(host, boot_id, inode, stamp)
         return True
+
+    def _mark_rollup_dirty(
+        self, host: str, boot_id: str, inode: int, stamp: float
+    ) -> None:
+        """Refresh the hours whose preceding or final gauge interval moved."""
+        identity = (host, boot_id, inode)
+        before = [
+            float(row[0])
+            for row in self._conn.execute(
+                "SELECT ts_epoch FROM sample WHERE host = ? AND boot_id = ? "
+                "AND inode = ? AND ts_epoch < ? ORDER BY ts_epoch DESC LIMIT 2",
+                (*identity, stamp),
+            )
+        ]
+        after = [
+            float(row[0])
+            for row in self._conn.execute(
+                "SELECT ts_epoch FROM sample WHERE host = ? AND boot_id = ? "
+                "AND inode = ? AND ts_epoch > ? ORDER BY ts_epoch LIMIT 2",
+                (*identity, stamp),
+            )
+        ]
+        lo = before[0] if before else stamp
+        hi = after[0] if after else stamp
+        if len(before) > 1:
+            hi = max(hi, before[0] + before[0] - before[1])
+        if before and not after:
+            hi = max(hi, stamp + stamp - before[0])
+        if len(after) == 1:
+            hi = max(hi, after[0] + after[0] - stamp)
+        for hour in range(int(lo // 3600), int(hi // 3600) + 1):
+            self._rollup_dirty.add((*identity, hour))
+
+    def _refresh_rollups(self) -> None:
+        """Recalculate changed source hours in the sample batch transaction."""
+        for host, boot_id, inode, hour in sorted(self._rollup_dirty):
+            self._refresh_source_hour(host, boot_id, inode, hour)
+        self._rollup_dirty.clear()
+
+    def _refresh_source_hour(
+        self, host: str, boot_id: str, inode: int, hour: int
+    ) -> None:
+        begin = hour * 3600
+        finish = begin + 3600
+        identity = (host, boot_id, inode)
+        fields = "id, ts_epoch, offset, job_id"
+        base = "FROM sample WHERE host = ? AND boot_id = ? AND inode = ? "
+        previous = self._conn.execute(
+            f"SELECT {fields} {base} AND ts_epoch < ? "
+            "ORDER BY ts_epoch DESC, offset DESC LIMIT 2",
+            (*identity, begin),
+        ).fetchall()[::-1]
+        middle = self._conn.execute(
+            f"SELECT {fields} {base} AND ts_epoch >= ? AND ts_epoch < ? "
+            "ORDER BY ts_epoch, offset",
+            (*identity, begin, finish),
+        ).fetchall()
+        following = self._conn.execute(
+            f"SELECT {fields} {base} AND ts_epoch >= ? "
+            "ORDER BY ts_epoch, offset LIMIT 1",
+            (*identity, finish),
+        ).fetchone()
+        samples = list(previous) + list(middle) + ([following] if following else [])
+        self._conn.execute(
+            "DELETE FROM hourly_rollup WHERE host = ? AND boot_id = ? "
+            "AND inode = ? AND hour = ?",
+            (*identity, hour),
+        )
+        if not samples:
+            return
+        placeholders = ",".join("?" for _ in samples)
+        values: dict[int, dict[str, tuple[int, str, float]]] = {}
+        for entry in self._conn.execute(
+            "SELECT m.sample_id, n.id, n.name, n.kind, m.value "
+            "FROM measurement m JOIN measurement_name n ON n.id = m.name_id "
+            f"WHERE m.sample_id IN ({placeholders})",
+            [sample["id"] for sample in samples],
+        ):
+            values.setdefault(entry["sample_id"], {})[entry["name"]] = (
+                entry["id"],
+                entry["kind"],
+                float(entry["value"]),
+            )
+        names = {
+            name: (name_id, kind)
+            for sample_values in values.values()
+            for name, (name_id, kind, _) in sample_values.items()
+        }
+        for name, (name_id, kind) in names.items():
+            if kind == "interval":
+                numerator = denominator = 0.0
+                for position, sample in enumerate(samples):
+                    value = values.get(sample["id"], {}).get(name)
+                    if value is None or sample is following:
+                        continue
+                    stamp = float(sample["ts_epoch"])
+                    if position + 1 < len(samples):
+                        until = float(samples[position + 1]["ts_epoch"])
+                    elif position:
+                        until = stamp + stamp - float(samples[position - 1]["ts_epoch"])
+                    else:
+                        until = stamp
+                    weight = max(0.0, min(until, finish) - max(stamp, begin))
+                    numerator += value[2] * weight
+                    denominator += weight
+                if denominator:
+                    self._conn.execute(
+                        "INSERT INTO hourly_rollup "
+                        "VALUES (?, ?, ?, ?, ?, NULL, ?, ?, NULL)",
+                        (*identity, name_id, hour, numerator, denominator),
+                    )
+                continue
+            readings = []
+            for sample in middle:
+                value = values.get(sample["id"], {}).get(name)
+                if value is None:
+                    continue
+                opening = values.get(sample["id"], {}).get(
+                    f"{_OPEN_MEASUREMENT_PREFIX}{name}"
+                )
+                readings.append(
+                    {
+                        "ts": float(sample["ts_epoch"]),
+                        "host": host,
+                        "boot_id": boot_id,
+                        "job_id": sample["job_id"],
+                        "value": value[2],
+                        "open_value": None if opening is None else opening[2],
+                    }
+                )
+            if not readings:
+                continue
+            groups: list[list[dict[str, Any]]] = []
+            prior = None
+            for reading in readings:
+                current = (
+                    (reading["host"], reading["boot_id"], reading["job_id"]),
+                    {"value": reading["value"]},
+                )
+                if not counter_run_continues(prior, current):
+                    groups.append([])
+                groups[-1].append(reading)
+                prior = current
+            segments = []
+            counter_diff = coverage = 0.0
+            for group in groups:
+                first, last = group[0], group[-1]
+                counter_diff += last["value"] - (
+                    first["open_value"]
+                    if first["open_value"] is not None
+                    else first["value"]
+                )
+                coverage += last["ts"] - first["ts"]
+                segments.append([first, last])
+            self._conn.execute(
+                "INSERT INTO hourly_rollup VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)",
+                (
+                    *identity,
+                    name_id,
+                    hour,
+                    counter_diff,
+                    coverage,
+                    json.dumps(segments),
+                ),
+            )
 
     def rebuild(self, sources: Iterable[str | Path]) -> IngestReport:
         """Drop every table and ingest from the record again.
@@ -1577,12 +1801,17 @@ class TelemetryIndex:
         """
         with self._conn:
             self._conn.executescript(
+                "DROP TABLE IF EXISTS hourly_rollup;"
                 "DROP TABLE IF EXISTS measurement;"
+                "DROP TABLE IF EXISTS measurement_name;"
                 "DROP TABLE IF EXISTS sample;"
                 "DROP TABLE IF EXISTS source;"
             )
             self._conn.executescript(_SCHEMA)
         self._hashes.clear()
+        self._rollup_dirty.clear()
+        self._names.clear()
+        self._requires_rebuild = False
         return self.ingest(sources)
 
     # ── queries ──────────────────────────────────────────────────────
@@ -1593,7 +1822,9 @@ class TelemetryIndex:
     def measurement_count(self, name: str) -> int:
         return int(
             self._conn.execute(
-                "SELECT COUNT(*) FROM measurement WHERE name = ?", (name,)
+                "SELECT COUNT(*) FROM measurement WHERE name_id = "
+                "(SELECT id FROM measurement_name WHERE name = ?)",
+                (name,),
             ).fetchone()[0]
         )
 
@@ -1607,7 +1838,8 @@ class TelemetryIndex:
         row = self._conn.execute(
             "SELECT SUM(m.value) AS total, COUNT(*) AS n FROM measurement m "
             "JOIN sample s ON s.id = m.sample_id "
-            "WHERE m.name = ? AND m.kind = 'interval' "
+            "WHERE m.name_id = (SELECT id FROM measurement_name "
+            "WHERE name = ? AND kind = 'interval') "
             "  AND s.ts_epoch >= ? AND s.ts_epoch < ?",
             (name, start, end),
         ).fetchone()
@@ -1625,39 +1857,133 @@ class TelemetryIndex:
         machine's file over one boot, so the gap a reboot leaves is a gap in
         coverage and not an interval one sample was held across.
         """
-        row = self._conn.execute(
-            """
-            WITH weighted AS (
-                SELECT s.id AS sample_id,
+        return self.time_weighted_means([name], start, end)[name][1]
+
+    def time_weighted_means(
+        self, names: Iterable[str], start: float, end: float
+    ) -> dict[str, tuple[bool, float | None]]:
+        """Read every requested card from one bounded statement.
+
+        The returned boolean says whether the series exists anywhere in the
+        record; the mean is absent when this period has no covered seconds.
+        """
+        requested = tuple(dict.fromkeys(names))
+        if not requested:
+            return {}
+        if end <= start:
+            return {name: (False, None) for name in requested}
+        whole_begin = int(math.ceil(start / 3600)) * 3600
+        whole_end = int(math.floor(end / 3600)) * 3600
+        edges = (
+            [(start, end)]
+            if whole_begin >= whole_end
+            else [(start, whole_begin), (whole_end, end)]
+        )
+        if len(edges) == 1:
+            edges.append((end, end))
+        requested_values = ", ".join("(?)" for _ in requested)
+        query = f"""
+            WITH requested(name) AS (VALUES {requested_values}),
+            edges(edge_id, lo, hi) AS (VALUES (0, ?, ?), (1, ?, ?)),
+            source_keys AS (
+                SELECT DISTINCT host, boot_id, inode FROM source
+            ),
+            raw AS (
+                SELECT e.edge_id, e.lo, e.hi, s.id, s.host, s.boot_id,
+                       s.inode, s.ts_epoch, s.offset
+                FROM edges e JOIN sample s INDEXED BY sample_time
+                  ON s.ts_epoch >= e.lo AND s.ts_epoch < e.hi
+                WHERE e.lo < e.hi
+                UNION ALL
+                SELECT e.edge_id, e.lo, e.hi, s.id, s.host, s.boot_id,
+                       s.inode, s.ts_epoch, s.offset
+                FROM edges e CROSS JOIN source_keys k JOIN sample s
+                  ON s.id = (
+                    SELECT p.id FROM sample p INDEXED BY sample_source_time
+                    WHERE p.host = k.host AND p.boot_id = k.boot_id
+                      AND p.inode = k.inode AND p.ts_epoch < e.lo
+                    ORDER BY p.ts_epoch DESC, p.offset DESC LIMIT 1)
+                WHERE e.lo < e.hi
+                UNION ALL
+                SELECT e.edge_id, e.lo, e.hi, s.id, s.host, s.boot_id,
+                       s.inode, s.ts_epoch, s.offset
+                FROM edges e CROSS JOIN source_keys k JOIN sample s
+                  ON s.id = (
+                    SELECT p.id FROM sample p INDEXED BY sample_source_time
+                    WHERE p.host = k.host AND p.boot_id = k.boot_id
+                      AND p.inode = k.inode AND p.ts_epoch < e.lo
+                    ORDER BY p.ts_epoch DESC, p.offset DESC LIMIT 1 OFFSET 1)
+                WHERE e.lo < e.hi
+                UNION ALL
+                SELECT e.edge_id, e.lo, e.hi, s.id, s.host, s.boot_id,
+                       s.inode, s.ts_epoch, s.offset
+                FROM edges e CROSS JOIN source_keys k JOIN sample s
+                  ON s.id = (
+                    SELECT p.id FROM sample p INDEXED BY sample_source_time
+                    WHERE p.host = k.host AND p.boot_id = k.boot_id
+                      AND p.inode = k.inode AND p.ts_epoch >= e.hi
+                    ORDER BY p.ts_epoch, p.offset LIMIT 1)
+                WHERE e.lo < e.hi
+            ),
+            sequenced AS (
+                SELECT raw.*,
+                       LAG(ts_epoch) OVER (
+                           PARTITION BY edge_id, host, boot_id, inode
+                           ORDER BY ts_epoch, offset) AS previous_ts,
+                       LEAD(ts_epoch) OVER (
+                           PARTITION BY edge_id, host, boot_id, inode
+                           ORDER BY ts_epoch, offset) AS next_ts
+                FROM raw
+            ),
+            weighted AS (
+                SELECT id,
                        MAX(0.0, MIN(
-                           COALESCE(
-                               LEAD(s.ts_epoch) OVER (
-                                   PARTITION BY s.host, s.boot_id, s.inode
-                                   ORDER BY s.ts_epoch, s.offset
-                               ),
-                               s.ts_epoch + COALESCE(
-                                   s.ts_epoch - LAG(s.ts_epoch) OVER (
-                                       PARTITION BY s.host, s.boot_id, s.inode
-                                       ORDER BY s.ts_epoch, s.offset
-                                   ),
-                                   0.0
-                               )
-                           ),
-                           ?
-                       ) - MAX(s.ts_epoch, ?)) AS weight
-                FROM sample s
-                WHERE s.ts_epoch IS NOT NULL
+                           COALESCE(next_ts,
+                                    ts_epoch + COALESCE(ts_epoch - previous_ts, 0.0)),
+                           hi) - MAX(ts_epoch, lo)) AS weight
+                FROM sequenced
+            ),
+            contributions AS (
+                SELECT m.name_id, SUM(m.value * w.weight) AS num,
+                       SUM(w.weight) AS den
+                FROM weighted w JOIN measurement m ON m.sample_id = w.id
+                WHERE w.weight > 0
+                GROUP BY m.name_id
+                UNION ALL
+                SELECT name_id, SUM(gauge_integral), SUM(coverage_seconds)
+                FROM hourly_rollup
+                WHERE hour >= ? AND hour < ? AND gauge_integral IS NOT NULL
+                GROUP BY name_id
+            ),
+            totals AS (
+                SELECT name_id, SUM(num) AS num, SUM(den) AS den
+                FROM contributions GROUP BY name_id
             )
-            SELECT SUM(m.value * w.weight) AS num, SUM(w.weight) AS den
-            FROM measurement m JOIN weighted w ON w.sample_id = m.sample_id
-            WHERE m.name = ? AND m.kind = 'interval' AND w.weight > 0
-            """,
-            (end, start, name),
-        ).fetchone()
-        total_seconds = row["den"] or 0.0
-        if not total_seconds:
-            return None
-        return float(row["num"]) / float(total_seconds)
+            SELECT requested.name, n.id IS NOT NULL AND EXISTS (
+                       SELECT 1 FROM measurement m
+                       WHERE m.name_id = n.id LIMIT 1) AS present,
+                   totals.num, totals.den
+            FROM requested LEFT JOIN measurement_name n
+              ON n.name = requested.name AND n.kind = 'interval'
+            LEFT JOIN totals ON totals.name_id = n.id
+        """
+        arguments = (
+            *requested,
+            edges[0][0],
+            edges[0][1],
+            edges[1][0],
+            edges[1][1],
+            whole_begin // 3600,
+            whole_end // 3600,
+        )
+        rows = self._conn.execute(query, arguments).fetchall()
+        return {
+            row["name"]: (
+                bool(row["present"]),
+                None if not row["den"] else float(row["num"]) / float(row["den"]),
+            )
+            for row in rows
+        }
 
     def counter_span(self, name: str, start: float, end: float) -> float | None:
         """Advance of a cumulative quantity across ``[start, end)``.
@@ -1710,17 +2036,14 @@ class TelemetryIndex:
         record only partly covers must report a partial figure that announces
         itself rather than print the window's nominal length beside it.
         """
-        rows = self._conn.execute(
-            "SELECT s.ts_epoch AS ts, s.host AS host, s.boot_id AS boot_id, "
-            "       s.job_id AS job_id, m.value AS value, "
-            "       (SELECT o.value FROM measurement o "
-            "        WHERE o.sample_id = s.id AND o.name = ?) AS open_value "
-            "FROM measurement m JOIN sample s ON s.id = m.sample_id "
-            "WHERE m.name = ? AND s.ts_epoch IS NOT NULL AND s.ts_epoch < ? "
-            "ORDER BY s.ts_epoch, s.offset, s.host, s.boot_id",
-            (f"{_OPEN_MEASUREMENT_PREFIX}{name}", name, end),
-        ).fetchall()
+        rows = self._counter_window_rows(name, start, end)
+        return self._partitioned_rows(name, start, end, rows)
 
+    @staticmethod
+    def _partitioned_rows(
+        name: str, start: float, end: float, rows: Iterable[Mapping[str, Any]]
+    ) -> PartitionedTotal:
+        """Difference run endpoints and union their observed spans."""
         total: float | None = None
         spans: list[tuple[float, float]] = []
         contributing = 0
@@ -1748,6 +2071,67 @@ class TelemetryIndex:
             contributing += 1
         return PartitionedTotal(name, total, _union_length(spans), contributing)
 
+    def _counter_window_rows(
+        self, name: str, start: float, end: float
+    ) -> list[Mapping[str, Any]]:
+        """Read the two raw edge hours and compressed whole-hour endpoints."""
+        name_row = self._conn.execute(
+            "SELECT id FROM measurement_name WHERE name = ?", (name,)
+        ).fetchone()
+        if name_row is None:
+            return []
+        name_id = int(name_row[0])
+        opening_row = self._conn.execute(
+            "SELECT id FROM measurement_name WHERE name = ?",
+            (f"{_OPEN_MEASUREMENT_PREFIX}{name}",),
+        ).fetchone()
+        opening_id = None if opening_row is None else int(opening_row[0])
+        whole_begin = int(math.ceil(start / 3600)) * 3600
+        whole_end = int(math.floor(end / 3600)) * 3600
+        raw_ranges = (
+            [(start, end)]
+            if whole_begin >= whole_end
+            else [(start, whole_begin), (whole_end, end)]
+        )
+        result: list[Mapping[str, Any]] = []
+        # The latest predecessor is the only row before the requested period
+        # that can be its opening. The time index answers this in reverse order.
+        select = (
+            "SELECT s.ts_epoch AS ts, s.host, s.boot_id, s.job_id, "
+            "m.value, o.value AS open_value FROM sample s INDEXED BY sample_time "
+            "JOIN measurement m ON m.sample_id = s.id AND m.name_id = ? "
+            "LEFT JOIN measurement o ON o.sample_id = s.id AND o.name_id = ? "
+            "WHERE s.ts_epoch "
+        )
+        predecessor = self._conn.execute(
+            select + "<= ? ORDER BY s.ts_epoch DESC, s.offset DESC LIMIT 1",
+            (name_id, opening_id, start),
+        ).fetchone()
+        if predecessor is not None:
+            result.append(predecessor)
+        for lower, upper in raw_ranges:
+            if lower >= upper:
+                continue
+            result.extend(
+                self._conn.execute(
+                    select + ">= ? AND s.ts_epoch < ? "
+                    "ORDER BY s.ts_epoch, s.offset, s.host, s.boot_id",
+                    (name_id, opening_id, lower, upper),
+                ).fetchall()
+            )
+        if whole_begin < whole_end:
+            rollups = self._conn.execute(
+                "SELECT segments FROM hourly_rollup WHERE name_id = ? "
+                "AND hour >= ? AND hour < ? AND segments IS NOT NULL",
+                (name_id, whole_begin // 3600, whole_end // 3600),
+            ).fetchall()
+            for rollup in rollups:
+                for first, last in json.loads(rollup["segments"]):
+                    result.append(first)
+                    if last != first:
+                        result.append(last)
+        return sorted(result, key=lambda row: (row["ts"], row["host"], row["boot_id"]))
+
     def _last_at_or_before(
         self, name: str, bound: float, *, strict: bool = False
     ) -> tuple[str, str, float] | None:
@@ -1756,7 +2140,8 @@ class TelemetryIndex:
         row = self._conn.execute(
             "SELECT s.host AS host, s.boot_id AS boot_id, m.value AS value "
             "FROM measurement m JOIN sample s ON s.id = m.sample_id "
-            f"WHERE m.name = ? AND s.ts_epoch {comparison} ? "
+            f"WHERE m.name_id = (SELECT id FROM measurement_name WHERE name = ?) "
+            f"AND s.ts_epoch {comparison} ? "
             "ORDER BY s.ts_epoch DESC, s.offset DESC, s.host, s.boot_id LIMIT 1",
             (name, bound),
         ).fetchone()
@@ -1769,7 +2154,8 @@ class TelemetryIndex:
         row = self._conn.execute(
             "SELECT s.host AS host, s.boot_id AS boot_id, m.value AS value "
             "FROM measurement m JOIN sample s ON s.id = m.sample_id "
-            "WHERE m.name = ? AND s.ts_epoch >= ? AND s.ts_epoch < ? "
+            "WHERE m.name_id = (SELECT id FROM measurement_name WHERE name = ?) "
+            "AND s.ts_epoch >= ? AND s.ts_epoch < ? "
             "ORDER BY s.ts_epoch, s.offset, s.host, s.boot_id LIMIT 1",
             (name, start, end),
         ).fetchone()

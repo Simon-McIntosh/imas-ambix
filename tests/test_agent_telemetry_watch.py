@@ -33,6 +33,90 @@ MONTH = 2592000.0
 LEDGER_HEADER = "ledger  period · covered · in · cached · out · cards · cost"
 
 
+class _RawIndex(TelemetryIndex):
+    """Reference reader that computes counters and gauges from every raw row."""
+
+    def _counter_window_rows(self, name, start, end):
+        row = self._conn.execute(
+            "SELECT id FROM measurement_name WHERE name = ?", (name,)
+        ).fetchone()
+        if row is None:
+            return []
+        opening = self._conn.execute(
+            "SELECT id FROM measurement_name WHERE name = ?",
+            (f"open.{name}",),
+        ).fetchone()
+        return self._conn.execute(
+            "SELECT s.ts_epoch AS ts, s.host, s.boot_id, s.job_id, "
+            "m.value, o.value AS open_value FROM measurement m "
+            "JOIN sample s ON s.id = m.sample_id "
+            "LEFT JOIN measurement o ON o.sample_id = s.id AND o.name_id = ? "
+            "WHERE m.name_id = ? AND s.ts_epoch < ? "
+            "ORDER BY s.ts_epoch, s.offset, s.host, s.boot_id",
+            (None if opening is None else opening[0], row[0], end),
+        ).fetchall()
+
+    def time_weighted_mean(self, name, start, end):
+        row = self._conn.execute(
+            """
+            WITH weighted AS (
+                SELECT s.id AS sample_id,
+                       MAX(0.0, MIN(
+                           COALESCE(
+                               LEAD(s.ts_epoch) OVER (
+                                   PARTITION BY s.host, s.boot_id, s.inode
+                                   ORDER BY s.ts_epoch, s.offset
+                               ),
+                               s.ts_epoch + COALESCE(
+                                   s.ts_epoch - LAG(s.ts_epoch) OVER (
+                                       PARTITION BY s.host, s.boot_id, s.inode
+                                       ORDER BY s.ts_epoch, s.offset
+                                   ), 0.0)
+                           ), ?
+                       ) - MAX(s.ts_epoch, ?)) AS weight
+                FROM sample s WHERE s.ts_epoch IS NOT NULL
+            )
+            SELECT SUM(m.value * w.weight) AS num, SUM(w.weight) AS den
+            FROM measurement m JOIN weighted w ON w.sample_id = m.sample_id
+            WHERE m.name_id = (SELECT id FROM measurement_name
+                               WHERE name = ? AND kind = 'interval')
+              AND w.weight > 0
+            """,
+            (end, start, name),
+        ).fetchone()
+        return None if not row["den"] else float(row["num"]) / float(row["den"])
+
+    def time_weighted_means(self, names, start, end):
+        return {
+            name: (
+                bool(self.measurement_count(name)),
+                self.time_weighted_mean(name, start, end),
+            )
+            for name in names
+        }
+
+
+def _first_difference(actual, expected, path="$"):
+    """Name the first differing document field, including list positions."""
+    if isinstance(actual, dict) and isinstance(expected, dict):
+        for key in sorted(actual.keys() | expected.keys()):
+            if key not in actual or key not in expected:
+                return f"{path}.{key}"
+            different = _first_difference(actual[key], expected[key], f"{path}.{key}")
+            if different:
+                return different
+        return None
+    if isinstance(actual, list) and isinstance(expected, list):
+        if len(actual) != len(expected):
+            return f"{path}.length"
+        for position, (left, right) in enumerate(zip(actual, expected, strict=True)):
+            different = _first_difference(left, right, f"{path}[{position}]")
+            if different:
+                return different
+        return None
+    return path if actual != expected else None
+
+
 def _assert_no_ledger_block(text: str) -> None:
     """The report carries neither the ledger header nor any period row."""
     assert LEDGER_HEADER not in text
@@ -342,6 +426,39 @@ def test_index_rebuilds_to_the_same_figures(tmp_path: Path) -> None:
     second.close()
 
     assert figures == rebuilt
+
+
+def test_watch_document_matches_raw_rows_across_whole_hours(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A whole-hour shortcut keeps every published field equal to a raw scan."""
+    now = _dt.datetime(2026, 10, 23, 8, 17, tzinfo=_dt.UTC).timestamp()
+    directory = _write(tmp_path, _dense_rows(now, steps=120, spacing=900.0))
+    target = tmp_path / "rollup.sqlite3"
+    with TelemetryIndex(target) as built:
+        built.ingest(discover(directory))
+        assert built._conn.execute("SELECT COUNT(*) FROM hourly_rollup").fetchone()[0]
+        if os.environ.get("AMBIX_TEST_PERTURB_ROLLUP"):
+            name = watch.CARD_UTILISATION.format(prefix=watch.CARD_PREFIXES[0], i=0)
+            changed = built._conn.execute(
+                "UPDATE hourly_rollup SET gauge_integral = gauge_integral + 3600 "
+                "WHERE name_id = (SELECT id FROM measurement_name WHERE name = ?) "
+                "AND gauge_integral IS NOT NULL",
+                (name,),
+            )
+            assert changed.rowcount > 0
+            built._conn.commit()
+    monkeypatch.setattr(watch, "_owned_history", lambda: [])
+    monkeypatch.setattr(watch, "_installed_estimate", lambda: None)
+    candidate = watch.watch_document(
+        record_dir=directory, index_path=target, now=now, prices=[]
+    )
+    monkeypatch.setattr(watch, "TelemetryIndex", _RawIndex)
+    reference = watch.watch_document(
+        record_dir=directory, index_path=target, now=now, prices=[]
+    )
+    mismatch = _first_difference(candidate, reference)
+    assert mismatch is None, f"rollup mismatch at {mismatch}"
 
 
 def test_price_schedule_resolves_per_weekday(tmp_path: Path) -> None:
