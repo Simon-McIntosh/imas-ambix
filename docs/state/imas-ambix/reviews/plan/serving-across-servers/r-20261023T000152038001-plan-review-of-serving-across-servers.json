@@ -1,0 +1,51 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T00:15:35.442Z",
+  "dispatched_at": "2026-10-23T00:02:27Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:201",
+      "id": "done_when-1",
+      "reason": "the guard is the whole proof of \u00a75's central claim (every document has exactly one writer), and as specified it can pass while a scheduled writer still clobbers `lane.json`, which is precisely the defect the section exists to close; the section should name the writer set (both functions, and the running refresher job) rather than one function name.",
+      "text": "\u00a75 proves \"no function but the composer writes a lane document\" with \"a test [that] asserts it by searching the package for calls to `write_lane_document`\", but `imas_ambix/agent/lane.py:618` defines `write_unavailable_document`, a second function that writes the very same path, and the command \u00a75 retires calls it with that path (`imas_ambix/agent/cli.py:3863`, `document_path` = `lane.json`). A node that removes the `write_lane_document` call at cli.py:3840/3868 but leaves the unavailable path passes the guard while `imas-ambix agent lane` and its long-lived refresher job keep overwriting `lane.json` with a stale-origin `unavailable` document; \u00a75 asks the node only to \"record what it found\" for the refresher and its Done-when bullets (lines 232\u2013246) contain no bullet measuring the retirement, so nothing else catches it either",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "430780e5d4c83bb004abf1c2b61daec465ae85a6fdb342dc79551f64ed65e7a9",
+  "plan_slug": "serving-across-servers",
+  "plan_version": 25,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T000152038001-plan-review-of-serving-across-servers",
+  "reviewed_blob_sha": "6f6e0d79b16cf6f243e7c1210404b9ce963655b8",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 resolved against the tree: `RouterApp._publish_lane` (imas_ambix/agent/router.py:2105, called from router.py:2022), `lane.write_lane_document` (lane.py:783), `generate_lane_refresher_script` (cli.py:3818), the `lane` command (cli.py:3777), `node_probe.NodeProbe`/`read_cards`/`read_host`/`read_jobs` (node_probe.py:708/404/591/667, used by serving_receipts.py:808 and telemetry_retention.py:61), reckon's `read_lane_document` (reckon/crew/lane_document.py:303), dotfiles `bin/gpu-watch` at 1819 lines carrying `serve_grid`/`callers_table`/`serve_ledger_table` (lines 704/978/1110) which \u00a710's symbol check names, and `bin/_gpu_sample.py`/`bin/_gpu_watch_test.py` both present; `imas_ambix/agent/gpu_watch/` does not exist yet, which is what \u00a710 creates.",
+    "done_when": "a finding \u2014 \u00a75 asserts that after it lands \"no function but the composer writes a lane document\" and proves it with a search for `write_lane_document`, but a second function writes the same `lane.json`, so the guard measures the wrong symbol and the Done-when bullets (lines 232\u2013246) carry no bullet for the retirement at all.",
+    "evidence_paths": "pass \u2014 \u00a75's reckon contract test is skipped with its reason printed where reckon is not importable, and \u00a710's gate logs land in the run's own evidence directory; neither writes to a session scratchpad or a node-local temporary path.",
+    "naming": "pass \u2014 \u00a75's and \u00a710's changed text introduces no plan labels, stage names, ticket numbers or version tags into code, and no changelog prose; `watch-home`, `b300-role` and `local-lane-admission-control` are a decision key, a decision key and a plan reference respectively, not symbols.",
+    "reasoning": "pass \u2014 \u00a75's root cause (a second writer of `lane.json`) matches the code, where cli.py's `lane` command calls `write_lane_document` at lines 3840 and 3868; \u00a710's root cause (a renderer in dotfiles hard-coding the node) matches the 1819-line `bin/gpu-watch`; both mechanisms name the caller they depend on (\u00a75 `_publish_lane` from the router's lane task, \u00a710 `NodeProbe` from the recorder and the retention pass), and each section's stated mechanism can produce the measure its own Done-when asserts.",
+    "single_goal": "pass \u2014 \u00a75 carries one deliverable (one lane document per pool) and \u00a710 one (gpu-watch shows the machines), each closable on a single verdict.",
+    "wiring": "pass \u2014 s10\u2192s3,s9 is declared and correct (\u00a710 reads servers from `endpoints.json` and shares \u00a79's style module); s5 needs no declared edge because \u00a711 step 2 deploys \u00a74 and \u00a75 together under one lane cycle."
+  },
+  "section_digests": {
+    "_document": "76b1319ed44987cfbc438a729b9cb1ce7ec5acd208da6926236790a26efb6ee0",
+    "s1": "84abea84a25c5ecad35220751db61c7b49c61973eda4e741e78348e16b694de2",
+    "s10": "fe30c5bee7553576dc5c7fb89b35c24667e24c55ebd8fad98687847b2c74f1bf",
+    "s11": "62f1493b298180fcbe06fee10cb81673164f37dc646739667214e8c6aec4d812",
+    "s12": "635129369af591c5ed9cc97e1eca5d88c9bc4726355cb4d15f89c4d4d8bb714b",
+    "s13": "d6a25041d94de4d2edca565f9547a2318892f456c088170892456d55f5ad8bdd",
+    "s2": "07c84f3703bedbf51b14249471fa10a4580efea08771ba394dd7383ec52328c7",
+    "s3": "00fd83fbad872f21eb8f9f5434e1a3b6963ca67f6613df3c84a0de4c2ede025b",
+    "s4": "25bebe082ae8eefd4294ed18a8119c22a616dac41902d3de2da67458deb06918",
+    "s5": "38c53fc7856b35670790888b5573359cbb7afdd522b6c708dd82c3dbb75334d3",
+    "s6": "ceae93e6905a33dc8facd996f608b63d18e72e315ad6e507bce9b5e840ca2dcc",
+    "s7": "f0eb3d24d868bfaf352c4a849435a0432daa643483a73cd3179e2648759af011",
+    "s8": "57e5d85784a405ff2b2f89090545733d248313eb01eeec8036460c7d0c8ef624",
+    "s9": "c6f7f46acd0028a4141d94a8ccfeda90f3e785256e3b1419650c0e8e08bd10ac"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T00:18:43.561843+00:00"
+}
