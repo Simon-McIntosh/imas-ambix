@@ -1,0 +1,60 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T03:17:20.632Z",
+  "dispatched_at": "2026-10-23T03:03:50Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/a-tool-call-carries-no-model-markup/r-20261023T030257648169-plan-review-of-a-tool-call-carries-no-model-markup",
+      "id": "done_when-1",
+      "reason": "every one of the twenty leak fixtures does carry a structural opening (regex hits 35\u201393 each, 20 of 20 fixtures), so the plan can and should require exactly twenty firings; as written a matcher that misses, say, five leaks still satisfies the measure, and \u00a75's whole success claim rests on the guard firing on every leak.",
+      "text": "s3's population-pass measure is conditional and therefore unfalsifiable over the known leaks: it requires the log to list \"one [firing] for each leaked call whose argument carries a structural opening\"",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/a-tool-call-carries-no-model-markup/r-20261023T030257648169-plan-review-of-a-tool-call-carries-no-model-markup",
+      "id": "reasoning-1",
+      "reason": "a guard that never fires on the real stream is the whole fix failing silently (the leak class \u00a71 measured stays, and \u00a75's post-restart census would then read zero leaks from an unproven cause); the plan needs either the watch to match the reassembled-and-`json`-decoded input, or one captured real SSE frame to fix the encoding before the relay tests are built on the assumption.",
+      "text": "s3 matches the DSML opening in the accumulated `input_json_delta` text, but nothing in the plan establishes that the serve's SSE carries the token literally rather than JSON-unicode-escaped, and both its instruments (the relay test and the population pass) synthesise deltas from the decoded tool input, so a `<`-escaped serve yields no firing in production with every test green",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/a-tool-call-carries-no-model-markup/r-20261023T030257648169-plan-review-of-a-tool-call-carries-no-model-markup",
+      "id": "evidence_paths-1",
+      "reason": "\u00a75 (depends-on s3) measures \"the number of firings and of pass-throughs\" from those lines, so if \u00a73 leaves the destination unnamed that measure has no readable source; s3 is the changed unit that introduces the instrument, so the path belongs here.",
+      "text": "s3 states \"the router writes one log line per firing \u2026 and that line is what a census counts\" but names no durable path, and the router's only log sink is a `logging` StreamHandler on the serving process's stdout (router.py L3025\u20133037)",
+      "type": "evidence_paths",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "d35e64e10c849c1b395d07fce6cfce8eebfecb86cb75c92147d56e245251c9a1",
+  "plan_slug": "a-tool-call-carries-no-model-markup",
+  "plan_version": 16,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T030257648169-plan-review-of-a-tool-call-carries-no-model-markup",
+  "reviewed_blob_sha": "fee62500a8b48b1937a8a21a1c87a47ca995c9ae",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `RouterApp._relay` (router.py L2402), `StreamAccounting`/`feed` (request_receipts.py L342/L373), `STATUS_ABORTED` (L124), `tests/test_agent_router.py`, `tests/test_agent_router_cut.py`, `census.py` and `fixtures/` all resolve; `imas_ambix/agent/tool_input_markup.py` is correctly a new path.",
+    "done_when": "a finding \u2014 s3's population-pass measure is conditional (\"one for each leaked call whose argument carries a structural opening\"), so a matcher that misses leaks cannot fail the node even though all twenty known leaks carry a structural opening.",
+    "evidence_paths": "a finding \u2014 s3 makes \"the router's per-firing log line \u2026 what a census counts\" (\u00a75's firing/pass-through counts) but names no durable destination for it, and the router only emits that line through the `logging` root handler to the serving process's stdout (router.py L3025\u20133037).",
+    "naming": "pass \u2014 `tool_input_markup.py`, the structural-matcher wording and the test extensions carry no plan labels, stage names, ticket numbers or version tags, and the comments state mechanism.",
+    "reasoning": "a finding \u2014 the watch is specified to match the DSML token in the raw `input_json_delta` text, but s3's only instruments rebuild deltas from the already-decoded tool input, so nothing in the plan can detect a serve whose SSE body JSON-escapes `<`, and the guard would silently never fire in production while every test stays green.",
+    "single_goal": "pass \u2014 s3 delivers one thing, the router guard; the module, the relay/unit tests and the population pass are parts of that one deliverable, not a second goal.",
+    "wiring": "pass \u2014 `s3` declares `depends-on a-tool-call-carries-no-model-markup#s2` and `s5` declares `depends-on \u2026#s3`; both resolve to existing sections, and s3 needs no other relationship (fixtures dir and `census.py` it consumes are cited by path, not by an undeclared edge)."
+  },
+  "section_digests": {
+    "_document": "403da21a79cbe327f0935fd41d2a294ae9f63b57b37ed27f5ac61e33601230ae",
+    "s1": "5f8c49e3d7e51c0174a76ddfea229d085b20b6e290dcf0a017c94c993156cdda",
+    "s2": "f22bd920ddbf54ebe86243b05d2d8c24bd970608d7794349574f97d6eaea2201",
+    "s3": "b527e75561368fd20dd028a05a7d82cd17885eb1f10e894a0dd0ea6e7b1965f0",
+    "s4": "73433c178790d5f6f90c5a57799d16eb9d4fcf7a0039fc4044d9886609d0e472",
+    "s5": "b29d34846a70039b1a632b3890af491cf2018b4435bdf18b55e429eb124d853a",
+    "s6": "0629f0c30cab8733b2150eadf81ec757fe59a4a2742e8c7c636580d856b53d9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T03:21:20.770323+00:00"
+}
