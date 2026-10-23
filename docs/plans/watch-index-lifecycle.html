@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"   content="imas-ambix">
+  <meta name="reckon-type"    content="plan">
+  <meta name="plan-slug"      content="watch-index-lifecycle">
+  <meta name="plan-title"     content="Watch Index Lifecycle">
+  <meta name="plan-summary"   content="Move the derived telemetry index off GPFS, make every read cost its window and every ingest cost its new bytes, and give each artefact a lifecycle">
+  <meta name="plan-status"    content="active">
+  <meta name="plan-roi"       content="high">
+  <meta name="plan-effort-hours" content="12.0">
+  <meta name="plan-capability-version" content="1.0">
+  <meta name="plan-capability-class" content="orchestrator">
+  <meta name="plan-capability-reasoning" content="deep">
+  <meta name="plan-capability-verification" content="strict">
+  <meta name="plan-sprint"    content="S27">
+  <meta name="plan-owner"     content="Simon McIntosh">
+  <meta name="plan-tags"      content="agent-serving">
+  <meta name="plan-blocks"    content="serving-record-warehouse">
+  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;]}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;deferred&quot;}">
+  <title>Watch Index Lifecycle | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — What the two services were doing to GPFS, measured</h2>
+    <p>On 2026-10-23 the reckon storage session found <code>ambix-watch-publisher</code> to be the largest load on GPFS on this workstation. It was reading about 49 GB a minute (about 800 MB/s), against about 1.6 GB a minute for every reckon monitor process combined. It had run like this for 2 days 8 hours, which plausibly explains <code>mmfsd</code> sitting near 150% CPU and plan writes taking over two minutes. Its sibling <code>ambix-ingest</code> was reading another 2.8 GB a minute. Both run as declared services of the fleet supervisor on <code>98dci4-clu-2068</code> (job 1291586), from <code>~/.config/fleet/services.json</code>.</p>
+    <p>What the publisher does each iteration, and why it never rested:</p>
+    <ul>
+      <li><strong>It writes a 9–12 KB document from an 8.66 GB database on GPFS.</strong> <code>~/.cache/ambix/watch-index.sqlite3</code> sits in the home directory, which is GPFS. Its service log shows <code>compute_seconds</code> of 1,241 to 1,306 s for each of the last five cycles against a 300 s cadence, so it computed continuously. It ran at 71% of a core.</li>
+      <li><strong>Each gauge read scans the whole table.</strong> <code>TelemetryIndex.time_weighted_mean</code> computes <code>LAG</code>/<code>LEAD</code> window functions over every row of <code>sample</code>: its only filter is <code>ts_epoch IS NOT NULL</code>, and the window bounds are applied after the scan. <code>watch_document</code> calls it once per card for each of the four ledger periods (1 hour, 1 day, 1 week, 1 month), which is up to 32 full scans per publication.</li>
+      <li><strong>The fix was already planned and never built.</strong> On 2026-10-15, serving-record-warehouse §24 accepted the remaining whole-table scan as owned by the hourly rollup in its followup <code>f-srw-020</code>. That rollup was never dispatched. Meanwhile the cycle grew with the table: 78 s on 2026-10-02, 529–612 s on 2026-10-18, and 1,306 s on 2026-10-23.</li>
+    </ul>
+    <p>What the ingest does each tick, and why it reads gigabytes to take in kilobytes:</p>
+    <ul>
+      <li><strong>Every 60 s, each grown file is read twice in full.</strong> For a file that grew, <code>_was_rewritten</code> hashes the whole consumed prefix to prove the file was not rewritten. <code>_read_new</code> then reads that same prefix again (<code>head = handle.read(start)</code>) to seed the next digest. The cost grows with the file's size, not with what was appended.</li>
+      <li><strong>The live serve's raw record is one 1.02 GB file, and its minute tier is 0.29 GB.</strong> Both are <code>deepseek-v4-1-flash-1280470*.jsonl</code>. They have not rolled daily, because serving-record-warehouse §21's daily roll takes effect only at the next serve restart. Two reads of 1.31 GB a minute is about 2.6 GB a minute, which matches the 2.8 GB a minute the storage session measured. One tick takes in about 50 KB.</li>
+    </ul>
+    <p>How the bytes compare:</p>
+    <table>
+      <thead><tr><th>artefact</th><th>where</th><th>size</th></tr></thead>
+      <tbody>
+        <tr><td>all receipts, raw and compacted tiers, 108 <code>.jsonl</code> files</td><td><code>/work/projects/imas_gpu/agents/receipts/</code></td><td>1.59 GB</td></tr>
+        <tr><td>the index derived from them</td><td><code>~/.cache/ambix/watch-index.sqlite3</code></td><td>8.66 GB, 5.4× its source</td></tr>
+        <tr><td>SLURM job logs at the repository root, untracked</td><td><code>~/Code/imas-ambix/*.log</code></td><td>451 files, 1.32 GB</td></tr>
+      </tbody>
+    </table>
+    <p>The index is larger than what it indexes for three structural reasons:</p>
+    <ul>
+      <li>every receipt line is stored verbatim in <code>sample.payload</code>;</li>
+      <li>every value becomes an entity–attribute–value row in <code>measurement</code>, whose name and kind strings repeat on every row and again in the <code>measurement_lookup</code> index;</li>
+      <li>nothing in the index ages out.</li>
+    </ul>
+    <p>Two further symptoms show the design is under strain:</p>
+    <ul>
+      <li>The database runs in rollback-journal mode, so every long read blocks the writer. The retained ingest log carries 359 <code>ingest tick failed</code> lines.</li>
+      <li>The last retention manifest is dated 2026-10-17, although retention is meant to run daily.</li>
+    </ul>
+    <p><strong>Action taken at 05:23:16Z.</strong> The publisher's entry was removed from <code>services.json</code>, and the fleet supervisor was sent <code>reload</code>. The supervisor stopped pid 4164350 by its recorded pid. Its workstation lease was released, and no other fleet's supervisor has claimed it. The supervisor kept its pid and adopted <code>ambix-ingest</code> and <code>reckon-admit-local</code>; all six zellij servers survived. The previous configuration is kept at <code>~/.local/state/fleet/config-history/services.json.20261023T0525Z</code>. <code>watch.json</code> is frozen at <code>published_at</code> 05:11:04Z until §6 lands. The ingest is still running unchanged, because the storage session deliberately left it.</p>
+
+    <h2 id="s2">§2 — The design: authority on GPFS, derived state on the node, one writer</h2>
+    <p>The system has one authority: the receipts on GPFS, which the recorder appends to and nothing else writes. Everything else is derived from them and can be rebuilt. Each artefact therefore gets a place, a lifecycle and a deletion rule that follow from which of the two it is.</p>
+    <figure>
+      <img src="/imas-ambix/figures/watch-index-lifecycle/data-flow.svg" alt="Receipts on GPFS feed the ingest on the fleet node by appended bytes. The ingest keeps the index on local disk, writes a daily compressed snapshot back to GPFS, restores from it on a new node, and publishes watch.json to GPFS from rollups.">
+      <figcaption>Where each artefact lives once this plan lands. Only appended receipt bytes, one daily snapshot and a 12 KB document cross between the node and GPFS.</figcaption>
+    </figure>
+    <table>
+      <thead><tr><th>artefact</th><th>kind</th><th>lives on</th><th>lifecycle</th><th>may be deleted when</th></tr></thead>
+      <tbody>
+        <tr><td>raw receipts</td><td>authority</td><td>GPFS receipts directory</td><td>append-only; rolls daily per serving-record-warehouse §21</td><td>only through <code>retire-raw</code>, after its compaction proof</td></tr>
+        <tr><td>compacted minute and hour tiers</td><td>authority once raw is retired</td><td>GPFS receipts directory</td><td>written by compaction; closed days compressed</td><td>never in this plan</td></tr>
+        <tr><td>index</td><td>derived</td><td>fleet node local disk, under <code>$FLEET_RUNTIME_DIR/ambix/</code></td><td>one writer (the ingest), WAL journal, hourly rollups</td><td>any time: it is restored from a snapshot or rebuilt from receipts</td></tr>
+        <tr><td>index snapshot</td><td>derived, durable copy</td><td>GPFS, <code>~/.local/state/ambix/index-snapshots/</code></td><td>daily, zstd-compressed, newest three kept</td><td>when three newer verified snapshots exist</td></tr>
+        <tr><td><code>watch.json</code></td><td>derived publication</td><td>GPFS, <code>~/public/imas-ambix/</code></td><td>written atomically by the ingest every 300 s</td><td>replaced in place each publication</td></tr>
+        <tr><td>SLURM job logs</td><td>diagnostic record</td><td>a log directory, not the repository root</td><td>compressed once the job has ended</td><td>never in this plan</td></tr>
+      </tbody>
+    </table>
+    <p>Five rules follow from that split, and every section below implements one of them:</p>
+    <ul>
+      <li><strong>An ingest tick costs the bytes it takes in</strong> (§3), not the size of the file they were appended to.</li>
+      <li><strong>The derived index lives on the node, not on GPFS</strong> (§4). Its readers and its writer are on the fleet node, so every page it serves from GPFS is a remote read for no reason.</li>
+      <li><strong>A read costs its window, not the history</strong> (§5). A period is a sum of whole hours from a rollup plus raw samples at its two edges.</li>
+      <li><strong>One process owns the index</strong> (§6). The ingest is the only writer, and it publishes the document itself, so there is no second long-lived process, connection or lock contender.</li>
+      <li><strong>Nothing useful is deleted.</strong> The only deletion of authority remains <code>retire-raw</code>'s compaction-proven path. Logs and the old index are compressed into an archive rather than removed, and each archive is verified byte-identical before its original goes (§7). Pruning raw samples from the index is deferred to §9 until a rebuild has proven it loses nothing.</li>
+    </ul>
+    <p><strong>Why local disk and not <code>/dev/shm</code>.</strong> Both are node-local and both vanish with the allocation, so neither is more durable than the other. They differ in what they cost the fleet:</p>
+    <ul>
+      <li><code>/dev/shm</code> is memory. On this node it is a 63 GB tmpfs inside the 120 GB allocation that every orchestrator and worker shares. Its pages are charged as memory and cannot be evicted under pressure, so an 8.66 GB index that grows would hold that memory permanently.</li>
+      <li>Node-local <code>/tmp</code> is a 232 GB disk with 214 GB free. The kernel page cache keeps the hot pages in memory anyway and releases them when workers need the room.</li>
+      <li>After §5 the hot working set is the rollup table and the recent edge hours, which is small.</li>
+    </ul>
+    <p><strong>Why WAL.</strong> SQLite's write-ahead log lets readers proceed while the writer commits, which removes the <code>database is locked</code> class of failure. SQLite documents WAL as unsafe on network filesystems, and that is why it could not be used while the index lived on GPFS. On local disk it is the correct mode. §4 refuses WAL on a path whose filesystem is a network type, so a misconfigured path fails loudly rather than corrupting the index.</p>
+
+    <h2 id="s3">§3 — An ingest tick reads the bytes it takes in</h2>
+    <section data-reckon="section" data-id="s3" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-attempts="0" data-status="implementable" data-links=""></section>
+    <p>The ingest keeps one running <code>hashlib.sha256</code> object per source in memory across ticks. A tick updates it with the appended bytes only, so the stored <code>prefix_sha</code> stays the exact digest of the consumed region without re-reading it. Proving that the old bytes are unchanged is then split into two checks:</p>
+    <ul>
+      <li><strong>Every tick: a bounded probe.</strong> The tick compares digests of the first 64 KiB of the file and of the 64 KiB before the recorded offset, which the index stores at consume time. It also checks that the size is not below the offset, that the inode is the same and that mtime has not gone backwards.</li>
+      <li><strong>On a slower cadence: the whole-prefix digest</strong>, re-verified per source at most once per <code>FULL_IDENTITY_INTERVAL</code> (default 3,600 s). The process also builds each source's hash state once at start-up, with a full read that doubles as that verification.</li>
+    </ul>
+    <p>The trade is stated in the decision below. A rewrite in place that touches neither probe window is detected within an hour, rather than within a tick. Receipts are append-only by contract, and no writer other than the recorder has ever touched one.</p>
+    <p>Write scope: <code>imas_ambix/agent/telemetry_index.py</code> (the source read path: <code>_read_new</code>, <code>_was_rewritten</code>, <code>_digest_of</code> and the source columns they need), <code>tests/test_telemetry_index.py</code>.</p>
+    <p><strong>Done when:</strong></p>
+    <ul>
+      <li>A test that counts bytes read through the file handle shows a source grown by <em>k</em> bytes reads at most <em>k</em> + 128 KiB on each tick after the first.</li>
+      <li>After every tick the stored <code>prefix_sha</code> equals <code>sha256(file[:offset])</code> exactly.</li>
+      <li>The negative controls are each detected at the stated time:
+        <ul>
+          <li>a rewrite inside the head probe window, on the next tick;</li>
+          <li>a same-length rewrite in the middle of the file, at the next full verification once the injected clock passes the interval, and not before;</li>
+          <li>a truncation below the offset, on the next tick.</li>
+        </ul>
+      </li>
+      <li><code>tests/test_telemetry_index.py</code>, <code>tests/test_telemetry_ingest.py</code> and <code>tests/test_ingest_carrier_overlap.py</code> pass.</li>
+      <li>The serving-interpreter guard passes: <code>pytest tests/test_agent_serve_registry.py -k agent_package_modules_parse_with_serving_python</code>.</li>
+      <li><code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</li>
+      <li>All gates run in place on the fleet allocation.</li>
+      <li><strong>After deployment</strong> (the coordinator restarts <code>ambix-ingest</code> with the lead's authority): the ingest pid's <code>read_bytes</code> in <code>/proc/&lt;pid&gt;/io</code> advances by at most 100 MB over 300 s, against about 13 GB before. The coordinator records that figure here.</li>
+    </ul>
+
+    <h2 id="s4">§4 — The index lives on node-local disk, with compressed snapshots on GPFS</h2>
+    <section data-reckon="section" data-id="s4" data-effort-hours="2.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
+    <p>A new module, <code>imas_ambix/agent/index_placement.py</code>, owns where the index is and how it survives a node:</p>
+    <ul>
+      <li><strong>Resolve</strong> the path in this order:
+        <ol>
+          <li><code>$AMBIX_WATCH_INDEX</code>, when set;</li>
+          <li><code>$FLEET_RUNTIME_DIR/ambix/watch-index.sqlite3</code>, when the fleet runtime directory exists on a local filesystem;</li>
+          <li>otherwise none.</li>
+        </ol>
+        The <code>agent watch</code> command, run where no local index resolves, prints the published <code>watch.json</code> with its <code>published_at</code> instead of deriving anything. It never opens a GPFS copy of the index.</li>
+      <li><strong>Journal mode</strong>: set <code>PRAGMA journal_mode=WAL</code> on open, and refuse when <code>statfs</code> reports a network filesystem type (GPFS, NFS, Lustre).</li>
+      <li><strong>Snapshot</strong> once a day:
+        <ol>
+          <li>copy the index with SQLite's online backup API to a temporary file on local disk;</li>
+          <li>compress it with zstd (the standard library's <code>compression.zstd</code>);</li>
+          <li>write it atomically as <code>~/.local/state/ambix/index-snapshots/watch-index-&lt;UTC stamp&gt;.sqlite3.zst</code>;</li>
+          <li>verify it by decompressing it and running <code>PRAGMA quick_check</code>;</li>
+          <li>only then delete snapshots beyond the newest three verified ones.</li>
+        </ol>
+      </li>
+      <li><strong>Restore</strong> at ingest start, when the local index is missing:
+        <ol>
+          <li>decompress the newest verified snapshot;</li>
+          <li>if there is none, start empty, which is today's cold-build path;</li>
+          <li>in either case, let the ingest catch up from each source's recorded offset. That catch-up is idempotent because samples are unique on (host, boot, inode, offset).</li>
+        </ol>
+      </li>
+      <li><strong>Wiring</strong>: <code>cli.py</code> resolves the index through this module for <code>ingest</code>, <code>watch</code> and <code>publish-watch</code>. The daily snapshot is composed into the ingest loop through its existing <code>on_tick</code> hook, so <code>telemetry_ingest.py</code> is not touched.</li>
+    </ul>
+    <p>Write scope: <code>imas_ambix/agent/index_placement.py</code> (new), <code>tests/test_index_placement.py</code> (new), <code>imas_ambix/agent/cli.py</code>.</p>
+    <p><strong>Done when:</strong></p>
+    <ul>
+      <li>Unit tests cover:
+        <ul>
+          <li>the resolver's three cases;</li>
+          <li>a snapshot round trip whose row counts and <code>iterdump</code> digest equal the source's;</li>
+          <li>retention of exactly three snapshots;</li>
+          <li>WAL set on a local path and refused on a path whose injected filesystem type is a network one;</li>
+          <li>restore-then-catch-up over temporary receipts yielding the same rows as an index that never moved.</li>
+        </ul>
+      </li>
+      <li>The negative control holds: when the newest snapshot is corrupted, the older ones are kept, restore falls back to the next verified one, and the failure is printed.</li>
+      <li>The guard, the whole-tree ruff gate and <code>tests/test_agent_ingest_cli.py</code> pass on the fleet allocation.</li>
+      <li><strong>Deployment</strong>, by the coordinator with the lead's authority, in this order:
+        <ol>
+          <li>take and verify the first snapshot of the current GPFS index;</li>
+          <li>restart the ingest onto the placement;</li>
+          <li>keep the old <code>~/.cache/ambix/watch-index.sqlite3</code> untouched until §5 has proven equality, then compress it into the snapshots directory under an <code>-pre-rollup</code> name rather than delete it.</li>
+        </ol>
+      </li>
+    </ul>
+
+    <h2 id="s5">§5 — Watch reads hourly rollups: a read costs its window</h2>
+    <section data-reckon="section" data-id="s5" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-attempts="0" data-status="implementable" data-links=""></section>
+    <p>This section takes over <code>f-srw-020</code> from serving-record-warehouse unchanged in intent. One index rebuild introduces two things:</p>
+    <ul>
+      <li>a name and kind dictionary, so that <code>measurement</code> carries integer keys instead of repeated strings;</li>
+      <li>an hourly rollup that the ingest maintains for each source <code>(host, boot_id, inode)</code>, measurement and hour. Each rollup row carries:
+        <ul>
+          <li>the counter difference within the hour's counter runs;</li>
+          <li>the gauge's time integral;</li>
+          <li>the coverage seconds.</li>
+        </ul>
+      </li>
+    </ul>
+    <p>A period sums its whole hours from the rollup and reads raw samples only for the partial hours at its two edges. Every remaining raw-sample query is bounded to its window plus each source's last sample before the window, and all cards of one period are read in one statement rather than one statement per card.</p>
+    <p>Write scope: <code>imas_ambix/agent/telemetry_index.py</code>, <code>imas_ambix/agent/watch.py</code>, <code>tests/test_telemetry_index.py</code>, <code>tests/test_agent_telemetry_watch.py</code>. It follows §3 because both write <code>telemetry_index.py</code>.</p>
+    <p><strong>Done when</strong>, measured on the fleet allocation against a node-local copy of the live index rebuilt with the new schema:</p>
+    <ul>
+      <li><code>watch_document</code> gives the same value in every field as the raw computation over that rebuilt index. The comparison is exact equality, made field by field by a script that prints any mismatching path.</li>
+      <li>The negative control fails that comparison: perturbing one rollup row makes the script report the field it reaches.</li>
+      <li><code>watch_document</code> completes in under 5 s.</li>
+      <li>Rollup maintenance adds under 1 s to an ingest tick at the current receipt rate.</li>
+      <li>The rebuilt file's size is reported beside 8.66 GB and beside the 2.11 GB estimate.</li>
+      <li>The named tests, the guard and the whole-tree ruff gate pass.</li>
+    </ul>
+
+    <h2 id="s6">§6 — The ingest publishes the watch document, and the standalone publisher is retired</h2>
+    <section data-reckon="section" data-id="s6" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
+    <p>The <code>ingest</code> command composes publication into its <code>on_tick</code> hook:</p>
+    <ul>
+      <li>When at least <code>--publish-every</code> seconds (default 300) have passed since the last successful publication, it computes <code>watch_document</code> from its own connection and writes <code>~/public/imas-ambix/watch.json</code> atomically. The contract is unchanged: <code>published_at</code> and <code>compute_seconds</code> at top level, mode 0644, one flushed line per publication, and a failed publication leaving the previous file byte-identical.</li>
+      <li>A failed publication never fails the tick.</li>
+      <li><code>publish-watch</code> keeps <code>--once</code> for manual use and loses its loop. This narrows the interface to one standing process.</li>
+    </ul>
+    <p>Write scope: <code>imas_ambix/agent/cli.py</code>, <code>imas_ambix/agent/watch_publish.py</code>, <code>tests/test_agent_publish_watch.py</code>, <code>tests/test_agent_ingest_cli.py</code>. It follows §4, which writes <code>cli.py</code>, and §5, which makes publication cheap.</p>
+    <p><strong>Done when:</strong></p>
+    <ul>
+      <li>Tests with an injected clock show:
+        <ul>
+          <li>publication happens at the cadence and not on every tick;</li>
+          <li>a raised publication leaves the previous file byte-identical, and the next tick still ingests.</li>
+        </ul>
+      </li>
+      <li>The guard and the whole-tree ruff gate pass.</li>
+      <li><strong>After deployment</strong>, by the coordinator with the lead's authority:
+        <ul>
+          <li><code>services.json</code> declares no publisher;</li>
+          <li><code>watch.json</code>'s <code>published_at</code> advances at least every 6 minutes for 30 minutes, with <code>compute_seconds</code> under 5;</li>
+          <li>no <code>publish-watch</code> process runs on the node.</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h2 id="s7">§7 — SLURM job logs leave the repository root, and the existing ones are archived compressed</h2>
+    <section data-reckon="section" data-id="s7" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
+    <p>Every <code>#SBATCH --output</code> that <code>imas_ambix/agent/slurm.py</code> and <code>imas_ambix/agent/cli.py</code> generate is written under <code>$AMBIX_LOG_DIR</code>, which defaults to <code>~/.local/state/ambix/slurm-logs/</code>, instead of the submitting directory. The places that read a job's log back resolve it through the same function. These include the runtime check, which reads <code>ambix-runtime-check-&lt;engine&gt;-&lt;job&gt;.log</code>.</p>
+    <p>The 451 existing root-level logs are archived by the coordinator as a separate step:</p>
+    <ol>
+      <li>Leave in place every log whose job is still in <code>squeue</code>.</li>
+      <li>Compress each remaining log with zstd into <code>~/.local/state/ambix/slurm-logs/archive/&lt;YYYY-MM&gt;/</code>.</li>
+      <li>Remove an original only after its archive decompresses to the same SHA-256.</li>
+      <li>Print the list of what moved.</li>
+    </ol>
+    <p>Write scope: <code>imas_ambix/agent/slurm.py</code>, <code>imas_ambix/agent/cli.py</code>, and the tests covering generated scripts. It follows §6, which also writes <code>cli.py</code>.</p>
+    <p><strong>Done when:</strong></p>
+    <ul>
+      <li>Generated serve, router, lane, setup, download and runtime-check scripts name an output path under the log directory. A test asserts that no generated <code>--output</code> is a bare file name.</li>
+      <li>The runtime-check reader finds its log in the new place.</li>
+      <li>The guard and the whole-tree ruff gate pass.</li>
+      <li>The archive step's printed list accounts for all 451 files, with no SHA mismatch.</li>
+    </ul>
+
+    <h2 id="s8">§8 — Why retention has retired nothing since 2026-10-17, and what fills the index</h2>
+    <section data-reckon="section" data-id="s8" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
+    <p>A read-only investigation answers two questions with measurements, recorded in <code>docs/research/watch-index-size-and-retention.html</code> with a figure under <code>docs/figures/watch-index-size/</code>:</p>
+    <ul>
+      <li><strong>What fills the index.</strong> Per table and per index, it reports bytes, rows and bytes per row. It runs <code>dbstat</code> on a node-local copy made with the backup API in a <code>mktemp -d</code> directory that is removed on exit, never on the GPFS file.</li>
+      <li><strong>Why the daily retention has written no manifest since 2026-10-17.</strong> Either nothing has been eligible, or the schedule is not firing. The investigation quotes the code path and the evidence that decides between them.</li>
+    </ul>
+    <p>It also lists which closed receipt files are still uncompressed, and the size each would have compressed. The finding feeds §5's size target and §9.</p>
+    <p>Write scope: the research document and its figure directory only.</p>
+    <p><strong>Done when:</strong></p>
+    <ul>
+      <li>The document carries the per-table breakdown, summing to within 1% of the file size.</li>
+      <li>It states the retention verdict with its evidence.</li>
+      <li>It carries the compression list.</li>
+      <li><code>reckon audit-doc</code> reports no errors.</li>
+    </ul>
+
+    <h2 id="s9">§9 — Raw samples age out of the index once rollups carry them (deferred)</h2>
+    <p>Once §5 has landed, raw sample rows older than a horizon serve only edge hours that no period reaches. The horizon would be 35 days, covering the one-month period plus its edges. Removing those rows loses nothing, because the receipts and their compacted tiers on GPFS remain the authority. That is true only if a rebuild from the receipts reproduces the pruned hours' rollups exactly. This section is deferred until §8's breakdown says how much the pruning would recover, and until that reproduction is measured.</p>
+
+    <section data-reckon="decisions" id="decisions" class="r-decisions">
+      <h2><span class="sec">§</span> Decisions</h2>
+      <div class="r-dec" data-key="index-placement" data-choice="node-local-disk" data-by="coordinator" data-when="2026-10-23">
+        <p class="r-dec-q">Where does the live index live?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="node-local-disk">node-local disk under the fleet runtime directory</button>
+          <button class="r-opt" data-value="dev-shm">/dev/shm</button>
+          <button class="r-opt" data-value="gpfs-home">GPFS home cache, as today</button>
+        </p>
+        <p class="r-dec-rat">The two node-local choices are equally ephemeral. <code>/dev/shm</code> charges every page to the memory of the allocation every orchestrator and worker shares, and cannot release it under pressure. Local disk plus the page cache gives the same hot-read speed and lets the kernel evict. GPFS is what this plan exists to leave. The choice can be revised by the lead; it is one resolver.</p>
+      </div>
+      <div class="r-dec" data-key="ingest-identity-cadence" data-choice="probe-each-tick-full-hourly" data-by="coordinator" data-when="2026-10-23">
+        <p class="r-dec-q">How often is a source's whole consumed prefix re-verified?</p>
+        <p class="r-dec-opts">
+          <button class="r-opt" data-value="probe-each-tick-full-hourly">bounded probe every tick, whole prefix hourly</button>
+          <button class="r-opt" data-value="whole-prefix-every-tick">whole prefix every tick, as today</button>
+        </p>
+        <p class="r-dec-rat">Every tick re-reading the whole prefix costs about 2.6 GB of GPFS reads a minute today, and that cost grows with every file. The bounded probe still catches truncation, replacement and any change at the head or at the read point on the next tick. A rewrite confined to the middle of a file, which no writer has ever made, is caught within the interval. The interval is one constant.</p>
+      </div>
+    </section>
+
+    <section data-reckon="followups" id="followups" class="r-followups">
+      <h2><span class="sec">§</span> Followups</h2>
+      <article class="r-fu" data-id="f-wil-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build watch-index-lifecycle">
+        <h4 class="r-fu-title">Dispatch §3, §4 and §8 now; §5 after §3; §6 after §4 and §5; §7 after §6</h4>
+        <div class="r-fu-body"><p>The write scopes fix this order. §3 and §5 both write <code>telemetry_index.py</code>, and §4, §6 and §7 each write <code>cli.py</code>. §8 writes only its research document. Restarting a fleet service is a deployment step that needs the lead's authority each time; record each deployment's measurement in its section.</p></div>
+        <pre class="r-fu-prompt">/reckon-build watch-index-lifecycle</pre>
+      </article>
+    </section>
+  </main>
+</body>
+</html>
