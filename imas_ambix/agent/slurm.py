@@ -39,6 +39,7 @@ _SUPPORTING_SERVICE_TIME_LIMIT = "0"
 _SITE_ENGINE_ACCELERATOR_FAMILY = "H200"
 
 _MODEL_DIR_TOKEN = "__AMBIX_MODEL_DIR__"
+_REVISION_TOKEN = "__AMBIX_REVISION__"
 _PORT_TOKEN = "__AMBIX_PORT__"
 _CATALOG_MIDDLEWARE = "imas_ambix.agent.vllm_catalog.GlobalModelCatalogMiddleware"
 _THINK_MARKER_MIDDLEWARE = (
@@ -1207,51 +1208,89 @@ def generate_download_script(
         time_limit=time_limit or profile.slurm.time_download,
         output_name=f"download-{profile.slug}-%j.log",
     )
-    download_command = shlex.join(
-        [
-            hf_bin,
-            "download",
-            profile.model.hf_repo,
-            "--local-dir",
-            _MODEL_DIR_TOKEN,
-            "--max-workers",
-            str(cpus),
+    download_argv = [
+        hf_bin,
+        "download",
+        profile.model.hf_repo,
+        "--local-dir",
+        _MODEL_DIR_TOKEN,
+        "--max-workers",
+        str(cpus),
+    ]
+    if profile.model.revision is not None:
+        download_argv += ["--revision", _REVISION_TOKEN]
+    download_command = (
+        shlex.join(download_argv)
+        .replace(_MODEL_DIR_TOKEN, '"$MODEL_DIR"')
+        .replace(_REVISION_TOKEN, '"$REVISION"')
+    )
+    lines = [
+        "set -euo pipefail",
+        "",
+        "export TMPDIR=/tmp",
+        f"export HF_HOME={shlex.quote(str(cache_dir))}",
+        "# Rust-backed multipart transfer. The dependency is declared in every",
+        "# engine environment but does nothing unless this is set, and the",
+        "# difference decides whether a large checkpoint fits inside a bounded",
+        "# wall clock.",
+        "export HF_HUB_ENABLE_HF_TRANSFER=1",
+        "",
+        f"MODEL_DIR={shlex.quote(str(model_dir))}",
+    ]
+    if profile.model.revision is not None:
+        lines.append(f"REVISION={shlex.quote(profile.model.revision)}")
+    lines += [
+        "",
+        'mkdir -p "$MODEL_DIR" "$HF_HOME"',
+        "",
+        f'echo "[$(date)] Starting download for {profile.model.name}"',
+        f'echo "  repo: {profile.model.hf_repo}"',
+        'echo "  model dir: $MODEL_DIR"',
+        'echo "  HF_HOME: $HF_HOME"',
+        'echo "  node: $(hostname)"',
+        "",
+    ]
+    if profile.model.revision is not None:
+        # The pin is resolved before anything is fetched, through the same
+        # client that performs the transfer, so the pin and the download cannot
+        # disagree about what the repository publishes. Refusing here also
+        # refuses the alternative outcome: a client given a revision the
+        # repository does not publish follows the default stream where it can,
+        # and a checkpoint pin that resolves elsewhere is worse than no pin.
+        confirm_command = shlex.join(
+            [
+                hf_bin,
+                "models",
+                "info",
+                profile.model.hf_repo,
+                "--revision",
+                _REVISION_TOKEN,
+                "--expand",
+                "sha",
+            ]
+        ).replace(_REVISION_TOKEN, '"$REVISION"')
+        lines += [
+            f'echo "[$(date)] Resolving {profile.model.hf_repo} at $REVISION"',
+            f"if ! {confirm_command}; then",
+            f'    echo "Error: refusing to download {profile.model.hf_repo} at'
+            ' revision $REVISION" >&2',
+            "    exit 1",
+            "fi",
+            "",
         ]
-    ).replace(_MODEL_DIR_TOKEN, '"$MODEL_DIR"')
-    script_body = dedent(
-        f"""
-        set -euo pipefail
-
-        export TMPDIR=/tmp
-        export HF_HOME={shlex.quote(str(cache_dir))}
-        # Rust-backed multipart transfer. The dependency is declared in every
-        # engine environment but does nothing unless this is set, and the
-        # difference decides whether a large checkpoint fits inside a bounded
-        # wall clock.
-        export HF_HUB_ENABLE_HF_TRANSFER=1
-
-        MODEL_DIR={shlex.quote(str(model_dir))}
-
-        mkdir -p "$MODEL_DIR" "$HF_HOME"
-
-        echo "[$(date)] Starting download for {profile.model.name}"
-        echo "  repo: {profile.model.hf_repo}"
-        echo "  model dir: $MODEL_DIR"
-        echo "  HF_HOME: $HF_HOME"
-        echo "  node: $(hostname)"
-
-        {download_command}
-
-        echo "[$(date)] Download finished, validating contents"
-        if [[ ! -f "$MODEL_DIR/config.json" ]]; then
-            echo "Error: missing model config at $MODEL_DIR/config.json" >&2
-            exit 1
-        fi
-
-        du -sh "$MODEL_DIR"
-        echo "[$(date)] Download complete"
-        """
-    ).strip()
+    lines += [
+        download_command,
+        "",
+        'echo "[$(date)] Download finished, validating contents"',
+        'if [[ ! -f "$MODEL_DIR/config.json" ]]; then',
+        '    echo "Error: missing model config at $MODEL_DIR/config.json" >&2',
+        "    exit 1",
+        "fi",
+        "",
+        'du -sh "$MODEL_DIR"',
+        'echo "[$(date)] Download complete"',
+    ]
+    script_body = "\n".join(lines)
     return "\n".join([*headers, "", script_body, ""])
 
 
