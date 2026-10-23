@@ -25,7 +25,7 @@
   <title>Rotate to DeepSeek-V4.1-Flash-1017 | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="12">
+<meta name="plan-version" content="16">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -111,8 +111,8 @@
     does today. Before pausing anything, <code>restart</code> also runs a <strong>weights
     preflight</strong>: the profile's weights directory must hold
     <code>model.safetensors.index.json</code> and every shard it names. If not, the restart
-    refuses and the lane is never paused. The preflight runs in a real restart, not only in
-    <code>--dry-run</code>.</p>
+    refuses and the lane is never paused. The preflight runs in a real restart and in
+    <code>--dry-run</code>, which prints its verdict and never touches the lane.</p>
     <p><strong>No new module.</strong> The OpenAI-dialect probe already exists:
     <code>bench.py</code>'s <code>tool_use</code> category offers the <code>get_weather</code>
     function through <code>_chat(..., tools=...)</code> and checks that
@@ -157,9 +157,14 @@
       recorder's per-job file can. Each row already carries a <code>serve_config</code>
       section read from the engine. That section gains the engine's own reported
       <code>model_path</code>, and since every checkpoint has its own directory, every row
-      then records the checkpoint that produced it. A receipt joins to rows through its
-      <code>upstream</code> engine and the job's recorder file, with no new store and no
-      timestamp index.</li>
+      then records the checkpoint that produced it. The origin alone cannot attribute a receipt, because
+      a receipt's <code>upstream</code> is only the engine's <code>node:port</code>, and the
+      pause path reuses that port for the replacement. But each job's recorder file covers
+      only that job's lifetime. So the join has one owner,
+      <code>serving_receipts.checkpoint_at(upstream, when)</code>. It returns the
+      <code>model_path</code> of the recorder file for that origin whose rows span the
+      instant <code>when</code>, and <code>None</code> when no file spans it. No new store
+      and no timestamp index are needed.</li>
     </ul>
     <p>A registration written before this section reads <code>checkpoint: null</code>, which a
     reader reports as unknown and never guesses. The new surface is one field on the
@@ -178,6 +183,10 @@
       <li>A recorder row built from a fixture engine report carries
       <code>serve_config.model_path</code> exactly as the engine reported it. An engine that
       reports none leaves the key absent rather than empty.</li>
+      <li>Given two sequential recorder files for one <code>node:port</code>, the September
+      job's then the 1017 job's, <code>checkpoint_at</code> returns each job's
+      <code>model_path</code> for an instant inside its span, and <code>None</code> for an
+      instant in the gap between them.</li>
       <li>A registration with no <code>checkpoint</code> key is read as <code>null</code> and
       the document still builds.</li>
       <li><strong>Negative control:</strong> a profile with no revision writes
@@ -228,11 +237,14 @@
       promotes.</li>
       <li>Over the first hour, the share of requests ending <code>failed</code> stays within
       one percentage point of the same hour the previous day.</li>
-      <li><strong>Negative control:</strong> before the cycle, a real (not dry-run) restart is
-      run against a copy of the profile pointing at an empty weights directory. §3's
-      preflight must refuse it before either path starts. Afterwards, <code>lane.json</code>'s
-      gate block must still read <code>paused: false</code>, and <code>squeue</code> must
-      show no replacement serve submitted.</li>
+      <li>Before the cycle, <code>imas-ambix agent restart deepseek-v4-1-flash --dry-run</code>
+      prints the preflight's verdict as passing on the 1017 directory. §3 makes the preflight
+      run in a dry run too.</li>
+      <li><strong>Negative control:</strong> immediately before the cycle, §3's preflight
+      refusal test runs at the merged head and must fail the weights-missing case. A
+      restart against a copied profile cannot serve as this control, because
+      <code>restart</code> finds no running job under a new slug and refuses before the
+      preflight is reached.</li>
     </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
