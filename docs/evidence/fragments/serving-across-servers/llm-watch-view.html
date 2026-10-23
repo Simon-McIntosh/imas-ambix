@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="llm-watch-view-module">
+      <p>The <code>llm-watch</code> console script renders one engine's live
+      serving document as text. <code>imas_ambix/agent/llm_watch.py</code>
+      builds the view's whole input — <code>watch.live_document</code> for the
+      <code>lane</code>, <code>live</code> and <code>callers</code> blocks,
+      the published endpoint document for the head line, and the published
+      watch document for the period ledger — and renders it as three bands
+      (throughput, capacity, gate), the two levels of the running-workers
+      view, the history strip, the outcomes line and the ledger.
+      <code>imas_ambix/agent/watch_style.py</code> owns the column grid, the
+      colour ramps and the figure formatters so the bands, the three tables and
+      the ledger share one pitch.</p>
+    </section>
+    <section id="llm-watch-view-geometry">
+      <p><strong>The grid is one character narrower than the serve panel's, and
+      that is forced by the width rule.</strong> Seven columns at gpu-watch's
+      own pitch (a 13-character label column and 12-character figure columns,
+      one space of padding either side) render 105 characters wide, which does
+      not fit the 100-column terminal §9 requires. The view therefore uses a
+      12-character label column and 11-character figure columns, which render
+      99 characters — measured, and asserted at both 100 and 120 columns over
+      every fixture. Three column labels are shortened to fit that pitch:
+      <code>router queue</code> → <code>router q</code>,
+      <code>worker slots</code> → <code>slots</code> and
+      <code>eng headroom</code> → <code>eng headrm</code>. The figures in each
+      cell are the serve panel's own, read from the same block by the same
+      names, which is what the cell-for-cell comparison checks.</p>
+    </section>
+    <section id="llm-watch-view-capacity-band">
+      <p><strong>The capacity band renders what the document carries, and a
+      dash where it carries nothing.</strong> The band replaces the serve
+      panel's card conditions (°C, kW, % of cap), which belong to gpu-watch,
+      with the engine's capacity: <code>kv pool %</code> from
+      <code>live.pool_occupancy</code>, <code>eng headrm</code> from
+      <code>lane.engine_headroom</code>, and <code>host tier %</code>,
+      <code>mean ctx</code>, <code>ceiling</code> and <code>preemptions</code>
+      read under the lane document's own published names —
+      <code>hicache_host.used_fraction</code>, <code>mean_context</code>,
+      <code>concurrent_requests</code> and <code>preemptions</code>. The §8
+      document's <code>lane</code> block does not copy those four today, so on
+      a live document they render as dashes until §6 publishes per-engine live
+      figures into the block; the fixture carries them by hand, the same way
+      §8's fixtures carry <code>account</code> and <code>project</code> before
+      §13 deploys. <strong>The view needs no change when they land</strong>,
+      which is the point of reading them under the names the pool document
+      will publish them by.</p>
+    </section>
+    <section id="llm-watch-view-accounts-level">
+      <p><strong>The accounts table is built from the <code>accounts</code>
+      level, never from the per-session list.</strong> A session's
+      <code>account</code> is the account its rows <em>most often</em> named
+      (§8), so a table assembled from sessions would list one account once per
+      session, count a session that reported two accounts under whichever
+      dominated, and drop every request whose row carried no session at all.
+      The level exists so the table cannot do that, and the two-account
+      golden shows three account rows against two session entries. The
+      declared negative control mutates exactly this: rendering the table from
+      the per-session list fails the two-account golden.</p>
+    </section>
+    <section id="llm-watch-view-fold">
+      <p>The detail table lists at most six rows of the account named — the
+      viewer's login by default, <code>--account NAME</code> otherwise — and
+      folds the rest into one <code>+N more</code> row carrying their summed
+      in-use. On the eight-project fixture the fold row reads
+      <code>+2 more</code> with <code>0.3</code>, the sum of the two projects
+      below the cut (0.2 + 0.1); the three-project fixture carries no fold row.
+      <code>--sessions</code> replaces the project rows with one row per
+      coordinator session, and the session's first four characters take the
+      column the session count occupied on the project rows — the count is
+      always one there, so the column carries the identifier a reader actually
+      needs.</p>
+    </section>
+    <section id="llm-watch-view-negative-controls">
+      <p><strong>An unavailable live entry renders one line, never a row of
+      zeros.</strong> When <code>live.state</code> is not
+      <code>measured</code>, the throughput band is replaced by one line naming
+      the block's own reason; the capacity and gate bands still appear, because
+      they are read from the lane document, a different published source. The
+      golden for a document whose newest receipt file is unreadable shows
+      <code>live entry unavailable — no raw receipt file with a readable
+      row</code> and no <code>tok/s out</code> cell and no <code>11.3</code>
+      anywhere: the fixture's reading is asserted absent, not merely
+      uninspected.</p>
+      <p><strong>An account holding nothing in the window renders one dim
+      line.</strong> <code>--account llealsa</code> against a document whose
+      only account is <code>mcintos</code> prints <code>llealsa holds nothing
+      in the window — no finished request in the record named it</code>, and
+      the golden asserts no detail table follows it. An empty table would be
+      indistinguishable from one that failed to build.</p>
+    </section>
+    <section id="llm-watch-view-live-cadence">
+      <p><code>--live</code> refreshes on <code>LIVE_REFRESH_SECONDS</code>,
+      read as 5.0. The loop takes its sleep and its tick bound as parameters,
+      so a test drives the same code path a terminal run uses rather than
+      restating the interval — the assertion is on the module's own constant
+      and on the intervals the loop actually slept.</p>
+    </section>
+  </main>
+</body>
+</html>
