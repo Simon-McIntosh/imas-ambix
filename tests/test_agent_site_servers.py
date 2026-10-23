@@ -8,8 +8,14 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
+from imas_ambix.agent import cli as agent_cli
 from imas_ambix.agent.profile import SiteConfig, SiteServerConfig, load_profile
-from imas_ambix.agent.registry import ServeRegistration, publish_endpoint_document
+from imas_ambix.agent.registry import (
+    ServeRegistration,
+    publish_endpoint_document,
+    registration_directory,
+    write_registration,
+)
 from imas_ambix.agent.slurm import generate_serve_script
 from imas_ambix.cli import main
 
@@ -294,6 +300,59 @@ def test_a_configured_serve_is_placed_on_the_named_server(monkeypatch):
     assert result.exit_code == 0, result.output
     assert "#SBATCH --partition=blackwell" in result.output
     assert "#SBATCH --account=grpb" in result.output
+
+
+def test_restart_keeps_a_serve_on_the_server_it_runs_on(tmp_path, monkeypatch):
+    """Replacing a serve keeps its placement; it does not choose a new one.
+
+    The serve being replaced holds a placement -- a reservation the scheduler
+    admitted it under and a partition it is running on. Generating the
+    replacement from the site's first server would move it, and on a site whose
+    servers have their own reservations the replacement would not be admitted
+    where the old job was.
+    """
+    site_base = tmp_path / "site"
+    monkeypatch.setenv("AMBIX_AGENT_BASE_DIR", str(site_base))
+    monkeypatch.setenv(
+        "AMBIX_AGENT_SERVERS", json.dumps([_H200.model_dump(), _B300.model_dump()])
+    )
+    write_registration(
+        ServeRegistration(
+            "deepseek-v4-1-flash",
+            _B300.host,
+            18801,
+            "42",
+            8,
+            "fp8",
+            "B300",
+            server=_B300.name,
+        ),
+        registration_directory(site_base),
+    )
+    monkeypatch.setattr(
+        agent_cli,
+        "_profile_jobs",
+        lambda _site, slug: [{"jobid": "42", "name": slug, "state": "RUNNING"}],
+    )
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "agent",
+            "restart",
+            "deepseek-v4-1-flash",
+            "--reason",
+            "placement is preserved across a replacement",
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert f"#SBATCH --partition={_B300.partition}" in result.output
+    assert f"#SBATCH --reservation={_B300.reservation}" in result.output
+    assert f"#SBATCH --account={_B300.account}" in result.output
+    assert f"#SBATCH --partition={_H200.partition}" not in result.output
+    assert f"--server {_B300.name}" in result.output
 
 
 def test_serve_refuses_a_server_that_no_declaration_names(monkeypatch):

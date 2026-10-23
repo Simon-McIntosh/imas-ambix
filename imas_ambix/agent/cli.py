@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from typing import TextIO
 
     from imas_ambix.agent.bench import BenchReport
+    from imas_ambix.agent.profile import SiteServerConfig
     from imas_ambix.agent.router import Upstream
     from imas_ambix.agent.telemetry_ingest import TickReport
 
@@ -1313,6 +1314,49 @@ def _profile_jobs(site: SiteConfig, slug: str) -> list[dict[str, str]]:
     ]
 
 
+def _placement_of_running_serve(
+    site: SiteConfig, job_id: str | None
+) -> SiteServerConfig | None:
+    """The declared server a running serve sits on, or ``None`` when unknown.
+
+    A replacement serve belongs where the serve it replaces was. Resolving the
+    placement from the site instead would answer a different question -- the
+    server the site lists first -- and move a serve running on the second
+    server onto the first, or refuse to start at all once the first server's
+    reservation is not the one the job was admitted under.
+
+    The registration is where a serve's placement is recorded, and it carries
+    both spellings: the server name when the serve was placed on a declared
+    server, and the host the job ran on. A registration naming a server that is
+    no longer declared falls back to the host, so a site that renamed its
+    servers still resolves.
+    """
+    if job_id is None or not site.servers:
+        return None
+    from imas_ambix.agent.registry import read_registrations, registration_directory
+
+    records = read_registrations(
+        registration_directory(site.base_dir),
+        job_is_running=lambda _job_id: True,
+    ).current
+    record = next((item for item in records if item.job_id == job_id), None)
+    if record is None:
+        return None
+    if record.server:
+        named = next(
+            (item for item in site.servers if item.name == record.server), None
+        )
+        if named is not None:
+            return named
+    if not record.host:
+        return None
+    registered = record.host.split(".", 1)[0].lower()
+    for server in site.servers:
+        if server.host.split(".", 1)[0].lower() == registered:
+            return server
+    return None
+
+
 def _serving_slugs(site: SiteConfig) -> set[str]:
     """Profile slugs whose running allocation passed its endpoint probe."""
     known = set(list_profiles())
@@ -2021,6 +2065,11 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
 
     # Cancel active serve jobs selected through the shared profile filter.
     targets = [job["jobid"] for job in _profile_jobs(site, profile.slug)]
+    # Read the placement before cancelling: the replacement goes back where the
+    # serve being replaced sits, not onto whichever server the site lists first.
+    placement = _placement_of_running_serve(
+        site, targets[0] if targets else None
+    )
 
     if targets:
         console.print(f"Cancelling {len(targets)} active job(s): " + ", ".join(targets))
@@ -2043,7 +2092,9 @@ def key_command(reveal: bool, rotate: bool, yes: bool) -> None:
         console.print("[green]Old job(s) cancelled.[/]")
 
     # Submit new serve job with the new key
-    script = generate_serve_script(profile, site, port=port, api_key=token)
+    script = generate_serve_script(
+        profile, site, port=port, api_key=token, server=placement
+    )
     try:
         job_id = submit_script(script)
     except RuntimeError as exc:
@@ -2354,8 +2405,11 @@ def restart(
         raise click.ClickException(
             f"matching serve job {old_job['jobid']} is not RUNNING"
         )
+    placement = _placement_of_running_serve(
+        site, old_job["jobid"] if old_job is not None else None
+    )
     pause_script = generate_serve_script(
-        profile, site, port=resolved_port, api_key=resolved_key
+        profile, site, port=resolved_port, api_key=resolved_key, server=placement
     )
     if dry_run:
         console.print(
@@ -2378,7 +2432,12 @@ def restart(
     if selected_mode == "overlap":
         resolved_port = _overlap_port(site, old_job, resolved_port)
         script = generate_serve_script(
-            profile, site, port=resolved_port, api_key=resolved_key, held=True
+            profile,
+            site,
+            port=resolved_port,
+            api_key=resolved_key,
+            held=True,
+            server=placement,
         )
     _execute_restart_cycle(
         profile,

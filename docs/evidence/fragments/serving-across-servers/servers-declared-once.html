@@ -23,6 +23,17 @@
   declares servers; an unconfigured site writes no such flag, which is what
   keeps its script byte-identical. The accelerator family a serve registers
   follows its placement rather than a module constant.</p>
+  <p><strong>A replacement keeps the placement it is replacing.</strong>
+  <code>restart</code> and <code>agent key --rotate</code> regenerate a serve's
+  script, and both now resolve the server from the running serve's registration
+  — the server name it recorded, else the declared server whose host it ran on
+  — and pass it through. Generating from the site instead would resolve the
+  first server's partition, account and reservation for a serve running on the
+  second, moving the replacement off the node it was running on; on a site
+  whose servers carry their own reservations, the replacement would not be
+  admitted where the job it replaces was. The placement is read before the old
+  job is cancelled. A registration that names no server the site still declares
+  falls back to its recorded host, so renaming a server does not move a serve.</p>
   <p><strong>The document.</strong> <code>registry.build_endpoint_document</code>
   — the document's existing owner, so the grouping cannot disagree with the
   engines it groups — now returns the endpoints plus a <code>servers</code>
@@ -74,7 +85,7 @@
         <td><code>pytest tests/test_agent_serve_registry.py
         tests/test_agent_endpoint_discovery.py
         tests/test_agent_site_servers.py</code></td>
-        <td>45 passed, <code>EXIT=0</code></td>
+        <td>46 passed, <code>EXIT=0</code></td>
       </tr>
       <tr>
         <td><code>ruff check imas_ambix tests</code></td>
@@ -124,6 +135,15 @@
         tests/test_agent_site_servers.py::test_a_server_declared_without_a_card_count_publishes_none</code>,
         <code>EXIT=1</code>; <code>assert 4 is None</code> — an undeclared count
         was filled in from the serve</td>
+      </tr>
+      <tr>
+        <td>Drop the <code>server</code> argument at the restart call so
+        <code>slurm.generate_serve_script</code> falls back to
+        <code>site.declared_servers[0]</code> (<code>cli.restart</code>)</td>
+        <td><code>FAILED
+        tests/test_agent_site_servers.py::test_restart_keeps_a_serve_on_the_server_it_runs_on</code>,
+        <code>EXIT=1</code>; the replacement carried the first server's
+        <code>betelgeuse</code> partition</td>
       </tr>
     </tbody>
   </table>
