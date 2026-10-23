@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="watch-index-lifecycle">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="wil-ingest-reads-appended-bytes-landing">
+      <h2>Receipt reads advance from the committed offset</h2>
+      <p>The index now keeps each source's committed SHA-256 state in memory,
+      updates it with newly consumed lines, and stores head and consumed-tail
+      probe digests beside the whole-prefix digest. Each tick checks two 64 KiB
+      windows; startup and the hourly interval verify the whole consumed
+      prefix. A truncated or head-rewritten source is rejected on the next
+      tick, and a middle rewrite is rejected after the interval.</p>
+      <p id="wil-ingest-reads-appended-bytes-measure">The baseline regression
+      read 708,062 bytes for a 356-byte append, against the 131,428-byte
+      bound. The corrected byte-counting test passed on two consecutive
+      append ticks, and the injected-clock tests passed for immediate head
+      detection and delayed middle detection. Both declared mutations failed
+      their corresponding tests: the prefix reread fetched 485,281 bytes for
+      356 appended, and suppressing the head comparison missed the rewrite.
+      Whole-tree Ruff passed.</p>
+      <p id="wil-ingest-reads-appended-bytes-gate">The named three-file gate
+      finished with 95 passed and one failure. Its failing assertion in
+      <code>tests/test_telemetry_ingest.py</code> requires an unchanged receipt
+      never to be opened; the required per-tick identity probe opens it once.
+      That test file is outside this worker's write grant, so its correction and
+      the final passing gate remain for an extended grant or companion node.
+      The serving-interpreter guard has not run.</p>
+    </section>
+  </main>
+</body>
+</html>
