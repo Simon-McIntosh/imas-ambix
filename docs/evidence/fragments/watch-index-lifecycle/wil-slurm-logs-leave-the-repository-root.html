@@ -1,0 +1,31 @@
+<section id="wil-slurm-logs-leave-the-repository-root">
+  <h2>SLURM output paths</h2>
+  <p>The original generated headers reproduced the defect: the new path test
+  reported eight failures, including a serve output of
+  <code>glm-5-3-%j.log</code> whose <code>is_absolute()</code> check returned
+  false. The shared agent header writer now resolves stdout through one
+  function under <code>~/.local/state/ambix/slurm-logs/</code>. The data
+  download header and three tracked batch headers use that destination too.
+  A complete focused arm passed eight non-setup cases; restoring the bare
+  relative output name in the shared writer made four generated-script cases
+  fail (EXIT=1). The writer was restored to its committed state.</p>
+  <p>A positive-control search found 96 tracked output directives. Its only
+  remaining relative targets are the setup and runtime-check literals in
+  <code>imas_ambix/agent/cli.py</code>. That file is also granted to a queued
+  peer, so those edits await a scope decision. Whole-tree Ruff exited zero,
+  and the serving-interpreter parse guard passed. The existing focused suite
+  passed 60 tests and failed one full-script golden digest in
+  <code>tests/test_agent_site_servers.py</code>, outside this node's grant:
+  the observed digest was <code>4aafd9acd2216aa485d0ef5308739a15fe6d04f741adfbd9f31f7b77b062fcaf</code>
+  against the stored <code>d83d58cb79e1801bed704ed7b64c710bab0510afe9777b65e9b48cb860505773</code>.</p>
+  <p>The following seven main-checkout scripts are untracked and were not
+  edited: <code>scripts/_d3_arm.sh</code>,
+  <code>scripts/_disc_regate.sh</code>,
+  <code>scripts/_disc_regate2.sh</code>,
+  <code>scripts/_r2_fix_cycle.sh</code>,
+  <code>scripts/_r2_pipeline.sh</code>,
+  <code>scripts/slurm/_m1_run_suite.sh</code>, and
+  <code>scripts/slurm/excited_cohort_scan.sbatch</code>. The destination
+  directory was absent when checked; the coordinator's archive step must
+  create it before any tracked batch script is submitted.</p>
+</section>
