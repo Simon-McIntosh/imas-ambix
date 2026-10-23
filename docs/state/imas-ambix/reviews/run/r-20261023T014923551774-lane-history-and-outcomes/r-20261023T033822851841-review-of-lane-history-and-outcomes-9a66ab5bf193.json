@@ -1,0 +1,87 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "after_suite_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T014923551774-lane-history-and-outcomes/gate.log",
+  "assertion_analysis": [
+    {
+      "failure_condition": "Restoring the defect the review named \u2014 the callers level returning the read's reached flag instead of _window_covered for its own window \u2014 makes minute['covered'] False while _at(-900) and _at(-100) both lie inside the minute window, reddening assert minute['covered'] is True; the reviewed run applied exactly this mutation and its log records the refusal.",
+      "file": "tests/test_lane_callers.py",
+      "lines": "868-870"
+    },
+    {
+      "failure_condition": "Making _read_span return the caller's window verbatim (dropping the max with HISTORY_WINDOW_SECONDS) makes spans[-1] 60.0 and 3600.0 instead of the strip's half hour and the hour, reddening both span assertions; both expected values come from the module constant and the test's own argument, not from the code under test.",
+      "file": "tests/test_lane_callers.py",
+      "lines": "866-867, 872-873"
+    },
+    {
+      "failure_condition": "Handing every block the same flag, or opening the read over the wrong window, changes which of the three block assertions fails: with rows ending at -899 and -99, the strip's half hour is uncovered while the callers and outcomes windows are covered, so a single shared flag cannot satisfy all three.",
+      "file": "tests/test_lane_callers.py",
+      "lines": "875-878"
+    },
+    {
+      "failure_condition": "The fixture rows were moved to -200..-61 so they lie inside the narrowest window; restoring them to -1000+2*index would let a cut read report itself covered off the rows it still returned, which is the weakening the docstring at lines 815-820 says the move removes.",
+      "file": "tests/test_lane_callers.py",
+      "lines": "821-824"
+    }
+  ],
+  "baseline_suite_log": null,
+  "call_sites": [
+    "imas_ambix/agent/live_panel.py:547",
+    "imas_ambix/agent/watch.py:1396"
+  ],
+  "completed_at": "2026-10-23T04:04:45.533Z",
+  "dispatched_at": "2026-10-23T03:39:21Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/lane_callers.py",
+      "line": "371",
+      "severity": "follow-on",
+      "text": "follow-on: _window_covered answers a cut read by requiring some returned row to *end* at or before the window start (min(ended) <= opened), while its own docstring at line 364 states the rows 'reach back past that window's start'. A cut read whose earliest returned row is a request straddling that boundary \u2014 started before the window, still open or ended after it \u2014 returns False although every row inside the window was returned, so the flag understates a window the read did hold. The direction is conservative (a cut read can only understate coverage) and the false negative needs a boundary-spanning row as the read's first, so it does not hold the node."
+    },
+    {
+      "file": "docs/evidence/fragments/serving-across-servers/lane-history-and-outcomes.html",
+      "line": "71",
+      "severity": "follow-on",
+      "text": "follow-on: the fragment reads '<strong>58 passed</strong> on these three files (66 with the receipt-bins suite the review round added, below)', but the gate log this change re-ran shows those three files holding 59 tests (tests/test_lane_callers.py 27, tests/test_live_panel.py 27, tests/test_agent_watch_live.py 5) and the four-file total 66; the parenthetical's own arithmetic, 58 + 7, reaches 65 rather than the 66 it names one line later at line 109. The count of new tests was raised to nine at line 74 while the total it was raised from was left stale, so the evidence fragment contradicts the log it cites."
+    }
+  ],
+  "justifications": {
+    "durability": "tests/test_lane_callers.py:842 test_each_record_block_states_coverage_of_its_own_window fails when the callers level returns the read's flag instead of its window's, which the reviewed run's own mutation at negative-control.log reproduces ('assert False is True' at tests/test_lane_callers.py:870, 1 failed, EXIT=1).",
+    "evidence": "The reviewed run's gate.log header names revision 9a66ab5b and its last line is EXIT=0 over '66 passed in 1.07s', and the declared control negative-control.log reddens at revision b227c9af with '1 failed, 26 deselected' and EXIT=1.",
+    "fit": "imas_ambix/agent/lane_callers.py:340 _read_span and :351 _window_covered follow the module's private-helper idiom and their names carry no plan, stage or version label.",
+    "goal_fidelity": "imas_ambix/agent/lane_callers.py:300 record_blocks still builds callers, history and outcomes from the one read taken at :286, so the goal's single bounded read and its two new levels survive the refactor.",
+    "reuse": "imas_ambix/agent/lane_callers.py:583 _bin_percentile now calls imas_ambix/agent/receipt_bins.py:291 inclusive_quantile, the interpolated quantile the repository owns and which this change promotes from private to public, extending the owner rather than forking it.",
+    "scope_discipline": "Every path in git diff a8d8ca6e1b93aa31c7bc0a113c589376c5d07071 9a66ab5bf193fd70268285644ce0545f94f767ab is inside the reviewed run's declared write paths (manifest.md:3), receipt_bins.py having been granted by the review that returned the reuse finding (manifest.md:24)."
+  },
+  "negative_control_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T014923551774-lane-history-and-outcomes/negative-control.log",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the reviewed node's goal (prompt.txt:30) is a 30-minute history strip and a 5-minute outcomes line cut from the same single bounded read the callers block uses; the gained change keeps that shape at imas_ambix/agent/lane_callers.py:265 callers_block and :290 record_blocks.\nVERDICT done_when: the done_when at prompt.txt:95 names pytest over the three suites plus ruff; the manifest records after_suite at revision 9a66ab5b with exit_status 0 and gate.log carries that command, '66 passed' and EXIT=0.\nVERDICT write_paths: the gained diff a8d8ca6e..9a66ab5b touches exactly the four files this review covers, all inside the reviewed run's declared write paths (manifest.md:3).\nVERDICT manifest: read; status complete at head 9a66ab5b, after_suite exit_status 0 / failure_count 0, baseline_suite null, negative_control_log naming the red log that reproduces the fix's guard.\nVERDICT diff: read commit by commit \u2014 b227c9af refactors the quantile onto receipt_bins.inclusive_quantile and scopes each block's covered flag to its own window, 9a66ab5b corrects the fragment's new-test count and adds the review section.\nCALL_SITES: imas_ambix/agent/live_panel.py:547, imas_ambix/agent/watch.py:1396\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/lane_callers.py:300 record_blocks still builds callers, history and outcomes from the one read taken at :286, so the goal's single bounded read and its two new levels survive the refactor.\nSCORE evidence: 19\nJUSTIFICATION evidence: the reviewed run's gate.log header names revision 9a66ab5b and its last line is EXIT=0 over '66 passed in 1.07s'.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every path in git diff a8d8ca6e 9a66ab5b is inside the reviewed run's declared write paths (manifest.md:3).\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_lane_callers.py:842 fails when the callers level returns the read's flag instead of its window's, which negative-control.log reproduces at tests/test_lane_callers.py:870 with EXIT=1.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/lane_callers.py:340 _read_span and :351 _window_covered follow the module's private-helper idiom and carry no plan, stage or version label.\nSCORE reuse: 20\nJUSTIFICATION reuse: imas_ambix/agent/lane_callers.py:583 _bin_percentile now calls imas_ambix/agent/receipt_bins.py:291 inclusive_quantile, extending the repository's quantile owner rather than forking it.\nFINDING imas_ambix/agent/lane_callers.py:371 follow-on: _window_covered requires a returned row to end at or before the window start, so a cut read whose earliest row straddles that boundary reports uncovered although the window was held; conservative, and the docstring at line 364 states the row test it does not implement.\nFINDING docs/evidence/fragments/serving-across-servers/lane-history-and-outcomes.html:71 follow-on: the fragment claims '58 passed' on the three suites while the gate log it cites shows 59 there and 66 overall, so '58' plus the receipt-bins seven reaches 65 rather than the 66 named at line 109.\n",
+  "review_run_id": "r-20261023T033822851841-review-of-lane-history-and-outcomes-9a66ab5bf193",
+  "reviewed_base_revision": "a8d8ca6e1b93aa31c7bc0a113c589376c5d07071",
+  "reviewed_base_sha": "a8d8ca6e1b93aa31c7bc0a113c589376c5d07071",
+  "reviewed_head_sha": "9a66ab5bf193fd70268285644ce0545f94f767ab",
+  "reviewed_revision": "9a66ab5bf193fd70268285644ce0545f94f767ab",
+  "reviewed_run_id": "r-20261023T014923551774-lane-history-and-outcomes",
+  "scope": "the commits gained since the review at a8d8ca6e: b227c9af and 9a66ab5b, over imas_ambix/agent/lane_callers.py, imas_ambix/agent/receipt_bins.py, tests/test_lane_callers.py and docs/evidence/fragments/serving-across-servers/lane-history-and-outcomes.html",
+  "scores": {
+    "durability": 18,
+    "evidence": 19,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T04:10:45.398075+00:00",
+  "total": 113,
+  "verdicts": {
+    "diff": "Read commit by commit: b227c9af moves the strip's per-bin percentile onto receipt_bins.inclusive_quantile and scopes each block's covered flag to its own window, 9a66ab5b corrects the fragment's new-test count and adds the review section.",
+    "done_when": "The done_when at prompt.txt:95 names pytest over tests/test_lane_callers.py, tests/test_live_panel.py and tests/test_agent_watch_live.py plus ruff; the manifest records after_suite at revision 9a66ab5b with exit_status 0 and failure_count 0, and gate.log carries that command over the three files plus tests/test_agent_receipt_bins.py, '66 passed' and a bare EXIT=0.",
+    "goal": "The reviewed node's goal (prompt.txt:30) is a 30-minute history strip and a 5-minute outcomes line cut from the same single bounded read of the request record the callers block uses; the gained change keeps that shape at imas_ambix/agent/lane_callers.py:265 callers_block and :290 record_blocks, and adds per-level window coverage rather than replacing the deliverable.",
+    "manifest": "Read; status complete at head 9a66ab5b, after_suite exit_status 0 with failure_count 0, baseline_suite null, and negative_control_log naming the red log that reproduces the fix's guard.",
+    "write_paths": "The gained diff a8d8ca6e..9a66ab5b touches exactly the four files this review covers \u2014 imas_ambix/agent/lane_callers.py, imas_ambix/agent/receipt_bins.py, tests/test_lane_callers.py, docs/evidence/fragments/serving-across-servers/lane-history-and-outcomes.html \u2014 and every one is inside the reviewed run's declared write paths (manifest.md:3)."
+  }
+}
