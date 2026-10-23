@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers-landed">
+  <meta name="plan-title" content="Serving Across Servers — one router, a gate per engine, and two watch tools — landed record">
+  <meta name="plan-summary" content="Closure synthesis for Serving Across Servers — one router, a gate per engine, and two watch tools: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).">
+  <meta name="plan-evidence-for" content="serving-across-servers">
+  <meta name="plan-verdict" content="qualified">
+  <title>Serving Across Servers — one router, a gate per engine, and two watch tools — landed record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+ <main class="plan-doc">
+  <h1>Serving Across Servers — one router, a gate per engine, and two watch tools — landed record</h1>
+  <p>Closure synthesis for Serving Across Servers — one router, a gate per engine, and two watch tools: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).</p>
+
+
+   <section id="s13">
+    <h2>§13 — Callers report their account and project</h2>
+    <p><strong>Landed in merge <code>e23231b4</code></strong> (node commits <code>ab141475</code>, <code>8b230d69</code>, <code>bb4e55f0</code>; run <code>r-20261022T234915855394-callers-report-account</code>).</p><ul><li><code>clive.py</code>: the generated wrapper appends <code>X-Ambix-Account: $(id -un)</code> and <code>X-Ambix-Project</code> to <code>ANTHROPIC_CUSTOM_HEADERS</code>. The project is the parent of <code>git rev-parse --git-common-dir</code>, falling back to the working directory's name outside a repository. Each header is added only when the inherited value lacks it, so reckon's run and session headers are kept in order.</li><li><code>request_receipts.py</code>: <code>ACCOUNT_HEADER</code> and <code>PROJECT_HEADER</code> are read under the existing <code>_identity_token</code> rule. <code>identity_from_headers</code> returns four values, and <code>RequestReceipt</code> gains <code>account</code> and <code>project</code>.</li><li><code>router.py</code>: both call sites pass the fields through, and <code>_request_identity</code>'s annotation is the four-tuple.</li></ul><p><strong>Measure.</strong> 52 tests passed in the three named modules, and <code>ruff check imas_ambix tests</code> passed. Both negative-control mutations failed their named tests: returning the raw token unchecked, and appending the account header unconditionally. <code>reckon crew verify-gate</code> re-ran the gate at the merged head <code>e23231b4</code> and passed. The independent review scored goal fidelity 19, evidence 15, scope 20, durability 15, fit 18 and reuse 19, with no added failures.</p><p><strong>Not yet live.</strong> The router fields take effect at the next lane cycle (§11 step 2), and the clive headers once the coordinator regenerates the installed script. Until then every live row reads unattributed.</p><p><strong>Follow-ons from review.</strong> clive's outside-a-repository fallback has no test, and the receipts quote three different gate timings. Neither changes behaviour.</p>
+  </section>
+
+</main>
+</body>
+</html>
