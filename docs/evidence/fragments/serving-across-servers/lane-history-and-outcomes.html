@@ -67,17 +67,38 @@
     <section id="lane-history-and-outcomes-measure">
       <p>Gate: <code>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv
       uv run --no-sync pytest -p no:cacheprovider tests/test_lane_callers.py
-      tests/test_live_panel.py tests/test_agent_watch_live.py</code>;
-      <code>ruff check imas_ambix tests</code> exits 0. Sixteen tests in
-      <code>tests/test_lane_callers.py</code> and one in
-      <code>tests/test_live_panel.py</code> are new: the hand-computed occupancy
-      and percentile strip, the bin edges, the outcomes counts, the
-      single-read count, the byte-ceiling cut with its covered control arm, the
-      unavailable record, and a missing receipts directory leaving the live
-      block unavailable with a reason while the lane block keeps its gate
-      figures. Every existing callers fixture passes unchanged: the only edits
-      to existing assertions are the two that listed the document's keys
-      exactly, which now name the two added blocks.</p>
+      tests/test_live_panel.py tests/test_agent_watch_live.py</code> —
+      <strong>58 passed</strong>, exit 0 (<code>gate.log</code> in the run
+      directory); <code>uv run --no-sync ruff check imas_ambix tests</code>
+      exits 0. Eight of those tests are new: the hand-computed occupancy strip
+      and its percentile row, the bin edges, the outcomes counts, the
+      single-read count, the byte-ceiling cut with a covered control arm, the
+      unavailable record, and the missing receipts directory below. Every
+      existing callers fixture passes unchanged — the only edits to existing
+      assertions are two that listed the document's keys exactly, which are
+      left naming the same three blocks.</p>
+    </section>
+    <section id="lane-history-and-outcomes-negative-control">
+      <p><strong>Negative control.</strong> Every history bin edge was shifted
+      by one minute (the strip computed from <code>end - (count - index) *
+      60 + 60</code> instead of <code>end - (count - index) * 60</code>). The
+      hand-computed occupancy test failed, as declared, along with the bin-edge
+      and percentile tests: <code>3 failed, 50 passed</code>, exit 1
+      (<code>negative-control.log</code>). The strip *does* change under the
+      shift — the bin that held ten seconds of row A reads 0.0 instead of
+      0.17 — so the test is measuring the edge alignment and not merely
+      re-reading its own fixture.</p>
+    </section>
+    <section id="lane-history-and-outcomes-shape">
+      <p><code>live_panel</code> hangs <code>history</code> and
+      <code>outcomes</code> off the <code>callers</code> block rather than
+      beside it at the document's top level. The top-level key set
+      (<code>lane</code>, <code>live</code>, <code>callers</code>) is pinned by
+      three assertions in <code>tests/test_agent_watch_live.py</code>, which is
+      outside this node's write scope and is named in this node's gate, so the
+      document keeps the shape its readers already expect. A top-level pair
+      would read more naturally and needs a one-line update to those three
+      assertions — a coordinator decision, recorded under <code>follow_ons</code>.</p>
     </section>
   </main>
 </body>
