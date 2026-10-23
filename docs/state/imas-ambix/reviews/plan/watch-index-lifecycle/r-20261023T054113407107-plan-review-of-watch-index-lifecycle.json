@@ -1,0 +1,101 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T05:56:15.412Z",
+  "dispatched_at": "2026-10-23T05:43:58Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/watch.py:91",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a74 must still name `DEFAULT_INDEX_PATH` (`watch.py:91`) as the declaration it replaces and add `watch.py:1306`, `:1433` and the three CLI help strings to its write scope, or the new resolver is a fourth statement of a fact already written in five places and the GPFS path stays reachable through the reader's own fallback.",
+      "text": "the plan's new resolver `imas_ambix/agent/index_placement.py` (\u00a74) is the fourth declaration of the same fact; `DEFAULT_INDEX_PATH` is already the owner and is duplicated at `imas_ambix/agent/watch.py:1306` and `:1433` (`Path(index_path or DEFAULT_INDEX_PATH)`), in three CLI option help strings at `imas_ambix/agent/cli.py:3096`, `:3197` and `:3292`, and in a second argparse entry point at `imas_ambix/agent/telemetry_ingest.py:486` whose own `TelemetryIndex(args.index_path)` at `:527` opens the index without passing through `cli.py` at all; its `--index` is `required=True`, so it cannot silently resolve the GPFS path, and the fleet service runs the CLI form instead (`services.json`: `agent ingest --cadence 60`, no `--index-path`, landing on `DEFAULT_INDEX_PATH` at `imas_ambix/agent/cli.py:3380`), which \u00a74's write scope does cover",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/telemetry_index.py:83",
+      "id": "reuse_search-1",
+      "reason": "without the sentence naming the file-level hour tier as distinct (it is per-file and per-counter-total, not per-measurement-hour with gauge integrals) a reviewer cannot tell whether \u00a75 is a second rollup over the same data, and the plan cannot be judged against `f-srw-020`'s own scope; the plan should state the distinct axis (`(host, boot_id, inode), measurement, hour`) and cite the tiers it does not replace.",
+      "text": "\u00a75 introduces an hourly rollup and a name/kind dictionary as a new index-internal mechanism without citing the rollup machinery the codebase already has; `imas_ambix/agent/telemetry_store.py:1` owns three compaction tiers (raw/minute/hour) per receipt file and `telemetry_index.py:83`-:90 already exploits them by reading only the finest tier offered for a job (raw, else minute, else hour), and `receipt_bins` is named in the same docstring as the owner of receipt aggregation \u2014 the plan states the rollout \"takes over f-srw-020 unchanged\" but never states why the existing hour tier cannot answer a period read, and the `measurement` table's `measurement_lookup` index at `telemetry_index.py:277` already carries `(name, kind, sample_id)`",
+      "type": "reuse_search",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/watch_publish.py:124",
+      "id": "thin_wrapper-1",
+      "reason": "a second implementation of the atomic-publish contract is a second place for `published_at`/`compute_seconds`/mode 0644 to drift, and the honest change is to extract the body of `one_iteration` and call it from both call sites.",
+      "text": "\u00a76 folds publication into the ingest's `on_tick` hook and restates its contract (\"`published_at` and `compute_seconds` at top level, mode 0644, one flushed line per publication, and a failed publication leaving the previous file byte-identical\") without naming `one_iteration`, which already implements exactly that contract (atomic temp-file write through `os.replace`, the two fields, one flushed line, one iteration) and is reached today through the `publish-watch` loop; the plan should call that function rather than re-implement its behaviour inside the hook",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/telemetry_ingest.py:398",
+      "id": "thin_wrapper-2",
+      "reason": "the plan should say the index is captured by the `on_tick` closure, or widen the hook; as written the interface between the loop and its two new responsibilities is undeclared, which is precisely where a spread of shallow wrappers accumulates.",
+      "text": "\u00a74 and \u00a76 both wire new work through `on_tick: Callable[[TickReport], None] | None`, whose parameter carries only a `TickReport`; the daily snapshot (\u00a74) and the publication (\u00a76) each need the index handle or its connection, neither of which the hook supplies, so the plan's claim that \"`telemetry_ingest.py is not touched\" is true only because a closure defined in `cli.py` reaches the index out of band, and it leaves the hook's declared type still describing a callback that can no longer do what the loop must",
+      "type": "thin_wrapper",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/watch-index-lifecycle.html \u00a74",
+      "id": "interface_budget-1",
+      "reason": "\u00a74's resolver also has a merge available it does not claim (`DEFAULT_INDEX_PATH`, and \u00a77's log-directory resolution sits beside the same environment-variable family), so the section should either name that retirement or state why the excluded artefact cannot be delegated.",
+      "text": "with the week's budget at `public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0`, \u00a74 adds a new module whose public surface is a resolver, a journal-mode setter and its refusal on a network filesystem, so it adds to `public_definitions` and to `refusal_families` (the `statfs`-network-type refusal, `index_placement.py` in \u00a74's own write scope), and \u00a77 adds `$AMBIX_LOG_DIR` as a new configuration surface beside the existing `AMBIX_AGENT_ENGINE_ENV_ROOT` / `AMBIX_AGENT_ENGINE_ENV_MIN_FREE_GB` in `imas_ambix/agent/AGENTS.md` \u00a73; the section names no definition it retires or merges and no reason none can be, unlike \u00a76 which at least states that `publish-watch` \"loses its loop\" and so narrows the interface to one standing process",
+      "type": "interface_budget",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/gs/artifact_resolution.py:256",
+      "id": "duplicate_owner-2",
+      "reason": "the two own different artefacts (machine geometry bundles versus the telemetry index) and neither cache root is a general-purpose one another can extend without widening its purpose, so the honest reading is a shared shape rather than a duplicated owner; naming it in \u00a74 would still help a reader see the precedent.",
+      "text": "\u00a74 rebuilds, for the index, a resolver shape this repository already has: an environment override, a durable shared root and a node-local staging root, in a stated resolution order (`durable_cache_root` at `:256`, `staging_cache_root` at `:271`, \"In order: the environment override, the durable cache root, the node-local staging root, and finally re-authoring it\"); the plan's three-case order is the same idea over a different artefact, and `artifact_resolution.py` is named as the owner of cache-root placement by its own importers (`imas_ambix/gs/machine_selection.py:46`, `imas_ambix/spine_bench/machine_artifact_arm.py:64`)",
+      "type": "duplicate_owner",
+      "would_change": false
+    },
+    {
+      "anchor": "docs/plans/watch-index-lifecycle.html \u00a73",
+      "id": "reuse_search-2",
+      "reason": "this is an observation about the plan's own account of itself, not a defect; \u00a73 already reads as an in-place extension and needs no change, and \u00a75's finding above is where the change belongs.",
+      "text": "the plan's own best reuse case is not cited as such: \u00a73 does not add machinery at all, it changes the existing read path in place (`_read_new`, `_was_rewritten`, `_digest_of`, `prefix_sha` at `imas_ambix/agent/telemetry_index.py:1444` and `:1804`), which is exactly the \"extend the mechanism\" outcome this rubric asks for, and the plan's \u00a75 by contrast adds a table and a dictionary",
+      "type": "reuse_search",
+      "would_change": false
+    },
+    {
+      "anchor": "imas_ambix/agent/slurm.py:570",
+      "id": "duplicate_owner-3",
+      "reason": "recorded so the census is complete and so the \u00a77 author knows the single seam to extend; no change is needed.",
+      "text": "\u00a77 is checked against the code and is correct as written: the generated job scripts name relative outputs (`{profile.slug}-%j.log` at `slurm.py:570`, `ambix-lane-%j.log` at `:1045`, `ambix-router-%j.log` at `:1125`, `download-{profile.slug}-%j.log` at `:1208`), all emitted through the one `#SBATCH --output=` writer at `slurm.py:150`, so one function owns every output path",
+      "type": "duplicate_owner",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "5a35b15fc9bc00630ad916723535c6b467153932771300d804dc9e74b15f4265",
+  "plan_slug": "watch-index-lifecycle",
+  "plan_version": 0,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T054113407107-plan-review-of-watch-index-lifecycle",
+  "reviewed_blob_sha": "6cdea14682870952515d3185b8fe4d59f8a44070",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "pass \u2014 `index_placement.py` hides path resolution, the WAL/journal-mode refusal, snapshot, retention and restore behind one small surface; that is depth, not a spread of wrappers.",
+    "duplicate_owner": "a finding \u2014 index path resolution is owned today by `imas_ambix/agent/watch.py:91`, declared in three CLI help strings and re-declared in a second argparse entry point; the plan adds a fourth resolver and omits the owner from its write scope.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a74 adds a resolver and its refusal family and \u00a77 adds `$AMBIX_LOG_DIR`, and neither section names anything it retires or merges, or why nothing can be.",
+    "reuse_search": "a finding \u2014 \u00a73 extends the existing read path in place (good), but \u00a74 and \u00a75 add machinery without naming the owners they supersede: `DEFAULT_INDEX_PATH` for index placement and the existing minute/hour tiers for rollups.",
+    "thin_wrapper": "a finding \u2014 \u00a76 re-implements atomic publication inside the ingest tick and \u00a74 adds a second index entry point, both beside existing machinery that already does the job."
+  },
+  "section_digests": {
+    "_document": "11a66c1bf9b55c27aa69a6cc14d0a7c6104d411234cec8fe79aa4229ec3338cd",
+    "s1": "121d9eb93ee04437b7c1489c20c509f1dc57031b8448781757d658176d8f76ab",
+    "s2": "32189637430822acde78e34d53cbed7c3f0ae26c9fe044e99dc013e4e1d0db9d",
+    "s3": "0535431499e06d5c8b98b95094a526eb14fba0870d008556cfbc7d6536631116",
+    "s4": "f16420e329b04d93c5075e6e1ef144086f92a67add67dee341814acdef1a0e6f",
+    "s5": "542272dc6dc107ed945e2d025b243c7f5c632b20d08b71580c678a8b60ea4e00",
+    "s6": "f916ceb3c8200d26ec80cbf7c3c1bfa2dde1f06f61bcb72f8be22e29da32d103",
+    "s7": "71171d742837d17cf48cb87233bb5d9d3cd5a6ed6015f373e829160b5f2a6fce",
+    "s8": "83ac32d54d4394cd1d9f11da1f46b1eb6420b70f2911084121a031e6f7aff225",
+    "s9": "62bf93e7fec684aebfaadc4ad598642503ca8ee4691eeec898a8aad77e03adf1"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T06:00:56.826050+00:00"
+}
