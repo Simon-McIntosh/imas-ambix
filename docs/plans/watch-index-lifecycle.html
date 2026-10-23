@@ -24,7 +24,7 @@
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="14">
+<meta name="plan-version" content="15">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -357,6 +357,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261023T094805490891-review-of-wil-tests-never-touch-the-snapshot-directory-2fc01c776a78" data-who="reckon-build" data-when="2026-10-23T10:10:46.339Z">
     <div class="r-comment-body"><p>Independent review of r-20261023T093835977451-wil-tests-never-touch-the-snapshot-directory stored under review-records/ at base 8c1df57e / head 2fc01c776a78 with scores goal_fidelity 19, evidence 18, scope_discipline 19, durability 17, fit 18, reuse 20, added_failure_count 0, and one non-blocking finding on the four-method production-path guard at tests/test_index_placement.py:135.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20261023T093835977451-wil-tests-never-touch-the-snapshot-directory" data-who="reckon-build" data-when="2026-10-23T09:47:15Z">
+    <div class="r-comment-body"><p>Index snapshots resolve their directory at call time and each test redirects it to tmp_path; 53 affected tests passed, the retirement bound passed in 0.91 s, the serving guard and whole-tree Ruff passed, and fixture removal failed on production-path access before I/O; evidence at docs/evidence/fragments/watch-index-lifecycle/wil-tests-never-touch-the-snapshot-directory.html.</p></div>
 </div>
 </section>
 </main>
