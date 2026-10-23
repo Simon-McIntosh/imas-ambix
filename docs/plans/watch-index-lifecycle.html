@@ -20,11 +20,11 @@
   <meta name="plan-tags" content="agent-serving">
   <meta name="plan-blocks" content="serving-record-warehouse">
   <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;],&quot;s10&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s11&quot;:[&quot;watch-index-lifecycle#s7&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;implementable&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="27">
+<meta name="plan-version" content="28">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -284,7 +284,7 @@
     </ul>
 
     <h2 id="s10">§10 — A schema change rebuilds the index instead of crash-looping the ingest</h2>
-    <section data-reckon="section" data-id="s10" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-attempts="0" data-status="implementable" data-links=""></section>
+    <section data-reckon="section" data-id="s10" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-attempts="0" data-status="done" data-links=""></section>
     <p>§5 made <code>TelemetryIndex</code> refuse an index without the name dictionary (<code>the measurement dictionary requires an index rebuild</code>). Nothing in the ingest command answers that refusal, so two ordinary events crash-loop the service under its supervisor:</p>
     <ul>
       <li><strong>Any restart of the running ingest.</strong> It still holds pre-§5 code in memory, and the editable install already serves §5, so a restart for any reason, a fleet-node failure included, opens the old-schema live index and raises.</li>
@@ -307,18 +307,19 @@
 
     <h2 id="s11">§11 — One owner for each index fact the reviews found stated twice</h2>
     <section data-reckon="section" data-id="s11" data-effort-hours="1.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
-    <p>The reviews of §5 and §10 left four non-blocking findings. Each is a fact stated in two places, or a mechanism with no reader:</p>
+    <p>The reviews of §5 and §10 left five non-blocking findings. Each is a fact stated in two places, or a mechanism with no reader:</p>
     <ul>
       <li><code>index_placement.index_requires_rebuild</code> re-implements the predicate that <code>TelemetryIndex</code> owns, the absent <code>name_id</code> column, so the sentinel lives in two modules. <code>TelemetryIndex</code> exposes the predicate publicly and <code>index_placement</code> calls it.</li>
       <li>The <code>ingest</code> command asks whether a snapshot exists through the private <code>index_placement._snapshot_paths</code>. <code>index_placement</code> exposes a public predicate, and <code>cli.py</code> uses only that.</li>
       <li>The <code>hourly_rollup.counter_diff</code> column is written but never read, because <code>_counter_window_rows</code> reconstructs the difference from the segments. The column, its two writes and its assertion are deleted. The reader already derives the difference from <code>segments</code>, so <code>segments</code> stays the one source; keeping <code>counter_diff</code> and reading it instead would leave <code>segments</code> written but unread.</li>
+      <li>Clearing a replaced database's <code>-wal</code> and <code>-shm</code> is done inline in <code>cli.py</code>. <code>index_placement</code> owns installing an index, and <code>restore_index</code> also installs one by <code>os.replace</code> without that step. The clearing moves into <code>index_placement</code> as the one install path, and both the rebuild swap and the restore call it.</li>
       <li>The counter-rollup test never forces whole hours through <code>hourly_rollup</code>, so a regression that answers a whole-day counter period from raw rows passes it. The test is made to fail on such a regression.</li>
     </ul>
     <p>Write scope: <code>imas_ambix/agent/telemetry_index.py</code>, <code>imas_ambix/agent/index_placement.py</code>, <code>imas_ambix/agent/cli.py</code>, <code>tests/test_telemetry_index.py</code>, <code>tests/test_agent_telemetry_watch.py</code>, <code>tests/test_index_placement.py</code>. It follows §7, which also writes <code>cli.py</code>.</p>
     <p><strong>Done when:</strong></p>
     <ul>
       <li><code>git grep name_id -- imas_ambix/agent/index_placement.py</code> finds nothing.</li>
-      <li><code>git grep _snapshot_paths -- imas_ambix/agent/cli.py</code> finds nothing.</li>
+      <li><code>git grep _snapshot_paths -- imas_ambix/agent/cli.py</code> finds nothing.</li><li><code>os.replace</code> on an index path appears only inside <code>index_placement</code>, and a test shows a restore over a target with a stale <code>-wal</code> opening the restored schema.</li>
       <li>Exactly one source of the hourly counter difference remains.</li>
       <li>The negative control fails as stated: answering a whole-day counter period from raw rows makes the counter-rollup test fail.</li>
       <li>The named tests, the serving-interpreter guard and the whole-tree ruff gate pass on the fleet allocation.</li>
@@ -436,7 +437,7 @@
     <div class="r-comment-body"><p>§10 landed and deployed: the old-schema live index was rebuilt from receipts and swapped in at the deployment restart (merged <code>fbef8c0c</code>). A stale-WAL adoption after the swap caused one restart loop, which the coordinator stopped; its repair is in flight. <a href="/imas-ambix/evidence/archive/watch-index-lifecycle-landed.html#s10">evidence</a></p></div>
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20261023T141151886442-review-of-wil-rebuild-swap-clears-the-old-wal-154a7f96d84b" data-who="reckon-build" data-when="2026-10-23T14:39:11.221Z">
-    <div class="r-comment-body"><p>Reviewed run r-20261023T135323383381-wil-rebuild-swap-clears-the-old-wal at head 154a7f96d84b8a60c1342835d56eae44c40327bb from base 5eff4e926b4e136eed1333504216abe08b87bee5; scores goal_fidelity 20, evidence 19, scope_discipline 20, durability 19, fit 18, reuse 18; 0 added failures; two non-blocking findings (cli.py:3431 the journal discard sits in cli.py rather than its lifecycle owner index_placement.py:264; tests/test_agent_ingest_cli.py:70 patches the global os.replace); record written under review-records/ in the reviewed run&#x27;s directory.</p></div>
+    <div class="r-comment-body"><p>Reviewed run r-20261023T135323383381-wil-rebuild-swap-clears-the-old-wal at head 154a7f96d84b8a60c1342835d56eae44c40327bb from base 5eff4e926b4e136eed1333504216abe08b87bee5; scores goal_fidelity 20, evidence 19, scope_discipline 20, durability 19, fit 18, reuse 18; 0 added failures; two non-blocking findings (cli.py:3431 the journal discard sits in cli.py rather than its lifecycle owner index_placement.py:264; tests/test_agent_ingest_cli.py:70 patches the global os.replace); record written under review-records/ in the reviewed run's directory.</p></div>
 </div>
 </section>
 </main>
