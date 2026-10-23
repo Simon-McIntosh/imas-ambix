@@ -1,0 +1,67 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T08:11:16.661Z",
+  "dispatched_at": "2026-10-23T08:01:47Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/rotate-to-deepseek-v4-1-flash-1017.html:174",
+      "id": "done_when-1",
+      "reason": "as written the control passes on the unfixed code and its done-when measures nothing, so the author must either name the empty-directory refusal as a change in \u00a72's write paths or replace the control with one the mechanism can fail.",
+      "text": "\u00a75's negative control requires that `imas-ambix agent restart --dry-run` against a profile pointing at an empty weights directory \"refuses before pausing the lane\", but the described mechanism cannot produce that refusal: `restart`'s dry-run branch prints the generated script and returns before any environment or on-disk check (`imas_ambix/agent/cli.py:2408-2422`; `_require_engine_environment` runs only when `not dry_run`, `cli.py:2388`), and `generate_serve_script` (`imas_ambix/agent/slurm.py:498`) contains no weights-directory or non-empty check, so the dry-run exits 0 whatever the directory holds \u2014 and \u00a72's write paths (`profile.py`, `slurm.py`) add a revision pin and a download-side refusal for an absent commit, not a render-time empty-directory refusal",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/rotate-to-deepseek-v4-1-flash-1017.html:98",
+      "id": "reasoning-1",
+      "reason": "the positive control and the probe's stated purpose cannot both hold, so \u00a73 must either state today's engine is not known-good for this property (making the probe's red a recorded baseline rather than a control failure) or the probe must be bounded to a deterministic fixture rather than a live exchange.",
+      "text": "\u00a73 states the interleaved-thinking probe asserts that \"a multi-turn exchange with a prior tool result must keep reasoning out of the visible content and out of the tool arguments\", names it as \"the leak the `a-tool-call-carries-no-model-markup` plan tracks\", and in the same section requires all three probes to pass \"against today's served engine \u2026 as the positive control on known-good weights\" \u2014 but the cited plan's own landed evidence says the model writes the markup into arguments and its \u00a73 guard is not landed on the serving router (its \u00a73 `implementable`, its \u00a75 `deferred`), and the leak it measures is a ~1-in-4,700-call stochastic event, so a single exchange either fails the probe or passes by chance without measuring the leak",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/rotate-to-deepseek-v4-1-flash-1017.html:129",
+      "id": "reasoning-2",
+      "reason": "a consumer or its absence must be settled in the plan, since a node cannot tell which module implements the claimed reader behaviour and the section as written cannot be shown to surface the release a reader needs.",
+      "text": "\u00a74 declares that \"A registration written before this section reads `release: null`, which the reader reports as unknown and never guesses\", and the plan's headline outcome is \"record which release answered\", but no reader is named and no \u00a74 write path covers one: the paths are `registry.py`, `slurm.py`, `tests/test_agent_serve_registry.py` and `tests/test_agent_endpoint_discovery.py`, and the only existing receipt consumer that could surface the join (`agent receipts`, `imas_ambix/agent/cli.py:3005`) is not in scope, so the join has no production caller and the field is written and never read",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/rotate-to-deepseek-v4-1-flash-1017.html:90",
+      "id": "anchors_resolve-1",
+      "reason": "\u00a73's probes are independently warranted by every worker making tool calls, so correcting or dropping the citation would not change the section's mechanism, though a later reader cannot check the claim as it stands.",
+      "text": "\u00a73 justifies its scope with \"1017 ships a new prompt encoding (`encoding.py` and `deepseek-recipe`, no Jinja template)\", but no anchor names where that is published: neither file exists in the repository, and no citation (model card, commit `1bae0e1088993b9b82de08f59de5be5a34e42170`, or release note) is given",
+      "type": "anchors_resolve",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "cfba658aed4ee525b4aa55edeb3cab60b265e04bd40ba0aec68caa668edf6d82",
+  "plan_slug": "rotate-to-deepseek-v4-1-flash-1017",
+  "plan_version": 0,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T080132039861-plan-review-of-rotate-to-deepseek-v4-1-flash-1017",
+  "reviewed_blob_sha": "754c2ff4cf7ed258298b29dbc9f70ed3514b6166",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 every cited file, plan and runbook resolves, but \u00a73's root-cause claim about the 1017 prompt encoding cites no artifact.",
+    "done_when": "a finding \u2014 \u00a75's negative control (`restart` dry-run against an empty weights directory refusing before the pause) cannot fail with the mechanism the plan describes.",
+    "evidence_paths": "pass \u2014 \u00a75 records its four figures in the landing record and the runbook appends to `lane-cycles.jsonl`, so no gate log is routed to a scratchpad; \u00a72 and \u00a73 name no explicit log path, which is a thinness rather than a defect.",
+    "naming": "pass \u2014 the new symbols the plan describes (`revision`, `release`, `serve_probe.py`) carry no plan label or ticket number, and `1017` is the vendor's release identifier on an artifact path, not a plan-stage label.",
+    "reasoning": "a finding \u2014 \u00a73's interleaved-thinking probe asserts a property that its own cited plan measures as violated on the engine \u00a73 uses as the positive control, and \u00a74's reader is given a behaviour with no named caller or write path.",
+    "single_goal": "pass \u2014 \u00a72 downloads and pins, \u00a73 extends restart validation, \u00a74 records the release, \u00a75 performs the rotation; each carries one deliverable and one verdict.",
+    "wiring": "pass \u2014 `plan-blocks` names `b300-bring-up-and-open-model-bakeoff`, which carries the reciprocal `plan-after` and depends on `rotate-to-deepseek-v4-1-flash-1017#s2` in its s5/s6, and the section map `plan-section-depends-on` (`s5` \u2192 `s2`, `s3`, `s4`) resolves to sections that exist."
+  },
+  "section_digests": {
+    "_document": "db2ecdde5472286c88a918f63b4ec8ce3b8116204bde0d78e6a76f64f123e6c8",
+    "s1": "8deac0a58e020378e898a334465e0ec83803b509b7e5a610b21591def4c21d25",
+    "s2": "a23e81a77c9227613a42419b5fefc7dfd90022596cc8ae2a2b9264290cada17c",
+    "s3": "09fc7f88c725c44fcab83576f174108a5d623d790b87cfd183d8fc919724d5ff",
+    "s4": "046fd0c7f0bd7207fab1faadd23dbb5b80276a91f81132511544dc8b2fcf0737",
+    "s5": "9e46358e19e6d5a56f35770722e9a3f78e1955fd3bb1be5541a10064b6e3e774"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T12:00:39.644436+00:00"
+}
