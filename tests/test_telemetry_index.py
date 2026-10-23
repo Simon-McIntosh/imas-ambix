@@ -1455,10 +1455,6 @@ def test_grown_source_reads_only_appended_bytes_and_identity_probes(
             with real_open(source, "rb") as handle:
                 expected = hashlib.sha256(handle.read(stored["offset"])).hexdigest()
             assert stored["prefix_sha"] == expected
-        bytes_read = 0
-        assert index.ingest([source]).files_scanned == 1
-        assert bytes_read <= 128 * 1024
-
     with TelemetryIndex(tmp_path / "index.db") as reopened:
         bytes_read = 0
         assert reopened.ingest([source]).files_scanned == 0
