@@ -1,0 +1,23 @@
+<section class="evidence-fragment" data-reckon="evidence" id="wil-index-review-cleanup">
+  <header><h3>Index schema, installation and counter rollups have single owners</h3></header>
+  <p><code>TelemetryIndex.requires_rebuild</code> now owns the measurement-schema
+    predicate, and placement delegates to it. Placement exposes
+    <code>snapshot_exists</code> and <code>install_index</code>; restore uses the
+    install path to remove stale SQLite sidecars before replacement. New
+    rollups store counter segments without a separate difference column, while
+    indexes that already carry that column remain writable.</p>
+  <table id="wil-index-review-cleanup-measures">
+    <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Stale journal reproduction</td><td>Before repair, opening the restored target raised <code>no such table: measurement</code>. The repaired restore opens the snapshot schema.</td></tr>
+      <tr><td>Rollup dependency</td><td>Changing one whole-hour segment's counter difference by 77 changes the day total by 77. With the reader mutated to use raw rows, it remained 7200 instead of 7277.</td></tr>
+      <tr><td>Compatibility</td><td>The fresh schema has no <code>counter_diff</code> column; an index retaining the legacy column ingested two rows and wrote hourly rollups without rebuilding.</td></tr>
+      <tr><td>Required gates</td><td>Baseline: 142 passed in 119.61 s. Committed head: 144 passed in 78.24 s with eight workers; serving parser: 1 passed; whole-tree Ruff: passed.</td></tr>
+      <tr><td>Negative controls</td><td>Both the raw-reader and stale-journal mutations failed their new tests; the control log ends with <code>EXIT=1</code>.</td></tr>
+    </tbody>
+  </table>
+  <p>Implementation and tests are in commit
+    <code>1d9c32f47b755838b04d7e73205f5b576488f9f3</code>. The command logs
+    are in this node's crew run directory. The ingest command's adoption of
+    the new placement helpers remains in its separately owned source scope.</p>
+</section>
