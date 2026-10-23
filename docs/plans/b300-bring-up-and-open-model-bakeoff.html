@@ -21,11 +21,11 @@
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
   <meta name="plan-after" content="rotate-to-deepseek-v4-1-flash-1017">
   <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;deferred&quot;}">
-  <meta name="plan-section-depends-on" content="{&quot;s3&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s2&quot;],&quot;s4&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s5&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s4&quot;],&quot;s6&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s5&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s5&quot;]}">
+  <meta name="plan-section-depends-on" content="{&quot;s3&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s2&quot;],&quot;s4&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s3&quot;],&quot;s5&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s4&quot;],&quot;s6&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s5&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s5&quot;,&quot;serving-across-servers#s7&quot;]}">
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="2">
+<meta name="plan-version" content="6">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -83,9 +83,12 @@
       <code>/work/projects/imas_gpu/agents</code> holding a <code>model/</code>
       subdirectory, with every field above. The commands that produced each figure are
       recorded beside the table.</li>
-      <li>The served checkpoint's row reads <code>deepseek-ai/DeepSeek-V4.1-Flash</code> at
-      commit <code>dba1be0a</code>, with first-shard hash <code>886aebda…</code>. This was
-      measured on 2026-10-23 and is the audit's positive control.</li>
+      <li>The positive control is the September V4.1-Flash directory
+      (<code>deepseek-v4-1-flash/model</code>), whatever is serving when the audit runs. Its
+      row must read <code>deepseek-ai/DeepSeek-V4.1-Flash</code> at commit
+      <code>dba1be0a</code>, with first-shard hash <code>886aebda…</code>, as measured on
+      2026-10-23. The rotation keeps that directory as its rollback target for a week, so the
+      control holds before and after the rotation.</li>
       <li><strong>Negative control:</strong> the completeness check, run against a scratch
       copy of one small checkpoint's index naming a shard that is absent, reports that
       directory incomplete.</li>
@@ -147,8 +150,13 @@
     <code>serving-across-servers</code> §3 landed. Its host name, partition, account and
     reservation are filled from the operator's answer at arrival (question
     <code>b300-arrival-facts</code>).</p>
+    <p><code>agent serve</code> and <code>agent restart</code> have no way to choose among a
+    profile's topologies today. This section adds <code>--topology &lt;name&gt;</code> to
+    both. Its default is the profile's default topology, so every existing invocation is
+    unchanged.</p>
     <p><strong>Write paths.</strong> <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>,
-    <code>imas_ambix/agent/profile.py</code>, <code>tests/test_agent_b300_launchers.py</code>
+    <code>imas_ambix/agent/profile.py</code>, <code>imas_ambix/agent/cli.py</code>,
+    <code>imas_ambix/agent/slurm.py</code>, <code>tests/test_agent_b300_launchers.py</code>
     (new), <code>docs/research/b300-launch-recipes.html</code> (new).</p>
     <p><strong>Done when.</strong></p>
     <ul>
@@ -187,14 +195,15 @@
 
     <h2 id="s6">§6 — Cut over</h2>
 <section data-reckon="section" data-id="s6" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links=""></section>
-    <p>Register the <code>b300-8x</code> engine with the router. Today's routing sends new work
-    to the widest engine serving a model (<code>_preferred_owner</code>), so the B300 takes
-    new sessions as soon as it registers, while the H200 engine finishes what it holds. What
-    the H200 does next is the open question <code>h200-role</code>. If it keeps serving
-    beside the B300, <code>serving-across-servers</code> §7 (session affinity across engines)
-    is needed first. If it returns to physics, its serve is stopped once it has drained.
-    This is a coordinator action under the lane-cycle runbook, and the router does not
-    restart for it.</p>
+    <p><strong>The H200 keeps serving</strong> (lead, 2026-10-23). After cutover, the lane is
+    two engines of one model: <code>b300-8x</code> and the H200's <code>h200-4x</code>.
+    Today's routing would send every new key to the widest engine
+    (<code>_preferred_owner</code>) and leave the H200 idle, so
+    <code>serving-across-servers</code> §7 lands first. It places each new session on the
+    engine with room and keeps the session there, so its prefix cache stays warm. Cutover
+    then registers the <code>b300-8x</code> engine with the router and confirms both engines
+    take work. This is a coordinator action under the lane-cycle runbook, and the router
+    does not restart for it.</p>
     <p><strong>Done when.</strong></p>
     <ul>
       <li><code>endpoints.json</code> lists the B300 engine with the 1017 release, and the
@@ -222,8 +231,9 @@
 <div class="r-q" data-id="b300-arrival-facts" data-section="s4" data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-23" data-resolved-at="" data-resolved-by="">
     <p class="r-q-body">On arrival: the B300 node's host name, partition, account and reservation, and the CUDA driver version it ships with. §4 fills them into the server declaration, and the driver version bounds which SGLang builds can run.</p>
     </div>
-<div class="r-q" data-id="h200-role" data-section="s6" data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-23" data-resolved-at="" data-resolved-by="">
+<div class="r-q" data-id="h200-role" data-section="s6" data-status="resolved" data-opened-by="Simon McIntosh" data-opened-at="2026-10-23" data-resolved-at="2026-10-23T12:53:32+00:00" data-resolved-by="Simon McIntosh">
     <p class="r-q-body">After cutover, does the 4×H200 keep serving DeepSeek beside the B300, or return to FP64 physics and training? Keeping it adds roughly a fifth to the lane's capacity, but needs <code>serving-across-servers</code> §7 (session affinity, 5 h, elevated risk) and keeps those cards from physics work.</p>
+    <p class="r-q-resolution">The H200 keeps serving DeepSeek beside the B300 (lead, 2026-10-23). §6 therefore waits on serving-across-servers §7 (session affinity across engines).</p>
     </div>
 </section>
 
