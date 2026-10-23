@@ -1,0 +1,52 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T02:54:41.310Z",
+  "dispatched_at": "2026-10-23T02:38:09Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/a-tool-call-carries-no-model-markup.html:47",
+      "id": "reasoning-1",
+      "reason": "without a bound on repeat aborts or an exclusion for a deliberate quote, the guard can livelock a turn that must mention the markup (the nodes writing \u00a73's own tests and fixtures do).",
+      "text": "the guard ends the stream on a structural opening in any tool input, so a turn whose input legitimately quotes the markup is aborted; \u00a73's own justification for the structural matcher is that \"this plan's own census and fixtures quote the bare token\", but the cited fixtures carry structural openings (`<\uff5cDSML\uff5c calls>`, `<\uff5cDSML\uff5c invoke name=\"Bash\">` in `fixtures/leak-*.json` and `clean-*.json`), and \u00a71 excludes this plan's own runs from the census precisely because their tool inputs carry the markup on purpose \u2014 so legitimate structural quotes are known to occur, and a retried turn that re-writes the same quoted text is aborted again, which no bound or exclusion in \u00a73 prevents.",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/a-tool-call-carries-no-model-markup.html:48",
+      "id": "reasoning-2",
+      "reason": "\u00a75's closing measure rests on a receipt distinction that s3's change removed, so the node that lands \u00a75 would have to invent the count or report it unproducible.",
+      "text": "\u00a73 records a firing as `STATUS_ABORTED`, \"as a cut does, so no receipt reader counts a new status\", while \u00a75 (depends-on s3) measures \"the receipts' guard status\" and \"the number of guard firings the receipts record\" over the window after the restart; because the receipt now carries no marker separating a guard firing from an operator pause, \u00a75's promised count cannot be produced from the receipts, and the per-firing log line \u00a73 adds \u2014 the only attributable source \u2014 is not named by \u00a75.",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "1248e2ee604c8b416ab23a0b6abdcb1da6b38860f4b8d3c3bdaf6b9d3ad99854",
+  "plan_slug": "a-tool-call-carries-no-model-markup",
+  "plan_version": 15,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T023702644083-plan-review-of-a-tool-call-carries-no-model-markup",
+  "reviewed_blob_sha": "2d0fa8e1624351c453dbfd5ddc5a19191ad76786",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `RouterApp._relay` (router.py:2402), `StreamAccounting.feed` (request_receipts.py:373), `tests/test_agent_router_cut.py`, `tests/test_agent_router.py`, `census.py` and `fixtures/` (leak-*, clean-*, generic-* with `index.json`) all exist in the tree; the snapshot's one href resolves to `docs/evidence/archive/a-tool-call-carries-no-model-markup-landed.html` and its `#s2-the-model-writes-the-markup` anchor is present.",
+    "done_when": "pass \u2014 \u00a73's done-when is measurable (per-fixture absence of `content_block_stop`/`message_stop`, `STATUS_ABORTED` in the receipt, the matcher's non-firing on the bare token) and declares a negative control that can actually fail.",
+    "evidence_paths": "pass \u2014 the guard's log, the fixtures it reads and the population-pass log all sit under the durable reports directory, none in a scratchpad or node-local temporary path.",
+    "naming": "pass \u2014 the new module is named for its mechanism (`tool_input_markup.py`), no ticket or plan label reaches a symbol, and no changelog prose appears in the section.",
+    "reasoning": "a finding \u2014 the guard aborts a whole turn on any structural opening in any tool input, and \u00a73 counts such firings in its own population pass without deciding what a legitimate one is worth; \u00a75, which depends on s3, counts guard firings \"the receipts record\" although \u00a73 deliberately makes a firing indistinguishable from an operator cut.",
+    "single_goal": "pass \u2014 \u00a73 carries one deliverable, the router guard; the population pass and the relay tests are its validation, not a second outcome.",
+    "wiring": "pass \u2014 \u00a73 declares `depends-on` s2 (its origin finding), and s4 and s5 both declare `depends-on` s3; every relationship resolves to a node that exists and points the right way."
+  },
+  "section_digests": {
+    "_document": "403da21a79cbe327f0935fd41d2a294ae9f63b57b37ed27f5ac61e33601230ae",
+    "s1": "5f8c49e3d7e51c0174a76ddfea229d085b20b6e290dcf0a017c94c993156cdda",
+    "s2": "f22bd920ddbf54ebe86243b05d2d8c24bd970608d7794349574f97d6eaea2201",
+    "s3": "790e3f7d7329f9ab5305072826508a31030f954d07c973e47b4a5b0cb179db7d",
+    "s4": "73433c178790d5f6f90c5a57799d16eb9d4fcf7a0039fc4044d9886609d0e472",
+    "s5": "4953adf1c0f7e3da4e54c2dfa59454bcb28b740a4d46945db85be3c1d31d321c",
+    "s6": "0629f0c30cab8733b2150eadf81ec757fe59a4a2742e8c7c636580d856b53d9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T02:59:34.526495+00:00"
+}
