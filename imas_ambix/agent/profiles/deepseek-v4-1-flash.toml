@@ -57,11 +57,11 @@
 [model]
 name = "DeepSeek-V4.1-Flash"
 hf_repo = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
-# The 1017 update publishes weights at a commit on a repository rather than
-# under a new repo id, so the repo id names the family and not the release.
-# Pinning the commit is what makes the profile name one release: a download
-# without it follows the default branch and loads whatever that points at on
-# the day it runs.
+# A repository's default branch can move after a download, so a profile naming
+# only the repository leaves the weights a deployment loads to depend on the
+# day it ran. The pin fixes which commit this profile serves, and the generated
+# download script resolves it before transferring and refuses a revision this
+# repository does not publish.
 revision = "1bae0e1088993b9b82de08f59de5be5a34e42170"
 # Its own directory rather than sharing with the September release: one
 # directory holds one release's shards, so a shared directory would leave two
