@@ -60,7 +60,15 @@
       <li>The database runs in rollback-journal mode, so every long read blocks the writer. The retained ingest log carries 359 <code>ingest tick failed</code> lines.</li>
       <li>The last retention manifest is dated 2026-10-17, although retention is meant to run daily.</li>
     </ul>
-    <p><strong>Action taken at 05:23:16Z.</strong> The publisher's entry was removed from <code>services.json</code>, and the fleet supervisor was sent <code>reload</code>. The supervisor stopped pid 4164350 by its recorded pid. Its workstation lease was released, and no other fleet's supervisor has claimed it. The supervisor kept its pid and adopted <code>ambix-ingest</code> and <code>reckon-admit-local</code>; all six zellij servers survived. The previous configuration is kept at <code>~/.local/state/fleet/config-history/services.json.20261023T0525Z</code>. <code>watch.json</code> is frozen at <code>published_at</code> 05:11:04Z until §6 lands. The ingest is still running unchanged, because the storage session deliberately left it.</p>
+    <p><strong>Action taken at 05:23:16Z.</strong> The publisher's entry was removed from <code>services.json</code>, and the fleet supervisor was sent <code>reload</code>. The supervisor stopped pid 4164350 by its recorded pid. Its workstation lease was released, and no other fleet's supervisor has claimed it. The supervisor kept its pid and adopted <code>ambix-ingest</code> and <code>reckon-admit-local</code>; all six zellij servers survived. The previous configuration is kept at <code>~/.local/state/fleet/config-history/services.json.20261023T0525Z</code>. <code>watch.json</code> is frozen at <code>published_at</code> 05:11:04Z until §6 lands.</p>
+    <p><strong>Action taken at 06:11:03Z, on the lead's authority.</strong> <code>ambix-ingest</code> was removed from <code>services.json</code> and the supervisor reloaded, stopping pid 4164346. Its last tick was at 05:59:27Z, so it had already stalled on GPFS for twelve minutes. Stopping it loses no statistics:</p>
+    <ul>
+      <li>the serve job's recorder writes and compacts the receipts on its own;</li>
+      <li>the ingest resumes at each source's recorded offset;</li>
+      <li><code>lane.json</code>, which serving and reckon's admission read, is published separately and stayed live.</li>
+    </ul>
+    <p>It is restarted as soon as §3's change is verified, and the coordinator records that restart here.</p>
+    <p><strong>A third reader of ours, found while stopping the second.</strong> The live serve, job 1280470 (up 20 days), predates serving-record-warehouse §21. Its recorder therefore still compacts by re-reading its whole 1.02 GB raw file every 300 s (<code>DEFAULT_COMPACTION_INTERVAL_S</code> in <code>serving_receipts.py</code>), about 0.2 GB a minute from the GPU node. The next planned lane cycle picks up §21's incremental compaction and daily roll. That cycle is operator work that cuts in-flight requests, so it is not taken for this rate alone.</p>
 
     <h2 id="s2">§2 — The design: authority on GPFS, derived state on the node, one writer</h2>
     <p>The system has one authority: the receipts on GPFS, which the recorder appends to and nothing else writes. Everything else is derived from them and can be rebuilt. Each artefact therefore gets a place, a lifecycle and a deletion rule that follow from which of the two it is.</p>
