@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T02:20:37.488Z",
+  "dispatched_at": "2026-10-23T02:09:52Z",
+  "findings": [
+    {
+      "anchor": "imas_ambix/agent/router.py:2457",
+      "id": "duplicate_owner-1",
+      "reason": "\u00a73's own claim \"it adds no second SSE parser beside StreamAccounting\" is only true if the accumulation is a new field/consumer inside StreamAccounting; as written it is a second parser beside it, and the plan should say which one it extends.",
+      "text": "\u00a73 accumulates each `tool_use` block's `input_json_delta` text in `_relay`'s body loop, beside `StreamAccounting` (imas_ambix/agent/request_receipts.py:373), which is already fed every chunk and already owns the SSE line split, the `MAX_LINE_BYTES` discard path (request_receipts.py:389) and the non-streaming JSON read (`finish`, request_receipts.py:395); the guard therefore needs its own buffer, its own oversize-line rule and its own JSON-decoding stance, which will drift from the owner's",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/router.py:107",
+      "id": "duplicate_owner-2",
+      "reason": "the guard fires on every relayed response, not only admitted ones, so a design that reuses \"the cut's close form\" must say which helper it calls and what it does when the gate is unconfigured or the setting is \"error\"; as written the ending is re-derived and the reused form is conditional in a way the section does not acknowledge.",
+      "text": "\u00a73's non-streaming arm (\"answered with an HTTP error the client retries\") is the existing `_cut_overload_body()` verbatim, whose docstring at router.py:108-116 is exactly \"the retryable overload answer ... a client that honours it re-sends the same turn\"; the streaming arm's ending is also already written once, at router.py:2542-2556 (`cut_form == \"error\"` \u2192 `_cut_error_frame()`; the close form's deliberate absence of a terminal chunk with the comment explaining that a streaming client retries). \u00a73 neither cites `_cut_error_frame` (router.py:95) nor `_cut_overload_body` (router.py:107) nor says whether the guard reuses them; and the close/error choice it leans on is a per-request operator setting (`_GateSettings.cut_form`, router.py:239, default \"close\", router.py:87) reachable only on a relay armed by `watch_cut` (router.py:2460-2464)",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/router.py:2560",
+      "id": "duplicate_owner-3",
+      "reason": "unnamed, the detector is written twice or thrice with three different notions of \"structural opening\", and \u00a73's own guard relies on the census's firing count agreeing with it; the section should name the one module that owns the repository-side detector and say whether the population pass imports `census.py` or re-walks the runs.",
+      "text": "the DSML detector (\"the token `<\u2025DSML\u2025|`, optional whitespace, then `calls`, `invoke` or `parameter`\") has three consumers named by the plan and no named owner: the relay guard (\u00a73), \u00a73's population pass over the 93,565 baseline calls, and \u00a72's classifier and `census.py` (the plan says the population pass renders the calls \"the same way census.py reads\"). `census.py` lives outside the repository, at `/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/a-tool-call-carries-no-model-markup/census.py:29-56`, where it owns the run walk, the `worker.json` window filter and the `tool_use`-block extraction",
+      "type": "duplicate_owner",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/router.py:2402",
+      "id": "deep_module-1",
+      "reason": "a deep module here (one object owning the accumulation, the matcher and the ending, called from `_relay` in two places as `StreamAccounting` is) is the design that keeps `_relay` readable and testable, and the section as written specifies behaviour without specifying where it lives.",
+      "text": "the guard's state machine is added to `_relay`, which already holds the upstream open race, the cut race, the disconnect race and the receive/relay/accounting loop; nothing in \u00a73 names a module, class or function for \"accumulate tool inputs, detect a split opening, end the stream\", so the depth is spread into a function whose existing complexity is the reason its comment block spans 30 lines",
+      "type": "deep_module",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/request_receipts.py:205",
+      "id": "interface_budget-1",
+      "reason": "the section must account for the interface it adds in its own text, and here the cheapest accounting (reuse `STATUS_ABORTED`, or record the firing in an existing field) is available and unaddressed.",
+      "text": "\u00a73 \"records the request's receipt with a status of its own, so a census can count firings\": `RequestReceipt.status` is a bare `str` whose whole vocabulary is `STATUS_COMPLETED`/`STATUS_ABORTED`/`STATUS_FAILED` (request_receipts.py:123-125), and `cache_estimate.py:112` reads a row as usable iff `status == STATUS_COMPLETED`, so a fourth value changes what that reader counts; the section names no value it retires or merges and gives no reason the vocabulary must grow rather than the guard reusing `STATUS_ABORTED` as the cut path does (router.py:2538)",
+      "type": "interface_budget",
+      "would_change": true
+    },
+    {
+      "anchor": "imas_ambix/agent/router.py:2542",
+      "id": "thin_wrapper-1",
+      "reason": "naming the extension point is what turns \u00a73 from a parallel path into a change to the owner, and it also settles the \"error\" form case above; the tests already exist to extend (`tests/test_agent_router_cut.py`, `tests/test_agent_router.py`), which \u00a73's \"the tests live in the repository's tests/\" leaves unnamed.",
+      "text": "\u00a73 is a layer over existing machinery (the relay's line parse, the cut's ending, the receipt sink) and never states why each cannot simply be extended, most sharply for the ending: the cut path is the only place the repo encodes \"stop mid-stream so the client retries\", and its behaviour is operator-chosen; the honest change if the close form is what the guard wants is to factor that ending out of the cut branch and call it from both",
+      "type": "thin_wrapper",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "06af4eb96a917ad1594562417b3d1b5efa033f59de45f397368c56a576390047",
+  "plan_slug": "a-tool-call-carries-no-model-markup",
+  "plan_version": 14,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T020657708329-plan-review-of-a-tool-call-carries-no-model-markup",
+  "reviewed_blob_sha": "57ba6ea944ceabe46840efdea0333949c47f0d82",
+  "rubric": "design",
+  "rubric_items": {
+    "deep_module": "a finding \u2014 the guard's real behaviour (per-`tool_use`-block accumulation of `input_json_delta`, a matcher for an opening split across deltas *and* across relayed chunks, and a terminal ending) is added inline into `_relay`, which is already ~200 lines of request lifecycle; the plan names no module for it, so the depth lands in an existing function rather than behind a new interface.",
+    "duplicate_owner": "a finding \u2014 the per-chunk SSE line parse is owned by `StreamAccounting.feed`, the retryable non-streaming answer by `_cut_overload_body`, and the markup census by `census.py`; \u00a73 re-implements one of each and names no owner for the DSML detector that three call sites need.",
+    "interface_budget": "a finding \u2014 public_definitions 0, cli_options 0, mcp_views 0, refusal_families 0; \u00a73 adds a value to the receipt `status` vocabulary (`request_receipts.py:123-125`, consumed at `cache_estimate.py:112`) and names nothing it retires or merges, and does not state why the vocabulary must grow.",
+    "reuse_search": "pass \u2014 the plan cites the machinery it would extend (`StreamAccounting` in `imas_ambix/agent/request_receipts.py`, the cut path and `RouterApp._relay` in `imas_ambix/agent/router.py`, `OrphanThinkMarkerMiddleware`, `census.py`) and its account of each checks out against the code.",
+    "thin_wrapper": "a finding \u2014 \u00a73 wraps the relay's existing end-of-stream behaviour (\"ends the stream in the operator cut's close form\", \"answered with an HTTP error the client retries\") without saying why the cut's own helpers cannot be reused, or what the guard does on the relays where no cut is armed."
+  },
+  "section_digests": {
+    "_document": "403da21a79cbe327f0935fd41d2a294ae9f63b57b37ed27f5ac61e33601230ae",
+    "s1": "5f8c49e3d7e51c0174a76ddfea229d085b20b6e290dcf0a017c94c993156cdda",
+    "s2": "f22bd920ddbf54ebe86243b05d2d8c24bd970608d7794349574f97d6eaea2201",
+    "s3": "70a13440d0f5717ead38f703ddc2e57f3e657e84434ce9de57d9bc6e09ec9bf1",
+    "s4": "73433c178790d5f6f90c5a57799d16eb9d4fcf7a0039fc4044d9886609d0e472",
+    "s5": "4953adf1c0f7e3da4e54c2dfa59454bcb28b740a4d46945db85be3c1d31d321c",
+    "s6": "0629f0c30cab8733b2150eadf81ec757fe59a4a2742e8c7c636580d856b53d9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T02:30:03.123519+00:00"
+}
