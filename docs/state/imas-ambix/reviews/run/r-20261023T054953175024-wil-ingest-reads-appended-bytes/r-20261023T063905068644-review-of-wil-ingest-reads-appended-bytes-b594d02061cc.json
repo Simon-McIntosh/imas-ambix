@@ -1,0 +1,99 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed manifest has empty baseline_suite and after_suite fields; the completed 96-test head gate in resumed-named-tests.log has no failing IDs, so its added-failure set is empty against any baseline, but no paired baseline suite arm was recorded.",
+  "assertion_analysis": [
+    {
+      "failure_condition": "Missing the new row, rereading more than appended bytes plus 128 KiB, or storing a digest different from an independent read of the actual consumed file fails one of these assertions.",
+      "lines": "tests/test_telemetry_index.py:1450-1457"
+    },
+    {
+      "failure_condition": "Scanning or reading an unchanged source fails the zero-scan and zero-byte assertions.",
+      "lines": "tests/test_telemetry_index.py:1458-1460"
+    },
+    {
+      "failure_condition": "A fixture replacement that changes no bytes, changes length, or falls inside a probe window fails these fixture validity assertions.",
+      "lines": "tests/test_telemetry_index.py:1505-1507"
+    },
+    {
+      "failure_condition": "Skipping the first metadata-changed tick or rebuilding the middle rewrite before the interval fails these assertions.",
+      "lines": "tests/test_telemetry_index.py:1516-1519"
+    },
+    {
+      "failure_condition": "Verifying on the due idle tick, skipping the later append, failing to replace the stale sample, or storing a digest unlike the actual source fails the corresponding assertion; the due-tick skip contradicts the declared timing measure.",
+      "lines": "tests/test_telemetry_index.py:1523-1535"
+    },
+    {
+      "failure_condition": "A malformed head fixture, no scan, a missing or repeated probe, or retaining the old sample after the head rewrite fails the corresponding assertion.",
+      "lines": "tests/test_telemetry_index.py:1548-1568"
+    },
+    {
+      "failure_condition": "Opening an unchanged reboot-spanning source fails the updated open-count assertion.",
+      "lines": "tests/test_telemetry_index.py:2013"
+    }
+  ],
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/telemetry_ingest.py:361 tick",
+    "imas_ambix/agent/telemetry_ingest.py:527 main",
+    "imas_ambix/agent/cli.py:3383 ingest command"
+  ],
+  "completed_at": "2026-10-23T06:49:07Z",
+  "dispatched_at": "2026-10-23T06:39:50Z",
+  "failure_evidence": {
+    "baseline_regression_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T054953175024-wil-ingest-reads-appended-bytes/baseline-bytes.log",
+    "head_gate_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T054953175024-wil-ingest-reads-appended-bytes/resumed-named-tests.log",
+    "mutation_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T054953175024-wil-ingest-reads-appended-bytes/resumed-negative-control.log"
+  },
+  "findings": [
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "973",
+      "severity": "blocking",
+      "text": "blocking: A same-length middle rewrite changes mtime, but a pre-interval tick records that new mtime and later due ticks skip the file, so the rewrite is never detected without another append."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "1479",
+      "severity": "blocking",
+      "text": "blocking: An unchanged first tick after process restart leaves _hashes empty; the next append performs a whole-prefix read and can exceed the k plus 128 KiB bound for a tick after the first."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "f7b6fa2 adds the hash and probe path plus tests, fc7f65e adds evidence, 5a6607f restores the zero-open skip and changes the cadence test, and b594d020 updates that evidence fragment.",
+    "done_when": "prompt.txt:93 requires detection of a middle rewrite at the next due verification, while tests/test_telemetry_index.py:1523 explicitly expects that due tick to skip it; the named gate passed but does not assert that measure.",
+    "goal": "prompt.txt:30 asks for appended-byte receipt reads; telemetry_index.py:1441 seeks to the committed offset, but telemetry_index.py:1478 can defer a full-prefix read to a later append.",
+    "manifest": "manifest.md:6-25 reports four commits, a 96-pass named gate, a serving guard pass, Ruff pass, and two red mutation controls, with logs that show those results.",
+    "write_paths": "prompt.txt:130 grants telemetry_index.py, test_telemetry_index.py, and the evidence fragment; the four commit diffs change only those three paths."
+  },
+  "justifications": {
+    "durability": "tests/test_telemetry_index.py:1450-1457 would fail on whole-prefix rereads or a wrong digest, but line 1523 protects the missed due verification instead of exposing it.",
+    "evidence": "resumed-named-tests.log:6 records 96 passes, but tests/test_telemetry_index.py:1523 asserts a skip where prompt.txt:93 requires due middle-rewrite detection.",
+    "fit": "telemetry_index.py:1848-1880 keeps bounded probes and the resumable hash beside the existing digest helper without adding forbidden source names.",
+    "goal_fidelity": "telemetry_index.py:973-975 skips the due hourly check after a changed source has been recorded with unchanged later metadata.",
+    "reuse": "the capability search over imas_ambix/agent found the source-prefix digest owner at telemetry_index.py:1877, which the new _hash_of helper extends and _digest_of wraps.",
+    "scope_discipline": "the diff from db9343d1 to b594d020 changes only the three files granted in prompt.txt:130."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: prompt.txt:30 asks for appended-byte receipt reads; telemetry_index.py:1441 seeks to the committed offset, but telemetry_index.py:1478 can defer a full-prefix read to a later append.\nVERDICT done_when: prompt.txt:93 requires detection of a middle rewrite at the next due verification, while tests/test_telemetry_index.py:1523 explicitly expects that due tick to skip it; the named gate passed but does not assert that measure.\nVERDICT write_paths: prompt.txt:130 grants telemetry_index.py, test_telemetry_index.py, and the evidence fragment; the four commit diffs change only those three paths.\nVERDICT manifest: manifest.md:6-25 reports four commits, a 96-pass named gate, a serving guard pass, Ruff pass, and two red mutation controls, with logs that show those results.\nVERDICT diff: f7b6fa2 adds the hash and probe path plus tests, fc7f65e adds evidence, 5a6607f restores the zero-open skip and changes the cadence test, and b594d020 updates that evidence fragment.\nCALL_SITES: imas_ambix/agent/telemetry_ingest.py:361 tick, imas_ambix/agent/telemetry_ingest.py:527 main, imas_ambix/agent/cli.py:3383 ingest command\nSCORE goal_fidelity: 11\nJUSTIFICATION goal_fidelity: telemetry_index.py:973-975 skips the due hourly check after a changed source has been recorded with unchanged later metadata.\nSCORE evidence: 12\nJUSTIFICATION evidence: resumed-named-tests.log:6 records 96 passes, but tests/test_telemetry_index.py:1523 asserts a skip where prompt.txt:93 requires due middle-rewrite detection.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff from db9343d1 to b594d020 changes only the three files granted in prompt.txt:130.\nSCORE durability: 12\nJUSTIFICATION durability: tests/test_telemetry_index.py:1450-1457 would fail on whole-prefix rereads or a wrong digest, but line 1523 protects the missed due verification instead of exposing it.\nSCORE fit: 18\nJUSTIFICATION fit: telemetry_index.py:1848-1880 keeps bounded probes and the resumable hash beside the existing digest helper without adding forbidden source names.\nSCORE reuse: 20\nJUSTIFICATION reuse: the capability search over imas_ambix/agent found the source-prefix digest owner at telemetry_index.py:1877, which the new _hash_of helper extends and _digest_of wraps.\nFINDING imas_ambix/agent/telemetry_index.py:973 blocking: A same-length middle rewrite changes mtime, but a pre-interval tick records that new mtime and later due ticks skip the file, so the rewrite is never detected without another append.\nFINDING imas_ambix/agent/telemetry_index.py:1479 blocking: An unchanged first tick after process restart leaves _hashes empty; the next append performs a whole-prefix read and can exceed the k plus 128 KiB bound for a tick after the first.\n",
+  "review_run_id": "r-20261023T063905068644-review-of-wil-ingest-reads-appended-bytes-b594d02061cc",
+  "reviewed_base_sha": "db9343d1898537c01cf53fab4600880fff36a3a9",
+  "reviewed_head_sha": "b594d02061cc2cbc8d63536691eff8b750b6c8e4",
+  "reviewed_run_id": "r-20261023T054953175024-wil-ingest-reads-appended-bytes",
+  "scores": {
+    "durability": 12,
+    "evidence": 12,
+    "fit": 18,
+    "goal_fidelity": 11,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T06:51:28.956260+00:00",
+  "total": 93
+}
