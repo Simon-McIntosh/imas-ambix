@@ -290,7 +290,7 @@ def test_publish_command_without_router_preserves_endpoint_document(
             # fields. It runs no engine here, so it is listed with none.
             {
                 "accelerator_count": None,
-                "accelerator_family": "H200",
+                "accelerator_family": None,
                 "engines": [],
                 "host": "98dci4-gpu-0003",
                 "name": "98dci4-gpu-0003",
@@ -299,10 +299,11 @@ def test_publish_command_without_router_preserves_endpoint_document(
             },
             # A host nobody declares appears under the host its registration
             # ran on. Neither node's cards are declared anywhere, so both
-            # counts are unknown; each engine's own count stays on its endpoint.
+            # counts and both families are unknown; each engine's own values
+            # stay on its endpoint.
             {
                 "accelerator_count": None,
-                "accelerator_family": "H100",
+                "accelerator_family": None,
                 "engines": ["node-a:19001"],
                 "host": "node-a",
                 "name": "node-a",
@@ -311,7 +312,7 @@ def test_publish_command_without_router_preserves_endpoint_document(
             },
             {
                 "accelerator_count": None,
-                "accelerator_family": "H200",
+                "accelerator_family": None,
                 "engines": ["node-b:19002"],
                 "host": "node-b",
                 "name": "node-b",

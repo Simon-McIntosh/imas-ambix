@@ -51,15 +51,28 @@
   are grouped under the server their registration named, and an engine whose
   registration names no declared server falls under an entry named by its host,
   so nothing is dropped for want of a declaration.</p>
-  <p><strong>The card count is the node's, not the serve's, and is published
-  only where the site declares one.</strong> A serve may take fewer cards than
-  its node has, so deriving the count from an eight-card engine would publish a
-  four-card node wherever a four-card serve ran. Nothing an engine reports is a
-  statement about its node, so no declaration means <code>null</code> rather
-  than an engine's count: an unconfigured site's single entry declares none, its
-  document entry carries <code>accelerator_count: null</code>, and the node's
-  real card count comes from the hardware probe. Each engine's own count is
-  already published on its endpoint, where it belongs.</p>
+  <p><strong>The card count and the accelerator family are the node's, not the
+  serve's, and are published only where the site declares them.</strong> A serve
+  may take fewer cards than its node has, so deriving the count from an
+  eight-card engine would publish a four-card node wherever a four-card serve
+  ran; and a family filled in from a declaration default states, as a property
+  of a server, a fact nobody wrote down. Nothing an engine reports is a
+  statement about its node and no unset field is, so no declaration means
+  <code>null</code>: an unconfigured site's single entry declares neither, its
+  document entry carries <code>accelerator_count: null</code> and
+  <code>accelerator_family: null</code>, and the node's real card count comes
+  from the hardware probe. A server the site does not declare at all is in the
+  same position, so its entry carries <code>null</code> for both as well. Each
+  engine's own values stay on its endpoint, where they belong.</p>
+  <p>A serve still records the family of the cards it runs on, because routing
+  reads topology from the registration and the engine's catalogue middleware
+  requires a label. That value is the placement's family where the site
+  declares one, and otherwise the launch's own statement of this site's
+  hardware (<code>slurm._SITE_ENGINE_ACCELERATOR_FAMILY</code>) — never the
+  declaration class default, which would silently answer for a site that
+  declares nothing and would keep answering after a card change. A second
+  server of another family therefore registers under its own family, and an
+  unconfigured site's script is unchanged byte for byte.</p>
   <p><strong>The deduplication key moves from the model id to the engine id
   (<code>&lt;host short name&gt;:&lt;port&gt;</code>).</strong> Two engines
   serving one model are two engines and now both appear in
@@ -85,7 +98,7 @@
         <td><code>pytest tests/test_agent_serve_registry.py
         tests/test_agent_endpoint_discovery.py
         tests/test_agent_site_servers.py</code></td>
-        <td>46 passed, <code>EXIT=0</code></td>
+        <td>47 passed, <code>EXIT=0</code></td>
       </tr>
       <tr>
         <td><code>ruff check imas_ambix tests</code></td>
@@ -135,6 +148,14 @@
         tests/test_agent_site_servers.py::test_a_server_declared_without_a_card_count_publishes_none</code>,
         <code>EXIT=1</code>; <code>assert 4 is None</code> — an undeclared count
         was filled in from the serve</td>
+      </tr>
+      <tr>
+        <td>Put the declaration class default back for a server's accelerator
+        family (<code>SiteServerConfig.accelerator_family</code>)</td>
+        <td><code>FAILED
+        tests/test_agent_site_servers.py::test_a_server_declared_without_an_accelerator_family_publishes_none</code>,
+        <code>EXIT=1</code>; <code>assert 'H200' is None</code> — a server that
+        declares no family published the default</td>
       </tr>
       <tr>
         <td>Drop the <code>server</code> argument at the restart call so

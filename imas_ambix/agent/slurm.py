@@ -28,6 +28,16 @@ _DRAIN_SIDECAR = (
 # on; a finite limit ends them on a schedule nobody is watching.
 _SUPPORTING_SERVICE_TIME_LIMIT = "0"
 
+# The accelerator family a serve records when its site declares none, which is
+# the case for a site configured only by the flat fields: those name a host, a
+# partition, the account and the reservation, and nothing about the cards. It
+# is the site's engine-side statement of the hardware its serves land on, not a
+# declaration about a server: the endpoints document publishes a server's
+# family only where the site declares one, and reads null otherwise. A serve
+# whose placement declares a family records that instead, so a second server of
+# another family does not register as this one.
+_SITE_ENGINE_ACCELERATOR_FAMILY = "H200"
+
 _MODEL_DIR_TOKEN = "__AMBIX_MODEL_DIR__"
 _PORT_TOKEN = "__AMBIX_PORT__"
 _CATALOG_MIDDLEWARE = "imas_ambix.agent.vllm_catalog.GlobalModelCatalogMiddleware"
@@ -506,8 +516,10 @@ def generate_serve_script(
         ``ps aux`` output.
     server : SiteServerConfig | None
         The declared server this serve is placed on. ``None`` resolves the
-        site's sole default server, whose partition, account, reservation and
-        accelerator family are the flat site fields.
+        site's sole default server, whose partition, account and reservation are
+        the flat site fields. The family the serve records is the placement's
+        when it declares one, and the site's engine-side family otherwise,
+        because the flat fields declare no cards.
     receipts_enabled : bool
         When true (the default), the generated script starts a background
         receipts recorder against its own engine for the whole life of the
@@ -518,6 +530,13 @@ def generate_serve_script(
     """
     model_dir = site.model_dir(profile)
     placement = server if server is not None else site.declared_servers[0]
+    # A serve records the cards it runs on with the family its placement
+    # declares. Where the site declares none -- which is what the flat fields do
+    # -- the family is not a declaration at all, so the launch's own statement
+    # about this site's hardware stands in rather than a falsified one. Every
+    # engine must carry a family because routing reads topology from the
+    # registration.
+    engine_family = placement.accelerator_family or _SITE_ENGINE_ACCELERATOR_FAMILY
     catalog_env_block = ""
     if profile.engine.type == "vllm":
         precision = profile.model.checkpoint_precision
@@ -525,7 +544,7 @@ def generate_serve_script(
             raise ValueError("vLLM catalog serving requires model.checkpoint_precision")
         metadata = {
             profile.model.served_name: {
-                "accelerator_family": placement.accelerator_family,
+                "accelerator_family": engine_family,
                 "accelerator_count": profile.slurm.gpus,
                 "checkpoint_precision": precision,
             }
@@ -938,7 +957,7 @@ def generate_serve_script(
             --job-id "$SLURM_JOB_ID" \
             --accelerator-count "${{SLURM_GPUS_ON_NODE:-{profile.slurm.gpus}}}" \
             --checkpoint-precision {shlex.quote(checkpoint_precision)} \
-            --accelerator-family {shlex.quote(placement.accelerator_family)}
+            --accelerator-family {shlex.quote(engine_family)}
 
         echo "[$(date)] Starting {profile.model.name} server"
         {launch_command} &

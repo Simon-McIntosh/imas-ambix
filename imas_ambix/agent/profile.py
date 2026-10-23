@@ -522,7 +522,13 @@ class SiteServerConfig(BaseModel):
     partition: str
     account: str
     reservation: str = ""
-    accelerator_family: str = "H200"
+    # The family a site declares for a server, and None where it declares none.
+    # Unset means unknown rather than a default: the flat fields carry no
+    # family, so an unconfigured site's single entry declares none and the
+    # document publishes null, exactly as it does for an undeclared card count.
+    # A serve still records the family of the cards it runs on in its own
+    # registration, which is where that reading belongs.
+    accelerator_family: str | None = None
     accelerator_count: int | None = Field(default=None, ge=1)
     power_cap_watts: int | None = Field(default=None, ge=1)
     reservation_groups: tuple[str, ...] = ()
@@ -676,7 +682,15 @@ class SiteConfig(BaseModel):
 
     @property
     def declared_servers(self) -> tuple[SiteServerConfig, ...]:
-        """The site's servers; the flat fields stand in when none is declared."""
+        """The site's servers; the flat fields stand in when none is declared.
+
+        The flat fields name a host, a partition, the account and the
+        reservation, and nothing about the cards, so the stand-in server
+        declares no accelerator family and no card count. A caller that needs
+        the family of the cards an engine runs on reads it from that engine's
+        registration; a document that needs the node's reads nothing, because
+        this site did not say, and states the value as unknown.
+        """
         if self.servers:
             return tuple(self.servers)
         return (
