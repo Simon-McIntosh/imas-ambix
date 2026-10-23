@@ -1,0 +1,67 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T13:39:30.201Z",
+  "dispatched_at": "2026-10-23T13:26:14Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/rotate-to-deepseek-v4-1-flash-1017.html:162",
+      "id": "reasoning-1",
+      "reason": "the mechanism cannot attribute a receipt during the overlap path the plan expects, so the headline outcome \"record which release answered\" would be wrong exactly when two releases are live.",
+      "text": "\u00a74 makes `checkpoint_at(upstream, when)` resolve \"the recorder file for that origin\", but no recorder row or file carries the port: the file is named `<slug>-$SLURM_JOB_ID.jsonl` (imas_ambix/agent/slurm.py:627) and a row holds `hostname`, `job_id`, `timestamp` and `serve_config` (serving_receipts.py:196\u2013216), none of them the port; under the overlap path \u00a75 accepts, the old and the replacement serve run side by side on one node with the same slug and overlapping row spans, so two files match the origin and the join returns the wrong `model_path`",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/rotate-to-deepseek-v4-1-flash-1017.html:164",
+      "id": "reasoning-2",
+      "reason": "the reasoning rubric requires the mechanism that produces the measure to run on a real code path with a named caller; with none, the recorded outcome is unreachable by any reader.",
+      "text": "`serving_receipts.checkpoint_at` is named the one owner of the join but has no caller anywhere in the plan, and \u00a74's write paths (registry.py, slurm.py, serving_receipts.py and three test modules) contain no consumer of it, so the join never runs on a production path",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/rotate-to-deepseek-v4-1-flash-1017.html:245",
+      "id": "done_when-1",
+      "reason": "the plan's own \u00a73 makes its stated reason false, and a real CLI refusal on the dry-run path is the control that shows the guard fires outside the test harness.",
+      "text": "\u00a75 rejects the copied-profile control because \"`restart` finds no running job under a new slug and refuses before the preflight is reached\", but that refusal is gated on `if len(jobs) != 1 and not dry_run` (imas_ambix/agent/cli.py:2386) and \u00a73 now makes the preflight run in `--dry-run`, which never touches the lane; the stronger real-path control (`restart <copy> --dry-run` on an erring weights directory must print the preflight refusal) is therefore available and is passed over for a unit test re-run",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/rotate-to-deepseek-v4-1-flash-1017.html:71",
+      "id": "wiring-1",
+      "reason": "two concurrent nodes on one file is the one-worktree-one-writer rule broken by the plan's own fan-out instruction, and the collision lands as a merge the coordinator must resolve blind.",
+      "text": "\u00a72 and \u00a74 both list `imas_ambix/agent/slurm.py` in their write paths (\u00a72 needs it to pass the pinned revision to the HF client, \u00a74 to write `checkpoint` from the profile at serve start), while the followup has \u00a72, \u00a73 and \u00a74 \"write disjoint files and run in parallel\" (line 266)",
+      "type": "wiring",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "bff11c08a1fb5075649a3aa9d3d89c932dec88ec8c9446c0ac09c0b98c3c9689",
+  "plan_slug": "rotate-to-deepseek-v4-1-flash-1017",
+  "plan_version": 16,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T132554537675-plan-review-of-rotate-to-deepseek-v4-1-flash-1017",
+  "reviewed_blob_sha": "8782530e46e4c1e5098e1a8a2c0e32928036a2bf",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `bench.py`'s `tool_use` preset and `_chat(..., tools=...)` check resolve at the cited 1280\u20131326, `cli.py`'s `def validate` is at 2642 (cited as 2641, off by one), `reload.py`'s `run_reload`/`run_overlap` exist, and `ops/lane-cycle/AGENTS.md`, the `hot-reload-the-serve` and `a-tool-call-carries-no-model-markup` companion plans resolve.",
+    "done_when": "a finding \u2014 \u00a75's negative control is \u00a73's unit test re-run at the merged head, and the reason it gives for rejecting the stronger dry-run control does not hold for a dry run.",
+    "evidence_paths": "pass \u2014 \u00a73's positive-control log now names `docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/serve-probe-positive-control.log`, a durable repo path, and \u00a75's figures go to the landing record.",
+    "naming": "pass \u2014 the `checkpoint` field name is chosen against the two overloaded uses of \"release\" and explained in the plan; no ticket numbers or version tags reach code or symbols.",
+    "reasoning": "a finding \u2014 \u00a74's join key (`node:port`) is not recorded in any recorder row or file name, and nothing in \u00a74 calls `checkpoint_at`.",
+    "single_goal": "pass \u2014 \u00a72 downloads and pins, \u00a73 validates the reload, \u00a74 records the checkpoint, \u00a75 runs the cycle; one deliverable each.",
+    "wiring": "a finding \u2014 \u00a72 and \u00a74 both declare `imas_ambix/agent/slurm.py` in their write paths while the followup has them run in parallel."
+  },
+  "section_digests": {
+    "_document": "db2ecdde5472286c88a918f63b4ec8ce3b8116204bde0d78e6a76f64f123e6c8",
+    "s1": "8deac0a58e020378e898a334465e0ec83803b509b7e5a610b21591def4c21d25",
+    "s2": "a23e81a77c9227613a42419b5fefc7dfd90022596cc8ae2a2b9264290cada17c",
+    "s3": "2cd96ad6a1c5ffa33a1cc88ee45c427a044080539e66daf427d2a501eca8cb57",
+    "s4": "de445f8982cc0de098d1ac0f1f95063e1d65a38f46f81536d12eb1977a14e4e5",
+    "s5": "8b6d2367de16be737f5ee0aafa5e26d7116cac5738f09dc1f0016762512eb641"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T13:44:49.399891+00:00"
+}
