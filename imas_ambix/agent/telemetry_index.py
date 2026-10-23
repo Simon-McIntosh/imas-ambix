@@ -1946,8 +1946,8 @@ class TelemetryIndex:
             contributions AS (
                 SELECT m.name_id, SUM(m.value * w.weight) AS num,
                        SUM(w.weight) AS den
-                FROM weighted w JOIN measurement m ON m.sample_id = w.id
-                WHERE w.weight > 0
+                FROM weighted w CROSS JOIN measurement m
+                WHERE m.sample_id = w.id AND w.weight > 0
                 GROUP BY m.name_id
                 UNION ALL
                 SELECT name_id, SUM(gauge_integral), SUM(coverage_seconds)
