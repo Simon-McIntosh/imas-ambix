@@ -173,11 +173,12 @@ def _verified_snapshots(directory: Path, local_dir: Path) -> list[Path]:
 def snapshot_index(
     index: TelemetryIndex | Path,
     *,
-    directory: Path = SNAPSHOT_DIR,
+    directory: Path | None = None,
     now: datetime | None = None,
 ) -> Path:
     """Back up online, compress, verify, then retain three verified copies."""
     index_path = require_local(index.path if hasattr(index, "path") else index)
+    directory = SNAPSHOT_DIR if directory is None else directory
     directory.mkdir(parents=True, exist_ok=True)
     stamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     final = directory / f"{SNAPSHOT_PREFIX}{stamp}{SNAPSHOT_SUFFIX}"
@@ -234,9 +235,10 @@ def snapshot_index(
     return final
 
 
-def restore_index(path: Path, *, directory: Path = SNAPSHOT_DIR) -> Path | None:
+def restore_index(path: Path, *, directory: Path | None = None) -> Path | None:
     """Restore the newest valid copy, falling back on damage."""
     target = require_local(path)
+    directory = SNAPSHOT_DIR if directory is None else directory
     if target.exists() or not directory.is_dir():
         return None
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -263,10 +265,11 @@ def restore_index(path: Path, *, directory: Path = SNAPSHOT_DIR) -> Path | None:
 
 
 def snapshot_if_due(
-    index: TelemetryIndex | Path, *, directory: Path = SNAPSHOT_DIR
+    index: TelemetryIndex | Path, *, directory: Path | None = None
 ) -> Path | None:
     """Take one snapshot per UTC day after an ingest tick has committed."""
     index_path = Path(index.path if hasattr(index, "path") else index)
+    directory = SNAPSHOT_DIR if directory is None else directory
     with closing(
         sqlite3.connect(index_path.resolve().as_uri() + "?mode=ro", uri=True)
     ) as source:
@@ -285,9 +288,9 @@ def snapshot_if_due(
 class SnapshotScheduler:
     """Launch at most one snapshot worker while ticks continue on the writer."""
 
-    def __init__(self, index_path: Path, *, directory: Path = SNAPSHOT_DIR) -> None:
+    def __init__(self, index_path: Path, *, directory: Path | None = None) -> None:
         self.index_path = index_path
-        self.directory = directory
+        self.directory = SNAPSHOT_DIR if directory is None else directory
         self._thread: threading.Thread | None = None
 
     def schedule(self) -> bool:

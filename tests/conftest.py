@@ -24,6 +24,7 @@ import os
 import pytest
 
 from imas_ambix._thread_pools import pin_thread_pools
+from imas_ambix.agent import index_placement
 from imas_ambix.agent.profile import GATE_CONTROL_PATH_ENV
 
 
@@ -31,6 +32,12 @@ from imas_ambix.agent.profile import GATE_CONTROL_PATH_ENV
 def _no_production_gate_control_path(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep every test off the production gate control file."""
     monkeypatch.setenv(GATE_CONTROL_PATH_ENV, "")
+
+
+@pytest.fixture(autouse=True)
+def _isolated_index_snapshots(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Give every test its own snapshot directory, including ingest commands."""
+    monkeypatch.setattr(index_placement, "SNAPSHOT_DIR", tmp_path / "index-snapshots")
 
 
 # ---------------------------------------------------------------------------
