@@ -460,8 +460,8 @@ def du_cmd(
 
     This is the accurate way to size a tier — it reads S3 metadata
     instead of extrapolating from a small sample, and so handles
-    heavy-tailed distributions correctly (the §10 / §11 probe sampling
-    under-extrapolated by 11×).
+    heavy-tailed distributions correctly; sampling under-extrapolated
+    this corpus by 11×.
     """
     from imas_ambix.data.manifest import (
         load_index,
@@ -619,7 +619,7 @@ def download_cmd(
         raise click.UsageError(
             "Submission via sbatch is intentionally not wired up. "
             "Pass --plan-only and submit the rendered script by hand. "
-            "See plans/data-acquisition.md §4."
+            "See docs/data-acquisition.html."
         )
 
     if not manifest:
@@ -1120,8 +1120,8 @@ def training_grade_cmd(
 ) -> None:
     """Derive the training-grade shot manifest from a corpus audit.
 
-    Applies the §4 gates (data-quality plan, updated 2026-05-20) to every
-    shot in the audit JSON and writes a filtered manifest to --output:
+    Applies the quality gates to every shot in the audit JSON and writes
+    a filtered manifest to --output:
 
     \\b
     (a) magnetics complete       — quality_flags.has_magnetics
@@ -1130,12 +1130,9 @@ def training_grade_cmd(
     (d) no NaN / corrupt values  — quality_flags.no_corrupt_nans
     (e) not a dropped category   — default: charge_exchange
 
-    Camera groups (rba/rbb/rir) live in the level-1 store and are NOT a
-    level-2 acceptance gate (dropped in §10 of the plan).
-
-    Locked decision: drop-charge-exchange → yes (data-quality 2026-05-20).
-    Open question (data-quality q1): re-include CX in v1 once FAIR-MAST
-    fixes the encoding? Not resolved here.
+    Camera groups (rba/rbb/rir) live in the level-1 store and are not a
+    level-2 acceptance gate. Charge exchange is excluded by default because
+    its encoding is not suitable for this training manifest.
 
     Examples
     --------
@@ -1153,10 +1150,10 @@ def training_grade_cmd(
         drop_categories=drop_tuple,
     )
     out_path = Path(output)
-    console.print(f"Applying §4 training-grade gates to [bold]{audit_path}[/bold] …")
+    console.print(f"Applying training-grade gates to [bold]{audit_path}[/bold] …")
     counts = filt.write_manifest(out_path)
 
-    summary = Table(title="Training-grade filter (§4)")
+    summary = Table(title="Training-grade filter")
     summary.add_column("metric")
     summary.add_column("value", justify="right")
     summary.add_row("shots in audit", str(counts["n_total"]))
