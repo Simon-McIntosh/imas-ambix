@@ -26,10 +26,26 @@
   <p><strong>The document.</strong> <code>registry.build_endpoint_document</code>
   — the document's existing owner, so the grouping cannot disagree with the
   engines it groups — now returns the endpoints plus a <code>servers</code>
-  array: each server's name, host, accelerators and engine ids, with engines
-  grouped by the server the registration named.
-  <code>endpoints.json</code> carries it beside <code>endpoints</code> and
-  <code>routing_origins</code>.</p>
+  array, and the caller passes the site's declared servers into it rather than
+  the registry reading site configuration itself.
+  <code>endpoints.json</code> carries the array beside <code>endpoints</code>
+  and <code>routing_origins</code>.</p>
+  <p><strong>Each declared server is a row, engines or none.</strong> The array
+  is the site's declaration, not a summary of what is running: every declared
+  server appears with its name, host, accelerator family and card count as
+  declared, plus the power cap and reservation groups, and an
+  <code>engines</code> list that is empty when nothing runs there. A reader that
+  renders the site's servers therefore shows an idle server as idle instead of
+  omitting it, which reads the same as a server nobody declared. Running engines
+  are grouped under the server their registration named, and an engine whose
+  registration names no declared server falls under an entry named by its host,
+  so nothing is dropped for want of a declaration.</p>
+  <p><strong>The card count is the node's, not the serve's.</strong> A serve may
+  take fewer cards than its node has, so deriving the count from an eight-card
+  engine would publish a four-card node wherever a four-card serve ran. A
+  declared count is authoritative; only where a declaration states none — the
+  single entry an unconfigured site resolves to — does the count come from an
+  engine, which is the only source then available.</p>
   <p><strong>The deduplication key moves from the model id to the engine id
   (<code>&lt;host short name&gt;:&lt;port&gt;</code>).</strong> Two engines
   serving one model are two engines and now both appear in
@@ -55,7 +71,7 @@
         <td><code>pytest tests/test_agent_serve_registry.py
         tests/test_agent_endpoint_discovery.py
         tests/test_agent_site_servers.py</code></td>
-        <td>41 passed, <code>EXIT=0</code></td>
+        <td>44 passed, <code>EXIT=0</code></td>
       </tr>
       <tr>
         <td><code>ruff check imas_ambix tests</code></td>
@@ -88,6 +104,15 @@
         tests/test_agent_site_servers.py::test_serve_refuses_a_server_that_no_declaration_names</code>,
         <code>EXIT=1</code>; <code>--server gpu-9999</code> exited 0 and wrote a
         script</td>
+      </tr>
+      <tr>
+        <td>Derive a declared server's card count from its first engine again
+        (<code>registry._published_servers</code>)</td>
+        <td><code>FAILED
+        tests/test_agent_site_servers.py::test_a_servers_card_count_comes_from_its_declaration</code>
+        and <code>::test_a_declared_server_with_no_engine_is_still_listed</code>,
+        <code>EXIT=1</code>; an eight-card node with a four-card serve was
+        published as four cards, an idle node as <code>null</code></td>
       </tr>
     </tbody>
   </table>

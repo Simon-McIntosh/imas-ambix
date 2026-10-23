@@ -26,22 +26,57 @@ _LOGGER = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
 
+    from imas_ambix.agent.profile import SiteServerConfig
+
 _SAFE_JOB_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
 _ROUTER_COMMENT_PREFIX = "ambix-router;"
 
 
-def _engine_id(host: str, port: int) -> str:
-    """Return an engine's identity: its host short name and its port.
+def _short_host(host: str) -> str:
+    """Return a host's short name: the node name without its cluster component.
 
-    The short name drops the cluster component, so ``98dci4-gpu-0003`` is
-    ``gpu-0003`` and the id reads as ``gpu-0003:18810``. The component is
-    dropped only when what follows it still reads as a node name, which needs
-    the second separator: ``gpu-0003`` and ``node-a`` are already short names
-    and come back unchanged.
+    The component is dropped only when what follows it still reads as a node
+    name, which needs the second separator: ``98dci4-gpu-0003`` is
+    ``gpu-0003``, while ``gpu-0003`` and ``node-a`` are already short names and
+    come back unchanged.
     """
     parts = host.split("-")
-    short_name = "-".join(parts[1:]) if len(parts) >= 3 else host
-    return f"{short_name}:{port}"
+    return "-".join(parts[1:]) if len(parts) >= 3 else host
+
+
+def _engine_id(host: str, port: int) -> str:
+    """Return an engine's identity: its host short name and its port."""
+    return f"{_short_host(host)}:{port}"
+
+
+def _server_index(servers: Sequence[SiteServerConfig]) -> dict[str, str]:
+    """Map every spelling of a declared server onto its declared name.
+
+    A registration may name its server by declaration name or carry only the
+    host it ran on, and the host may be spelled with or without its cluster
+    component, so all three are accepted. The first spelling of a name wins, so
+    a declaration order decides between two servers that share one.
+    """
+    index: dict[str, str] = {}
+    for server in servers:
+        for key in (server.name, server.host, _short_host(server.host)):
+            if key:
+                index.setdefault(key, server.name)
+    return index
+
+
+def _server_key(registration: ServeRegistration, index: dict[str, str]) -> str:
+    """Return the servers-array entry this engine belongs under.
+
+    A registration that names a declared server is grouped under it. Anything
+    else -- a record written before servers had names, or a name this site does
+    not declare -- is grouped under an entry named by the host it ran on, so no
+    engine is dropped from the document for want of a declaration.
+    """
+    for candidate in (registration.server, registration.host):
+        if candidate and candidate in index:
+            return index[candidate]
+    return registration.host
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,12 +203,22 @@ class PublishedEndpoint:
 
 @dataclass(frozen=True, slots=True)
 class PublishedServer:
-    """One physical host and the engines on it, as the document reports them."""
+    """One server and the engines on it, as the document reports them.
+
+    It is the site's declaration rather than a summary of its engines: a
+    declared server appears whether or not anything is running on it, with the
+    accelerators and card count it declares, and an empty ``engines`` list says
+    so. ``power_cap_watts`` and ``reservation_groups`` are carried because they
+    are declared here and read from this document, not from the site
+    configuration.
+    """
 
     name: str
     host: str
     accelerator_family: str
-    accelerator_count: int
+    accelerator_count: int | None
+    power_cap_watts: int | None
+    reservation_groups: tuple[str, ...]
     engines: tuple[str, ...]
 
 
@@ -391,15 +436,22 @@ def build_endpoint_document(
     registrations: Sequence[ServeRegistration],
     *,
     fetch_catalog: Callable[[str], object],
+    servers: Sequence[SiteServerConfig] = (),
 ) -> EndpointDocument:
     """Probe registrations anonymously and retain complete live endpoints.
 
     Two engines serving one model both publish, because that is what a second
     server is for; what is deduplicated is the engine, so a restarted job on
     the same engine still replaces its predecessor.
+
+    ``servers`` is the site's declaration, passed in by the caller rather than
+    read from the configuration here: every declared server appears in the
+    document's servers array whether or not an engine is running on it, and the
+    running engines are grouped under the server their registration names.
     """
     endpoints: list[PublishedEndpoint] = []
-    # engine id -> (endpoint, the job id that registered it, its server name)
+    index = _server_index(servers)
+    # engine id -> (endpoint, the job id that registered it, its server)
     seen_engines: dict[str, tuple[PublishedEndpoint, str, str]] = {}
     for registration in registrations:
         if registration.held:
@@ -423,7 +475,7 @@ def build_endpoint_document(
                 error,
             )
             continue
-        server = registration.server or registration.host
+        server = _server_key(registration, index)
         engine = endpoint.engine_id
         prior = seen_engines.get(engine)
         if prior is not None:
@@ -454,32 +506,66 @@ def build_endpoint_document(
     ordered = tuple(
         sorted(endpoints, key=lambda endpoint: (endpoint.model_id, endpoint.engine_id))
     )
-    return EndpointDocument(ordered, _published_servers(ordered, seen_engines))
+    return EndpointDocument(
+        ordered, _published_servers(ordered, seen_engines, servers)
+    )
 
 
 def _published_servers(
     endpoints: Sequence[PublishedEndpoint],
     seen_engines: dict[str, tuple[PublishedEndpoint, str, str]],
+    servers: Sequence[SiteServerConfig],
 ) -> tuple[PublishedServer, ...]:
-    """Group the accepted engines by the server their registration named."""
+    """Report every declared server, with the engines grouped under each.
+
+    The declaration is the authority for a declared server's host, accelerator
+    family and card count: a serve may take fewer cards than its node has, so
+    an engine is not a reading of the node it runs on. Only where a declaration
+    states no card count -- the single entry an unconfigured site resolves to
+    -- does the count come from an engine, which is the only source there is.
+
+    A server the site does not declare still appears, under the host its
+    registration ran on, so an engine is never dropped from the document for
+    want of a declaration. Declared servers keep declaration order and the
+    remaining entries follow, sorted by name.
+    """
     grouped: dict[str, list[PublishedEndpoint]] = {}
     for endpoint in endpoints:
-        server = seen_engines[endpoint.engine_id][2]
-        grouped.setdefault(server, []).append(endpoint)
-    servers: list[PublishedServer] = []
-    for name in sorted(grouped):
-        engines = sorted(grouped[name], key=lambda endpoint: endpoint.engine_id)
+        grouped.setdefault(seen_engines[endpoint.engine_id][2], []).append(endpoint)
+    published: list[PublishedServer] = []
+    for server in servers:
+        engines = sorted(grouped.get(server.name, ()), key=lambda item: item.engine_id)
+        published.append(
+            PublishedServer(
+                name=server.name,
+                host=server.host,
+                accelerator_family=server.accelerator_family,
+                accelerator_count=(
+                    server.accelerator_count
+                    if server.accelerator_count is not None
+                    else (engines[0].accelerator_count if engines else None)
+                ),
+                power_cap_watts=server.power_cap_watts,
+                reservation_groups=tuple(server.reservation_groups),
+                engines=tuple(endpoint.engine_id for endpoint in engines),
+            )
+        )
+    declared_names = {server.name for server in servers}
+    for name in sorted(set(grouped) - declared_names):
+        engines = sorted(grouped[name], key=lambda item: item.engine_id)
         first = engines[0]
-        servers.append(
+        published.append(
             PublishedServer(
                 name=name,
                 host=first.host,
                 accelerator_family=first.accelerator_family,
                 accelerator_count=first.accelerator_count,
+                power_cap_watts=None,
+                reservation_groups=(),
                 engines=tuple(endpoint.engine_id for endpoint in engines),
             )
         )
-    return tuple(servers)
+    return tuple(published)
 
 
 def write_endpoint_document(
@@ -567,11 +653,14 @@ def publish_endpoint_document(
     path: str | Path,
     *,
     fetch_catalog: Callable[[str], object],
+    servers: Sequence[SiteServerConfig] = (),
     routing_origins: Sequence[PublishedOrigin] = (),
 ) -> Path:
     """Build and atomically write the current anonymous endpoint document."""
     return write_endpoint_document(
-        build_endpoint_document(registrations, fetch_catalog=fetch_catalog),
+        build_endpoint_document(
+            registrations, fetch_catalog=fetch_catalog, servers=servers
+        ),
         path,
         routing_origins=routing_origins,
     )
@@ -712,7 +801,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             directory, job_is_running=job_is_running
         ).current
         endpoints = build_endpoint_document(
-            registrations, fetch_catalog=_fetch_anonymous_catalog
+            registrations,
+            fetch_catalog=_fetch_anonymous_catalog,
+            servers=site.declared_servers,
         )
         write_endpoint_document(
             endpoints,

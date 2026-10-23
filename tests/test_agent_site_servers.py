@@ -145,7 +145,9 @@ def test_the_document_lists_each_server_with_the_engines_placed_on_it(tmp_path):
     }
     target = tmp_path / "endpoints.json"
 
-    publish_endpoint_document(records, target, fetch_catalog=catalogs.__getitem__)
+    publish_endpoint_document(
+        records, target, fetch_catalog=catalogs.__getitem__, servers=(_H200, _B300)
+    )
 
     document = json.loads(target.read_text(encoding="utf-8"))
     assert [(item["host"], item["port"]) for item in document["endpoints"]] == [
@@ -153,16 +155,98 @@ def test_the_document_lists_each_server_with_the_engines_placed_on_it(tmp_path):
         ("98dci4-gpu-0003", 18802),
         ("98dci4-gpu-0004", 18801),
     ]
-    assert [server["name"] for server in document["servers"]] == ["b300", "h200"]
+    # Declaration order, so a reader renders the site's own ordering.
+    assert [server["name"] for server in document["servers"]] == ["h200", "b300"]
     servers = {server["name"]: server for server in document["servers"]}
     assert servers["h200"]["host"] == "98dci4-gpu-0003"
     assert servers["h200"]["engines"] == ["gpu-0003:18801", "gpu-0003:18802"]
     assert servers["h200"]["accelerator_family"] == "H200"
-    assert servers["h200"]["accelerator_count"] == 4
+    assert servers["h200"]["power_cap_watts"] == 700
+    assert servers["h200"]["reservation_groups"] == ["A", "B"]
     assert servers["b300"]["host"] == "98dci4-gpu-0004"
     assert servers["b300"]["engines"] == ["gpu-0004:18801"]
     assert servers["b300"]["accelerator_family"] == "B300"
+    assert servers["b300"]["reservation_groups"] == ["C"]
+
+
+def test_a_declared_server_with_no_engine_is_still_listed(tmp_path):
+    """A declared server is a row even when nothing is running on it.
+
+    The job table renders the site's servers, so a server that is idle has to
+    be visible as idle; a servers array built from the running engines would
+    simply omit it, which reads the same as a server that is not declared.
+    """
+    records = (
+        ServeRegistration(
+            "glm-5.3", "98dci4-gpu-0003", 18801, "41", 4, "int4", "H200", server="h200"
+        ),
+    )
+    catalogs = {records[0].origin: _catalog("glm-5.3", "H200", 4, "int4")}
+    target = tmp_path / "endpoints.json"
+
+    publish_endpoint_document(
+        records, target, fetch_catalog=catalogs.__getitem__, servers=(_H200, _B300)
+    )
+
+    document = json.loads(target.read_text(encoding="utf-8"))
+    servers = {server["name"]: server for server in document["servers"]}
+    assert sorted(servers) == ["b300", "h200"]
+    assert servers["h200"]["engines"] == ["gpu-0003:18801"]
+    assert servers["b300"]["engines"] == []
+    assert servers["b300"]["host"] == "98dci4-gpu-0004"
+    assert servers["b300"]["accelerator_family"] == "B300"
     assert servers["b300"]["accelerator_count"] == 8
+
+
+def test_a_servers_card_count_comes_from_its_declaration(tmp_path):
+    """A serve may take fewer cards than its node has.
+
+    The declaration is the node's card count and the engine is one placement on
+    it, so deriving the count from the engine would publish a four-card serve
+    as a four-card node and lose the cards the rest of the site can take.
+    """
+    node = _H200.model_copy(update={"accelerator_count": 8})
+    record = ServeRegistration(
+        "glm-5.3", "98dci4-gpu-0003", 18801, "41", 4, "int4", "H200", server="h200"
+    )
+    catalogs = {record.origin: _catalog("glm-5.3", "H200", 4, "int4")}
+    target = tmp_path / "endpoints.json"
+
+    publish_endpoint_document(
+        (record,), target, fetch_catalog=catalogs.__getitem__, servers=(node,)
+    )
+
+    (server,) = json.loads(target.read_text(encoding="utf-8"))["servers"]
+    assert server["name"] == "h200"
+    assert server["engines"] == ["gpu-0003:18801"]
+    # The engine registered four cards; the node declares eight.
+    assert record.accelerator_count == 4
+    assert server["accelerator_count"] == node.accelerator_count == 8
+    assert server["power_cap_watts"] == 700
+    assert server["reservation_groups"] == ["A", "B"]
+
+
+def test_an_undeclared_host_still_carries_its_engines(tmp_path):
+    """Nothing is dropped for want of a declaration."""
+    record = ServeRegistration(
+        "glm-5.3", "98dci4-gpu-0009", 18801, "41", 4, "int4", "H200", server=""
+    )
+    catalogs = {record.origin: _catalog("glm-5.3", "H200", 4, "int4")}
+    target = tmp_path / "endpoints.json"
+
+    publish_endpoint_document(
+        (record,), target, fetch_catalog=catalogs.__getitem__, servers=(_H200,)
+    )
+
+    document = json.loads(target.read_text(encoding="utf-8"))
+    assert [(item["host"], item["port"]) for item in document["endpoints"]] == [
+        ("98dci4-gpu-0009", 18801)
+    ]
+    servers = {server["name"]: server for server in document["servers"]}
+    assert sorted(servers) == ["98dci4-gpu-0009", "h200"]
+    assert servers["98dci4-gpu-0009"]["engines"] == ["gpu-0009:18801"]
+    assert servers["98dci4-gpu-0009"]["accelerator_count"] == 4
+    assert servers["h200"]["engines"] == []
 
 
 def test_a_configured_serve_is_placed_on_the_named_server(monkeypatch):

@@ -1202,7 +1202,9 @@ def _republish_endpoint_document(site: SiteConfig) -> Path | None:
             job_is_running=lambda _job_id: True,
         ).current
         endpoints = build_endpoint_document(
-            registrations, fetch_catalog=_fetch_anonymous_catalog
+            registrations,
+            fetch_catalog=_fetch_anonymous_catalog,
+            servers=site.declared_servers,
         )
         return write_endpoint_document(
             endpoints,

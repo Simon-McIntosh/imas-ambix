@@ -285,12 +285,26 @@ def test_publish_command_without_router_preserves_endpoint_document(
         ],
         "routing_origins": [],
         "servers": [
+            # The publish command passes the site's declared servers, and a
+            # site that declares none resolves to one entry built from its flat
+            # fields. It runs no engine here, so it is listed with none.
+            {
+                "accelerator_count": None,
+                "accelerator_family": "H200",
+                "engines": [],
+                "host": "98dci4-gpu-0003",
+                "name": "98dci4-gpu-0003",
+                "power_cap_watts": None,
+                "reservation_groups": [],
+            },
             {
                 "accelerator_count": 2,
                 "accelerator_family": "H100",
                 "engines": ["node-a:19001"],
                 "host": "node-a",
                 "name": "node-a",
+                "power_cap_watts": None,
+                "reservation_groups": [],
             },
             {
                 "accelerator_count": 8,
@@ -298,6 +312,8 @@ def test_publish_command_without_router_preserves_endpoint_document(
                 "engines": ["node-b:19002"],
                 "host": "node-b",
                 "name": "node-b",
+                "power_cap_watts": None,
+                "reservation_groups": [],
             },
         ],
     }
