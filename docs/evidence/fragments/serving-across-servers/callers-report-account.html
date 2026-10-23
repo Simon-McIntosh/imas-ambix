@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="callers-report-account-landing">
+      <h2>Callers report their account and project</h2>
+      <p>Clive now appends <code>X-Ambix-Account</code> (the login, from
+      <code>id -un</code>) and <code>X-Ambix-Project</code> (the repository the
+      working directory belongs to) to whatever custom-header block it inherits;
+      the project comes from the parent of
+      <code>git rev-parse --path-format=absolute --git-common-dir</code>, so a
+      detached worktree reports its repository rather than its node directory,
+      and it falls back to the working directory's own name outside a repository.
+      A header already present is left as it stands, so a launcher that composes
+      these upstream stays authoritative and nothing inherited is rewritten or
+      reordered.</p>
+      <p>The receipt reader gained <code>ACCOUNT_HEADER</code> and
+      <code>PROJECT_HEADER</code> under the existing token rule
+      (<code>_identity_token</code> says it once), and
+      <code>identity_from_headers</code> now returns all four values. The
+      router's two call sites pass the account and project through to
+      <code>RequestReceipt</code> and <code>RequestReceiptSink.record</code>, so
+      every row carries them -- null when the caller declared neither, and
+      requiring no change at any other call site.</p>
+      <p id="callers-report-account-measure">Gate: the three named test modules
+      pass, and <code>ruff check imas_ambix tests</code> exits 0 — 52 passed in
+      54.79s, ruff <code>All checks passed!</code>. The negative control applies
+      both declared mutations: <code>_identity_token</code> returning the raw
+      value unchecked fails
+      <code>test_an_over_long_or_control_bearing_account_is_recorded_as_absent</code>,
+      and clive appending <code>X-Ambix-Account</code> unconditionally fails
+      <code>test_an_already_present_account_header_is_left_untouched</code>.</p>
+      <p id="callers-report-account-notes">The router change takes effect at the
+      next lane cycle, and the clive change once the
+      coordinator regenerates the installed script; until then new rows read
+      <code>unattributed</code>, which is the truth about them. A worker
+      dispatched on a non-clive lane stays unattributed, as the plan's
+      <em>Left to reckon</em> notes.</p>
+    </section>
+  </main>
+</body>
+</html>
