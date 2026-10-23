@@ -597,6 +597,18 @@ def generate_serve_script(
     registry_dir = registration_directory(site.base_dir)
     registry_python = site.python_path(profile.engine.type)
     checkpoint_precision = profile.model.checkpoint_precision or "unknown"
+    # A pinned profile carries the commit its weights were fetched at into the
+    # serve's own log. The weights directory alone does not identify the
+    # checkpoint a run loaded: one repository can publish more than one release,
+    # and a default branch moves after a download, so a directory name is not a
+    # record of what was fetched into it.
+    revision_assignment = ""
+    revision_banner = ""
+    if profile.model.revision is not None:
+        revision_assignment = (
+            f"\n        REVISION={shlex.quote(profile.model.revision)}"
+        )
+        revision_banner = '\n        echo "  revision: $REVISION"'
 
     # Launch the drain-forensics sidecar first thing, so it samples the whole
     # job life including the teardown/kill window. The serving job is the
@@ -894,7 +906,7 @@ def generate_serve_script(
         # Ensure venv tools (ninja, etc.) are on PATH for JIT compilation
         export PATH={shlex.quote(venv_bin)}:$PATH
 
-        MODEL_DIR={shlex.quote(str(model_dir))}
+        MODEL_DIR={shlex.quote(str(model_dir))}{revision_assignment}
         PORT=${{AMBIX_PORT:-{port}}}
         _REGISTRY_DIR={shlex.quote(str(registry_dir))}
         _REGISTRY_PYTHON={shlex.quote(str(registry_python))}
@@ -946,7 +958,7 @@ def generate_serve_script(
         echo "  allocated GPUs:"
         echo "    count=${{SLURM_GPUS_ON_NODE:-unknown}}"
         echo "    visible=${{CUDA_VISIBLE_DEVICES:-unknown}}"
-        echo "  model dir: $MODEL_DIR"
+        echo "  model dir: $MODEL_DIR"{revision_banner}
         echo "  port: $PORT"
         echo "  api_key: {("enabled" if api_key else "disabled")}"
 

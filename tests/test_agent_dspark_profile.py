@@ -8,8 +8,11 @@ import shlex
 import subprocess
 from pathlib import Path
 
+from click.testing import CliRunner
+
 from imas_ambix.agent.profile import ModelProfile, SiteConfig, load_profile
 from imas_ambix.agent.slurm import generate_download_script, generate_serve_script
+from imas_ambix.cli import main
 
 CHECKPOINT_SHA = "1bae0e1088993b9b82de08f59de5be5a34e42170"
 CHECKPOINT_REPO = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
@@ -302,4 +305,40 @@ def test_download_script_pins_nothing_when_no_revision_is_declared() -> None:
 
     assert "--revision" not in script
     assert "REVISION=" not in script
+    assert "models info" not in script
+
+
+def test_serve_dry_run_names_the_weights_directory_and_the_pinned_revision() -> None:
+    """The serve dry-run names both halves of the release it serves.
+
+    The weights directory alone does not identify the checkpoint a run loaded,
+    so the launcher records the pinned commit beside it and prints it into the
+    job log, which is where a reader can tell two deployments apart.
+    """
+    result = CliRunner().invoke(
+        main, ["agent", "serve", "deepseek-v4-1-flash", "--dry-run"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert f"MODEL_DIR={CHECKPOINT_MODEL_DIR}" in result.output
+    assert CHECKPOINT_SHA in result.output
+    assert f"REVISION={CHECKPOINT_SHA}" in result.output
+    assert 'echo "  revision: $REVISION"' in result.output
+
+
+def test_serve_script_records_no_revision_when_the_profile_pins_none() -> None:
+    """A profile that pins nothing gains no revision record.
+
+    The record is a property of a profile that declares a pin, so clearing the
+    pin must remove it rather than leave the script naming a commit nothing
+    fetched.
+    """
+    unpinned = load_profile("deepseek-v4-1-flash").model_copy(deep=True)
+    unpinned.model.revision = None
+
+    script = generate_serve_script(unpinned, SiteConfig(), port=18810)
+
+    assert "REVISION" not in script
+    assert "revision" not in script.lower()
+    assert f"MODEL_DIR={CHECKPOINT_MODEL_DIR}" in script
     assert "models info" not in script

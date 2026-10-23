@@ -15,15 +15,18 @@
   </p>
 
   <p id="profile-points-at-1017-serve">
-    The generated serve script moves exactly one line for this change, its
-    <code>MODEL_DIR</code>, now
-    <code>/work/projects/imas_gpu/agents/deepseek-v4-1-flash-1017/model</code>. The test
-    asserts equality modulo the weights directory rather than a substring, so a serving
-    setting that moved alongside the checkpoint would fail it. Against the base revision the
-    profile's <code>[model]</code> block differs in three keys —
-    <code>hf_repo</code>, <code>revision</code> and <code>weights_slug</code> — and only
-    <code>weights_slug</code> is read by the serve generator, which is why one line is the
-    whole difference.
+    The generated serve script names both halves of the release it serves, and the plan's
+    <code>MODEL_DIR</code> clause is met by one moved line: the directory is now
+    <code>/work/projects/imas_gpu/agents/deepseek-v4-1-flash-1017/model</code>. The directory
+    is not the only difference. A profile that declares a revision carries it into the serve
+    script as a <code>REVISION</code> value echoed into the job log beside the model
+    directory, because a directory name is not a record of which checkpoint a run loaded —
+    one repository can publish more than one release, and a default branch moves after a
+    download. Only a declared pin emits those lines: the nine profiles that pin nothing
+    generate scripts byte-identical to the base revision's generator, and this profile's
+    script differs from its own September-directory equivalent by the
+    <code>MODEL_DIR</code> line alone, which is what the test asserts — equality modulo the
+    weights directory and the pin, not a substring.
   </p>
 
   <p id="profile-points-at-1017-shards">
@@ -62,14 +65,18 @@
     a scratch copy of the generator left the script running the transfer to completion
     against an unpublished revision — exit 0, download complete — and the refusal test
     failed on it, so the guard is load-bearing rather than decorative. The copy was
-    restored under a trap and the restore is verified by checksum, not assumed. Both
+    restored under a trap and the restore is verified by checksum, not assumed. The serve
+    script's revision record: suppressing the emission makes the dry-run test fail on the
+    absent commit, so the record is load-bearing rather than a line along for the ride. The
     control logs are outside the tree, at
     <code>~/.config/reckon/crew/runs/r-20261023T140736542637-profile-points-at-1017/</code>.
   </p>
 
   <p id="profile-points-at-1017-gate">
-    Gate: <code>pytest -p no:cacheprovider tests/test_agent_dspark_profile.py</code> — 12
-    passed, of which five are new; whole-tree
+    Gate: <code>pytest -p no:cacheprovider tests/test_agent_dspark_profile.py</code> — 14
+    passed, of which seven are new, including one that runs the plan's own wording
+    (<code>imas-ambix agent serve deepseek-v4-1-flash --dry-run</code>) and requires the
+    output to name the weights directory and the pinned revision; whole-tree
     <code>ruff check imas_ambix tests</code> exits 0.
   </p>
 </section>
