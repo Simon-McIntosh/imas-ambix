@@ -20,11 +20,11 @@
   <meta name="plan-tags" content="agent-serving">
   <meta name="plan-blocks" content="serving-record-warehouse">
   <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="11">
+<meta name="plan-version" content="12">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -133,7 +133,7 @@
     </ul>
 
     <h2 id="s4">§4 — The index lives on node-local disk, with compressed snapshots on GPFS</h2>
-    <section data-reckon="section" data-id="s4" data-effort-hours="2.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
+    <section data-reckon="section" data-id="s4" data-effort-hours="2.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="done" data-links=""></section>
     <p>A new module, <code>imas_ambix/agent/index_placement.py</code>, owns where the index is and how it survives a node:</p>
     <ul>
       <li><strong>Resolve</strong> the path in this order:
@@ -347,7 +347,10 @@
     <div class="r-comment-body"><p>Verified-daily snapshot and stale-publication repairs landed in 2fefa896 and 5a1477b0; 48 selected tests and whole-tree Ruff pass, while each inverse-commit control fails its own regression test (EXIT=1); evidence fragment 1089c1c2.</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261023T085918875219-review-of-wil-snapshot-runs-off-the-tick-path-e5657bfd2b7d" data-who="reckon-build" data-when="2026-10-23T09:31:48.881Z">
-    <div class="r-comment-body"><p>Reviewed run r-20261023T082347995391-wil-snapshot-runs-off-the-tick-path at base f177106299f2687c37e25c8d1a9e7b9336f8e090 and head e5657bfd2b7dd934baf1f19242484beba8f52264; verdict: the snapshot does run off the ingest tick path on a worker thread with its own read-only connection and the verification-time uncompressed copy is gone, with both guards shown red under the node&#x27;s own mutation control; scores goal_fidelity 17, evidence 18, scope_discipline 16, durability 17, fit 16, reuse 20 (total 104); two non-blocking findings, an unrelated formatting-only hunk at imas_ambix/agent/cli.py:2064 and a relaxed exact-equality assertion at tests/test_index_placement.py:401; added_failure_count 0 because the reviewed manifest files no baseline arm.</p></div>
+    <div class="r-comment-body"><p>Reviewed run r-20261023T082347995391-wil-snapshot-runs-off-the-tick-path at base f177106299f2687c37e25c8d1a9e7b9336f8e090 and head e5657bfd2b7dd934baf1f19242484beba8f52264; verdict: the snapshot does run off the ingest tick path on a worker thread with its own read-only connection and the verification-time uncompressed copy is gone, with both guards shown red under the node's own mutation control; scores goal_fidelity 17, evidence 18, scope_discipline 16, durability 17, fit 16, reuse 20 (total 104); two non-blocking findings, an unrelated formatting-only hunk at imas_ambix/agent/cli.py:2064 and a relaxed exact-equality assertion at tests/test_index_placement.py:401; added_failure_count 0 because the reviewed manifest files no baseline arm.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-close-s4" data-who="reckon-build" data-when="2026-10-23T09:40:00Z">
+    <div class="r-comment-body"><p>§4 landed: the index is node-local in WAL mode, the first verified snapshot is 854 MB on GPFS, and the snapshot now runs off the tick path (merged <code>70e2615d</code>, deployed at the next restart). <a href="/imas-ambix/evidence/archive/watch-index-lifecycle-landed.html#s4">evidence</a></p></div>
 </div>
 </section>
 </main>
