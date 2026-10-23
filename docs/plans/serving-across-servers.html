@@ -20,13 +20,13 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment,telemetry">
   <meta name="plan-after" content="local-lane-admission-control#s14,local-lane-admission-control">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;implementable&quot;}">
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="30">
+<meta name="plan-version" content="36">
 <meta name="plan-modified" content="2026-10-23">
-<meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;]}">
+<meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;]}">
 </head>
 <body>
   <main class="plan-doc">
@@ -198,7 +198,7 @@
     <h2 id="s5">&sect;5 &mdash; One lane document per pool, and lane.json stays the default pool</h2>
 <section data-reckon="section" data-id="s5" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
     <p>Each engine has its own reading loop, which fetches that engine's metrics into that
-    engine's own window. One composer runs once per publishing tick, after the readings. The composer is <code>RouterApp._publish_lane</code> itself, rewritten to iterate the engines instead of reading <code>upstreams[0]</code>. Today there is a second writer of <code>lane.json</code>: the <code>imas-ambix agent lane</code> command (<code>cli.py</code>), whose <code>--submit</code> form runs a long-lived refresher job (<code>generate_lane_refresher_script</code>). This section retires that writer. Before it does, the node searches the reckon, dotfiles and imas-ambix trees and the scheduler's running job names for the command and the refresher, and records what it found. After this section, no function but the composer writes a lane document, and a test asserts it by searching the package for calls to <code>write_lane_document</code>. It
+    engine's own window. One composer runs once per publishing tick, after the readings. The composer is <code>RouterApp._publish_lane</code> itself, rewritten to iterate the engines instead of reading <code>upstreams[0]</code>. Today there is a second writer of <code>lane.json</code>: the <code>imas-ambix agent lane</code> command (<code>cli.py</code>), whose <code>--submit</code> form runs a long-lived refresher job (<code>generate_lane_refresher_script</code>). This section retires that writer. Before it does, the node searches the reckon, dotfiles and imas-ambix trees and the scheduler's running job names for the command and the refresher, and records what it found. After this section, no function but the composer writes a lane document. A test asserts it by searching the package for calls to both functions that write one: <code>lane.write_lane_document</code> and <code>lane.write_unavailable_document</code>. The <code>lane</code> command calls the second on its unavailable path, so a guard covering only the first would pass while the refresher kept overwriting <code>lane.json</code>. The done-when gains a bullet for the retirement: the caller search is recorded, the command and its refresher are removed, and the search test finds no writer outside the composer. It
     writes the default pool's document at <code>lane.json</code> and every other pool's
     document at <code>lanes/&lt;model id&gt;.json</code>, from the latest reading of each
     engine. The default pool is never written a second time under <code>lanes/</code>, so
@@ -388,8 +388,9 @@
       the base callers block already carries, block-level and per-session. The only
       differences allowed are the added <code>accounts</code> and <code>projects</code>
       levels and the per-session <code>account</code> and <code>project</code> keys.</li>
-      <li>A two-engine fixture yields two engine entries, and each caller's held figures per
-      engine sum to its total within 0.01.</li>
+      <li>The document is built for one engine. Per-engine entries, and each caller's held
+      figures split by engine, are &sect;14's, because their shape is the pool document
+      &sect;5 and &sect;6 publish.</li>
       <li>History bins over a fixture with a known request schedule match occupancy computed by
       hand.</li>
       <li>Each refresh reads the request record once, bounded by
@@ -442,6 +443,9 @@ outcomes 5m   412 completed · 3 aborted · 0 failed · 0 expired at the gate
 
 ledger          tok in     cached %      tok out       util %       cost $       window
 1 hour          231.7M     ████▉ 98        1.15M     ████▉ 97         7.45         full</pre>
+    <p>This section renders one engine, which is today's lane. The multi-engine form
+    described next is built in &sect;14, once &sect;5 and &sect;6 publish per-engine
+    documents. It is specified here so that the one-engine layout leaves room for it.</p>
     <p>With several engines, the view adds:</p>
     <ul>
       <li>a router header line;</li>
@@ -499,8 +503,8 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
     <code>bin/llm-watch</code> is a launcher that execs it.</p>
     <p><strong>Done when.</strong></p>
     <ul>
-      <li>Golden render tests at 120 columns cover a one-engine and a three-engine fixture, and
-      their expected text is committed.</li>
+      <li>Golden render tests at 120 columns cover a one-engine fixture, and their expected
+      text is committed. The three-engine golden is &sect;14's.</li>
       <li>On the same document, the one-engine render's throughput and gate bands match today's
       gpu-watch serve grid cell for cell.</li>
       <li>No rendered line exceeds the terminal width at 100 or 120 columns.</li>
@@ -649,6 +653,10 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 <li><strong>Negative control:</strong> an <code>x-ambix-account</code> value carrying a control character, or longer than <code>MAX_IDENTITY_CHARS</code>, records null rather than the value.</li>
 </ul>
 
+    <h2 id="s14">§14 — The watch shows several engines</h2>
+<section data-reckon="section" data-id="s14" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p><strong>Why this is its own section.</strong> §8 and §9 build llm-watch for one engine, which is today's lane, so it ships before the router work. The engine dimension depends on shapes only §5 and §6 publish: one pool document per model, with an <code>engines</code> array, and live figures per engine. Building it against fixtures before those shapes exist would freeze a guess, so it waits for them.</p><p><strong>What it adds.</strong> To the §8 document it adds one entry per engine (live and gate figures, from §5's pool documents and §6's per-engine live block), each caller's held figures split by engine from the request record's <code>upstream</code>, and per-engine outcomes and history bins. To the §9 view it adds the router header line, the engines table, the engine column in the account-detail table, one history line per engine, the ledger grouped by model, and <code>--engine ID</code>. All of these are specified in §9 under <em>With several engines</em>.</p><p><strong>Write paths.</strong> <code>imas_ambix/agent/lane_callers.py</code>, <code>imas_ambix/agent/live_panel.py</code>, the llm-watch view module §9 creates, and their tests.</p><p><strong>Done when.</strong></p><ul><li>A two-engine fixture yields two engine entries, and each caller's held figures per engine sum to its total within 0.01.</li><li>A golden render at 120 columns of a three-engine fixture is committed, and no line exceeds 100 or 120 columns.</li><li>With one engine, the document and the render are byte-identical to §8's and §9's goldens, so the engine dimension costs a single-engine reader nothing.</li><li><strong>Negative control:</strong> attribute every request to the first engine; the per-engine sum test must fail.</li></ul>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="b300-role" data-choice="" data-by="" data-when="" data-sections="s7,s11">
@@ -735,7 +743,10 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
     <div class="r-comment-body"><p>review recorded for run r-20261022T235023436789-callers-grouped-by-account at reviewed head 9686156a over base 12bf8d57 — scores goal_fidelity 19, evidence 16, scope_discipline 20, durability 18, fit 19, reuse 20, one follow-on finding (the gate log header names the base revision), zero added failures across arms the reviewer re-ran (head 50 passed, base 42 passed, both EXIT=0)</p></div>
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261022T235023436789-callers-grouped-by-account" data-who="reckon-build" data-when="2026-10-23T00:30:57.000Z">
-    <div class="r-comment-body"><p>lane_callers&#x27; callers block now carries accounts (sessions, runs, held, held per run, mean gate wait, share) and projects keyed by (account, project), copied from row.get(&quot;account&quot;)/row.get(&quot;project&quot;) with rows with no account totalled under one unattributed entry listing their hosts and an account with no project landing in unattributed within it, while the per-session list keeps every base value and gains account/project; 50 passed (19 in tests/test_lane_callers.py), ruff check imas_ambix tests exit 0, negative control EXIT=1 with test_a_row_with_no_account_stays_unattributed_when_its_host_reports_one failing</p></div>
+    <div class="r-comment-body"><p>lane_callers' callers block now carries accounts (sessions, runs, held, held per run, mean gate wait, share) and projects keyed by (account, project), copied from row.get("account")/row.get("project") with rows with no account totalled under one unattributed entry listing their hosts and an account with no project landing in unattributed within it, while the per-session list keeps every base value and gains account/project; 50 passed (19 in tests/test_lane_callers.py), ruff check imas_ambix tests exit 0, negative control EXIT=1 with test_a_row_with_no_account_stays_unattributed_when_its_host_reports_one failing</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-s8-accounts-landed" data-who="reckon-build" data-when="2026-10-23T01:20:00Z">
+    <div class="r-comment-body"><p>The account grouping of §8 landed in merge <code>cef1fc00</code> (node <code>callers-grouped-by-account</code>, commit <code>9686156a</code>). <code>lane_callers.callers_block</code> carries <code>accounts</code> and <code>projects</code> copied from the reported keys, with rows lacking an account totalled under <code>unattributed</code>. Every base key is byte-identical on a fixture copied from the live files. 50 tests pass, verify-gate passed at the merged head, and the independent review scored 16 to 20. §8 stays open for the history bins, the outcomes line, the bounded single read of the record and the missing-receipts negative control. The engine dimension has moved to §14.</p></div>
 </div>
 </section>
 </main>
