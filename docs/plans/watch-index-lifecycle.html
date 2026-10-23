@@ -4,26 +4,28 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="docs-project"   content="imas-ambix">
-  <meta name="reckon-type"    content="plan">
-  <meta name="plan-slug"      content="watch-index-lifecycle">
-  <meta name="plan-title"     content="Watch Index Lifecycle">
-  <meta name="plan-summary"   content="Move the derived telemetry index off GPFS, make every read cost its window and every ingest cost its new bytes, and give each artefact a lifecycle">
-  <meta name="plan-status"    content="active">
-  <meta name="plan-roi"       content="high">
+  <meta name="reckon-type" content="plan">
+  <meta name="plan-slug" content="watch-index-lifecycle">
+  <meta name="plan-title" content="Watch Index Lifecycle">
+  <meta name="plan-summary" content="Move the derived telemetry index off GPFS, make every read cost its window and every ingest cost its new bytes, and give each artefact a lifecycle">
+  <meta name="plan-status" content="active">
+  <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="12.0">
   <meta name="plan-capability-version" content="1.0">
   <meta name="plan-capability-class" content="orchestrator">
   <meta name="plan-capability-reasoning" content="deep">
   <meta name="plan-capability-verification" content="strict">
-  <meta name="plan-sprint"    content="S27">
-  <meta name="plan-owner"     content="Simon McIntosh">
-  <meta name="plan-tags"      content="agent-serving">
-  <meta name="plan-blocks"    content="serving-record-warehouse">
+  <meta name="plan-sprint" content="S27">
+  <meta name="plan-owner" content="Simon McIntosh">
+  <meta name="plan-tags" content="agent-serving">
+  <meta name="plan-blocks" content="serving-record-warehouse">
   <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;,&quot;watch-index-lifecycle#s4&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;deferred&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
+<meta name="plan-version" content="1">
+<meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
   <main class="plan-doc">
@@ -264,7 +266,7 @@
     </ul>
 
     <h2 id="s8">§8 — Why retention has retired nothing since 2026-10-17, and what fills the index</h2>
-    <section data-reckon="section" data-id="s8" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
+    <section data-reckon="section" data-id="s8" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="done" data-links=""></section>
     <p>A read-only investigation answers two questions with measurements, recorded in <code>docs/research/watch-index-size-and-retention.html</code> with a figure under <code>docs/figures/watch-index-size/</code>:</p>
     <ul>
       <li><strong>What fills the index.</strong> Per table and per index, it reports bytes, rows and bytes per row. It runs <code>dbstat</code> on a node-local copy made with the backup API in a <code>mktemp -d</code> directory that is removed on exit, never on the GPFS file.</li>
@@ -284,34 +286,39 @@
     <p>Once §5 has landed, raw sample rows older than a horizon serve only edge hours that no period reaches. The horizon would be 35 days, covering the one-month period plus its edges. Removing those rows loses nothing, because the receipts and their compacted tiers on GPFS remain the authority. That is true only if a rebuild from the receipts reproduces the pruned hours' rollups exactly. This section is deferred until §8's breakdown says how much the pruning would recover, and until that reproduction is measured.</p>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
-      <h2><span class="sec">§</span> Decisions</h2>
-      <div class="r-dec" data-key="index-placement" data-choice="node-local-disk" data-by="coordinator" data-when="2026-10-23">
-        <p class="r-dec-q">Where does the live index live?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="node-local-disk">node-local disk under the fleet runtime directory</button>
-          <button class="r-opt" data-value="dev-shm">/dev/shm</button>
-          <button class="r-opt" data-value="gpfs-home">GPFS home cache, as today</button>
-        </p>
-        <p class="r-dec-rat">The two node-local choices are equally ephemeral. <code>/dev/shm</code> charges every page to the memory of the allocation every orchestrator and worker shares, and cannot release it under pressure. Local disk plus the page cache gives the same hot-read speed and lets the kernel evict. GPFS is what this plan exists to leave. The choice can be revised by the lead; it is one resolver.</p>
-      </div>
-      <div class="r-dec" data-key="ingest-identity-cadence" data-choice="probe-each-tick-full-hourly" data-by="coordinator" data-when="2026-10-23">
-        <p class="r-dec-q">How often is a source's whole consumed prefix re-verified?</p>
-        <p class="r-dec-opts">
-          <button class="r-opt" data-value="probe-each-tick-full-hourly">bounded probe every tick, whole prefix hourly</button>
-          <button class="r-opt" data-value="whole-prefix-every-tick">whole prefix every tick, as today</button>
-        </p>
-        <p class="r-dec-rat">Every tick re-reading the whole prefix costs about 2.6 GB of GPFS reads a minute today, and that cost grows with every file. The bounded probe still catches truncation, replacement and any change at the head or at the read point on the next tick. A rewrite confined to the middle of a file, which no writer has ever made, is caught within the interval. The interval is one constant.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Decisions</h2>
+<div class="r-dec" data-key="index-placement" data-choice="node-local-disk" data-by="coordinator" data-when="2026-10-23">
+    <p class="r-dec-q">Where does the live index live?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="node-local-disk">node-local disk under the fleet runtime directory</button>
+      <button class="r-opt" data-value="dev-shm">/dev/shm</button>
+      <button class="r-opt" data-value="gpfs-home">GPFS home cache, as today</button>
+      </p>
+    <p class="r-dec-rat">The two node-local choices are equally ephemeral. /dev/shm charges every page to the memory of the allocation every orchestrator and worker shares, and cannot release it under pressure. Local disk plus the page cache gives the same hot-read speed and lets the kernel evict. GPFS is what this plan exists to leave. The choice can be revised by the lead; it is one resolver.</p>
+    </div>
+<div class="r-dec" data-key="ingest-identity-cadence" data-choice="probe-each-tick-full-hourly" data-by="coordinator" data-when="2026-10-23">
+    <p class="r-dec-q">How often is a source&#x27;s whole consumed prefix re-verified?</p>
+    <p class="r-dec-opts">
+      <button class="r-opt chosen" data-value="probe-each-tick-full-hourly">bounded probe every tick, whole prefix hourly</button>
+      <button class="r-opt" data-value="whole-prefix-every-tick">whole prefix every tick, as today</button>
+      </p>
+    <p class="r-dec-rat">Every tick re-reading the whole prefix costs about 2.6 GB of GPFS reads a minute today, and that cost grows with every file. The bounded probe still catches truncation, replacement and any change at the head or at the read point on the next tick. A rewrite confined to the middle of a file, which no writer has ever made, is caught within the interval. The interval is one constant.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-wil-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build watch-index-lifecycle">
-        <h4 class="r-fu-title">Dispatch §3, §4 and §8 now; §5 after §3 and §4; §6 after §4 and §5; §7 after §6</h4>
-        <div class="r-fu-body"><p>The write scopes fix this order. §3 and §5 both write <code>telemetry_index.py</code>; §4 and §5 both write <code>watch.py</code>; and §4, §6 and §7 each write <code>cli.py</code>. §8 writes only its research document. Restarting a fleet service is a deployment step that needs the lead's authority each time; record each deployment's measurement in its section.</p></div>
-        <pre class="r-fu-prompt">/reckon-build watch-index-lifecycle</pre>
-      </article>
-    </section>
-  </main>
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-wil-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build watch-index-lifecycle" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Dispatch §3, §4 and §8 now; §5 after §3 and §4; §6 after §4 and §5; §7 after §6</h4>
+    <div class="r-fu-body"><p>The write scopes fix this order. §3 and §5 both write <code>telemetry_index.py</code>; §4 and §5 both write <code>watch.py</code>; and §4, §6 and §7 each write <code>cli.py</code>. §8 writes only its research document. Restarting a fleet service is a deployment step that needs the lead's authority each time; record each deployment's measurement in its section.</p></div>
+    <pre class="r-fu-prompt">/reckon-build watch-index-lifecycle</pre>
+    </article>
+</section>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="s8" data-id="c-close-s8" data-who="reckon-build" data-when="2026-10-23T06:40:00Z">
+    <div class="r-comment-body"><p>§8 landed: the measurement table and its two indexes are 80.5% of the 8.67 GB index, and retention is idle because no raw file is eligible, not broken (merged <code>50fb6bad</code>). §9's pruning target and §5's size target now have a measured baseline. <a href="/imas-ambix/evidence/archive/watch-index-lifecycle-landed.html#s8">evidence</a></p></div>
+</div>
+</section>
+</main>
 </body>
 </html>

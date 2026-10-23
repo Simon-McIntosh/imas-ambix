@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="watch-index-lifecycle-landed">
+  <meta name="plan-title" content="Watch Index Lifecycle — landed record">
+  <meta name="plan-summary" content="Closure synthesis for Watch Index Lifecycle: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).">
+  <meta name="plan-evidence-for" content="watch-index-lifecycle">
+  <meta name="plan-verdict" content="qualified">
+  <title>Watch Index Lifecycle — landed record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+ <main class="plan-doc">
+  <h1>Watch Index Lifecycle — landed record</h1>
+  <p>Closure synthesis for Watch Index Lifecycle: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).</p>
+
+
+   <section id="s8">
+    <h2>§8 — what fills the index, and why retention is idle</h2>
+    <p>A read-only backup of the 8,669,601,792-byte index was taken to node-local scratch and measured with <code>dbstat</code>; the objects account for 99.99995% of the file. The <code>measurement</code> table and its two indexes hold 6,982,402,048 bytes (80.54%): 41,119,466 rows at 169.8 bytes each, 74.2 per sample. The <code>sample</code> table holds 1,658,011,648 bytes (19.12%), about 2,993 bytes per row of verbatim payload. Retention is not broken: a read-only scan finds 0 of 20 raw files eligible, because 19 old raw files carry no counter pairs to prove against, and the live job's file is younger than the 14-day threshold. The 105 closed receipt files would compress from 275,231,185 to 16,851,447 bytes. The worker's first backup attempt held a read transaction across the ingest's silent 05:59–06:11Z window, which in rollback-journal mode blocks the writer. Merged at <code>50fb6bad</code>; the figure's sample bar was recoloured grey to match its caption at <code>7f9fdc1a</code>. Full document: <a href="/imas-ambix/watch-index-size-and-retention.html">watch-index-size-and-retention</a>.</p>
+  </section>
+
+</main>
+</body>
+</html>
