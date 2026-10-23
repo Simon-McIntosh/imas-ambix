@@ -1,0 +1,71 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "baseline-full-suite.log at 2292e509 records 119 passed with empty failure_ids and after-full-suite.log at eb93ca60 records 121 passed with empty failure_ids, so the added set is empty.",
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/agent/watch_publish.py:116",
+    "imas_ambix/agent/cli.py:3157",
+    "imas_ambix/agent/telemetry_ingest.py:361",
+    "imas_ambix/agent/watch.py:653"
+  ],
+  "completed_at": "2026-10-23T11:06:02.604Z",
+  "dispatched_at": "2026-10-23T10:47:21Z",
+  "findings": [
+    {
+      "file": "tests/test_agent_telemetry_watch.py",
+      "line": "502",
+      "severity": "non-blocking",
+      "text": "non-blocking: the counter-rollup test compares the rollup reader against a raw reader but never forces whole-hour rows to come from hourly_rollup, so a regression that answers a whole-day counter period from raw rows keeps this assertion true and leaves the window-cost property the goal names unguarded; only the gauge half has a reddening mutation."
+    },
+    {
+      "file": "imas_ambix/agent/telemetry_index.py",
+      "line": "320",
+      "severity": "non-blocking",
+      "text": "non-blocking: the hourly_rollup.counter_diff column is written by the ingest and asserted non-null at tests/test_agent_telemetry_watch.py:512, but no production reader selects it -- _counter_window_rows reconstructs the difference from the segments column instead, so the column and its assertion carry no behaviour."
+    },
+    {
+      "file": "negative-control-repaired.log",
+      "line": "3",
+      "severity": "non-blocking",
+      "text": "non-blocking: the admitted red log's own '# command:' header omits AMBIX_TEST_PERTURB_ROLLUP=1, so the log is not reproducible from its header; the failure body shows the mutation branch executed and printed 'rollup mismatch at $.ledger[1].utilisation'."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 4 production call site(s)",
+    "diff": "Reading the ten commits from cef31adf to 4f9d407e commit by commit: the name/kind dictionary, the batched card query, the raw-reference tests, the cached-tier counter-kind repair, and three documentation commits that record the evidence.",
+    "done_when": "The done-when names field-by-field raw equality, a rollup perturbation reporting the reached field, sub-5 s watch_document, sub-1 s rollup maintenance, the rebuilt size, three named test files, the serving-python parse guard and ruff; live-mutation-repair.log, baseline-full-suite.log, after-full-suite.log, serving-final.log and ruff-final.log record each measure at the code revision.",
+    "goal": "The node goal asks watch_document to read hourly rollups plus raw edge hours so a publication costs its window; imas_ambix/agent/telemetry_index.py:1864 sums whole hours from hourly_rollup while :2076 reads only the two partial edge hours plus rollup segments.",
+    "manifest": "manifest.md reports the 473578-row rebuild, exact raw equality in 0.847 s, 0.024 s rollup maintenance, the 3814936576-byte size, a 119/121 base/after arm pair with zero failures, the repaired negative control and its own gate command -- recorded results, not merely claimed ones.",
+    "write_paths": "The declared write paths are imas_ambix/agent/telemetry_index.py, imas_ambix/agent/watch.py, tests/test_telemetry_index.py, tests/test_agent_telemetry_watch.py and the landing fragment; git diff 2292e509..4f9d407e changes a strict subset of them, with tests/test_telemetry_index.py left untouched."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_telemetry_watch.py:478 fails on the declared gauge-rollup mutation (negative-control-repaired.log, EXIT=1), but nothing reddens if the whole-hour counter path falls back to raw rows, so that half of the change is unguarded.",
+    "evidence": "live-mutation-repair.log records exact field-by-field equality over 473578 rows, a 0.847 s read and a perturbed-and-restored mismatch at $.ledger[1].utilisation, while its '# command:' line is an inline-script description rather than a literal re-runnable command.",
+    "fit": "imas_ambix/agent/telemetry_index.py:1671 keeps rollup maintenance in the index owner and reuses the existing counter-run helpers, with no banned plan or version names in the added symbols.",
+    "goal_fidelity": "imas_ambix/agent/telemetry_index.py:1864 reads whole hours from hourly_rollup and :2076 reads raw rows only at the two partial edge hours, and imas_ambix/agent/watch.py:653 batches one period's cards into one statement.",
+    "reuse": "a capability search found imas_ambix/agent/telemetry_store.py:534 as the per-receipt file-tier weighting and imas_ambix/agent/telemetry_index.py:1864 as the index raw weighting; _refresh_source_hour adds a third copy of the gap-weighting formula rather than extending either owner, though the plan justifies the rollup's distinct per-source axis and the equality test forces the copies to agree.",
+    "scope_discipline": "git diff 2292e509..4f9d407e touches only imas_ambix/agent/telemetry_index.py, imas_ambix/agent/watch.py, tests/test_agent_telemetry_watch.py and the declared landing fragment, a strict subset of the declared paths, and the tree is clean."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal asks watch_document to read hourly rollups plus raw edge hours so a publication costs its window; imas_ambix/agent/telemetry_index.py:1864 sums whole hours from hourly_rollup while :2076 reads only the two partial edge hours plus rollup segments.\nVERDICT done_when: the done-when names field-by-field raw equality, a rollup perturbation reporting the reached field, sub-5 s watch_document, sub-1 s rollup maintenance, the rebuilt size, three named test files, the serving-python parse guard and ruff; live-mutation-repair.log, baseline-full-suite.log, after-full-suite.log, serving-final.log and ruff-final.log record each measure at the code revision.\nVERDICT write_paths: the declared write paths are imas_ambix/agent/telemetry_index.py, imas_ambix/agent/watch.py, tests/test_telemetry_index.py, tests/test_agent_telemetry_watch.py and the landing fragment; git diff 2292e509..4f9d407e changes a strict subset of them, with tests/test_telemetry_index.py left untouched.\nVERDICT manifest: manifest.md reports the 473578-row rebuild, exact raw equality in 0.847 s, 0.024 s rollup maintenance, the 3814936576-byte size, a 119/121 base/after arm pair with zero failures, the repaired negative control and its own gate command.\nVERDICT diff: reading the ten commits from cef31adf to 4f9d407e commit by commit: the name/kind dictionary, the batched card query, the raw-reference tests, the cached-tier counter-kind repair, and three documentation commits that record the evidence.\nCALL_SITES: imas_ambix/agent/watch_publish.py:116, imas_ambix/agent/cli.py:3157, imas_ambix/agent/telemetry_ingest.py:361, imas_ambix/agent/watch.py:653\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/telemetry_index.py:1864 reads whole hours from hourly_rollup and :2076 reads raw rows only at the two partial edge hours, and imas_ambix/agent/watch.py:653 batches one period's cards into one statement.\nSCORE evidence: 16\nJUSTIFICATION evidence: live-mutation-repair.log records exact field-by-field equality over 473578 rows, a 0.847 s read and a perturbed-and-restored mismatch at $.ledger[1].utilisation, while its '# command:' line is an inline-script description rather than a literal re-runnable command.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff 2292e509..4f9d407e touches only imas_ambix/agent/telemetry_index.py, imas_ambix/agent/watch.py, tests/test_agent_telemetry_watch.py and the declared landing fragment, a strict subset of the declared paths, and the tree is clean.\nSCORE durability: 15\nJUSTIFICATION durability: tests/test_agent_telemetry_watch.py:478 fails on the declared gauge-rollup mutation (negative-control-repaired.log, EXIT=1), but nothing reddens if the whole-hour counter path falls back to raw rows, so that half of the change is unguarded.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/telemetry_index.py:1671 keeps rollup maintenance in the index owner and reuses the existing counter-run helpers, and the added symbols carry no banned plan or version names.\nSCORE reuse: 16\nJUSTIFICATION reuse: a capability search found imas_ambix/agent/telemetry_store.py:534 as the per-receipt file-tier weighting and imas_ambix/agent/telemetry_index.py:1864 as the index raw weighting; _refresh_source_hour adds a third copy of the gap-weighting formula rather than extending either owner, though the plan justifies the rollup's distinct per-source axis and the equality test forces the copies to agree.\nFINDING tests/test_agent_telemetry_watch.py:502 non-blocking: the counter-rollup test compares the rollup reader against a raw reader but never forces whole-hour rows to come from hourly_rollup, so a regression that answers a whole-day counter period from raw rows keeps this assertion true and leaves the window-cost property the goal names unguarded; only the gauge half has a reddening mutation.\nFINDING imas_ambix/agent/telemetry_index.py:320 non-blocking: the hourly_rollup.counter_diff column is written by the ingest and asserted non-null at tests/test_agent_telemetry_watch.py:512, but no production reader selects it -- _counter_window_rows reconstructs the difference from the segments column instead, so the column and its assertion carry no behaviour.\nFINDING negative-control-repaired.log:3 non-blocking: the admitted red log's own '# command:' header omits AMBIX_TEST_PERTURB_ROLLUP=1, so the log is not reproducible from its header; the failure body shows the mutation branch executed and printed 'rollup mismatch at $.ledger[1].utilisation'.\n",
+  "review_run_id": "r-20261023T104649903275-review-of-wil-watch-reads-hourly-rollups-4f9d407e195c",
+  "reviewed_base_sha": "2292e5099f0e878a7a15aef8f8d69ad48803a0da",
+  "reviewed_head_sha": "4f9d407e195cf86d06cc5846f0cad475cc998349",
+  "reviewed_run_id": "r-20261023T082420427390-wil-watch-reads-hourly-rollups",
+  "scores": {
+    "durability": 15,
+    "evidence": 16,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 16,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T11:08:04.192174+00:00",
+  "total": 104
+}
