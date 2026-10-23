@@ -20,12 +20,12 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
   <meta name="plan-blocks" content="b300-bring-up-and-open-model-bakeoff">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
   <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s3&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s4&quot;],&quot;s4&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;]}">
   <title>Rotate to DeepSeek-V4.1-Flash-1017 | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="26">
+<meta name="plan-version" content="27">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -85,7 +85,7 @@
     </ul>
 
     <h2 id="s3">§3 — The relaunch validates a tool call, not only a completion</h2>
-<section data-reckon="section" data-id="s3" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s3" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="done" data-links=""></section>
     <p><code>imas-ambix agent restart</code> already restores the saved script when the new
     engine fails readiness or a real completion. A completion is the wrong test for this
     rotation. The <a href="https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017">1017
@@ -280,6 +280,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261023T140807838269-restart-probes-tool-calls" data-who="reckon-build" data-when="2026-10-23T17:13:35.361Z">
     <div class="r-comment-body"><p>A restart validates a tool call in both dialects and reads the checkpoint index before pausing: bench.check_tool_call (factored out of the tools benchmark) and bench.check_tool_use are wired into the validate callback of the paused and overlap cycles, and weights_preflight refuses a checkpoint missing its index or a named shard while the lane still serves, printing the same verdict in --dry-run. Gate: pytest tests/test_bench.py tests/test_agent_restart_validation.py -&gt; 31 passed, ruff check imas_ambix tests -&gt; exit 0.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-close-s3" data-who="reckon-build" data-when="2026-10-23T17:45:00Z">
+    <div class="r-comment-body"><p>§3 landed in <code>f49f6d5e</code>. The restart refuses on missing weights before touching the lane, and validates a tool call in both dialects on the replacement before it serves. Both checks passed 2/2 against today's engine, verify-gate passed, and the review scored 17 to 20. <a href="/imas-ambix/evidence/archive/rotate-to-deepseek-v4-1-flash-1017-landed.html#s3">evidence</a></p></div>
 </div>
 </section>
 </main>
