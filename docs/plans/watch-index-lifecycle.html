@@ -19,8 +19,8 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving">
   <meta name="plan-blocks" content="serving-record-warehouse">
-  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;}">
+  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;],&quot;s10&quot;:[&quot;watch-index-lifecycle#s6&quot;]}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;,&quot;s10&quot;:&quot;implementable&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
@@ -281,6 +281,28 @@
       <li>It states the retention verdict with its evidence.</li>
       <li>It carries the compression list.</li>
       <li><code>reckon audit-doc</code> reports no errors.</li>
+    </ul>
+
+    <h2 id="s10">§10 — A schema change rebuilds the index instead of crash-looping the ingest</h2>
+    <section data-reckon="section" data-id="s10" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="elevated" data-attempts="0" data-status="implementable" data-links=""></section>
+    <p>§5 made <code>TelemetryIndex</code> refuse an index without the name dictionary (<code>the measurement dictionary requires an index rebuild</code>). Nothing in the ingest command answers that refusal, so two ordinary events crash-loop the service under its supervisor:</p>
+    <ul>
+      <li><strong>Any restart of the running ingest.</strong> It still holds pre-§5 code in memory, and the editable install already serves §5, so a restart for any reason, a fleet-node failure included, opens the old-schema live index and raises.</li>
+      <li><strong>A start with no local index.</strong> <code>index_placement.restore_index</code> decompresses the newest snapshot without checking its schema. Today the only snapshot was written by pre-§5 code, so the restored index is refused the same way.</li>
+    </ul>
+    <p>The index holds nothing the receipts do not, so the correct answer to an incompatible schema is a rebuild from the receipts, never an exit:</p>
+    <ul>
+      <li>The <code>ingest</code> command, finding an index that requires a rebuild, rebuilds it from the record directory with <code>TelemetryIndex.rebuild</code> into a sibling path. It moves the result into place only once the rebuild completes, prints one line naming the rebuild and its duration, and then runs the loop.</li>
+      <li><code>restore_index</code> skips a snapshot whose schema the current code would refuse. It prints the skip, and falls back to the next snapshot or to the rebuild path. An incompatible snapshot is never deleted.</li>
+    </ul>
+    <p>Write scope: <code>imas_ambix/agent/cli.py</code>, <code>imas_ambix/agent/index_placement.py</code>, <code>tests/test_index_placement.py</code>, <code>tests/test_agent_ingest_cli.py</code>. It follows §6, which also writes <code>cli.py</code>, and it gates the deployment: the coordinator restarts the ingest onto §5, §6 and §10 together, and it does not restart onto §5 before §10 lands.</p>
+    <p><strong>Done when:</strong></p>
+    <ul>
+      <li>A test with an old-schema index at the resolved path shows the <code>ingest</code> command rebuilding it from a temporary record directory, then ticking, without raising.</li>
+      <li>A test with only an old-schema snapshot shows <code>restore_index</code> skipping it, keeping the file, and the command then rebuilding.</li>
+      <li>A rebuild that fails part-way leaves the original index file in place.</li>
+      <li><code>tests/test_index_placement.py</code>, <code>tests/test_agent_ingest_cli.py</code> and <code>tests/test_telemetry_ingest.py</code> pass, as do the serving-interpreter guard and the whole-tree ruff gate, on the fleet allocation.</li>
+      <li>No test reads the real snapshot directory or the live index.</li>
     </ul>
 
     <h2 id="s9">§9 — Raw samples age out of the index once rollups carry them (deferred)</h2>
