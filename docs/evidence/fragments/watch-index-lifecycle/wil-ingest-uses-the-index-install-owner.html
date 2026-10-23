@@ -1,0 +1,20 @@
+<section class="evidence-fragment" data-reckon="evidence" id="wil-ingest-uses-the-index-install-owner">
+  <header><h3>Ingest delegates index facts and installation</h3></header>
+  <p>The ingest command now calls <code>index_placement.snapshot_exists</code>
+    to decide whether a missing index needs rebuilding, and
+    <code>index_placement.install_index</code> to install a rebuilt database.
+    The latter owns removal of the replaced database's journal sidecars before
+    the swap. The committed command has no private snapshot lookup or
+    <code>os.replace</code> call.</p>
+  <table id="wil-ingest-uses-the-index-install-owner-measures">
+    <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Three-file suite</td><td>Baseline: 64 passed in 260.63 s. Committed head: 65 passed in 319.94 s.</td></tr>
+      <tr><td>Serving interpreter guard</td><td>1 passed, 14 deselected.</td></tr>
+      <tr><td>Whole-tree Ruff</td><td>All checks passed.</td></tr>
+      <tr><td>Negative control</td><td>Skipping cleanup inside <code>install_index</code> made <code>test_old_schema_index_rebuilds_before_first_tick</code> fail with the index rebuild refusal; exit 1.</td></tr>
+    </tbody>
+  </table>
+  <p>Source and test commit: <code>8e943d08a8e5b9f9cae6a080e0fffbdfa4077807</code>.
+    The gate and negative-control logs are in this node's crew run directory.</p>
+</section>
