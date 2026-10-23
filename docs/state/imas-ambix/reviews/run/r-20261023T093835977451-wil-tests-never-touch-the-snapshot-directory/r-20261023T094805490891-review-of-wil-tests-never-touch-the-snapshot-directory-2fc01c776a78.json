@@ -1,0 +1,32 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "completed_at": "2026-10-23T10:10:46.339Z",
+  "dispatched_at": "2026-10-23T09:48:27Z",
+  "findings": [
+    {
+      "file": "tests/test_index_placement.py",
+      "line": "135",
+      "severity": "non-blocking",
+      "text": "the production-path guard patches only Path.is_dir, Path.mkdir, Path.glob and Path.open, so a read of ~/.local/state/ambix/index-snapshots through any other Path method (exists, iterdir, stat, read_text) is not rejected; the done-when asserts the ingest path writes and reads nothing under the production directory, and while a misdirected write is still caught by the assertions at tests/test_index_placement.py:162 and :170, an unexpected read has no assertion backstop, so a regression that reads production through a method outside the allowlist passes this test silently."
+    }
+  ],
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is to keep every test away from the user's real index snapshot directory; imas_ambix/agent/index_placement.py:181, 241, 272 and 293 resolve the directory at call time under a None default, and tests/conftest.py:38 points it at tmp_path for the whole suite, so no test reaches the production directory.\nVERDICT done_when: every measure of the done_when is recorded against its own item \u2014 tests/test_index_placement.py, tests/test_telemetry_ingest.py and tests/test_agent_ingest_cli.py at 53 passed (affected-tests.log, EXIT=0); tests/test_telemetry_ingest.py::test_the_command_the_service_runs_carries_the_scheduled_retirement at 0.91 s under a 30 s command bound (retirement-bound.log, EXIT=0); the serving-interpreter guard (serving-guard.log, EXIT=0); uv run --no-sync ruff check imas_ambix tests (ruff.log, EXIT=0).\nVERDICT write_paths: the manifest declares imas_ambix/agent/index_placement.py, tests/conftest.py, tests/test_index_placement.py, the landing fragment and a figures directory; the diff touches four of the five, all inside the declared set, and the figures path is unused because the node writes no figure.\nVERDICT manifest: read; status complete, commits 0367045219c50987bf416fdb2bbf491df1fc6607 and 2fc01c776a78eb4c2e121404354896cf7d766924, the four test_logs named, every one ending EXIT=0, and negative-control.log ending EXIT=1 with one failing test id.\nVERDICT diff: read commit by commit against base 8c1df57e203d9f16bdb16f5573f83e4ac4f9d946; 0367045219 changes the four import-time Path defaults to call-time resolution and adds the tests/conftest.py autouse fixture and the new test, and 2fc01c776a adds the 24-line landing fragment, four files with +87/-5.\nCALL_SITES: imas_ambix/agent/cli.py:3397, imas_ambix/agent/cli.py:3400, imas_ambix/agent/index_placement.py:303\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/index_placement.py:181 and :272 read SNAPSHOT_DIR at call time, so the tests/conftest.py:38 module patch reaches every production call and no test writes to ~/.local/state/ambix/index-snapshots.\nSCORE evidence: 18\nJUSTIFICATION evidence: tests/test_index_placement.py:160-170 drives the ingest restore and snapshot paths under a raised guard and its result is recorded in affected-tests.log as 53 passed in 20.29s with EXIT=0, with the retirement bound, serving guard and ruff each carrying their own log at EXIT=0.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: git diff 8c1df57e203d9f16bdb16f5573f83e4ac4f9d946..2fc01c776a78eb4c2e121404354896cf7d766924 changes only imas_ambix/agent/index_placement.py, tests/conftest.py, tests/test_index_placement.py and the declared landing fragment, and adds nothing the goal does not imply.\nSCORE durability: 17\nJUSTIFICATION durability: tests/test_index_placement.py:162 fails if the snapshot stops landing in tmp_path and :169 fails if restore stops rebuilding the deleted index, and the declared mutation reddens the same test at tests/test_index_placement.py:160 with 'ingest accessed production snapshots' (negative-control.log, EXIT=1), though that control removes the fixture rather than reverting the call-time default, which is only inferred, and the guard is a four-method allowlist.\nSCORE fit: 18\nJUSTIFICATION fit: tests/conftest.py:37 copies the autouse monkeypatch idiom of the existing _no_production_gate_control_path at tests/conftest.py:30, and the added names _isolated_index_snapshots and reject_production carry no plan label, version suffix or banned name.\nSCORE reuse: 20\nJUSTIFICATION reuse: no owner of per-test snapshot-directory isolation existed, the search over tests/conftest.py and the suite finding only the unrelated _no_production_gate_control_path whose idiom the new fixture follows, while the production edit changes imas_ambix/agent/index_placement.py, the module that already owns SNAPSHOT_DIR.\nFINDING tests/test_index_placement.py:135 non-blocking: the production-path guard patches only Path.is_dir, Path.mkdir, Path.glob and Path.open, so a read of the production snapshot directory through exists, iterdir or stat is not rejected and has no assertion backstop the way a misdirected write does.\n",
+  "review_run_id": "r-20261023T094805490891-review-of-wil-tests-never-touch-the-snapshot-directory-2fc01c776a78",
+  "reviewed_base_sha": "8c1df57e203d9f16bdb16f5573f83e4ac4f9d946",
+  "reviewed_head_sha": "2fc01c776a78eb4c2e121404354896cf7d766924",
+  "reviewed_run_id": "r-20261023T093835977451-wil-tests-never-touch-the-snapshot-directory",
+  "scores": {
+    "durability": 17,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T10:11:51.526617+00:00",
+  "total": 111
+}

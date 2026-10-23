@@ -24,7 +24,7 @@
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="13">
+<meta name="plan-version" content="14">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -354,6 +354,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261023T082347995391-wil-snapshot-runs-off-the-tick-path" data-who="reckon-build" data-when="2026-10-23T08:57:57Z">
     <div class="r-comment-body"><p>Daily snapshots now run on one background worker with its own SQLite connection; scratch quick_check and streamed SHA-256 verify the archive without a second uncompressed copy, with digest receipts for later checks. 25 focused tests and the serving parser test passed; whole-tree Ruff passed; both declared mutations failed their tests. [evidence](/imas-ambix/evidence/fragments/watch-index-lifecycle/wil-snapshot-runs-off-the-tick-path.html#wil-snapshot-runs-off-the-tick-path)</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20261023T094805490891-review-of-wil-tests-never-touch-the-snapshot-directory-2fc01c776a78" data-who="reckon-build" data-when="2026-10-23T10:10:46.339Z">
+    <div class="r-comment-body"><p>Independent review of r-20261023T093835977451-wil-tests-never-touch-the-snapshot-directory stored under review-records/ at base 8c1df57e / head 2fc01c776a78 with scores goal_fidelity 19, evidence 18, scope_discipline 19, durability 17, fit 18, reuse 20, added_failure_count 0, and one non-blocking finding on the four-method production-path guard at tests/test_index_placement.py:135.</p></div>
 </div>
 </section>
 </main>
