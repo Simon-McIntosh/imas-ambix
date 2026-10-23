@@ -1,0 +1,69 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "assertion_analysis": [
+    "tests/test_index_placement.py:121 snapshot_exists fails if the new public predicate returns false for the snapshot just written; its expectation comes from the independently created snapshot file.",
+    "tests/test_index_placement.py:137 WAL existence fails if the fixture did not create the stale sidecar, so the restore test cannot pass vacuously.",
+    "tests/test_index_placement.py:149 restore equality fails if restore skips or chooses another snapshot; :151-155 fail if the stale database wins or the restored measurement table is absent.",
+    "tests/test_index_placement.py:173 requires_rebuild on the old measurement schema fails if detection always returns false or ignores the missing name_id column.",
+    "tests/test_index_placement.py:210 fresh-schema column absence fails if counter_diff remains in the new CREATE TABLE statement.",
+    "tests/test_index_placement.py:215 legacy compatibility fails if an extra counter_diff column is misclassified as requiring rebuild; :218-219 fail if explicit insert columns no longer allow ingestion and rollup.",
+    "tests/test_agent_telemetry_watch.py:514 segment-presence fails if rollups are no longer written with segments; :525 fails if the selected whole-hour rollup does not exist.",
+    "tests/test_agent_telemetry_watch.py:533 moves a stored segment by 77 and fails if partitioned_total reads raw rows or ignores that stored segment; negative-control.log records 7200 versus 7277.",
+    "No added assertion compares a value only with the same input handed to the function under test; the changed rollup and restored snapshot are independently persisted before the result is read."
+  ],
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:3413",
+    "imas_ambix/agent/index_placement.py:261",
+    "imas_ambix/agent/index_placement.py:273",
+    "imas_ambix/agent/telemetry_index.py:938",
+    "imas_ambix/agent/telemetry_index.py:2135"
+  ],
+  "completed_at": "2026-10-23T17:22:26Z",
+  "dispatched_at": "2026-10-23T17:15:22Z",
+  "findings": [],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 5 production call site(s)",
+    "diff": "commit 1d9c32f changes index_placement.py, telemetry_index.py and two tests; commit 586fa69 adds only the evidence fragment under docs/evidence/fragments/watch-index-lifecycle/.",
+    "done_when": "prompt.txt:95-96 names the schema, restore, rollup, compatibility and gates; baseline-suite.log:20-21 records 142 passed and after-suite-xdist.log:17-18 records 144 passed, while negative-control.log:71-113 shows both declared regressions fail.",
+    "goal": "the source goal in prompt.txt:30 assigns the duplicated index facts outside cli.py and the rollup-dependent test; imas_ambix/agent/index_placement.py:104-114 and tests/test_agent_telemetry_watch.py:516-533 deliver those parts.",
+    "manifest": "manifest.md records complete, both commits, five changed paths, baseline and after-suite receipts, the negative-control log, and the separately scoped cli.py adoption.",
+    "write_paths": "prompt.txt:69-76 declares seven paths; the base e61038d..head 586fa69 diff changes five files, each inside that fence."
+  },
+  "justifications": {
+    "durability": "test_agent_telemetry_watch.py:533 fails when the reader uses raw rows and test_index_placement.py:150-155 fails when restore leaves the stale WAL, as negative-control.log:71-113 confirms.",
+    "evidence": "after-suite-xdist.log:17-18, serving-guard.log:16-17 and ruff.log:4-5 record successful gates at implementation commit 1d9c32f, and negative-control.log:71-113 records two expected failures.",
+    "fit": "telemetry_index.py:955-966 keeps schema detection with TelemetryIndex and index_placement.py:109-114 uses the existing placement module for index replacement without introducing a forbidden source name.",
+    "goal_fidelity": "index_placement.py:104-114 delegates the schema predicate and owns installation, while test_agent_telemetry_watch.py:516-533 makes the day total depend on stored segments.",
+    "reuse": "a capability search over imas_ambix/agent found schema refusal already owned by TelemetryIndex and snapshot paths owned by index_placement.py:86, and the additions extend those owners while replacing the inline restore swap at index_placement.py:273.",
+    "scope_discipline": "the five files in e61038d..586fa69 are all in prompt.txt:69-76, and the cli.py call site at :3420 was left for the separately scoped node."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the source goal in prompt.txt:30 assigns the duplicated index facts outside cli.py and the rollup-dependent test; imas_ambix/agent/index_placement.py:104-114 and tests/test_agent_telemetry_watch.py:516-533 deliver those parts.\nVERDICT done_when: prompt.txt:95-96 names the schema, restore, rollup, compatibility and gates; baseline-suite.log:20-21 records 142 passed and after-suite-xdist.log:17-18 records 144 passed, while negative-control.log:71-113 shows both declared regressions fail.\nVERDICT write_paths: prompt.txt:69-76 declares seven paths; the base e61038d..head 586fa69 diff changes five files, each inside that fence.\nVERDICT manifest: manifest.md records complete, both commits, five changed paths, baseline and after-suite receipts, the negative-control log, and the separately scoped cli.py adoption.\nVERDICT diff: commit 1d9c32f changes index_placement.py, telemetry_index.py and two tests; commit 586fa69 adds only the evidence fragment under docs/evidence/fragments/watch-index-lifecycle/.\nCALL_SITES: imas_ambix/agent/cli.py:3413, imas_ambix/agent/index_placement.py:261, imas_ambix/agent/index_placement.py:273, imas_ambix/agent/telemetry_index.py:938, imas_ambix/agent/telemetry_index.py:2135\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: index_placement.py:104-114 delegates the schema predicate and owns installation, while test_agent_telemetry_watch.py:516-533 makes the day total depend on stored segments.\nSCORE evidence: 19\nJUSTIFICATION evidence: after-suite-xdist.log:17-18, serving-guard.log:16-17 and ruff.log:4-5 record successful gates at implementation commit 1d9c32f, and negative-control.log:71-113 records two expected failures.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the five files in e61038d..586fa69 are all in prompt.txt:69-76, and the cli.py call site at :3420 was left for the separately scoped node.\nSCORE durability: 19\nJUSTIFICATION durability: test_agent_telemetry_watch.py:533 fails when the reader uses raw rows and test_index_placement.py:150-155 fails when restore leaves the stale WAL, as negative-control.log:71-113 confirms.\nSCORE fit: 20\nJUSTIFICATION fit: telemetry_index.py:955-966 keeps schema detection with TelemetryIndex and index_placement.py:109-114 uses the existing placement module for index replacement without introducing a forbidden source name.\nSCORE reuse: 20\nJUSTIFICATION reuse: a capability search over imas_ambix/agent found schema refusal already owned by TelemetryIndex and snapshot paths owned by index_placement.py:86, and the additions extend those owners while replacing the inline restore swap at index_placement.py:273.\n",
+  "review_run_id": "r-20261023T171459048238-review-of-wil-index-review-cleanup-586fa694fbb6",
+  "reviewed_base_sha": "e61038d00e2b0b291351344128c2573f4cf7fe6b",
+  "reviewed_head_sha": "586fa694fbb6dd964b77d3b3444c930d6dc084ac",
+  "reviewed_run_id": "r-20261023T165411078461-wil-index-review-cleanup",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "suite_delta_evidence": {
+    "after_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T165411078461-wil-index-review-cleanup/after-suite-xdist.log",
+    "after_summary": "144 passed in 78.24s; EXIT=0; no failure ids",
+    "baseline_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T165411078461-wil-index-review-cleanup/baseline-suite.log",
+    "baseline_summary": "142 passed in 119.61s; EXIT=0; no failure ids"
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T17:24:04.381934+00:00",
+  "total": 118
+}
