@@ -19,7 +19,7 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving">
   <meta name="plan-blocks" content="serving-record-warehouse">
-  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;],&quot;s10&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s11&quot;:[&quot;watch-index-lifecycle#s7&quot;]}">
+  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;],&quot;s10&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s11&quot;:[&quot;watch-index-lifecycle#s5&quot;,&quot;watch-index-lifecycle#s7&quot;,&quot;watch-index-lifecycle#s10&quot;]}">
   <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;implementable&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -313,7 +313,7 @@
       <li>The <code>ingest</code> command asks whether a snapshot exists through the private <code>index_placement._snapshot_paths</code>. <code>index_placement</code> exposes a public predicate, and <code>cli.py</code> uses only that.</li>
       <li>The <code>hourly_rollup.counter_diff</code> column is written but never read, because <code>_counter_window_rows</code> reconstructs the difference from the segments. The column, its two writes and its assertion are deleted. The reader already derives the difference from <code>segments</code>, so <code>segments</code> stays the one source; keeping <code>counter_diff</code> and reading it instead would leave <code>segments</code> written but unread.</li>
       <li>Clearing a replaced database's <code>-wal</code> and <code>-shm</code> is done inline in <code>cli.py</code>. <code>index_placement</code> owns installing an index, and <code>restore_index</code> also installs one by <code>os.replace</code> without that step. The clearing moves into <code>index_placement</code> as the one install path, and both the rebuild swap and the restore call it.</li>
-      <li>The counter-rollup test never forces whole hours through <code>hourly_rollup</code>, so a regression that answers a whole-day counter period from raw rows passes it. The test is made to fail on such a regression.</li>
+      <li>The cached-tier counter test reads whole hours from <code>hourly_rollup</code>, but it asserts the day-period value against a raw-computed reference (<code>_RawIndex</code>). A reader that answers the period from raw rows therefore still matches. The test is made to depend on the rollup: perturb one whole-hour rollup row inside the period and require the day-period value to move by exactly that row's counter difference.</li>
     </ul>
     <p>Write scope: <code>imas_ambix/agent/telemetry_index.py</code>, <code>imas_ambix/agent/index_placement.py</code>, <code>imas_ambix/agent/cli.py</code>, <code>tests/test_telemetry_index.py</code>, <code>tests/test_agent_telemetry_watch.py</code>, <code>tests/test_index_placement.py</code>. It follows §7, which also writes <code>cli.py</code>.</p>
     <p><strong>Done when:</strong></p>
@@ -321,7 +321,7 @@
       <li><code>git grep name_id -- imas_ambix/agent/index_placement.py</code> finds nothing.</li>
       <li><code>git grep _snapshot_paths -- imas_ambix/agent/cli.py</code> finds nothing.</li><li><code>os.replace</code> on an index path appears only inside <code>index_placement</code>, and a test shows a restore over a target with a stale <code>-wal</code> opening the restored schema.</li>
       <li>Exactly one source of the hourly counter difference remains.</li>
-      <li>The negative control fails as stated: answering a whole-day counter period from raw rows makes the counter-rollup test fail.</li>
+      <li>The negative control fails as stated: a reader that answers the whole-day counter period from raw rows makes the rollup-dependent test fail.</li>
       <li>The named tests, the serving-interpreter guard and the whole-tree ruff gate pass on the fleet allocation.</li>
     </ul>
 
