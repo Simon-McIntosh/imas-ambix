@@ -1,0 +1,32 @@
+<section data-reckon="evidence" data-id="restart-probes-tool-calls">
+  <h3 id="restart-probes-tool-calls-landing">A restart now validates a tool call and the checkpoint index</h3>
+  <p id="restart-probes-tool-calls-summary">
+    <code>imas-ambix agent restart</code> accepts a replacement only when it both
+    completes text and answers a tool call in each dialect. The OpenAI-dialect
+    check is the formerly inline check from the <code>tools</code> benchmark
+    category, factored into <code>bench.check_tool_call</code>; the Anthropic
+    dialect check is <code>bench.check_tool_use</code>. Both are wired into the
+    <code>validate</code> callback the paused and overlap cycles already take
+    (<code>cli.py</code>), so a failing probe restores the saved script and
+    resumes in the pause path, and leaves the old serve routed while cancelling
+    the held replacement in the overlap path. Before anything is paused,
+    <code>weights_preflight</code> reads the profile's own
+    <code>model.safetensors.index.json</code> and every shard it names; a
+    missing file refuses the restart, and <code>--dry-run</code> prints the
+    same verdict without touching the lane.
+  </p>
+  <p id="restart-probes-tool-calls-measure">
+    Measure: <code>pytest tests/test_bench.py
+    tests/test_agent_restart_validation.py</code> → <strong>31 passed</strong>
+    (7 new in <code>test_agent_restart_validation.py</code>, 7)
+    and <code>ruff check imas_ambix tests</code> → exit 0. Positive control:
+    both probes pass 2/2 against the live router origin
+    <code>http://98dci4-gpu-0003:18802</code>, model id
+    <code>deepseek-v4.1-flash</code>, run once from the fleet node
+    (<a href="/imas-ambix/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/serve-probe-positive-control.log">serve-probe-positive-control.log</a>).
+    Negative control: with <code>bench.check_tool_call</code> mutated to accept
+    a response carrying no <code>tool_calls</code>, the text-in-content fixture
+    test fails as declared, and so do the paused-rollback and overlap-cancel
+    restart tests.
+  </p>
+</section>

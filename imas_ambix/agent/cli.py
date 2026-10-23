@@ -30,7 +30,7 @@ from imas_ambix.agent.profile import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
     from typing import TextIO
 
     from imas_ambix.agent.bench import BenchReport
@@ -2237,6 +2237,142 @@ def _deploy_launcher(name: str, path, content: str, mode: int = 0o755) -> None:
     console.print(f"[green]Deployed {name}[/] → {path}")
 
 
+WEIGHTS_INDEX_NAME = "model.safetensors.index.json"
+
+
+def weights_preflight(profile: ModelProfile, site: SiteConfig) -> list[str]:
+    """Return the weight files a serve would need and cannot find.
+
+    The index names every shard the checkpoint is loaded from, so an index
+    without one of its shards fails the load after the lane has been paused
+    and the old engine cancelled. Reading the index before anything is
+    touched turns that into a refusal that costs nothing. An empty list
+    means the checkpoint is complete as far as its own index describes it.
+    """
+    import json
+
+    model_dir = site.model_dir(profile)
+    index = model_dir / WEIGHTS_INDEX_NAME
+    if not index.is_file():
+        return [str(index)]
+    try:
+        mapping = json.loads(index.read_text(encoding="utf-8"))["weight_map"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return [f"{index} (does not name any shard)"]
+    if not isinstance(mapping, dict):
+        return [f"{index} (does not name any shard)"]
+    missing = {
+        str(shard)
+        for shard in mapping.values()
+        if not (model_dir / str(shard)).is_file()
+    }
+    return [str(model_dir / shard) for shard in sorted(missing)]
+
+
+def _completion_verdict(
+    base_url: str,
+    expected_origin: str,
+    model: str,
+    api_key: str | None,
+    *,
+    routed: bool = False,
+) -> bool:
+    """Require a real multi-hundred-token completion from one engine.
+
+    A routed reading counts only when the router names the engine under test
+    in ``x-ambix-upstream``, so a healthy old engine cannot pass the check for
+    a replacement that never came up.
+    """
+    import json
+    import urllib.request
+
+    payload = json.dumps(
+        {
+            "model": model,
+            "max_tokens": 400,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": (
+                        "Write twenty numbered lines about tokamak equilibrium."
+                    ),
+                }
+            ],
+        }
+    ).encode()
+    request = urllib.request.Request(
+        f"{base_url}/v1/chat/completions",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            **({"Authorization": f"Bearer {api_key}"} if api_key else {}),
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=300) as response:
+            result = json.load(response)
+            if (
+                routed
+                and response.headers.get("x-ambix-upstream", "").rstrip("/")
+                != expected_origin
+            ):
+                return False
+    except Exception:
+        return False
+    usage = result.get("usage", {})
+    choice = (result.get("choices") or [{}])[0]
+    return usage.get("completion_tokens", 0) >= 200 and choice.get(
+        "finish_reason"
+    ) in {"stop", "length"}
+
+
+def _dialect_probe_failures(
+    base_url: str, model: str, api_key: str | None
+) -> list[str]:
+    """Run both serving probes against one origin and name the failures."""
+    from imas_ambix.agent import bench
+
+    failures: list[str] = []
+    if not bench.check_tool_call(base_url, model, api_key=api_key).ok:
+        failures.append("tool_call")
+    if not bench.check_tool_use(base_url, model, api_key=api_key).ok:
+        failures.append("tool_use")
+    return failures
+
+
+def _serving_validator(
+    profile: ModelProfile,
+    api_key: str | None,
+    router_origin: str | None,
+    job_url: Callable[[str], str],
+) -> Callable[..., bool]:
+    """Build the ``validate`` callback the reload cycles call.
+
+    A replacement is accepted only when it both completes and answers a tool
+    call in each dialect: the OpenAI shape a bench speaks and the Anthropic
+    shape the interactive harness speaks.
+    """
+
+    def validate(job_id: str, *, routed: bool = False) -> bool:
+        expected_origin = job_url(job_id)
+        base_url = router_origin if routed else expected_origin
+        if not base_url or not expected_origin:
+            return False
+        if not _completion_verdict(
+            base_url,
+            expected_origin,
+            profile.model.served_name,
+            api_key,
+            routed=routed,
+        ):
+            return False
+        return not _dialect_probe_failures(
+            base_url, profile.model.served_name, api_key
+        )
+
+    return validate
+
+
 @agent.command()
 @click.option(
     "--mode",
@@ -2388,6 +2524,14 @@ def restart(
     if not dry_run:
         _require_engine_environment(profile, site)
 
+    missing_weights = weights_preflight(profile, site)
+    if missing_weights:
+        verdict = "Weights preflight failed; missing " + ", ".join(missing_weights)
+        if dry_run:
+            console.print(verdict, markup=False)
+            return
+        raise click.ClickException(verdict)
+
     jobs = _profile_jobs(site, profile.slug)
     if len(jobs) != 1 and not dry_run:
         ids = ", ".join(job["jobid"] for job in jobs) or "none"
@@ -2408,6 +2552,10 @@ def restart(
     if dry_run:
         console.print(
             f"Dry run: would replace job {old_job['jobid'] if old_job else 'none'}",
+            markup=False,
+        )
+        console.print(
+            f"Weights preflight: ok ({WEIGHTS_INDEX_NAME} and every shard it names)",
             markup=False,
         )
         console.print(
@@ -2564,7 +2712,6 @@ def _execute_restart_cycle(
     import json
     import tempfile
     import time
-    import urllib.request
 
     from imas_ambix.agent import reload as reload_module
     from imas_ambix.agent.registry import registration_directory, release_registration
@@ -2639,53 +2786,9 @@ def _execute_restart_cycle(
                 and _probe_endpoint(base_url, resolved_key).readiness == "ready"
             )
 
-        def validate(job_id: str, *, routed: bool = False) -> bool:
-            expected_origin = job_url(job_id)
-            base_url = router_origin if routed else expected_origin
-            if not base_url or not expected_origin:
-                return False
-            body = json.dumps(
-                {
-                    "model": profile.model.served_name,
-                    "max_tokens": 400,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": (
-                                "Write twenty numbered lines about tokamak equilibrium."
-                            ),
-                        }
-                    ],
-                }
-            ).encode()
-            request = urllib.request.Request(
-                f"{base_url}/v1/chat/completions",
-                data=body,
-                headers={
-                    "Content-Type": "application/json",
-                    **(
-                        {"Authorization": f"Bearer {resolved_key}"}
-                        if resolved_key
-                        else {}
-                    ),
-                },
-            )
-            try:
-                with urllib.request.urlopen(request, timeout=300) as response:
-                    result = json.load(response)
-                    if (
-                        routed
-                        and response.headers.get("x-ambix-upstream", "").rstrip("/")
-                        != expected_origin
-                    ):
-                        return False
-            except Exception:
-                return False
-            usage = result.get("usage", {})
-            choice = (result.get("choices") or [{}])[0]
-            return usage.get("completion_tokens", 0) >= 200 and choice.get(
-                "finish_reason"
-            ) in {"stop", "length"}
+        validate = _serving_validator(
+            profile, resolved_key, router_origin, job_url
+        )
 
         def paused_cycle(batch: str) -> reload_module.ReloadResult:
             return reload_module.run_reload(

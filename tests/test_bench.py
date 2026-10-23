@@ -683,3 +683,187 @@ def test_spec_snapshot_excludes_created_timestamp_siblings() -> None:
     ]
     for value in (snapshot["draft_tokens_total"], snapshot["accepted_tokens_total"]):
         assert value < 1.0e6
+
+
+# ---------------------------------------------------------------------------
+# Serving validation probes (OpenAI tool_calls and Anthropic tool_use)
+# ---------------------------------------------------------------------------
+
+_TOOL_CALL = {
+    "id": "call_1",
+    "type": "function",
+    "function": {
+        "name": "get_weather",
+        "arguments": '{"location": "Cadarache, France"}',
+    },
+}
+
+
+def _text_only_response() -> dict:
+    """A tool call answered in prose: content only, no tool_calls."""
+    return {
+        "choices": [
+            {
+                "message": {
+                    "content": "I'll check the weather in Cadarache, France.",
+                    "tool_calls": [],
+                },
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {"prompt_tokens": 40, "completion_tokens": 12},
+    }
+
+
+def _tool_call_response() -> dict:
+    import copy
+
+    return {
+        "choices": [
+            {
+                "message": {"content": None, "tool_calls": [copy.deepcopy(_TOOL_CALL)]},
+                "finish_reason": "tool_calls",
+            }
+        ],
+        "usage": {"prompt_tokens": 40, "completion_tokens": 20},
+    }
+
+
+def _tool_use_response() -> dict:
+    return {
+        "content": [
+            {"type": "text", "text": "I'll look that up."},
+            {
+                "type": "tool_use",
+                "id": "toolu_1",
+                "name": "get_weather",
+                "input": {"location": "Cadarache, France"},
+            },
+        ],
+        "stop_reason": "tool_use",
+        "usage": {"input_tokens": 40, "output_tokens": 20},
+    }
+
+
+def _openai_transport(payload: dict):
+    def transport(base_url, model, messages, max_tokens=512, tools=None, **kwargs):
+        from imas_ambix.agent.bench import BenchResult
+
+        result = BenchResult(model=model)
+        result.finish_reason = payload["choices"][0]["finish_reason"]
+        return result, payload
+
+    return transport
+
+
+def _messages_transport(payload: dict):
+    def transport(base_url, model, messages, max_tokens=512, tools=None, **kwargs):
+        from imas_ambix.agent.bench import BenchResult
+
+        result = BenchResult(model=model)
+        result.finish_reason = payload.get("stop_reason")
+        return result, payload
+
+    return transport
+
+
+def test_check_tool_call_passes_on_recorded_tool_call() -> None:
+    from imas_ambix.agent import bench
+
+    result = bench.check_tool_call(
+        "http://engine", "m", transport=_openai_transport(_tool_call_response())
+    )
+
+    assert result.status == "passed"
+    assert result.metadata["tool_call_count"] == 1
+    assert result.metadata["tool_args"] == [{"location": "Cadarache, France"}]
+
+
+def test_check_tool_call_fails_when_the_call_arrives_as_text() -> None:
+    """The probe must reject a completion whose tool call is prose."""
+    from imas_ambix.agent import bench
+
+    result = bench.check_tool_call(
+        "http://engine", "m", transport=_openai_transport(_text_only_response())
+    )
+
+    assert result.status == "failed"
+    assert "no tool_calls" in (result.error or "")
+
+
+def test_check_tool_call_fails_on_unparsable_arguments() -> None:
+    from imas_ambix.agent import bench
+
+    payload = _tool_call_response()
+    payload["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] = (
+        "location=Cadarache"
+    )
+    result = bench.check_tool_call(
+        "http://engine", "m", transport=_openai_transport(payload)
+    )
+
+    assert result.status == "failed"
+    assert "not valid JSON" in (result.error or "")
+
+
+def test_check_tool_call_fails_on_a_different_function() -> None:
+    from imas_ambix.agent import bench
+
+    payload = _tool_call_response()
+    payload["choices"][0]["message"]["tool_calls"][0]["function"]["name"] = "get_time"
+    result = bench.check_tool_call(
+        "http://engine", "m", transport=_openai_transport(payload)
+    )
+
+    assert result.status == "failed"
+    assert "get_weather" in (result.error or "")
+
+
+def test_check_tool_use_passes_on_recorded_tool_use() -> None:
+    from imas_ambix.agent import bench
+
+    result = bench.check_tool_use(
+        "http://engine", "m", transport=_messages_transport(_tool_use_response())
+    )
+
+    assert result.status == "passed"
+    assert result.metadata["tool_use_count"] == 1
+    assert result.metadata["tool_inputs"] == [{"location": "Cadarache, France"}]
+
+
+def test_check_tool_use_fails_when_the_call_arrives_as_text() -> None:
+    from imas_ambix.agent import bench
+
+    payload = {
+        "content": [{"type": "text", "text": "Cadarache is sunny."}],
+        "stop_reason": "end_turn",
+        "usage": {"input_tokens": 40, "output_tokens": 8},
+    }
+    result = bench.check_tool_use(
+        "http://engine", "m", transport=_messages_transport(payload)
+    )
+
+    assert result.status == "failed"
+    assert "no tool_use" in (result.error or "")
+
+
+def test_tools_category_scores_the_single_tool_probe_through_check_tool_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The bench keeps its behaviour by calling the shared probe."""
+    from imas_ambix.agent import bench
+
+    seen: list[str] = []
+
+    def transport(base_url, model, messages, **kwargs):
+        seen.append(messages[0]["content"])
+        return _openai_transport(_tool_call_response())(base_url, model, messages)
+
+    monkeypatch.setattr(bench, "_chat", transport)
+    results = bench._run_tools("http://engine", "m", 1)
+
+    single = [r for r in results if r.test_name == "tool_single"]
+    assert len(single) == 1
+    assert single[0].status == "passed", single[0].error
+    assert single[0].metadata["tool_call_count"] == 1
+    assert seen[0] == bench.TOOL_CALL_PROMPT
