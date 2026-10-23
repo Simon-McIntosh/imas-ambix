@@ -1,0 +1,34 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T14:04:50.104Z",
+  "dispatched_at": "2026-10-23T13:50:34Z",
+  "findings": [],
+  "plan_fingerprint": "6dcd1408191774d906ebbbfd430c1eec36ea5ebe3efc15b562b6b864b3713670",
+  "plan_slug": "rotate-to-deepseek-v4-1-flash-1017",
+  "plan_version": 20,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T134932922237-plan-review-of-rotate-to-deepseek-v4-1-flash-1017",
+  "reviewed_blob_sha": "bd8db595164b2887330f9dbe36c23b32f570b2d3",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `ops/lane-cycle/AGENTS.md`, `hot-reload-the-serve` (docs/plans/hot-reload-the-serve.html), the six cited test modules and the `agent restart` surface the plan fixes (`--mode auto` default at `imas_ambix/agent/cli.py:2244`, `--reason`, `--dry-run`) all resolve.",
+    "done_when": "pass \u2014 \u00a74's done-when pairs each new field with a live-path positive (the generated serve script writes `checkpoint`; a fixture row carries `serve_config.model_path`) and a declared negative control (a revision-less profile writes `<hf_repo>@unpinned`, never a cached commit); \u00a75's negative control reaches \u00a73's preflight through `--dry-run`, whose running-job refusal is genuinely ungated (`imas_ambix/agent/cli.py:2386`).",
+    "evidence_paths": "pass \u2014 \u00a75's figures land in the run's landing record and the comparison base is the durable per-job receipts file, so a later reader can re-derive both.",
+    "naming": "pass \u2014 the new field name `checkpoint` carries no plan label, ticket number or stage name, and the plan states the mechanism for the choice.",
+    "reasoning": "pass \u2014 \u00a74's cited evidence matches its mechanism: `serve_config` is a real row section read from the engine (`imas_ambix/agent/serving_receipts.py:322`), the engine's `/server_info` does report `model_path` (captured live in `tests/test_agent_serving_receipts.py:1312`), adding it is one entry in `SERVE_CONFIG_OPTIONS`, and the writer of `endpoints.json` (`registry.build_endpoint_document`, `imas_ambix/agent/registry.py:680`) is inside \u00a74's write paths, so the mechanism runs on the production path with no missing write path.",
+    "single_goal": "pass \u2014 \u00a74 carries one deliverable (record the checkpoint on the registration, the endpoint and the recorder row) and \u00a75 carries one (perform and bound the rotation).",
+    "wiring": "pass \u2014 \u00a74's `depends-on` \u00a72 is correct because \u00a74 and \u00a72 both write `imas_ambix/agent/slurm.py` and the followup sequences \u00a74 after \u00a72, and \u00a75's `depends-on` \u00a72/\u00a73/\u00a74 each name a landing whose output \u00a75's done-when reads."
+  },
+  "section_digests": {
+    "_document": "db2ecdde5472286c88a918f63b4ec8ce3b8116204bde0d78e6a76f64f123e6c8",
+    "s1": "8deac0a58e020378e898a334465e0ec83803b509b7e5a610b21591def4c21d25",
+    "s2": "a23e81a77c9227613a42419b5fefc7dfd90022596cc8ae2a2b9264290cada17c",
+    "s3": "2cd96ad6a1c5ffa33a1cc88ee45c427a044080539e66daf427d2a501eca8cb57",
+    "s4": "dd5f9393ccd43e0bd8f7ff1df7926173c61aacc54ccca9adf0d6fb85501f29fa",
+    "s5": "5ad304a77e9f7f61a47473fdbeaeec6748251f6e887bcba8a9472024dff8cf98"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T14:07:09.954220+00:00"
+}
