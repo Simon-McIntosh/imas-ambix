@@ -1,0 +1,59 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T12:34:22.976Z",
+  "dispatched_at": "2026-10-23T12:26:22Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/rotate-to-deepseek-v4-1-flash-1017.html:167",
+      "id": "reasoning-1",
+      "reason": "pinning `--mode pause` (or restating the sequence for both modes and re-choosing the negative control's observable) is what makes the cycle and its control measure what \u00a75 claims; left as-is a coordinator runs an overlap cycle and records figures that do not exist.",
+      "text": "\u00a75's done-when and steps assume a pause cycle (\"pauses, drains to a measured zero\", \"a pause of at most 40 minutes\", and a negative control that reads `lane.json`'s `paused: false`), but the command it fixes as the cycle is `imas-ambix agent restart deepseek-v4-1-flash` with no `--mode`, and `restart` defaults to `mode=\"auto\"`, which selects overlap whenever the router advertises `held-registrations` (`_restart_mode`, imas_ambix/agent/cli.py:2423-2487) \u2014 and this router does advertise it (imas_ambix/agent/router.py:1822). An overlap cycle writes no pause, so \u00a75's announcement, the four figures it asks to be recorded (\"pause start and end, peak held\"), and the negative control's observable (`lane.json` gate block still `paused: false`) do not describe what runs: the control's stated observation holds whether or not \u00a73's preflight fired, so it cannot show the refusal it is there to show",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/rotate-to-deepseek-v4-1-flash-1017.html:139",
+      "id": "done_when-1",
+      "reason": "without a done-when item the join ships unmeasured, so the section's own outcome is unverified while its gate reads green; a node could deliver \u00a74 with `release_at` returning `None` on every path and still pass all three items.",
+      "text": "\u00a74 makes `registry.release_at(engine_id, when)` the one owner of the join between a receipt's `upstream` and the release in force at the receipt's time, and the plan's headline outcome is \"record which release answered\", yet the three done-when items cover only the registration write, the absent-key path and the unpinned fallback; none asserts that a receipt time falling between two registrations resolves to the release actually in force, or that `release_at` returns a release rather than `None` for a pinned one",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/rotate-to-deepseek-v4-1-flash-1017.html:121",
+      "id": "evidence_paths-1",
+      "reason": "the node running the probe will put its log somewhere a reader can find it, and every other section of this plan reaches a durable artifact (the landing record, the downloads comparison), so the omission adds a small risk of a scratchpad log rather than a wrong mechanism.",
+      "text": "\u00a73's positive control (\"Both probes pass against today's served engine through the router, run once from the fleet node\") ends \"The log is recorded\" and names no location, so the one durable record that the probes were validated on known-good weights has no path a later reader can open; \u00a73's new module and tests are durable, but this probe run is not",
+      "type": "evidence_paths",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "37e90047f826332111ff305778fa786ec5ddca34e8a9e02d0b7562d95ed3238f",
+  "plan_slug": "rotate-to-deepseek-v4-1-flash-1017",
+  "plan_version": 4,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T122602970841-plan-review-of-rotate-to-deepseek-v4-1-flash-1017",
+  "reviewed_blob_sha": "493e1373ae6f2a2709567bbd5e60eff12f726ab6",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every file, plan and section s3/s4/s5 cite resolves: `ops/lane-cycle/AGENTS.md` exists, `lane.json`'s gate block resolves through `_gate_document_path` and `RouterApp` publishing `settings.paused`, the `a-tool-call-carries-no-model-markup` plan exists with \u00a71's 20-in-93,565 census the deferral rests on, and the previously flagged prompt-encoding claim now carries the model-card href.",
+    "done_when": "a finding \u2014 \u00a74 declares `registry.release_at` as the single owner of the release\u2194receipt join, but no \u00a74 done-when item exercises it.",
+    "evidence_paths": "a finding \u2014 \u00a73's positive-control probe log is required but no path is named for it.",
+    "naming": "pass \u2014 the new symbols (`serve_probe.py`, `release_at`, the weight preflight) are named by mechanism; `1017` is the vendor release identifier, not a plan label; no changelog prose.",
+    "reasoning": "a finding \u2014 \u00a75 names a command whose default mode can be `overlap`, so the pause sequence, its 40-minute bound and its negative-control measure are not what the named command does.",
+    "single_goal": "pass \u2014 \u00a73 is one deliverable (the restart refuses to commit a replacement it has not validated, weights preflight included), \u00a74 records the release, \u00a75 is the cycle.",
+    "wiring": "pass \u2014 \u00a75's `depends-on` s2/s3/s4 is declared in `plan-section-depends-on`, `plan-blocks` names an existing plan, and every path s3/s4/s5 cite resolves (`imas_ambix/agent/cli.py`, `reload.py`'s 40-minute pause bound, `profiles/deepseek-v4-1-flash.toml` fields, `ops/lane-cycle/AGENTS.md`); `serve_probe.py` and `test_agent_serve_probe.py` are marked new, and `registry.release_at` is named in a write path."
+  },
+  "section_digests": {
+    "_document": "db2ecdde5472286c88a918f63b4ec8ce3b8116204bde0d78e6a76f64f123e6c8",
+    "s1": "8deac0a58e020378e898a334465e0ec83803b509b7e5a610b21591def4c21d25",
+    "s2": "a23e81a77c9227613a42419b5fefc7dfd90022596cc8ae2a2b9264290cada17c",
+    "s3": "f72e73faf9f7341dc1fa94d7996df73e133ff6b92629db2d982b737672c86208",
+    "s4": "cddbfe60afec030a11fd4b1974ee4fd3e85edea5eed88dbc81cdb66b95a5c10e",
+    "s5": "71f034d6bff02d443e725bdc3e5054e35077de1dda8d9943ef2db04c44982506"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T12:44:50.600038+00:00"
+}
