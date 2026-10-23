@@ -1,0 +1,51 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest declares neither baseline_suite nor after_suite (both null), so no base arm exists to reduce a base/head delta from; the head gate log at /tmp/reckon-crew-scratch/r-20261022T234915855394-callers-report-account/gate.log reads '52 passed in 56.45s' with no FAILED or ERROR line, so zero failing tests is read from that summary line rather than inferred from an absence",
+  "completed_at": "2026-10-23T00:44:09.845Z",
+  "dispatched_at": "2026-10-23T00:28:36Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/serving-across-servers/callers-report-account.html",
+      "line": "33 follow-on",
+      "severity": "follow-on",
+      "text": "the landed fragment's measure paragraph states \"52 passed in 54.79s\" while the gate log the node cites records \"52 passed in 56.45s\" and the manifest quotes a third figure, 45.95s, for the same log, so no two of the three receipts agree on the measurement they name."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261022T234915855394-callers-report-account/manifest.md",
+      "line": "15 follow-on",
+      "severity": "follow-on",
+      "text": "the artifacts: line quotes the gate log's summary as \"52 passed in 45.95s\", but that log's own summary line reads \"52 passed in 56.45s\", so the record does not reconcile with the log it cites."
+    },
+    {
+      "file": "/tmp/reckon-crew-scratch/r-20261022T234915855394-callers-report-account/gate.log",
+      "line": "1 follow-on",
+      "severity": "follow-on",
+      "text": "the gate log's header names revision 8b230d69c7cac6d6d8831ac10ecb928668e5f725, the revision before the reviewed head, so the promoted revision bb4e55f0 is covered by no recorded gate run; the delta between them is a return-type annotation at imas_ambix/agent/router.py:2077 that changes no runtime value, so the 52-passed result stands, but the receipt's revision label does not match the head it promotes."
+    },
+    {
+      "file": "imas_ambix/agent/clive.py",
+      "line": "974 follow-on",
+      "severity": "follow-on",
+      "text": "the outside-a-repository fallback the plan's prose and the landed fragment both state is guarded by no test -- both clive tests drive the launcher with cwd inside a worktree of a repository, so the else branch computing basename of the working directory would not redden the suite if it regressed."
+    }
+  ],
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is \"clive reports the caller's account and project as request headers and the router records them on every receipt\"; imas_ambix/agent/clive.py:976-982 appends X-Ambix-Account and X-Ambix-Project under an absent-only rule and imas_ambix/agent/router.py:2656 reads all four identities into the receipt, so the landed change does what the goal states and nothing beyond it.\nVERDICT done_when: every done_when item is asserted by a test or a log -- tests/test_agent_clive_interactive.py:324 runs the clive launcher in a detached worktree of a repository named demo and requires the two inherited reckon headers then \"X-Ambix-Account: <login>\" and \"X-Ambix-Project: demo\"; tests/test_request_receipts.py:1179 and tests/test_agent_router_telemetry.py:95 assert account/project set on a carrying request and null on one without; ruff.log records \"All checks passed!\" EXIT=0 for \"ruff check imas_ambix tests\"; negative-control.log records EXIT=1 with the malformed-account refusal named.\nVERDICT write_paths: the reviewed manifest declares imas_ambix/agent/clive.py, imas_ambix/agent/request_receipts.py, imas_ambix/agent/router.py, the three named test modules and docs/evidence/fragments/serving-across-servers/callers-report-account.html; git diff 12bf8d57dc35c9df26b1fcc8c3830e0c713e60d6..bb4e55f001614229e4578cb4d6c9fc1c10956d07 changes exactly those seven files and nothing outside them.\nVERDICT manifest: read at /home/ITER/mcintos/.config/reckon/crew/runs/r-20261022T234915855394-callers-report-account/manifest.md; status complete, its tests: line is the literal three-module pytest command and its cited gate.log carries \"52 passed in 56.45s\" with EXIT=0 and its cited negative-control.log ends EXIT=1, but its artifacts: line quotes 45.95s for that same gate log (finding), and both baseline_suite and after_suite are null, so the reviewed run records no base arm.\nVERDICT diff: read commit by commit against 12bf8d57dc35c9df26b1fcc8c3830e0c713e60d6; ab141475 lands the production change and the three test modules, 8b230d69 lands the evidence fragment, and bb4e55f0 widens _request_identity's return annotation to the four-element tuple it already returned (imas_ambix/agent/router.py:2077); seven files, +445/-21, every one inside the declared write paths.\nCALL_SITES: imas_ambix/agent/router.py:2087, imas_ambix/agent/router.py:2656, imas_ambix/agent/request_receipts.py:833, imas_ambix/agent/clive.py:969\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/clive.py:970 derives the project from the common git directory's parent so a worktree reports \"demo\" rather than \"demo-node\", and imas_ambix/agent/request_receipts.py:203-204 adds account and project to RequestReceipt under the existing token rule the plan names.\nSCORE evidence: 15\nJUSTIFICATION evidence: the gate log at /tmp/reckon-crew-scratch/r-20261022T234915855394-callers-report-account/gate.log reads \"52 passed in 56.45s\" EXIT=0 and the manifest's artifacts: line quotes 45.95s for that log, and the log's header names revision 8b230d69 rather than the head bb4e55f0, so no recorded gate run is receipted at the revision being promoted.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff 12bf8d57dc..bb4e55f0 changes seven files, all of them declared in the manifest's changed_paths and the node's fence, with no tolerance, baseline or unrelated file touched.\nSCORE durability: 15\nJUSTIFICATION durability: both negative-control arms reproduce -- reverting _identity_token's refusal reddens tests/test_request_receipts.py:1265 and reverting the launcher's absent-only rule reddens tests/test_agent_clive_interactive.py:351 -- but the fallback at imas_ambix/agent/clive.py:974 (basename of the working directory outside a repository, imas_ambix/agent/clive.py:974) is exercised by no test, so a regression there would leave the suite green.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/clive.py:969-982 keeps the file's embedded-shell idiom and its comment style, imas_ambix/agent/request_receipts.py:78-85 names the two headers beside the existing constants, and no added name carries a plan, stage, ticket or version label.\nSCORE reuse: 19\nJUSTIFICATION reuse: imas_ambix/agent/request_receipts.py:146 extends the existing _identity_token reader rather than adding a second one, and the search for an owner of repository-name derivation over imas_ambix (rev-parse and --git-common-dir usages resolve HEAD only; no project_name or repo_name helper exists) found none, so the launcher is the first owner of that capability.\nFINDING docs/evidence/fragments/serving-across-servers/callers-report-account.html:33 follow-on: the landed fragment's measure paragraph states \"52 passed in 54.79s\" while the gate log the node cites records \"52 passed in 56.45s\" and the manifest quotes a third figure, 45.95s, for the same log, so no two of the three receipts agree on the measurement they name.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261022T234915855394-callers-report-account/manifest.md:15 follow-on: the artifacts: line quotes the gate log's summary as \"52 passed in 45.95s\", but that log's own summary line reads \"52 passed in 56.45s\", so the record does not reconcile with the log it cites.\nFINDING /tmp/reckon-crew-scratch/r-20261022T234915855394-callers-report-account/gate.log:1 follow-on: the gate log's header names revision 8b230d69c7cac6d6d8831ac10ecb928668e5f725, the revision before the reviewed head, so the promoted revision bb4e55f0 is covered by no recorded gate run; the delta between them is a return-type annotation at imas_ambix/agent/router.py:2077 that changes no runtime value, so the 52-passed result stands, but the receipt's revision label does not match the head it promotes.\nFINDING imas_ambix/agent/clive.py:974 follow-on: the outside-a-repository fallback the plan's prose and the landed fragment both state is guarded by no test -- both clive tests drive the launcher with cwd inside a worktree of a repository, so the else branch computing basename of the working directory would not redden the suite if it regressed.\n",
+  "review_run_id": "r-20261023T002158238433-review-of-callers-report-account-bb4e55f00161",
+  "reviewed_base_sha": "12bf8d57dc35c9df26b1fcc8c3830e0c713e60d6",
+  "reviewed_head_sha": "bb4e55f001614229e4578cb4d6c9fc1c10956d07",
+  "reviewed_run_id": "r-20261022T234915855394-callers-report-account",
+  "scores": {
+    "durability": 15,
+    "evidence": 15,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T00:44:29.651100+00:00",
+  "total": 106
+}
