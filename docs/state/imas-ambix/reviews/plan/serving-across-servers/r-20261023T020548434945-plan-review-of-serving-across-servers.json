@@ -1,0 +1,90 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T02:23:26.433Z",
+  "dispatched_at": "2026-10-23T02:08:16Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:233",
+      "id": "done_when-1",
+      "reason": "without a multi-engine golden, \u00a75 can pass its gate with a shape \u00a77 and \u00a714 then build against, which freezes the guess \u00a714's own rationale exists to prevent.",
+      "text": "\u00a75's mechanism defines how a pool document aggregates several engines (\u00a75 lines 211-221: counts and capacities sum, per-request figures weighted by running count, an `engines` array carries each engine's own reading), and \u00a714 is declared to depend on exactly that shape (\"it reads the per-pool documents and per-engine figures they publish\", \u00a711 line 602), yet every \u00a75 done-when bullet exercises a single-engine document: bullet 1 is \"one engine's fixture readings\" (line 234) and bullet 2 is \"a two-pool fixture writes two pool documents\" (line 238), i.e. two pools of one engine each, with the negative control (line 250) likewise a one-engine-per-pool case. Nothing gates the aggregation branch, so a node can ship the per-pool split and pass all five bullets while the summed counts, the weighted per-request figures and the `engines` array \u2014 the shape \u00a77's two-engine pool and \u00a714 consume \u2014 were never verified",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:587",
+      "id": "done_when-2",
+      "reason": "step 2 already places \u00a713's receipt fields on the lane cycle, so the sequence is right and only the step-1 wording lags the status.",
+      "text": "\u00a711 step 1 states \"\u00a713 is built in this step too\", but \u00a713's own declaration is `data-status=\"done\"` (line 648) and the plan's comments record it landed and merged, so the rollout describes as future work a section the plan records as complete",
+      "type": "done_when",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "9f96004ebc5bcfd79434021b2857e347dab2ec675deefcfa5a1b68353bcb1f78",
+  "plan_slug": "serving-across-servers",
+  "plan_version": 40,
+  "project": "imas-ambix",
+  "response_events": [
+    {
+      "action": "declined",
+      "by": "",
+      "finding": "done_when-1",
+      "reason": "valid; on \u00a75 or \u00a711, which are not in the running wave. Folded in before \u00a75 is dispatched: a done-when bullet for a pool spanning two engines (summed counts, running-weighted per-request figures, an engines array), and \u00a711 step 1 reworded now that \u00a713 has landed",
+      "when": "2026-10-23T02:34:19.904175+00:00"
+    },
+    {
+      "action": "declined",
+      "by": "",
+      "finding": "done_when-2",
+      "reason": "valid; on \u00a75 or \u00a711, which are not in the running wave. Folded in before \u00a75 is dispatched: a done-when bullet for a pool spanning two engines (summed counts, running-weighted per-request figures, an engines array), and \u00a711 step 1 reworded now that \u00a713 has landed",
+      "when": "2026-10-23T02:34:44.283501+00:00"
+    }
+  ],
+  "responses": {
+    "done_when-1": {
+      "action": "declined",
+      "by": "",
+      "reason": "valid; on \u00a75 or \u00a711, which are not in the running wave. Folded in before \u00a75 is dispatched: a done-when bullet for a pool spanning two engines (summed counts, running-weighted per-request figures, an engines array), and \u00a711 step 1 reworded now that \u00a713 has landed",
+      "when": "2026-10-23T02:34:19.904175+00:00"
+    },
+    "done_when-2": {
+      "action": "declined",
+      "by": "",
+      "reason": "valid; on \u00a75 or \u00a711, which are not in the running wave. Folded in before \u00a75 is dispatched: a done-when bullet for a pool spanning two engines (summed counts, running-weighted per-request figures, an engines array), and \u00a711 step 1 reworded now that \u00a713 has landed",
+      "when": "2026-10-23T02:34:44.283501+00:00"
+    }
+  },
+  "review_path": "/home/ITER/mcintos/.config/reckon/crew/reviews/imas-ambix/plan-serving-across-servers.v40.json",
+  "review_run_id": "r-20261023T020548434945-plan-review-of-serving-across-servers",
+  "reviewed_blob_sha": "2a343061c48cffe20fcde2f667720afd5c58708c",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `/imas-ambix/research/serving-capacity-and-b300-projection`, `/imas-ambix/plans/local-lane-admission-control`, `/imas-ambix/plans/serving-record-warehouse`, the topology figure, `ops/lane-cycle/AGENTS.md` and `imas_ambix/agent/AGENTS.md` \u00a74's \"Operator authority (binding)\" note all resolve as cited.",
+    "done_when": "a finding \u2014 \u00a75 declares the multi-engine pool-document shape but no done-when bullet exercises a pool that spans engines.",
+    "evidence_paths": "pass \u2014 the changed units name no scratchpad or node-local path; the retirement search and step records follow the plan's evidence-archive convention.",
+    "naming": "pass \u2014 no plan labels, stage names, ticket numbers or changelog prose reach the symbols or prose of \u00a75 and \u00a711.",
+    "reasoning": "pass \u2014 \u00a75's stated root cause matches the code (\u00a71's `upstreams[0]` claim is `router.py:2141`), and the named composer runs on the real path (`router.py:2022` schedules `_publish_lane`).",
+    "single_goal": "pass \u2014 \u00a75 carries one deliverable (one lane document per pool) and \u00a711 one (the rollout order and its records).",
+    "wiring": "pass \u2014 every section dependency resolves (s9\u2192s8, s10\u2192s3,s9, s14\u2192s5,s6,s9) and \u00a711's five rollout steps name each implementable section, \u00a714 included after step 2's lane cycle."
+  },
+  "section_digests": {
+    "_document": "52c1184c96fdc5c3669b20af0371e5bd837966113b0e06f592e6429956fe4c35",
+    "s1": "84abea84a25c5ecad35220751db61c7b49c61973eda4e741e78348e16b694de2",
+    "s10": "fe30c5bee7553576dc5c7fb89b35c24667e24c55ebd8fad98687847b2c74f1bf",
+    "s11": "89f79f4dc1f8613e3c8170a6b12deaaa9c606890748da9b5e6fb7afe4652b436",
+    "s12": "635129369af591c5ed9cc97e1eca5d88c9bc4726355cb4d15f89c4d4d8bb714b",
+    "s13": "d6a25041d94de4d2edca565f9547a2318892f456c088170892456d55f5ad8bdd",
+    "s14": "0e17e1001edcfa86d833f0f919327f28fbf48f5a79d8ad1e3d2574126b81a702",
+    "s2": "07c84f3703bedbf51b14249471fa10a4580efea08771ba394dd7383ec52328c7",
+    "s3": "00fd83fbad872f21eb8f9f5434e1a3b6963ca67f6613df3c84a0de4c2ede025b",
+    "s4": "25bebe082ae8eefd4294ed18a8119c22a616dac41902d3de2da67458deb06918",
+    "s5": "af47ca049930ce3c95174fdb9fc4657b0dd503aae1ccdd776d048c40c86116d2",
+    "s6": "ceae93e6905a33dc8facd996f608b63d18e72e315ad6e507bce9b5e840ca2dcc",
+    "s7": "f0eb3d24d868bfaf352c4a849435a0432daa643483a73cd3179e2648759af011",
+    "s8": "a93017191ce26f06aac707c835d9d303dbc507e05dbf08ff1500e55f87d09deb",
+    "s9": "ba409da1d166329e7fa4417b0520bf07528a5dabde5c93876650d86737b04fb4"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T02:34:15.356114+00:00"
+}
