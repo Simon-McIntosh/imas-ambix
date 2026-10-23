@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="47">
+<meta name="plan-version" content="48">
 <meta name="plan-modified" content="2026-10-23">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -763,7 +763,10 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
     <div class="r-comment-body"><p>review of r-20261023T014923551774-lane-history-and-outcomes at a8d8ca6e: six dimensions scored 19/18/20/19/17/5, both findings follow-on and non-blocking, added_failure_count 0; record stored parsed at the declared review-records path and crew check --review reports ok true</p></div>
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261023T033822851841-review-of-lane-history-and-outcomes-9a66ab5bf193" data-who="reckon-build" data-when="2026-10-23T04:04:45.533Z">
-    <div class="r-comment-body"><p>review of r-20261023T014923551774-lane-history-and-outcomes over the commits it gained since the review at a8d8ca6e (b227c9af, 9a66ab5b): parsed, both granted record paths written, scores goal_fidelity 19, evidence 19, scope_discipline 19, durability 18, fit 18, reuse 20, added_failure_count 0 with no added failure ids, two follow-on findings (the cut-read coverage test at lane_callers.py:371 and the stale &quot;58 passed&quot; figure at the evidence fragment&#x27;s line 71) and no blocking finding</p></div>
+    <div class="r-comment-body"><p>review of r-20261023T014923551774-lane-history-and-outcomes over the commits it gained since the review at a8d8ca6e (b227c9af, 9a66ab5b): parsed, both granted record paths written, scores goal_fidelity 19, evidence 19, scope_discipline 19, durability 18, fit 18, reuse 20, added_failure_count 0 with no added failure ids, two follow-on findings (the cut-read coverage test at lane_callers.py:371 and the stale "58 passed" figure at the evidence fragment's line 71) and no blocking finding</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20261023T014923551774-lane-history-and-outcomes" data-who="reckon-build" data-when="2026-10-23T03:37:18Z">
+    <div class="r-comment-body"><p>lane-history-and-outcomes: the live watch document&#x27;s request-record block gained a 30-minute history strip (thirty one-minute bins of time-averaged held requests with per-bin gate-wait p50/p95) and a 5-minute outcomes line (completed, aborted, failed, gate_expired), both cut from the one bounded read of the request record the callers level uses, and each level&#x27;s covered flag now answers for its own window; measure: pytest over tests/test_lane_callers.py tests/test_live_panel.py tests/test_agent_watch_live.py tests/test_agent_receipt_bins.py = 66 passed, exit 0, with the bin-edge mutation reddening the hand-computed occupancy test (3 failed, 24 deselected, exit 1) and the callers-flag mutation reddening the per-window coverage test (1 failed, 26 deselected, exit 1)</p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261023T005919938084-review-of-servers-declared-once-c09e6a2a0901" data-who="reckon-build" data-when="2026-10-23T01:34:47.483Z">
     <div class="r-comment-body"><p>review record for r-20261022T235354122944-servers-declared-once, 6 scores 18/19/20/19/19/19, 3 follow-on findings, status parsed</p></div>
