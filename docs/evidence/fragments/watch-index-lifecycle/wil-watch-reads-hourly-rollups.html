@@ -1,0 +1,46 @@
+<section id="wil-watch-reads-hourly-rollups">
+  <h2>Hourly watch reads</h2>
+  <p>The base query still reproduced the planned defect: its gauge window
+  function selected every row with a timestamp before applying the period
+  bounds, and its counter query selected every matching row before the period
+  end. The committed implementation stores measurement names and kinds once,
+  maintains source-hour counter and gauge summaries in the ingest transaction,
+  reads raw samples at the two partial hours, and reads each period's cards in
+  one bounded statement. A live query-plan check exposed a full measurement
+  scan in that statement; the repaired join searches measurements by sample
+  primary key after selecting bounded edge rows.</p>
+  <p>The cached device and external tiers are cumulative counters. A one-day
+  reproduction found their stored kind was interval: rollup totals were 300
+  versus raw 9,500 device tokens and 75 versus raw 2,375 external tokens.
+  Classifying both in the shared cumulative dictionary made the regression
+  pass. A fresh index rebuilt from 108 offered receipt files selected 32,
+  inserted 473,578 rows, and read 1,281,016,059 receipt bytes in 554 seconds.
+  Its 3,814,936,576 bytes compare with the old 8,678,658,048 bytes and the
+  2.11 GB estimate.</p>
+  <p>With the live block frozen for both readers, <code>watch_document</code>
+  returned exact field-by-field equality against the raw computation over that
+  rebuilt index. It took 0.847 seconds; earlier fresh calls took 3.959 and
+  4.475 seconds, all under five seconds. Rollup maintenance added
+  0.024 seconds to a 60-row ingest tick (1.925 seconds total). A 15.279-second
+  cold call at the repaired revision was not repeatable: a later profile at
+  that revision took 5.607 seconds and then 1.151 seconds. The instrumented
+  index methods took 0.786 seconds of the 5.607-second call. The separately
+  timed live block took 1.833 seconds cold and 0.326 seconds warm; index open,
+  other document work and cold I/O occupy the uninstrumented remainder. The
+  query plan uses bounded edge rows and a sample-key join, so the measured
+  delay does not show a return to raw whole-history reads.</p>
+  <p>On the rebuilt fleet index, the unperturbed document matched the raw reader
+  exactly. One populated card rollup row was changed while the index file's
+  modification time was held constant: index metadata remained equal, and the
+  first differing field was <code>$.ledger[1].utilisation</code>. Restoring the
+  row restored exact equality. The current-revision fixture mutation also
+  failed at that field (EXIT=1). The full named three-file suite passed all 121 tests,
+  including the command's scheduled-retirement test. Its launcher used a
+  node-local temporary home: its snapshot directory was empty while the
+  operator's snapshot directory held one archive. The serving-interpreter
+  parse guard passed, and whole-tree ruff exited zero. A two-arm run used the
+  same isolated-home gate on the recorded base and this worktree: the base
+  passed 119 tests, and the after arm passed 121, with zero failures and zero
+  added failing test IDs in either arm. The base arm imported the module from
+  its extracted scratch tree.</p>
+</section>

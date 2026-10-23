@@ -643,19 +643,21 @@ def card_utilisation(
     """
     if observed_fraction(index, start, end, stamps=stamps) < OBSERVED_ENOUGH:
         return None
-    readings = []
-    for prefix in CARD_PREFIXES:
-        names = [
+    names_by_prefix = [
+        [
             CARD_UTILISATION.format(prefix=prefix, i=position)
             for position in range(CARD_LIMIT)
         ]
-        present = [name for name in names if index.measurement_count(name)]
-        if not present:
+        for prefix in CARD_PREFIXES
+    ]
+    means = index.time_weighted_means(
+        [name for group in names_by_prefix for name in group], start, end
+    )
+    readings = []
+    for names in names_by_prefix:
+        if not any(means[name][0] for name in names):
             continue
-        for name in present:
-            value = index.time_weighted_mean(name, start, end)
-            if value is not None:
-                readings.append(value)
+        readings = [means[name][1] for name in names if means[name][1] is not None]
         break  # one card section per record; the other spelling is a fallback
     if not readings:
         return None
