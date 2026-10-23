@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import ctypes
+import hashlib
 import os
 import shutil
 import sqlite3
 import sys
 import tempfile
+import threading
+from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -106,17 +109,48 @@ def _signature(path: Path) -> tuple[int, int, int, int, int]:
     )
 
 
+def _digest_path(snapshot: Path) -> Path:
+    return snapshot.with_name(f"{snapshot.name}.sha256")
+
+
+def _stream_digest(snapshot: Path) -> str:
+    digest = hashlib.sha256()
+    with zstd.open(snapshot, "rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _snapshot_is_verified(source: Path, local_dir: Path) -> bool:
     """Verify changed snapshot bytes, reusing only an unchanged prior verdict."""
     try:
         signature = _signature(source)
         if _VERIFIED_SIGNATURES.get(source) == signature:
             return True
-        with tempfile.TemporaryDirectory(dir=local_dir) as scratch:
-            _decompress_and_check(source, Path(scratch) / "check.sqlite3")
+        receipt = _digest_path(source)
+        if receipt.exists():
+            receipt_signature = _signature(receipt)
+            expected = receipt.read_text(encoding="ascii").strip()
+            if len(expected) != 64 or any(
+                c not in "0123456789abcdef" for c in expected
+            ):
+                raise ValueError(f"invalid snapshot digest receipt: {receipt}")
+            if _stream_digest(source) != expected:
+                raise ValueError(f"snapshot digest mismatch: {source}")
+            if _signature(receipt) != receipt_signature:
+                raise ValueError("snapshot digest receipt changed while it was checked")
+        else:
+            with tempfile.TemporaryDirectory(dir=local_dir) as scratch:
+                _decompress_and_check(source, Path(scratch) / "check.sqlite3")
         if _signature(source) != signature:
             raise ValueError("snapshot changed while it was checked")
-    except (OSError, ValueError, sqlite3.DatabaseError, zstd.ZstdError) as error:
+    except (
+        OSError,
+        UnicodeError,
+        ValueError,
+        sqlite3.DatabaseError,
+        zstd.ZstdError,
+    ) as error:
         _VERIFIED_SIGNATURES.pop(source, None)
         print(
             f"snapshot verification failed: {source}: {error}",
@@ -137,38 +171,66 @@ def _verified_snapshots(directory: Path, local_dir: Path) -> list[Path]:
 
 
 def snapshot_index(
-    index: TelemetryIndex,
+    index: TelemetryIndex | Path,
     *,
     directory: Path = SNAPSHOT_DIR,
     now: datetime | None = None,
 ) -> Path:
     """Back up online, compress, verify, then retain three verified copies."""
-    require_local(index.path)
+    index_path = require_local(index.path if hasattr(index, "path") else index)
     directory.mkdir(parents=True, exist_ok=True)
     stamp = (now or datetime.now(UTC)).astimezone(UTC).strftime("%Y%m%dT%H%M%S%fZ")
     final = directory / f"{SNAPSHOT_PREFIX}{stamp}{SNAPSHOT_SUFFIX}"
-    with tempfile.TemporaryDirectory(dir=index.path.parent) as scratch:
+    with tempfile.TemporaryDirectory(dir=index_path.parent) as scratch:
         plain = Path(scratch) / "backup.sqlite3"
-        with sqlite3.connect(plain) as destination:
-            index._conn.backup(destination)
+        with (
+            closing(
+                sqlite3.connect(index_path.resolve().as_uri() + "?mode=ro", uri=True)
+            ) as source,
+            closing(sqlite3.connect(plain)) as destination,
+        ):
+            destination.execute("PRAGMA journal_mode=OFF")
+            destination.execute("PRAGMA synchronous=OFF")
+            source.backup(destination)
+            destination.execute("PRAGMA journal_mode=OFF")
+            destination.execute("PRAGMA synchronous=OFF")
+            result = destination.execute("PRAGMA quick_check").fetchone()
+            if result is None or result[0] != "ok":
+                raise ValueError(f"snapshot scratch quick_check failed: {result}")
         staged = directory / f".{final.name}.{os.getpid()}.tmp"
+        receipt = _digest_path(final)
+        staged_receipt = directory / f".{receipt.name}.{os.getpid()}.tmp"
         try:
+            digest = hashlib.sha256()
             with plain.open("rb") as source, zstd.open(staged, "wb") as compressed:
-                shutil.copyfileobj(source, compressed, length=1024 * 1024)
+                while chunk := source.read(1024 * 1024):
+                    digest.update(chunk)
+                    compressed.write(chunk)
             with staged.open("rb") as stream:
                 os.fsync(stream.fileno())
             os.replace(staged, final)
-            check = Path(scratch) / "check.sqlite3"
             signature = _signature(final)
-            _decompress_and_check(final, check)
+            if _stream_digest(final) != digest.hexdigest():
+                raise ValueError(f"snapshot digest mismatch: {final}")
             if _signature(final) != signature:
                 raise ValueError("snapshot changed while it was checked")
+            with staged_receipt.open("w", encoding="ascii") as stream:
+                stream.write(digest.hexdigest() + "\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(staged_receipt, receipt)
             _VERIFIED_SIGNATURES[final] = signature
+        except Exception:
+            final.unlink(missing_ok=True)
+            receipt.unlink(missing_ok=True)
+            raise
         finally:
             staged.unlink(missing_ok=True)
-        verified = _verified_snapshots(directory, index.path.parent)
+            staged_receipt.unlink(missing_ok=True)
+        verified = _verified_snapshots(directory, index_path.parent)
         for old in verified[3:]:
             old.unlink()
+            _digest_path(old).unlink(missing_ok=True)
     return final
 
 
@@ -201,15 +263,48 @@ def restore_index(path: Path, *, directory: Path = SNAPSHOT_DIR) -> Path | None:
 
 
 def snapshot_if_due(
-    index: TelemetryIndex, *, directory: Path = SNAPSHOT_DIR
+    index: TelemetryIndex | Path, *, directory: Path = SNAPSHOT_DIR
 ) -> Path | None:
     """Take one snapshot per UTC day after an ingest tick has committed."""
-    if index._conn.execute("SELECT 1 FROM sample LIMIT 1").fetchone() is None:
+    index_path = Path(index.path if hasattr(index, "path") else index)
+    with closing(
+        sqlite3.connect(index_path.resolve().as_uri() + "?mode=ro", uri=True)
+    ) as source:
+        has_samples = source.execute("SELECT 1 FROM sample LIMIT 1").fetchone()
+    if has_samples is None:
         return None
     today = datetime.now(UTC).strftime("%Y%m%d")
     for path in _snapshot_paths(directory):
         if path.name.startswith(f"{SNAPSHOT_PREFIX}{today}T") and _snapshot_is_verified(
-            path, index.path.parent
+            path, index_path.parent
         ):
             return None
-    return snapshot_index(index, directory=directory)
+    return snapshot_index(index_path, directory=directory)
+
+
+class SnapshotScheduler:
+    """Launch at most one snapshot worker while ticks continue on the writer."""
+
+    def __init__(self, index_path: Path, *, directory: Path = SNAPSHOT_DIR) -> None:
+        self.index_path = index_path
+        self.directory = directory
+        self._thread: threading.Thread | None = None
+
+    def schedule(self) -> bool:
+        """Queue a snapshot when no prior worker is still running."""
+        if self._thread is not None and self._thread.is_alive():
+            return False
+        self._thread = threading.Thread(target=self._run, name="watch-index-snapshot")
+        self._thread.start()
+        return True
+
+    def _run(self) -> None:
+        try:
+            snapshot_if_due(self.index_path, directory=self.directory)
+        except Exception as error:
+            print(f"snapshot failed: {error}", file=sys.stderr, flush=True)
+
+    def join(self) -> None:
+        """Let an in-flight snapshot finish before the ingest process exits."""
+        if self._thread is not None:
+            self._thread.join()

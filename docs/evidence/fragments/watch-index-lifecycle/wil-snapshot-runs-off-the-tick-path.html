@@ -1,0 +1,30 @@
+<section class="evidence-fragment" data-reckon="evidence" id="wil-snapshot-runs-off-the-tick-path">
+  <header>
+    <h3>Daily index snapshots run outside ingest ticks</h3>
+    <p>Implementation commits <code>043fdb62140bbd44a1661194f4459b906332fac1</code> and
+      <code>123c238c49b7d18da0db17cd6d30a29ad6ec11a0</code>.</p>
+  </header>
+  <p>The prior tick callback called <code>snapshot_if_due(index)</code> inline.
+    The new callback schedules one worker while the ingest continues. That worker
+    opens its own read-only SQLite connection, backs up into a local scratch file
+    with <code>journal_mode=OFF</code> and <code>synchronous=OFF</code>, and runs
+    <code>PRAGMA quick_check</code> there. It streams the backup through zstd into
+    the snapshot directory while hashing the uncompressed bytes, then streams
+    the written archive back through SHA-256. A small digest receipt lets later
+    daily checks use the same stream path; snapshots without a receipt retain
+    the SQLite verification path. Scratch files are removed on success and failure.</p>
+  <table id="wil-snapshot-runs-off-the-tick-path-measures">
+    <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Ingest cadence under a slow snapshot</td><td>Six ticks at a 20 ms cadence completed within the 0.5 s bound; five further schedule attempts started no second snapshot. The CLI callback also stayed within a 0.15 s per-tick bound.</td></tr>
+      <tr><td>Placement and ingest CLI tests</td><td>25 passed; exit 0. The three-verified-snapshot retention and corrupt-newest fallback cases remain green.</td></tr>
+      <tr><td>Serving interpreter parser</td><td>1 passed, 14 deselected; exit 0.</td></tr>
+      <tr><td>Whole-tree Ruff</td><td>All checks passed; exit 0.</td></tr>
+      <tr><td>Negative controls</td><td>Putting the snapshot inline stretched the tick interval to 0.4207 s against 0.15 s. Bypassing stream verification admitted a corrupted written archive. Both named tests failed under those mutations; exit 1.</td></tr>
+    </tbody>
+  </table>
+  <p>The gate logs are <code>gate-tests-final.log</code>,
+    <code>gate-parser-final.log</code>, <code>gate-ruff-final.log</code>, and
+    <code>negative-control.log</code> under
+    <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T082347995391-wil-snapshot-runs-off-the-tick-path/</code>.</p>
+</section>
