@@ -1,0 +1,76 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T01:41:03.794Z",
+  "dispatched_at": "2026-10-23T01:23:53Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:201",
+      "id": "done_when-1",
+      "reason": "the missing bullet is the only measure of the section's stated purpose (retiring the second writer), so the retirement, the caller search and the search test can all be skipped while \u00a75 passes.",
+      "text": "\u00a75's prose states \"The done-when gains a bullet for the retirement: the caller search is recorded, the command and its refresher are removed, and the search test finds no writer outside the composer\", but \u00a75's Done when list (lines 233-245) carries four bullets and none of them is that one, so the section's declared single-writer guard has no measure and a node can close \u00a75 with `cli.py`'s lane command and its refresher still overwriting lane.json",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:234",
+      "id": "done_when-2",
+      "reason": "as written \u00a75 cannot satisfy its mechanism and its own measure at once, and the worker resolving the clash would either drop the declared version bump or fail its golden.",
+      "text": "\u00a75's first golden requires lane.json to carry \"the same keys and values the base revision publishes, plus the `lanes` index\", while \u00a75's mechanism (lines 229-231) bumps the lane document's schema version when local-lane-admission-control's schema has landed, and \u00a711's step-2 key comparison (lines 599-601) says the keys added are \"exactly the `lanes` index, plus the schema version if \u00a75 bumped it\" \u2014 so the golden forbids a key \u00a75 itself may add",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:658",
+      "id": "wiring-1",
+      "reason": "a rollout that does not place a section the plan declares implementable leaves its landing step to be invented at dispatch, the same omission an earlier review raised for \u00a713 and the author accepted.",
+      "text": "\u00a714 is a new implementable section whose \u00a75/\u00a76 dependency places it after step 2's lane cycle, yet \u00a711's four rollout steps (lines 578-596) name every other implementable section (\u00a73, \u00a74, \u00a75, \u00a76, \u00a77, \u00a78, \u00a79, \u00a710, \u00a713) and never name \u00a714, so the plan's own \"Rollout, and who does each step\" record leaves the new section unscheduled",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/serving-across-servers.html:658",
+      "id": "done_when-3",
+      "reason": "a worker cannot run the \u00a78 half as written; it must either invent a \u00a78 golden \u00a78 never declared or rewrite its own done-when, either of which changes the plan.",
+      "text": "\u00a714's third bullet requires the one-engine document and render to be \"byte-identical to \u00a78's and \u00a79's goldens\", but \u00a78's done-when commits no golden \u2014 it compares a fixture build against what `agent watch --json --live` emits at the base revision (lines 385-390) \u2014 so the document half of \u00a714's check names a reference artifact no section produces",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "d058347c454f6a53327391d32727eefc4c94d8a057d04e1c0c8f563c45599abb",
+  "plan_slug": "serving-across-servers",
+  "plan_version": 36,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T012225788997-plan-review-of-serving-across-servers",
+  "reviewed_blob_sha": "814fc35c04b10617722dbc9b37413e211a0f4dfa",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 the topology figure, both extensionless plan/research hrefs (resolved as `.html` per the docs surface), the evidence-archive link and every cited symbol resolve: `lane.write_lane_document` and `lane.write_unavailable_document`, `cli.py`'s `lane` command, `RouterApp._publish_lane` with its caller at `router.py:2022`, `registry.build_endpoint_document`, `node_probe.NodeProbe`.",
+    "done_when": "a finding \u2014 \u00a75's measure list is missing the retirement bullet its own prose promises, and its first golden forbids the schema-version key \u00a75's mechanism permits.",
+    "evidence_paths": "pass \u2014 no changed unit places a gate log or evidence under a scratchpad or a node-local path; the only evidence link is the durable `docs/evidence/archive/serving-across-servers-landed.html` archive entry.",
+    "naming": "pass \u2014 the changed units introduce no plan labels, stage names, ticket numbers or version tags into code or symbols; \u00a714 is prose only.",
+    "reasoning": "pass \u2014 \u00a75's stated root cause (a publisher reading `upstreams[0]`) matches \u00a71's evidence and its named composer runs on the router's real publish path (`_publish_lane`, whose task is started at `router.py:2022`); \u00a714's rationale that the engine dimension needs the \u00a75/\u00a76 shapes holds, and each section's mechanism can produce its measure.",
+    "single_goal": "pass \u2014 \u00a75 carries one goal (one composer publishing one document per pool, whose guard is the retirement of the second writer) and \u00a714 one goal (the engine dimension of the \u00a78 document and \u00a79 view).",
+    "wiring": "a finding \u2014 \u00a714 declares `depends-on` \u00a75/\u00a76/\u00a79 correctly and every other relationship resolves, but \u00a711's rollout names every implementable section except the new \u00a714."
+  },
+  "section_digests": {
+    "_document": "52c1184c96fdc5c3669b20af0371e5bd837966113b0e06f592e6429956fe4c35",
+    "s1": "84abea84a25c5ecad35220751db61c7b49c61973eda4e741e78348e16b694de2",
+    "s10": "fe30c5bee7553576dc5c7fb89b35c24667e24c55ebd8fad98687847b2c74f1bf",
+    "s11": "62f1493b298180fcbe06fee10cb81673164f37dc646739667214e8c6aec4d812",
+    "s12": "635129369af591c5ed9cc97e1eca5d88c9bc4726355cb4d15f89c4d4d8bb714b",
+    "s13": "d6a25041d94de4d2edca565f9547a2318892f456c088170892456d55f5ad8bdd",
+    "s14": "b84df230fe4821426ed3ebd0f33c7d160f1a809b7aa6b5bdc702b4e9f245929a",
+    "s2": "07c84f3703bedbf51b14249471fa10a4580efea08771ba394dd7383ec52328c7",
+    "s3": "00fd83fbad872f21eb8f9f5434e1a3b6963ca67f6613df3c84a0de4c2ede025b",
+    "s4": "25bebe082ae8eefd4294ed18a8119c22a616dac41902d3de2da67458deb06918",
+    "s5": "84847fb0cbbc7fdc95981d810274fece8a001f1e3bb9c4559d9fbe07b8438210",
+    "s6": "ceae93e6905a33dc8facd996f608b63d18e72e315ad6e507bce9b5e840ca2dcc",
+    "s7": "f0eb3d24d868bfaf352c4a849435a0432daa643483a73cd3179e2648759af011",
+    "s8": "a93017191ce26f06aac707c835d9d303dbc507e05dbf08ff1500e55f87d09deb",
+    "s9": "ba409da1d166329e7fa4417b0520bf07528a5dabde5c93876650d86737b04fb4"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T01:47:05.501945+00:00"
+}
