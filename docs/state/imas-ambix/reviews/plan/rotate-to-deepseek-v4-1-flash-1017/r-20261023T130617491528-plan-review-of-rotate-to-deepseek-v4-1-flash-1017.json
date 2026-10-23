@@ -1,0 +1,51 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T13:20:18.087Z",
+  "dispatched_at": "2026-10-23T13:11:47Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/rotate-to-deepseek-v4-1-flash-1017.html:232",
+      "id": "done_when-1",
+      "reason": "the node would record a green negative control that demonstrates an earlier guard, not the preflight it was written to prove, and the preflight's real refusal path would go unmeasured into \u00a75 where the lane is at risk.",
+      "text": "\u00a75's negative control runs \"a real (not dry-run) restart \u2026 against a copy of the profile pointing at an empty weights directory\" and requires \u00a73's preflight to be what refuses it, but `restart` resolves the running serve by slug and raises `restart requires exactly one matching serve job; found 0` (cli.py:2385\u20132390) before any weights preflight in the cycle can run, so the copy refuses for the wrong reason; the control then passes \u2014 `lane.json` still `paused: false`, no replacement in `squeue` \u2014 without the guard under test ever firing",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/rotate-to-deepseek-v4-1-flash-1017.html:161",
+      "id": "reasoning-1",
+      "reason": "the section's stated purpose is answering \"which release answered\" for history, and every measure it declares would pass while the historical answer stayed unjoinable.",
+      "text": "\u00a74 says a receipt \"joins to rows through its `upstream` engine and the job's recorder file, with no new store and no timestamp index\", but a receipt's `upstream` is only the engine origin (`request_receipts.py:191`) and the same node:port is reused across sequential serves \u2014 the pause path replaces the serve on the same port, which is exactly what this rotation does \u2014 so a receipt from before a cycle is not attributable to a job by origin alone, and none of \u00a74's four measures (registration `checkpoint`, recorder `serve_config.model_path`, the null read, the unpinned control) exercises the join or names the reader that performs it",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "340b9b323a3992077f7c21f57e6a550813c587e066d967a54af5d2806bd3a8f6",
+  "plan_slug": "rotate-to-deepseek-v4-1-flash-1017",
+  "plan_version": 12,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T130617491528-plan-review-of-rotate-to-deepseek-v4-1-flash-1017",
+  "reviewed_blob_sha": "00bfdaae878647a8d86395124ceff31cb5eb19ce",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `bench.py:1280\u20131326` is the `tool_use` category's `_chat(..., tools=...)` loop that checks non-empty `tool_calls` and JSON args (bench.py:1279\u20131326); the `validate` callback is `cli.py:2642` (cited 2641, one line off); `--mode auto` is the real default (cli.py:2337); \u00a73's new test file is declared new and the other \u00a74 test paths exist.",
+    "done_when": "a finding \u2014 \u00a75's negative control cannot make \u00a73's weights preflight fire, because a profile copy is a different slug and `restart` refuses earlier on the job lookup.",
+    "evidence_paths": "pass \u2014 the positive control lands at `docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/serve-probe-positive-control.log`, the cycle figures at `lane-cycles.jsonl`, both durable repository paths, and no gate log is routed to a scratch or node-local directory.",
+    "naming": "pass \u2014 no plan label, ticket number or version tag reaches a symbol; the new names (`check_tool_call`, `check_tool_use`, `checkpoint`) state their mechanism, and the one string carrying the release is a runtime `--reason`.",
+    "reasoning": "a finding \u2014 \u00a74's \"History\" mechanism asserts a receipt joins to recorder rows through its `upstream`, with no timestamp index, but nothing in the section's measures or write paths tests that join, and the join is the only thing that answers the section's purpose.",
+    "single_goal": "pass \u2014 each changed section carries one deliverable (s3: restart validation proves the replacement serves tool calls; s4: the checkpoint field; s5: the cycle itself), and the \u00a73 probes and preflight are one mechanism (\"validate the replacement before it is admitted\").",
+    "wiring": "pass \u2014 s5 declares depends-on [s2, s3, s4] in `plan-section-depends-on` and the followup (f-r1017-001) matches it; every anchor it points at resolves (`hot-reload-the-serve.html`, `a-tool-call-carries-no-model-markup.html`, `ops/lane-cycle/AGENTS.md`, `b300-bring-up-and-open-model-bakeoff.html`)."
+  },
+  "section_digests": {
+    "_document": "db2ecdde5472286c88a918f63b4ec8ce3b8116204bde0d78e6a76f64f123e6c8",
+    "s1": "8deac0a58e020378e898a334465e0ec83803b509b7e5a610b21591def4c21d25",
+    "s2": "a23e81a77c9227613a42419b5fefc7dfd90022596cc8ae2a2b9264290cada17c",
+    "s3": "748b78995de3c4de4ad86d914475e2346bc600e333c032e78203b5a4e97634ea",
+    "s4": "2f1d8e7b7b333e4f3f6713ebfaf536aaa5b137f52c2fe093d5c4616b13bdc7a8",
+    "s5": "3a9c98f6ab960d2b6ca1443dd9b9402cd85e005a487b11c65442497cbc5ddcbb"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T13:25:14.086951+00:00"
+}
