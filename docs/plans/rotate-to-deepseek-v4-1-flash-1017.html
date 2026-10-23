@@ -25,7 +25,7 @@
   <title>Rotate to DeepSeek-V4.1-Flash-1017 | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="28">
+<meta name="plan-version" content="29">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -285,7 +285,10 @@
     <div class="r-comment-body"><p>§3 landed in <code>f49f6d5e</code>. The restart refuses on missing weights before touching the lane, and validates a tool call in both dialects on the replacement before it serves. Both checks passed 2/2 against today's engine, verify-gate passed, and the review scored 17 to 20. <a href="/imas-ambix/evidence/archive/rotate-to-deepseek-v4-1-flash-1017-landed.html#s3">evidence</a></p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261023T194239346084-review-of-serve-records-its-checkpoint-22ee75734bbd" data-who="reckon-build" data-when="2026-10-23T19:56:16.061Z">
-    <div class="r-comment-body"><p>Review of r-20261023T171537431674-serve-records-its-checkpoint at head 22ee7573 (base f49f6d5) scored goal_fidelity 17, evidence 18, scope_discipline 16, durability 18, fit 18, reuse 20; two non-blocking findings -- the checkpoint is published in a top-level document map rather than on the engine entry the goal names (justified by the launcher&#x27;s exact-key entry guard at imas_ambix/agent/clive.py:328, needs coordinator adjudication), and the node wrote a figure its own landing contract said it would not.</p></div>
+    <div class="r-comment-body"><p>Review of r-20261023T171537431674-serve-records-its-checkpoint at head 22ee7573 (base f49f6d5) scored goal_fidelity 17, evidence 18, scope_discipline 16, durability 18, fit 18, reuse 20; two non-blocking findings -- the checkpoint is published in a top-level document map rather than on the engine entry the goal names (justified by the launcher's exact-key entry guard at imas_ambix/agent/clive.py:328, needs coordinator adjudication), and the node wrote a figure its own landing contract said it would not.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20261023T171537431674-serve-records-its-checkpoint" data-who="reckon-build" data-when="2026-10-23T19:41:42Z">
+    <div class="r-comment-body"><p>A serve&#x27;s registration and the published document now carry the checkpoint the serve loaded. The generated serve script writes `--checkpoint &lt;hf_repo&gt;@&lt;revision&gt;` from its profile, or `&lt;hf_repo&gt;@unpinned` where the profile pins no revision; the registration keeps that field, and endpoints.json publishes it in a top-level `checkpoints` map keyed by engine id, with every engine entry keeping the seven keys it had, because a deployed launcher validates an entry by exact key set and fails closed on an unfamiliar field. The recorder&#x27;s serve_config gains model_path read from the engine&#x27;s own report. Gate: 81 passed EXIT=0 over the three declared files; `ruff check imas_ambix tests` exits 0.</p></div>
 </div>
 </section>
 </main>
