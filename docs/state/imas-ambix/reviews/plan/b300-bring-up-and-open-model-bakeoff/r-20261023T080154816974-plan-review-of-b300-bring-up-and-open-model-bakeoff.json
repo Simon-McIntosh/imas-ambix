@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T08:10:29.312Z",
+  "dispatched_at": "2026-10-23T08:02:11Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/b300-bring-up-and-open-model-bakeoff.html:52",
+      "id": "reasoning-1",
+      "reason": "\u00a71's argument that candidate throughput loss tracks the 2.5\u20136.5\u00d7 active-parameter cost, which is what makes \u00a77's \"at least half of 1017's\" test look plausible, rests on numbers the plan's own cited source does not give, so the author must either correct the three rows to the source's bands or cite a source that separates the candidates.",
+      "text": "\u00a71's \"Projected 8\u00d7B300 aggregate, from the capacity study\" row gives GLM-5.3 600\u20131,400, MiMo-V2.6-Pro 900\u20131,800 and Kimi K3 800\u20131,500, but the cited study's \u00a75 states one band for GLM-5.3 *and* MiMo-V2.6-Pro together (\"roughly a third to a half of DSv4.1's throughput\", i.e. about 700\u20131,700 against its 2,100\u20133,400) and \"a fifth to a third\" for Kimi K3 (about 420\u20131,133) \u2014 so the study supports no GLM/MiMo distinction, and the plan's Kimi row sits entirely above the cited ceiling",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/b300-bring-up-and-open-model-bakeoff.html:116",
+      "id": "evidence_paths-1",
+      "reason": "the records are the evidence for \u00a77's locked decision, and with no declared path they can land in a worker's session scratchpad or on node-local `/tmp` where the run's own cleanup removes them, leaving the results document's numbers uncheckable.",
+      "text": "\u00a73's write paths name only `imas_ambix/agent/bakeoff/`, the test file and the tasks document, and \u00a74's name only the results document and a figures directory, so the per-attempt records that the pass rates, token counts and wall times are computed from (270\u2013360 attempts under \u00a74) have no declared durable home",
+      "type": "evidence_paths",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/b300-bring-up-and-open-model-bakeoff.html:229",
+      "id": "done_when-1",
+      "reason": "a rule that has never been shown to reject is indistinguishable from one that selects on any input, and the cheap control available here (feed the rule a candidate whose interval includes zero and require a no) is exactly the check the other five sections all declare and this one omits.",
+      "text": "\u00a77 is the node whose whole content is a decision rule and it declares no negative control, so nothing in the node shows that the rule *refuses* a candidate that fails it",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "603131cf6b1e339d5a0ed2eefc056fbb4eb863088cdf31f489ab57c72b517f02",
+  "plan_slug": "b300-bring-up-and-open-model-bakeoff",
+  "plan_version": 1,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T080154816974-plan-review-of-b300-bring-up-and-open-model-bakeoff",
+  "reviewed_blob_sha": "2b8fddf0d451e861a121f7774c5859a66ce2de0b",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every cited file, section, decision and plan resolves; the extensionless `/imas-ambix/research/serving-capacity-and-b300-projection` resolves as `.html` per the docs convention, and both CLI command forms named in done-whens exist in `imas_ambix/agent/cli.py`.",
+    "done_when": "a finding \u2014 \u00a77's done-when names no negative control, so the decision node cannot show that its two-part rule can refuse.",
+    "evidence_paths": "a finding \u2014 \u00a73 and \u00a74 declare no durable path for the graded attempt records themselves, which are the evidence the pass rates are computed from.",
+    "naming": "pass \u2014 the new paths and symbols are named by capability (`bakeoff/`, `open-model-bakeoff-tasks`, `test_agent_b300_launchers`), the profile filenames are model identities rather than plan labels, and no stage, ticket or version tag reaches code; the section ids and decision keys (`bakeoff-spend`, `b300-role`) appear only as record data.",
+    "reasoning": "a finding \u2014 \u00a71's projection row attributes per-candidate throughput figures to the capacity study that the study does not state.",
+    "single_goal": "pass \u2014 \u00a72 (candidates present and verified), \u00a73 (validated harness plus incumbent baseline), \u00a75 (four B300 launchers), \u00a76 (throughput and knee) and \u00a77 (the one decision) each carry one deliverable and one closing verdict.",
+    "wiring": "pass \u2014 every `plan-section-depends-on` edge resolves to a section that exists (s4\u2192s5 as stated via s3; s5/s6\u2192s2 and \u2192`rotate-to-deepseek-v4-1-flash-1017#s2`; s7\u2192s4,s6), `plan-blocked` target `serving-across-servers` exists and its `b300-role` decision is the one \u00a77 locks, and \u00a73's presumption of the rotation is carried by the plan-level `plan-after`."
+  },
+  "section_digests": {
+    "_document": "cca8f1524a19e775c4f59694d9d458239c15ed4872abacc86f8c83301074e6de",
+    "s1": "c84a700685e8c9f737aac65a51c0aad7974caa8d0f1014747e89595f137a690e",
+    "s2": "214922edc5409e7fc7a27f00cead45a3261f3075247b25569fca370a1bd7506e",
+    "s3": "e1202162b0fa3d7d4ecebb22906e1e71ca64b21d9e9b1672c00f84917a322999",
+    "s4": "b09ac6029e9eb3d8eee6368a115cfba4aa39b42c4bd6a0a48b00abeb1c6fc384",
+    "s5": "e8c2a3562a61c2e84c46219d49c0050d659b85228594f1e804e0a4b022162f92",
+    "s6": "2dbca3205a91b4f2500ecb51818d01598f3dd22ecc801d7b0f4d4ed236235ba6",
+    "s7": "2a708e6d4117a75f9275caad6dd81fced9cfc33095fc2f01c00b5ba77a0bceb8"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T12:02:02.509711+00:00"
+}
