@@ -3517,11 +3517,7 @@ def ingest(
     if (
         resolved_index.exists()
         and index_placement.index_requires_rebuild(resolved_index)
-    ) or (
-        not resolved_index.exists()
-        and index_placement.SNAPSHOT_DIR.is_dir()
-        and bool(index_placement._snapshot_paths(index_placement.SNAPSHOT_DIR))
-    ):
+    ) or (not resolved_index.exists() and index_placement.snapshot_exists()):
         started = time.monotonic()
         descriptor, staged_name = tempfile.mkstemp(
             prefix=f".{resolved_index.name}.rebuild-", dir=resolved_index.parent
@@ -3531,11 +3527,7 @@ def ingest(
         try:
             with TelemetryIndex(staged) as rebuilt:
                 rebuilt.rebuild(discover(resolved_record))
-            for suffix in ("-wal", "-shm"):
-                resolved_index.with_name(resolved_index.name + suffix).unlink(
-                    missing_ok=True
-                )
-            os.replace(staged, resolved_index)
+            index_placement.install_index(staged, resolved_index)
         finally:
             staged.unlink(missing_ok=True)
         elapsed = time.monotonic() - started
