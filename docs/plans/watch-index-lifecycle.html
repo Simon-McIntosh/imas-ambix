@@ -24,7 +24,7 @@
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="9">
+<meta name="plan-version" content="10">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -333,6 +333,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-close-s3" data-who="reckon-build" data-when="2026-10-23T08:20:00Z">
     <div class="r-comment-body"><p>§3 landed: an ingest tick reads appended bytes plus bounded probes, 58 MB per 300 s against about 13 GB before, with lazy per-process hash rebuilds and an hourly whole-prefix check that a pre-interval rewrite cannot escape (merged <code>9f4927b2</code>, final review 111/120). <a href="/imas-ambix/evidence/archive/watch-index-lifecycle-landed.html#s3">evidence</a></p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20261023T054953175024-wil-ingest-reads-appended-bytes" data-who="reckon-build" data-when="2026-10-23T07:53:20Z">
+    <div class="r-comment-body"><p>Closed verified receipts cause zero source opens and zero bytes read when opening the writer or ticking; reversing lazy startup caused 4 opens and 969850 bytes, while the named gate passed 98 tests in 51.57s.</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261023T065223926681-review-of-wil-index-on-node-local-disk-85c57d8b24d7" data-who="reckon-build" data-when="2026-10-23T07:04:27Z">
     <div class="r-comment-body"><p>Parsed independent review of 01f7736e..85c57d8b stored with all six scores, zero observed added failures, and two blocking plus four follow-on findings.</p></div>
