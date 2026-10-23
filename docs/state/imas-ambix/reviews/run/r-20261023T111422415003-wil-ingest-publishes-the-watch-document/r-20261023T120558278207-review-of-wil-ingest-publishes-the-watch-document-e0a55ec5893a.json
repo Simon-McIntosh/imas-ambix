@@ -1,0 +1,32 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "completed_at": "2026-10-23T12:16:51Z",
+  "dispatched_at": "2026-10-23T12:06:50Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/cli.py",
+      "line": "3425",
+      "severity": "blocking",
+      "text": "blocking: the clock now advances after every failed publication at line 3432, so a tick at 60 seconds skips publication even though no success has occurred; tests/test_agent_ingest_cli.py:405 proves this new behavior, contrary to the plan and prompt.txt:94 requirement to publish when publish_every has elapsed since the last successful publication."
+    }
+  ],
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: prompt.txt:30 requires ingest publication through one_iteration and retirement of the standalone loop; the added isolation at tests/conftest.py:45 works, but cli.py:3425 changes the promised success-based publication cadence to attempt-based cadence.\nVERDICT done_when: prompt.txt:94 requires publication after elapsed time since the last success; repair-base-suite.log records 47 passed and repair-head-suite.log records 48 passed, but test_agent_ingest_cli.py:405 asserts a different failure retry rule.\nVERDICT write_paths: prompt.txt:69 and resume-1-advice.txt:2 give the original and widened scope; the three added commits touch only those seven paths, including tests/conftest.py and tests/test_telemetry_ingest.py.\nVERDICT manifest: manifest.md records complete status, base and head suites with zero failures, a three-failure negative control, and unchanged live watch mtime and SHA.\nVERDICT diff: commits 8407403f, 72818116 and e0a55ec5 were read against 32d3bf745899; they add test isolation, change publication timing to attempts, and update the landing fragment across seven paths.\nCALL_SITES: imas_ambix/agent/cli.py:publish_watch, imas_ambix/agent/cli.py:ingest, imas_ambix/agent/watch.py:1309\nSCORE goal_fidelity: 14\nJUSTIFICATION goal_fidelity: cli.py:3424-3432 suppresses the next attempt after a failed write even though the plan and prompt.txt:94 require elapsed time since the last successful publication.\nSCORE evidence: 16\nJUSTIFICATION evidence: repair-base-suite.log and repair-head-suite.log show 47 and 48 passing tests with zero added failures, while test_agent_ingest_cli.py:405 measures attempt spacing rather than the stated success-based rule.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff of 32d3bf745899..e0a55ec5893a stays within prompt.txt:69 plus the explicit widened test paths in resume-1-advice.txt:2.\nSCORE durability: 16\nJUSTIFICATION durability: repair-negative-control.log reddens the fixture and cadence assertions, and tests/test_telemetry_ingest.py:751-772 fails if the live path is selected or changed, but tests/test_agent_ingest_cli.py:405 protects the opposite retry behavior from prompt.txt:94.\nSCORE fit: 17\nJUSTIFICATION fit: watch_publish.py:43-45 reads the existing watch.py:90 path at call time and tests/conftest.py:45 follows the nearby snapshot isolation fixture, though cli.py:3247 still describes a success clock after the change.\nSCORE reuse: 20\nJUSTIFICATION reuse: a capability search found watch.py:90 owning the published path and index_placement.py:288 owning snapshot scheduling; watch_publish.py:43 wraps that path owner and cli.py:3423 adds a distinct publication schedule.\nFINDING imas_ambix/agent/cli.py:3425 blocking: the clock now advances after every failed publication at line 3432, so a tick at 60 seconds skips publication even though no success has occurred; tests/test_agent_ingest_cli.py:405 proves this new behavior, contrary to the plan and prompt.txt:94 requirement to publish when publish_every has elapsed since the last successful publication.\n",
+  "review_run_id": "r-20261023T120558278207-review-of-wil-ingest-publishes-the-watch-document-e0a55ec5893a",
+  "reviewed_base_sha": "32d3bf745899f694f13cff6ee2a1f0fc2bd83bc8",
+  "reviewed_head_sha": "e0a55ec5893aa3f1a99889f8ac3a7f06052eac2a",
+  "reviewed_run_id": "r-20261023T111422415003-wil-ingest-publishes-the-watch-document",
+  "scores": {
+    "durability": 16,
+    "evidence": 16,
+    "fit": 17,
+    "goal_fidelity": 14,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T12:18:18.639879+00:00",
+  "total": 103
+}
