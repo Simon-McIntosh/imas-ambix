@@ -1,0 +1,44 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T04:11:01.858Z",
+  "dispatched_at": "2026-10-23T04:00:49Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/a-tool-call-carries-no-model-markup.html:48",
+      "id": "reasoning-1",
+      "reason": "the s3 node would implement the log line literally as specified and emit the body digest, leaving the s5 node unable to join a firing to its retry, so the key's own failure mode is unmeasurable and \u00a75 closes on evidence it cannot produce.",
+      "text": "s3 specifies the log line as \"the time, the request-body digest, the matched opening and whether it was a firing or a pass-through\", but the change that introduces the retry memory keys the guard on \"the digest of the request's `messages` array in canonical JSON, not on the whole body\"; the body digest and the memory key are different values, so a firing line carries no key that a retry line can be joined on \u2014 and a retry whose `messages` differ is logged as a fresh firing rather than a recognised retry, so a reader cannot tell \"the key failed\" from \"a second leak\" without the key on the firing line, which is exactly what s5:57 requires (\"whether its retry carried the same key, shown by a recognised-retry line with that key\"; \"A firing whose retry carried a different key is reported as a failure of the key\")",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "9f6be2ec15487ccc5cdc9304fc6b61dc6ba63e7b30db94428642ded18d412fdc",
+  "plan_slug": "a-tool-call-carries-no-model-markup",
+  "plan_version": 19,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T035837709728-plan-review-of-a-tool-call-carries-no-model-markup",
+  "reviewed_blob_sha": "ed4839bc030f37470a4374aee7ab082bfa044490",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 verified in the repository at 37b41795: `RouterApp._relay` (router.py:2402) and its production caller (router.py:1999), `StreamAccounting.feed` (request_receipts.py:373) called at router.py:2560 before each chunk is forwarded, the cut close branch that returns without a terminal chunk (router.py:2551\u20132556), `tests/test_agent_router_cut.py` and `tests/test_agent_router.py`, `census.py`'s walk inline in `main()` (census.py:30\u201363), and the fixtures directory holding 20 `leak-*`, 3 `clean-*` and 3 `generic-*` fixtures, each leak fixture carrying `cut_tokenizer_boundary.cuts` and reproducing under shapes (b) and (c).",
+    "done_when": "pass \u2014 s3's measures are falsifiable and it declares a real negative control: with the watch's verdict ignored by the relay, every leaked-stream test fails because the client receives `content_block_stop`, and the population pass asserts `exactly the twenty leaked calls` (checkable, since a structural opening necessarily contains the bare-token substring the census already counts).",
+    "evidence_paths": "pass \u2014 fixtures, the population-pass log and the report sit under `~/.config/reckon/crew/reports/imas-ambix/a-tool-call-carries-no-model-markup/`, and the guard's JSONL goes beside the request receipts in the router's receipt-sink directory; none is a node-local or session-scratch path.",
+    "naming": "pass \u2014 `imas_ambix/agent/tool_input_markup.py` and `tool-input-markup.jsonl` are named by what they do; no plan label, ticket number or version tag reaches a symbol, filename or comment.",
+    "reasoning": "a finding \u2014 the s3 log line is specified to record `the request-body digest` while the retry memory the same paragraph introduces keys on the digest of the request's `messages` array, so the key the guard matches on appears nowhere on a firing line and s5's declared measure (\"whether its retry carried the same key \u2026 a firing whose retry carried a different key is reported as a failure of the key\") cannot be computed from the log.",
+    "single_goal": "pass \u2014 s3 carries one deliverable, the router guard; the population pass and the `census.py` walk extraction are its measures and its means, not a second goal.",
+    "wiring": "pass \u2014 s3's declared `depends-on` (`#s2`) resolves and is correct, s5's `depends-on` (`#s3`) resolves, and the artifacts s3 consumes exist on disk (\u00a71's `census.py` with its inline walk, \u00a72's `fixtures/` with 20 leak + 3 clean fixtures); the s3\u2192s1 edge is implicit rather than declared, which does not mislead a node because \u00a71 is `done` and its script is present."
+  },
+  "section_digests": {
+    "_document": "403da21a79cbe327f0935fd41d2a294ae9f63b57b37ed27f5ac61e33601230ae",
+    "s1": "5f8c49e3d7e51c0174a76ddfea229d085b20b6e290dcf0a017c94c993156cdda",
+    "s2": "f22bd920ddbf54ebe86243b05d2d8c24bd970608d7794349574f97d6eaea2201",
+    "s3": "b2effc2ebd83c80d692e6f4d27724cae0daa93440a77eceadd646e6d22a159be",
+    "s4": "73433c178790d5f6f90c5a57799d16eb9d4fcf7a0039fc4044d9886609d0e472",
+    "s5": "9d14f5333b25acd6d9f8bd795ed977462b7a1a754af9c95f9b23b556de463d80",
+    "s6": "0629f0c30cab8733b2150eadf81ec757fe59a4a2742e8c7c636580d856b53d9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T04:15:12.395686+00:00"
+}
