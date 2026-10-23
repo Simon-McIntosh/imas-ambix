@@ -1,0 +1,53 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T14:06:01.988Z",
+  "dispatched_at": "2026-10-23T13:56:10Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/b300-bring-up-and-open-model-bakeoff.html:156",
+      "id": "reasoning-1",
+      "reason": "the node's declared write paths cannot carry the mechanism \u00a74 rests on, so it either blocks on its fence or leaves the launcher selection unimplemented.",
+      "text": "\u00a74 says a variant that differs by server \"is keyed in `gpu_variants` by server name as well as card count\" and that this runs through `ModelProfile.for_gpus`, \"which `_scale_profile` already applies on the serve and restart paths\"; but `for_gpus(self, gpus: int)` (profile.py:432) looks up `self.gpu_variants` \u2014 keyed `int` \u2014 with the card count alone, and `_scale_profile` is called at cli.py:606 with only `gpus`, before the server is resolved at cli.py:639, so it cannot reach a server-keyed entry; neither the refusal in the negative control (`--server b300 --gpus 2`, which today falls through to proportional scaling at cli.py:254) nor the server-keyed lookup can live anywhere but `cli.py` \u2014 where `_scale_profile`'s signature and its five call sites (cli.py:606, 797, 2344, 2891, 3040) must change \u2014 yet cli.py is absent from \u00a74's write paths, so a node would hit its write fence",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/b300-bring-up-and-open-model-bakeoff.html:170",
+      "id": "done_when-1",
+      "reason": "the node cannot tell a broken implementation from an undeclared server, and the fix \u2014 naming the declaration (a fixture site, or an explicit placeholder declaration) \u2014 belongs in the plan's done-when.",
+      "text": "\u00a74's done-when requires `imas-ambix agent serve deepseek-v4-1-flash --server b300 --gpus 4|8 --dry-run` to print a complete script, but `serve` resolves the server through `SiteConfig.from_env().resolve_server` and refuses an undeclared name (profile.py:706 raises \"undeclared server \u2026; this site declares: \u2026\", wrapped at cli.py:642), while \u00a74 itself defers the b300 host, partition, account and reservation to the open question `b300-arrival-facts` and names no site-config path among its write paths, so the command as written fails until the hardware is declared",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "f2a8e8fb3b18eae7fc554547b1e05bd13a8815ce3c300eb72436ef22bdd43e77",
+  "plan_slug": "b300-bring-up-and-open-model-bakeoff",
+  "plan_version": 9,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T134944994969-plan-review-of-b300-bring-up-and-open-model-bakeoff",
+  "reviewed_blob_sha": "72f6075d925b359b15f7d62be3bd9fcd16638829",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `ModelProfile.for_gpus` (imas_ambix/agent/profile.py:432), `gpu_variants` (:430), `_scale_profile` (imas_ambix/agent/cli.py:234), `SiteConfig.servers` (profile.py:569), serving-across-servers \u00a73 (servers declared) and \u00a77 (one model on more than one engine), and the capacity study \u00a76 \"~30 tok/s per request\" column all resolve to the content claimed.",
+    "done_when": "a finding \u2014 \u00a74's first done-when bullet runs `agent serve ... --server b300 --dry-run`, which cannot print a script while no b300 server is declared, and the declaration is deferred to the open question `b300-arrival-facts`.",
+    "evidence_paths": "pass \u2014 \u00a74 writes `imas_ambix/agent/profiles/deepseek-v4-1-flash.toml`, `imas_ambix/agent/profile.py`, `tests/test_agent_b300_launchers.py` and `docs/research/b300-launch-recipes.html`, all durable repo paths.",
+    "naming": "pass \u2014 `h200-4x`, `b300-8x`, `b300-4x` name server/card-count configurations, not plan stages or ticket ids, and \u00a74 carries no changelog prose.",
+    "reasoning": "a finding \u2014 \u00a74 states that `--gpus` resolves a server-keyed `gpu_variants` entry through `_scale_profile`, which \"already applies\" `for_gpus`; the server is not available where `_scale_profile` runs, and closing that gap needs `imas_ambix/agent/cli.py`, which \u00a74's write paths do not name.",
+    "single_goal": "pass \u2014 \u00a74 carries one deliverable (named topologies plus their recipes for the four- and eight-card DeepSeek launches).",
+    "wiring": "pass \u2014 s4's `depends-on` (`rotate-to-deepseek-v4-1-flash-1017#s2`) points at the section that edits the same `deepseek-v4-1-flash` profile, and s5\u2192#s4, s6\u2192{s5, rotate#s5, serving-across-servers#s7} resolve; `plan-after` and every cited section exist."
+  },
+  "section_digests": {
+    "_document": "1406f9ee270da0e9b2ab84b2d20bde8cf96d1fc299996d177e8135ef43291b1f",
+    "s1": "d9b20b2462b714c588777137a3f84dbe6a6285a13698086ef6821d81debdb695",
+    "s2": "ef2e8b754c4b28e05b82f3535fc7322406b9d18639938cf7c46f1c11284568df",
+    "s3": "874e6db9ee4f2713837fc6786123cdafcc611ca8412b1c41989f5bf77d7b75f8",
+    "s4": "0d9a3317b24f64b090945e3ad96590fad1a0584a4e949318123479d05f8b0cb8",
+    "s5": "5edf46e6f134cf940793ed0fcb96058b59158f2cfb4143029e2e4aa8eade952e",
+    "s6": "674a0529c4ddc184440560b0b1af0260b0d8fe8ca872c01962bb449d503609bc",
+    "s7": "c1f33679b46a5b2d5f8b8876f25f4d795a4e027b15c00400090e7ee070000a1c"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T14:11:22.308596+00:00"
+}
