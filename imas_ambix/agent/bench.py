@@ -25,6 +25,8 @@ from typing import TYPE_CHECKING, Any
 from imas_ambix.agent import engine_metrics
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     # Import-time only: the profile loader pulls in pydantic and the profile
     # package data, which the benchmark itself never needs.
     from imas_ambix.agent.profile import ModelProfile
@@ -767,6 +769,218 @@ def _chat(
     return result, data
 
 
+# ── Serving validation probes ───────────────────────────────────────
+
+# One offered tool, one prompt whose only reasonable answer is a weather
+# lookup. Both probes ask the same question so an engine that answers it in
+# prose (the tool call arriving as text in ``content``) is distinguishable
+# from one that returns a structured call.
+TOOL_CALL_PROMPT = "What's the weather in Cadarache, France?"
+
+TOOL_CALL_NAME = "get_weather"
+
+
+def check_tool_call(
+    base_url: str,
+    model: str,
+    *,
+    api_key: str | None = None,
+    transport: Callable[..., tuple[BenchResult, dict[str, Any]]] | None = None,
+) -> BenchResult:
+    """Offer one tool through the OpenAI dialect and require a parsed call.
+
+    A completion is not enough to accept a serving engine: an engine whose
+    tool calls arrive as prose in ``content`` completes text but fails every
+    caller that expects a structured ``tool_calls`` entry. The check fails
+    unless the response carries a non-empty ``tool_calls`` list naming the
+    offered function with arguments that parse as JSON.
+
+    *transport* replaces the HTTP call, so a recorded response can be scored
+    without a live engine.
+    """
+    chat = transport if transport is not None else _chat
+    result, data = chat(
+        base_url,
+        model,
+        [{"role": "user", "content": TOOL_CALL_PROMPT}],
+        tools=[TOOL_WEATHER],
+        max_tokens=256,
+        api_key=api_key,
+    )
+    result.category = "tools"
+    result.test_name = "check_tool_call"
+    if result.error:
+        return result
+
+    choices = data.get("choices") or []
+    message = choices[0].get("message", {}) if choices else {}
+    tool_calls = message.get("tool_calls") or []
+    result.metadata["finish_reason"] = result.finish_reason
+    result.metadata["tool_call_count"] = len(tool_calls)
+
+    if not tool_calls:
+        result.status = "failed"
+        result.error = (
+            "no tool_calls in response; the tool call arrived as text: "
+            f"{str(message.get('content') or '')[:200]}"
+        )
+        return result
+
+    names = [str((call.get("function") or {}).get("name") or "") for call in tool_calls]
+    if TOOL_CALL_NAME not in names:
+        result.status = "failed"
+        result.error = f"expected {TOOL_CALL_NAME}, got {names}"
+        return result
+
+    for call in tool_calls:
+        try:
+            args = json.loads((call.get("function") or {}).get("arguments") or "")
+        except (json.JSONDecodeError, TypeError):
+            result.status = "failed"
+            result.error = "tool call arguments are not valid JSON"
+            return result
+        result.metadata.setdefault("tool_args", []).append(args)
+
+    result.status = "passed"
+    return result
+
+
+def _messages(
+    base_url: str,
+    model: str,
+    messages: list[dict[str, Any]],
+    max_tokens: int = 512,
+    tools: list[dict[str, Any]] | None = None,
+    api_key: str | None = None,
+) -> tuple[BenchResult, dict[str, Any]]:
+    """Non-streaming Anthropic Messages request for a path under *base_url*."""
+    import urllib.error
+    import urllib.request
+
+    url = f"{base_url}/v1/messages"
+    body: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": max_tokens,
+    }
+    if tools:
+        body["tools"] = tools
+
+    payload = json.dumps(body).encode()
+    req = urllib.request.Request(
+        url,
+        data=payload,
+        headers={
+            **_auth_headers(api_key),
+            "anthropic-version": _ANTHROPIC_VERSION,
+        },
+    )
+
+    result = BenchResult(model=model)
+    t0 = time.perf_counter()
+    try:
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            result.http_status = resp.status
+            data = json.loads(resp.read())
+    except urllib.error.HTTPError as exc:
+        result.http_status = exc.code
+        result.error = f"HTTP {exc.code}: {exc.reason}"
+        result.status = "error"
+        result.total_time_s = time.perf_counter() - t0
+        return result, {}
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        result.error = str(exc)
+        result.status = "error"
+        result.total_time_s = time.perf_counter() - t0
+        return result, {}
+
+    result.total_time_s = time.perf_counter() - t0
+    usage = data.get("usage", {})
+    result.prompt_tokens = usage.get("input_tokens", 0)
+    result.finish_reason = data.get("stop_reason")
+    return result, data
+
+
+_ANTHROPIC_VERSION = "2023-06-01"
+
+
+def check_tool_use(
+    base_url: str,
+    model: str,
+    *,
+    api_key: str | None = None,
+    transport: Callable[..., tuple[BenchResult, dict[str, Any]]] | None = None,
+) -> BenchResult:
+    """Offer one tool through the Anthropic dialect and require a ``tool_use``.
+
+    The dialect an interactive harness speaks is not the dialect a bench
+    speaks, and an engine can serve one while mis-encoding the other. The
+    check fails unless the response ``content`` carries a ``tool_use`` block
+    naming the offered function with an ``input`` object.
+
+    *transport* replaces the HTTP call, so a recorded response can be scored
+    without a live engine.
+    """
+    messages_transport = transport if transport is not None else _messages
+    result, data = messages_transport(
+        base_url,
+        model,
+        [{"role": "user", "content": TOOL_CALL_PROMPT}],
+        max_tokens=256,
+        tools=[_anthropic_tool(TOOL_WEATHER)],
+        api_key=api_key,
+    )
+    result.category = "tools"
+    result.test_name = "check_tool_use"
+    if result.error:
+        return result
+
+    blocks = data.get("content") or []
+    if not isinstance(blocks, list):
+        blocks = []
+    tool_uses = [
+        block
+        for block in blocks
+        if isinstance(block, dict) and block.get("type") == "tool_use"
+    ]
+    result.metadata["stop_reason"] = result.finish_reason
+    result.metadata["tool_use_count"] = len(tool_uses)
+
+    if not tool_uses:
+        result.status = "failed"
+        result.error = (
+            "no tool_use block in response; the tool call arrived as text: "
+            f"{str(data.get('content'))[:200]}"
+        )
+        return result
+
+    names = [str(block.get("name") or "") for block in tool_uses]
+    if TOOL_CALL_NAME not in names:
+        result.status = "failed"
+        result.error = f"expected {TOOL_CALL_NAME}, got {names}"
+        return result
+
+    for block in tool_uses:
+        if not isinstance(block.get("input"), dict):
+            result.status = "failed"
+            result.error = "tool_use input is not an object"
+            return result
+        result.metadata.setdefault("tool_inputs", []).append(block["input"])
+
+    result.status = "passed"
+    return result
+
+
+def _anthropic_tool(tool: dict[str, Any]) -> dict[str, Any]:
+    """Translate an OpenAI function definition into the Anthropic shape."""
+    function = tool.get("function", {})
+    return {
+        "name": function.get("name", ""),
+        "description": function.get("description", ""),
+        "input_schema": function.get("parameters", {}),
+    }
+
+
 # ── Provenance capture ──────────────────────────────────────────────
 
 # Provenance probes annotate a run; they must never slow it down or fail it.
@@ -1277,6 +1491,15 @@ def _run_tools(
 
     for test_name, messages, tools, validation in tool_tests:
         for rep in range(repeat):
+            if test_name == "tool_single":
+                # The single-tool weather probe is the one the serving
+                # validation reuses, so the category scores it through the
+                # same function rather than a second copy of the check.
+                r = check_tool_call(base_url, model, api_key=api_key)
+                r.test_name = test_name
+                r.repeat_index = rep
+                results.append(r)
+                continue
             r, data = _chat(
                 base_url,
                 model,
