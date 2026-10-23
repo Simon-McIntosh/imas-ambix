@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="watch-index-size-and-retention">
+  <meta name="plan-title" content="Watch index size and retention evidence">
+  <meta name="plan-summary" content="SQLite page allocation, retirement eligibility, and closed receipt compression measured on 2026-10-23">
+  <meta name="plan-status" content="reference">
+  <meta name="plan-informs" content="watch-index-lifecycle">
+  <meta name="plan-source" content="Read-only watch index backup, retention scan, fleet ingest log, receipt files">
+  <meta name="plan-source-quality" content="primary">
+  <meta name="plan-reviewed-at" content="2026-10-23">
+  <meta name="plan-read" content="1">
+  <meta name="plan-tags" content="agent-serving">
+  <title>Watch index size and retention evidence | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <header>
+      <p class="eyebrow">Research input</p>
+      <h1>Watch index size and retention evidence</h1>
+      <p class="lead">Three measurement objects consume 80.54% of the 8.670 GB index. No raw file was eligible before the ingest service was stopped at 06:11 UTC.</p>
+    </header>
+
+    <section id="method">
+      <h2>Method and provenance</h2>
+      <p>The GPFS source <code>~/.cache/ambix/watch-index.sqlite3</code> was opened with SQLite <code>mode=ro</code> and <code>query_only=ON</code>. The SQLite backup API copied it to a <code>mktemp -d</code> directory under the run's writable node-local <code>/tmp/reckon-crew-scratch</code>. The completed backup used <code>journal_mode=OFF</code> and <code>synchronous=OFF</code> on the disposable destination, took 47.06 seconds, and matched the captured 8,669,601,792-byte source exactly. On that local copy, <code>quick_check(1)</code> returned <code>ok</code> and <code>dbstat</code> ran successfully. The shell exit trap removed the copy and its temporary directory; the GPFS source was never opened for writing. Each object's row count below is its table leaf-cell count or its index leaf-plus-interior-cell count. Bytes per row divide all of the object's pages, including interior and overflow pages, by that count. The physical file comparison includes any freelist pages separately.</p>
+      <p>A preliminary backup with destination syncing enabled copied all pages but stalled in <code>fdatasync</code> and timed out; its own temporary copy was removed. Its read transaction overlapped the gap after the ingest log's 05:59:27Z tick and before the separately recorded 06:11:03Z service stop. The overlap does not establish why the service was stopped. The completed measurement above used the later backup with destination syncing disabled; its result matched the preliminary page image.</p>
+      <p>Run logs: <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T054653709035-wil-index-size-and-retention/index-measure-final.log</code>, <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T054653709035-wil-index-size-and-retention/retention-scan.log</code>, <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T054653709035-wil-index-size-and-retention/retention-service-evidence.log</code>, and <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T054653709035-wil-index-size-and-retention/closed-receipts-gzip.log</code>. The fleet supervisor log <code>~/.local/state/fleet/fleet-1291586.log</code> and current <code>services.json</code> establish the later service stop. All data inputs were read without changing the GPFS index or receipts. Compression sizes were computed by streaming each closed file through zlib's gzip wrapper at level 6; no compressed output file was written. A file's size and modification time were checked before and after it was read.</p>
+    </section>
+
+    <section id="index-allocation">
+      <h2>Index allocation by table and index</h2>
+      <p>The captured database was <strong>8,669,601,792 bytes</strong> (8.670 GB), with 2,116,602 pages of 4,096 bytes and no freelist pages. The nine <code>dbstat</code> objects total <strong>8,669,597,696 bytes</strong>, or 99.99995% of the file. One 4,096-byte allocated page lies outside those objects, a 0.00005% residual. SQLite <code>quick_check(1)</code> returned <code>ok</code> on the complete page image. In every index, the entry count matches its parent table once interior index cells are counted.</p>
+      <p><strong>Measurement expansion dominates:</strong> 41,119,466 measurement rows occupy 2,506,674,176 bytes in the table, 2,419,695,616 bytes in <code>measurement_lookup</code>, and 2,056,032,256 bytes in the primary-key index. Together that is <strong>6,982,402,048 bytes, 80.54% of the file</strong>, or 169.81 allocated bytes per measurement row. There are 554,053 sample rows, giving 74.2 measurements per sample. The sample table itself uses 1,658,011,648 bytes (19.12%, 2,992.51 bytes per row), consistent with retained verbatim payloads.</p>
+      <figure>
+        <img src="/imas-ambix/figures/watch-index-size/storage-allocation.svg" alt="Horizontal bars show three measurement objects occupying about 80.5 percent of the watch index, the sample table about 19.1 percent, and all remaining objects 0.3 percent.">
+        <figcaption>SQLite page allocation at the captured revision, in decimal GB. Blue marks the measurement table and its two indexes; grey marks the sample table and the five smaller objects grouped as other. All individual objects and exact byte counts are below.</figcaption>
+      </figure>
+      <table>
+        <thead><tr><th>SQLite object</th><th>Kind</th><th>Rows or entries</th><th>Bytes</th><th>Bytes per row or entry</th><th>File share</th></tr></thead>
+        <tbody>
+          <tr><td><code>measurement</code></td><td>table</td><td>41,119,466</td><td>2,506,674,176</td><td>60.96</td><td>28.913%</td></tr>
+          <tr><td><code>measurement_lookup</code></td><td>index</td><td>41,119,466</td><td>2,419,695,616</td><td>58.85</td><td>27.910%</td></tr>
+          <tr><td><code>sqlite_autoindex_measurement_1</code></td><td>index</td><td>41,119,466</td><td>2,056,032,256</td><td>50.00</td><td>23.715%</td></tr>
+          <tr><td><code>sample</code></td><td>table</td><td>554,053</td><td>1,658,011,648</td><td>2,992.51</td><td>19.124%</td></tr>
+          <tr><td><code>sqlite_autoindex_sample_1</code></td><td>index</td><td>554,053</td><td>19,525,632</td><td>35.24</td><td>0.225%</td></tr>
+          <tr><td><code>sample_time</code></td><td>index</td><td>554,053</td><td>9,625,600</td><td>17.37</td><td>0.111%</td></tr>
+          <tr><td><code>source</code></td><td>table</td><td>56</td><td>16,384</td><td>292.57</td><td>0.000%</td></tr>
+          <tr><td><code>sqlite_autoindex_source_1</code></td><td>index</td><td>56</td><td>12,288</td><td>219.43</td><td>0.000%</td></tr>
+          <tr><td><code>sqlite_schema</code></td><td>internal table</td><td>8</td><td>4,096</td><td>512.00</td><td>0.000%</td></tr>
+          <tr><th>dbstat objects</th><td>total</td><td>—</td><td>8,669,597,696</td><td>—</td><td>99.99995%</td></tr>
+          <tr><th>Other allocated page</th><td>outside dbstat objects</td><td>—</td><td>4,096</td><td>—</td><td>0.00005%</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="retention">
+      <h2>Why there is no new retirement manifest</h2>
+      <p><strong>Verdict: no raw receipt is currently eligible.</strong> The read-only scan with <code>rebuild=False</code> reported <code>0 of 20 raw files eligible for retirement</code>. Nineteen old raw files ended between 2026-09-07 and 2026-09-17 but each has <code>compared_pairs=0</code>, so the guard reports <code>no hour carries the counters</code>. The remaining raw file, job <code>1280470</code>, is still running, modified within the last day and younger than the 14-day row-age threshold. As a positive control for the scan, that live file produced 1,473 compared pairs across 491 hours: zero pairs in the older files is a property of those files, not a scanner that cannot see counters.</p>
+      <p>Before 06:11 UTC, the fleet service command was <code>imas-ambix agent ingest --cadence 60</code>, with no <code>--no-retention</code> flag. <code>cli.py</code> defaults retention to true and constructs <code>ScheduledRetention</code>; <code>telemetry_ingest.run</code> calls it after every successful tick, and <code>ScheduledRetention</code> invokes a pass when 24 hours have elapsed. <code>retention_pass</code> writes a manifest only inside <code>if result.eligible</code>. The service log records successful ticks on every date from October 17 through October 23 (1,274; 1,282; 1,222; 1,227; 1,148; 1,042; 270 through 05:56 UTC) and no <code>telemetry retention pass failed</code> line. The latest manifest is <code>retire-raw-20261017T125332Z.json</code>, containing one eligible file from an earlier pass. Successful empty passes do not log a completion line, so the log does not independently timestamp each daily pass; the read-only scan and the code's manifest condition explain the earlier gap.</p>
+      <p><strong>Current schedule state changed during this investigation.</strong> The fleet supervisor log records <code>stopping declared service ambix-ingest (pid 4164346)</code> at 2026-10-23T06:11:03Z and a reload immediately after. The current <code>~/.config/fleet/services.json</code> contains only <code>reckon-admit-local</code>, and the ingest lease is absent. No scheduled retention can run while that service remains stopped. The log does not state why the service was removed; the stop is a separate, later fact from the zero-eligible scan.</p>
+      <p>Raw receipts without comparable counters remain the authority and cannot pass the current proof for retirement. A change to that proof or to raw-file retention needs a separate decision; this investigation deletes nothing.</p>
+    </section>
+
+    <section id="closed-receipts">
+      <h2>Closed receipt files still uncompressed</h2>
+      <p>Of 108 <code>.jsonl</code> files, three belong to the scheduler-live serve job <code>1280470</code> (raw, minute, hour) and were excluded. The other 105 total <strong>275,231,185 bytes</strong> now and would occupy <strong>16,851,447 gzip bytes</strong>, a 258,379,738-byte (93.9%) reduction. The list includes 24 empty placeholders: each has a 20-byte gzip wrapper, so compressing those would increase their size. These are projected gzip sizes, not files written or a deletion recommendation.</p>
+      <details>
+        <summary>All 105 closed files and their measured gzip sizes (bytes)</summary>
+        <table>
+          <thead><tr><th>File</th><th>Current bytes</th><th>Gzip bytes</th></tr></thead>
+          <tbody>
+          <tr><td><code>deepseek-v4-1-flash-1270033.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1270179.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1270181.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1270200.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1270205.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1270227.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1270232.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1270233.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1270277.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1270309.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1270315.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1270323.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1270355.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1270389.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1270394.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271666.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271684.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271688.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271696.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271709.hour.jsonl</code></td><td>1,883</td><td>511</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271709.jsonl</code></td><td>336,192</td><td>5,694</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271709.minute.jsonl</code></td><td>40,566</td><td>1,481</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271724.hour.jsonl</code></td><td>938</td><td>441</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271724.jsonl</code></td><td>11,790</td><td>552</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271724.minute.jsonl</code></td><td>2,790</td><td>550</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271728.hour.jsonl</code></td><td>935</td><td>439</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271728.jsonl</code></td><td>7,857</td><td>466</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271728.minute.jsonl</code></td><td>1,773</td><td>490</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271731.hour.jsonl</code></td><td>1,867</td><td>505</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271731.jsonl</code></td><td>274,044</td><td>4,701</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271731.minute.jsonl</code></td><td>33,178</td><td>1,279</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271741.hour.jsonl</code></td><td>9,298</td><td>780</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271741.jsonl</code></td><td>4,219,051</td><td>65,412</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271741.minute.jsonl</code></td><td>497,374</td><td>11,041</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271889.hour.jsonl</code></td><td>938</td><td>441</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271889.jsonl</code></td><td>51,687</td><td>1,219</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271889.minute.jsonl</code></td><td>6,479</td><td>650</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271895.hour.jsonl</code></td><td>938</td><td>440</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271895.jsonl</code></td><td>44,501</td><td>1,116</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271895.minute.jsonl</code></td><td>6,493</td><td>665</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271903.hour.jsonl</code></td><td>6,603</td><td>799</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271903.jsonl</code></td><td>2,587,804</td><td>51,906</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1271903.minute.jsonl</code></td><td>310,637</td><td>12,101</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1272167.hour.jsonl</code></td><td>19,789</td><td>1,443</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1272167.jsonl</code></td><td>9,345,363</td><td>216,384</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1272167.minute.jsonl</code></td><td>1,114,183</td><td>42,074</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1272777.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1272783.hour.jsonl</code></td><td>5,676</td><td>775</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1272783.jsonl</code></td><td>2,299,817</td><td>60,702</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1272783.minute.jsonl</code></td><td>274,495</td><td>11,024</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1273074.hour.jsonl</code></td><td>4,733</td><td>698</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1273074.jsonl</code></td><td>1,687,238</td><td>55,041</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1273074.minute.jsonl</code></td><td>202,506</td><td>9,310</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1273217.hour.jsonl</code></td><td>1,893</td><td>526</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1273217.jsonl</code></td><td>681,837</td><td>21,221</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1273217.minute.jsonl</code></td><td>81,849</td><td>4,029</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1273253.hour.jsonl</code></td><td>252,526</td><td>21,997</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1273253.minute.jsonl</code></td><td>14,233,981</td><td>819,335</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1276246.hour.jsonl</code></td><td>265,176</td><td>23,577</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1276246.minute.jsonl</code></td><td>14,409,427</td><td>895,551</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1277121.hour.jsonl</code></td><td>508,276</td><td>48,661</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1277121.minute.jsonl</code></td><td>29,040,367</td><td>1,923,455</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278049.hour.jsonl</code></td><td>18,139</td><td>2,971</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278049.minute.jsonl</code></td><td>121,683</td><td>10,525</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278050.hour.jsonl</code></td><td>19,847</td><td>3,478</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278050.minute.jsonl</code></td><td>692,155</td><td>61,269</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278060.hour.jsonl</code></td><td>18,236</td><td>2,982</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278060.minute.jsonl</code></td><td>103,765</td><td>9,125</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278062.hour.jsonl</code></td><td>38,541</td><td>5,374</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278062.minute.jsonl</code></td><td>987,509</td><td>81,381</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278067.hour.jsonl</code></td><td>30,145</td><td>4,498</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278067.minute.jsonl</code></td><td>642,137</td><td>56,239</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278071.hour.jsonl</code></td><td>30,314</td><td>4,474</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278071.minute.jsonl</code></td><td>637,111</td><td>56,212</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278072.hour.jsonl</code></td><td>102,685</td><td>12,249</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278072.minute.jsonl</code></td><td>4,817,808</td><td>410,860</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278088.hour.jsonl</code></td><td>127,118</td><td>10,065</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278088.minute.jsonl</code></td><td>6,113,684</td><td>263,363</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278105.hour.jsonl</code></td><td>1,335,970</td><td>127,902</td></tr>
+          <tr><td><code>deepseek-v4-1-flash-1278105.minute.jsonl</code></td><td>78,154,298</td><td>5,643,593</td></tr>
+          <tr><td><code>deepseek-v4-1-flash@evaluation-1271638.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-flash-1264576.hour.jsonl</code></td><td>235,528</td><td>19,454</td></tr>
+          <tr><td><code>deepseek-v4-flash-1264576.jsonl</code></td><td>65,200,058</td><td>3,167,762</td></tr>
+          <tr><td><code>deepseek-v4-flash-1264576.minute.jsonl</code></td><td>13,783,375</td><td>853,361</td></tr>
+          <tr><td><code>deepseek-v4-flash-1270515.hour.jsonl</code></td><td>1,530</td><td>620</td></tr>
+          <tr><td><code>deepseek-v4-flash-1270515.jsonl</code></td><td>245,920</td><td>25,737</td></tr>
+          <tr><td><code>deepseek-v4-flash-1270515.minute.jsonl</code></td><td>53,958</td><td>6,355</td></tr>
+          <tr><td><code>deepseek-v4-flash-1270620.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-flash-1270628.hour.jsonl</code></td><td>29,437</td><td>4,292</td></tr>
+          <tr><td><code>deepseek-v4-flash-1270628.jsonl</code></td><td>7,902,480</td><td>838,853</td></tr>
+          <tr><td><code>deepseek-v4-flash-1270628.minute.jsonl</code></td><td>1,707,137</td><td>188,775</td></tr>
+          <tr><td><code>deepseek-v4-flash-1271286.hour.jsonl</code></td><td>4,392</td><td>1,015</td></tr>
+          <tr><td><code>deepseek-v4-flash-1271286.jsonl</code></td><td>684,023</td><td>71,872</td></tr>
+          <tr><td><code>deepseek-v4-flash-1271286.minute.jsonl</code></td><td>148,900</td><td>16,851</td></tr>
+          <tr><td><code>deepseek-v4-flash-1271357.jsonl</code></td><td>0</td><td>20</td></tr>
+          <tr><td><code>deepseek-v4-flash-1271376.hour.jsonl</code></td><td>4,632</td><td>1,156</td></tr>
+          <tr><td><code>deepseek-v4-flash-1271376.jsonl</code></td><td>808,880</td><td>88,695</td></tr>
+          <tr><td><code>deepseek-v4-flash-1271376.minute.jsonl</code></td><td>176,045</td><td>21,185</td></tr>
+          <tr><td><code>deepseek-v4-flash-1271487.hour.jsonl</code></td><td>5,765</td><td>1,076</td></tr>
+          <tr><td><code>deepseek-v4-flash-1271487.jsonl</code></td><td>1,462,943</td><td>94,029</td></tr>
+          <tr><td><code>deepseek-v4-flash-1271487.minute.jsonl</code></td><td>245,919</td><td>19,499</td></tr>
+          <tr><td><code>deepseek-v4-flash-2x-1263843.hour.jsonl</code></td><td>18,370</td><td>2,765</td></tr>
+          <tr><td><code>deepseek-v4-flash-2x-1263843.jsonl</code></td><td>4,636,853</td><td>258,740</td></tr>
+          <tr><td><code>deepseek-v4-flash-2x-1263843.minute.jsonl</code></td><td>999,147</td><td>82,833</td></tr>
+          <tr><td><code>deepseek-v4-flash-2x-1271124.jsonl</code></td><td>0</td><td>20</td></tr>
+          </tbody>
+        </table>
+      </details>
+    </section>
+  </main>
+</body>
+</html>

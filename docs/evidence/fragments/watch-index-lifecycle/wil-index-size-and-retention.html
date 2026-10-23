@@ -1,0 +1,16 @@
+<section id="wil-index-size-and-retention">
+  <h2>Index allocation and retention eligibility</h2>
+  <p>A completed read-only SQLite backup passed <code>quick_check(1)</code>. Its nine
+  <code>dbstat</code> objects account for 8,669,597,696 of 8,669,601,792 file bytes
+  (99.99995%). The measurement table and its two indexes use 6,982,402,048 bytes,
+  80.54% of the file.</p>
+  <p>The read-only retirement scan found 0 eligible raw files among 20 candidates:
+  19 old files carry no comparable counter hours, and the remaining file belongs
+  to the live job. The fleet supervisor stopped the ingest service at 06:11 UTC,
+  so the schedule cannot run while it remains absent from the service configuration.
+  Across 105 closed <code>.jsonl</code> files, streaming gzip measured
+  275,231,185 current bytes and 16,851,447 compressed bytes. The
+  <a href="/imas-ambix/research/watch-index-size-and-retention.html">research document</a>
+  lists every SQLite object and closed file, the code path, and the measurement logs.
+  <code>reckon audit-doc</code> reported no errors.</p>
+</section>
