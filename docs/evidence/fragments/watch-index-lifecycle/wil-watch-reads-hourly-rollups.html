@@ -38,5 +38,9 @@
   including the command's scheduled-retirement test. Its launcher used a
   node-local temporary home: its snapshot directory was empty while the
   operator's snapshot directory held one archive. The serving-interpreter
-  parse guard passed, and whole-tree ruff exited zero.</p>
+  parse guard passed, and whole-tree ruff exited zero. A two-arm run used the
+  same isolated-home gate on the recorded base and this worktree: the base
+  passed 119 tests, and the after arm passed 121, with zero failures and zero
+  added failing test IDs in either arm. The base arm imported the module from
+  its extracted scratch tree.</p>
 </section>
