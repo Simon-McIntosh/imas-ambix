@@ -20,11 +20,11 @@
   <meta name="plan-tags" content="agent-serving">
   <meta name="plan-blocks" content="serving-record-warehouse">
   <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;],&quot;s10&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s11&quot;:[&quot;watch-index-lifecycle#s5&quot;,&quot;watch-index-lifecycle#s7&quot;,&quot;watch-index-lifecycle#s10&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;done&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;,&quot;s10&quot;:&quot;done&quot;,&quot;s11&quot;:&quot;done&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="35">
+<meta name="plan-version" content="36">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -306,7 +306,7 @@
     </ul>
 
     <h2 id="s11">§11 — One owner for each index fact the reviews found stated twice</h2>
-    <section data-reckon="section" data-id="s11" data-effort-hours="1.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
+    <section data-reckon="section" data-id="s11" data-effort-hours="1.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="done" data-links=""></section>
     <p>The reviews of §5 and §10 left five non-blocking findings. Each is a fact stated in two places, or a mechanism with no reader:</p>
     <ul>
       <li><code>index_placement.index_requires_rebuild</code> re-implements the predicate that <code>TelemetryIndex</code> owns, the absent <code>name_id</code> column, so the sentinel lives in two modules. <code>TelemetryIndex</code> exposes the predicate publicly and <code>index_placement</code> calls it.</li>
@@ -459,6 +459,9 @@
 </div>
 <div class="r-comment" data-section="s11" data-id="c-run-r-20261023T190229859864-review-of-wil-ingest-uses-the-index-install-owner-12dcb14b39f4" data-who="reckon-build" data-when="2026-10-23T19:12:51.626Z">
     <div class="r-comment-body"><p>Independent review of wil-ingest-uses-the-index-install-owner at 12dcb14b (base 58c154f7) recorded parsed with scores goal_fidelity 20, evidence 19, scope_discipline 20, durability 19, fit 20, reuse 20 (total 118) and zero findings; the change is a faithful switch of the ingest index call sites onto index_placement.snapshot_exists and install_index; record: /home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T174829412224-wil-ingest-uses-the-index-install-owner/review-records/r-20261023T174829412224-wil-ingest-uses-the-index-install-owner.at-12dcb14b39f4735dd6c9c932e3e48dec674c306f.json</p></div>
+</div>
+<div class="r-comment" data-section="s11" data-id="c-close-s11" data-who="reckon-build" data-when="2026-10-23T19:18:00Z">
+    <div class="r-comment-body"><p>§11 landed: the rebuild predicate, index installation with journal cleanup, and the counter difference each have one owner, and the counter test depends on the rollup (merged <code>1f83e6f1</code> and <code>1cdfe5cd</code>; reviews 118/120 and 118/120). <a href="/imas-ambix/evidence/archive/watch-index-lifecycle-landed.html#s11">evidence</a></p></div>
 </div>
 </section>
 </main>
