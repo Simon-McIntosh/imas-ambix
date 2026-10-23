@@ -24,7 +24,7 @@
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="12">
+<meta name="plan-version" content="13">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -351,6 +351,9 @@
 </div>
 <div class="r-comment" data-section="s4" data-id="c-close-s4" data-who="reckon-build" data-when="2026-10-23T09:40:00Z">
     <div class="r-comment-body"><p>§4 landed: the index is node-local in WAL mode, the first verified snapshot is 854 MB on GPFS, and the snapshot now runs off the tick path (merged <code>70e2615d</code>, deployed at the next restart). <a href="/imas-ambix/evidence/archive/watch-index-lifecycle-landed.html#s4">evidence</a></p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20261023T082347995391-wil-snapshot-runs-off-the-tick-path" data-who="reckon-build" data-when="2026-10-23T08:57:57Z">
+    <div class="r-comment-body"><p>Daily snapshots now run on one background worker with its own SQLite connection; scratch quick_check and streamed SHA-256 verify the archive without a second uncompressed copy, with digest receipts for later checks. 25 focused tests and the serving parser test passed; whole-tree Ruff passed; both declared mutations failed their tests. [evidence](/imas-ambix/evidence/fragments/watch-index-lifecycle/wil-snapshot-runs-off-the-tick-path.html#wil-snapshot-runs-off-the-tick-path)</p></div>
 </div>
 </section>
 </main>
