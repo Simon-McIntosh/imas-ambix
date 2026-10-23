@@ -40,12 +40,15 @@
   are grouped under the server their registration named, and an engine whose
   registration names no declared server falls under an entry named by its host,
   so nothing is dropped for want of a declaration.</p>
-  <p><strong>The card count is the node's, not the serve's.</strong> A serve may
-  take fewer cards than its node has, so deriving the count from an eight-card
-  engine would publish a four-card node wherever a four-card serve ran. A
-  declared count is authoritative; only where a declaration states none — the
-  single entry an unconfigured site resolves to — does the count come from an
-  engine, which is the only source then available.</p>
+  <p><strong>The card count is the node's, not the serve's, and is published
+  only where the site declares one.</strong> A serve may take fewer cards than
+  its node has, so deriving the count from an eight-card engine would publish a
+  four-card node wherever a four-card serve ran. Nothing an engine reports is a
+  statement about its node, so no declaration means <code>null</code> rather
+  than an engine's count: an unconfigured site's single entry declares none, its
+  document entry carries <code>accelerator_count: null</code>, and the node's
+  real card count comes from the hardware probe. Each engine's own count is
+  already published on its endpoint, where it belongs.</p>
   <p><strong>The deduplication key moves from the model id to the engine id
   (<code>&lt;host short name&gt;:&lt;port&gt;</code>).</strong> Two engines
   serving one model are two engines and now both appear in
@@ -71,7 +74,7 @@
         <td><code>pytest tests/test_agent_serve_registry.py
         tests/test_agent_endpoint_discovery.py
         tests/test_agent_site_servers.py</code></td>
-        <td>44 passed, <code>EXIT=0</code></td>
+        <td>45 passed, <code>EXIT=0</code></td>
       </tr>
       <tr>
         <td><code>ruff check imas_ambix tests</code></td>
@@ -113,6 +116,14 @@
         and <code>::test_a_declared_server_with_no_engine_is_still_listed</code>,
         <code>EXIT=1</code>; an eight-card node with a four-card serve was
         published as four cards, an idle node as <code>null</code></td>
+      </tr>
+      <tr>
+        <td>Let a declaration that states no card count take its first engine's
+        count (<code>registry._published_servers</code>)</td>
+        <td><code>FAILED
+        tests/test_agent_site_servers.py::test_a_server_declared_without_a_card_count_publishes_none</code>,
+        <code>EXIT=1</code>; <code>assert 4 is None</code> — an undeclared count
+        was filled in from the serve</td>
       </tr>
     </tbody>
   </table>

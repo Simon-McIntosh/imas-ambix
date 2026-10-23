@@ -297,8 +297,11 @@ def test_publish_command_without_router_preserves_endpoint_document(
                 "power_cap_watts": None,
                 "reservation_groups": [],
             },
+            # A host nobody declares appears under the host its registration
+            # ran on. Neither node's cards are declared anywhere, so both
+            # counts are unknown; each engine's own count stays on its endpoint.
             {
-                "accelerator_count": 2,
+                "accelerator_count": None,
                 "accelerator_family": "H100",
                 "engines": ["node-a:19001"],
                 "host": "node-a",
@@ -307,7 +310,7 @@ def test_publish_command_without_router_preserves_endpoint_document(
                 "reservation_groups": [],
             },
             {
-                "accelerator_count": 8,
+                "accelerator_count": None,
                 "accelerator_family": "H200",
                 "engines": ["node-b:19002"],
                 "host": "node-b",

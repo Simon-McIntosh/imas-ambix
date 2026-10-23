@@ -208,9 +208,12 @@ class PublishedServer:
     It is the site's declaration rather than a summary of its engines: a
     declared server appears whether or not anything is running on it, with the
     accelerators and card count it declares, and an empty ``engines`` list says
-    so. ``power_cap_watts`` and ``reservation_groups`` are carried because they
-    are declared here and read from this document, not from the site
-    configuration.
+    so. ``accelerator_count`` is ``None`` where the site declares no card count,
+    which is what an unconfigured site's single entry does: the count is a
+    property of the node, an engine is one serve placed on it, and a serve's own
+    count is reported on that engine. ``power_cap_watts`` and
+    ``reservation_groups`` are carried because they are declared here and read
+    from this document, not from the site configuration.
     """
 
     name: str
@@ -520,9 +523,10 @@ def _published_servers(
 
     The declaration is the authority for a declared server's host, accelerator
     family and card count: a serve may take fewer cards than its node has, so
-    an engine is not a reading of the node it runs on. Only where a declaration
-    states no card count -- the single entry an unconfigured site resolves to
-    -- does the count come from an engine, which is the only source there is.
+    an engine is not a reading of the node it places on, and neither is any
+    other engine. A card count is published only where the site declares one;
+    otherwise it is unknown, and an engine's own count stays on that engine's
+    endpoint rather than being promoted to a statement about the node.
 
     A server the site does not declare still appears, under the host its
     registration ran on, so an engine is never dropped from the document for
@@ -540,11 +544,7 @@ def _published_servers(
                 name=server.name,
                 host=server.host,
                 accelerator_family=server.accelerator_family,
-                accelerator_count=(
-                    server.accelerator_count
-                    if server.accelerator_count is not None
-                    else (engines[0].accelerator_count if engines else None)
-                ),
+                accelerator_count=server.accelerator_count,
                 power_cap_watts=server.power_cap_watts,
                 reservation_groups=tuple(server.reservation_groups),
                 engines=tuple(endpoint.engine_id for endpoint in engines),
@@ -559,7 +559,7 @@ def _published_servers(
                 name=name,
                 host=first.host,
                 accelerator_family=first.accelerator_family,
-                accelerator_count=first.accelerator_count,
+                accelerator_count=None,
                 power_cap_watts=None,
                 reservation_groups=(),
                 engines=tuple(endpoint.engine_id for endpoint in engines),

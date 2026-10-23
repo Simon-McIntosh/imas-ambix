@@ -226,6 +226,35 @@ def test_a_servers_card_count_comes_from_its_declaration(tmp_path):
     assert server["reservation_groups"] == ["A", "B"]
 
 
+def test_a_server_declared_without_a_card_count_publishes_none(tmp_path):
+    """A site that declares no card count declares no card count.
+
+    Today's unconfigured site is exactly this case: its single entry is built
+    from the flat fields, which carry no count. Reading one off the engine
+    instead publishes a four-card serve as a statement about an eight-card
+    node, and the node's real card count comes from the hardware probe rather
+    than from whatever serve happens to be placed on it.
+    """
+    node = _H200.model_copy(update={"accelerator_count": None})
+    record = ServeRegistration(
+        "glm-5.3", "98dci4-gpu-0003", 18801, "41", 4, "int4", "H200", server="h200"
+    )
+    catalogs = {record.origin: _catalog("glm-5.3", "H200", 4, "int4")}
+    target = tmp_path / "endpoints.json"
+
+    publish_endpoint_document(
+        (record,), target, fetch_catalog=catalogs.__getitem__, servers=(node,)
+    )
+
+    document = json.loads(target.read_text(encoding="utf-8"))
+    (server,) = document["servers"]
+    assert server["engines"] == ["gpu-0003:18801"]
+    assert server["accelerator_count"] is None
+    # The engine's own count is still what it registered, where it belongs.
+    (endpoint,) = document["endpoints"]
+    assert endpoint["accelerator_count"] == 4
+
+
 def test_an_undeclared_host_still_carries_its_engines(tmp_path):
     """Nothing is dropped for want of a declaration."""
     record = ServeRegistration(
@@ -245,7 +274,10 @@ def test_an_undeclared_host_still_carries_its_engines(tmp_path):
     servers = {server["name"]: server for server in document["servers"]}
     assert sorted(servers) == ["98dci4-gpu-0009", "h200"]
     assert servers["98dci4-gpu-0009"]["engines"] == ["gpu-0009:18801"]
-    assert servers["98dci4-gpu-0009"]["accelerator_count"] == 4
+    assert servers["98dci4-gpu-0009"]["engines"] == ["gpu-0009:18801"]
+    # Nothing declares that host's cards, so its count is unknown. The engine's
+    # own count stays on its endpoint rather than being promoted to the node.
+    assert servers["98dci4-gpu-0009"]["accelerator_count"] is None
     assert servers["h200"]["engines"] == []
 
 
