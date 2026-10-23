@@ -28,15 +28,16 @@ measurement no sample in the window carried returns ``None`` rather than
 ``0.0``, which is the distinction the flat receipt row's recorded nulls
 destroyed: a missing reading and a measured zero must not read the same.
 
-**A rewrite is checked at two cadences.** Each tick compares the first and last
-64 KiB of the consumed region with stored probe digests, and checks its size,
-inode and modification time. A running hash extends the stored whole-prefix
-digest with appended lines, so ordinary ticks read only the new bytes and the
-probes. A new process builds the hash from the consumed prefix once; a full
-verification repeats at most once per hour. A rewrite confined to the middle
-is therefore detected at that verification, while a rewrite at either probe
-window or truncation is detected on the next tick. A missing recorded digest
-cannot be trusted and makes the source start again.
+**A rewrite is checked on a changed source.** A source whose size and mtime
+match its consumed row is skipped without opening it. When either differs, the
+index compares the first and last 64 KiB of the consumed region with stored
+probe digests, and checks size and mtime direction. A running hash extends the
+stored whole-prefix digest with appended lines, so an ordinary changed-source
+tick reads only the new bytes and the probes. The first changed-source check in
+a new process builds the hash from the consumed prefix; a later changed-source
+check repeats that verification after the hourly interval. A rewrite confined
+to the middle is detected on the first changed-source check after that interval.
+A missing recorded digest cannot be trusted and makes the source start again.
 
 **Every key carries the host that recorded the row, because an inode does not
 name a machine.** An inode number is unique within one filesystem and nowhere
@@ -961,17 +962,18 @@ class TelemetryIndex:
                 self._conn.commit()
 
     def _consumed_whole_and_untouched(self, path: Path, stat: os.stat_result) -> bool:
-        """Skip a consumed source after checking its bounded identity probes."""
+        """Skip a consumed source whose size and mtime have not moved."""
         row = self._conn.execute(
-            "SELECT size, offset, mtime_ns, prefix_sha, head_sha, tail_sha FROM source "
+            "SELECT size, offset, mtime_ns FROM source "
             "WHERE path = ? AND inode = ? ORDER BY offset DESC LIMIT 1",
             (str(path), stat.st_ino),
         ).fetchone()
-        if row is None or row["mtime_ns"] is None or not row["head_sha"]:
+        if row is None or row["mtime_ns"] is None:
             return False
-        if row["offset"] != row["size"] or row["size"] != stat.st_size:
-            return False
-        return not self._was_rewritten(path, stat, row)
+        return (
+            row["offset"] == row["size"] == stat.st_size
+            and row["mtime_ns"] == stat.st_mtime_ns
+        )
 
     def close(self) -> None:
         self._conn.close()
@@ -1069,8 +1071,8 @@ class TelemetryIndex:
         tier are removed only after the selected tier has been read, so a read
         that raises on the selected file leaves the job's previously held
         samples in place. A source already consumed to its end whose length and
-        modification time have not moved is checked through bounded probes
-        without scanning its samples again.
+        modification time have not moved is left unopened, so the directory
+        can be offered whole without reading settled sources again.
 
         A source is read from its recorded offset; a file whose consumed region
         no longer carries the bytes this index read there was rebuilt in place,
