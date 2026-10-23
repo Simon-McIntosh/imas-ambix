@@ -8,6 +8,59 @@ import shlex
 from imas_ambix.agent.profile import SiteConfig, load_profile
 from imas_ambix.agent.slurm import generate_serve_script
 
+CHECKPOINT_SHA = "1bae0e1088993b9b82de08f59de5be5a34e42170"
+CHECKPOINT_REPO = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+CHECKPOINT_MODEL_DIR = "/work/projects/imas_gpu/agents/deepseek-v4-1-flash-1017/model"
+SEPTEMBER_MODEL_DIR = "/work/projects/imas_gpu/agents/deepseek-v4-1-flash/model"
+
+
+def test_profile_pins_the_checkpoint_it_serves() -> None:
+    """The profile names the release, not the repository family it lives in.
+
+    The 1017 update publishes weights at a commit of that repository so its
+    repo id alone would leave a download free to follow the default branch.
+    weights_slug keeps one release per directory, and served_name stays the
+    single client-visible name every release of this family answers to.
+    """
+    profile = load_profile("deepseek-v4-1-flash")
+
+    assert profile.model.hf_repo == CHECKPOINT_REPO
+    assert profile.model.revision == CHECKPOINT_SHA
+    assert profile.weights_directory_slug == "deepseek-v4-1-flash-1017"
+    assert profile.model.served_name == "deepseek-v4.1-flash"
+
+
+def test_serve_script_moves_only_the_weights_directory() -> None:
+    """The release change reaches the serve as the directory it loads from.
+
+    The baseline is this same profile with the September weights directory
+    restored, so what is asserted is that the release change moves exactly one
+    line of the generated script -- a change that moved anything else would be
+    a serving-setting change dressed as a checkpoint pin.
+    """
+    profile = load_profile("deepseek-v4-1-flash")
+    september = profile.model_copy(deep=True)
+    september.model.weights_slug = "deepseek-v4-1-flash"
+
+    pinned = generate_serve_script(profile, SiteConfig(), port=18810)
+    baseline = generate_serve_script(september, SiteConfig(), port=18810)
+
+    assert f"MODEL_DIR={CHECKPOINT_MODEL_DIR}" in pinned
+    assert len(pinned.splitlines()) == len(baseline.splitlines())
+    differing = [
+        (was, now)
+        for was, now in zip(
+            baseline.splitlines(), pinned.splitlines(), strict=True
+        )
+        if was != now
+    ]
+    assert differing == [
+        (
+            "        MODEL_DIR=" + SEPTEMBER_MODEL_DIR,
+            f"        MODEL_DIR={CHECKPOINT_MODEL_DIR}",
+        )
+    ]
+
 
 def _speculative_config(script: str) -> dict[str, object]:
     line = next(

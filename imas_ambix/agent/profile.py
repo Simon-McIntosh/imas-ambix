@@ -28,6 +28,12 @@ class ModelConfig(BaseModel):
 
     name: str
     hf_repo: str
+    # Commit of ``hf_repo`` the weights are fetched at, pinned so a later
+    # commit on the repository's default branch cannot silently change which
+    # weights a deployment loads. A repository that publishes more than one
+    # release under one repo id (a weights-only update, say) needs this to be
+    # unambiguous: the repo id alone names the family, not the release.
+    revision: str | None = None
     served_name: str
     size_gb: int
     max_context: int
