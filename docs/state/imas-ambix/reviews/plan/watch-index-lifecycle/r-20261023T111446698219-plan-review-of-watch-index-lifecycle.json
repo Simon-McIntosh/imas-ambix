@@ -1,0 +1,64 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T11:23:33.623Z",
+  "dispatched_at": "2026-10-23T11:15:39Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/watch-index-lifecycle.html:22",
+      "id": "wiring-1",
+      "reason": "a coordinator following the recorded order would land and deploy \u00a75/\u00a76 without \u00a710 and crash-loop the ingest, which is the exact failure \u00a710 was written to prevent.",
+      "text": "`s10` declares that it gates the deployment (\"it does not restart onto \u00a75 before \u00a710 lands\") but no gate relationship is recorded: `plan-section-depends-on` lists only `s10:[s6]`, and the open dispatch followup `f-wil-001` orders \u00a73, \u00a74, \u00a78, \u00a75, \u00a76, \u00a77 with no mention of \u00a710",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/watch-index-lifecycle.html:s7",
+      "id": "done_when-1",
+      "reason": "the node's gate would fail on files it is fenced out of, so as written the measure is unsatisfiable and the worker must either fail the gate or write outside its scope.",
+      "text": "the done-when \"A search of the repository for `--output=` finds no relative or repository-root target\" cannot hold within the declared write scope: seven relative or repository-root writers lie outside it \u2014 `scripts/_disc_regate.sh:7`, `scripts/_disc_regate2.sh:7`, `scripts/_d3_arm.sh:7`, `scripts/_r2_fix_cycle.sh:10`, `scripts/_r2_pipeline.sh:10`, `scripts/slurm/excited_cohort_scan.sbatch:14`, `scripts/slurm/_m1_run_suite.sh:7` \u2014 while the scope names only `imas_ambix/data/cli.py:663`, `scripts/spine_label_fleet.sh:7`, `scripts/temporal_operator_cycle.sh:10` and `scripts/run_magnetics_era_scorecard.sbatch:7`",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/watch-index-lifecycle.html:s7",
+      "id": "reasoning-1",
+      "reason": "that count is the plan's own evidence for its write scope, and understating it by seven is what leaves the section's repository-wide done-when impossible.",
+      "text": "the body states \"Four other writers name a relative or repository-root output and move to the same directory\", but a search of `imas_ambix/` and `scripts/` for a `#SBATCH --output=` target that is relative or repository-root returns eleven files, so the plan plans for four of eleven",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "4e1d00c678151e9b3a58d39bae75cb7d317b088128c945afb1909dd3fe8f6d51",
+  "plan_slug": "watch-index-lifecycle",
+  "plan_version": 19,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T111446698219-plan-review-of-watch-index-lifecycle",
+  "reviewed_blob_sha": "e4860190a559735d0bbcb6bdd3939f05793296a8",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every file \u00a710 and \u00a77 cite exists (`imas_ambix/agent/slurm.py`, `cli.py`, `imas_ambix/data/cli.py`, the three `scripts/` writers, `index_placement.restore_index`, `tests/test_index_placement.py`, `tests/test_agent_ingest_cli.py`, `tests/test_telemetry_ingest.py`).",
+    "done_when": "a finding \u2014 \u00a77's done-when \"A search of the repository for `--output=` finds no relative or repository-root target\" cannot hold inside the section's declared write scope.",
+    "evidence_paths": "pass \u2014 \u00a77's archive target `~/.local/state/ambix/slurm-logs/archive/<YYYY-MM>/` and \u00a710's gate logs sit on durable paths, not a scratchpad or node-local temporary directory.",
+    "naming": "pass \u2014 the new section's text and the `s10` declaration carry no ticket numbers, stage labels or version tags, and no symbol or comment is named after a plan item.",
+    "reasoning": "a finding \u2014 \u00a77's premise \"Four other writers name a relative or repository-root output\" is contradicted by the repository, which carries eleven such writers, and the undercount is what makes the section's own done-when unachievable.",
+    "single_goal": "pass \u2014 \u00a710 carries one deliverable (answer an incompatible schema by rebuilding instead of exiting).",
+    "wiring": "a finding \u2014 \u00a710 declares it gates the \u00a75/\u00a76 deployment, but neither `plan-section-depends-on` (plan.html:22) nor the dispatch followup `f-wil-001` (plan.html:335) records that gate, and the followup's dispatch order omits \u00a710 entirely."
+  },
+  "section_digests": {
+    "_document": "8f51a63a1d8018646a51774f71cf4e4b3c9302bd936c0298de4c3af963fef197",
+    "s1": "3d0d4a4b2f4087609ba3ffca49ccea0ed64b9473687ecd3c5d6d6135d6ba4340",
+    "s10": "77280074af71988f813c07c968531d496bbaaf5103e75e28f87813569c15eaa2",
+    "s2": "32189637430822acde78e34d53cbed7c3f0ae26c9fe044e99dc013e4e1d0db9d",
+    "s3": "404fc86a0b4c4e77af4febf31149dba78e8566091b87bc977876eabdf52a44f5",
+    "s4": "214ae5abf0b93b92e7479cda3f691edea3bc60b7b7ec1485dcced5899519843e",
+    "s5": "07220ee6b71f94c5bd9e6352dc2c18ff164dd9bba3eb996685e8bb2b38ef8c10",
+    "s6": "8b2f491041fb3179e6d53c7859fcb72db3906597e5226962e054b04770cb0773",
+    "s7": "cdcb4309c3820b661c9fa5019bedc42df63bbee11f3b2333c762968a13c9cb9c",
+    "s8": "83ac32d54d4394cd1d9f11da1f46b1eb6420b70f2911084121a031e6f7aff225",
+    "s9": "62bf93e7fec684aebfaadc4ad598642503ca8ee4691eeec898a8aad77e03adf1"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T11:25:33.427204+00:00"
+}
