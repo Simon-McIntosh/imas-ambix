@@ -20,11 +20,11 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment,telemetry">
   <meta name="plan-after" content="local-lane-admission-control#s14,local-lane-admission-control">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;implementable&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;implementable&quot;}">
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="48">
+<meta name="plan-version" content="49">
 <meta name="plan-modified" content="2026-10-23">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -127,7 +127,7 @@
     computes.</p>
 
     <h2 id="s3">&sect;3 &mdash; Servers are declared once</h2>
-<section data-reckon="section" data-id="s3" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s3" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
     <p><code>SiteConfig</code> gains a <code>servers</code> list. Each entry has:</p>
     <ul>
       <li>a name and host;</li>
@@ -317,7 +317,7 @@
     </ul>
 
     <h2 id="s8">&sect;8 &mdash; The llm-watch document</h2>
-<section data-reckon="section" data-id="s8" data-effort-hours="5.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s8" data-effort-hours="5.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
     <p>One builder produces the document that the view renders and
     <code>llm-watch --json</code> prints. It reads only published sources:
     <code>endpoints.json</code>, the lane documents, the tail of the router's request record,
@@ -766,7 +766,10 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
     <div class="r-comment-body"><p>review of r-20261023T014923551774-lane-history-and-outcomes over the commits it gained since the review at a8d8ca6e (b227c9af, 9a66ab5b): parsed, both granted record paths written, scores goal_fidelity 19, evidence 19, scope_discipline 19, durability 18, fit 18, reuse 20, added_failure_count 0 with no added failure ids, two follow-on findings (the cut-read coverage test at lane_callers.py:371 and the stale "58 passed" figure at the evidence fragment's line 71) and no blocking finding</p></div>
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261023T014923551774-lane-history-and-outcomes" data-who="reckon-build" data-when="2026-10-23T03:37:18Z">
-    <div class="r-comment-body"><p>lane-history-and-outcomes: the live watch document&#x27;s request-record block gained a 30-minute history strip (thirty one-minute bins of time-averaged held requests with per-bin gate-wait p50/p95) and a 5-minute outcomes line (completed, aborted, failed, gate_expired), both cut from the one bounded read of the request record the callers level uses, and each level&#x27;s covered flag now answers for its own window; measure: pytest over tests/test_lane_callers.py tests/test_live_panel.py tests/test_agent_watch_live.py tests/test_agent_receipt_bins.py = 66 passed, exit 0, with the bin-edge mutation reddening the hand-computed occupancy test (3 failed, 24 deselected, exit 1) and the callers-flag mutation reddening the per-window coverage test (1 failed, 26 deselected, exit 1)</p></div>
+    <div class="r-comment-body"><p>lane-history-and-outcomes: the live watch document's request-record block gained a 30-minute history strip (thirty one-minute bins of time-averaged held requests with per-bin gate-wait p50/p95) and a 5-minute outcomes line (completed, aborted, failed, gate_expired), both cut from the one bounded read of the request record the callers level uses, and each level's covered flag now answers for its own window; measure: pytest over tests/test_lane_callers.py tests/test_live_panel.py tests/test_agent_watch_live.py tests/test_agent_receipt_bins.py = 66 passed, exit 0, with the bin-edge mutation reddening the hand-computed occupancy test (3 failed, 24 deselected, exit 1) and the callers-flag mutation reddening the per-window coverage test (1 failed, 26 deselected, exit 1)</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-close-s8" data-who="reckon-build" data-when="2026-10-23T04:40:00Z">
+    <div class="r-comment-body"><p>§8 closed. Account and project totals landed in <code>cef1fc00</code>, and the history strip and outcomes line in <code>529df34f</code>. Every §8 done-when bullet for one engine is met, and the engine dimension is §14's. 66 tests pass, and verify-gate passed for both nodes. <a href="/imas-ambix/evidence/archive/serving-across-servers-landed.html#s8">evidence</a></p></div>
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261023T005919938084-review-of-servers-declared-once-c09e6a2a0901" data-who="reckon-build" data-when="2026-10-23T01:34:47.483Z">
     <div class="r-comment-body"><p>review record for r-20261022T235354122944-servers-declared-once, 6 scores 18/19/20/19/19/19, 3 follow-on findings, status parsed</p></div>
@@ -785,6 +788,9 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261022T235354122944-servers-declared-once" data-who="reckon-build" data-when="2026-10-23T03:29:18Z">
     <div class="r-comment-body"><p>docs/evidence/fragments/serving-across-servers/servers-declared-once.html</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-close-s3" data-who="reckon-build" data-when="2026-10-23T04:40:00Z">
+    <div class="r-comment-body"><p>§3 landed in merge <code>2951c29a</code>. Servers are declared once, and serve, restart and key rotation place onto a named server. <code>endpoints.json</code> lists every declared server with declared facts only, and engines are deduplicated by engine id. verify-gate passed at the merged head, and the final review scored 17 to 20. <a href="/imas-ambix/evidence/archive/serving-across-servers-landed.html#s3">evidence</a></p></div>
 </div>
 </section>
 </main>
