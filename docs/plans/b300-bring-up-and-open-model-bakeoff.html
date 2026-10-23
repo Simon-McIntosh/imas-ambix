@@ -21,11 +21,11 @@
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
   <meta name="plan-after" content="rotate-to-deepseek-v4-1-flash-1017">
   <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;deferred&quot;}">
-  <meta name="plan-section-depends-on" content="{&quot;s3&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s2&quot;],&quot;s4&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s5&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s4&quot;],&quot;s6&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s5&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s5&quot;,&quot;serving-across-servers#s7&quot;]}">
+  <meta name="plan-section-depends-on" content="{&quot;s3&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s2&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s4&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s5&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s4&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s3&quot;],&quot;s6&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s5&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s5&quot;,&quot;serving-across-servers#s7&quot;]}">
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="14">
+<meta name="plan-version" content="17">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -202,11 +202,15 @@
     drawn from the receipts' measured prompt-size distribution, not the 128-token prompts
     of the published benchmark. Aggregate and per-request tokens per second, time to first
     token, and the knee (the concurrency beyond which aggregate throughput gains less than
-    5%) come from <code>bench_report</code>'s existing reduction. The figure is drawn from
-    that report. Repeat for <code>b300-4x</code>, so both
+    5%) are read from the ladder's results. <code>bench_report</code> has no knee
+    reduction today (its reductions are <code>describe_run</code> and
+    <code>compare_runs</code>), so this section adds one, <code>bench_report.knee</code>,
+    beside them with a unit test, rather than computing it in the throughput document. The
+    figure is drawn from that report. Repeat for <code>b300-4x</code>, so both
     configurations have a measured knee. The <code>b300-8x</code> knee becomes the engine's
     starting gate width.</p>
-    <p><strong>Write paths.</strong> <code>docs/research/b300-throughput.html</code> (new),
+    <p><strong>Write paths.</strong> <code>imas_ambix/agent/bench_report.py</code>,
+    <code>tests/test_bench.py</code>, <code>docs/research/b300-throughput.html</code> (new),
     <code>docs/figures/b300-throughput</code> (new).</p>
     <p><strong>Done when.</strong></p>
     <ul>
