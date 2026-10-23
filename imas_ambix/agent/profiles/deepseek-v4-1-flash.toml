@@ -56,12 +56,19 @@
 
 [model]
 name = "DeepSeek-V4.1-Flash"
-hf_repo = "deepseek-ai/DeepSeek-V4.1-Flash"
-# Its own directory rather than sharing with V4-Flash: a different architecture
-# and a different shard count, so a shared directory would leave one release's
-# shards beside the other's index with no way to tell afterwards which
-# checkpoint a run actually loaded.
-weights_slug = "deepseek-v4-1-flash"
+hf_repo = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+# A repository's default branch can move after a download, so a profile naming
+# only the repository leaves the weights a deployment loads to depend on the
+# day it ran. The pin fixes which commit this profile serves, and the generated
+# download script resolves it before transferring and refuses a revision this
+# repository does not publish.
+revision = "1bae0e1088993b9b82de08f59de5be5a34e42170"
+# Its own directory rather than sharing with the September release: one
+# directory holds one release's shards, so a shared directory would leave two
+# releases' shards beside each other's index with no way to tell afterwards
+# which checkpoint a run actually loaded. The September directory stays in the
+# rollback slot until the rotation has held.
+weights_slug = "deepseek-v4-1-flash-1017"
 served_name = "deepseek-v4.1-flash"
 checkpoint_precision = "mxfp4+fp8"
 size_gb = 510

@@ -28,6 +28,11 @@ class ModelConfig(BaseModel):
 
     name: str
     hf_repo: str
+    # Commit of ``hf_repo`` the weights are fetched at. A repository's default
+    # branch can move, so a fetch naming only the repository leaves which
+    # weights a deployment loads to depend on the day it ran; and where one
+    # repo id carries several releases, only the commit names the release.
+    revision: str | None = None
     served_name: str
     size_gb: int
     max_context: int

@@ -1,0 +1,75 @@
+<section id="profile-points-at-1017" data-node="profile-points-at-1017">
+  <h2 id="profile-points-at-1017-heading">The profile names the 1017 release</h2>
+
+  <p id="profile-points-at-1017-change">
+    <code>ModelConfig</code> gained an optional <code>revision</code> field, and the
+    <code>deepseek-v4-1-flash</code> profile now declares the 1017 release by repository
+    (<code>deepseek-ai/DeepSeek-V4.1-Flash-1017</code>), by the commit
+    <code>1bae0e1088993b9b82de08f59de5be5a34e42170</code>, and by a weights directory of
+    its own (<code>weights_slug = "deepseek-v4-1-flash-1017"</code>). Neither is a
+    property of this update: a repository's default branch can move, so a profile naming
+    only the repository leaves the weights a deployment loads to depend on the day it ran,
+    and a directory of its own is what keeps two releases from sharing a shard set.
+    <code>served_name</code> is unchanged, so the release answers to the one
+    client-visible name <code>deepseek-v4.1-flash</code>.
+  </p>
+
+  <p id="profile-points-at-1017-serve">
+    The generated serve script moves exactly one line for this change, its
+    <code>MODEL_DIR</code>, now
+    <code>/work/projects/imas_gpu/agents/deepseek-v4-1-flash-1017/model</code>. The test
+    asserts equality modulo the weights directory rather than a substring, so a serving
+    setting that moved alongside the checkpoint would fail it. Against the base revision the
+    profile's <code>[model]</code> block differs in three keys —
+    <code>hf_repo</code>, <code>revision</code> and <code>weights_slug</code> — and only
+    <code>weights_slug</code> is read by the serve generator, which is why one line is the
+    whole difference.
+  </p>
+
+  <p id="profile-points-at-1017-shards">
+    The 48 shards already in that directory were verified against the repository's own
+    listing at the pinned commit — size and SHA-256 per shard, all 48 matching — by SLURM
+    job 1294295 on <code>sirius</code>. The log is
+    <code>shard-verify.log</code> beside this fragment; its
+    <code>slurmstepd</code> warnings are inherited <code>TMPDIR</code> noise from the
+    five-day-old allocation the job was submitted from, not a fault of the run, whose last
+    line reads <code>EXIT=0</code>.
+  </p>
+
+  <p id="profile-points-at-1017-download">
+    The generated download script resolves the pin before it transfers anything and passes
+    it on: the client is asked for <code>--revision "$REVISION"</code>, and a
+    <code>models info --expand sha</code> call through that same client runs first and
+    ends the job if the repository does not publish the revision. Both call the same
+    variable, so the check and the transfer cannot disagree about what was published. The
+    refusal matters beyond a fast failure: a client that cannot resolve a revision follows
+    the repository's default stream, which is the substitution the pin exists to prevent.
+    Profiles declaring no revision are untouched — all nine were compared against the
+    previous generator at <code>a7d24c5a</code> and generate byte-identical scripts, while
+    this profile's script differs only by the <code>REVISION</code> line, the check and the
+    flag (<code>download-script-delta.log</code>).
+  </p>
+
+  <p id="profile-points-at-1017-negative-control">
+    Both halves were shown to fail. The shard verifier: a scratch directory holding 47
+    symlinks to the real shards and one full copy of
+    <code>model-00001-of-00048.safetensors</code> with a single byte flipped at offset
+    5,000,000 reported <code>MISMATCH</code> for that shard and
+    <code>VERDICT: FAIL</code>. Its first attempt also failed honestly: the recursive
+    listing endpoint paginates at fifty entries, served only thirteen shards of the
+    forty-eight, and the verifier's own control refused that listing rather than reporting
+    the thirty-five absent from it as missing files. The refusal: deleting the check from
+    a scratch copy of the generator left the script running the transfer to completion
+    against an unpublished revision — exit 0, download complete — and the refusal test
+    failed on it, so the guard is load-bearing rather than decorative. The copy was
+    restored under a trap and the restore is verified by checksum, not assumed. Both
+    control logs are outside the tree, at
+    <code>~/.config/reckon/crew/runs/r-20261023T140736542637-profile-points-at-1017/</code>.
+  </p>
+
+  <p id="profile-points-at-1017-gate">
+    Gate: <code>pytest -p no:cacheprovider tests/test_agent_dspark_profile.py</code> — 12
+    passed, of which five are new; whole-tree
+    <code>ruff check imas_ambix tests</code> exits 0.
+  </p>
+</section>

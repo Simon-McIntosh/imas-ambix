@@ -3,10 +3,64 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
+import subprocess
+from pathlib import Path
 
-from imas_ambix.agent.profile import SiteConfig, load_profile
-from imas_ambix.agent.slurm import generate_serve_script
+from imas_ambix.agent.profile import ModelProfile, SiteConfig, load_profile
+from imas_ambix.agent.slurm import generate_download_script, generate_serve_script
+
+CHECKPOINT_SHA = "1bae0e1088993b9b82de08f59de5be5a34e42170"
+CHECKPOINT_REPO = "deepseek-ai/DeepSeek-V4.1-Flash-1017"
+CHECKPOINT_MODEL_DIR = "/work/projects/imas_gpu/agents/deepseek-v4-1-flash-1017/model"
+SEPTEMBER_MODEL_DIR = "/work/projects/imas_gpu/agents/deepseek-v4-1-flash/model"
+
+
+def test_profile_pins_the_checkpoint_it_serves() -> None:
+    """The profile names the release, not the repository family it lives in.
+
+    The 1017 update publishes weights at a commit of that repository so its
+    repo id alone would leave a download free to follow the default branch.
+    weights_slug keeps one release per directory, and served_name stays the
+    single client-visible name every release of this family answers to.
+    """
+    profile = load_profile("deepseek-v4-1-flash")
+
+    assert profile.model.hf_repo == CHECKPOINT_REPO
+    assert profile.model.revision == CHECKPOINT_SHA
+    assert profile.weights_directory_slug == "deepseek-v4-1-flash-1017"
+    assert profile.model.served_name == "deepseek-v4.1-flash"
+
+
+def test_serve_script_moves_only_the_weights_directory() -> None:
+    """The release change reaches the serve as the directory it loads from.
+
+    The baseline is this same profile with the September weights directory
+    restored, so what is asserted is that the release change moves exactly one
+    line of the generated script -- a change that moved anything else would be
+    a serving-setting change dressed as a checkpoint pin.
+    """
+    profile = load_profile("deepseek-v4-1-flash")
+    september = profile.model_copy(deep=True)
+    september.model.weights_slug = "deepseek-v4-1-flash"
+
+    pinned = generate_serve_script(profile, SiteConfig(), port=18810)
+    baseline = generate_serve_script(september, SiteConfig(), port=18810)
+
+    assert f"MODEL_DIR={CHECKPOINT_MODEL_DIR}" in pinned
+    assert len(pinned.splitlines()) == len(baseline.splitlines())
+    differing = [
+        (was, now)
+        for was, now in zip(baseline.splitlines(), pinned.splitlines(), strict=True)
+        if was != now
+    ]
+    assert differing == [
+        (
+            "        MODEL_DIR=" + SEPTEMBER_MODEL_DIR,
+            f"        MODEL_DIR={CHECKPOINT_MODEL_DIR}",
+        )
+    ]
 
 
 def _speculative_config(script: str) -> dict[str, object]:
@@ -131,3 +185,121 @@ def test_no_profile_declares_the_router_port():
         assert profile.slurm.port != router_port, (
             f"profile {slug!r} declares the router port {router_port}"
         )
+
+
+STUB_DOWNLOAD_ARGV = "hf-download-argv.txt"
+
+
+def _site_for(tmp_path: Path) -> SiteConfig:
+    return SiteConfig(
+        base_dir=str(tmp_path), engine_env_root=str(tmp_path / "engine-envs")
+    )
+
+
+def _write_hf_stub(site: SiteConfig, profile: ModelProfile, *, confirm: bool) -> Path:
+    """Write the ``hf`` the generated script resolves, and return its path.
+
+    ``models info`` answers as *confirm* asks it to; ``download`` records the
+    arguments it was handed and writes the config the script validates at the
+    end, so a test reads what the script asked the client for without any
+    transfer and without a network.
+    """
+    hf = site.hf_path(profile.engine.type)
+    hf.parent.mkdir(parents=True, exist_ok=True)
+    hf.write_text(
+        "#!/bin/bash\n"
+        'if [[ "$1" == "models" ]]; then\n'
+        '    echo \'{"id": "stub"}\'\n'
+        f"    exit {0 if confirm else 1}\n"
+        "fi\n"
+        'printf "%s\\n" "$@" > "$STUB_DOWNLOAD_ARGV"\n'
+        'touch "$STUB_MODEL_DIR/config.json"\n',
+        encoding="utf-8",
+    )
+    hf.chmod(0o755)
+    return hf
+
+
+def _run_download_script(
+    script: str, *, model_dir: Path, argv_path: Path
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bash"],
+        input=script,
+        capture_output=True,
+        text=True,
+        check=False,
+        env={
+            **os.environ,
+            "STUB_DOWNLOAD_ARGV": str(argv_path),
+            "STUB_MODEL_DIR": str(model_dir),
+        },
+    )
+
+
+def test_download_refuses_a_revision_the_repository_does_not_publish(
+    tmp_path: Path,
+) -> None:
+    """A pin the repository cannot resolve must stop the job before transfer.
+
+    The stub's argument file is the instrument: the script exits non-zero and
+    that file is absent, so the client was never asked to fetch anything. A
+    refusal that arrives after the transfer has begun would leave the file
+    behind and read as a failed download rather than as a refused pin.
+    """
+    profile = load_profile("deepseek-v4-1-flash")
+    site = _site_for(tmp_path)
+    _write_hf_stub(site, profile, confirm=False)
+    argv_path = tmp_path / STUB_DOWNLOAD_ARGV
+
+    result = _run_download_script(
+        generate_download_script(profile, site),
+        model_dir=site.model_dir(profile),
+        argv_path=argv_path,
+    )
+
+    assert result.returncode != 0
+    assert "refusing to download" in result.stderr
+    assert not argv_path.exists(), "the transfer started despite the refusal"
+
+
+def test_download_script_passes_the_pinned_revision_to_the_client(
+    tmp_path: Path,
+) -> None:
+    """The release the profile names is the release the client is asked for."""
+    profile = load_profile("deepseek-v4-1-flash")
+    site = _site_for(tmp_path)
+    _write_hf_stub(site, profile, confirm=True)
+    argv_path = tmp_path / STUB_DOWNLOAD_ARGV
+
+    result = _run_download_script(
+        generate_download_script(profile, site),
+        model_dir=site.model_dir(profile),
+        argv_path=argv_path,
+    )
+
+    assert result.returncode == 0, result.stderr
+    argv = argv_path.read_text(encoding="utf-8").split()
+    assert argv[0] == "download"
+    assert argv[argv.index("--revision") + 1] == CHECKPOINT_SHA
+    assert argv[argv.index("--local-dir") + 1] == str(site.model_dir(profile))
+    # And the check that admits the transfer precedes it in the script.
+    script = generate_download_script(profile, site)
+    assert script.index("models info") < script.index("hf download")
+
+
+def test_download_script_pins_nothing_when_no_revision_is_declared() -> None:
+    """A profile without a pin keeps the download it generated before.
+
+    The pin is a property of a profile that declares one, so clearing it must
+    remove the flag and the check together rather than leave a check resolving
+    an empty revision.
+    """
+    unpinned = load_profile("deepseek-v4-1-flash").model_copy(deep=True)
+    unpinned.model.revision = None
+
+    script = generate_download_script(unpinned, SiteConfig())
+
+    assert "--revision" not in script
+    assert "REVISION=" not in script
+    assert "models info" not in script
