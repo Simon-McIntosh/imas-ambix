@@ -1,0 +1,52 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 1,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:3445 the ingest click command body, registered at imas_ambix/agent/cli.py:3384 and launched by the fleet supervisor service as imas-ambix agent ingest"
+  ],
+  "completed_at": "2026-10-23T19:12:51.626Z",
+  "dispatched_at": "2026-10-23T19:03:18Z",
+  "findings": [],
+  "gate_sources": {
+    "after_suite": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T174829412224-wil-ingest-uses-the-index-install-owner/after-suite.log",
+    "baseline_suite": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T174829412224-wil-ingest-uses-the-index-install-owner/baseline-suite.log"
+  },
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 1 production call site: imas_ambix/agent/cli.py:3445, the ingest click command body the fleet service launches.",
+    "diff": "Read commit by commit from 58c154f78c8d to 12dcb14b39f4: 8e943d08 switches the two cli.py index call sites onto index_placement and extends one test plus adds another; 12dcb14b adds the evidence fragment only.",
+    "done_when": "The done_when markers hold at the committed head: a grep for _snapshot_paths/os.replace in imas_ambix/agent/cli.py returns nothing, after-suite.log ends 65 passed EXIT=0 against baseline-suite.log 64 passed EXIT=0, serving-guard.log ends 1 passed EXIT=0, ruff.log reports All checks passed, and negative-control.log ends EXIT=1 with the rebuild refusal.",
+    "goal": "The source goal is to switch the ingest command's two index call sites onto index_placement's public snapshot_exists and install_index; imas_ambix/agent/cli.py:3520 now calls snapshot_exists and cli.py:3530 calls install_index, replacing the private _snapshot_paths lookup and the inline os.replace.",
+    "manifest": "Read; it names commits 8e943d08 and 12dcb14b, records the three-file suite, serving guard, whole-tree Ruff and the stale-journal negative control, and its figures reconcile with the logs in the run directory.",
+    "write_paths": "The brief grants imas_ambix/agent/cli.py, tests/test_agent_ingest_cli.py, docs/evidence/fragments/watch-index-lifecycle/wil-ingest-uses-the-index-install-owner.html and its figure directory; git diff 58c154f7..12dcb14b changes only the first three, all on those declared paths."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_ingest_cli.py:87-88 asserts len(installed)==1 and installed[0][1]==index_path, which redden if cli.py stops routing through install_index, and tests/test_agent_ingest_cli.py:114 asserts seen==[True], which reddens if cli.py returns to index_placement._snapshot_paths.",
+    "evidence": "baseline-suite.log and after-suite.log record 64 and 65 passing tests at revisions 58c154f7 and 8e943d08, serving-guard.log ends 1 passed EXIT=0, ruff.log reports All checks passed, and negative-control.log ends EXIT=1 with a failing test id the head arm does not fail.",
+    "fit": "imas_ambix/agent/cli.py:3520 and cli.py:3530 call index_placement functions as module attributes, matching index_placement.resolve_index_path at cli.py:3512 and index_placement.restore_index at cli.py:3518, and the regression test extends the existing test_old_schema_index_rebuilds_before_first_tick rather than adding a parallel one.",
+    "goal_fidelity": "imas_ambix/agent/cli.py:3520 replaces the private _snapshot_paths predicate with index_placement.snapshot_exists() and cli.py:3530 replaces the inline sidecar unlink plus os.replace with index_placement.install_index.",
+    "reuse": "the capability search over imas_ambix found snapshot detection and index installation owned by imas_ambix/agent/index_placement.py:90 snapshot_exists and imas_ambix/agent/index_placement.py:109 install_index, and the diff extends those owners rather than adding a second implementation.",
+    "scope_discipline": "git diff 58c154f7..12dcb14b touches only imas_ambix/agent/cli.py, tests/test_agent_ingest_cli.py and docs/evidence/fragments/watch-index-lifecycle/wil-ingest-uses-the-index-install-owner.html, all inside the declared write paths."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The source goal is to switch the two ingest index call sites onto index_placement's public snapshot_exists and install_index; imas_ambix/agent/cli.py:3520 now calls snapshot_exists and cli.py:3530 calls install_index, replacing the private _snapshot_paths lookup and the inline os.replace.\nVERDICT done_when: The done_when markers hold at the committed head: a grep for _snapshot_paths/os.replace in imas_ambix/agent/cli.py returns nothing, after-suite.log ends 65 passed EXIT=0 against baseline-suite.log 64 passed EXIT=0, serving-guard.log ends 1 passed EXIT=0, ruff.log reports All checks passed, and negative-control.log ends EXIT=1 with the rebuild refusal.\nVERDICT write_paths: The brief grants imas_ambix/agent/cli.py, tests/test_agent_ingest_cli.py, docs/evidence/fragments/watch-index-lifecycle/wil-ingest-uses-the-index-install-owner.html and its figure directory; git diff 58c154f7..12dcb14b changes only the first three, all on those declared paths.\nVERDICT manifest: Read; it names commits 8e943d08 and 12dcb14b, records the three-file suite, serving guard, whole-tree Ruff and the stale-journal negative control, and its figures reconcile with the logs in the run directory.\nVERDICT diff: Read commit by commit from 58c154f78c8d to 12dcb14b39f4; 8e943d08 switches the two cli.py index call sites onto index_placement.snapshot_exists and index_placement.install_index and extends one test plus adds another, while 12dcb14b adds only the evidence fragment.\nCALL_SITES: imas_ambix/agent/cli.py:3445 the ingest click command body, registered at imas_ambix/agent/cli.py:3384 and launched by the fleet supervisor service as imas-ambix agent ingest\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: imas_ambix/agent/cli.py:3520 replaces the private _snapshot_paths predicate with index_placement.snapshot_exists() and cli.py:3530 replaces the inline sidecar unlink plus os.replace with index_placement.install_index.\nSCORE evidence: 19\nJUSTIFICATION evidence: baseline-suite.log and after-suite.log record 64 and 65 passing tests at revisions 58c154f7 and 8e943d08, serving-guard.log ends 1 passed EXIT=0, ruff.log reports All checks passed, and negative-control.log ends EXIT=1 with a failing test id the head arm does not fail.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff 58c154f7..12dcb14b touches only imas_ambix/agent/cli.py, tests/test_agent_ingest_cli.py and docs/evidence/fragments/watch-index-lifecycle/wil-ingest-uses-the-index-install-owner.html, all inside the declared write paths.\nSCORE durability: 19\nJUSTIFICATION durability: tests/test_agent_ingest_cli.py:87-88 asserts len(installed)==1 and installed[0][1]==index_path, which redden if cli.py stops routing through install_index, and tests/test_agent_ingest_cli.py:114 asserts seen==[True], which reddens if cli.py returns to index_placement._snapshot_paths.\nSCORE fit: 20\nJUSTIFICATION fit: imas_ambix/agent/cli.py:3520 and cli.py:3530 call index_placement functions as module attributes, matching index_placement.resolve_index_path at cli.py:3512 and index_placement.restore_index at cli.py:3518, and the regression test extends the existing test_old_schema_index_rebuilds_before_first_tick rather than adding a parallel one.\nSCORE reuse: 20\nJUSTIFICATION reuse: the capability search over imas_ambix found snapshot detection and index installation owned by imas_ambix/agent/index_placement.py:90 snapshot_exists and imas_ambix/agent/index_placement.py:109 install_index, and the diff extends those owners rather than adding a second implementation.\n",
+  "review_run_id": "r-20261023T190229859864-review-of-wil-ingest-uses-the-index-install-owner-12dcb14b39f4",
+  "reviewed_base_sha": "58c154f78c8dc7123d29be288e952bae6f9d4fb7",
+  "reviewed_head_sha": "12dcb14b39f4735dd6c9c932e3e48dec674c306f",
+  "reviewed_run_id": "r-20261023T174829412224-wil-ingest-uses-the-index-install-owner",
+  "scores": {
+    "durability": 19,
+    "evidence": 19,
+    "fit": 20,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T19:16:00.000000+00:00",
+  "total": 118
+}
