@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
 #SBATCH --time=01:00:00
-#SBATCH --output=/home/ITER/mcintos/Code/imas-ambix/_mag_scorecard_%j.log
+#SBATCH --output=/home/ITER/mcintos/.local/state/ambix/slurm-logs/_mag_scorecard_%j.log
 
 set -euo pipefail
 cd /home/ITER/mcintos/Code/imas-ambix

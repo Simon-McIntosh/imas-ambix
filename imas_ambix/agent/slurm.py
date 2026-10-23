@@ -120,6 +120,11 @@ def overlap_room(profile: ModelProfile, site: SiteConfig) -> tuple[bool, str]:
         return False, f"cannot establish overlap room: {error}"
 
 
+def slurm_log_path(output_name: str) -> Path:
+    """Resolve a job's stdout name outside the submitting directory."""
+    return Path.home() / ".local" / "state" / "ambix" / "slurm-logs" / output_name
+
+
 def _sbatch_headers(
     *,
     job_name: str,
@@ -147,7 +152,7 @@ def _sbatch_headers(
             f"#SBATCH --cpus-per-task={cpus}",
             f"#SBATCH --mem={memory}",
             f"#SBATCH --time={time_limit}",
-            f"#SBATCH --output={output_name}",
+            f"#SBATCH --output={slurm_log_path(output_name)}",
         ]
     )
     return headers
