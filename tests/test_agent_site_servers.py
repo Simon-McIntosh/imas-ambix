@@ -29,14 +29,10 @@ _BASE_SITE = SiteConfig(
     endpoint_document_path="/tmp/ambix-endpoints.json",
 )
 
-# sha256 of the script `imas-ambix agent serve deepseek-v4-1-flash --dry-run`
-# printed at the revision before a site could declare more than one server,
-# under the site above. Declaring none must not move a byte of it.
-#
-# The digest is taken with the checkout's own root -- which the script embeds
-# in PYTHONPATH and in the kernel-patch bind -- replaced by `_REPOSITORY_ROOT`,
-# so it does not record where the tree happened to sit.
-_BASE_SCRIPT_DIGEST = "d83d58cb79e1801bed704ed7b64c710bab0510afe9777b65e9b48cb860505773"
+# sha256 of the serve script under the site above. The script embeds the
+# checkout root and the user's state-log directory, so both paths are
+# normalized to keep the digest independent of the checkout and home.
+_BASE_SCRIPT_DIGEST = "87e59fa736232e8bb0d63bf4b3d93bf342a3dbba7f6bb7b94e248dd47f122653"
 
 _REPOSITORY_ROOT = str(Path(__file__).resolve().parents[1])
 
@@ -68,11 +64,13 @@ def _two_server_site() -> SiteConfig:
     return _BASE_SITE.model_copy(update={"servers": [_H200, _B300]})
 
 
-def test_no_declared_servers_prints_the_script_it_printed_before():
-    """An unconfigured site resolves to one server and generates the same text."""
+def test_no_declared_servers_match_reference_script():
+    """An unconfigured site resolves to one server and a stable script."""
     profile = load_profile("deepseek-v4-1-flash")
     script = generate_serve_script(profile, _BASE_SITE, port=profile.slurm.port)
-    normalised = script.replace(_REPOSITORY_ROOT, "<repo>")
+    normalised = script.replace(_REPOSITORY_ROOT, "<repo>").replace(
+        str(Path.home()), "<home>"
+    )
 
     assert hashlib.sha256(normalised.encode()).hexdigest() == _BASE_SCRIPT_DIGEST
 

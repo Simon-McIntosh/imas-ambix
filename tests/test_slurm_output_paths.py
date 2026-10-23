@@ -94,6 +94,7 @@ def test_setup_submission_names_both_state_logs(
 
     assert result.exit_code == 0, result.output
     log_dir = tmp_path / ".local/state/ambix/slurm-logs"
-    assert str(log_dir / "ambix-setup-vllm-41.log") in result.output
-    assert str(log_dir / "ambix-runtime-check-vllm-42.log") in result.output
+    message = result.output.replace("\n", "")
+    assert str(log_dir / "ambix-setup-vllm-41.log") in message
+    assert str(log_dir / "ambix-runtime-check-vllm-42.log") in message
     assert len(submitted) == 2
