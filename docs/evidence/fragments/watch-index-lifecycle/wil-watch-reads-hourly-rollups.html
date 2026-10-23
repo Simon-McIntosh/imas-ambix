@@ -1,5 +1,5 @@
 <section id="wil-watch-reads-hourly-rollups">
-  <h2>Hourly watch reads: implementation checkpoint</h2>
+  <h2>Hourly watch reads</h2>
   <p>The base query still reproduced the planned defect: its gauge window
   function selected every row with a timestamp before applying the period
   bounds, and its counter query selected every matching row before the period
@@ -9,20 +9,32 @@
   one bounded statement. A live query-plan check exposed a full measurement
   scan in that statement; the repaired join searches measurements by sample
   primary key after selecting bounded edge rows.</p>
-  <p>A 30-hour receipt fixture produced exact field-by-field equality between
-  <code>watch_document</code> and an independent raw-row reader (1 passed).
-  Perturbing a populated gauge summary made that test fail at
-  <code>$.ledger[1].utilisation</code> (EXIT=1). A node-local rebuild from 108
-  offered receipt files selected 32 files, inserted 472,827 rows, and read
-  1,278,209,182 receipt bytes in 1,498 seconds. The rebuilt index used
-  3,805,589,504 bytes, beside the old index's 8,678,658,048 bytes and the
-  2.11 GB estimate. A fresh <code>watch_document</code> call took 4.475 seconds;
-  a later warm call took 0.675 seconds.</p>
-  <p>The live field comparison is unresolved: after fixing moving auxiliary
-  caller data in the measurement script, the rollup and raw readers disagreed
-  at <code>$.ledger[1].cached</code>. The worker stopped at its retry fence.
-  The ingest-tick timing was therefore not run. The three named test files
-  produced 119 passes and one timeout while a test restored an existing
-  8.67 GB snapshot onto the shared slow scratch disk. The serving-interpreter
-  parse guard and whole-tree ruff check passed.</p>
+  <p>The cached device and external tiers are cumulative counters. A one-day
+  reproduction found their stored kind was interval: rollup totals were 300
+  versus raw 9,500 device tokens and 75 versus raw 2,375 external tokens.
+  Classifying both in the shared cumulative dictionary made the regression
+  pass. A fresh index rebuilt from 108 offered receipt files selected 32,
+  inserted 473,215 rows, and read 1,279,656,948 receipt bytes in 544 seconds.
+  Its 3,810,488,320 bytes compare with the old 8,678,658,048 bytes and the
+  2.11 GB estimate.</p>
+  <p>With the live block frozen for both readers, <code>watch_document</code>
+  returned exact field-by-field equality against the raw computation over that
+  rebuilt index. It took 3.959 seconds; a prior full call after the query-plan
+  repair took 4.475 seconds, both under five seconds. Rollup maintenance added
+  0.024 seconds to a 60-row ingest tick (1.925 seconds total). A 15.279-second
+  cold call at the repaired revision was not repeatable: a later profile at
+  that revision took 5.607 seconds and then 1.151 seconds. The instrumented
+  index methods took 0.786 seconds of the 5.607-second call. The separately
+  timed live block took 1.833 seconds cold and 0.326 seconds warm; index open,
+  other document work and cold I/O occupy the uninstrumented remainder. The
+  query plan uses bounded edge rows and a sample-key join, so the measured
+  delay does not show a return to raw whole-history reads.</p>
+  <p>A populated gauge rollup perturbation made the current-revision fixture
+  comparison fail at <code>$.ledger[1].utilisation</code> (EXIT=1); the normal
+  comparison passed. The live perturbation run first reported
+  <code>$.index.age_seconds</code> because its edit advanced the database
+  modification time, so that particular first difference does not establish
+  a ledger mismatch. The named suites passed 120 tests with one external
+  snapshot restoration test deselected for a separate isolation change. The
+  serving-interpreter parse guard passed, and whole-tree ruff exited zero.</p>
 </section>
