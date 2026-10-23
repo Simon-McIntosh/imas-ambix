@@ -25,7 +25,7 @@
   <title>Rotate to DeepSeek-V4.1-Flash-1017 | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="9">
+<meta name="plan-version" content="12">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -113,9 +113,21 @@
     <code>model.safetensors.index.json</code> and every shard it names. If not, the restart
     refuses and the lane is never paused. The preflight runs in a real restart, not only in
     <code>--dry-run</code>.</p>
+    <p><strong>No new module.</strong> The OpenAI-dialect probe already exists:
+    <code>bench.py</code>'s <code>tool_use</code> category offers the <code>get_weather</code>
+    function through <code>_chat(..., tools=...)</code> and checks that
+    <code>tool_calls</code> is non-empty and its arguments parse
+    (<code>bench.py:1280–1326</code>). That check is factored into one public function,
+    <code>bench.check_tool_call</code>, which both the bench and the restart validation call.
+    The Anthropic-dialect check is added beside it as <code>bench.check_tool_use</code>. The
+    restart wires both into the <code>validate</code> callback that <code>run_reload</code>
+    and <code>run_overlap</code> already take (<code>cli.py:2641</code>). The new public
+    surface is these two functions and the preflight. Nothing is retired, because the
+    bench keeps its behaviour through the same function.</p>
     <p><strong>Write paths.</strong> <code>imas_ambix/agent/cli.py</code> (the restart
-    validation), <code>imas_ambix/agent/serve_probe.py</code> (new),
-    <code>tests/test_agent_serve_probe.py</code> (new).</p>
+    validation and preflight), <code>imas_ambix/agent/bench.py</code>,
+    <code>tests/test_bench.py</code>, <code>tests/test_agent_restart_validation.py</code>
+    (new).</p>
     <p><strong>Done when.</strong></p>
     <ul>
       <li>Both probes pass against today's served engine through the router, run once from
@@ -132,29 +144,42 @@
     <h2 id="s4">§4 — Record which release answered</h2>
 <section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
     <p>The served name stays <code>deepseek-v4.1-flash</code> through the rotation, so the name
-    no longer says which weights answered. The serve's registration therefore carries a
-    <code>release</code>: <code>&lt;hf_repo&gt;@&lt;revision&gt;</code>, written by the serve
-    job from its profile at start. <code>endpoints.json</code> publishes it on the engine's
-    entry. A receipt already names its <code>upstream</code> engine, so a reader joins
-    receipts to releases through the registration in force at the receipt's time. That needs
-    no router change and no router restart. The join has one owner,
-    <code>registry.release_at(engine_id, when)</code>, which returns the release of the
-    registration serving that engine at that instant. A registration written before this
-    section reads <code>release: null</code>, and <code>release_at</code> returns
-    <code>None</code> for it: unknown, never guessed.</p>
+    no longer says which weights answered. Two records carry it instead. The field is named
+    <code>checkpoint</code>, because "release" already means two other things in this
+    subsystem: <code>registry.release_registration</code> clears a held allocation, and
+    clive's release id names a served endpoint.</p>
+    <ul>
+      <li><strong>Now.</strong> The serve's registration carries <code>checkpoint:
+      &lt;hf_repo&gt;@&lt;revision&gt;</code>, written by the serve job from its profile at
+      start, and <code>endpoints.json</code> publishes it on the engine's entry.</li>
+      <li><strong>History.</strong> A registration is one file per job, rewritten in place
+      and deleted when the job ends, so it cannot answer what served last week. The
+      recorder's per-job file can. Each row already carries a <code>serve_config</code>
+      section read from the engine. That section gains the engine's own reported
+      <code>model_path</code>, and since every checkpoint has its own directory, every row
+      then records the checkpoint that produced it. A receipt joins to rows through its
+      <code>upstream</code> engine and the job's recorder file, with no new store and no
+      timestamp index.</li>
+    </ul>
+    <p>A registration written before this section reads <code>checkpoint: null</code>, which a
+    reader reports as unknown and never guesses. The new surface is one field on the
+    registration and the endpoint, and one key in <code>serve_config</code>. Nothing is
+    retired. No router change is needed.</p>
     <p><strong>Write paths.</strong> <code>imas_ambix/agent/registry.py</code>,
-    <code>imas_ambix/agent/slurm.py</code>, <code>tests/test_agent_serve_registry.py</code>,
-    <code>tests/test_agent_endpoint_discovery.py</code>.</p>
+    <code>imas_ambix/agent/slurm.py</code>, <code>imas_ambix/agent/serving_receipts.py</code>,
+    <code>tests/test_agent_serve_registry.py</code>,
+    <code>tests/test_agent_endpoint_discovery.py</code>,
+    <code>tests/test_agent_serving_receipts.py</code>.</p>
     <p><strong>Done when.</strong></p>
     <ul>
       <li>A registration written by a generated serve script carries the profile's
-      <code>hf_repo@revision</code>, and <code>endpoints.json</code> publishes it on the
-      engine's entry.</li>
-      <li><code>release_at</code> over two registrations of one engine, the September release
-      then 1017, returns the September release for an instant before the second
-      registration and 1017 for one after it.</li>
-      <li>A registration with no <code>release</code> key is read as <code>null</code> and the
-      document still builds.</li>
+      <code>hf_repo@revision</code> as <code>checkpoint</code>, and <code>endpoints.json</code>
+      publishes it on the engine's entry.</li>
+      <li>A recorder row built from a fixture engine report carries
+      <code>serve_config.model_path</code> exactly as the engine reported it. An engine that
+      reports none leaves the key absent rather than empty.</li>
+      <li>A registration with no <code>checkpoint</code> key is read as <code>null</code> and
+      the document still builds.</li>
       <li><strong>Negative control:</strong> a profile with no revision writes
       <code>&lt;hf_repo&gt;@unpinned</code>, never a commit read from the downloaded
       directory's cache.</li>
@@ -195,8 +220,9 @@
     September directory, which §2 keeps for a week.</p>
     <p><strong>Done when.</strong></p>
     <ul>
-      <li><code>endpoints.json</code> shows the engine's <code>release</code> as
-      <code>deepseek-ai/DeepSeek-V4.1-Flash-1017@1bae0e10…</code>, and
+      <li><code>endpoints.json</code> shows the engine's <code>checkpoint</code> as
+      <code>deepseek-ai/DeepSeek-V4.1-Flash-1017@1bae0e10…</code>, the recorder's newest row
+      shows <code>serve_config.model_path</code> under <code>deepseek-v4-1-flash-1017</code>, and
       <code>/v1/models</code> still lists <code>deepseek-v4.1-flash</code>.</li>
       <li>A reckon worker dispatched on the local lane after the cycle completes its node and
       promotes.</li>
