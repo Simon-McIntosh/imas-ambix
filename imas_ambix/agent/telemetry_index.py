@@ -911,8 +911,6 @@ class TelemetryIndex:
         self._migrate()
         self._identity_clock = time.monotonic
         self._hashes: dict[tuple[int, int], _SourceHash] = {}
-        self._unverified_sources: set[tuple[str, int]] = set()
-        self._seed_hashes()
 
     @classmethod
     def readonly(
@@ -949,7 +947,6 @@ class TelemetryIndex:
         index._conn.row_factory = sqlite3.Row
         index._identity_clock = time.monotonic
         index._hashes = {}
-        index._unverified_sources = set()
         return index
 
     def _migrate(self) -> None:
@@ -970,69 +967,6 @@ class TelemetryIndex:
                 self._conn.execute(f"ALTER TABLE source ADD COLUMN {column} TEXT")
                 self._conn.commit()
 
-    def _seed_hashes(self) -> None:
-        """Rebuild committed hash states once before the first ingest tick."""
-        seen: set[tuple[str, int]] = set()
-        verified_rows: list[tuple[int, str, str, str, int, int, str]] = []
-        rows = self._conn.execute(
-            "SELECT path, inode, offset, prefix_sha, head_sha, tail_sha, mtime_ns "
-            "FROM source "
-            "ORDER BY offset DESC"
-        )
-        for row in rows:
-            source = (row["path"], row["inode"])
-            if source in seen or not row["offset"]:
-                continue
-            seen.add(source)
-            self._unverified_sources.add(source)
-            path = Path(row["path"])
-            try:
-                stat = path.stat()
-                if stat.st_ino != row["inode"] or stat.st_size < row["offset"]:
-                    continue
-                digest = _hash_of(path, row["offset"])
-                if digest is None or digest.hexdigest() != row["prefix_sha"]:
-                    continue
-                head, tail = _probe_windows(path, row["offset"])
-            except OSError:
-                continue
-            if row["head_sha"] and hashlib.sha256(head).hexdigest() != row["head_sha"]:
-                continue
-            if row["tail_sha"] and hashlib.sha256(tail).hexdigest() != row["tail_sha"]:
-                continue
-            self._hashes[(stat.st_dev, stat.st_ino)] = _SourceHash(
-                row["offset"],
-                digest,
-                head,
-                tail,
-                self._identity_clock(),
-                stat.st_mtime_ns,
-            )
-            self._unverified_sources.discard(source)
-            if (
-                row["mtime_ns"] != stat.st_mtime_ns
-                or row["head_sha"] is None
-                or row["tail_sha"] is None
-            ):
-                verified_rows.append(
-                    (
-                        stat.st_mtime_ns,
-                        hashlib.sha256(head).hexdigest(),
-                        hashlib.sha256(tail).hexdigest(),
-                        row["path"],
-                        row["inode"],
-                        row["offset"],
-                        row["prefix_sha"],
-                    )
-                )
-        if verified_rows:
-            with self._conn:
-                self._conn.executemany(
-                    "UPDATE source SET mtime_ns = ?, head_sha = ?, tail_sha = ? "
-                    "WHERE path = ? AND inode = ? AND offset = ? AND prefix_sha = ?",
-                    verified_rows,
-                )
-
     def _consumed_whole_and_untouched(self, path: Path, stat: os.stat_result) -> bool:
         """Skip a consumed source whose size and verified mtime still match."""
         row = self._conn.execute(
@@ -1040,11 +974,7 @@ class TelemetryIndex:
             "WHERE path = ? AND inode = ? ORDER BY offset DESC LIMIT 1",
             (str(path), stat.st_ino),
         ).fetchone()
-        if (
-            row is None
-            or row["mtime_ns"] is None
-            or (str(path), stat.st_ino) in self._unverified_sources
-        ):
+        if row is None or row["mtime_ns"] is None:
             return False
         return (
             row["offset"] == row["size"] == stat.st_size
@@ -1107,7 +1037,6 @@ class TelemetryIndex:
         for key in tuple(self._hashes):
             if key[1] == row["inode"]:
                 self._hashes.pop(key)
-        self._unverified_sources.discard((row["path"], row["inode"]))
 
     def vacuum(self) -> None:
         """Return the index file's free pages to the filesystem.
@@ -1365,7 +1294,6 @@ class TelemetryIndex:
             )
         identity.offset = offset
         self._hashes[(stat.st_dev, stat.st_ino)] = identity.copy()
-        self._unverified_sources.discard((str(path), stat.st_ino))
 
     def _tier_has_no_row(self, path: Path) -> bool:
         """Whether *path* is a job's receipts tier file that carries no record line.
@@ -1380,8 +1308,9 @@ class TelemetryIndex:
         leave its window uncovered while a coarser file held its samples, so
         the caller drops it and the selection falls through.
 
-        A file already consumed whole carried rows when it was read, so it is
-        not reopened to prove that here. A file holding at least one parseable
+        Any source row for this path and inode means an earlier pass already
+        offered the file, so this selection check does not reopen it to prove
+        that here. A file holding at least one parseable
         record is offered, and a later unreadable line in it is refused in
         place by the read rather than hidden by the fall-through.
         """
@@ -1654,7 +1583,6 @@ class TelemetryIndex:
             )
             self._conn.executescript(_SCHEMA)
         self._hashes.clear()
-        self._unverified_sources.clear()
         return self.ingest(sources)
 
     # ── queries ──────────────────────────────────────────────────────
@@ -1957,12 +1885,6 @@ def _hash_of(path: Path, end: int, chunk: int = 1 << 20) -> Any | None:
     if remaining:
         return None
     return digest
-
-
-def _digest_of(path: Path, end: int, chunk: int = 1 << 20) -> str | None:
-    """Digest of the first *end* bytes of *path*, or None if unreadable."""
-    digest = _hash_of(path, end, chunk)
-    return None if digest is None else digest.hexdigest()
 
 
 def _as_text(value: Any) -> str | None:
