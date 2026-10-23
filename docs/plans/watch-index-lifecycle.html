@@ -20,11 +20,11 @@
   <meta name="plan-tags" content="agent-serving">
   <meta name="plan-blocks" content="serving-record-warehouse">
   <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="17">
+<meta name="plan-version" content="18">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -194,7 +194,7 @@
     </ul>
 
     <h2 id="s5">§5 — Watch reads hourly rollups: a read costs its window</h2>
-    <section data-reckon="section" data-id="s5" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-attempts="0" data-status="implementable" data-links=""></section>
+    <section data-reckon="section" data-id="s5" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-attempts="0" data-status="done" data-links=""></section>
     <p>This section takes over <code>f-srw-020</code> from serving-record-warehouse unchanged in intent. One index rebuild introduces two things:</p>
     <ul>
       <li>a name and kind dictionary, so that <code>measurement</code> carries integer keys instead of repeated strings;</li>
@@ -366,6 +366,9 @@
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261023T104649903275-review-of-wil-watch-reads-hourly-rollups-4f9d407e195c" data-who="reckon-build" data-when="2026-10-23T11:06:02.604Z">
     <div class="r-comment-body"><p>Independent review of run r-20261023T082420427390-wil-watch-reads-hourly-rollups at base 2292e5099f0e878a7a15aef8f8d69ad48803a0da and head 4f9d407e195cf86d06cc5846f0cad475cc998349; all six checklist items read, six dimensions scored (goal_fidelity 19, evidence 16, scope_discipline 20, durability 15, fit 18, reuse 16), added_failure_count 0, no blocking finding, three non-blocking findings.</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-close-s5" data-who="reckon-build" data-when="2026-10-23T11:10:00Z">
+    <div class="r-comment-body"><p>§5 landed: <code>watch_document</code> reads hourly rollups, exactly equal to the raw computation, in 3.96 s against 1,306 s, on a 3.81 GB index (merged <code>99931097</code>, review 104/120). The live index is rebuilt at §6's deployment. <a href="/imas-ambix/evidence/archive/watch-index-lifecycle-landed.html#s5">evidence</a></p></div>
 </div>
 </section>
 </main>
