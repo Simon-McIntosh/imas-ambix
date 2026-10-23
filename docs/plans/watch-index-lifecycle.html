@@ -19,8 +19,8 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving">
   <meta name="plan-blocks" content="serving-record-warehouse">
-  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;],&quot;s10&quot;:[&quot;watch-index-lifecycle#s6&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;,&quot;s10&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;],&quot;s10&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s11&quot;:[&quot;watch-index-lifecycle#s7&quot;]}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
@@ -303,6 +303,25 @@
       <li>A rebuild that fails part-way leaves the original index file in place.</li>
       <li><code>tests/test_index_placement.py</code>, <code>tests/test_agent_ingest_cli.py</code> and <code>tests/test_telemetry_ingest.py</code> pass, as do the serving-interpreter guard and the whole-tree ruff gate, on the fleet allocation.</li>
       <li>No test reads the real snapshot directory or the live index.</li>
+    </ul>
+
+    <h2 id="s11">§11 — One owner for each index fact the reviews found stated twice</h2>
+    <section data-reckon="section" data-id="s11" data-effort-hours="1.25" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
+    <p>The reviews of §5 and §10 left four non-blocking findings. Each is a fact stated in two places, or a mechanism with no reader:</p>
+    <ul>
+      <li><code>index_placement.index_requires_rebuild</code> re-implements the predicate that <code>TelemetryIndex</code> owns, the absent <code>name_id</code> column, so the sentinel lives in two modules. <code>TelemetryIndex</code> exposes the predicate publicly and <code>index_placement</code> calls it.</li>
+      <li>The <code>ingest</code> command asks whether a snapshot exists through the private <code>index_placement._snapshot_paths</code>. <code>index_placement</code> exposes a public predicate, and <code>cli.py</code> uses only that.</li>
+      <li>The <code>hourly_rollup.counter_diff</code> column is written but never read, because <code>_counter_window_rows</code> reconstructs the difference from the segments. The column and its assertion are deleted, or the reader uses the column, whichever leaves one source of the counter difference.</li>
+      <li>The counter-rollup test never forces whole hours through <code>hourly_rollup</code>, so a regression that answers a whole-day counter period from raw rows passes it. The test is made to fail on such a regression.</li>
+    </ul>
+    <p>Write scope: <code>imas_ambix/agent/telemetry_index.py</code>, <code>imas_ambix/agent/index_placement.py</code>, <code>imas_ambix/agent/cli.py</code>, <code>tests/test_telemetry_index.py</code>, <code>tests/test_agent_telemetry_watch.py</code>, <code>tests/test_index_placement.py</code>. It follows §7, which also writes <code>cli.py</code>.</p>
+    <p><strong>Done when:</strong></p>
+    <ul>
+      <li><code>git grep name_id -- imas_ambix/agent/index_placement.py</code> finds nothing.</li>
+      <li><code>git grep _snapshot_paths -- imas_ambix/agent/cli.py</code> finds nothing.</li>
+      <li>Exactly one source of the hourly counter difference remains.</li>
+      <li>The negative control fails as stated: answering a whole-day counter period from raw rows makes the counter-rollup test fail.</li>
+      <li>The named tests, the serving-interpreter guard and the whole-tree ruff gate pass on the fleet allocation.</li>
     </ul>
 
     <h2 id="s9">§9 — Raw samples age out of the index once rollups carry them (deferred)</h2>
