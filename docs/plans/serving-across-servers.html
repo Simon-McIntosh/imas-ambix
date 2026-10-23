@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="49">
+<meta name="plan-version" content="50">
 <meta name="plan-modified" content="2026-10-23">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -791,6 +791,9 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 </div>
 <div class="r-comment" data-section="s3" data-id="c-close-s3" data-who="reckon-build" data-when="2026-10-23T04:40:00Z">
     <div class="r-comment-body"><p>§3 landed in merge <code>2951c29a</code>. Servers are declared once, and serve, restart and key rotation place onto a named server. <code>endpoints.json</code> lists every declared server with declared facts only, and engines are deduplicated by engine id. verify-gate passed at the merged head, and the final review scored 17 to 20. <a href="/imas-ambix/evidence/archive/serving-across-servers-landed.html#s3">evidence</a></p></div>
+</div>
+<div class="r-comment" data-section="s9" data-id="c-run-r-20261023T053859321758-review-of-llm-watch-view-f6fd09b58317" data-who="reckon-build" data-when="2026-10-23T06:05:25.761Z">
+    <div class="r-comment-body"><p>Independent review of r-20261023T043552083898-llm-watch-view: read 29421f13..f6fd09b5 (two commits, 13 paths, 1783 added lines) and scored goal_fidelity 18, evidence 15, scope_discipline 18, durability 16, fit 19, reuse 17 (total 102) with five follow-on findings -- the per-stream cell&#x27;s colour ramp diverges from the serve grid the done_when names (imas_ambix/agent/llm_watch.py:251), `--engine` is accepted and read by nothing (imas_ambix/agent/llm_watch.py:762), one committed golden is read by no test (tests/golden/llm_watch/unattributed.txt), and two added assertions are not independent of the values the test supplies (tests/test_llm_watch.py:393, :403); the gate itself is green and recorded at the head.</p></div>
 </div>
 </section>
 </main>

@@ -1,0 +1,64 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "completed_at": "2026-10-23T06:05:25.761Z",
+  "dispatched_at": "2026-10-23T05:41:28Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/llm_watch.py",
+      "line": 251,
+      "line_hint": "throughput_band per-stream ramp",
+      "severity": "follow-on",
+      "text": "follow-on: the `tok/s each` cell is coloured by `ramp(per_stream, 60.0, 30.0)` on the raw rate, where the serve grid the node's done_when requires it to match cell for cell ramps the same figure on its percentage of `PER_WORKER_REF` (dotfiles `bin/gpu-watch:195`, `bin/gpu-watch:777` `_ramp(100.0 * per / PER_WORKER_REF, 60, 30)` with PER_WORKER_REF = 40.0). A 40 tok/s stream -- exactly the reference rate -- reads green in gpu-watch and yellow here, so one document is coloured two ways across the two tools the section exists to keep showing one set of numbers. The figure itself is identical (49.3 in both), so the divergence is invisible to the goldens, which render through `render_text` with `no_color=True` (imas_ambix/agent/llm_watch.py:719), and no test asserts the cell-for-cell clause at all."
+    },
+    {
+      "file": "imas_ambix/agent/llm_watch.py",
+      "line": 762,
+      "severity": "follow-on",
+      "text": "follow-on: `--engine ID` is parsed and written to `document[\"selected_engine\"]`, and the diff adds no reader for that key anywhere in the repository (grep for `selected_engine` over imas_ambix and tests returns only this assignment). The flag therefore accepts any id and renders the one engine regardless, silently. With a single engine it cannot select wrongly, so today's reading is unaffected; it becomes a wrong reading as soon as \u00a714 adds a second engine and the flag is trusted, and \u00a79's flag list already promises the flag selects."
+    },
+    {
+      "file": "tests/golden/llm_watch/unattributed.txt",
+      "line": 1,
+      "line_hint": "unreferenced golden",
+      "severity": "follow-on",
+      "text": "follow-on: this golden is committed and read by no test. `_golden(name)` loads by the parametrized name (tests/test_llm_watch.py:342), and the seven parameter entries are one_engine, two_accounts, three_projects, sessions, account_llealsa, unavailable_live and account_empty -- `unattributed` is not among them, and nothing else in the suite reads the directory. The file pins nothing: it may drift arbitrarily and no assertion reddens. The manifest's evidence_inputs counts it among the eight committed goldens, so the record overstates the pinned surface by one."
+    },
+    {
+      "file": "tests/test_llm_watch.py",
+      "line": 403,
+      "severity": "follow-on",
+      "text": "follow-on: `assert \"0.3\" in text` does not test what its own comment claims (\"The fold carries the two folded projects' summed in-use, 0.2 + 0.1\"). The committed golden tests/golden/llm_watch/two_accounts.txt carries `0.3` twice -- once in the imas-ambix project row and once in the fold row -- so the assertion holds even if the fold row dropped its summed in-use entirely. The guard for the fold is the sibling assertion `assert \"+2 more\" in text` at tests/test_llm_watch.py:401, and the fold row's figure is held by the golden equality at tests/test_llm_watch.py:365 rather than by this line."
+    },
+    {
+      "file": "tests/test_llm_watch.py",
+      "line": 393,
+      "severity": "follow-on",
+      "text": "follow-on: `assert f\"accounts {callers['window_seconds'] / 60:.0f}m\" in text` compares the render against the value the test itself supplied -- the fixture is built with window_seconds = 300.0 (tests/test_llm_watch.py:195) and the assertion recomputes 5m from that same key, so it holds for any render that echoes the field and cannot redden on the defect the test names. It is a control for the table heading rather than a guard; the guard for the accounts-level defect is `assert text.count(\"unattributed\") >= 1` at tests/test_llm_watch.py:395, which the recorded negative control does redden."
+    }
+  ],
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is that an `llm-watch` console script renders one engine's live serving document -- head line, throughput/capacity/gate bands, accounts table over the viewer's per-project detail, history strip, outcomes line and ledger -- and imas_ambix/agent/llm_watch.py:158 renders the head line, imas_ambix/agent/llm_watch.py:219/:262/:301 the three bands, imas_ambix/agent/llm_watch.py:414/:495 the two table levels, imas_ambix/agent/llm_watch.py:546 the strip, imas_ambix/agent/llm_watch.py:576 the outcomes line and imas_ambix/agent/llm_watch.py:603 the ledger, assembled at imas_ambix/agent/llm_watch.py:690 and reached as the `llm-watch` console script at pyproject.toml:162. Two clauses of the goal's own \u00a79 shape are not met: the gate band's `router queue`/`worker slots` headers are shortened to `router q`/`slots` (imas_ambix/agent/llm_watch.py:335), diverging from both the serve grid and \u00a79's illustrative line, and `--engine ID` is inert (imas_ambix/agent/llm_watch.py:762).\nVERDICT done_when: the done_when names `UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv uv run --no-sync pytest -p no:cacheprovider tests/test_llm_watch.py` plus a whole-tree ruff check. The manifest records both and both logs carry the revision header and a closing EXIT line: gate-run.txt reads `16 passed in 10.63s` then `EXIT=0` at revision f6fd09b5 with a clean tree, and ruff.log reads `All checks passed!` then `EXIT=0`. The gate asserts the committed goldens, the fold row, the width rule, the two negative controls, the console-script declaration and the 5 s cadence; it asserts nothing for the done_when's `throughput and gate bands match the serve grid of dotfiles bin/gpu-watch cell for cell` clause, which is carried only as prose in the landing fragment, and no comparison against that file is recorded in the manifest.\nVERDICT write_paths: the reviewed node declares seven write paths and `git diff --stat 29421f13..f6fd09b5` touches exactly them -- imas_ambix/agent/llm_watch.py, imas_ambix/agent/watch_style.py, pyproject.toml, tests/test_llm_watch.py, eight files under tests/golden/llm_watch/ and docs/evidence/fragments/serving-across-servers/llm-watch-view.html -- with nothing outside. The declaration names `imas_ambix/agent/llm_watch` rather than the module file, and containment reads that literally, so the file carrying 809 of the 1783 added lines is not covered by the scope the fence granted; the dispatch's own dispatch reports the same refusal, and it is the declaration that must be restated, not the worker's write.\nVERDICT manifest: read at the reviewed head, status complete. It names commits c4c55a37 and f6fd09b5, the pytest command and result, gate-run.txt, ruff.log and negative_control.log, records the write-scope refusal under blockers, and carries no baseline_suite or after_suite key, so no suite delta is derivable from the reviewed run.\nVERDICT diff: read commit by commit. c4c55a37 adds the view module, the style module, the console-script line, the test module, eight goldens and the landing fragment; f6fd09b5 adds a trailing newline to both modules, drops a second engine-endpoint lookup from the render path and moves the typing-only names into a TYPE_CHECKING block. Both commits carry a subject and a body, and their bodies state the mechanism rather than a plan item.\nCALL_SITES: pyproject.toml:162 (`llm-watch = \"imas_ambix.agent.llm_watch:main\"`, the only production entry point; no module under imas_ambix imports llm_watch or watch_style at this revision), imas_ambix/agent/watch.py:1373 (live_document, the runtime source the view builds its lane/live/callers blocks from), imas_ambix/agent/watch_style.py:17 (the style module re-exports watch.bar/fmt_span/fmt_tokens/fmt_usd, so those call sites are shared rather than forked)\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/agent/llm_watch.py:690 assembles every element the goal names and pyproject.toml:162 makes it the `llm-watch` script, but the gate band's shortened headers (imas_ambix/agent/llm_watch.py:335) and the inert `--engine` (imas_ambix/agent/llm_watch.py:762) are two places where the landed view is not the \u00a79 view.\nSCORE evidence: 15\nJUSTIFICATION evidence: gate-run.txt records `16 passed in 10.63s` / `EXIT=0` at revision f6fd09b5 and ruff.log `All checks passed!` / `EXIT=0`, both with revision headers, so the recorded result is a receipt rather than a claim -- but the done_when's cell-for-cell clause against dotfiles bin/gpu-watch is asserted by no test and the comparison is recorded nowhere in the manifest, and no baseline_suite/after_suite arm exists from which a delta could be derived.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: every changed path in `git diff 29421f13..f6fd09b5` is inside the paths the dispatch names, but the declared `imas_ambix/agent/llm_watch` does not contain imas_ambix/agent/llm_watch.py, and tests/golden/llm_watch/unattributed.txt is committed without any test reading it.\nSCORE durability: 16\nJUSTIFICATION durability: the golden equality at tests/test_llm_watch.py:365 pins the whole render and the accounts-level guard at tests/test_llm_watch.py:395 reddens under the declared mutation, whose red arm (9 failed / 7 passed / EXIT=1) is on disk -- but tests/test_llm_watch.py:403 does not test the fold sum it names, tests/test_llm_watch.py:393 echoes the value the fixture passed in, and tests/golden/llm_watch/unattributed.txt is held by nothing.\nSCORE fit: 19\nJUSTIFICATION fit: imas_ambix/agent/llm_watch.py follows the module idiom of imas_ambix/agent/watch.py (a docstring stating the mechanism, private `_` helpers, formatters imported rather than restated), and a scan of the changed paths for phase/stage/plan/ticket identifiers over the paths, comments and symbols finds none.\nSCORE reuse: 17\nJUSTIFICATION reuse: imas_ambix/agent/watch_style.py:17 re-exports watch's own formatters and imas_ambix/agent/llm_watch.py:669 calls watch.live_document rather than reading receipts itself, so the served document has one builder; the one duplicated capability is the plain-text render wrapper at imas_ambix/agent/llm_watch.py:708, which restates imas_ambix/agent/watch.py:1480's `_plain` instead of extending the owner.\nFINDING imas_ambix/agent/llm_watch.py:251 follow-on: the `tok/s each` cell ramps the raw rate (60/30) where the serve grid it must match ramps the same figure against `PER_WORKER_REF` (dotfiles bin/gpu-watch:195, :777), so a 40 tok/s stream reads yellow here and green there; the goldens render with `no_color=True` (imas_ambix/agent/llm_watch.py:719) and cannot see it.\nFINDING imas_ambix/agent/llm_watch.py:762 follow-on: `--engine ID` is stored as `document[\"selected_engine\"]` and read by nothing in the repository, so the flag is accepted and silently ignored.\nFINDING tests/golden/llm_watch/unattributed.txt:1 follow-on: the golden is committed but is not among the seven parametrized names tests/test_llm_watch.py:350 loads, so no test reads it and no assertion reddens when it drifts.\nFINDING tests/test_llm_watch.py:403 follow-on: `assert \"0.3\" in text` holds for the imas-ambix project row alone (the string occurs twice in the golden), so it does not test the fold row's summed in-use that its comment claims.\nFINDING tests/test_llm_watch.py:393 follow-on: the assertion recomputes its expectation from `callers['window_seconds']`, the value the fixture itself supplied, so it holds for any render that echoes the field and cannot redden on the accounts-level defect the test names.\n",
+  "review_check_receipt": {
+    "command": "/home/ITER/mcintos/Code/reckon/.venv/bin/reckon crew check --review --record /home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T043552083898-llm-watch-view/review-records/r-20261023T043552083898-llm-watch-view.json --pretty",
+    "cwd": "/home/ITER/mcintos/Code/reckon",
+    "exit": 0,
+    "output": "{\n  \"findings\": [],\n  \"ok\": true,\n  \"record\": \"/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T043552083898-llm-watch-view/review-records/r-20261023T043552083898-llm-watch-view.json\"\n}"
+  },
+  "review_run_id": "r-20261023T053859321758-review-of-llm-watch-view-f6fd09b58317",
+  "reviewed_base_sha": "29421f1341bb6abcbe13a75966a60c2b99d9db8c",
+  "reviewed_head_sha": "f6fd09b58317990e4a4b148ee44686430168269f",
+  "reviewed_run_id": "r-20261023T043552083898-llm-watch-view",
+  "scores": {
+    "durability": 16,
+    "evidence": 15,
+    "fit": 19,
+    "goal_fidelity": 18,
+    "reuse": 17,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T07:39:39.991841+00:00",
+  "total": 103
+}
