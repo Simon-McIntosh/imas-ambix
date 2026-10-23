@@ -21,11 +21,11 @@
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
   <meta name="plan-blocks" content="b300-bring-up-and-open-model-bakeoff">
   <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
-  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s3&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s4&quot;]}">
+  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s3&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s4&quot;],&quot;s4&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;]}">
   <title>Rotate to DeepSeek-V4.1-Flash-1017 | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="16">
+<meta name="plan-version" content="20">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -157,14 +157,13 @@
       recorder's per-job file can. Each row already carries a <code>serve_config</code>
       section read from the engine. That section gains the engine's own reported
       <code>model_path</code>, and since every checkpoint has its own directory, every row
-      then records the checkpoint that produced it. The origin alone cannot attribute a receipt, because
-      a receipt's <code>upstream</code> is only the engine's <code>node:port</code>, and the
-      pause path reuses that port for the replacement. But each job's recorder file covers
-      only that job's lifetime. So the join has one owner,
-      <code>serving_receipts.checkpoint_at(upstream, when)</code>. It returns the
-      <code>model_path</code> of the recorder file for that origin whose rows span the
-      instant <code>when</code>, and <code>None</code> when no file spans it. No new store
-      and no timestamp index are needed.</li>
+      then records the checkpoint that produced it. Each row also carries its <code>job_id</code> and
+      timestamp, so the record says which checkpoint a job ran and when. This section
+      deliberately adds no receipt-to-checkpoint join. A receipt's <code>upstream</code> is
+      only <code>node:port</code>, which the pause path reuses and the overlap path
+      duplicates on one host, so a correct join needs the router to record the serving job.
+      That is a router change for the reader that first needs it, not part of this
+      rotation.</li>
     </ul>
     <p>A registration written before this section reads <code>checkpoint: null</code>, which a
     reader reports as unknown and never guesses. The new surface is one field on the
@@ -183,10 +182,6 @@
       <li>A recorder row built from a fixture engine report carries
       <code>serve_config.model_path</code> exactly as the engine reported it. An engine that
       reports none leaves the key absent rather than empty.</li>
-      <li>Given two sequential recorder files for one <code>node:port</code>, the September
-      job's then the 1017 job's, <code>checkpoint_at</code> returns each job's
-      <code>model_path</code> for an instant inside its span, and <code>None</code> for an
-      instant in the gap between them.</li>
       <li>A registration with no <code>checkpoint</code> key is read as <code>null</code> and
       the document still builds.</li>
       <li><strong>Negative control:</strong> a profile with no revision writes
@@ -240,11 +235,11 @@
       <li>Before the cycle, <code>imas-ambix agent restart deepseek-v4-1-flash --dry-run</code>
       prints the preflight's verdict as passing on the 1017 directory. §3 makes the preflight
       run in a dry run too.</li>
-      <li><strong>Negative control:</strong> immediately before the cycle, §3's preflight
-      refusal test runs at the merged head and must fail the weights-missing case. A
-      restart against a copied profile cannot serve as this control, because
-      <code>restart</code> finds no running job under a new slug and refuses before the
-      preflight is reached.</li>
+      <li><strong>Negative control:</strong> immediately before the cycle, the same
+      <code>--dry-run</code> is run against a copy of the profile whose weights slug names an
+      empty directory. It must print the preflight refusing, naming the missing index. A dry
+      run skips the running-job check and never touches the lane, so this exercises the
+      real path.</li>
     </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
@@ -263,7 +258,7 @@
 <h2><span class="sec">§</span> Followups</h2>
 <article class="r-fu" data-id="f-r1017-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build rotate-to-deepseek-v4-1-flash-1017" data-resolved-at="" data-resolved-by="">
     <h4 class="r-fu-title">Build §2–§4, then rotate (§5)</h4>
-    <div class="r-fu-body"><p>§2, §3 and §4 write disjoint files and run in parallel. §5 is the coordinator's lane cycle, once all three land.</p></div>
+    <div class="r-fu-body"><p>§2 and §3 write disjoint files and run in parallel. §4 shares <code>slurm.py</code> with §2, so it starts when §2 lands. §5 is the coordinator's live swap, once all three have landed.</p></div>
     <pre class="r-fu-prompt">/reckon-build rotate-to-deepseek-v4-1-flash-1017</pre>
     </article>
 </section>

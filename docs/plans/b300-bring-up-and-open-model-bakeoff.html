@@ -21,11 +21,11 @@
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
   <meta name="plan-after" content="rotate-to-deepseek-v4-1-flash-1017">
   <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;deferred&quot;}">
-  <meta name="plan-section-depends-on" content="{&quot;s3&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s2&quot;],&quot;s4&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s3&quot;],&quot;s5&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s4&quot;],&quot;s6&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s5&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s5&quot;,&quot;serving-across-servers#s7&quot;]}">
+  <meta name="plan-section-depends-on" content="{&quot;s3&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s2&quot;],&quot;s4&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s5&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s4&quot;],&quot;s6&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s5&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s5&quot;,&quot;serving-across-servers#s7&quot;]}">
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="6">
+<meta name="plan-version" content="9">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -150,17 +150,24 @@
     <code>serving-across-servers</code> §3 landed. Its host name, partition, account and
     reservation are filled from the operator's answer at arrival (question
     <code>b300-arrival-facts</code>).</p>
-    <p><code>agent serve</code> and <code>agent restart</code> have no way to choose among a
-    profile's topologies today. This section adds <code>--topology &lt;name&gt;</code> to
-    both. Its default is the profile's default topology, so every existing invocation is
-    unchanged.</p>
+    <p><strong>No new option.</strong> A configuration is a server and a card count, and both
+    are already selectable. <code>--server</code> landed with
+    <code>serving-across-servers</code> §3. <code>--gpus</code> selects one of the profile's
+    <code>gpu_variants</code> through <code>ModelProfile.for_gpus</code>, which
+    <code>_scale_profile</code> already applies on the serve and restart paths. So the three
+    configurations are: no flags (<code>h200-4x</code>, which stays the profile's default);
+    <code>--server b300 --gpus 4</code>; and <code>--server b300 --gpus 8</code>. A variant
+    that differs by server rather than card count is keyed in <code>gpu_variants</code> by
+    server name as well as card count. That is an extension of the existing mapping, not a
+    second one. "The default from day one" means the B300 engine is launched as
+    <code>b300-8x</code>; it does not change what a bare <code>agent serve</code>
+    launches.</p>
     <p><strong>Write paths.</strong> <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>,
-    <code>imas_ambix/agent/profile.py</code>, <code>imas_ambix/agent/cli.py</code>,
-    <code>imas_ambix/agent/slurm.py</code>, <code>tests/test_agent_b300_launchers.py</code>
+    <code>imas_ambix/agent/profile.py</code>, <code>tests/test_agent_b300_launchers.py</code>
     (new), <code>docs/research/b300-launch-recipes.html</code> (new).</p>
     <p><strong>Done when.</strong></p>
     <ul>
-      <li><code>imas-ambix agent serve deepseek-v4-1-flash --topology &lt;name&gt; --dry-run</code>
+      <li><code>imas-ambix agent serve deepseek-v4-1-flash [--server b300 --gpus 4|8] --dry-run</code>
       prints a complete script for each of the three configurations. The B300 ones name an
       image or wheel present under <code>/work</code>, the 1017 weights directory, the
       parallelism, KV dtype and memory settings. A test pins each script's placement and
@@ -169,8 +176,9 @@
       at the base revision, so today's lane is unchanged.</li>
       <li>The recipes document cites the SGLang release notes or cookbook page each B300
       setting rests on.</li>
-      <li><strong>Negative control:</strong> asking for a topology the profile does not
-      declare refuses, naming the declared ones.</li>
+      <li><strong>Negative control:</strong> asking for a server and card count with no
+      declared variant (for example <code>--server b300 --gpus 2</code>) refuses, naming the
+      declared variants.</li>
     </ul>
 
     <h2 id="s5">§5 — Measure the B300 on arrival</h2>
