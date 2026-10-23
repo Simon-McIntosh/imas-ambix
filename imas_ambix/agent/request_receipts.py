@@ -75,6 +75,15 @@ SELF_ANSWERED_UPSTREAM = "(router)"
 RUN_ID_HEADER = "x-reckon-run-id"
 COORDINATOR_SESSION_HEADER = "x-reckon-session"
 
+# The two request headers carrying the caller's account and project into the
+# record. Every caller authenticates with one shared key, so nothing else on the
+# connection names who asked; these are self-reported and say who the load
+# belongs to without being able to enforce a share. Both are absent on a caller
+# that does not set them, and are never inferred from the peer address, the user
+# agent or the scheduler.
+ACCOUNT_HEADER = "x-ambix-account"
+PROJECT_HEADER = "x-ambix-project"
+
 # A well-formed identity is a short token. A value longer than this, empty, or
 # carrying a control character is not one this router will publish, and is
 # recorded as absent rather than truncated -- a truncated id would collide with
@@ -136,22 +145,31 @@ def _identity_token(raw: bytes) -> str | None:
 
 def identity_from_headers(
     headers: Iterable[tuple[bytes, bytes]],
-) -> tuple[str | None, str | None]:
-    """Return ``(run_id, coordinator_session)`` from a request's raw headers.
+) -> tuple[str | None, str | None, str | None, str | None]:
+    """Return ``(run_id, coordinator_session, account, project)`` from raw headers.
 
-    Both are None unless the caller reported them, and a header repeated within
-    one request takes its last value -- the same rule a client library applies
-    when it assembles them.
+    Every element is None unless the caller reported it, and a header repeated
+    within one request takes its last value -- the same rule a client library
+    applies when it assembles them. The account and project follow the run and
+    session tokens' rule exactly: an absent, empty, over-long or control-bearing
+    value records absent rather than a guess.
     """
     found: dict[str, str | None] = {
         RUN_ID_HEADER: None,
         COORDINATOR_SESSION_HEADER: None,
+        ACCOUNT_HEADER: None,
+        PROJECT_HEADER: None,
     }
     for name, value in headers or ():
         key = bytes(name).decode("latin-1").lower()
         if key in found:
             found[key] = _identity_token(bytes(value))
-    return found[RUN_ID_HEADER], found[COORDINATOR_SESSION_HEADER]
+    return (
+        found[RUN_ID_HEADER],
+        found[COORDINATOR_SESSION_HEADER],
+        found[ACCOUNT_HEADER],
+        found[PROJECT_HEADER],
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -161,8 +179,11 @@ class RequestReceipt:
     Two identities ride beside the connection-level ``caller_hint``: ``run_id``
     is the crew run that issued the request and ``coordinator_session`` the
     coordinator session behind it, both None when the caller reported neither.
-    They are copied from request headers and never inferred, so a row's null
-    says the caller was unkeyed rather than that the router failed to read it.
+    ``account`` and ``project`` name who the load belongs to; they are
+    self-reported and cannot enforce a share, and both are None when the caller
+    reported neither. Every field is copied from request headers and never
+    inferred, so a row's null says the caller reported nothing rather than that
+    the router failed to read it.
     """
 
     timestamp: str
@@ -179,6 +200,8 @@ class RequestReceipt:
     caller_hint: str
     run_id: str | None
     coordinator_session: str | None
+    account: str | None
+    project: str | None
     status: str
     sample_fraction: float
     sampling_rate_per_s: float
@@ -797,6 +820,8 @@ class RequestReceiptSink:
         gate_wait_s: float = 0.0,
         run_id: str | None = None,
         coordinator_session: str | None = None,
+        account: str | None = None,
+        project: str | None = None,
         timestamp: datetime | None = None,
     ) -> RequestReceipt | None:
         """Append one row, or drop it. Returns the row written, or None."""
@@ -820,6 +845,8 @@ class RequestReceiptSink:
             caller_hint=caller_hint,
             run_id=run_id,
             coordinator_session=coordinator_session,
+            account=account,
+            project=project,
             status=status,
             sample_fraction=round(fraction, 6),
             sampling_rate_per_s=round(rate, 3),

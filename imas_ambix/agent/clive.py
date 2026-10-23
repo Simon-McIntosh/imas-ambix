@@ -956,6 +956,31 @@ fi
 
 command -v claude >/dev/null 2>&1 || { echo "clive: 'claude' not on PATH." >&2; exit 127; }
 
+# The caller reports its login and the repository it is working in on every
+# request. Both are appended to whatever custom-header block the launching
+# environment already set; a header already present is left as it stands, so a
+# launcher that composes these upstream stays authoritative and clive never
+# rewrites or reorders what it inherited. The project is the repository the
+# current directory belongs to -- taken from the common git directory's parent,
+# so a detached worktree reports its repository rather than its node directory --
+# and falls back to the working directory's own name outside a repository.
+# Claude Code forwards every custom header on every request, so the router reads
+# these from the same place it reads the run and session headers.
+_AMBIX_ACCOUNT="$(id -un)"
+_AMBIX_GIT_DIR="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+if [[ -n "$_AMBIX_GIT_DIR" ]]; then
+    _AMBIX_PROJECT="$(basename "$(dirname "$_AMBIX_GIT_DIR")")"
+else
+    _AMBIX_PROJECT="$(basename "$PWD")"
+fi
+if ! grep -qi '^x-ambix-account:' <<< "${ANTHROPIC_CUSTOM_HEADERS:-}"; then
+    ANTHROPIC_CUSTOM_HEADERS="${ANTHROPIC_CUSTOM_HEADERS:+${ANTHROPIC_CUSTOM_HEADERS}$'\n'}X-Ambix-Account: ${_AMBIX_ACCOUNT}"
+fi
+if ! grep -qi '^x-ambix-project:' <<< "${ANTHROPIC_CUSTOM_HEADERS:-}"; then
+    ANTHROPIC_CUSTOM_HEADERS="${ANTHROPIC_CUSTOM_HEADERS:+${ANTHROPIC_CUSTOM_HEADERS}$'\n'}X-Ambix-Project: ${_AMBIX_PROJECT}"
+fi
+export ANTHROPIC_CUSTOM_HEADERS
+
 if [[ "$MODE" == "local" ]]; then
     export ANTHROPIC_BASE_URL="$GLOBAL_ORIGIN"
     export ANTHROPIC_AUTH_TOKEN="$KEY"
