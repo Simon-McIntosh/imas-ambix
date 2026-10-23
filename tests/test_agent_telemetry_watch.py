@@ -87,11 +87,28 @@ class _RawIndex(TelemetryIndex):
         return None if not row["den"] else float(row["num"]) / float(row["den"])
 
     def time_weighted_means(self, names, start, end):
+        names = tuple(names)
+        placeholders = ",".join("?" for _ in names)
+        rows = self._conn.execute(
+            "WITH weighted AS ("
+            " SELECT s.id, MAX(0.0, MIN(COALESCE("
+            " LEAD(s.ts_epoch) OVER (PARTITION BY s.host, s.boot_id, s.inode"
+            " ORDER BY s.ts_epoch, s.offset),"
+            " s.ts_epoch + COALESCE(s.ts_epoch - LAG(s.ts_epoch) OVER ("
+            " PARTITION BY s.host, s.boot_id, s.inode"
+            " ORDER BY s.ts_epoch, s.offset), 0.0)), ? )"
+            " - MAX(s.ts_epoch, ?)) AS weight"
+            " FROM sample s WHERE s.ts_epoch IS NOT NULL)"
+            " SELECT n.name, SUM(m.value * w.weight) AS num, SUM(w.weight) AS den"
+            " FROM weighted w JOIN measurement m ON m.sample_id = w.id"
+            " JOIN measurement_name n ON n.id = m.name_id"
+            f" WHERE n.name IN ({placeholders}) AND n.kind = 'interval'"
+            " AND w.weight > 0 GROUP BY n.name",
+            (end, start, *names),
+        ).fetchall()
+        means = {row["name"]: float(row["num"]) / float(row["den"]) for row in rows}
         return {
-            name: (
-                bool(self.measurement_count(name)),
-                self.time_weighted_mean(name, start, end),
-            )
+            name: (bool(self.measurement_count(name)), means.get(name))
             for name in names
         }
 
