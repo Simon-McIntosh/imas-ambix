@@ -121,7 +121,7 @@ def overlap_room(profile: ModelProfile, site: SiteConfig) -> tuple[bool, str]:
 
 
 def slurm_log_path(output_name: str) -> Path:
-    """Resolve a job's stdout name outside the submitting directory."""
+    """Resolve stdout outside the submit directory; create its parent before sbatch."""
     return Path.home() / ".local" / "state" / "ambix" / "slurm-logs" / output_name
 
 
