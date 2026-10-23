@@ -148,8 +148,7 @@ def _stub_two_ticks(monkeypatch, reports: list[TickReport]) -> None:
 def _stub_publication(monkeypatch) -> None:
     from imas_ambix.agent import watch_publish
 
-    def publish(_output, *, on_success, **_kwargs):
-        on_success()
+    def publish(_output, **_kwargs):
         return "watch published"
 
     monkeypatch.setattr(watch_publish, "one_iteration", publish)
@@ -244,7 +243,7 @@ def test_a_flush_follows_each_line(tmp_path, monkeypatch) -> None:
     ]
 
 
-def test_publication_uses_successful_cadence_and_resolved_index(
+def test_publication_uses_attempt_cadence_and_resolved_index(
     tmp_path, monkeypatch
 ) -> None:
     """A quick ingest tick does not force a second publication before its due time."""
@@ -255,9 +254,8 @@ def test_publication_uses_successful_cadence_and_resolved_index(
     attempts: list[tuple[float, object, object]] = []
     monkeypatch.setattr(cli, "_publication_clock", lambda: clock[0])
 
-    def publish(_output, *, record_dir, index_path, on_success):
+    def publish(_output, *, record_dir, index_path):
         attempts.append((clock[0], record_dir, index_path))
-        on_success()
         return "watch published"
 
     def fake_run(index, directory, **kwargs):
@@ -289,9 +287,8 @@ def test_publish_every_option_changes_due_time(tmp_path, monkeypatch) -> None:
     attempts: list[float] = []
     monkeypatch.setattr(cli, "_publication_clock", lambda: clock[0])
 
-    def publish(_output, *, on_success, **_kwargs):
+    def publish(_output, **_kwargs):
         attempts.append(clock[0])
-        on_success()
         return "watch published"
 
     def fake_run(index, directory, **kwargs):
@@ -358,7 +355,54 @@ def test_failed_publication_preserves_file_and_next_tick_ingests(
 
     assert result.exit_code == 0, result.output
     assert seen[0] == previous
-    assert seen[1] != previous
+    assert seen[1] == previous
     assert result.output.count("ingest tick") == 2
     assert "publish-watch failed: database is locked" in result.output
-    assert "publish-watch wrote" in result.output
+    assert "publish-watch wrote" not in result.output
+
+
+def test_failed_publication_waits_until_the_next_due_time(
+    tmp_path, monkeypatch
+) -> None:
+    """A raised derivation is retried at the publication cadence, not each tick."""
+    from imas_ambix.agent import (
+        cli,
+        telemetry_ingest,
+    )
+    from imas_ambix.agent import (
+        watch as watch_mod,
+    )
+
+    target = tmp_path / "watch.json"
+    previous = b'{"published_at": "earlier", "keep": true}\n'
+    target.write_bytes(previous)
+    monkeypatch.setattr(watch_mod, "PUBLISHED_WATCH_PATH", target)
+    clock = [0.0]
+    attempts: list[float] = []
+    seen: list[bytes] = []
+    monkeypatch.setattr(cli, "_publication_clock", lambda: clock[0])
+
+    def document(**_kwargs):
+        attempts.append(clock[0])
+        if len(attempts) == 1:
+            raise RuntimeError("database is locked")
+        return {"record": {"tick": len(attempts)}}
+
+    def fake_run(index, directory, **kwargs):
+        for when in (0.0, 60.0, 299.0, 300.0):
+            clock[0] = when
+            kwargs["on_tick"](_tick_report(FIRST_TICK))
+            seen.append(target.read_bytes())
+        return []
+
+    monkeypatch.setattr(watch_mod, "watch_document", document)
+    monkeypatch.setattr(telemetry_ingest, "run", fake_run)
+    result = CliRunner().invoke(
+        main, ["agent", "ingest", "--once", *_ingest_args(tmp_path)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert attempts == [0.0, 300.0]
+    assert seen[:3] == [previous] * 3
+    assert seen[3] != previous
+    assert result.output.count("ingest tick") == 4

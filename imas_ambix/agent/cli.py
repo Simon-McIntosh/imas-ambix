@@ -3312,7 +3312,7 @@ def _emit_ingest_tick(
     type=click.FloatRange(min=0, min_open=True),
     default=300.0,
     show_default=True,
-    help="Seconds between successful watch document publications.",
+    help="Seconds between watch document publication attempts.",
 )
 @click.option(
     "--once",
@@ -3383,8 +3383,8 @@ def ingest(
         imas-ambix agent ingest
 
     The ingest also publishes the watch document every five minutes, after a
-    successful tick. A failed publication leaves the last document in place
-    and the ingest continues.
+    successful tick. A failed publication leaves the last document in place;
+    the ingest continues and retries at the next publication interval.
 
     \b
     Take one tick and exit, against a specific record and index:
@@ -3413,26 +3413,23 @@ def ingest(
     index = TelemetryIndex(resolved_index)
     index_placement.enable_wal(index)
     snapshots = index_placement.SnapshotScheduler(resolved_index)
-    last_published: float | None = None
-
-    def _mark_published() -> None:
-        nonlocal last_published
-        last_published = _publication_clock()
+    last_attempted: float | None = None
 
     def _on_tick(report: TickReport) -> None:
         """Log the tick and schedule derived work from the captured index."""
+        nonlocal last_attempted
         _emit_ingest_tick(report)
         snapshots.schedule()
         if (
-            last_published is None
-            or _publication_clock() - last_published >= publish_every
+            last_attempted is None
+            or _publication_clock() - last_attempted >= publish_every
         ):
             line = watch_publish.one_iteration(
                 watch_publish.default_output_path(),
                 record_dir=resolved_record,
                 index_path=resolved_index,
-                on_success=_mark_published,
             )
+            last_attempted = _publication_clock()
             sys.stdout.write(line + "\n")
             sys.stdout.flush()
 
