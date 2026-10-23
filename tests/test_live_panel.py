@@ -631,6 +631,48 @@ def test_read_lane_block_reads_a_written_document(tmp_path: Path):
     assert block["headroom"] == 3
 
 
+def test_a_missing_receipts_directory_leaves_the_lane_figures_present(
+    tmp_path: Path,
+):
+    """The serve's own record being absent does not take the lane down with it.
+
+    The live block is unavailable and says why, while the lane block -- built
+    from the published lane document, which is a different source -- keeps the
+    gate and admission figures a reader is watching.
+    """
+    lane = tmp_path / "lane.json"
+    lane.write_text(
+        json.dumps(
+            {
+                "observed_at": _stamp(0.0),
+                "headroom": 3,
+                "router_generation_gate": {
+                    "width": 16,
+                    "effective_width": 16,
+                    "in_flight": 4,
+                    "waiting": 0,
+                    "paused": False,
+                    "width_mode": "measured",
+                    "reason": "",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    payload = live_panel.live_panel(
+        receipts_dir=tmp_path / "absent", lane_path=lane, now=BASE
+    )
+
+    assert payload["live"]["state"] == "unavailable"
+    assert payload["live"]["reason"] == "no raw receipt file with a readable row"
+    assert payload["lane"]["state"] != "unavailable"
+    assert payload["lane"]["headroom"] == 3
+    assert payload["lane"]["router_generation_gate"]["in_flight"] == 4
+    assert payload["callers"]["state"] == "unavailable"
+    for name in ("history", "outcomes"):
+        assert payload["callers"][name]["state"] == "unavailable", name
+
+
 def test_live_panel_imports_nothing_from_the_telemetry_index():
     source = Path(live_panel.__file__).read_text(encoding="utf-8")
     tree = ast.parse(source)

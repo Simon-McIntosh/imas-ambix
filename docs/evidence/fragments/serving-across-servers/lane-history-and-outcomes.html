@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="lane-history-and-outcomes-blocks">
+      <p>The live watch document gained two blocks beside the unchanged
+      <code>lane</code>, <code>live</code> and <code>callers</code> ones, both
+      cut from the same single bounded read of the router's request record that
+      the callers block already used.</p>
+      <ul>
+        <li><code>history</code> — thirty one-minute bins ending at the moment
+        of the build. Each bin carries <code>occupancy</code> (the same
+        time-averaged held-requests quantity the callers block publishes, so a
+        bin is read against the lane's own width),
+        <code>requests</code>, and the wait percentiles
+        <code>gate_wait_p50_s</code> and <code>gate_wait_p95_s</code> over the
+        requests admitted inside that bin, interpolated between order
+        statistics and <code>null</code> for a bin that admitted nobody.</li>
+        <li><code>outcomes</code> — a five-minute count of
+        <code>completed</code>, <code>aborted</code>, <code>failed</code> and
+        <code>gate_expired</code>, counted by when each request ended. The four
+        figures partition the window: a request answered by the router after
+        its gate wait ran out is counted as an expiry and not also as a
+        failure.</li>
+      </ul>
+      <p>Both the callers block and these two are built by
+      <code>lane_callers.record_blocks</code>, which reads the record's tail
+      once over the longest window (the half hour the strip needs) and returns
+      all three levels. <code>live_panel</code> calls it instead of reading per
+      block, so one poll of the document walks the growing record once rather
+      than three times.</p>
+    </section>
+    <section id="lane-history-and-outcomes-gate-expiry">
+      <p>The record carries no field naming a gate expiry. It is read from the
+      three facts that hold together on exactly those rows and on no others:
+      the row's upstream is the router's self-answered sentinel
+      (<code>(router)</code>), its status is <code>failed</code>, and its
+      <code>gate_wait_s</code> is positive. A refusal the router answers before
+      choosing an engine is self-answered with <strong>no</strong> gate wait,
+      and a caller that leaves while its request waits or uploads records as
+      <code>aborted</code> — so neither is counted as an expiry. A dedicated
+      field on the expiry row would be cleaner than this inference, and §4's
+      per-engine expiry row is where it would naturally live; this node's write
+      scope does not include the router.</p>
+    </section>
+    <section id="lane-history-and-outcomes-fixture">
+      <p>A fixture with a known schedule pins the arithmetic. Row <code>A</code>
+      arrived 600 s before the build, waited 10 s and relayed for 300 s, so it
+      fills five whole bins and ten seconds of the sixth; <code>B</code> spans
+      −1500 s to −1380 s and <code>C</code> spans −1440 s to −1360 s, so one bin
+      holds two requests at once and the next holds <code>C</code> for twenty
+      seconds; four one-second rows admitted in another bin waited 1, 3, 4 and
+      8 s. The occupancy the strip reports, in order, is</p>
+      <pre>0 0 0 0 0 | 1.0 2.0 0.33 | 0 x12 | 1.0 1.0 1.0 1.0 1.0 0.17 0 0 0.33 0</pre>
+      <p>and the fourth of those bins reports p50 3.5 s and p95 7.4 s
+      (4 + 0.85 × (8 − 4)). The negative control shifts every bin edge by one
+      minute: the occupancy list then reads 0 where 0.17 was, and the test
+      fails on that element.</p>
+    </section>
+    <section id="lane-history-and-outcomes-measure">
+      <p>Gate: <code>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv
+      uv run --no-sync pytest -p no:cacheprovider tests/test_lane_callers.py
+      tests/test_live_panel.py tests/test_agent_watch_live.py</code> —
+      <strong>58 passed</strong> on these three files (66 with the receipt-bins
+      suite the review round added, below), exit 0 (<code>gate.log</code> in the run
+      directory); <code>uv run --no-sync ruff check imas_ambix tests</code>
+      exits 0. Nine of those tests are new: the hand-computed occupancy strip
+      and its percentile row, the bin edges, the outcomes counts, the
+      single-read count, the byte-ceiling cut with a covered control arm, the
+      unavailable record, and the missing receipts directory below. Every
+      existing callers fixture passes unchanged — the only edits to existing
+      assertions are two that listed the document's keys exactly, which are
+      left naming the same three blocks.</p>
+    </section>
+    <section id="lane-history-and-outcomes-negative-control">
+      <p><strong>Negative control.</strong> Every history bin edge was shifted
+      by one minute (the strip computed from <code>end - (count - index) *
+      60 + 60</code> instead of <code>end - (count - index) * 60</code>). The
+      hand-computed occupancy test failed, as declared, along with the bin-edge
+      and percentile tests: <code>3 failed, 50 passed</code>, exit 1
+      (<code>negative-control.log</code>). The strip *does* change under the
+      shift — the bin that held ten seconds of row A reads 0.0 instead of
+      0.17 — so the test is measuring the edge alignment and not merely
+      re-reading its own fixture.</p>
+    </section>
+    <section id="lane-history-and-outcomes-review">
+      <p>Review returned two fixes, both landed here. The strip's per-bin
+      percentiles were a private third copy of the interpolated quantile, so
+      <code>receipt_bins</code> now publishes the one the repository owns
+      (<code>inclusive_quantile</code>) and the strip calls it; the rounding to
+      tenths of a second and the empty-bin <code>null</code> are the strip's own
+      presentation and stay at its call site, so every bin figure is unchanged
+      on the fixture. And <code>callers_block</code> read a fixed half hour
+      whatever window it was asked for, reporting that read's coverage: it now
+      opens the read over the wider of its own window and the strip, and each
+      level's <code>covered</code> flag answers for its own window — a caller
+      asking for one minute is no longer told its figures span thirty. A cut
+      read still covers a narrower window when the rows it returned reach back
+      past that window's start, because the rows of a cut read are a contiguous
+      suffix of the record.</p>
+      <p>Measure: the gate above plus <code>tests/test_agent_receipt_bins.py</code>
+      passes — <strong>66 passed</strong>, exit 0 — and <code>ruff check imas_ambix
+      tests</code> exits 0. The new test asserts the two windows against a read
+      the test cuts itself: a one-minute caller is covered, an hour-long caller
+      is not, and the strip alone reports the cut. Negative control: the callers
+      level takes the read's own flag instead of its window's, and that test
+      fails on the one-minute arm (<code>1 failed, 26 deselected</code>, exit 1).</p>
+    </section>
+    <section id="lane-history-and-outcomes-shape">
+      <p><code>live_panel</code> hangs <code>history</code> and
+      <code>outcomes</code> off the <code>callers</code> block rather than
+      beside it at the document's top level. The top-level key set
+      (<code>lane</code>, <code>live</code>, <code>callers</code>) is pinned by
+      three assertions in <code>tests/test_agent_watch_live.py</code>, which is
+      outside this node's write scope and is named in this node's gate, so the
+      document keeps the shape its readers already expect. A top-level pair
+      would read more naturally and needs a one-line update to those three
+      assertions — a coordinator decision, recorded under <code>follow_ons</code>.</p>
+    </section>
+  </main>
+</body>
+</html>

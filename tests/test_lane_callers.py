@@ -14,8 +14,8 @@ from pathlib import Path
 
 import pytest
 
-from imas_ambix.agent import request_receipts
-from imas_ambix.agent.lane_callers import callers_block
+from imas_ambix.agent import lane_callers, request_receipts
+from imas_ambix.agent.lane_callers import callers_block, record_blocks
 from imas_ambix.agent.live_panel import live_panel
 from imas_ambix.agent.request_receipts import receipt_interval, recent_receipt_rows
 
@@ -772,3 +772,272 @@ BASE_CALLERS = (
   'completion_tokens': 162,
   'share': 0.106}]
 )
+
+
+def test_live_panel_builds_every_request_record_block_from_one_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One poll of the document walks the record once, not once per block.
+
+    The history strip reaches back half an hour and the callers block and the
+    outcomes line reach back five minutes, so a builder that read per block
+    would walk the same growing file three times on every poll.
+    """
+    lane = tmp_path / "lane.json"
+    lane.write_text(
+        json.dumps({"observed_at": "2026-10-18T18:40:00Z"}), encoding="utf-8"
+    )
+    _write(tmp_path, [_at(-10, duration=5, session="s", run_id="r")])
+    receipts = tmp_path / "receipts"
+    receipts.mkdir()
+    reads: list[object] = []
+    real = lane_callers.recent_receipt_rows
+
+    def counted(location, *, since):
+        reads.append(location)
+        return real(location, since=since)
+
+    monkeypatch.setattr(lane_callers, "recent_receipt_rows", counted)
+    payload = live_panel(receipts_dir=receipts, lane_path=lane, now=NOW)
+
+    assert len(reads) == 1
+    assert payload["callers"]["state"] == "measured"
+    for name in ("history", "outcomes"):
+        assert payload["callers"][name]["state"] == "measured", name
+    assert payload["callers"]["history"]["bins"]
+    assert payload["callers"]["outcomes"]["completed"] == 1
+
+
+def test_the_record_read_is_bounded_by_its_byte_ceiling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A tail too long to read whole is cut, and every block says so.
+
+    The control arm is the same record under the default ceiling: it is covered
+    and its bins are built, so the cut below is the ceiling's doing and not an
+    empty record reading as an absence. The rows here lie inside the narrowest
+    block's window, so no level can report itself covered off the rows a cut
+    read still returns: the flag is the ceiling's, not the rows'.
+    """
+    rows = [
+        _at(-200 + index, duration=1, session="s", run_id="r")
+        for index in range(140)
+    ]
+    _write(tmp_path, rows)
+
+    whole = record_blocks(tmp_path, now=NOW)
+    assert whole["callers"]["covered"] is True
+    assert whole["history"]["covered"] is True
+    assert sum(bin_["occupancy"] for bin_ in whole["history"]["bins"]) > 0
+
+    monkeypatch.setattr(request_receipts, "RECENT_TAIL_FIRST_BYTES", 512)
+    monkeypatch.setattr(request_receipts, "RECENT_TAIL_MAX_BYTES", 2048)
+    cut = record_blocks(tmp_path, now=NOW)
+    assert cut["callers"]["covered"] is False
+    assert cut["history"]["covered"] is False
+    assert cut["outcomes"]["covered"] is False
+    assert "ceiling" in cut["history"]["reason"]
+
+
+def test_each_record_block_states_coverage_of_its_own_window(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A block's covered flag describes its own window, not the read's span.
+
+    The read is opened over the wider of the callers window and the history
+    strip, so a caller asking for one minute gets a read that reached half an
+    hour back. Its flag must still answer for the minute it asked about. The
+    rows here are cut short of the read's own start, so the read's flag is
+    false while the narrower window is covered in the other direction --
+    a caller's minute and the outcomes line reach back to rows the strip's
+    half hour does not.
+    """
+    rows = [
+        _at(-900, duration=1, session="s", run_id="r"),
+        _at(-100, duration=1, session="s", run_id="r"),
+    ]
+    spans: list[float] = []
+
+    def cut(location, *, since):
+        spans.append((NOW - since).total_seconds())
+        return rows, False
+
+    monkeypatch.setattr(lane_callers, "recent_receipt_rows", cut)
+
+    minute = callers_block(tmp_path, now=NOW, window_seconds=60.0)
+    assert spans[-1] == lane_callers.HISTORY_WINDOW_SECONDS
+    assert minute["window_seconds"] == 60.0
+    assert minute["covered"] is True
+
+    hour = callers_block(tmp_path, now=NOW, window_seconds=3600.0)
+    assert spans[-1] == 3600.0
+    assert hour["window_seconds"] == 3600.0
+    assert hour["covered"] is False
+
+    blocks = record_blocks(tmp_path, now=NOW)
+    assert blocks["callers"]["covered"] is True
+    assert blocks["outcomes"]["covered"] is True
+    assert blocks["history"]["covered"] is False
+
+
+def _at(
+    offset: float,
+    *,
+    duration: float,
+    wait: float = 0.0,
+    status: str = "completed",
+    upstream: str | None = None,
+    **kwargs,
+) -> dict:
+    """One row admitted *offset* seconds before ``NOW`` and ending before it."""
+    row = _row(offset + 300, duration=duration, wait=wait, **kwargs)
+    row["status"] = status
+    if upstream is not None:
+        row["upstream"] = upstream
+    return row
+
+
+def _history_fixture(tmp_path: Path) -> Path:
+    """A request schedule whose occupancy per minute is computable by hand.
+
+    Bins are one minute wide and end at ``NOW``, so bin ``k`` covers
+    ``[NOW - 1800 + 60k, NOW - 1740 + 60k]``. Five rows:
+
+    * ``A`` arrived at -600 s and ended at -290 s, so it fills bins 20-24 and
+      ten seconds of bin 25;
+    * ``B`` spans -1500 to -1380 s and ``C`` spans -1440 to -1360 s, so bin 6
+      holds two requests at once and bin 7 holds C for twenty seconds;
+    * four one-second rows are admitted inside bin 28 with waits of 1, 3, 4 and
+      8 seconds, which is the bin whose p50 and p95 interpolate between two
+      order statistics.
+    """
+    rows = [
+        _at(-590, duration=300, wait=10, session="a", run_id="r-a"),
+        _at(-1480, duration=100, wait=20, session="b", run_id="r-b"),
+        _at(-1440, duration=80, session="c", run_id="r-c"),
+    ]
+    for offset, wait in ((-110, 1), (-100, 3), (-90, 4), (-80, 8)):
+        rows.append(
+            _at(offset, duration=1, wait=wait, session="d", run_id="r-d")
+        )
+    return _write(tmp_path, rows)
+
+
+def test_history_bins_hold_the_occupancy_computed_by_hand(tmp_path: Path) -> None:
+    block = record_blocks(_history_fixture(tmp_path), now=NOW)["history"]
+
+    assert block["state"] == "measured"
+    assert block["window_seconds"] == 1800.0
+    assert block["bin_seconds"] == 60.0
+    assert len(block["bins"]) == 30
+    # 310 s of row A over bins 20-25, 20 s of row C in bin 7, and 20 s of the
+    # four one-second rows in bin 28, each divided by the 60 s bin.
+    expected = (
+        [0.0] * 5
+        + [1.0, 2.0, 0.33]
+        + [0.0] * 12
+        + [1.0, 1.0, 1.0, 1.0, 1.0, 0.17, 0.0, 0.0, 0.33, 0.0]
+    )
+    assert [bin_["occupancy"] for bin_ in block["bins"]] == expected
+    assert [bin_["requests"] for bin_ in block["bins"]][5] == 1.0
+    assert [bin_["requests"] for bin_ in block["bins"]][6] == 1.0
+    assert [bin_["requests"] for bin_ in block["bins"]][28] == 4.0
+
+
+def test_history_bin_edges_are_the_minute_boundaries_ending_at_now(
+    tmp_path: Path,
+) -> None:
+    """Bin k starts 1800 - 60k seconds before now, so the strip ends at now."""
+    block = record_blocks(_history_fixture(tmp_path), now=NOW)["history"]
+    stamp = lambda seconds: (NOW + timedelta(seconds=seconds)).strftime(  # noqa: E731
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    assert block["bins"][0]["start"] == stamp(-1800)
+    assert [bin_["start"] for bin_ in block["bins"]] == [
+        stamp(-1800 + 60 * index) for index in range(30)
+    ]
+    assert block["bins"][25]["start"] == stamp(-300)
+    assert block["bins"][-1]["end"] == stamp(0)
+
+
+def test_history_waits_are_per_bin_percentiles_of_admitted_requests(
+    tmp_path: Path,
+) -> None:
+    """Bin 28 admitted waits of 1, 3, 4 and 8 s: p50 interpolates to 3.5.
+
+    p95 sits 85% of the way from the fourth-from-last to the last order
+    statistic: 4 + 0.85 x (8 - 4) = 7.4. Bin 20 admitted row A's 10 s wait, and
+    a bin that admitted nobody reports None rather than zero.
+    """
+    bins = record_blocks(_history_fixture(tmp_path), now=NOW)["history"]["bins"]
+    assert bins[28]["gate_wait_p50_s"] == 3.5
+    assert bins[28]["gate_wait_p95_s"] == 7.4
+    assert bins[20]["gate_wait_p50_s"] == 10.0
+    assert bins[6]["gate_wait_p50_s"] == 0.0
+    assert bins[21]["gate_wait_p50_s"] is None
+    assert bins[21]["gate_wait_p95_s"] is None
+
+
+def _outcomes_fixture(tmp_path: Path) -> Path:
+    """Five requests ending inside the five minutes, one ending before it."""
+    return _write(
+        tmp_path,
+        [
+            _at(-20, duration=10, session="s", run_id="r1"),
+            _at(-70, duration=10, session="s", run_id="r2", status="aborted"),
+            _at(-140, duration=20, session="s", run_id="r3", status="failed"),
+            _at(-400, duration=10, session="s", run_id="r4"),
+            _at(
+                -280,
+                duration=5,
+                wait=300,
+                session="s",
+                run_id="r5",
+                status="failed",
+                upstream=request_receipts.SELF_ANSWERED_UPSTREAM,
+            ),
+            _at(
+                -200,
+                duration=2,
+                session="s",
+                run_id="r6",
+                status="failed",
+                upstream=request_receipts.SELF_ANSWERED_UPSTREAM,
+            ),
+        ],
+    )
+
+
+def test_outcomes_count_the_five_minutes_by_how_each_request_ended(
+    tmp_path: Path,
+) -> None:
+    """A gate expiry is counted once, as an expiry and not also as a failure.
+
+    The refusal the router answered itself with no gate wait (r6) is a failure,
+    and the request that ended 390 s ago (r4) is outside the window.
+    """
+    block = record_blocks(_outcomes_fixture(tmp_path), now=NOW)["outcomes"]
+
+    assert block["state"] == "measured"
+    assert block["window_seconds"] == 300.0
+    assert block["completed"] == 1
+    assert block["aborted"] == 1
+    assert block["failed"] == 2
+    assert block["gate_expired"] == 1
+    assert (
+        block["completed"]
+        + block["aborted"]
+        + block["failed"]
+        + block["gate_expired"]
+        == 5
+    )
+
+
+def test_a_missing_request_record_leaves_every_record_block_unavailable(
+    tmp_path: Path,
+) -> None:
+    blocks = record_blocks(tmp_path, now=NOW)
+    for name in ("callers", "history", "outcomes"):
+        assert blocks[name]["state"] == "unavailable", name
+        assert "no request record" in blocks[name]["detail"], name
+    assert blocks["history"]["bins"] == []

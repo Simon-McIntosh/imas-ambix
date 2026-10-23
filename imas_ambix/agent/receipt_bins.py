@@ -281,15 +281,25 @@ def _summarise_bin(
         prefix_hit_rate=PrefixHitDistribution(
             median=statistics.median(prefix_hit_rates),
             deciles={
-                f"p{decile * 10}": _inclusive_quantile(prefix_hit_rates, decile / 10)
+                f"p{decile * 10}": inclusive_quantile(prefix_hit_rates, decile / 10)
                 for decile in range(1, 10)
             },
         ),
     )
 
 
-def _inclusive_quantile(values: tuple[float, ...], probability: float) -> float:
-    """Quantile interpolation that also has a defined one-interval result."""
+def inclusive_quantile(values: tuple[float, ...], probability: float) -> float:
+    """Quantile interpolation that also has a defined one-interval result.
+
+    The quantile of a sample, interpolated between the two nearest order
+    statistics so a distribution read off a handful of intervals reports a
+    figure between two of them rather than snapping to one. A one-value sample
+    has a defined answer rather than an undefined one, which is what makes the
+    function usable on a bin the record barely populated. A caller wanting a
+    rounded figure or a stated answer for the empty sample applies that itself,
+    because those are presentation choices rather than properties of the
+    quantile.
+    """
     ordered = sorted(values)
     if len(ordered) == 1:
         return ordered[0]
