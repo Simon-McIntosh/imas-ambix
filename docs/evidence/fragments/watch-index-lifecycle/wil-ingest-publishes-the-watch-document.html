@@ -1,0 +1,28 @@
+<section class="evidence-fragment" data-reckon="evidence" id="wil-ingest-publishes-the-watch-document">
+  <header>
+    <h3>The ingest publishes the watch document</h3>
+    <p>Implementation commit <code>0760c6d8f6968ff52df99a20debb7cc08a58296d</code>.</p>
+  </header>
+  <p>Before the change, the CLI inspection printed
+    <code>ingest_options ['record_dir', 'index_path', 'cadence', 'once', 'retention', 'manifest_dir']</code>
+    and the manual publisher callback referenced <code>run</code>. The ingest now calls
+    <code>watch_publish.one_iteration</code> from its tick callback with the index path
+    it opened. A monotonic clock advances the publication deadline only after the
+    atomic write succeeds. The manual <code>publish-watch</code> command requires
+    <code>--once</code>, and its standing loop is gone. Its default output refers to
+    <code>watch.PUBLISHED_WATCH_PATH</code>.</p>
+  <table id="wil-ingest-publishes-the-watch-document-measures">
+    <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Injected cadence</td><td>Four ticks at 0, 60, 299 and 300 seconds published at 0 and 300; a 120-second override published at 0 and 120.</td></tr>
+      <tr><td>Publication failure</td><td>A raised derivation kept the prior file byte-identical; the following tick logged ingestion and retried publication successfully.</td></tr>
+      <tr><td>Named test files</td><td>46 passed in 22.59 s; exit 0, including the service command's scheduled-retirement test.</td></tr>
+      <tr><td>Serving interpreter parser</td><td>1 passed, 14 deselected; exit 0.</td></tr>
+      <tr><td>Whole-tree Ruff</td><td>All checks passed; exit 0.</td></tr>
+      <tr><td>Negative control</td><td>Publishing on every tick failed the cadence test; propagating a publication error failed the tick-survival test. Two failing test IDs; exit 1.</td></tr>
+    </tbody>
+  </table>
+  <p>Gate logs: <code>head-tests.log</code>, <code>head-guard.log</code>,
+    <code>head-ruff.log</code> and <code>negative-control.log</code> under
+    <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T111422415003-wil-ingest-publishes-the-watch-document/</code>.</p>
+</section>
