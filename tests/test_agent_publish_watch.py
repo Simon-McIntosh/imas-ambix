@@ -1,12 +1,10 @@
-"""``agent publish-watch`` publishes the watch document atomically on a cadence.
+"""``agent publish-watch --once`` publishes the watch document atomically.
 
 Each iteration derives the full ``agent watch --json`` document, adds
 ``compute_seconds`` and ``published_at``, and writes it through a temporary file
 renamed over the target. A failure before that rename must leave the previous
-publication byte-for-byte unchanged, and every iteration -- success or failure --
-prints exactly one flushed physical line. These pin those properties by driving
-the command and the loop through their seams (stubbed ``watch_document``, frozen
-clock, injected ``os.replace`` and ``sleep``).
+publication byte-for-byte unchanged, and an iteration returns one physical log
+line. These pin those properties through stubbed derivation, clock and replace.
 """
 
 from __future__ import annotations
@@ -121,93 +119,50 @@ def test_failed_replace_keeps_the_target_unchanged(tmp_path, monkeypatch) -> Non
     assert target.read_bytes() == previous
 
 
-class _RecordingStream:
-    """A stdout stand-in that records writes and flushes, in order."""
-
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, str]] = []
-
-    def write(self, text: str) -> None:
-        self.calls.append(("write", text))
-
-    def flush(self) -> None:
-        self.calls.append(("flush", ""))
-
-
-def test_loop_sleeps_between_iterations_and_not_after_the_last(
-    tmp_path, monkeypatch
-) -> None:
-    """Three iterations print three lines and sleep twice, never past the last."""
-    _stub_document(monkeypatch, lambda **kwargs: {"record": {}})
-    _freeze_clock(monkeypatch)
-    slept: list[float] = []
-    stream = _RecordingStream()
-
-    watch_publish.run(
-        tmp_path / "watch.json",
-        cadence=300.0,
-        iterations=3,
-        sleep=slept.append,
-        stream=stream,
-    )
-
-    writes = [text for kind, text in stream.calls if kind == "write"]
-    flushes = [kind for kind, _ in stream.calls]
-    assert len(writes) == 3
-    assert all(_ok_line(text) for text in writes)
-    assert flushes == ["write", "flush", "write", "flush", "write", "flush"]
-    assert slept == [300.0, 300.0]
-
-
-def test_loop_keeps_the_first_write_on_a_failed_middle_iteration(
-    tmp_path, monkeypatch
-) -> None:
-    """A failure on the second of three iterations leaves the first write intact."""
-    calls: list[int] = []
-
-    def document(**_kwargs):
-        calls.append(len(calls) + 1)
-        if len(calls) == 2:
-            raise RuntimeError("mid-loop failure")
-        return {"record": {"iteration": len(calls)}}
-
-    _stub_document(monkeypatch, document)
-    _freeze_clock(monkeypatch)
+def test_one_iteration_marks_only_success(tmp_path, monkeypatch) -> None:
+    """The cadence callback is skipped if derivation leaves the old file intact."""
     target = tmp_path / "watch.json"
-    stream = _RecordingStream()
-    between: list[bytes] = []
+    _freeze_clock(monkeypatch)
+    succeeded: list[str] = []
+    _stub_document(monkeypatch, lambda **kwargs: {"record": {}})
 
-    watch_publish.run(
-        target,
-        cadence=300.0,
-        iterations=3,
-        sleep=lambda _seconds: between.append(target.read_bytes()),
-        stream=stream,
+    line = watch_publish.one_iteration(
+        target, on_success=lambda: succeeded.append("ok")
     )
+    previous = target.read_bytes()
+    assert "publish-watch wrote" in line
+    assert succeeded == ["ok"]
 
-    writes = [text for kind, text in stream.calls if kind == "write"]
-    assert len(writes) == 3, writes
-    assert writes[0].startswith(FROZEN_STAMP + " publish-watch wrote ")
-    assert "publish-watch failed: mid-loop failure" in writes[1]
-    assert writes[2].startswith(FROZEN_STAMP + " publish-watch wrote ")
-    # The injected sleep runs once after iteration 1 and once after iteration 2.
-    assert len(between) == 2, between
-    first_bytes = between[0]
-    assert between[1] == first_bytes
-    assert target.read_bytes() != first_bytes
+    def fail(**_kwargs):
+        raise RuntimeError("derivation refused")
 
-
-def _ok_line(text: str) -> bool:
-    return text.startswith(FROZEN_STAMP + " publish-watch wrote ") and text.endswith(
-        "\n"
+    _stub_document(monkeypatch, fail)
+    line = watch_publish.one_iteration(
+        target, on_success=lambda: succeeded.append("bad")
     )
+    assert "publish-watch failed: derivation refused" in line
+    assert target.read_bytes() == previous
+    assert succeeded == ["ok"]
 
 
-def test_help_names_the_default_output_path_and_cadence() -> None:
+def test_help_keeps_manual_once_and_drops_cadence() -> None:
     result = CliRunner().invoke(
         main, ["agent", "publish-watch", "--help"], terminal_width=200
     )
     assert result.exit_code == 0, result.output
     text = " ".join(result.output.split())
     assert "~/public/imas-ambix/watch.json" in text
-    assert "[default: 300.0]" in text
+    assert "--once" in text
+    assert "--cadence" not in text
+
+
+def test_manual_command_requires_once() -> None:
+    result = CliRunner().invoke(main, ["agent", "publish-watch"])
+    assert result.exit_code != 0
+    assert "requires --once" in result.output
+
+
+def test_published_path_has_one_declaration() -> None:
+    from imas_ambix.agent.watch import PUBLISHED_WATCH_PATH
+
+    assert watch_publish.DEFAULT_OUTPUT is PUBLISHED_WATCH_PATH

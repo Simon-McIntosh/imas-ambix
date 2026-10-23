@@ -145,6 +145,16 @@ def _stub_two_ticks(monkeypatch, reports: list[TickReport]) -> None:
     monkeypatch.setattr(telemetry_ingest, "run", fake_run)
 
 
+def _stub_publication(monkeypatch) -> None:
+    from imas_ambix.agent import watch_publish
+
+    def publish(_output, *, on_success, **_kwargs):
+        on_success()
+        return "watch published"
+
+    monkeypatch.setattr(watch_publish, "one_iteration", publish)
+
+
 def test_help_names_the_per_tick_line() -> None:
     """The help states the loop prints a named per-tick line."""
     text = _help()
@@ -167,6 +177,7 @@ def test_each_tick_prints_one_line_from_its_own_counts(tmp_path, monkeypatch) ->
     from imas_ambix.agent import cli
 
     _stub_two_ticks(monkeypatch, [_tick_report(FIRST_TICK), _tick_report(SECOND_TICK)])
+    _stub_publication(monkeypatch)
     monkeypatch.setattr(cli, "_utc_now", lambda: FROZEN_TICK_TIME)
 
     result = CliRunner().invoke(
@@ -177,6 +188,7 @@ def test_each_tick_prints_one_line_from_its_own_counts(tmp_path, monkeypatch) ->
     assert result.output.splitlines() == [
         f"{FROZEN_TICK_STAMP} ingest tick discovered=118 read=3 skipped=115 "
         "scanned=3 inserted=240 duplicate=0 malformed=0 bytes=51234",
+        "watch published",
         f"{FROZEN_TICK_STAMP} ingest tick discovered=120 read=2 skipped=118 "
         "scanned=1 inserted=7 duplicate=5 malformed=1 bytes=2048",
     ]
@@ -201,6 +213,7 @@ def test_a_flush_follows_each_line(tmp_path, monkeypatch) -> None:
 
     reports = [_tick_report(FIRST_TICK), _tick_report(SECOND_TICK)]
     _stub_two_ticks(monkeypatch, reports)
+    _stub_publication(monkeypatch)
     monkeypatch.setattr(cli, "_utc_now", lambda: FROZEN_TICK_TIME)
 
     recorded = _RecordingStream()
@@ -220,6 +233,8 @@ def test_a_flush_follows_each_line(tmp_path, monkeypatch) -> None:
             "scanned=3 inserted=240 duplicate=0 malformed=0 bytes=51234\n",
         ),
         ("flush", ""),
+        ("write", "watch published\n"),
+        ("flush", ""),
         (
             "write",
             f"{FROZEN_TICK_STAMP} ingest tick discovered=120 read=2 skipped=118 "
@@ -227,3 +242,124 @@ def test_a_flush_follows_each_line(tmp_path, monkeypatch) -> None:
         ),
         ("flush", ""),
     ]
+
+
+def test_publication_uses_successful_cadence_and_resolved_index(
+    tmp_path, monkeypatch
+) -> None:
+    """A quick ingest tick does not force a second publication before its due time."""
+    from imas_ambix.agent import cli, telemetry_ingest, watch_publish
+
+    reports = [_tick_report(FIRST_TICK)] * 4
+    clock = [0.0]
+    attempts: list[tuple[float, object, object]] = []
+    monkeypatch.setattr(cli, "_publication_clock", lambda: clock[0])
+
+    def publish(_output, *, record_dir, index_path, on_success):
+        attempts.append((clock[0], record_dir, index_path))
+        on_success()
+        return "watch published"
+
+    def fake_run(index, directory, **kwargs):
+        for when, report in zip((0.0, 60.0, 299.0, 300.0), reports, strict=True):
+            clock[0] = when
+            kwargs["on_tick"](report)
+        return []
+
+    monkeypatch.setattr(watch_publish, "one_iteration", publish)
+    monkeypatch.setattr(telemetry_ingest, "run", fake_run)
+    result = CliRunner().invoke(
+        main, ["agent", "ingest", "--once", *_ingest_args(tmp_path)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert [when for when, _, _ in attempts] == [0.0, 300.0]
+    assert all(
+        path == (tmp_path / "watch-index.sqlite3").resolve() for _, _, path in attempts
+    )
+    assert all(path == (tmp_path / "receipts").resolve() for _, path, _ in attempts)
+    assert result.output.count("ingest tick") == 4
+
+
+def test_publish_every_option_changes_due_time(tmp_path, monkeypatch) -> None:
+    """The ingest option, not the tick cadence, decides when publication is due."""
+    from imas_ambix.agent import cli, telemetry_ingest, watch_publish
+
+    clock = [0.0]
+    attempts: list[float] = []
+    monkeypatch.setattr(cli, "_publication_clock", lambda: clock[0])
+
+    def publish(_output, *, on_success, **_kwargs):
+        attempts.append(clock[0])
+        on_success()
+        return "watch published"
+
+    def fake_run(index, directory, **kwargs):
+        for when in (0.0, 60.0, 120.0):
+            clock[0] = when
+            kwargs["on_tick"](_tick_report(FIRST_TICK))
+        return []
+
+    monkeypatch.setattr(watch_publish, "one_iteration", publish)
+    monkeypatch.setattr(telemetry_ingest, "run", fake_run)
+    result = CliRunner().invoke(
+        main,
+        [
+            "agent",
+            "ingest",
+            "--once",
+            "--publish-every",
+            "120",
+            *_ingest_args(tmp_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert attempts == [0.0, 120.0]
+
+
+def test_failed_publication_preserves_file_and_next_tick_ingests(
+    tmp_path, monkeypatch
+) -> None:
+    """A failed derivation leaves the old bytes and does not stop the ingest loop."""
+    from imas_ambix.agent import (
+        cli,
+        telemetry_ingest,
+        watch_publish,
+    )
+    from imas_ambix.agent import (
+        watch as watch_mod,
+    )
+
+    target = tmp_path / "watch.json"
+    previous = b'{"published_at": "earlier", "keep": true}\n'
+    target.write_bytes(previous)
+    monkeypatch.setattr(watch_publish, "DEFAULT_OUTPUT", target)
+    clock = [0.0]
+    monkeypatch.setattr(cli, "_publication_clock", lambda: clock[0])
+    seen: list[bytes] = []
+
+    def document(**_kwargs):
+        if clock[0] == 0.0:
+            raise RuntimeError("database is locked")
+        return {"record": {"tick": 2}}
+
+    def fake_run(index, directory, **kwargs):
+        for when, counts in ((0.0, FIRST_TICK), (60.0, SECOND_TICK)):
+            clock[0] = when
+            kwargs["on_tick"](_tick_report(counts))
+            seen.append(target.read_bytes())
+        return []
+
+    monkeypatch.setattr(watch_mod, "watch_document", document)
+    monkeypatch.setattr(telemetry_ingest, "run", fake_run)
+    result = CliRunner().invoke(
+        main, ["agent", "ingest", "--once", *_ingest_args(tmp_path)]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert seen[0] == previous
+    assert seen[1] != previous
+    assert result.output.count("ingest tick") == 2
+    assert "publish-watch failed: database is locked" in result.output
+    assert "publish-watch wrote" in result.output
