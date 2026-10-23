@@ -1,0 +1,25 @@
+<section class="evidence-fragment" data-reckon="evidence" id="wil-rebuild-swap-clears-the-old-wal">
+  <header><h3>Rebuild swap discards the replaced index journal</h3></header>
+  <p>The old-schema fixture now stops a SQLite writer without closing it after
+    committing the schema in WAL mode. Both journal sidecars remain, and the WAL
+    contains data. Before the repair, ingest printed a rebuild line and then
+    raised <code>ValueError('the measurement dictionary requires an index rebuild')</code>
+    when it opened the swapped file. The rebuilt index now closes before the
+    replaced index's <code>-wal</code> and <code>-shm</code> are removed, and
+    <code>os.replace</code> runs only after those removals.</p>
+  <table id="wil-rebuild-swap-clears-the-old-wal-measures">
+    <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Successful rebuild</td><td>The swap observed no old sidecars, ingest ticked, and the rebuilt index held one receipt sample.</td></tr>
+      <tr><td>Interrupted rebuild</td><td>The original database and nonempty WAL remained byte-identical; the shared-memory file remained present.</td></tr>
+      <tr><td>Required gate</td><td>62 tests passed in 40.94 s; the serving parser test passed 1 test; whole-tree Ruff passed.</td></tr>
+      <tr><td>Negative control</td><td>Removing the sidecar cleanup made the reproduction fail with the rebuild refusal; exit 1, with no failing test at the repaired head.</td></tr>
+    </tbody>
+  </table>
+  <p>Source and tests: <code>imas_ambix/agent/cli.py</code> and
+    <code>tests/test_agent_ingest_cli.py</code>. Commits:
+    <code>8f681afb6ebd046f9702a03c5dd770fbd1ab4f1b</code>,
+    <code>d59e9486c1b6c40addc5a60bca59849902ee268b</code>, and
+    <code>10201b7f9f0aab397f615a6a3a30ea4a20c0fd49</code>. Gate and control
+    logs are in the node's crew run directory.</p>
+</section>
