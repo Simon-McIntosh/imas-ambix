@@ -67,9 +67,10 @@ def test_old_schema_index_rebuilds_before_first_tick(tmp_path, monkeypatch) -> N
     def check_swap(source, destination):
         if destination == index_path:
             assert source.exists()
-            assert not index_path.with_name(index_path.name + "-wal").exists()
-            assert not index_path.with_name(index_path.name + "-shm").exists()
-            swap_checked.append(True)
+            swap_checked.append(
+                not index_path.with_name(index_path.name + "-wal").exists()
+                and not index_path.with_name(index_path.name + "-shm").exists()
+            )
         replace(source, destination)
 
     monkeypatch.setattr(cli.os, "replace", check_swap)
