@@ -1456,8 +1456,25 @@ def test_grown_source_reads_only_appended_bytes_and_identity_probes(
                 expected = hashlib.sha256(handle.read(stored["offset"])).hexdigest()
             assert stored["prefix_sha"] == expected
         bytes_read = 0
-        assert index.ingest([source]).files_scanned == 0
+        assert index.ingest([source]).files_scanned == 1
+        assert bytes_read <= 128 * 1024
+
+    with TelemetryIndex(tmp_path / "index.db") as reopened:
+        bytes_read = 0
+        assert reopened.ingest([source]).files_scanned == 0
         assert bytes_read == 0
+        row = _row(1003)
+        with real_open(source, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row) + "\n")
+        appended = len((json.dumps(row) + "\n").encode())
+        assert reopened.ingest([source]).rows_inserted == 1
+        assert bytes_read <= appended + 128 * 1024
+        stored = reopened._conn.execute(
+            "SELECT offset, prefix_sha FROM source ORDER BY offset DESC LIMIT 1"
+        ).fetchone()
+        with real_open(source, "rb") as handle:
+            expected = hashlib.sha256(handle.read(stored["offset"])).hexdigest()
+        assert stored["prefix_sha"] == expected
 
 
 def test_a_rewrite_that_moves_the_modification_time_is_still_caught(tmp_path):
@@ -1518,10 +1535,12 @@ def test_mid_file_rewrite_waits_for_full_identity_interval(tmp_path):
             index.sum_measurements("prefix_cache_query_delta", _at(500), _at(501))
             == 510
         )
+        recorded_mtime = index._conn.execute(
+            "SELECT mtime_ns FROM source ORDER BY offset DESC LIMIT 1"
+        ).fetchone()["mtime_ns"]
+        assert recorded_mtime == before.st_mtime_ns
 
         clock[0] += telemetry_index.FULL_IDENTITY_INTERVAL + 1
-        assert index.ingest([source]).files_scanned == 0
-        _write(source, [_row(1001)])
         assert index.ingest([source]).files_scanned == 1
         assert (
             index.sum_measurements("prefix_cache_query_delta", _at(500), _at(501))
@@ -1533,6 +1552,36 @@ def test_mid_file_rewrite_waits_for_full_identity_interval(tmp_path):
         assert (
             stored["prefix_sha"]
             == hashlib.sha256(source.read_bytes()[: stored["offset"]]).hexdigest()
+        )
+
+
+def test_restart_rejects_pending_middle_rewrite_without_an_append(tmp_path):
+    source = tmp_path / "serve.jsonl"
+    _write(source, _many_rows(1000))
+    index_path = tmp_path / "index.db"
+    original = source.read_bytes()
+    changed = original.replace(
+        b'"prefix_cache_query_delta": 510',
+        b'"prefix_cache_query_delta": 910',
+    )
+    assert changed != original and len(changed) == len(original)
+
+    with TelemetryIndex(index_path) as index:
+        index.ingest([source])
+        before = source.stat()
+        source.write_bytes(changed)
+        os.utime(source, ns=(before.st_mtime_ns + 1_000_000,) * 2)
+        assert index.ingest([source]).rows_inserted == 0
+        assert (
+            index.sum_measurements("prefix_cache_query_delta", _at(500), _at(501))
+            == 510
+        )
+
+    with TelemetryIndex(index_path) as reopened:
+        assert reopened.ingest([source]).files_scanned == 1
+        assert (
+            reopened.sum_measurements("prefix_cache_query_delta", _at(500), _at(501))
+            == 910
         )
 
 

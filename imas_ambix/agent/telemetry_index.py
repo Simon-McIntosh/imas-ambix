@@ -33,10 +33,11 @@ match its consumed row is skipped without opening it. When either differs, the
 index compares the first and last 64 KiB of the consumed region with stored
 probe digests, and checks size and mtime direction. A running hash extends the
 stored whole-prefix digest with appended lines, so an ordinary changed-source
-tick reads only the new bytes and the probes. The first changed-source check in
-a new process builds the hash from the consumed prefix; a later changed-source
-check repeats that verification after the hourly interval. A rewrite confined
-to the middle is detected on the first changed-source check after that interval.
+tick reads only the new bytes and the probes. A new process seeds each existing
+source's hash before its first tick. The stored mtime remains the last fully
+verified one while a changed source passes only the probes, which keeps that
+source on the changed path until the hourly full check. A rewrite confined to
+the middle is detected at that check even when no further bytes are appended.
 A missing recorded digest cannot be trusted and makes the source start again.
 
 **Every key carries the host that recorded the row, because an inode does not
@@ -235,10 +236,16 @@ class _SourceHash:
     head: bytes
     tail: bytes
     verified_at: float
+    verified_mtime_ns: int
 
     def copy(self) -> _SourceHash:
         return _SourceHash(
-            self.offset, self.digest.copy(), self.head, self.tail, self.verified_at
+            self.offset,
+            self.digest.copy(),
+            self.head,
+            self.tail,
+            self.verified_at,
+            self.verified_mtime_ns,
         )
 
 
@@ -257,9 +264,8 @@ CREATE TABLE IF NOT EXISTS source (
     prefix_sha TEXT,
     head_sha TEXT,
     tail_sha TEXT,
-    -- modification time in nanoseconds as the consuming pass saw it; NULL means
-    -- a pass older than this column wrote the row, so nothing about the file's
-    -- metadata is known and the region is re-read rather than assumed
+    -- modification time at the last full identity verification; NULL means
+    -- no verified metadata is known and the region is re-read rather than assumed
     mtime_ns   INTEGER,
     PRIMARY KEY (host, boot_id, path, inode)
 );
@@ -905,6 +911,8 @@ class TelemetryIndex:
         self._migrate()
         self._identity_clock = time.monotonic
         self._hashes: dict[tuple[int, int], _SourceHash] = {}
+        self._unverified_sources: set[tuple[str, int]] = set()
+        self._seed_hashes()
 
     @classmethod
     def readonly(
@@ -941,6 +949,7 @@ class TelemetryIndex:
         index._conn.row_factory = sqlite3.Row
         index._identity_clock = time.monotonic
         index._hashes = {}
+        index._unverified_sources = set()
         return index
 
     def _migrate(self) -> None:
@@ -961,14 +970,81 @@ class TelemetryIndex:
                 self._conn.execute(f"ALTER TABLE source ADD COLUMN {column} TEXT")
                 self._conn.commit()
 
+    def _seed_hashes(self) -> None:
+        """Rebuild committed hash states once before the first ingest tick."""
+        seen: set[tuple[str, int]] = set()
+        verified_rows: list[tuple[int, str, str, str, int, int, str]] = []
+        rows = self._conn.execute(
+            "SELECT path, inode, offset, prefix_sha, head_sha, tail_sha, mtime_ns "
+            "FROM source "
+            "ORDER BY offset DESC"
+        )
+        for row in rows:
+            source = (row["path"], row["inode"])
+            if source in seen or not row["offset"]:
+                continue
+            seen.add(source)
+            self._unverified_sources.add(source)
+            path = Path(row["path"])
+            try:
+                stat = path.stat()
+                if stat.st_ino != row["inode"] or stat.st_size < row["offset"]:
+                    continue
+                digest = _hash_of(path, row["offset"])
+                if digest is None or digest.hexdigest() != row["prefix_sha"]:
+                    continue
+                head, tail = _probe_windows(path, row["offset"])
+            except OSError:
+                continue
+            if row["head_sha"] and hashlib.sha256(head).hexdigest() != row["head_sha"]:
+                continue
+            if row["tail_sha"] and hashlib.sha256(tail).hexdigest() != row["tail_sha"]:
+                continue
+            self._hashes[(stat.st_dev, stat.st_ino)] = _SourceHash(
+                row["offset"],
+                digest,
+                head,
+                tail,
+                self._identity_clock(),
+                stat.st_mtime_ns,
+            )
+            self._unverified_sources.discard(source)
+            if (
+                row["mtime_ns"] != stat.st_mtime_ns
+                or row["head_sha"] is None
+                or row["tail_sha"] is None
+            ):
+                verified_rows.append(
+                    (
+                        stat.st_mtime_ns,
+                        hashlib.sha256(head).hexdigest(),
+                        hashlib.sha256(tail).hexdigest(),
+                        row["path"],
+                        row["inode"],
+                        row["offset"],
+                        row["prefix_sha"],
+                    )
+                )
+        if verified_rows:
+            with self._conn:
+                self._conn.executemany(
+                    "UPDATE source SET mtime_ns = ?, head_sha = ?, tail_sha = ? "
+                    "WHERE path = ? AND inode = ? AND offset = ? AND prefix_sha = ?",
+                    verified_rows,
+                )
+
     def _consumed_whole_and_untouched(self, path: Path, stat: os.stat_result) -> bool:
-        """Skip a consumed source whose size and mtime have not moved."""
+        """Skip a consumed source whose size and verified mtime still match."""
         row = self._conn.execute(
             "SELECT size, offset, mtime_ns FROM source "
             "WHERE path = ? AND inode = ? ORDER BY offset DESC LIMIT 1",
             (str(path), stat.st_ino),
         ).fetchone()
-        if row is None or row["mtime_ns"] is None:
+        if (
+            row is None
+            or row["mtime_ns"] is None
+            or (str(path), stat.st_ino) in self._unverified_sources
+        ):
             return False
         return (
             row["offset"] == row["size"] == stat.st_size
@@ -1031,6 +1107,7 @@ class TelemetryIndex:
         for key in tuple(self._hashes):
             if key[1] == row["inode"]:
                 self._hashes.pop(key)
+        self._unverified_sources.discard((row["path"], row["inode"]))
 
     def vacuum(self) -> None:
         """Return the index file's free pages to the filesystem.
@@ -1256,7 +1333,8 @@ class TelemetryIndex:
 
         *offset* is the byte after the batch's last complete line. The samples,
         source row and commit are one transaction, so an interrupted pass
-        resumes at exactly the last committed batch.
+        resumes at exactly the last committed batch. The source row retains
+        the previous mtime until the whole consumed prefix has been verified.
         """
         with self._conn:
             self._conn.execute(
@@ -1282,11 +1360,12 @@ class TelemetryIndex:
                     identity.digest.hexdigest(),
                     hashlib.sha256(identity.head).hexdigest(),
                     hashlib.sha256(identity.tail).hexdigest(),
-                    stat.st_mtime_ns,
+                    identity.verified_mtime_ns,
                 ),
             )
         identity.offset = offset
         self._hashes[(stat.st_dev, stat.st_ino)] = identity.copy()
+        self._unverified_sources.discard((str(path), stat.st_ino))
 
     def _tier_has_no_row(self, path: Path) -> bool:
         """Whether *path* is a job's receipts tier file that carries no record line.
@@ -1415,7 +1494,9 @@ class TelemetryIndex:
         boot = None if row is None else row["boot_id"]
         start = 0
         key = (stat.st_dev, stat.st_ino)
-        identity = _SourceHash(0, hashlib.sha256(), b"", b"", self._identity_clock())
+        identity = _SourceHash(
+            0, hashlib.sha256(), b"", b"", self._identity_clock(), stat.st_mtime_ns
+        )
         if row is not None and row["offset"]:
             if self._was_rewritten(path, stat, row):
                 self._hashes.pop(key, None)
@@ -1484,7 +1565,9 @@ class TelemetryIndex:
             digest = _hash_of(path, offset)
             if digest is None or digest.hexdigest() != row["prefix_sha"]:
                 return True
-            self._hashes[key] = _SourceHash(offset, digest, head, tail, now)
+            self._hashes[key] = _SourceHash(
+                offset, digest, head, tail, now, stat.st_mtime_ns
+            )
         return False
 
     def _parse(self, raw: bytes, path: Path, offset: int) -> Mapping[str, Any] | None:
@@ -1570,6 +1653,8 @@ class TelemetryIndex:
                 "DROP TABLE IF EXISTS source;"
             )
             self._conn.executescript(_SCHEMA)
+        self._hashes.clear()
+        self._unverified_sources.clear()
         return self.ingest(sources)
 
     # ── queries ──────────────────────────────────────────────────────
