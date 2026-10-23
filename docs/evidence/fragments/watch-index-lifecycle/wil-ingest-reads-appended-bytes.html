@@ -15,27 +15,33 @@
       updates it with newly consumed lines, and stores head and consumed-tail
       probe digests beside the whole-prefix digest. A source whose size and
       modification time match its stored row is skipped without opening it.
-      At startup, the index rebuilds each stored hash state and verifies its
-      committed prefix before the first tick. Changed sources check two 64 KiB
-      windows; the first one after the hourly interval verifies the whole
-      consumed prefix. Until that check, the stored modification time remains
-      at its last fully verified value, so an unchanged-size middle rewrite
-      remains eligible for the due tick without another append. A truncated or
-      head-rewritten source is rejected on its next changed-source tick.</p>
+      Opening the writer reads no receipt bytes. A source whose size and
+      verified modification time still match its row is never opened. Changed
+      sources check two 64 KiB windows; the first changed tick in a process
+      reads the whole committed prefix once to build its running hash. Later
+      changed ticks verify it again when the hourly interval expires. Until
+      then, the stored modification time remains at its last fully verified
+      value, so an unchanged-size middle rewrite remains eligible for the due
+      tick without another append. A truncated or head-rewritten source is
+      rejected on its next changed-source tick.</p>
       <p id="wil-ingest-reads-appended-bytes-measure">The baseline regression
       read 708,062 bytes for a 356-byte append, against the 131,428-byte
-      bound. The corrected byte-counting test passed on two consecutive append
-      ticks and on the first append after restart; the unchanged first tick
-      after restart read zero bytes. The injected-clock test detected a
-      same-length middle rewrite when the interval elapsed, with no further
-      append. Reversing the repair failed three focused checks, including a
-      485,993-byte read for 356 appended against the 131,428-byte bound.</p>
+      bound. The byte-counting test passes two consecutive append ticks; after
+      restart, a pending changed source gets one whole-prefix verification and
+      subsequent appends return to bounded reads. Opening an index with two
+      closed, fully verified sources produced zero receipt opens and zero bytes;
+      restoring eager seeding caused four opens and 969,850 bytes on that same
+      check. The injected-clock test detected a same-length middle rewrite
+      when the interval elapsed, with no further append.</p>
       <p id="wil-ingest-reads-appended-bytes-gate">The named three-file gate
-      finished with 97 passed in 59.97 s, including the existing assertion
+      finished with 98 passed in 51.57 s, including the existing assertion
       that an unchanged receipt is never opened. The serving-interpreter guard
       passed its selected test, and <code>ruff check imas_ambix tests</code>
       exited 0. The head-window rewrite made exactly one probe; a source whose
-      size and modification time still match its row remains unopened.</p>
+      size and verified modification time still match its row remains unopened.
+      The unchanged-source hash assertion counts calls through the active
+      <code>_hash_of</code> path, with a positive control proving the hook sees
+      a known read.</p>
     </section>
   </main>
 </body>
