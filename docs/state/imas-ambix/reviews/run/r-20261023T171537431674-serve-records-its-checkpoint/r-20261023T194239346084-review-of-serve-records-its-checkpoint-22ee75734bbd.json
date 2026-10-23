@@ -1,0 +1,64 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "unmeasured: the reviewed manifest records baseline_suite: null and after_suite: null, so no base and head gate logs exist to derive an added-failure count from; recorded as 0/[] only because the delivery contract requires an integer, and it must not be read as a measured zero.",
+  "call_site_count": 6,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:1184 _republish_endpoint_document (build_endpoint_document/write_endpoint_document)",
+    "imas_ambix/agent/cli.py:642 generate_serve_script (agent serve)",
+    "imas_ambix/agent/cli.py:2089 generate_serve_script (agent restart --dry-run)",
+    "imas_ambix/agent/cli.py:2576 generate_serve_script (restart pause/overlap path)",
+    "imas_ambix/agent/cli.py:3169 record_receipts (serve_config.model_path)",
+    "imas_ambix/agent/registry.py:829 main() CLI --checkpoint argument"
+  ],
+  "completed_at": "2026-10-23T19:56:16.061Z",
+  "dispatched_at": "2026-10-23T19:42:56Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/registry.py",
+      "line": "674",
+      "severity": "non-blocking",
+      "text": "non-blocking: the node goal and plan section 4 name the engine's entry as where endpoints.json publishes the checkpoint, but write_endpoint_document emits it in a top-level checkpoints map at registry.py:674; the deviation is justified and reported -- the deployed generated launcher validates an entry against an exact key set at imas_ambix/agent/clive.py:328 and fails closed on any other field -- but it changes the published-document contract the goal states and needs coordinator adjudication rather than silent acceptance."
+    },
+    {
+      "file": "docs/figures/rotate-to-deepseek-v4-1-flash-1017/serve-records-its-checkpoint/document-shape.svg",
+      "line": "1",
+      "severity": "non-blocking",
+      "text": "non-blocking: the node's landing contract states that because its done-when names no artifact it writes no figure, yet it wrote document-shape.svg; the figure renders cleanly and the declared write paths grant the figures directory, so this may be intended, but the record should say which of the two governs."
+    }
+  ],
+  "item_verdicts": {
+    "call_sites": "verified the production paths that reach the change: the endpoint publish path, the serve and restart script generator, and the receipts recorder.",
+    "diff": "read commit by commit against base f49f6d5; five commits, eight files, and commit 8e3fa67f deliberately moves the checkpoint from an engine-entry field to a top-level checkpoints map with its reason in the body.",
+    "done_when": "the done_when names tests/test_agent_serve_registry.py + tests/test_agent_endpoint_discovery.py + tests/test_agent_serving_receipts.py and ruff; the manifest records that gate at rev 22ee7573 with 81 passed and ruff exit 0.",
+    "goal": "the goal is to record on the registration and in endpoints.json the hf_repo@revision a serve loaded; read imas_ambix/agent/slurm.py:606 and imas_ambix/agent/registry.py:674 and found the registration and the published document both carry it.",
+    "manifest": "read; it states status complete, names the gate command and four test log paths, and states both negative controls' results.",
+    "write_paths": "read the manifest's declared paths (eight entries); the diff's eight files are all inside them."
+  },
+  "justifications": {
+    "durability": "the entry-key-set assertion at tests/test_agent_serve_registry.py:405 names the base revision's seven fields literally, and the recorded control shows restoring checkpoint as an entry field reddens it (logs/negative-control-entry-key-set.log, 10 failed / EXIT=1), so it fails on the regression it guards.",
+    "evidence": "the manifest's gate line is exactly the done_when's three files and its log (logs/gate-checkpoints-map.log, header 'rev 22ee7573', tail '81 passed' / 'EXIT=0') records the same run, with ruff exit 0 and two red negative controls.",
+    "fit": "the added field follows the surrounding dataclass idiom at imas_ambix/agent/registry.py:125 with a mechanism docstring, and the added vocabulary entry at imas_ambix/agent/serving_receipts.py:144 sits in the existing SERVE_CONFIG_OPTIONS tuple with the file's launcher-flag mapping comment.",
+    "goal_fidelity": "imas_ambix/agent/registry.py:125 and imas_ambix/agent/slurm.py:606 carry the loaded checkpoint on the registration and publish it in endpoints.json, meeting the goal's substance; the publication is a top-level map at registry.py:674 rather than the engine entry the goal names, a forced and reported deviation (see finding).",
+    "reuse": "no capability is forked: ServeRegistration and EndpointDocument are extended in place, SERVE_CONFIG_OPTIONS gains one name, and the engine-over-caller precedence for model_path is the existing merge path exercised at tests/test_agent_serving_receipts.py:1495, not a new one.",
+    "scope_discipline": "every path the diff touches is inside the declared write paths, but the node's landing contract stated it writes no figure and it wrote docs/figures/rotate-to-deepseek-v4-1-flash-1017/serve-records-its-checkpoint/document-shape.svg (see finding)."
+  },
+  "project": "imas-ambix",
+  "review_run_id": "r-20261023T194239346084-review-of-serve-records-its-checkpoint-22ee75734bbd",
+  "reviewed_base_sha": "f49f6d5edbd7e55a0765c935090af27d365b4e56",
+  "reviewed_head_sha": "22ee75734bbd6aaacfff382fb363d547efe2c2c4",
+  "reviewed_run_id": "r-20261023T171537431674-serve-records-its-checkpoint",
+  "rubric": "landed-node",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 18,
+    "goal_fidelity": 17,
+    "reuse": 20,
+    "scope_discipline": 16
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T19:58:12.665559+00:00",
+  "total": 107
+}
