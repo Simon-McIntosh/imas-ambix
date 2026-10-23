@@ -1,0 +1,44 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "completed_at": "2026-10-23T19:58:00.431Z",
+  "dispatched_at": "2026-10-23T19:43:42Z",
+  "figures_reviewed": [
+    "docs/figures/rotate-to-deepseek-v4-1-flash-1017/serve-records-its-checkpoint/document-shape.svg"
+  ],
+  "findings": [
+    {
+      "file": "docs/figures/rotate-to-deepseek-v4-1-flash-1017/serve-records-its-checkpoint/document-shape.svg",
+      "line": null,
+      "severity": "blocking",
+      "summary": "The rendered figure shows no text at all, so it conveys nothing to a reader. The 1399x720 PNG holds four empty bordered rectangles (left column one box, right column two) with two small grey arrow callouts beneath them, and below the panels the figure is blank apart from a single horizontal rule near y=533; a scan of all 1,007,280 pixels finds only white plus border, arrowhead and rule colours (greys 200/173/146, blue 108-146-187, red 176-48-48), and zero pixels with every channel below 100. The instrument that reports that zero sees text when text is present: the same scan on a control image carrying one line of dark text finds 343 such pixels, so the absence is a measured absence rather than a blind reader. The figure's own alt text and caption describe a left/right comparison (a checkpoint published as an eighth field on an engine entry, which a launcher refuses, against the same seven entry keys with the checkpoint in a separate top-level map) plus 'the four places the checkpoint is now recorded', and none of that is visible \u2014 the caption's explanation has nothing to point at, so a reader of the plan section has no figure for the shape the landing changed."
+    },
+    {
+      "file": "docs/figures/rotate-to-deepseek-v4-1-flash-1017/serve-records-its-checkpoint/document-shape.svg",
+      "line": null,
+      "severity": "non-blocking",
+      "summary": "The two arrow callouts are colour-coded \u2014 a short red stroke above the left arrowhead and a short blue stroke above the right one \u2014 and no label or legend identifies either, so the colour carries a distinction a reader cannot resolve. With the panels themselves empty this is a facet of the missing-content defect above, recorded separately because it is the one piece of visual encoding the render does show and it is unreadable on its own."
+    }
+  ],
+  "project": "imas-ambix",
+  "rendered_images_reviewed": [
+    "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T194321441579-review-of-serve-records-its-checkpoint-22ee75734bbd-figure/image-0.png"
+  ],
+  "review_run_id": "r-20261023T194321441579-review-of-serve-records-its-checkpoint-22ee75734bbd-figure",
+  "reviewed_base_sha": "f49f6d5edbd7e55a0765c935090af27d365b4e56",
+  "reviewed_head_sha": "22ee75734bbd6aaacfff382fb363d547efe2c2c4",
+  "reviewed_run_id": "r-20261023T171537431674-serve-records-its-checkpoint",
+  "rubric": "figure",
+  "rubric_verdicts": {
+    "contrast": "fail \u2014 no text is rendered anywhere in the figure, so there is no text clearing the contrast of its background. This is the same missing-text defect the legibility item reports, not an independent contrast collision.",
+    "data_ink": "fail \u2014 the figure carries no data ink \u2014 only box borders, two arrowheads and two full-width horizontal rules; the content the caption describes is not drawn, so nothing competes with the data because no data is shown.",
+    "decoration": "pass \u2014 there is no gradient, background fill or decorative styling anywhere in the render; the defect is missing content, not decoration.",
+    "label_collision": "pass \u2014 no label is rendered anywhere, so none is clipped, overlapping another label, or overlapping the data. The absence of labels is reported under legibility, not here.",
+    "legibility": "fail \u2014 the 1399x720 render carries no text at all: the two panels are empty bordered rectangles (one box on the left, two stacked on the right) joined by two small arrow callouts, so a reader cannot tell what the figure compares.",
+    "table_form": "pass \u2014 the image depicts no information at all, so it does not depict information that is naturally a table; nothing tabular is presented as a picture."
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T19:58:01.423141+00:00",
+  "total": null
+}
