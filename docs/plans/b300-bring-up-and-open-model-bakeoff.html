@@ -25,7 +25,7 @@
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="11">
+<meta name="plan-version" content="14">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -97,7 +97,9 @@
     <h2 id="s3">§3 — Download the backups</h2>
 <section data-reckon="section" data-id="s3" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
     <p>The candidates go on disk now so that trying one later costs a launch rather than a
-    multi-terabyte transfer. Two new profiles carry identity and weights only, with pinned
+    multi-terabyte transfer. Two new profiles are added to the catalogue. They retire nothing
+    yet: <code>kimi-k2-6</code> and <code>mimo-v2-5-pro</code> stay until §2's audit
+    recommends pruning them, and that is the lead's decision. The new profiles carry identity and weights only, with pinned
     revisions and no serving topology:</p>
     <ul>
       <li><code>kimi-k3</code>: <code>moonshotai/Kimi-K3</code>, MXFP4, about 1.42 TiB;</li>
@@ -169,8 +171,9 @@
     <code>b300-8x</code>; it does not change what a bare <code>agent serve</code>
     launches.</p>
     <p><strong>Write paths.</strong> <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>,
-    <code>imas_ambix/agent/profile.py</code>, <code>tests/test_agent_b300_launchers.py</code>
-    (new), <code>docs/research/b300-launch-recipes.html</code> (new).</p>
+    <code>imas_ambix/agent/profile.py</code>, <code>tests/test_agent_site_servers.py</code>
+    (which already declares a <code>b300</code> test server), and
+    <code>docs/research/b300-launch-recipes.html</code> (new).</p>
     <p><strong>Done when.</strong></p>
     <ul>
       <li>Under a test site configuration that declares a <code>b300</code> server,
@@ -191,11 +194,16 @@
 
     <h2 id="s5">§5 — Measure the B300 on arrival</h2>
 <section data-reckon="section" data-id="s5" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
-    <p>Launch <code>b300-8x</code>, run the rotation's tool-call probes through it, then sweep
-    concurrency from 1 to 64. Prompts are drawn from the receipts' measured prompt-size
-    distribution, not the 128-token prompts of the published benchmark. Record aggregate and
-    per-request tokens per second, time to first token, and the knee: the concurrency beyond
-    which aggregate throughput gains less than 5%. Repeat for <code>b300-4x</code>, so both
+    <p>Launch <code>b300-8x</code> and measure it with the repository's own benchmark,
+    <code>imas-ambix agent bench</code>. Its tool-call probe (<code>run_tool_call_bench</code>,
+    now <code>bench.check_tool_call</code> after the rotation) runs first. Then its
+    concurrency ladder (<code>_run_concurrency</code>), extended from the default
+    <code>1–32</code> to 64 through its concurrency option, sweeps the engine with prompts
+    drawn from the receipts' measured prompt-size distribution, not the 128-token prompts
+    of the published benchmark. Aggregate and per-request tokens per second, time to first
+    token, and the knee (the concurrency beyond which aggregate throughput gains less than
+    5%) come from <code>bench_report</code>'s existing reduction. The figure is drawn from
+    that report. Repeat for <code>b300-4x</code>, so both
     configurations have a measured knee. The <code>b300-8x</code> knee becomes the engine's
     starting gate width.</p>
     <p><strong>Write paths.</strong> <code>docs/research/b300-throughput.html</code> (new),
