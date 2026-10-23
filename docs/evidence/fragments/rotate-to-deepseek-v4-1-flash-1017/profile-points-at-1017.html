@@ -18,7 +18,11 @@
     <code>MODEL_DIR</code>, now
     <code>/work/projects/imas_gpu/agents/deepseek-v4-1-flash-1017/model</code>. The test
     asserts equality modulo the weights directory rather than a substring, so a serving
-    setting that moved alongside the checkpoint would fail it.
+    setting that moved alongside the checkpoint would fail it. Against the base revision the
+    profile's <code>[model]</code> block differs in three keys —
+    <code>hf_repo</code>, <code>revision</code> and <code>weights_slug</code> — and only
+    <code>weights_slug</code> is read by the serve generator, which is why one line is the
+    whole difference.
   </p>
 
   <p id="profile-points-at-1017-shards">
@@ -41,9 +45,10 @@
     <code>model-00001-of-00048.safetensors</code> with a single byte flipped at offset
     5,000,000 reported <code>MISMATCH</code> for that shard and
     <code>VERDICT: FAIL</code>. Its first attempt also failed honestly: the recursive
-    listing endpoint paginates at fifty entries and returned no shard at all, which the
-    verifier's own control refused rather than reporting 48 shards missing. The control log
-    is outside the tree, at
+    listing endpoint paginates at fifty entries, served only thirteen shards of the
+    forty-eight, and the verifier's own control refused that listing rather than reporting
+    the thirty-five absent from it as missing files. The control log is outside the tree,
+    at
     <code>~/.config/reckon/crew/runs/r-20261023T140736542637-profile-points-at-1017/</code>.
   </p>
 
