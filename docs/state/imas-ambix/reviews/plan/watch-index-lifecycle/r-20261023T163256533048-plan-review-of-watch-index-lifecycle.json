@@ -1,0 +1,57 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T16:49:36.149Z",
+  "dispatched_at": "2026-10-23T16:36:09Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/watch-index-lifecycle.html:22",
+      "id": "wiring-1",
+      "reason": "\u00a75 and \u00a710 are both `done` and f-wil-001 already orders \"\u00a711 after \u00a77\", so the omission changes no dispatch and only leaves the record short of its own convention.",
+      "text": "`s11` records a dependency on \u00a77 alone, while \u00a711's write scope overlaps \u00a75 (`imas_ambix/agent/telemetry_index.py`) and \u00a710 (`imas_ambix/agent/index_placement.py`) and its items 1 and 3 modify a predicate and a rollup column those sections introduced; the plan's own convention declares such overlaps (`s5:[s3]` for the shared `telemetry_index.py`, `s10:[s6]` for the shared `cli.py`), so the declared dependency set is incomplete",
+      "type": "wiring",
+      "would_change": false
+    },
+    {
+      "anchor": "docs/plans/watch-index-lifecycle.html:316",
+      "id": "reasoning-1",
+      "reason": "a node implementing item 5 as written adds whole-hour coverage that still passes under the regression, whereas the declared negative control only becomes reachable once the day-period assertion is made independent of the raw reference, so the stated cause misdirects the repair the section asks for.",
+      "text": "\u00a711 item 5 states \"the counter-rollup test never forces whole hours through `hourly_rollup`\", but the test it cites, `test_cached_tiers_*` (tests/test_agent_telemetry_watch.py:481-513), queries a one-day period, selects exactly the whole-hour rows (`SELECT counter_diff, segments FROM hourly_rollup WHERE name_id = ... AND hour > ? AND hour < ?`, tests/test_agent_telemetry_watch.py:504-510) and asserts those rows exist, so whole hours are already read from the rollup; the real reason a raw-answering regression passes is that the assertion is `observed == reference` against the `_RawIndex` arm, whose `_counter_window_rows` computes from raw rows (tests/test_agent_telemetry_watch.py:36-52, 498-501)",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "d8ef6b983ed831cc192a06cad7d16cbcda6b16c8f9c5a49824733d34e2198165",
+  "plan_slug": "watch-index-lifecycle",
+  "plan_version": 32,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T163256533048-plan-review-of-watch-index-lifecycle",
+  "reviewed_blob_sha": "a3e12a5406438713b64f174f764179c21d3da12c",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every anchor \u00a711 names resolves in the tree as read: `index_placement.index_requires_rebuild` (imas_ambix/agent/index_placement.py:95), its own `name_id` copy (index_placement.py:98), `cli.py`'s private `_snapshot_paths` call (imas_ambix/agent/cli.py:3420), the inline `-wal`/`-shm` clearing (imas_ambix/agent/cli.py:3431-3435), `restore_index`'s install by `os.replace` (imas_ambix/agent/index_placement.py:264), and the counter rollup's `counter_diff` column (imas_ambix/agent/telemetry_index.py:320) with `_counter_window_rows` reading `segments` (imas_ambix/agent/telemetry_index.py:2126).",
+    "done_when": "pass \u2014 \u00a711's done-whens are each measurable (`git grep name_id -- imas_ambix/agent/index_placement.py`, `git grep _snapshot_paths -- imas_ambix/agent/cli.py`, `os.replace` confined to `index_placement` plus its stale-`-wal` regression) and the section declares a negative control whose refusal is observable in a test's exit status.",
+    "evidence_paths": "pass \u2014 \u00a711 names no scratchpad or node-local path; its gates are the named test modules and the whole-tree ruff run, executed on the fleet allocation and logged where the plan's other sections log.",
+    "naming": "pass \u2014 \u00a711's symbols and prose name mechanisms (`name_id`, `_snapshot_paths`, `segments`, `-wal`) and carry no plan label, ticket number or version tag into code; the `\u00a75`/`\u00a710` references are plan prose, not code or comments.",
+    "reasoning": "a finding \u2014 item 5's stated reason for the counter-rollup test's blindness is contradicted by the test it cites.",
+    "single_goal": "pass \u2014 \u00a711 carries one verdict for one cleanup: each of its five items makes one index fact or one install path single-owned, and none of them is a second deliverable.",
+    "wiring": "a finding \u2014 `s11` declares `depends-on` only `watch-index-lifecycle#s7`, although \u00a711 also edits `imas_ambix/agent/telemetry_index.py` (\u00a75's file) and `imas_ambix/agent/index_placement.py` (\u00a710's file), whose code its items 1 and 3 change."
+  },
+  "section_digests": {
+    "_document": "8748a5e1e4606b82b90471ebdb089699ad9f274a5c080b293ac5bbb2925615f1",
+    "s1": "3d0d4a4b2f4087609ba3ffca49ccea0ed64b9473687ecd3c5d6d6135d6ba4340",
+    "s10": "77280074af71988f813c07c968531d496bbaaf5103e75e28f87813569c15eaa2",
+    "s11": "cb8bfb8f6bd5ff0e4b19b0f0a0c0a2b21041ee14dda22eb37542dcc6b2e48f78",
+    "s2": "32189637430822acde78e34d53cbed7c3f0ae26c9fe044e99dc013e4e1d0db9d",
+    "s3": "404fc86a0b4c4e77af4febf31149dba78e8566091b87bc977876eabdf52a44f5",
+    "s4": "214ae5abf0b93b92e7479cda3f691edea3bc60b7b7ec1485dcced5899519843e",
+    "s5": "07220ee6b71f94c5bd9e6352dc2c18ff164dd9bba3eb996685e8bb2b38ef8c10",
+    "s6": "dda4b45beb908619af51ad68c93a9ab8d50d2d37e8a5e652821fa1494d2b34df",
+    "s7": "36856e4c38398072d521cb951fd28492f3357e9b319f4265621c68931da13552",
+    "s8": "83ac32d54d4394cd1d9f11da1f46b1eb6420b70f2911084121a031e6f7aff225",
+    "s9": "62bf93e7fec684aebfaadc4ad598642503ca8ee4691eeec898a8aad77e03adf1"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T16:52:19.936657+00:00"
+}
