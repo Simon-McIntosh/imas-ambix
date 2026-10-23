@@ -5,19 +5,27 @@
   <code>glm-5-3-%j.log</code> whose <code>is_absolute()</code> check returned
   false. The shared agent header writer now resolves stdout through one
   function under <code>~/.local/state/ambix/slurm-logs/</code>. The data
-  download header and three tracked batch headers use that destination too.
-  A complete focused arm passed eight non-setup cases; restoring the bare
-  relative output name in the shared writer made four generated-script cases
-  fail (EXIT=1). The writer was restored to its committed state.</p>
-  <p>A positive-control search found 96 tracked output directives. Its only
-  remaining relative targets are the setup and runtime-check literals in
-  <code>imas_ambix/agent/cli.py</code>. That file is also granted to a queued
-  peer, so those edits await a scope decision. Whole-tree Ruff exited zero,
-  and the serving-interpreter parse guard passed. The existing focused suite
-  passed 60 tests and failed one full-script golden digest in
-  <code>tests/test_agent_site_servers.py</code>, outside this node's grant:
-  the observed digest was <code>4aafd9acd2216aa485d0ef5308739a15fe6d04f741adfbd9f31f7b77b062fcaf</code>
-  against the stored <code>d83d58cb79e1801bed704ed7b64c710bab0510afe9777b65e9b48cb860505773</code>.</p>
+  download header, setup and runtime-check headers, and three tracked batch
+  headers use that destination too. The setup message prints both resolved
+  log paths; <code>_job_stdout_path</code> still reads the scheduler's
+  <code>StdOut</code> field.</p>
+  <p>A comparable base arm loaded the recorded revision's three changed Python
+  modules from git blobs in memory because the worker fence refused a scratch
+  tree under <code>/tmp</code>. It failed nine of 22 cases: eight output-path
+  checks and the new normalized serve-script digest. The current arm passed
+  all 22. The digest now normalizes the home and checkout roots; its expected
+  value is <code>87e59fa736232e8bb0d63bf4b3d93bf342a3dbba7f6bb7b94e248dd47f122653</code>.
+  Restoring the bare relative output name in the shared writer made four
+  generated-script cases fail (EXIT=1); the writer was restored afterward.</p>
+  <p>A positive-control search found 96 tracked output directives and zero
+  relative or repository-root targets. The targeted new and golden tests
+  passed 25 of 25, whole-tree Ruff exited zero, and the serving-interpreter
+  parse guard passed. The broader 20-file gate passed 464 tests and failed
+  five. Four unchanged <code>test_agent.py</code> failures reproduced against
+  the base blobs. The new failure is a historical full-router-script
+  comparison in <code>tests/test_agent_gate_control_path.py</code> that still
+  expects the relative output directive; a scope decision is pending for
+  that test.</p>
   <p>The following seven main-checkout scripts are untracked and were not
   edited: <code>scripts/_d3_arm.sh</code>,
   <code>scripts/_disc_regate.sh</code>,
@@ -26,6 +34,7 @@
   <code>scripts/_r2_pipeline.sh</code>,
   <code>scripts/slurm/_m1_run_suite.sh</code>, and
   <code>scripts/slurm/excited_cohort_scan.sbatch</code>. The destination
-  directory was absent when checked; the coordinator's archive step must
-  create it before any tracked batch script is submitted.</p>
+  directory was absent when checked. SLURM needs it to exist before job
+  submission; the coordinator creates it and archives the existing root
+  logs.</p>
 </section>
