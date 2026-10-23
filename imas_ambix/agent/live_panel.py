@@ -25,7 +25,10 @@ a measurement claim the record cannot support.
 
 A third block, ``callers``, says whose requests fill the gate. It reads the
 tail of the router's per-request record beside the lane document, and is built
-in :mod:`imas_ambix.agent.lane_callers`.
+in :mod:`imas_ambix.agent.lane_callers`, which also builds the ``history``
+strip and the ``outcomes`` line from the same rows. Those two reach back
+further than the callers window, so the record is read once over the longest
+of the three and every level is cut from that one pass.
 """
 
 from __future__ import annotations
@@ -37,7 +40,7 @@ from pathlib import Path
 from typing import Any
 
 from imas_ambix.agent.lane import availability_percent, classify_reading, lane_headroom
-from imas_ambix.agent.lane_callers import callers_block
+from imas_ambix.agent.lane_callers import record_blocks
 from imas_ambix.agent.serving_receipts import tier_paths
 
 #: The trailing window the ``live`` block describes. The recorder appends one
@@ -518,11 +521,13 @@ def live_panel(
     lane_path: str | Path | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
-    """Both live blocks, resolved from the site when no path is supplied.
+    """Every live block, resolved from the site when no path is supplied.
 
     A caller on the tail of the watch document supplies the paths it already
     has; a standalone caller lets the site configuration resolve them, which is
-    the same resolution the recorder writes through.
+    the same resolution the recorder writes through. The request-record blocks
+    -- ``callers``, ``history`` and ``outcomes`` -- come from one bounded read
+    of the record beside the lane document.
     """
     if receipts_dir is None:
         from imas_ambix.agent.watch import default_record_dir
@@ -532,10 +537,19 @@ def live_panel(
         from imas_ambix.agent.profile import SiteConfig
 
         lane_path = SiteConfig.from_env().endpoint_document.with_name(LANE_FILENAME)
+    # The router writes its request record beside the lane document, so the
+    # caller breakdown, the history strip and the outcomes line all read the
+    # same directory the lane block came from -- and read it once between them,
+    # because each poll of this document would otherwise walk the same growing
+    # file three times. All three hang off ``callers``, the block this document
+    # already gives to the request record, so the document's own top-level keys
+    # stay the three the live path has always published.
+    blocks = record_blocks(Path(lane_path).parent, now=now)
+    callers = dict(blocks["callers"])
+    callers["history"] = blocks["history"]
+    callers["outcomes"] = blocks["outcomes"]
     return {
         "lane": read_lane_block(lane_path, now=now),
         "live": live_block(receipts_dir, now=now),
-        # The router writes its request record beside the lane document, so the
-        # caller breakdown reads the same directory the lane block came from.
-        "callers": callers_block(Path(lane_path).parent, now=now),
+        "callers": callers,
     }
