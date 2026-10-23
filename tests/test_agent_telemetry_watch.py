@@ -478,6 +478,42 @@ def test_watch_document_matches_raw_rows_across_whole_hours(
     assert mismatch is None, f"rollup mismatch at {mismatch}"
 
 
+def test_cached_tiers_use_counter_rollups_across_a_day(tmp_path: Path) -> None:
+    """Cache tiers are cumulative even though their names lack a total suffix."""
+    now = _dt.datetime(2026, 10, 23, 12, 13, tzinfo=_dt.UTC).timestamp()
+    rows = [
+        _row(
+            now - (196 - step) * 900,
+            prompt_tokens=step * 1000,
+            generation_tokens=step * 100,
+            cached_device=step * 100,
+            cached_external=step * 25,
+        )
+        for step in range(196)
+    ]
+    directory = _write(tmp_path, rows)
+    target = tmp_path / "index.sqlite3"
+    with TelemetryIndex(target) as index:
+        index.ingest(discover(directory))
+        with _RawIndex.readonly(target) as raw:
+            for name in watch.CACHED_TIERS:
+                observed = index.partitioned_total(name, now - 86400, now)
+                reference = raw.partitioned_total(name, now - 86400, now)
+                assert observed == reference
+                assert observed.total is not None
+                rollups = index._conn.execute(
+                    "SELECT counter_diff, segments FROM hourly_rollup "
+                    "WHERE name_id = (SELECT id FROM measurement_name WHERE name = ?) "
+                    "AND hour > ? AND hour < ?",
+                    (name, int((now - 86400) // 3600), int(now // 3600)),
+                ).fetchall()
+                assert rollups
+                assert all(
+                    row["counter_diff"] is not None and row["segments"]
+                    for row in rollups
+                )
+
+
 def test_price_schedule_resolves_per_weekday(tmp_path: Path) -> None:
     """A rate schedule is honoured, and the base rate is the fallback."""
     base = {"prompt": 1e-6, "completion": 2e-6, "cache_read": 1e-7}

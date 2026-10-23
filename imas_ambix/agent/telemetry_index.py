@@ -215,6 +215,8 @@ CUMULATIVE_MEASUREMENTS: frozenset[str] = frozenset(
         "engine.generation_tokens",
         "engine.prefix_cache_queries",
         "engine.prefix_cache_hits",
+        "engine.cached_prompt_tokens.device",
+        "engine.cached_prompt_tokens.external",
     }
 )
 
