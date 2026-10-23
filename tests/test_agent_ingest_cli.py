@@ -24,16 +24,7 @@ from imas_ambix.agent.telemetry_ingest import TickReport
 from imas_ambix.cli import main
 
 
-def _old_schema_index(path) -> None:
-    with sqlite3.connect(path) as connection:
-        connection.execute(
-            "CREATE TABLE source (mtime_ns INTEGER, head_sha TEXT, tail_sha TEXT)"
-        )
-        connection.execute("CREATE TABLE measurement (name TEXT)")
-
-
 def _old_schema_index_with_wal(path) -> None:
-    _old_schema_index(path)
     subprocess.run(
         [
             sys.executable,
@@ -41,6 +32,9 @@ def _old_schema_index_with_wal(path) -> None:
             "import os, sqlite3, sys; "
             "db = sqlite3.connect(sys.argv[1]); "
             "db.execute('PRAGMA journal_mode=WAL'); "
+            "db.execute('CREATE TABLE source ("
+            "mtime_ns INTEGER, head_sha TEXT, tail_sha TEXT)'); "
+            "db.execute('CREATE TABLE measurement (name TEXT)'); "
             "db.execute(\"INSERT INTO measurement VALUES ('stale')\"); "
             "db.commit(); os._exit(0)",
             str(path),
