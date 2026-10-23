@@ -287,6 +287,10 @@ def test_hold_is_armed_by_launch_and_only_release_clears_it(tmp_path):
     for name, value in asdict(record).items():
         if name == "held":
             args.append("--held")
+        elif value is None:
+            # ``checkpoint`` is optional: a registration written without one must
+            # round-trip, so the flag is omitted rather than passed as "None".
+            continue
         else:
             args.extend(["--" + name.replace("_", "-"), str(value)])
     assert main(args) == 0
@@ -340,3 +344,88 @@ def test_held_registration_precedes_engine_launch(tmp_path, slug):
     assert script.index("--accelerator-family", registration) < launch
     assert script.index("_REGISTRATION_ACTIVE=1") < registration
     assert "set -euo pipefail" in script[:registration]
+
+
+def _catalog_for(model_id: str, precision: str) -> dict[str, object]:
+    return {
+        "data": [
+            {
+                "id": model_id,
+                "max_model_len": 512000,
+                "ambix": {
+                    "accelerator_family": "H200",
+                    "accelerator_count": 4,
+                    "checkpoint_precision": precision,
+                },
+            }
+        ]
+    }
+
+
+def test_generated_script_records_the_profile_checkpoint_and_publishes_it(tmp_path):
+    """A serve names the release the profile pins, and the endpoint carries it.
+
+    The served name is held stable across a rotation, so the name no longer says
+    which weights answered. The serve job writes the profile's
+    ``<hf_repo>@<revision>`` onto its registration, the record round-trips that
+    value, and the endpoint builder publishes it verbatim so a launcher reads
+    the release without reaching into the registry directory.
+    """
+    profile = load_profile("deepseek-v4-1-flash")
+    expected = f"{profile.model.hf_repo}@{profile.model.revision}"
+    script = generate_serve_script(profile, SiteConfig(base_dir=str(tmp_path)))
+    assert f"--checkpoint {expected}" in script
+
+    registration = ServeRegistration(
+        model_id=profile.model.served_name,
+        host="98dci4-gpu-0003",
+        port=18810,
+        job_id="1273253",
+        accelerator_count=4,
+        checkpoint_precision=profile.model.checkpoint_precision,
+        accelerator_family="H200",
+        checkpoint=expected,
+    )
+    path = write_registration(registration, tmp_path)
+    assert json.loads(path.read_text())["checkpoint"] == expected
+    stored = read_registrations(tmp_path, job_is_running=lambda _job_id: True).current
+    assert stored[0].checkpoint == expected
+
+    endpoints = build_endpoint_document(
+        stored,
+        fetch_catalog=lambda _origin: _catalog_for(
+            profile.model.served_name, profile.model.checkpoint_precision
+        ),
+    )
+    assert endpoints[0].checkpoint == expected
+
+
+def test_profile_without_a_revision_writes_an_unpinned_checkpoint(tmp_path):
+    """An absent pin is visible, never a commit read from the downloaded cache.
+
+    A profile that names a repository but no revision is not pinned to a commit,
+    and the downloaded directory does not say which one, so the registration
+    states ``unpinned`` in place of a commit rather than an identity that was
+    never established.
+    """
+    profile = load_profile("glm-5-3").for_gpus(4)
+    assert profile.model.revision is None
+    script = generate_serve_script(profile, SiteConfig(base_dir=str(tmp_path)))
+    assert f"--checkpoint {profile.model.hf_repo}@unpinned" in script
+
+
+def test_registration_without_a_checkpoint_reads_null_and_still_builds(tmp_path):
+    """A record written before the field existed is unknown, not backfilled."""
+    payload = asdict(_registration())
+    payload.pop("checkpoint", None)
+    (tmp_path / "42.json").write_text(json.dumps(payload))
+
+    read = read_registrations(tmp_path, job_is_running=lambda _job_id: True)
+    assert read.current[0].checkpoint is None
+
+    endpoints = build_endpoint_document(
+        read.current,
+        fetch_catalog=lambda _origin: _catalog_for("glm-5.3", "int4"),
+    )
+    assert len(endpoints) == 1
+    assert endpoints[0].checkpoint is None

@@ -115,6 +115,14 @@ class ServeRegistration:
     accelerator_family: str
     server: str = ""
     held: bool = False
+    #: The checkpoint this serve loaded, as ``<hf_repo>@<revision>``. The served
+    #: name stays stable across a rotation, so the name alone does not say which
+    #: weights answered; this field does. A profile whose weights are not pinned
+    #: to a revision still names the repository, writing ``unpinned`` in place of
+    #: the commit, so an absent pin is visible rather than guessed. ``None`` is a
+    #: record written before this field existed, which a reader reports as
+    #: unknown rather than backfilling.
+    checkpoint: str | None = None
 
     @property
     def engine_id(self) -> str:
@@ -144,6 +152,18 @@ class ServeRegistration:
             ord(character) < 32 or ord(character) == 127 for character in self.server
         ):
             raise ValueError("server contains control characters")
+        # Absent checkpoints are accepted for the same reason absent server names
+        # are: a record written before the field existed names none, and reading
+        # it must not fail. A checkpoint that IS present must name something.
+        if self.checkpoint is not None and (
+            not isinstance(self.checkpoint, str) or not self.checkpoint.strip()
+        ):
+            raise ValueError("checkpoint must be non-empty text when present")
+        if self.checkpoint is not None and any(
+            ord(character) < 32 or ord(character) == 127
+            for character in self.checkpoint
+        ):
+            raise ValueError("checkpoint contains control characters")
         if not isinstance(self.port, int) or isinstance(self.port, bool):
             raise ValueError("port must be an integer")
         if not 1 <= self.port <= 65535:
@@ -180,6 +200,12 @@ class PublishedEndpoint:
     accelerator_count: int
     checkpoint_precision: str
     max_context: int
+    #: The checkpoint the engine's registration loaded, as
+    #: ``<hf_repo>@<revision>``. It is republished from the registration for the
+    #: same reason the topology is: the launch owns what it loaded, and an engine
+    #: has no channel to report it back. ``None`` is a registration that predates
+    #: the field, which a reader reports as unknown rather than guesses.
+    checkpoint: str | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -212,6 +238,15 @@ class PublishedEndpoint:
             or self.max_context < 1
         ):
             raise ValueError("max_context must be a positive integer")
+        if self.checkpoint is not None and (
+            not isinstance(self.checkpoint, str) or not self.checkpoint.strip()
+        ):
+            raise ValueError("checkpoint must be non-empty text when present")
+        if self.checkpoint is not None and any(
+            ord(character) < 32 or ord(character) == 127
+            for character in self.checkpoint
+        ):
+            raise ValueError("checkpoint contains control characters")
 
     @property
     def origin(self) -> str:
@@ -456,6 +491,11 @@ def _endpoint_from_catalog(
         accelerator_count=registration.accelerator_count,
         checkpoint_precision=registration.checkpoint_precision,
         max_context=item.get("max_model_len"),
+        # Published from the registration, on the same reasoning as the topology
+        # above: what the launch loaded is the launch's to state, and the served
+        # name it answers to is deliberately held stable across a rotation, so
+        # the name cannot carry this.
+        checkpoint=registration.checkpoint,
     )
 
 
@@ -775,6 +815,7 @@ def _parser() -> argparse.ArgumentParser:
     write.add_argument("--checkpoint-precision", required=True)
     write.add_argument("--accelerator-family", required=True)
     write.add_argument("--server", default="")
+    write.add_argument("--checkpoint", default=None)
     write.add_argument("--held", action="store_true")
     release = subparsers.add_parser("release")
     release.add_argument("--directory", required=True)
@@ -802,6 +843,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 checkpoint_precision=args.checkpoint_precision,
                 accelerator_family=args.accelerator_family,
                 server=args.server,
+                checkpoint=args.checkpoint,
                 held=args.held,
             ),
             args.directory,

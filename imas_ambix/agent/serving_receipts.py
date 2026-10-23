@@ -123,12 +123,16 @@ ROW_SECTIONS: tuple[str, ...] = ("engine", "cards", "host", "jobs", "serve_confi
 #: They are the inputs that give the row's own quantities their meaning: an
 #: occupancy figure, a pool total or a decode rate is a different measurement
 #: under a different context window, memory fraction or tensor-parallel width,
-#: and all of those move between launches of one profile. Held as an ordered
-#: tuple so the record states one fixed vocabulary rather than whatever a
-#: given engine build happened to expose. The first six names are also the
-#: launcher's flag names (``--context-length``, ``--max-total-tokens``, ...);
-#: ``tp_size`` is the engine's own spelling of the setting the launch flag
-#: calls ``--tensor-parallel-size``.
+#: and all of those move between launches of one profile. ``model_path`` is the
+#: checkpoint the job ran, read from the engine rather than from the launcher
+#: because every checkpoint has its own directory: the repository the launcher
+#: was told to load and the directory the engine actually resolved are two
+#: statements, and the row must carry the second. Held as an ordered tuple so
+#: the record states one fixed vocabulary rather than whatever a given engine
+#: build happened to expose. The first six names are also the launcher's flag
+#: names (``--context-length``, ``--max-total-tokens``, ...); ``tp_size`` is the
+#: engine's own spelling of the setting the launch flag calls
+#: ``--tensor-parallel-size``, and ``model_path`` is the flag ``--model-path``.
 SERVE_CONFIG_OPTIONS: tuple[str, ...] = (
     "context_length",
     "max_total_tokens",
@@ -137,6 +141,7 @@ SERVE_CONFIG_OPTIONS: tuple[str, ...] = (
     "hicache_ratio",
     "speculative_algorithm",
     "tp_size",
+    "model_path",
 )
 
 #: How often the recorder compacts its own record between samples. The

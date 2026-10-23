@@ -1295,7 +1295,7 @@ def test_receipts_main_can_record_without_the_probe_or_compaction(
 # under.
 # ---------------------------------------------------------------------------
 
-#: The seven settings the live SGLang serve reported about itself, captured
+#: The eight settings the live SGLang serve reported about itself, captured
 #: from ``http://98dci4-gpu-0003:18810/server_info`` (job 1273253, four cards)
 #: on 2026-09-22, with a few of the engine's other five hundred arguments kept
 #: alongside them to show the row keeps only the vocabulary it declares.
@@ -1326,7 +1326,10 @@ def test_read_serve_config_keeps_the_settings_the_engine_reports() -> None:
         config = sr.read_serve_config("http://98dci4-gpu-0003:18810")
 
     assert config == LIVE_SERVE_CONFIG
-    assert "model_path" not in config
+    # The checkpoint the job ran is part of the vocabulary: every checkpoint has
+    # its own directory, so the row records which one produced it.
+    assert config["model_path"] == LIVE_SERVER_INFO["model_path"]
+    assert "chunked_prefill_size" not in config
 
 
 def test_read_serve_config_omits_a_setting_the_engine_left_out() -> None:
@@ -1487,6 +1490,42 @@ def test_record_receipts_prefers_the_engine_over_the_caller_settings(
     (row,) = _read_rows(receipts_path)[:1]
     assert row["serve_config"]["context_length"] == 512000
     assert row["serve_config"]["hicache_ratio"] == 2.0
+
+
+def test_record_receipts_records_the_engine_reported_model_path(tmp_path: Path) -> None:
+    """The row's ``model_path`` is the engine's own report, not the profile's.
+
+    Every checkpoint has its own directory, so the directory the engine
+    resolved is what identifies the weights a row was measured against. The
+    launcher can aim at one directory while the engine resolves another -- a
+    profile's weights slug names what was asked for, not what was loaded -- so
+    the engine's answer wins even though the caller states its own.
+    """
+    receipts_path = tmp_path / "receipts.jsonl"
+    profile_path = "/work/projects/imas_gpu/agents/deepseek-v4-1-flash/model"
+    engine_path = "/work/projects/imas_gpu/agents/deepseek-v4-1-flash-1017/model"
+    assert engine_path != profile_path, "fixture needs the two paths to differ"
+    report = {**LIVE_SERVER_INFO, "model_path": engine_path}
+    clock = iter([0.0, 5.0, 10.0])
+    wall_clock = iter([FIRST_SAMPLE_AT, SECOND_SAMPLE_AT])
+
+    with patch(
+        "urllib.request.urlopen",
+        _stub_urlopen([SAMPLE_T0, SAMPLE_T1], [json.dumps(report).encode()]),
+    ):
+        sr.record_receipts(
+            "http://98dci4-gpu-0003:18810",
+            receipts_path,
+            interval_s=5.0,
+            duration_s=10.0,
+            serve_config={"model_path": profile_path},
+            sleep=lambda _s: None,
+            monotonic=lambda: next(clock),
+            now=lambda: next(wall_clock),
+        )
+
+    (row,) = _read_rows(receipts_path)[:1]
+    assert row["serve_config"]["model_path"] == engine_path
 
 
 def test_receipts_main_passes_parsed_serve_settings(tmp_path: Path) -> None:

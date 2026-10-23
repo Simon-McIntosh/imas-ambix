@@ -712,6 +712,57 @@ def test_serve_on_changed_port_republishes_document_naming_new_port_and_cards(
     assert endpoint.accelerator_count == 4
 
 
+def test_endpoint_document_publishes_the_registration_checkpoint(tmp_path):
+    """The engine's entry carries the checkpoint its registration loaded.
+
+    The served name is stable across a rotation, so the checkpoint travels
+    beside it in the published document. A registration written before the field
+    existed publishes ``null`` rather than being dropped, so an older record
+    still yields a routable engine.
+    """
+    pinned = ServeRegistration(
+        model_id="deepseek-v4.1-flash",
+        host="node-a",
+        port=18810,
+        job_id="1273253",
+        accelerator_count=4,
+        checkpoint_precision="mxfp4+fp8",
+        accelerator_family="H200",
+        checkpoint="deepseek-ai/DeepSeek-V4.1-Flash-1017@1bae0e10",
+    )
+    legacy = ServeRegistration(
+        model_id="glm-5.3",
+        host="node-a",
+        port=18801,
+        job_id="411",
+        accelerator_count=4,
+        checkpoint_precision="w4a8",
+        accelerator_family="H200",
+    )
+
+    def fetch(origin: str) -> object:
+        for registration in (pinned, legacy):
+            if origin == registration.origin:
+                return _catalog(
+                    registration.model_id,
+                    "H200",
+                    4,
+                    registration.checkpoint_precision,
+                    512000,
+                )
+        raise OSError(f"unreachable: {origin}")
+
+    target = tmp_path / "endpoints.json"
+    publish_endpoint_document((pinned, legacy), target, fetch_catalog=fetch)
+
+    published = {
+        endpoint.model_id: endpoint.checkpoint
+        for endpoint in read_endpoint_document(target)
+    }
+    assert published["deepseek-v4.1-flash"] == pinned.checkpoint
+    assert published["glm-5.3"] is None
+
+
 def test_shutdown_cancels_and_republishes_removing_the_release(tmp_path, monkeypatch):
     """`agent shutdown` drops the cancelled release from the published document."""
     site_dir = tmp_path / "site"
