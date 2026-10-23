@@ -1,0 +1,79 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "assertion_analysis": [
+    "tests/test_agent_restart_validation.py:355 asserts the rollback engine received the Anthropic probe; it reddens if _dialect_probe_failures stops calling bench.check_tool_use, which is the independent observation of that wiring.",
+    "tests/test_agent_restart_validation.py:349 result.outcome == 'rolled-back' reddens when the OpenAI probe accepts a text-only engine, exactly as negative-control.log records: run it under the declared mutation and the test fails with 'reloaded'.",
+    "tests/test_agent_restart_validation.py:364 the overlap test reddens under the same mutation by not raising, so the probe -- not a None router_origin -- is what selects the cancellation.",
+    "tests/test_bench.py:865-869 pins the prompt the category actually hands the transport against bench.TOOL_CALL_PROMPT, and carries the probe's error text on failure, so it is not read from the value under test.",
+    "No added assertion compares a value against the same variable the test passed in; each expectation is a fixture literal or an observation recorded by the transport."
+  ],
+  "call_sites": [
+    "imas_ambix/agent/cli.py:2527",
+    "imas_ambix/agent/cli.py:2789",
+    "imas_ambix/agent/cli.py:2862",
+    "imas_ambix/agent/bench.py:1498",
+    "imas_ambix/agent/reload.py:102",
+    "imas_ambix/agent/reload.py:309"
+  ],
+  "completed_at": "2026-10-23T17:38:51.709Z",
+  "dispatched_at": "2026-10-23T17:16:23Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/bench.py",
+      "id": "tool-single-row-is-dead-parameter",
+      "line": 1494,
+      "severity": "non-blocking",
+      "text": "The tool_single special case substitutes check_tool_call's own TOOL_CALL_PROMPT and TOOL_WEATHER for the row's arguments, so the row declared at bench.py:1450-1455 is a dead parameter: its messages and tools are still passed by the loop but never reach the engine, and editing the row changes nothing while the probe keeps sending the constants. The two sources agree today, so the bench's behaviour is unchanged (verified: the row's prompt was already 'What's the weather in Cadarache, France?'), but the case definition is no longer authoritative for the case it names."
+    },
+    {
+      "file": "tests/test_agent_restart_validation.py",
+      "id": "tool-use-failure-branch-unexercised",
+      "line": 115,
+      "severity": "non-blocking",
+      "text": "The restart fixtures cannot fail the Anthropic probe: the messages transport at tests/test_agent_restart_validation.py:110-115 returns _tool_use_payload() for every engine whatever its base URL, so no test drives a tool_use failure into the rollback path. Deleting the check_tool_use call at imas_ambix/agent/cli.py:2338 reddens the pause test (its messages_calls assertion at :354 is empty), so the wiring is guarded; only the failure branch the goal names for the second probe is unexercised."
+    }
+  ],
+  "item_verdicts": {
+    "call_sites": "six production call sites confirmed by reading each; cli.py:2862 routes the confirm callback through validate(routed=True) and bench.py:1498 is the bench's own reuse of the probe.",
+    "diff": "read commit by commit: 6513d492 changes bench.py (+223) and cli.py (+201/-49) with the new test file, 5757fedc adds the tests' fixtures, the landing fragment and the positive control log; nothing outside the goal.",
+    "done_when": "prompt.txt:94-114; the recorded gate log .../r-20261023T154655750214-restart-probes-tool-calls/gate/pytest.log records 31 passed with EXIT=0 and the committed positive control log records probes 2/2 against the router with EXIT=0.",
+    "goal": "prompt.txt:30 states the goal; imas_ambix/agent/cli.py:2527 runs weights_preflight before the pause is written, cli.py:2336-2339 require both dialect probes in the validate callback, and imas_ambix/agent/reload.py:102 and :309 invoke it in the overlap and pause cycles.",
+    "manifest": "read at .../r-20261023T154655750214-restart-probes-tool-calls/manifest.md: status complete, gate command and both test logs named, negative control named, landing line present.",
+    "write_paths": "prompt.txt:69-78 declares cli.py, bench.py, tests/test_bench.py and tests/test_agent_restart_validation.py; every path in the diff is inside them plus the two evidence fragments the brief also granted."
+  },
+  "justifications": {
+    "durability": "negative-control.log shows the declared mutation reddens the text-in-content fixture test plus both restart tests, so the discrimination is guarded; the Anthropic probe's failure branch is the one path left untested.",
+    "evidence": "the gate names tests/test_bench.py and tests/test_agent_restart_validation.py with 31 passed EXIT=0 recorded, and I re-ran the same command at 5757fedc myself: 31 passed, EXIT=0 (gate-review-head-b.log).",
+    "fit": "bench.py:769-1000 follows the module's existing BenchResult plus injectable-transport idiom, but the string-keyed special case at bench.py:1494 leaves the tool_single row's own arguments unused.",
+    "goal_fidelity": "cli.py:2527 refuses before _profile_jobs and the pause, and cli.py:2336-2339 makes both dialects a condition of the replacement, matching prompt.txt:30.",
+    "reuse": "check_tool_call is the factored owner of the check the bench already ran at a8c33202 (bench.py:1498 calls it), and a search for safetensors.index.json/weight_map and for a /v1/messages client across imas_ambix found no earlier owner of the preflight or of the Anthropic probe.",
+    "scope_discipline": "the diff touches only imas_ambix/agent/bench.py, imas_ambix/agent/cli.py, the two test files and the two granted evidence fragments."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: prompt.txt:30 states the goal, and imas_ambix/agent/cli.py:2527 plus cli.py:2336-2339 and imas_ambix/agent/reload.py:102/309 deliver it -- a preflight before the lane is touched, both dialect probes before serving, and a rollback in both cycles.\nVERDICT done_when: prompt.txt:94-114 names the gate, the committed positive control and the negative control; .../r-20261023T154655750214-restart-probes-tool-calls/gate/pytest.log records 31 passed EXIT=0 and the committed log records probes 2/2 with EXIT=0.\nVERDICT write_paths: prompt.txt:69-78 declares cli.py, bench.py and the two test files; the diff contains exactly those plus the two evidence fragments the brief also granted, and nothing else.\nVERDICT manifest: read at .../r-20261023T154655750214-restart-probes-tool-calls/manifest.md; it reports status complete, names both gate logs, and its negative_control_note describes the mutation that negative-control.log records.\nVERDICT manifest: the manifest carries no baseline_suite or after_suite arm, so the added-failure figure is read from the recorded after gate alone: 0 added failures.\nVERDICT diff: read commit by commit against a8c33202 -- 6513d492 lands bench.check_tool_call/check_tool_use, weights_preflight and _serving_validator (+223 bench.py, +201/-49 cli.py), 5757fedc lands the fixtures, the landing fragment and the positive control log; all inside the goal.\nCALL_SITES: imas_ambix/agent/cli.py:2527, imas_ambix/agent/cli.py:2789, imas_ambix/agent/cli.py:2862, imas_ambix/agent/bench.py:1498, imas_ambix/agent/reload.py:102, imas_ambix/agent/reload.py:309\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/cli.py:2527 refuses a checkpoint missing a shard before anything is paused, which is the preflight prompt.txt:30 names.\nSCORE evidence: 20\nJUSTIFICATION evidence: the recorded gate at .../r-20261023T154655750214-restart-probes-tool-calls/gate/pytest.log shows 31 passed EXIT=0 and my own re-run of that command at 5757fedc reproduced it.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: every path in the diff (bench.py, cli.py, tests/test_bench.py, tests/test_agent_restart_validation.py, the fragment and the log) is inside prompt.txt:69-78 or the brief's extra grant.\nSCORE durability: 18\nJUSTIFICATION durability: negative-control.log shows the mutation reddens tests/test_agent_restart_validation.py:349 and :364, but no test fails the Anthropic probe inside a restart because the transport at tests/test_agent_restart_validation.py:115 always answers with a tool_use block.\nSCORE fit: 17\nJUSTIFICATION fit: bench.py:769-1000 matches the module's BenchResult-and-injectable-transport idiom, while the branch at bench.py:1494 leaves the tool_single row declared at bench.py:1450-1455 as dead data.\nSCORE reuse: 20\nJUSTIFICATION reuse: bench.py:1498 makes the bench score its own probe through the factored check_tool_call, and no earlier owner of the shard-index preflight or of a /v1/messages tool_use probe exists under imas_ambix.\nFINDING imas_ambix/agent/bench.py:1494 non-blocking: the tool_single special case sends TOOL_CALL_PROMPT and TOOL_WEATHER instead of the row's own arguments, so the row at bench.py:1450-1455 no longer describes the case it names and editing it silently changes nothing.\nFINDING tests/test_agent_restart_validation.py:115 non-blocking: the messages transport answers every engine with a tool_use payload, so a tool_use failure never reaches the rollback path in a restart test, leaving the second probe's failure branch unexercised though its call is guarded.",
+  "review_run_id": "r-20261023T171410276801-review-of-restart-probes-tool-calls-5757fedcce75",
+  "reviewed_base_sha": "a8c332025fbe5983d5bbf0bf5d0b0d0aa10b6421",
+  "reviewed_head_sha": "5757fedcce759d8a71b6ccb1d6c7268920f3583f",
+  "reviewed_run_id": "r-20261023T140807838269-restart-probes-tool-calls",
+  "scores": {
+    "durability": 18,
+    "evidence": 20,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "suite_delta_evidence": {
+    "after_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T154655750214-restart-probes-tool-calls/gate/pytest.log",
+    "after_summary": "31 passed, 3 warnings in 32.48s; EXIT=0; no failure ids",
+    "baseline_log": null,
+    "baseline_summary": "the reviewed run records no baseline arm (manifest baseline_suite absent), so no baseline failure ids exist to subtract",
+    "reviewer_rerun_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T171410276801-review-of-restart-probes-tool-calls-5757fedcce75/gate-review-head-b.log",
+    "reviewer_rerun_summary": "31 passed, 3 warnings in 106.34s; EXIT=0 at reviewed_head_sha 5757fedc; the run at revision 5757fedc confirms the reformatting in the second commit did not break the gate"
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T17:39:51.771161+00:00",
+  "total": 114
+}
