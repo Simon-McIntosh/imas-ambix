@@ -20,11 +20,11 @@
   <meta name="plan-tags" content="agent-serving">
   <meta name="plan-blocks" content="serving-record-warehouse">
   <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;,&quot;watch-index-lifecycle#s4&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;],&quot;s9&quot;:[&quot;watch-index-lifecycle#s8&quot;]}">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;deferred&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="8">
+<meta name="plan-version" content="9">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -106,7 +106,7 @@
     <p><strong>Why WAL.</strong> SQLite's write-ahead log lets readers proceed while the writer commits, which removes the <code>database is locked</code> class of failure. SQLite documents WAL as unsafe on network filesystems, and that is why it could not be used while the index lived on GPFS. On local disk it is the correct mode. §4 refuses WAL on a path whose filesystem is a network type, so a misconfigured path fails loudly rather than corrupting the index.</p>
 
     <h2 id="s3">§3 — An ingest tick reads the bytes it takes in</h2>
-    <section data-reckon="section" data-id="s3" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-attempts="0" data-status="implementable" data-links=""></section>
+    <section data-reckon="section" data-id="s3" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-attempts="0" data-status="done" data-links=""></section>
     <p>The ingest keeps one running <code>hashlib.sha256</code> object per source in memory across ticks. A tick updates it with the appended bytes only, so the stored <code>prefix_sha</code> stays the exact digest of the consumed region without re-reading it. Proving that the old bytes are unchanged is then split into two checks:</p>
     <ul>
       <li><strong>Every tick, for a source whose size or mtime has changed: a bounded probe.</strong> A source whose size and mtime match its recorded row is skipped without being opened, as today, since 106 of 108 files are unchanged on a typical tick. The one exception is a source whose content has changed since its last whole-prefix verification and whose verification has come due. That source is verified at the first tick after the interval, whether or not it changed on that tick, so a rewrite never escapes by happening before the interval. A closed file that has been fully verified since its last change is never opened again. For a changed source, the tick compares digests of the first 64 KiB of the file and of the 64 KiB before the recorded offset, which the index stores at consume time. It also checks that the size is not below the offset, that the inode is the same and that mtime has not gone backwards.</li>
@@ -330,6 +330,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261023T075410356578-review-of-wil-ingest-reads-appended-bytes-851e617a8175" data-who="reckon-build" data-when="2026-10-23T08:13:03.578Z">
     <div class="r-comment-body"><p>Reviewed run r-20261023T054953175024-wil-ingest-reads-appended-bytes over commits 5ef2f874..851e617a (base 5ef2f87419b38d164225c720d9990ad5106ec956, head 851e617a81758ca0d35c3011c5ed599ba8dea9a3); stored a parsed review record scoring goal_fidelity 19, evidence 18, scope_discipline 20, durability 19, fit 15, reuse 20 with one follow-on finding against imas_ambix/agent/telemetry_index.py:36.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-close-s3" data-who="reckon-build" data-when="2026-10-23T08:20:00Z">
+    <div class="r-comment-body"><p>§3 landed: an ingest tick reads appended bytes plus bounded probes, 58 MB per 300 s against about 13 GB before, with lazy per-process hash rebuilds and an hourly whole-prefix check that a pre-interval rewrite cannot escape (merged <code>9f4927b2</code>, final review 111/120). <a href="/imas-ambix/evidence/archive/watch-index-lifecycle-landed.html#s3">evidence</a></p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261023T065223926681-review-of-wil-index-on-node-local-disk-85c57d8b24d7" data-who="reckon-build" data-when="2026-10-23T07:04:27Z">
     <div class="r-comment-body"><p>Parsed independent review of 01f7736e..85c57d8b stored with all six scores, zero observed added failures, and two blocking plus four follow-on findings.</p></div>
