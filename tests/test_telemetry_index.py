@@ -1405,6 +1405,55 @@ def test_a_source_that_grew_is_read_again_despite_the_skip(tmp_path):
     assert report.rows_inserted == 1
 
 
+def test_opening_writer_does_not_read_closed_verified_sources(tmp_path, monkeypatch):
+    sources = [tmp_path / "one.jsonl", tmp_path / "two.jsonl"]
+    for source in sources:
+        _write(source, _many_rows(1000))
+    index_path = tmp_path / "index.db"
+    with TelemetryIndex(index_path) as index:
+        assert index.ingest(sources).rows_inserted == 2000
+
+    real_open = Path.open
+    observed = {"opens": 0, "bytes": 0}
+
+    class CountingReader:
+        def __init__(self, handle):
+            self.handle = handle
+
+        def __enter__(self):
+            self.handle.__enter__()
+            return self
+
+        def __exit__(self, *args):
+            return self.handle.__exit__(*args)
+
+        def __getattr__(self, name):
+            return getattr(self.handle, name)
+
+        def read(self, size=-1):
+            data = self.handle.read(size)
+            observed["bytes"] += len(data)
+            return data
+
+    def counting_open(path, *args, **kwargs):
+        handle = real_open(path, *args, **kwargs)
+        if path in sources and args and args[0] == "rb":
+            observed["opens"] += 1
+            return CountingReader(handle)
+        return handle
+
+    monkeypatch.setattr(Path, "open", counting_open)
+    with sources[0].open("rb") as handle:
+        assert handle.read(1)
+    assert observed == {"opens": 1, "bytes": 1}
+    observed.update(opens=0, bytes=0)
+
+    with TelemetryIndex(index_path) as reopened:
+        assert observed == {"opens": 0, "bytes": 0}
+        assert reopened.ingest(sources).files_scanned == 0
+        assert observed == {"opens": 0, "bytes": 0}
+
+
 def test_grown_source_reads_only_appended_bytes_and_identity_probes(
     tmp_path, monkeypatch
 ):
@@ -1455,9 +1504,37 @@ def test_grown_source_reads_only_appended_bytes_and_identity_probes(
             with real_open(source, "rb") as handle:
                 expected = hashlib.sha256(handle.read(stored["offset"])).hexdigest()
             assert stored["prefix_sha"] == expected
+            prior_offset = stored["offset"]
+    with TelemetryIndex(tmp_path / "index.db") as reopened:
         bytes_read = 0
-        assert index.ingest([source]).files_scanned == 0
-        assert bytes_read == 0
+        assert reopened.ingest([source]).files_scanned == 1
+        assert bytes_read >= prior_offset
+        row = _row(1003)
+        with real_open(source, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row) + "\n")
+        appended = len((json.dumps(row) + "\n").encode())
+        bytes_read = 0
+        assert reopened.ingest([source]).rows_inserted == 1
+        assert bytes_read <= appended + 128 * 1024
+        stored = reopened._conn.execute(
+            "SELECT offset, prefix_sha FROM source ORDER BY offset DESC LIMIT 1"
+        ).fetchone()
+        with real_open(source, "rb") as handle:
+            expected = hashlib.sha256(handle.read(stored["offset"])).hexdigest()
+        assert stored["prefix_sha"] == expected
+        row = _row(1004)
+        with real_open(source, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row) + "\n")
+        appended = len((json.dumps(row) + "\n").encode())
+        bytes_read = 0
+        assert reopened.ingest([source]).rows_inserted == 1
+        assert bytes_read <= appended + 128 * 1024
+        stored = reopened._conn.execute(
+            "SELECT offset, prefix_sha FROM source ORDER BY offset DESC LIMIT 1"
+        ).fetchone()
+        with real_open(source, "rb") as handle:
+            expected = hashlib.sha256(handle.read(stored["offset"])).hexdigest()
+        assert stored["prefix_sha"] == expected
 
 
 def test_a_rewrite_that_moves_the_modification_time_is_still_caught(tmp_path):
@@ -1518,10 +1595,12 @@ def test_mid_file_rewrite_waits_for_full_identity_interval(tmp_path):
             index.sum_measurements("prefix_cache_query_delta", _at(500), _at(501))
             == 510
         )
+        recorded_mtime = index._conn.execute(
+            "SELECT mtime_ns FROM source ORDER BY offset DESC LIMIT 1"
+        ).fetchone()["mtime_ns"]
+        assert recorded_mtime == before.st_mtime_ns
 
         clock[0] += telemetry_index.FULL_IDENTITY_INTERVAL + 1
-        assert index.ingest([source]).files_scanned == 0
-        _write(source, [_row(1001)])
         assert index.ingest([source]).files_scanned == 1
         assert (
             index.sum_measurements("prefix_cache_query_delta", _at(500), _at(501))
@@ -1533,6 +1612,36 @@ def test_mid_file_rewrite_waits_for_full_identity_interval(tmp_path):
         assert (
             stored["prefix_sha"]
             == hashlib.sha256(source.read_bytes()[: stored["offset"]]).hexdigest()
+        )
+
+
+def test_restart_rejects_pending_middle_rewrite_without_an_append(tmp_path):
+    source = tmp_path / "serve.jsonl"
+    _write(source, _many_rows(1000))
+    index_path = tmp_path / "index.db"
+    original = source.read_bytes()
+    changed = original.replace(
+        b'"prefix_cache_query_delta": 510',
+        b'"prefix_cache_query_delta": 910',
+    )
+    assert changed != original and len(changed) == len(original)
+
+    with TelemetryIndex(index_path) as index:
+        index.ingest([source])
+        before = source.stat()
+        source.write_bytes(changed)
+        os.utime(source, ns=(before.st_mtime_ns + 1_000_000,) * 2)
+        assert index.ingest([source]).rows_inserted == 0
+        assert (
+            index.sum_measurements("prefix_cache_query_delta", _at(500), _at(501))
+            == 510
+        )
+
+    with TelemetryIndex(index_path) as reopened:
+        assert reopened.ingest([source]).files_scanned == 1
+        assert (
+            reopened.sum_measurements("prefix_cache_query_delta", _at(500), _at(501))
+            == 910
         )
 
 
@@ -1979,17 +2088,17 @@ def test_a_reboot_spanning_source_skips_unchanged_file(tmp_path, monkeypatch):
     index_path = tmp_path / "index.db"
 
     opened: list[str] = []
-    digested: list[int] = []
+    hashed: list[int] = []
     real_open = Path.open
-    real_digest = telemetry_index._digest_of
+    real_hash = telemetry_index._hash_of
 
     def counting_open(self, *args, **kwargs):
         opened.append(str(self))
         return real_open(self, *args, **kwargs)
 
-    def counting_digest(path, end, *args, **kwargs):
-        digested.append(end)
-        return real_digest(path, end, *args, **kwargs)
+    def counting_hash(path, end, *args, **kwargs):
+        hashed.append(end)
+        return real_hash(path, end, *args, **kwargs)
 
     with TelemetryIndex(index_path) as index:
         # Two rows under the first boot, then two under the second, with a
@@ -2006,12 +2115,16 @@ def test_a_reboot_spanning_source_skips_unchanged_file(tmp_path, monkeypatch):
         assert rows[1]["offset"] == rows[1]["size"] == source.stat().st_size
 
         monkeypatch.setattr(Path, "open", counting_open)
-        monkeypatch.setattr(telemetry_index, "_digest_of", counting_digest)
+        monkeypatch.setattr(telemetry_index, "_hash_of", counting_hash)
+        assert telemetry_index._hash_of(source, 1) is not None
+        assert hashed == [1] and opened == [str(source)]
+        hashed.clear()
+        opened.clear()
         second = index.ingest([source], batch_rows=2)
 
     assert second.files_scanned == 0, "re-read a source consumed to its end"
     assert opened == [], f"opened an unchanged source: {opened}"
-    assert digested == [], f"re-digested a consumed source up to {digested}"
+    assert hashed == [], f"re-hashed a consumed source up to {hashed}"
 
     appended = _row(20, host="node-a", boot_id=_BOOT_AFTER)
     with real_open(source, "a", encoding="utf-8") as handle:

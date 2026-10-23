@@ -33,10 +33,11 @@ match its consumed row is skipped without opening it. When either differs, the
 index compares the first and last 64 KiB of the consumed region with stored
 probe digests, and checks size and mtime direction. A running hash extends the
 stored whole-prefix digest with appended lines, so an ordinary changed-source
-tick reads only the new bytes and the probes. The first changed-source check in
-a new process builds the hash from the consumed prefix; a later changed-source
-check repeats that verification after the hourly interval. A rewrite confined
-to the middle is detected on the first changed-source check after that interval.
+tick reads only the new bytes and the probes. A new process seeds each existing
+source's hash before its first tick. The stored mtime remains the last fully
+verified one while a changed source passes only the probes, which keeps that
+source on the changed path until the hourly full check. A rewrite confined to
+the middle is detected at that check even when no further bytes are appended.
 A missing recorded digest cannot be trusted and makes the source start again.
 
 **Every key carries the host that recorded the row, because an inode does not
@@ -235,10 +236,16 @@ class _SourceHash:
     head: bytes
     tail: bytes
     verified_at: float
+    verified_mtime_ns: int
 
     def copy(self) -> _SourceHash:
         return _SourceHash(
-            self.offset, self.digest.copy(), self.head, self.tail, self.verified_at
+            self.offset,
+            self.digest.copy(),
+            self.head,
+            self.tail,
+            self.verified_at,
+            self.verified_mtime_ns,
         )
 
 
@@ -257,9 +264,8 @@ CREATE TABLE IF NOT EXISTS source (
     prefix_sha TEXT,
     head_sha TEXT,
     tail_sha TEXT,
-    -- modification time in nanoseconds as the consuming pass saw it; NULL means
-    -- a pass older than this column wrote the row, so nothing about the file's
-    -- metadata is known and the region is re-read rather than assumed
+    -- modification time at the last full identity verification; NULL means
+    -- no verified metadata is known and the region is re-read rather than assumed
     mtime_ns   INTEGER,
     PRIMARY KEY (host, boot_id, path, inode)
 );
@@ -962,7 +968,7 @@ class TelemetryIndex:
                 self._conn.commit()
 
     def _consumed_whole_and_untouched(self, path: Path, stat: os.stat_result) -> bool:
-        """Skip a consumed source whose size and mtime have not moved."""
+        """Skip a consumed source whose size and verified mtime still match."""
         row = self._conn.execute(
             "SELECT size, offset, mtime_ns FROM source "
             "WHERE path = ? AND inode = ? ORDER BY offset DESC LIMIT 1",
@@ -1256,7 +1262,8 @@ class TelemetryIndex:
 
         *offset* is the byte after the batch's last complete line. The samples,
         source row and commit are one transaction, so an interrupted pass
-        resumes at exactly the last committed batch.
+        resumes at exactly the last committed batch. The source row retains
+        the previous mtime until the whole consumed prefix has been verified.
         """
         with self._conn:
             self._conn.execute(
@@ -1282,7 +1289,7 @@ class TelemetryIndex:
                     identity.digest.hexdigest(),
                     hashlib.sha256(identity.head).hexdigest(),
                     hashlib.sha256(identity.tail).hexdigest(),
-                    stat.st_mtime_ns,
+                    identity.verified_mtime_ns,
                 ),
             )
         identity.offset = offset
@@ -1301,8 +1308,9 @@ class TelemetryIndex:
         leave its window uncovered while a coarser file held its samples, so
         the caller drops it and the selection falls through.
 
-        A file already consumed whole carried rows when it was read, so it is
-        not reopened to prove that here. A file holding at least one parseable
+        Any source row for this path and inode means an earlier pass already
+        offered the file, so this selection check does not reopen it to prove
+        that here. A file holding at least one parseable
         record is offered, and a later unreadable line in it is refused in
         place by the read rather than hidden by the fall-through.
         """
@@ -1415,7 +1423,9 @@ class TelemetryIndex:
         boot = None if row is None else row["boot_id"]
         start = 0
         key = (stat.st_dev, stat.st_ino)
-        identity = _SourceHash(0, hashlib.sha256(), b"", b"", self._identity_clock())
+        identity = _SourceHash(
+            0, hashlib.sha256(), b"", b"", self._identity_clock(), stat.st_mtime_ns
+        )
         if row is not None and row["offset"]:
             if self._was_rewritten(path, stat, row):
                 self._hashes.pop(key, None)
@@ -1484,7 +1494,9 @@ class TelemetryIndex:
             digest = _hash_of(path, offset)
             if digest is None or digest.hexdigest() != row["prefix_sha"]:
                 return True
-            self._hashes[key] = _SourceHash(offset, digest, head, tail, now)
+            self._hashes[key] = _SourceHash(
+                offset, digest, head, tail, now, stat.st_mtime_ns
+            )
         return False
 
     def _parse(self, raw: bytes, path: Path, offset: int) -> Mapping[str, Any] | None:
@@ -1570,6 +1582,7 @@ class TelemetryIndex:
                 "DROP TABLE IF EXISTS source;"
             )
             self._conn.executescript(_SCHEMA)
+        self._hashes.clear()
         return self.ingest(sources)
 
     # ── queries ──────────────────────────────────────────────────────
@@ -1872,12 +1885,6 @@ def _hash_of(path: Path, end: int, chunk: int = 1 << 20) -> Any | None:
     if remaining:
         return None
     return digest
-
-
-def _digest_of(path: Path, end: int, chunk: int = 1 << 20) -> str | None:
-    """Digest of the first *end* bytes of *path*, or None if unreadable."""
-    digest = _hash_of(path, end, chunk)
-    return None if digest is None else digest.hexdigest()
 
 
 def _as_text(value: Any) -> str | None:
