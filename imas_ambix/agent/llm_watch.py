@@ -85,9 +85,21 @@ UNATTRIBUTED = "unattributed"
 #: Projects listed in the detail table before the rest fold into one row.
 DETAIL_ROWS = 6
 
+#: Per-worker decode reference, tok/s: the best single-stream rate measured on
+#: this deployment. The per-worker cell is coloured against this rather than
+#: against an absolute rate, so the figure answers whether each worker is
+#: getting a fair share of what one worker can have. The value is the serve
+#: panel's own, so the same rate takes the same colour on both.
+PER_WORKER_REF = 40.0
+
 #: The width a golden is rendered at. The narrow width is the tighter of the
 #: two terminals an operator may be reading in, and no line may exceed either.
 GOLDEN_WIDTH = 120
+
+#: The exit status for an ``--engine`` id this document cannot show. It is a
+#: refusal rather than a failure of the render, so it is separable from the
+#: status a crash leaves.
+REFUSED_ENGINE_STATUS = 2
 
 
 # ── figures pulled off the document ──────────────────────────────────
@@ -133,6 +145,42 @@ def engine_endpoint(document: dict[str, Any], model_id: str | None) -> dict[str,
             if entry.get("model_id") == model_id:
                 return entry
     return endpoints[0] if len(endpoints) == 1 else {}
+
+
+def served_engine(document: dict[str, Any]) -> str | None:
+    """The id of the engine this document describes, or None when it names none.
+
+    Read in the order the document states it: the served name the receipt block
+    carries is what a client sends, and the lane and endpoint ids are the same
+    release published by the two documents that route and describe it.
+    """
+    live = document.get("live") or {}
+    lane = document.get("lane") or {}
+    endpoint = engine_endpoint(document.get("engine") or {}, lane.get("model_id"))
+    for value in (live.get("served_name"), lane.get("model_id"),
+                  endpoint.get("model_id")):
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def engine_refusal(document: dict[str, Any], engine_id: str) -> str | None:
+    """Why *engine_id* cannot be shown, naming the engine that is served.
+
+    The view renders one engine: the lane the record, the pool figures and the
+    gate all came from. An id naming a different engine is therefore a request
+    the document cannot answer, and refusing it is the only honest reply --
+    rendering anyway would label one engine's figures with the id the caller
+    asked for. A document that names no engine at all refuses every id and says
+    so, because there is no served engine to name.
+    """
+    served = served_engine(document)
+    if engine_id == served:
+        return None
+    if served is None:
+        return (f"llm-watch: this document names no served engine, so "
+                f"{engine_id!r} cannot be selected")
+    return f"llm-watch: this view serves {served} only, not {engine_id!r}"
 
 
 def context_ceiling(lane: dict[str, Any], endpoint: dict[str, Any]) -> object:
@@ -248,7 +296,8 @@ def throughput_band(live: dict[str, Any]) -> Table:
             f"[cyan]{running:.1f}[/]" if running is not None else DASH,
             queued_s,
             fmt_rate(aggregate) if measured and aggregate else DASH,
-            (f"[{ramp(per_stream, 60.0, 30.0)}]{per_stream:.1f}[/]"
+            (f"[{ramp(100.0 * per_stream / PER_WORKER_REF, 60.0, 30.0)}]"
+             f"{per_stream:.1f}[/]"
              if measured and per_stream else DASH),
             fmt_rate(prefill) if measured and prefill is not None else DASH,
             f"{ttft:.1f}" if measured and ttft is not None else DASH,
@@ -739,7 +788,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--watch", dest="watch_path", default=None,
                         help="the published watch document the ledger is read from")
     parser.add_argument("--engine", dest="engine_id", default=None,
-                        help="the engine whose bands are shown")
+                        help="the engine whose bands are shown; this view serves "
+                             "one engine, so any other id is refused")
     parser.add_argument("--account", dest="account", default=None,
                         help="the account whose detail table is shown")
     parser.add_argument("--sessions", action="store_true",
@@ -759,6 +809,10 @@ def main(argv: list[str] | None = None) -> int:
             watch_path=args.watch_path,
         )
         if args.engine_id:
+            refusal = engine_refusal(document, args.engine_id)
+            if refusal is not None:
+                sys.stderr.write(refusal + "\n")
+                raise SystemExit(REFUSED_ENGINE_STATUS)
             document["selected_engine"] = args.engine_id
         if args.as_json:
             sys.stdout.write(json.dumps(document, indent=2, default=str) + "\n")

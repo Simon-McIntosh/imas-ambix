@@ -15,11 +15,13 @@ has not written yet.
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from imas_ambix.agent import live_panel
 from imas_ambix.agent import llm_watch as lw
 from imas_ambix.agent.watch_style import WIDTHS
 
@@ -243,6 +245,51 @@ LEDGER = [
 ]
 
 
+#: The lane document the router published on 2026-10-23T07:44:34Z, copied
+#: key for key and value for value. It is here rather than read at test time so
+#: the check runs against a document the deployment is known to write, and so a
+#: lane that publishes nothing this morning does not turn the check green.
+TODAYS_LANE: dict[str, Any] = {
+    "observed_at": "2026-10-23T07:44:34Z",
+    "state": "measured",
+    "model_id": "deepseek-v4.1-flash",
+    "suggested_shelf_life_seconds": 45,
+    "headroom": 8,
+    "engine_headroom": 23,
+    "availability_percent": 66.67,
+    "kv_occupancy": 0.13,
+    "mean_context": 130000,
+    "concurrent_requests": 27,
+    "preemptions": None,
+    "hicache_host": {
+        "total_tokens": 8000000,
+        "used_tokens": 7999744,
+        "used_fraction": 0.999968,
+    },
+    "admission": {
+        "headroom": 8,
+        "verdict": "admit",
+        "live_runs": 19,
+        "observed_seconds": 900.0,
+        "requests_per_run": 0.297,
+        "worker_slots": 9,
+        "fair_share": 6,
+        "borrow_reserve": 2,
+        "active_sessions": 6,
+        "new_session_worker_slots": 9,
+    },
+    "router_generation_gate": {
+        "width": 12,
+        "effective_width": 12,
+        "in_flight": 4,
+        "waiting": 0,
+        "paused": False,
+        "width_mode": "auto",
+        "reason": None,
+    },
+}
+
+
 def one_engine_fixture() -> dict[str, Any]:
     """One account, three projects, one engine: the base reading."""
     return {
@@ -343,8 +390,63 @@ def _golden(name: str) -> str:
     return (GOLDEN_DIR / f"{name}.txt").read_text(encoding="utf-8")
 
 
+def _written_sources(tmp_path: Path) -> list[str]:
+    """The console script's source arguments, pointing at written fixtures.
+
+    A command-line test must not read the live site: the run would then depend
+    on which engine happens to be serving, and the fixtures it wrote are the
+    only documents the assertions are about.
+    """
+    lane = tmp_path / "lane.json"
+    lane.write_text(json.dumps(_lane()), encoding="utf-8")
+    endpoints = tmp_path / "endpoints.json"
+    endpoints.write_text(json.dumps(ENDPOINT), encoding="utf-8")
+    watch = tmp_path / "watch.json"
+    watch.write_text(json.dumps({"published_at": "2026-10-23T04:40:55Z",
+                                 "ledger": LEDGER}), encoding="utf-8")
+    record = tmp_path / "requests"
+    record.mkdir()
+    return [
+        "--record", str(record),
+        "--lane", str(lane),
+        "--endpoints", str(endpoints),
+        "--watch", str(watch),
+    ]
+
+
 def render(document: dict[str, Any], **kwargs: Any) -> str:
     return lw.render_text(document, width=lw.GOLDEN_WIDTH, **kwargs)
+
+
+_ACCOUNT_NAMES = {VIEWER, "llealsa", lw.UNATTRIBUTED}
+
+
+def _accounts_region(text: str) -> str:
+    """The accounts table alone: its heading up to the detail table's."""
+    return text.split("accounts ", 1)[1].split(f"{VIEWER} 5m", 1)[0]
+
+
+def _coloured(renderable: Any) -> str:
+    """*renderable* as terminal text with its colour codes, unlike a golden."""
+    import io
+
+    from rich.console import Console
+
+    buffer = io.StringIO()
+    Console(file=buffer, force_terminal=True, color_system="standard",
+            width=lw.GOLDEN_WIDTH, highlight=False).print(
+        renderable, soft_wrap=False
+    )
+    return buffer.getvalue()
+
+
+def _cell_colour(text: str, cell: str) -> str:
+    """The colour class the *cell* figure was drawn in."""
+    import re
+
+    match = re.search(r"\x1b\[([0-9;]*)m" + re.escape(cell), text)
+    assert match, f"{cell} is not drawn in any colour:\n{text}"
+    return match.group(1)
 
 
 @pytest.mark.parametrize(
@@ -357,12 +459,79 @@ def render(document: dict[str, Any], **kwargs: Any) -> str:
         ("account_llealsa", eight_project_fixture, {"account": "llealsa"}),
         ("unavailable_live", unavailable_live_fixture, {}),
         ("account_empty", empty_account_fixture, {"account": "llealsa"}),
+        # The unattributed account has a row in the accounts table and no
+        # project rows at all, so its detail table is the one-line refusal
+        # rather than an empty table -- a case the account level exists to make
+        # visible and a session-built table would drop entirely.
+        ("unattributed", eight_project_fixture, {"account": lw.UNATTRIBUTED}),
     ],
 )
 def test_render_matches_its_golden(
     name: str, factory: Any, kwargs: dict[str, Any]
 ) -> None:
     assert render(factory(), **kwargs) == _golden(name)
+
+
+def test_per_worker_cell_takes_the_serve_panels_colour() -> None:
+    """40 tok/s is the per-worker reference, which the serve panel calls green.
+
+    The cell is ramped against a share of what one worker can have, not against
+    an absolute rate, so the same figure takes the same colour on both tools.
+    Ramping the raw rate instead would call this reading -- the reference rate,
+    the best a single stream does on this deployment -- yellow.
+    """
+    assert lw.PER_WORKER_REF == 40.0
+    at_reference = _coloured(lw.throughput_band(_live(per_stream_toks_per_s=40.0)))
+    assert "32" in _cell_colour(at_reference, "40.0").split(";")
+    # Half the reference is 50 percent of it, under the 60 the ramp calls
+    # healthy and over the 30 it calls poor.
+    at_half = _coloured(lw.throughput_band(_live(per_stream_toks_per_s=20.0)))
+    assert "33" in _cell_colour(at_half, "20.0").split(";")
+
+
+def test_a_published_lane_document_fills_the_capacity_band() -> None:
+    """The four capacity figures reach the band through the lane block.
+
+    The fixture is a copy of the lane document the router published today,
+    keys and values unchanged, so the test exercises the copy the live render
+    depends on rather than a document shaped to suit the view.
+    """
+    lane = live_panel.lane_block(
+        TODAYS_LANE, now=datetime.fromisoformat(TODAYS_LANE["observed_at"])
+    )
+    document = one_engine_fixture()
+    document["lane"] = lane
+    row = render(document).split("kv pool %", 1)[1].splitlines()[1]
+    # kv pool is the engine's own counter; the three beside it are the lane
+    # document's, and the palette never showed values for any of them before.
+    assert row.split() == ["█░░░░", "21", "█████", "100", "130k", "27", "23", "—"]
+    # The same render with the copy removed is the state this test exists to
+    # catch: every figure the block fails to carry reads as a dash, not a zero.
+    for key in ("hicache_host", "mean_context", "concurrent_requests"):
+        del lane[key]
+    bare = render(document).split("kv pool %", 1)[1].splitlines()[1]
+    assert bare.split() == ["█░░░░", "21", "—", "—", "—", "23", "—"]
+
+
+def test_an_engine_other_than_the_served_one_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--engine`` cannot be silently ignored: this view renders one engine.
+
+    Rendering another engine's id over this document's figures would label the
+    served engine's numbers with the name of one that did not produce them,
+    which is worse than refusing the request.
+    """
+    sources = _written_sources(tmp_path)
+    with pytest.raises(SystemExit) as exit_:
+        lw.main(["--engine", "glm-5.3", *sources])
+    assert exit_.value.code == lw.REFUSED_ENGINE_STATUS
+    # The refusal names the engine that is served -- the id a client sends,
+    # which is what the caller mistyped, not the profile slug or file name.
+    assert "deepseek-v4.1-flash" in capsys.readouterr().err
+    # The served engine's own id is accepted, and so is naming none at all.
+    assert lw.main(["--engine", "deepseek-v4.1-flash", *sources]) == 0
+    assert lw.main(list(sources)) == 0
 
 
 def test_no_line_exceeds_the_terminal_width() -> None:
@@ -389,18 +558,37 @@ def test_accounts_table_reads_the_account_level() -> None:
     """
     document = eight_project_fixture()
     text = render(document)
-    callers = document["callers"]
-    assert f"accounts {callers['window_seconds'] / 60:.0f}m" in text
-    # Three accounts, each on one row, and the viewer's sessions total 11.
-    assert text.count("unattributed") >= 1
-    assert "mcintos" in text and "llealsa" in text
+    # One row per account, in the order the level lists them. A table built
+    # from the sessions would carry the viewer's account once per session --
+    # the fixture holds two -- and would lose the unattributed row, whose
+    # requests named no session at all.
+    rows = [line.split()[0] for line in _accounts_region(text).splitlines()
+            if line.strip() and line.split()[0] in _ACCOUNT_NAMES]
+    assert rows == ["mcintos", "llealsa", "unattributed"]
+    # The heading is the document's own window rather than a label the view
+    # restates, so a document with a different window heads itself differently.
+    wider = eight_project_fixture()
+    wider["callers"]["window_seconds"] = 1800.0
+    assert "accounts 5m" in text
+    assert "accounts 30m" in render(wider)
 
 
 def test_eight_project_fixture_folds_two_rows() -> None:
+    """The fold row carries the folded projects' summed in-use.
+
+    The assertion is on the row itself rather than on the figure appearing
+    somewhere in the render: every project row's in-use is a small number, so
+    a bare ``"0.3" in text`` would pass with the fold row deleted and 0.3
+    elsewhere, which is the state this test exists to catch.
+    """
     text = render(eight_project_fixture())
-    assert "+2 more" in text
-    # The fold carries the two folded projects' summed in-use, 0.2 + 0.1.
-    assert "0.3" in text
+    folds = [line for line in text.splitlines()
+             if line.strip().startswith("+2 more")]
+    assert len(folds) == 1
+    # The row reads ``+2 more`` and the summed in-use, and nothing else: a
+    # sum of per-run rates would not be a rate of anything, so the fold
+    # carries no sessions, runs or per-run figure.
+    assert folds[0].split() == ["+2", "more", "0.3"]
 
 
 def test_three_project_fixture_has_no_fold_row() -> None:

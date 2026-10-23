@@ -362,6 +362,49 @@ def test_lane_block_copies_the_published_fields():
     assert block["router_generation_gate"]["reason"] == "within width"
 
 
+def test_lane_block_copies_the_published_capacity_figures():
+    """The engine's capacity figures travel with the block, under their
+    published names.
+
+    A view that renders the pool, the host tier, the mean context, the ceiling
+    and the preemption count reads them from this block, so a block that drops
+    them draws dashes over a lane that published every one of them. The names
+    are the document's own: a reader comparing the block against the document
+    it came from must find the same field spelled the same way.
+    """
+    document = {
+        "observed_at": _stamp(0.0),
+        "state": "measured",
+        "suggested_shelf_life_seconds": 30,
+        # Copied from the lane document the router published on 2026-10-23,
+        # values unchanged, including the null the engine reported for
+        # preemptions: a count that was never taken is not a count of zero.
+        "hicache_host": {
+            "total_tokens": 8000000,
+            "used_tokens": 7999744,
+            "used_fraction": 0.999968,
+        },
+        "mean_context": 130000,
+        "concurrent_requests": 27,
+        "preemptions": None,
+    }
+    block = lane_block(document, now=BASE)
+    assert block["hicache_host"] == {
+        "total_tokens": 8000000,
+        "used_tokens": 7999744,
+        "used_fraction": 0.999968,
+    }
+    assert block["mean_context"] == 130000
+    assert block["concurrent_requests"] == 27
+    assert block["preemptions"] is None
+    # A lane that has not published one omits it rather than inventing a null,
+    # which is a different fact from a lane that measured nothing.
+    bare = lane_block({"observed_at": _stamp(0.0), "state": "measured"}, now=BASE)
+    for key in ("hicache_host", "mean_context", "concurrent_requests",
+                "preemptions"):
+        assert key not in bare
+
+
 def test_lane_block_copies_a_published_availability_unchanged():
     document = {
         "observed_at": _stamp(0.0),
