@@ -815,10 +815,12 @@ def test_the_record_read_is_bounded_by_its_byte_ceiling(
 
     The control arm is the same record under the default ceiling: it is covered
     and its bins are built, so the cut below is the ceiling's doing and not an
-    empty record reading as an absence.
+    empty record reading as an absence. The rows here lie inside the narrowest
+    block's window, so no level can report itself covered off the rows a cut
+    read still returns: the flag is the ceiling's, not the rows'.
     """
     rows = [
-        _at(-1000 + 2 * index, duration=1, session="s", run_id="r")
+        _at(-200 + index, duration=1, session="s", run_id="r")
         for index in range(140)
     ]
     _write(tmp_path, rows)
@@ -835,6 +837,47 @@ def test_the_record_read_is_bounded_by_its_byte_ceiling(
     assert cut["history"]["covered"] is False
     assert cut["outcomes"]["covered"] is False
     assert "ceiling" in cut["history"]["reason"]
+
+
+def test_each_record_block_states_coverage_of_its_own_window(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A block's covered flag describes its own window, not the read's span.
+
+    The read is opened over the wider of the callers window and the history
+    strip, so a caller asking for one minute gets a read that reached half an
+    hour back. Its flag must still answer for the minute it asked about. The
+    rows here are cut short of the read's own start, so the read's flag is
+    false while the narrower window is covered in the other direction --
+    a caller's minute and the outcomes line reach back to rows the strip's
+    half hour does not.
+    """
+    rows = [
+        _at(-900, duration=1, session="s", run_id="r"),
+        _at(-100, duration=1, session="s", run_id="r"),
+    ]
+    spans: list[float] = []
+
+    def cut(location, *, since):
+        spans.append((NOW - since).total_seconds())
+        return rows, False
+
+    monkeypatch.setattr(lane_callers, "recent_receipt_rows", cut)
+
+    minute = callers_block(tmp_path, now=NOW, window_seconds=60.0)
+    assert spans[-1] == lane_callers.HISTORY_WINDOW_SECONDS
+    assert minute["window_seconds"] == 60.0
+    assert minute["covered"] is True
+
+    hour = callers_block(tmp_path, now=NOW, window_seconds=3600.0)
+    assert spans[-1] == 3600.0
+    assert hour["window_seconds"] == 3600.0
+    assert hour["covered"] is False
+
+    blocks = record_blocks(tmp_path, now=NOW)
+    assert blocks["callers"]["covered"] is True
+    assert blocks["outcomes"]["covered"] is True
+    assert blocks["history"]["covered"] is False
 
 
 def _at(

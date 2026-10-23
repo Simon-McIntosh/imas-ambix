@@ -68,7 +68,8 @@
       <p>Gate: <code>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv
       uv run --no-sync pytest -p no:cacheprovider tests/test_lane_callers.py
       tests/test_live_panel.py tests/test_agent_watch_live.py</code> —
-      <strong>58 passed</strong>, exit 0 (<code>gate.log</code> in the run
+      <strong>58 passed</strong> on these three files (66 with the receipt-bins
+      suite the review round added, below), exit 0 (<code>gate.log</code> in the run
       directory); <code>uv run --no-sync ruff check imas_ambix tests</code>
       exits 0. Eight of those tests are new: the hand-computed occupancy strip
       and its percentile row, the bin edges, the outcomes counts, the
@@ -88,6 +89,29 @@
       shift — the bin that held ten seconds of row A reads 0.0 instead of
       0.17 — so the test is measuring the edge alignment and not merely
       re-reading its own fixture.</p>
+    </section>
+    <section id="lane-history-and-outcomes-review">
+      <p>Review returned two fixes, both landed here. The strip's per-bin
+      percentiles were a private third copy of the interpolated quantile, so
+      <code>receipt_bins</code> now publishes the one the repository owns
+      (<code>inclusive_quantile</code>) and the strip calls it; the rounding to
+      tenths of a second and the empty-bin <code>null</code> are the strip's own
+      presentation and stay at its call site, so every bin figure is unchanged
+      on the fixture. And <code>callers_block</code> read a fixed half hour
+      whatever window it was asked for, reporting that read's coverage: it now
+      opens the read over the wider of its own window and the strip, and each
+      level's <code>covered</code> flag answers for its own window — a caller
+      asking for one minute is no longer told its figures span thirty. A cut
+      read still covers a narrower window when the rows it returned reach back
+      past that window's start, because the rows of a cut read are a contiguous
+      suffix of the record.</p>
+      <p>Measure: the gate above plus <code>tests/test_agent_receipt_bins.py</code>
+      passes — <strong>66 passed</strong>, exit 0 — and <code>ruff check imas_ambix
+      tests</code> exits 0. The new test asserts the two windows against a read
+      the test cuts itself: a one-minute caller is covered, an hour-long caller
+      is not, and the strip alone reports the cut. Negative control: the callers
+      level takes the read's own flag instead of its window's, and that test
+      fails on the one-minute arm (<code>1 failed, 26 deselected</code>, exit 1).</p>
     </section>
     <section id="lane-history-and-outcomes-shape">
       <p><code>live_panel</code> hangs <code>history</code> and

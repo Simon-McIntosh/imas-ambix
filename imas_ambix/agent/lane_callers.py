@@ -59,8 +59,12 @@ requests by how they ended. The strip reaches back further than the callers'
 window, so the three levels are cut from one bounded read of the record's tail
 rather than three polls of a file that grows under them; the read and its byte
 ceiling are
-:func:`~imas_ambix.agent.request_receipts.recent_receipt_rows`, and each block
-states whether that read reached the start of its own window.
+:func:`~imas_ambix.agent.request_receipts.recent_receipt_rows`. The read opens
+over the wider of the callers window and the strip, so a caller asking for a
+shorter window than the strip still gets the strip from the same pass, and each
+block states whether that read covered the start of its **own** window -- a
+five-minute callers block is not left claiming the strip's coverage, nor a
+one-minute caller the coverage of half an hour.
 
 Four outcomes partition the window: ``completed``, ``aborted`` and ``failed``
 are the record's own status labels, and ``gate_expired`` is a request the router
@@ -75,12 +79,12 @@ self-answered with no gate wait, and one whose caller left while uploading is
 
 from __future__ import annotations
 
-import math
 from collections import Counter, defaultdict
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from imas_ambix.agent.receipt_bins import inclusive_quantile
 from imas_ambix.agent.request_receipts import (
     SELF_ANSWERED_UPSTREAM,
     STATUS_ABORTED,
@@ -253,12 +257,16 @@ def callers_block(
     lane.
     """
     moment = (now or datetime.now(UTC)).astimezone(UTC)
+    span_seconds = _read_span(window_seconds)
     try:
-        rows, covered = _record_tail(directory, moment)
+        rows, reached = _record_tail(directory, moment, span_seconds)
     except (OSError, ValueError) as error:
         return _unavailable_block(moment, window_seconds, detail=str(error))
     return _callers_from_rows(
-        rows, covered=covered, moment=moment, window_seconds=window_seconds
+        rows,
+        covered=_window_covered(rows, moment, window_seconds, reached=reached),
+        moment=moment,
+        window_seconds=window_seconds,
     )
 
 
@@ -275,8 +283,9 @@ def record_blocks(
     costs one pass over a file the router is appending to.
     """
     moment = (now or datetime.now(UTC)).astimezone(UTC)
+    span_seconds = _read_span(WINDOW_SECONDS)
     try:
-        rows, covered = _record_tail(directory, moment)
+        rows, reached = _record_tail(directory, moment, span_seconds)
     except (OSError, ValueError) as error:
         detail = str(error)
         return {
@@ -288,26 +297,78 @@ def record_blocks(
         }
     return {
         "callers": _callers_from_rows(
-            rows, covered=covered, moment=moment, window_seconds=WINDOW_SECONDS
+            rows,
+            covered=_window_covered(
+                rows, moment, WINDOW_SECONDS, reached=reached
+            ),
+            moment=moment,
+            window_seconds=WINDOW_SECONDS,
         ),
-        "history": _history_from_rows(rows, moment, covered),
-        "outcomes": _outcomes_from_rows(rows, moment, covered),
+        "history": _history_from_rows(
+            rows,
+            moment,
+            covered=_window_covered(
+                rows, moment, HISTORY_WINDOW_SECONDS, reached=reached
+            ),
+        ),
+        "outcomes": _outcomes_from_rows(
+            rows,
+            moment,
+            covered=_window_covered(
+                rows, moment, OUTCOMES_WINDOW_SECONDS, reached=reached
+            ),
+        ),
     }
 
 
 def _record_tail(
-    directory: str | Path, moment: datetime) -> tuple[list[dict[str, Any]], bool]:
-    """One bounded read of the record's tail, open over the longest window.
+    directory: str | Path, moment: datetime, span_seconds: float
+) -> tuple[list[dict[str, Any]], bool]:
+    """One bounded read of the record's tail, open over *span_seconds*.
 
-    The history strip reaches back half an hour, so the read does not stop at
-    the five minutes the callers block and the outcomes line describe: one pass
-    serves all three. The read is bounded by
+    The read is bounded by
     :data:`~imas_ambix.agent.request_receipts.RECENT_TAIL_MAX_BYTES`, because
-    the document is polled while the record grows.
+    the document is polled while the record grows. The flag it returns says
+    whether this read reached its own start, which is a different question from
+    whether it covered any one level's window: see :func:`_window_covered`.
     """
     return recent_receipt_rows(
-        Path(directory), since=moment - timedelta(seconds=HISTORY_WINDOW_SECONDS)
+        Path(directory), since=moment - timedelta(seconds=span_seconds)
     )
+
+
+def _read_span(window_seconds: float) -> float:
+    """How far back a read must reach to serve a caller asking for its window.
+
+    The history strip is cut from the same read as the callers level, so the
+    read opens over whichever of the two windows is wider, and a caller asking
+    for a window narrower than the strip still gets the strip from the same
+    single pass.
+    """
+    return max(window_seconds, HISTORY_WINDOW_SECONDS)
+
+
+def _window_covered(
+    rows: list[dict[str, Any]],
+    moment: datetime,
+    window_seconds: float,
+    *,
+    reached: bool,
+) -> bool:
+    """Whether the read covered the whole of *window_seconds*, not another's.
+
+    A level's own window decides its flag, so a caller asking for a minute is
+    not told its figures describe half an hour. The read's *reached* flag
+    answers the question for the span it was opened over, which covers every
+    window no wider than that span; a cut read still covers a narrower window
+    when the rows it did return reach back past that window's start, because
+    the rows of a cut read are a contiguous suffix of the record.
+    """
+    if reached:
+        return True
+    opened = (moment - timedelta(seconds=window_seconds)).timestamp()
+    ended = [interval[2] for row in rows if (interval := receipt_interval(row))]
+    return bool(ended) and min(ended) <= opened
 
 
 def _unavailable_block(
@@ -507,27 +568,18 @@ def _gate_expired(row: dict[str, Any]) -> bool:
     return wait > 0.0
 
 
-def _percentile(values: list[float], fraction: float) -> float | None:
-    """The *fraction* quantile of *values*, in seconds, or None for no values.
+def _bin_percentile(values: list[float], fraction: float) -> float | None:
+    """The *fraction* quantile of a bin's waits, in seconds, or None for none.
 
-    Interpolated between the two nearest order statistics, so a bin holding a
-    handful of requests reports a figure between two of them rather than
-    snapping to one. Each kept row contributes one sample: an order statistic
-    describes the requests the record holds, and a row the sink kept at a
-    fraction below one stands for requests of its own shape.
+    The interpolation is :func:`~imas_ambix.agent.receipt_bins.inclusive_quantile`,
+    which is the repository's one quantile; a bin waits report in tenths of a
+    second, and a bin that admitted nobody reports no figure at all rather than
+    zero, because a bin nobody had to wait in is a different fact from a bin
+    nobody used.
     """
     if not values:
         return None
-    ordered = sorted(values)
-    if len(ordered) == 1:
-        return round(ordered[0], 1)
-    position = fraction * (len(ordered) - 1)
-    lower = math.floor(position)
-    upper = math.ceil(position)
-    if lower == upper:
-        return round(ordered[lower], 1)
-    between = ordered[lower] + (position - lower) * (ordered[upper] - ordered[lower])
-    return round(between, 1)
+    return round(inclusive_quantile(tuple(values), fraction), 1)
 
 
 def _history_from_rows(
@@ -581,8 +633,8 @@ def _history_from_rows(
             "end": _isoformat(datetime.fromtimestamp(edges[index + 1], UTC)),
             "occupancy": round(held[index], 2),
             "requests": round(admitted[index], 1),
-            "gate_wait_p50_s": _percentile(waits[index], 0.5),
-            "gate_wait_p95_s": _percentile(waits[index], 0.95),
+            "gate_wait_p50_s": _bin_percentile(waits[index], 0.5),
+            "gate_wait_p95_s": _bin_percentile(waits[index], 0.95),
         }
         for index in range(count)
     ]
