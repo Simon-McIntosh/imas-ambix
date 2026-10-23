@@ -1,0 +1,78 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T08:19:52.684Z",
+  "dispatched_at": "2026-10-23T08:04:38Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/serving-across-servers.html:680",
+      "id": "reasoning-1",
+      "reason": "a node would ship a release that answers nobody on the real restart path and its declared negative control would pass either way, so nothing downstream would reveal it.",
+      "text": "\u00a716 answers the gate's waiters from `lifespan.shutdown`, but uvicorn reaches that handler only after waiting `timeout_graceful_shutdown` on `server_state.tasks` and cancelling them, and the router sets no such setting \u2014 so the release fires at the tasks uvicorn has already cancelled, and with the grace unbounded `lifespan.shutdown` is never reached at all; \u00a716's own test drives the app's lifespan directly and passes in both the release and the mutation arm, so the gate cannot distinguish delivery from the defect it is written to remove",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/serving-across-servers.html:592",
+      "id": "reasoning-2",
+      "reason": "an operator taking the offered option performs the request loss the section was written to eliminate, and \u00a711 itself distinguishes landed from live one sentence earlier for \u00a713.",
+      "text": "\u00a711 step 2 says \u00a716's release \"goes out in the first cycle, so that this restart and every later one drops nothing\" and then offers \"\u00a715's move to the rigel node is that cycle's restart\"; if the move is that restart, the process being stopped is the one that does not yet carry \u00a716, so the move is precisely the unprotected restart \u00a716 exists to prevent, and \u00a715's \"after \u00a716 has landed, so that it drops nothing\" (line 676) rests on landed rather than live",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/serving-across-servers.html:621",
+      "id": "done_when-1",
+      "reason": "a rollout step reaching a closing verdict on a measure that belongs to another step cannot be closed on one verdict, and the probe would be run at the wrong point in the cycle.",
+      "text": "\u00a711's fourth done-when bullet reads \"Step 4 records a search of the dotfiles, reckon and imas-ambix trees finding no reader of `--live` before the alias goes\", but step 4 is \"The watch learns engines\" (\u00a714) and the alias retirement is step 5 (line 608), so the alias measure is attached to the wrong step and step 5 carries no measure of its own",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/serving-across-servers.html:586",
+      "id": "done_when-2",
+      "reason": "a coordinator working step 1's list as pending work can dispatch nodes already merged and closed; \u00a713, the same list's third instance, was answered by a reword that left \"\u00a713 is built in this step too\" standing, so the list needs one status-aware pass rather than a third single fix.",
+      "text": "\u00a711 step 1 lists \"\u00a73, \u00a76, \u00a78, \u00a79 and \u00a710 land and are used on today's single engine\", but the plan declares \u00a73 and \u00a78 `done` and the plan's own comments record both merged",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "e925be8c6b242c366403bb379fa2108b9d6b2b5d99646439121b5bd07c3637a4",
+  "plan_slug": "serving-across-servers",
+  "plan_version": 52,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T080220690634-plan-review-of-serving-across-servers",
+  "reviewed_blob_sha": "f2299e8748abc1d43f72656626c536b83e69c75d",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every file, research document, figure, evidence archive and section cited by \u00a711, \u00a715 and \u00a716 resolves; extensionless hrefs resolve as `<path>.html`.",
+    "done_when": "a finding \u2014 \u00a711's fourth done-when bullet attaches the alias search to \"Step 4\", which after the \u00a714 insertion is now \u00a714's engine work, leaving the alias step (\u00a711 step 5) with no measure.",
+    "evidence_paths": "pass \u2014 the changed units name repository artefacts (`ops/lane-cycle/AGENTS.md`, the plan's evidence archive) rather than a scratch or node-local path.",
+    "naming": "pass \u2014 \u00a715 and \u00a716 name mechanisms (`generate_router_script`, `lifespan.shutdown`, `timeout_graceful_shutdown`, the gate's `reason`) and no plan label, stage name or ticket number reaches a symbol.",
+    "reasoning": "a finding \u2014 \u00a716's stated mechanism, answered \"on `lifespan.shutdown`\", does not run before the waiters are cancelled on the deployed path, so it cannot deliver the done-when the same section asserts.",
+    "single_goal": "pass \u2014 \u00a715 carries the router's placement and \u00a716 the shutdown release, one deliverable each; \u00a711 is the rollout itself.",
+    "wiring": "pass \u2014 every `plan-section-depends-on` entry resolves, and `s15 -> serving-across-servers#s16` matches \u00a715's \"after \u00a716 has landed\"; the rollout ordering problem is filed under `reasoning`."
+  },
+  "section_digests": {
+    "_document": "0b596107a672110f578f897076275fca70ad391127c18eb5683a0787432be82a",
+    "s1": "84abea84a25c5ecad35220751db61c7b49c61973eda4e741e78348e16b694de2",
+    "s10": "fe30c5bee7553576dc5c7fb89b35c24667e24c55ebd8fad98687847b2c74f1bf",
+    "s11": "c880018fceebf31e1615ad945bc6aefd2384eb7ade26b7dd6dcdc59adcedd801",
+    "s12": "635129369af591c5ed9cc97e1eca5d88c9bc4726355cb4d15f89c4d4d8bb714b",
+    "s13": "d6a25041d94de4d2edca565f9547a2318892f456c088170892456d55f5ad8bdd",
+    "s14": "0e17e1001edcfa86d833f0f919327f28fbf48f5a79d8ad1e3d2574126b81a702",
+    "s15": "9d90f0ecdac2fe6969042aebf155bf919b568c37381873c3709ba79e704c988c",
+    "s16": "bf8997211976b06640ab5002f64ece2b38d0a8a826423019ab52d9e392842875",
+    "s2": "07c84f3703bedbf51b14249471fa10a4580efea08771ba394dd7383ec52328c7",
+    "s3": "00fd83fbad872f21eb8f9f5434e1a3b6963ca67f6613df3c84a0de4c2ede025b",
+    "s4": "25bebe082ae8eefd4294ed18a8119c22a616dac41902d3de2da67458deb06918",
+    "s5": "af47ca049930ce3c95174fdb9fc4657b0dd503aae1ccdd776d048c40c86116d2",
+    "s6": "ceae93e6905a33dc8facd996f608b63d18e72e315ad6e507bce9b5e840ca2dcc",
+    "s7": "f0eb3d24d868bfaf352c4a849435a0432daa643483a73cd3179e2648759af011",
+    "s8": "a93017191ce26f06aac707c835d9d303dbc507e05dbf08ff1500e55f87d09deb",
+    "s9": "ba409da1d166329e7fa4417b0520bf07528a5dabde5c93876650d86737b04fb4"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T12:03:42.108062+00:00"
+}
