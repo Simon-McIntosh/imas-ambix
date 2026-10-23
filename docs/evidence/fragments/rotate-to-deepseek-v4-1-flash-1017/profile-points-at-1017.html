@@ -32,29 +32,43 @@
     <code>shard-verify.log</code> beside this fragment; its
     <code>slurmstepd</code> warnings are inherited <code>TMPDIR</code> noise from the
     five-day-old allocation the job was submitted from, not a fault of the run, whose last
-    line reads <code>EXIT=0</code>. <strong>Not delivered on this node:</strong> the
-    download script does not yet pass <code>--revision</code> to the Hugging Face client,
-    so the pin this profile declares is not enforced by a download. That needs
-    <code>imas_ambix/agent/slurm.py</code>, which is outside this node's write grant —
-    see the manifest's <code>blockers</code>.
+    line reads <code>EXIT=0</code>.
+  </p>
+
+  <p id="profile-points-at-1017-download">
+    The generated download script resolves the pin before it transfers anything and passes
+    it on: the client is asked for <code>--revision "$REVISION"</code>, and a
+    <code>models info --expand sha</code> call through that same client runs first and
+    ends the job if the repository does not publish the revision. Both call the same
+    variable, so the check and the transfer cannot disagree about what was published. The
+    refusal matters beyond a fast failure: a client that cannot resolve a revision follows
+    the repository's default stream, which is the substitution the pin exists to prevent.
+    Profiles declaring no revision are untouched — all nine were compared against the
+    previous generator at <code>a7d24c5a</code> and generate byte-identical scripts, while
+    this profile's script differs only by the <code>REVISION</code> line, the check and the
+    flag (<code>download-script-delta.log</code>).
   </p>
 
   <p id="profile-points-at-1017-negative-control">
-    The shard verifier was shown to fail: a scratch directory holding 47 symlinks to the
-    real shards and one full copy of
+    Both halves were shown to fail. The shard verifier: a scratch directory holding 47
+    symlinks to the real shards and one full copy of
     <code>model-00001-of-00048.safetensors</code> with a single byte flipped at offset
     5,000,000 reported <code>MISMATCH</code> for that shard and
     <code>VERDICT: FAIL</code>. Its first attempt also failed honestly: the recursive
     listing endpoint paginates at fifty entries, served only thirteen shards of the
     forty-eight, and the verifier's own control refused that listing rather than reporting
-    the thirty-five absent from it as missing files. The control log is outside the tree,
-    at
+    the thirty-five absent from it as missing files. The refusal: deleting the check from
+    a scratch copy of the generator left the script running the transfer to completion
+    against an unpublished revision — exit 0, download complete — and the refusal test
+    failed on it, so the guard is load-bearing rather than decorative. The copy was
+    restored under a trap and the restore is verified by checksum, not assumed. Both
+    control logs are outside the tree, at
     <code>~/.config/reckon/crew/runs/r-20261023T140736542637-profile-points-at-1017/</code>.
   </p>
 
   <p id="profile-points-at-1017-gate">
-    Gate: <code>pytest -p no:cacheprovider tests/test_agent_dspark_profile.py</code> — 9
-    passed, of which two are new; whole-tree
+    Gate: <code>pytest -p no:cacheprovider tests/test_agent_dspark_profile.py</code> — 12
+    passed, of which five are new; whole-tree
     <code>ruff check imas_ambix tests</code> exits 0.
   </p>
 </section>
