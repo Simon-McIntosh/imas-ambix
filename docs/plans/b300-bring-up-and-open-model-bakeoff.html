@@ -25,7 +25,7 @@
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="1">
+<meta name="plan-version" content="2">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -45,7 +45,7 @@
         <tr><td><a href="https://artificialanalysis.ai/models/deepseek-v4-1-flash-1017">Artificial Analysis</a> Intelligence Index (independent)</td><td>45</td><td>45</td><td>46</td><td>44</td></tr>
         <tr><td>Terminal-Bench 4.0, DeepSeek's own table (vendor)</td><td>42.3</td><td>37.9</td><td>34.9 (Xiaomi)</td><td>12.6</td></tr>
         <tr><td>Active / total parameters</td><td>16B / 552B</td><td>~40B / 744B</td><td>42B / 1.02T</td><td>104B / 2.8T</td></tr>
-        <tr><td>8×B300 throughput relative to 1017, from the <a href="/imas-ambix/research/serving-capacity-and-b300-projection">capacity study</a> §5</td><td>2,100–3,400 tok/s</td><td colspan="2">about a third to a half (one band for both)</td><td>about a fifth to a third</td></tr>
+        <tr><td>Projected 8×B300 aggregate, from the <a href="/imas-ambix/research/serving-capacity-and-b300-projection">capacity study</a> §6, like-for-like column</td><td>2,300–3,600 tok/s</td><td>600–1,400</td><td>900–1,800</td><td>800–1,500</td></tr>
       </tbody>
     </table>
     <p>No candidate is clearly better. GLM-5.3 leads on one independent agentic benchmark and
@@ -218,23 +218,23 @@
     All four models are on OpenRouter, so this can run without the hardware.</p>
 
     <section data-reckon="questions" id="questions" class="r-questions">
-      <h2><span class="sec">§</span> Open questions</h2>
-      <div class="r-q" data-id="b300-arrival-facts" data-section="s4" data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-23">
-        <p class="r-q-body">On arrival: the B300 node's host name, partition, account and reservation, and the CUDA driver version it ships with. §4 fills them into the server declaration, and the driver version bounds which SGLang builds can run.</p>
-      </div>
-      <div class="r-q" data-id="h200-role" data-section="s6" data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-23">
-        <p class="r-q-body">After cutover, does the 4×H200 keep serving DeepSeek beside the B300, or return to FP64 physics and training? Keeping it adds roughly a fifth to the lane's capacity, but needs <code>serving-across-servers</code> §7 (session affinity, 5 h, elevated risk) and keeps those cards from physics work.</p>
-      </div>
-    </section>
+<h2><span class="sec">§</span> Open questions</h2>
+<div class="r-q" data-id="b300-arrival-facts" data-section="s4" data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-23" data-resolved-at="" data-resolved-by="">
+    <p class="r-q-body">On arrival: the B300 node's host name, partition, account and reservation, and the CUDA driver version it ships with. §4 fills them into the server declaration, and the driver version bounds which SGLang builds can run.</p>
+    </div>
+<div class="r-q" data-id="h200-role" data-section="s6" data-status="open" data-opened-by="Simon McIntosh" data-opened-at="2026-10-23" data-resolved-at="" data-resolved-by="">
+    <p class="r-q-body">After cutover, does the 4×H200 keep serving DeepSeek beside the B300, or return to FP64 physics and training? Keeping it adds roughly a fifth to the lane's capacity, but needs <code>serving-across-servers</code> §7 (session affinity, 5 h, elevated risk) and keeps those cards from physics work.</p>
+    </div>
+</section>
 
     <section data-reckon="followups" id="followups" class="r-followups">
-      <h2><span class="sec">§</span> Followups</h2>
-      <article class="r-fu" data-id="f-bob-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build b300-bring-up-and-open-model-bakeoff">
-        <h4 class="r-fu-title">Audit the store, download the backups, write the DeepSeek launchers (§2–§4)</h4>
-        <div class="r-fu-body"><p>§2 runs now. §3 follows §2's audit. §4 follows the rotation's §2, which edits the same profile. §5 and §6 wait for the hardware.</p></div>
-        <pre class="r-fu-prompt">/reckon-build b300-bring-up-and-open-model-bakeoff</pre>
-      </article>
-    </section>
+<h2><span class="sec">§</span> Followups</h2>
+<article class="r-fu" data-id="f-bob-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build b300-bring-up-and-open-model-bakeoff" data-resolved-at="" data-resolved-by="">
+    <h4 class="r-fu-title">Audit the store, download the backups, write the DeepSeek launchers (§2–§4)</h4>
+    <div class="r-fu-body"><p>§2 runs now. §3 follows §2's audit. §4 follows the rotation's §2, which edits the same profile. §5 and §6 wait for the hardware.</p></div>
+    <pre class="r-fu-prompt">/reckon-build b300-bring-up-and-open-model-bakeoff</pre>
+    </article>
+</section>
   </main>
 </body>
 </html>

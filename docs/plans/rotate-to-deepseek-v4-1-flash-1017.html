@@ -25,7 +25,7 @@
   <title>Rotate to DeepSeek-V4.1-Flash-1017 | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="4">
+<meta name="plan-version" content="9">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -93,8 +93,10 @@
     production use to <code>deepseek-recipe</code>, with no Jinja template. Every worker on
     the lane makes tool calls. A release that completes text but returns tool calls our
     parser cannot read would pass validation and then fail every worker.</p>
-    <p>The validation step gains two probes, each sent through the router to the new engine
-    before <code>resume</code>:</p>
+    <p>The validation step gains two probes, each sent to the new engine before it serves
+    work. In the pause path that is before <code>resume</code>. In the overlap path it is
+    before the held replacement is admitted to routing, so a failing probe leaves the old
+    serve routed and cancels the replacement:</p>
     <ul>
       <li><strong>Tool call.</strong> A chat request offering one tool must come back as a
       parsed <code>tool_calls</code> entry with arguments that parse as JSON.</li>
@@ -117,8 +119,8 @@
     <p><strong>Done when.</strong></p>
     <ul>
       <li>Both probes pass against today's served engine through the router, run once from
-      the fleet node, as the positive control on known-good weights. The log is
-      recorded.</li>
+      the fleet node, as the positive control on known-good weights. The log is committed at
+      <code>docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/serve-probe-positive-control.log</code>.</li>
       <li>Unit tests cover each probe's pass and fail on recorded fixture responses.</li>
       <li>A restart test with a weights directory lacking its index, or missing one shard
       the index names, refuses before writing the pause, and names the missing file.</li>
@@ -148,6 +150,9 @@
       <li>A registration written by a generated serve script carries the profile's
       <code>hf_repo@revision</code>, and <code>endpoints.json</code> publishes it on the
       engine's entry.</li>
+      <li><code>release_at</code> over two registrations of one engine, the September release
+      then 1017, returns the September release for an instant before the second
+      registration and 1017 for one after it.</li>
       <li>A registration with no <code>release</code> key is read as <code>null</code> and the
       document still builds.</li>
       <li><strong>Negative control:</strong> a profile with no revision writes
@@ -162,14 +167,27 @@
     operational action on a shared service, so it is never a worker node. The router does not
     restart: an engine relaunch drops nothing, because in-flight requests finish and later
     arrivals wait in the router's FIFO. The steps:</p>
+    <p><code>agent restart</code> chooses between two paths (<code>--mode auto</code>, its
+    default; see <code>hot-reload-the-serve</code>), and this rotation accepts either:</p>
+    <ul>
+      <li><strong>Overlap.</strong> When the node has room for a second four-card serve, the
+      replacement launches beside the running one. It is held out of routing until it has
+      generated and passed §3's probes, then takes new work while the old one drains.
+      Nothing pauses.</li>
+      <li><strong>Pause.</strong> Otherwise the gate pauses, the engine drains to a measured
+      zero, the serve is replaced, and the probes run before <code>resume</code>, inside the
+      runbook's 40-minute bound.</li>
+    </ul>
+    <p>The H200 node's other four cards are often allocated to another reservation group, so
+    a pause is the likely path. The command's output names the path it took.</p>
     <ol>
-      <li>Announce to the live coordinators, with the bound: a pause of at most 40 minutes.</li>
+      <li>Announce to the live coordinators, with the bound: no pause if overlap is chosen,
+      and a pause of at most 40 minutes otherwise.</li>
       <li>From the main checkout, run <code>imas-ambix agent restart deepseek-v4-1-flash
-      --reason "rotate to V4.1-Flash-1017"</code>. It pauses, drains to a measured zero,
-      relaunches on the 1017 directory, waits for readiness, runs §3's probes, and resumes
-      on every path.</li>
-      <li>Record the cycle's four figures (pause start and end, peak held, final failures)
-      in the landing record.</li>
+      --reason "rotate to V4.1-Flash-1017"</code>.</li>
+      <li>Record in the landing record the path taken and its figures. For a pause: start,
+      end, peak held and final failures. For an overlap: when the replacement was admitted
+      to routing, and when the old serve drained.</li>
       <li>Watch the first hour of receipts. The failed-request share and the gate-expiry
       count must stay at the previous day's levels.</li>
     </ol>
@@ -186,8 +204,9 @@
       one percentage point of the same hour the previous day.</li>
       <li><strong>Negative control:</strong> before the cycle, a real (not dry-run) restart is
       run against a copy of the profile pointing at an empty weights directory. §3's
-      preflight must refuse it before the pause is written, and <code>lane.json</code>'s
-      gate block must still read <code>paused: false</code> afterwards.</li>
+      preflight must refuse it before either path starts. Afterwards, <code>lane.json</code>'s
+      gate block must still read <code>paused: false</code>, and <code>squeue</code> must
+      show no replacement serve submitted.</li>
     </ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
