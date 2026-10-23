@@ -1,0 +1,104 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "assertion_analysis": [
+    "tests/test_index_placement.py:48-51 fails if the fleet-runtime default is absent or routed away from ambix/watch-index.sqlite3.",
+    "tests/test_index_placement.py:54 fails if the AMBIX_WATCH_INDEX override loses precedence to the fleet default.",
+    "tests/test_index_placement.py:55-58 fails if an explicit path is ignored, but the expectation is the same value the test supplied, so an unvalidated echo also passes; locality is proven only by the injected-network cases at lines 72 and 80-86.",
+    "tests/test_index_placement.py:72 fails if the runtime candidate is accepted while injected statfs reports GPFS.",
+    "tests/test_index_placement.py:78 fails if enable_wal leaves SQLite outside WAL mode on local storage.",
+    "tests/test_index_placement.py:80-81 and 82-86 fail if the resolver or enable_wal stops raising on an injected network filesystem; the source run's mutation produced the line-80 failure.",
+    "tests/test_index_placement.py:100 fails if the snapshot loses its zst suffix; it does not by itself prove compression.",
+    "tests/test_index_placement.py:101-103 fail if backup, compression or restore changes row counts or the SQLite dump digest between the live index and the restored copy.",
+    "tests/test_index_placement.py:118-120 fail if four valid snapshots leave other than the newest three, but pruning by filename rather than by verified copies also passes.",
+    "tests/test_index_placement.py:137-140 fail if restore chooses a corrupt newest over its predecessor, if the failure is not printed, if the older snapshot is deleted, or if restored counts diverge.",
+    "tests/test_index_placement.py:153-162 fail if a damaged same-day snapshot suppresses replacement; the inverse-commit log shows this test red with replacement None.",
+    "tests/test_index_placement.py:175 and 180-183 fail if restored catch-up misses the appended receipt, ingests it twice, or diverges from a continuously-ingested index.",
+    "tests/test_index_placement.py:193-197 fail if agent watch with no local index errors or does not echo the published file bytes in either output mode.",
+    "tests/test_index_placement.py:210-211 fail if the publisher reports success and rewrites the published file; the inverse-commit log shows this test red with the publisher reporting wrote."
+  ],
+  "call_site_count": 9,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:3151",
+    "imas_ambix/agent/cli.py:3157",
+    "imas_ambix/agent/cli.py:3392",
+    "imas_ambix/agent/cli.py:3399",
+    "imas_ambix/agent/cli.py:3401",
+    "imas_ambix/agent/cli.py:3406",
+    "imas_ambix/agent/watch.py:1305",
+    "imas_ambix/agent/watch.py:1438",
+    "imas_ambix/agent/watch_publish.py:116"
+  ],
+  "completed_at": "2026-10-23T07:31:45.358Z",
+  "dispatched_at": "2026-10-23T07:18:38Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "90",
+      "severity": "follow-on",
+      "text": "follow-on: PUBLISHED_WATCH_PATH repeats the value owned by watch_publish.DEFAULT_OUTPUT at imas_ambix/agent/watch_publish.py:47, so a change to one declaration can silently desynchronise the reader from the producer."
+    },
+    {
+      "file": "tests/test_index_placement.py",
+      "line": "56",
+      "severity": "follow-on",
+      "text": "follow-on: the explicit-path assertion compares the resolver's return against the same path the test passed in, so it stays true even if require_local stops validating a supplied path."
+    },
+    {
+      "file": "tests/test_index_placement.py",
+      "line": "118",
+      "severity": "follow-on",
+      "text": "follow-on: retention is exercised only with valid snapshots, so pruning by filename rather than by verified copies would keep three files and still pass."
+    },
+    {
+      "file": "manifest.md",
+      "line": "21",
+      "severity": "follow-on",
+      "text": "follow-on: baseline_suite and after_suite are empty, so the record carries no structured suite-delta receipt although comparable gate logs exist."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 9 production call site(s)",
+    "diff": "read aa4a09b4, 0802d6d7, d99a8955, 85c57d8b, 2fefa896, 5a1477b0 and 1089c1c2 commit by commit from 01f7736e; the last three are the review repairs and the evidence update.",
+    "done_when": "prompt.txt:95-96 names the placement, WAL refusal, snapshot round trip, retention, restore catch-up and the three gates; repair-all-tests.log:20 and repair-ruff.log:4 record them green, and both repaired defects now carry an inverse-commit control.",
+    "goal": "prompt.txt:30 requires a node-local WAL index with verified daily snapshots; index_placement.py:61-74 resolves the path and 139-172 verifies each snapshot before retention.",
+    "manifest": "manifest.md reports seven commits, 48 passed, whole-tree Ruff clean and a red WAL negative control, but leaves baseline_suite and after_suite empty.",
+    "write_paths": "prompt.txt:69-76 grants index_placement.py, its test, cli.py, watch.py and the evidence fragment; the five paths in the 01f7736e..1089c1c2 diff are all within scope."
+  },
+  "justifications": {
+    "durability": "repair-snapshot-inverse.log and repair-publisher-inverse.log each reinstate a repaired defect and show its own regression test red with EXIT=1, though two weaker assertions noted below remain.",
+    "evidence": "repair-all-tests.log:20 records 48 passed at revision 5a1477b0 and repair-ruff.log:4 a clean whole-tree gate, but manifest.md:21-22 leaves baseline_suite and after_suite empty so no structured suite delta is recorded.",
+    "fit": "imas_ambix/agent/cli.py:3403 follows the surrounding ingest tick-callback idiom, the new names are semantic and whole-tree Ruff is clean.",
+    "goal_fidelity": "imas_ambix/agent/index_placement.py:203-215 now verifies a same-day snapshot before skipping it, so the verified-daily-copy the goal promises can no longer be suppressed by a damaged file.",
+    "reuse": "imas_ambix/agent/watch.py:90 re-declares the published-document location already owned by imas_ambix/agent/watch_publish.py:47 instead of extending that owner.",
+    "scope_discipline": "every path in the 01f7736e..1089c1c2 diff is one of the five write paths declared at prompt.txt:69-76."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: prompt.txt:30 requires a node-local WAL watch index with verified compressed daily snapshots; imas_ambix/agent/index_placement.py:61-74 resolves the path and 139-172 verifies each snapshot before retention.\nVERDICT done_when: prompt.txt:95-96 names the resolver, WAL refusal, a snapshot round trip, three-snapshot retention, restore-then-catch-up and the three gates; repair-all-tests.log:20 records 48 passed and repair-ruff.log:4 a clean Ruff, both green.\nVERDICT write_paths: prompt.txt:69-76 grants index_placement.py, its test, cli.py, watch.py and the evidence fragment; every one of the five paths in the 01f7736e..1089c1c2 diff lies inside that grant.\nVERDICT manifest: manifest.md reads status complete with seven commits, 48 passed, whole-tree Ruff clean, a red WAL negative control, and the two repair commits 2fefa896 and 5a1477b0 answering the prior review.\nVERDICT diff: read all seven commits of the 01f7736e..1089c1c2 range; aa4a09b4 lands the module, d99a8955 adds the resolved-path guard, and 2fefa896/5a1477b0 close the two blocking findings the earlier review raised.\nCALL_SITES: imas_ambix/agent/cli.py:3151, imas_ambix/agent/cli.py:3157, imas_ambix/agent/cli.py:3392, imas_ambix/agent/cli.py:3399, imas_ambix/agent/cli.py:3401, imas_ambix/agent/cli.py:3406, imas_ambix/agent/watch.py:1305, imas_ambix/agent/watch.py:1438, imas_ambix/agent/watch_publish.py:116\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/agent/index_placement.py:203-215 now verifies a same-day snapshot before skipping it, so the verified-daily-copy the goal promises can no longer be suppressed by a damaged file.\nSCORE evidence: 15\nJUSTIFICATION evidence: repair-all-tests.log:20 records 48 passed at revision 5a1477b0 and repair-ruff.log:4 a clean whole-tree gate, but manifest.md:21-22 leaves baseline_suite and after_suite empty so no structured suite delta is recorded.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: every path in the 01f7736e..1089c1c2 diff is one of the five write paths declared at prompt.txt:69-76.\nSCORE durability: 17\nJUSTIFICATION durability: repair-snapshot-inverse.log and repair-publisher-inverse.log each reinstate a repaired defect and show its own regression test red with EXIT=1, though two weaker assertions noted below remain.\nSCORE fit: 16\nJUSTIFICATION fit: imas_ambix/agent/cli.py:3403 follows the surrounding ingest tick-callback idiom, the new names are semantic and whole-tree Ruff is clean.\nSCORE reuse: 5\nJUSTIFICATION reuse: imas_ambix/agent/watch.py:90 re-declares the published-document location already owned by imas_ambix/agent/watch_publish.py:47 instead of extending that owner.\nFINDING imas_ambix/agent/watch.py:90 follow-on: PUBLISHED_WATCH_PATH repeats the value owned by watch_publish.DEFAULT_OUTPUT at imas_ambix/agent/watch_publish.py:47, so a change to one declaration can silently desynchronise the reader from the producer.\nFINDING tests/test_index_placement.py:56 follow-on: the explicit-path assertion compares the resolver's return against the same path the test passed in, so it stays true even if require_local stops validating a supplied path.\nFINDING tests/test_index_placement.py:118 follow-on: retention is exercised only with valid snapshots, so pruning by filename rather than by verified copies would keep three files and still pass.\nFINDING manifest.md:21 follow-on: baseline_suite and after_suite are empty, so the record carries no structured suite-delta receipt although comparable gate logs exist.\n",
+  "review_run_id": "r-20261023T071810518665-review-of-wil-index-on-node-local-disk-1089c1c28d4f",
+  "reviewed_base_sha": "01f7736ef59a61ac4a3bcf93124977d8bd5ae896",
+  "reviewed_head_sha": "1089c1c28d4f2bc13b96aa82768edbc646ed83ed",
+  "reviewed_run_id": "r-20261023T062515139658-wil-index-on-node-local-disk",
+  "scores": {
+    "durability": 17,
+    "evidence": 15,
+    "fit": 16,
+    "goal_fidelity": 18,
+    "reuse": 5,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "suite_delta_evidence": {
+    "after_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T062515139658-wil-index-on-node-local-disk/repair-all-tests.log",
+    "after_result": "48 passed, 14 deselected, EXIT=0",
+    "baseline_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T062515139658-wil-index-on-node-local-disk/final-all-tests.log",
+    "baseline_result": "46 passed, 14 deselected, EXIT=0",
+    "limitation": "The source manifest leaves baseline_suite and after_suite empty, so these two comparable gate logs carry the observed zero added failure ids: no failing test id appears in either arm."
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T07:35:29.130142+00:00",
+  "total": 91
+}
