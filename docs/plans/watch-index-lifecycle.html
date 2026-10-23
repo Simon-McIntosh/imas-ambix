@@ -24,7 +24,7 @@
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="22">
+<meta name="plan-version" content="23">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -403,6 +403,9 @@
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261023T111422415003-wil-ingest-publishes-the-watch-document" data-who="reckon-build" data-when="2026-10-23T12:20:01Z">
     <div class="r-comment-body"><p>Ingest publishes watch.json at the attempt cadence, including after failures; autouse test isolation keeps real HOME watch.json unchanged. Base/head suites 47/48 passed; parser guard and Ruff passed; three negative-control tests failed as expected. Evidence: docs/evidence/fragments/watch-index-lifecycle/wil-ingest-publishes-the-watch-document.html.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-run-r-20261023T124345710692-review-of-wil-schema-change-rebuilds-the-index-c1c0967a18bc" data-who="reckon-build" data-when="2026-10-23T12:59:53.655Z">
+    <div class="r-comment-body"><p>Independent review of wil-schema-change-rebuilds-the-index at c1c0967a: goal_fidelity 19, evidence 18, scope_discipline 20, durability 19, fit 14, reuse 5; 0 added failures against the after_suite arm; two non-blocking findings (the schema-refusal predicate is duplicated from telemetry_index, and cli.py calls a private snapshot helper).</p></div>
 </div>
 </section>
 </main>

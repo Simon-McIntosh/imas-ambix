@@ -1,0 +1,52 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_sites": [
+    "imas_ambix/agent/cli.py:3412",
+    "imas_ambix/agent/cli.py:3416",
+    "imas_ambix/agent/cli.py:3420",
+    "imas_ambix/agent/index_placement.py:257",
+    "imas_ambix/agent/index_placement.py:265"
+  ],
+  "completed_at": "2026-10-23T12:59:53.655Z",
+  "dispatched_at": "2026-10-23T12:44:10Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/index_placement.py",
+      "line": 101,
+      "severity": "non-blocking",
+      "text": "index_requires_rebuild re-implements the predicate TelemetryIndex already owns at imas_ambix/agent/telemetry_index.py:941; the literal name_id sentinel now sits in two modules, so a schema change that moves it must be edited in both or the rebuild check silently diverges from the writer's refusal that raises at telemetry_index.py:1151."
+    },
+    {
+      "file": "imas_ambix/agent/cli.py",
+      "line": 3420,
+      "severity": "non-blocking",
+      "text": "the ingest command asks whether any snapshot exists by calling index_placement._snapshot_paths, a private helper it does not own, so the second branch of the rebuild condition couples cli.py to another module's internals instead of to a public predicate."
+    }
+  ],
+  "item_verdicts": {
+    "diff": "Read commit by commit against f5b9ad32; 192f9276 adds index_requires_rebuild, the restore skip and the ingest rebuild plus four tests, c1c0967a adds only the evidence fragment, 189 insertions across five files.",
+    "done_when": "The done_when names three suites, the serving-parser guard, ruff and four behavioural clauses; the manifest records head-schema-gate.log 62 passed in 167.14s, head-serve-parse-gate.log 1 passed 14 deselected, head-ruff-schema.log All checks passed, head-schema-arm-absolute.log 2 passed, and negative-schema.log 2 failed EXIT=1, all read and matching the named measures.",
+    "goal": "The node goal is to make ingest rebuild an index whose schema the current code refuses and make restore skip such a snapshot; imas_ambix/agent/cli.py:3413-3431 stages a rebuild and os.replace it into place, and imas_ambix/agent/index_placement.py:257-265 skips and keeps an incompatible snapshot, so both halves landed.",
+    "manifest": "Read; tests names the literal gate command, test_logs names four logs, after_suite carries revision c1c0967a with failure_count 0 and empty failure_ids, baseline_suite is absent, and negative_control_log names a red log whose EXIT=1 line was read.",
+    "write_paths": "The declared paths are imas_ambix/agent/cli.py, imas_ambix/agent/index_placement.py, tests/test_index_placement.py, tests/test_agent_ingest_cli.py and docs/evidence/fragments/watch-index-lifecycle/wil-schema-change-rebuilds-the-index.html; every path in the diff is inside that set."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The node goal is to make ingest rebuild an index whose schema the current code refuses and make restore skip such a snapshot; imas_ambix/agent/cli.py:3413-3431 stages a rebuild and os.replace it into place, and imas_ambix/agent/index_placement.py:257-265 skips and keeps an incompatible snapshot, so both halves landed.\nVERDICT done_when: The done_when names three suites, the serving-parser guard, ruff and four behavioural clauses; the manifest records head-schema-gate.log 62 passed in 167.14s, head-serve-parse-gate.log 1 passed 14 deselected, head-ruff-schema.log All checks passed, head-schema-arm-absolute.log 2 passed, and negative-schema.log 2 failed EXIT=1, all read.\nVERDICT write_paths: The declared paths are imas_ambix/agent/cli.py, imas_ambix/agent/index_placement.py, tests/test_index_placement.py, tests/test_agent_ingest_cli.py and the evidence fragment; every path in the diff is inside that set.\nVERDICT manifest: Read; tests names the literal gate command, test_logs names four logs, after_suite carries revision c1c0967a with failure_count 0 and empty failure_ids, baseline_suite is absent, and negative_control_log names a red log whose EXIT=1 line was read.\nVERDICT diff: Read commit by commit against f5b9ad32; 192f9276 adds index_requires_rebuild, the restore skip and the ingest rebuild plus four tests, c1c0967a adds only the evidence fragment, 189 insertions across five files.\nCALL_SITES: imas_ambix/agent/cli.py:3412, imas_ambix/agent/cli.py:3416, imas_ambix/agent/index_placement.py:257, imas_ambix/agent/index_placement.py:265\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/cli.py:3431 os.replace moves the staged rebuild into place only after TelemetryIndex.rebuild returns at cli.py:3430, and imas_ambix/agent/index_placement.py:265 restores the next compatible snapshot, so the goal statement is met.\nSCORE evidence: 18\nJUSTIFICATION evidence: head-schema-arm-absolute.log records 2 passed at revision c1c0967a18bce and negative-schema.log records those same two tests failing with EXIT=1 under the declared mutation, so the measure is measured rather than asserted.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --stat f5b9ad32 c1c0967a names five files, each inside the five declared write paths.\nSCORE durability: 19\nJUSTIFICATION durability: negative-schema.log shows reinstating the defect reddens tests/test_agent_ingest_cli.py:32 and tests/test_index_placement.py:126, and tests/test_agent_ingest_cli.py:74 compares bytes read back from the file rather than a value handed to the code.\nSCORE fit: 14\nJUSTIFICATION fit: imas_ambix/agent/cli.py:3420 reaches into index_placement._snapshot_paths, a module-private helper, to ask a question restore_index's own return value already answers, though the added names carry no forbidden label.\nSCORE reuse: 5\nJUSTIFICATION reuse: imas_ambix/agent/index_placement.py:101 copies the schema-refusal predicate owned by imas_ambix/agent/telemetry_index.py:941 instead of extending the owner, so the name_id sentinel now lives in two modules.\nFINDING imas_ambix/agent/index_placement.py:101 non-blocking: index_requires_rebuild re-implements the predicate TelemetryIndex already owns at imas_ambix/agent/telemetry_index.py:941; the literal name_id sentinel now sits in two modules, so a schema change that moves it must be edited in both or the rebuild check silently diverges from the writer's refusal that raises at telemetry_index.py:1151.\nFINDING imas_ambix/agent/cli.py:3420 non-blocking: the ingest command asks whether any snapshot exists by calling index_placement._snapshot_paths, a private helper it does not own, so the second branch of the rebuild condition couples cli.py to another module's internals instead of to a public predicate.\n",
+  "review_run_id": "r-20261023T124345710692-review-of-wil-schema-change-rebuilds-the-index-c1c0967a18bc",
+  "reviewed_base_sha": "f5b9ad326aa1bac9c05997f08a8530cbfb9d3076",
+  "reviewed_head_sha": "c1c0967a18bcede48da0d50954a2739ac391b973",
+  "reviewed_run_id": "r-20261023T122142119208-wil-schema-change-rebuilds-the-index",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 14,
+    "goal_fidelity": 19,
+    "reuse": 5,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T13:01:08.097013+00:00",
+  "total": 95
+}
