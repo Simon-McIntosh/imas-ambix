@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="26">
+<meta name="plan-version" content="27">
 <meta name="plan-modified" content="2026-10-23">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -723,7 +723,10 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
 <div class="r-comment" data-section="s13" data-id="c-run-r-20261023T002158238433-review-of-callers-report-account-bb4e55f00161" data-who="reckon-build" data-when="2026-10-23T00:44:09.845Z">
-    <div class="r-comment-body"><p>independent review recorded for r-20261022T234915855394-callers-report-account over commits 12bf8d57dc35c9df26b1fcc8c3830e0c713e60d6..bb4e55f001614229e4578cb4d6c9fc1c10956d07; status parsed, scores goal_fidelity 19, evidence 15, scope_discipline 20, durability 15, fit 18, reuse 19, added_failure_count 0 with empty ids (the reviewed manifest names no base arm); four follow-on findings and none blocking: the gate log names revision 8b230d69 rather than the promoted head, the manifest quotes 45.95s and the landed fragment 54.79s for a gate log whose own summary reads 56.45s, and the launcher&#x27;s outside-a-repository fallback at imas_ambix/agent/clive.py:974 is guarded by no test</p></div>
+    <div class="r-comment-body"><p>independent review recorded for r-20261022T234915855394-callers-report-account over commits 12bf8d57dc35c9df26b1fcc8c3830e0c713e60d6..bb4e55f001614229e4578cb4d6c9fc1c10956d07; status parsed, scores goal_fidelity 19, evidence 15, scope_discipline 20, durability 15, fit 18, reuse 19, added_failure_count 0 with empty ids (the reviewed manifest names no base arm); four follow-on findings and none blocking: the gate log names revision 8b230d69 rather than the promoted head, the manifest quotes 45.95s and the landed fragment 54.79s for a gate log whose own summary reads 56.45s, and the launcher's outside-a-repository fallback at imas_ambix/agent/clive.py:974 is guarded by no test</p></div>
+</div>
+<div class="r-comment" data-section="s13" data-id="c-run-r-20261022T234915855394-callers-report-account" data-who="reckon-build" data-when="2026-10-23T00:21:01Z">
+    <div class="r-comment-body"><p>§13 landed: clive appends X-Ambix-Account (login) and X-Ambix-Project (repo from the common git dir&#x27;s parent, node dir outside a repo) to the inherited custom-header block without rewriting or reordering it; request_receipts reads both under the existing token rule into RequestReceipt.account/project, wired through the router&#x27;s two identity call sites; measured by the three named test modules at 52 passed and ruff exit 0, with both declared negative-control mutations failing their named test.</p></div>
 </div>
 </section>
 </main>
