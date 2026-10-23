@@ -1,0 +1,18 @@
+<section id="wil-watch-reads-hourly-rollups">
+  <h2>Hourly watch reads: implementation checkpoint</h2>
+  <p>The base query still reproduced the planned defect: its gauge window
+  function selected every row with a timestamp before applying the period
+  bounds, and its counter query selected every matching row before the period
+  end. The committed implementation stores measurement names and kinds once,
+  maintains source-hour counter and gauge summaries in the ingest transaction,
+  reads raw samples at the two partial hours, and reads each period's cards in
+  one bounded statement.</p>
+  <p>A 30-hour receipt fixture produced exact field-by-field equality between
+  <code>watch_document</code> and an independent raw-row reader (1 passed).
+  Perturbing a populated gauge summary made that test fail at
+  <code>$.ledger[1].utilisation</code> (EXIT=1). The full receipt rebuild and
+  live timings remain unmeasured. The node-local <code>/tmp</code> scratch path
+  refused directory creation as read-only; the attempted measurement was
+  stopped after 50 ingest batches and is not treated as evidence. Its derived
+  partial index was removed from the worktree and run directory.</p>
+</section>
