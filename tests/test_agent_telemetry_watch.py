@@ -491,6 +491,9 @@ def test_cached_tiers_use_counter_rollups_across_a_day(tmp_path: Path) -> None:
         )
         for step in range(196)
     ]
+    for row in rows:
+        stamp = _dt.datetime.fromisoformat(row["timestamp"]).timestamp()
+        row["job_id"] = str(int(stamp // 3600))
     directory = _write(tmp_path, rows)
     target = tmp_path / "index.sqlite3"
     with TelemetryIndex(target) as index:
@@ -502,16 +505,32 @@ def test_cached_tiers_use_counter_rollups_across_a_day(tmp_path: Path) -> None:
                 assert observed == reference
                 assert observed.total is not None
                 rollups = index._conn.execute(
-                    "SELECT counter_diff, segments FROM hourly_rollup "
+                    "SELECT segments FROM hourly_rollup "
                     "WHERE name_id = (SELECT id FROM measurement_name WHERE name = ?) "
                     "AND hour > ? AND hour < ?",
                     (name, int((now - 86400) // 3600), int(now // 3600)),
                 ).fetchall()
                 assert rollups
-                assert all(
-                    row["counter_diff"] is not None and row["segments"]
-                    for row in rollups
-                )
+                assert all(row["segments"] for row in rollups)
+        name = watch.CACHED_TIERS[0]
+        before = index.partitioned_total(name, now - 86400, now)
+        row = index._conn.execute(
+            "SELECT rowid, segments FROM hourly_rollup "
+            "WHERE name_id = (SELECT id FROM measurement_name WHERE name = ?) "
+            "AND hour > ? AND hour < ? AND segments IS NOT NULL "
+            "ORDER BY hour LIMIT 1 OFFSET 2",
+            (name, int((now - 86400) // 3600), int(now // 3600)),
+        ).fetchone()
+        assert row is not None
+        segments = json.loads(row["segments"])
+        change = 77.0
+        segments[0][1]["value"] += change
+        index._conn.execute(
+            "UPDATE hourly_rollup SET segments = ? WHERE rowid = ?",
+            (json.dumps(segments), row["rowid"]),
+        )
+        after = index.partitioned_total(name, now - 86400, now)
+        assert after.total == pytest.approx(before.total + change)
 
 
 def test_price_schedule_resolves_per_weekday(tmp_path: Path) -> None:

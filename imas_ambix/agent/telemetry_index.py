@@ -112,6 +112,7 @@ import sqlite3
 import subprocess
 import time
 from collections.abc import Mapping
+from contextlib import closing
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -317,7 +318,6 @@ CREATE TABLE IF NOT EXISTS hourly_rollup (
     inode            INTEGER NOT NULL,
     name_id          INTEGER NOT NULL REFERENCES measurement_name(id),
     hour             INTEGER NOT NULL,
-    counter_diff     REAL,
     gauge_integral   REAL,
     coverage_seconds REAL NOT NULL,
     segments         TEXT,
@@ -935,10 +935,7 @@ class TelemetryIndex:
         self._conn = sqlite3.connect(str(self.path), timeout=timeout)
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
-        columns = {
-            row["name"] for row in self._conn.execute("PRAGMA table_info(measurement)")
-        }
-        self._requires_rebuild = bool(columns and "name_id" not in columns)
+        self._requires_rebuild = self._measurement_schema_requires_rebuild(self._conn)
         if not self._requires_rebuild:
             self._conn.executescript(_SCHEMA)
         self._migrate()
@@ -953,6 +950,20 @@ class TelemetryIndex:
             if not self._requires_rebuild
             else {}
         )
+
+    @staticmethod
+    def _measurement_schema_requires_rebuild(connection: sqlite3.Connection) -> bool:
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(measurement)")
+        }
+        return bool(columns and "name_id" not in columns)
+
+    @classmethod
+    def requires_rebuild(cls, path: str | Path) -> bool:
+        """Whether an existing index has a measurement schema the writer refuses."""
+        uri = Path(path).resolve().as_uri() + "?mode=ro"
+        with closing(sqlite3.connect(uri, uri=True)) as connection:
+            return cls._measurement_schema_requires_rebuild(connection)
 
     @classmethod
     def readonly(
@@ -1737,7 +1748,9 @@ class TelemetryIndex:
                 if denominator:
                     self._conn.execute(
                         "INSERT INTO hourly_rollup "
-                        "VALUES (?, ?, ?, ?, ?, NULL, ?, ?, NULL)",
+                        "(host, boot_id, inode, name_id, hour, gauge_integral, "
+                        "coverage_seconds, segments) "
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, NULL)",
                         (*identity, name_id, hour, numerator, denominator),
                     )
                 continue
@@ -1773,23 +1786,19 @@ class TelemetryIndex:
                 groups[-1].append(reading)
                 prior = current
             segments = []
-            counter_diff = coverage = 0.0
+            coverage = 0.0
             for group in groups:
                 first, last = group[0], group[-1]
-                counter_diff += last["value"] - (
-                    first["open_value"]
-                    if first["open_value"] is not None
-                    else first["value"]
-                )
                 coverage += last["ts"] - first["ts"]
                 segments.append([first, last])
             self._conn.execute(
-                "INSERT INTO hourly_rollup VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)",
+                "INSERT INTO hourly_rollup "
+                "(host, boot_id, inode, name_id, hour, gauge_integral, "
+                "coverage_seconds, segments) VALUES (?, ?, ?, ?, ?, NULL, ?, ?)",
                 (
                     *identity,
                     name_id,
                     hour,
-                    counter_diff,
                     coverage,
                     json.dumps(segments),
                 ),
