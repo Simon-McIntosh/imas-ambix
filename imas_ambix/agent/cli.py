@@ -9,6 +9,7 @@ import secrets
 import shlex
 import subprocess
 import sys
+import time
 from collections import deque
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -3172,16 +3173,9 @@ def watch(
     ),
 )
 @click.option(
-    "--cadence",
-    type=float,
-    default=300.0,
-    show_default=True,
-    help="Seconds between publications in the loop.",
-)
-@click.option(
     "--once",
     is_flag=True,
-    help="Publish one document and exit rather than loop on the cadence.",
+    help="Publish one document and exit.",
 )
 @click.option(
     "--record",
@@ -3206,12 +3200,11 @@ def watch(
 )
 def publish_watch(
     output_path: str | None,
-    cadence: float,
     once: bool,
     record_dir: str | None,
     index_path: str | None,
 ) -> None:
-    """Publish the ``agent watch --json`` document to a file on a cadence.
+    """Publish the ``agent watch --json`` document once for manual use.
 
     Each iteration derives the full document from the recorded receipts, adds
     ``compute_seconds`` and ``published_at`` at the top level, and writes it
@@ -3219,35 +3212,40 @@ def publish_watch(
     the panels without paying the derivation, and the published file's
     ``published_at`` names the last success.
 
-    Every iteration prints exactly one flushed line, whether it wrote the
-    document or failed to. A failed iteration leaves the previous file
-    byte-for-byte unchanged and the loop continues to its next iteration.
+    The command prints one flushed line whether it writes the document or
+    fails. A failed publication leaves the previous file byte-for-byte unchanged.
 
     \b
     Publish once and exit:
         imas-ambix agent publish-watch --once
 
-    \b
-    Run the standing loop on the default five-minute cadence:
-        imas-ambix agent publish-watch
     """
     from imas_ambix.agent import watch_publish
 
+    if not once:
+        raise click.UsageError(
+            "publish-watch requires --once; ingest schedules publication"
+        )
     output = (
-        Path(output_path).expanduser() if output_path else watch_publish.DEFAULT_OUTPUT
+        Path(output_path).expanduser()
+        if output_path
+        else watch_publish.default_output_path()
     )
-    watch_publish.run(
-        output,
-        record_dir=record_dir,
-        index_path=index_path,
-        cadence=cadence,
-        iterations=1 if once else None,
+    line = watch_publish.one_iteration(
+        output, record_dir=record_dir, index_path=index_path
     )
+    sys.stdout.write(line + "\n")
+    sys.stdout.flush()
 
 
 def _utc_now() -> datetime:
     """The UTC wall clock, so a tick's stamp is testable through one seam."""
     return datetime.now(UTC)
+
+
+def _publication_clock() -> float:
+    """A monotonic clock for elapsed time since a successful publication."""
+    return time.monotonic()
 
 
 def _format_ingest_tick(report: TickReport, when: datetime) -> str:
@@ -3310,6 +3308,13 @@ def _emit_ingest_tick(
     help="Seconds between ticks in the loop.",
 )
 @click.option(
+    "--publish-every",
+    type=click.FloatRange(min=0, min_open=True),
+    default=300.0,
+    show_default=True,
+    help="Seconds between watch document publication attempts.",
+)
+@click.option(
     "--once",
     is_flag=True,
     help="Take one tick and exit rather than loop on the cadence.",
@@ -3338,6 +3343,7 @@ def ingest(
     index_path: str | None,
     cadence: float,
     once: bool,
+    publish_every: float = 300.0,
     retention: bool = True,
     manifest_dir: str | None = None,
 ) -> None:
@@ -3376,11 +3382,20 @@ def ingest(
     Run the standing loop on the default sixty-second cadence:
         imas-ambix agent ingest
 
+    The ingest also publishes the watch document every five minutes, after a
+    successful tick. A failed publication leaves the last document in place;
+    the ingest continues and retries at the next publication interval.
+
     \b
     Take one tick and exit, against a specific record and index:
         imas-ambix agent ingest --once --record /path/to/receipts
     """
-    from imas_ambix.agent import index_placement, telemetry_ingest, telemetry_retention
+    from imas_ambix.agent import (
+        index_placement,
+        telemetry_ingest,
+        telemetry_retention,
+        watch_publish,
+    )
     from imas_ambix.agent.telemetry_index import TelemetryIndex
     from imas_ambix.agent.watch import default_record_dir
 
@@ -3398,11 +3413,25 @@ def ingest(
     index = TelemetryIndex(resolved_index)
     index_placement.enable_wal(index)
     snapshots = index_placement.SnapshotScheduler(resolved_index)
+    last_attempted: float | None = None
 
     def _on_tick(report: TickReport) -> None:
-        """Log the tick and schedule a snapshot of the captured index's path."""
+        """Log the tick and schedule derived work from the captured index."""
+        nonlocal last_attempted
         _emit_ingest_tick(report)
         snapshots.schedule()
+        if (
+            last_attempted is None
+            or _publication_clock() - last_attempted >= publish_every
+        ):
+            line = watch_publish.one_iteration(
+                watch_publish.default_output_path(),
+                record_dir=resolved_record,
+                index_path=resolved_index,
+            )
+            last_attempted = _publication_clock()
+            sys.stdout.write(line + "\n")
+            sys.stdout.flush()
 
     try:
         telemetry_ingest.run(

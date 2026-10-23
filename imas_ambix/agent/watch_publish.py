@@ -1,11 +1,9 @@
-"""``imas-ambix agent publish-watch`` — publish the watch document on a cadence.
+"""Publish the watch document atomically for the ingest service or manual use.
 
 ``agent watch --json`` derives its figures from the recorded receipts every
-time it runs, and on the live index that derivation is expensive: tens of
-seconds and gigabytes of resident memory for the long periods. A consumer on
-another host cannot pay that on every refresh, so this command runs the
-derivation once per cadence and writes the result where a reader can pick it up
-without re-deriving it.
+time it runs, and on the live index that derivation is expensive. A consumer on
+another host cannot pay that on every refresh, so ingest runs this derivation
+on its publication cadence and writes the result for readers to pick up.
 
 Each iteration calls :func:`imas_ambix.agent.watch.watch_document` in-process,
 adds two top-level fields and writes the document atomically:
@@ -21,8 +19,8 @@ is unchanged.
 temporary file in the target's directory and renamed over the target with
 :func:`os.replace`, so a reader never sees a half-written file and a failure
 before the rename leaves the previous publication byte-for-byte unchanged --
-its ``published_at`` still names the last success. The loop prints exactly one
-flushed line per iteration, success or failure, and continues to the next.
+its ``published_at`` still names the last success. Each iteration returns one
+log line, whether it succeeds or fails.
 """
 
 from __future__ import annotations
@@ -40,15 +38,11 @@ from imas_ambix.agent import watch as watch_mod
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from typing import TextIO
 
-#: Where the document is published by default. It sits beside the lane document
-#: in ``~/public/imas-ambix`` so a consumer reads both from one directory.
-DEFAULT_OUTPUT = Path.home() / "public" / "imas-ambix" / "watch.json"
 
-#: The default seconds between iterations. The derivation is expensive, so a
-#: refresh every five minutes keeps the file fresh without crowding the node.
-DEFAULT_CADENCE = 300.0
+def default_output_path() -> Path:
+    """Use the reader's current published path for each new publication."""
+    return watch_mod.PUBLISHED_WATCH_PATH
 
 
 def _utcnow() -> _dt.datetime:
@@ -104,21 +98,25 @@ def publish_once(
     *,
     record_dir: str | Path | None = None,
     index_path: str | Path | None = None,
-) -> float:
+) -> tuple[float, int, str]:
     """Compute one document, add the two fields, and publish it atomically.
 
-    Returns the compute wall time in seconds. Raises whatever the derivation or
-    the write raises; :func:`run` is what turns that into a printed line and a
-    kept-previous-file iteration.
+    Returns compute seconds, encoded bytes and publication time. These are
+    prepared before the replace, so logging needs no fallible file read after
+    the new document takes the old one's place. Derivation and write errors
+    are turned into one failure line by :func:`one_iteration`.
     """
     target = Path(output).expanduser()
     started = time.monotonic()
     document = watch_mod.watch_document(record_dir=record_dir, index_path=index_path)
     compute_seconds = time.monotonic() - started
     document["compute_seconds"] = compute_seconds
-    document["published_at"] = _stamp(_utcnow())
-    _write_atomic(target, json.dumps(document, indent=2))
-    return compute_seconds
+    published_at = _stamp(_utcnow())
+    document["published_at"] = published_at
+    payload = json.dumps(document, indent=2)
+    size = len(payload.encode("utf-8"))
+    _write_atomic(target, payload)
+    return compute_seconds, size, published_at
 
 
 def one_iteration(
@@ -126,62 +124,23 @@ def one_iteration(
     *,
     record_dir: str | Path | None = None,
     index_path: str | Path | None = None,
+    on_success: Callable[[], None] | None = None,
 ) -> str:
     """Run one publish, returning the single line to print.
 
     Success and failure both return a line; the caller prints it and flushes.
+    *on_success* lets the caller advance its cadence only after a write succeeds.
     """
     target = Path(output).expanduser()
     try:
-        compute_seconds = publish_once(
+        compute_seconds, size, published_at = publish_once(
             target, record_dir=record_dir, index_path=index_path
         )
     except Exception as error:  # noqa: BLE001 - one line per iteration, never a crash
-        return _one_line(
-            f"{_stamp(_utcnow())} publish-watch failed: {error}"
-        )
-    size = target.stat().st_size
+        return _one_line(f"{_stamp(_utcnow())} publish-watch failed: {error}")
+    if on_success is not None:
+        on_success()
     return _one_line(
-        f"{_stamp(_utcnow())} publish-watch wrote {target} "
+        f"{published_at} publish-watch wrote {target} "
         f"compute_seconds={compute_seconds:.2f} bytes={size}"
     )
-
-
-def run(
-    output: str | Path = DEFAULT_OUTPUT,
-    *,
-    record_dir: str | Path | None = None,
-    index_path: str | Path | None = None,
-    cadence: float = DEFAULT_CADENCE,
-    iterations: int | None = None,
-    sleep: Callable[[float], None] = time.sleep,
-    stream: TextIO | None = None,
-) -> None:
-    """Publish the watch document every *cadence* seconds.
-
-    Each iteration computes the document, publishes it atomically and writes one
-    flushed line to *stream* (``sys.stdout`` when ``None``). A finite
-    *iterations* count returns without sleeping past the last iteration, so
-    ``--once`` pays nothing for a cadence it did not use; with ``None`` the loop
-    runs until the process ends, which is the standing service the fleet
-    supervisor keeps.
-
-    *sleep* and *stream* are injected so a caller -- a test, or a service that
-    logs each pass elsewhere -- can supply its own without the loop knowing.
-    """
-    import sys
-
-    if cadence <= 0:
-        raise ValueError(f"cadence must be positive seconds, not {cadence!r}")
-    if iterations is not None and iterations < 0:
-        raise ValueError(f"iterations must not be negative, not {iterations!r}")
-    out = sys.stdout if stream is None else stream
-    done = 0
-    while True:
-        line = one_iteration(output, record_dir=record_dir, index_path=index_path)
-        out.write(line + "\n")
-        out.flush()
-        done += 1
-        if iterations is not None and done >= iterations:
-            return
-        sleep(cadence)
