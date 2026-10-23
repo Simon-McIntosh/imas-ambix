@@ -25,7 +25,7 @@
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="9">
+<meta name="plan-version" content="11">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -156,10 +156,16 @@
     <code>gpu_variants</code> through <code>ModelProfile.for_gpus</code>, which
     <code>_scale_profile</code> already applies on the serve and restart paths. So the three
     configurations are: no flags (<code>h200-4x</code>, which stays the profile's default);
-    <code>--server b300 --gpus 4</code>; and <code>--server b300 --gpus 8</code>. A variant
-    that differs by server rather than card count is keyed in <code>gpu_variants</code> by
-    server name as well as card count. That is an extension of the existing mapping, not a
-    second one. "The default from day one" means the B300 engine is launched as
+    <code>--server b300 --gpus 4</code>; and <code>--server b300 --gpus 8</code>. Today
+    <code>for_gpus(gpus)</code> looks up <code>gpu_variants</code> by card count alone. This
+    section extends it to <code>for_gpus(gpus, server=None)</code>: a variant keyed
+    <code>(server, gpus)</code> wins over one keyed by <code>gpus</code> alone.
+    <code>_scale_profile</code> passes the resolved server on both the serve and restart
+    paths. That is an extension of the existing mapping, not a second one, and with
+    <code>server=None</code> every existing lookup is unchanged. Until the B300's host facts
+    are known (<code>b300-arrival-facts</code>), it is declared only in a test site
+    configuration, through the same <code>AMBIX_AGENT_SERVERS</code> mechanism §3
+    landed. "The default from day one" means the B300 engine is launched as
     <code>b300-8x</code>; it does not change what a bare <code>agent serve</code>
     launches.</p>
     <p><strong>Write paths.</strong> <code>imas_ambix/agent/profiles/deepseek-v4-1-flash.toml</code>,
@@ -167,8 +173,10 @@
     (new), <code>docs/research/b300-launch-recipes.html</code> (new).</p>
     <p><strong>Done when.</strong></p>
     <ul>
-      <li><code>imas-ambix agent serve deepseek-v4-1-flash [--server b300 --gpus 4|8] --dry-run</code>
-      prints a complete script for each of the three configurations. The B300 ones name an
+      <li>Under a test site configuration that declares a <code>b300</code> server,
+      <code>imas-ambix agent serve deepseek-v4-1-flash [--server b300 --gpus 4|8] --dry-run</code>
+      prints a complete script for each of the three configurations. The real declaration
+      replaces the test one at arrival. The B300 ones name an
       image or wheel present under <code>/work</code>, the 1017 weights directory, the
       parallelism, KV dtype and memory settings. A test pins each script's placement and
       topology lines.</li>
