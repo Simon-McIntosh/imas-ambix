@@ -1,0 +1,33 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T00:04:00.574Z",
+  "dispatched_at": "2026-10-22T23:50:15Z",
+  "findings": [],
+  "plan_fingerprint": "34c25d9c2b84dfebe1ac7fd9b265f4bdbe7a14e7a69695864881a3c7a15bd7e9",
+  "plan_slug": "a-tool-call-carries-no-model-markup",
+  "plan_version": 10,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261022T234940500867-plan-review-of-a-tool-call-carries-no-model-markup",
+  "reviewed_blob_sha": "0c2c50f400c4e412555a1d81a3332334685ae48e",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every cited path resolves: `imas_ambix/agent/clive.py` (\u00a7960 local branch sets `ANTHROPIC_BASE_URL=\"$GLOBAL_ORIGIN\"`), `RouterApp._relay` in `router.py`, `litellm_config.py` (used only by the `MODE != local` hybrid branch), `profiles/deepseek-v4-1-flash.toml` (`type = \"sglang\"`, `[engine.parsers] tool_call = \"auto\"`), the sif `/work/projects/imas_gpu/containers/sglang-dev-dsv41.sif` and its `/sgl-workspace/sglang/python/sglang/srt/function_call/` tree, `/work/projects/imas_gpu/agents/deepseek-v4-1-flash/model/tokenizer.json`, `RequestReceipt` in `request_receipts`-equivalent `imas_ambix/agent/request_receipts.py`, and `census.py` / `census-baseline.log`.",
+    "done_when": "pass \u2014 \u00a72's done-when names concrete report contents (every leaked call by run and tool, each candidate completion quoted, the entry point and chunking that reproduces it) and declares a negative control of three clean completions parsed through both entry points under every chunking.",
+    "evidence_paths": "pass \u2014 \u00a72's write paths are `~/.config/reckon/crew/reports/imas-ambix/a-tool-call-carries-no-model-markup/report.md` and `.../fixtures/`, both on GPFS alongside the census script and baseline log, and its logs are required under the run directory.",
+    "naming": "pass \u2014 \u00a72 introduces no code symbols, and the described paths carry the plan slug only as an artifact directory rather than in a filename or symbol; no plan label, stage name or ticket number reaches anything the node writes.",
+    "reasoning": "pass \u2014 the defect statement matches the cited census (20 of 93,565 calls in 1,383 runs, 10 Bash / 6 Edit / 4 Read, re-read here from `census-baseline.log`), the offline parser replay can in principle separate a parser defect from a model-authored token, and the caller chain the mechanism depends on is named and real (clive local mode \u2192 `GLOBAL_ORIGIN` \u2192 `RouterApp._relay` \u2192 the serve's streaming parser).",
+    "single_goal": "pass \u2014 \u00a72 carries one deliverable, the origin of the markup; the fig-07 truncated-path determination it also makes is routed to \u00a74 (\"if it does not, \u00a74 holds it\"), which \u00a74's own Why repeats as the owner.",
+    "wiring": "pass \u2014 \u00a73 and \u00a74 each declare depends-on `a-tool-call-carries-no-model-markup#s2` and both resolve, and the plan-blocks relationship to `a-review-can-see-the-figure` matches that plan's own \u00a720/\u00a721/\u00a722 text naming `imas-ambix:a-tool-call-carries-no-model-markup#s3` as its gate."
+  },
+  "section_digests": {
+    "_document": "cabca4e3cdf617871996874d475221f72381d21c94d63f0cad1a75900c2c3ad8",
+    "s1": "5f8c49e3d7e51c0174a76ddfea229d085b20b6e290dcf0a017c94c993156cdda",
+    "s2": "f22bd920ddbf54ebe86243b05d2d8c24bd970608d7794349574f97d6eaea2201",
+    "s3": "e8859d4b7f6c591d2c3ed491329301da0b4d930fa904901dc302babf0eacdd23",
+    "s4": "73433c178790d5f6f90c5a57799d16eb9d4fcf7a0039fc4044d9886609d0e472"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T00:06:12.510693+00:00"
+}
