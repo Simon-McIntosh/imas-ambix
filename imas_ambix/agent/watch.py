@@ -65,6 +65,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from imas_ambix.agent import provider_prices
+from imas_ambix.agent.index_placement import resolve_index_path
 from imas_ambix.agent.telemetry_index import TelemetryIndex
 
 if TYPE_CHECKING:
@@ -86,9 +87,7 @@ def default_record_dir() -> Path:
     return SiteConfig.from_env().receipts_dir
 
 
-#: The index is disposable by construction, so it lives under the user's cache
-#: rather than beside the record it is derived from.
-DEFAULT_INDEX_PATH = Path.home() / ".cache" / "ambix" / "watch-index.sqlite3"
+PUBLISHED_WATCH_PATH = Path.home() / "public" / "imas-ambix" / "watch.json"
 
 #: The canonical engine section of a receipt row, as settled by
 #: :mod:`imas_ambix.agent.engine_metrics`. These are the names the ledger
@@ -1303,7 +1302,9 @@ def watch_text(
     the store an operator can go and look at.
     """
     when = time.time() if now is None else now
-    target = Path(index_path or DEFAULT_INDEX_PATH)
+    target = resolve_index_path(index_path)
+    if target is None:
+        return PUBLISHED_WATCH_PATH.read_text(encoding="utf-8")
     status = index_status(target, when)
     if not status["exists"]:
         return _plain(render_index(status), width=width)
@@ -1420,6 +1421,10 @@ def watch_document(
     period rows are empty, because a read is not what keeps the store current.
     The ``lane`` and ``live`` blocks come from :func:`live_document`, which
     reads the published sources and never touches the index.
+    A caller deriving a new document needs a resolved local index. The CLI
+    reads an existing publication separately when it has no local index;
+    derivation refuses that case so a publisher cannot give old figures a new
+    publication timestamp.
 
     An index file that exists but cannot be read -- a zero-byte file the writer
     has opened and not yet written, or one whose lock is held past *timeout* --
@@ -1430,7 +1435,11 @@ def watch_document(
     """
     when = time.time() if now is None else now
     directory = Path(record_dir or default_record_dir())
-    target = Path(index_path or DEFAULT_INDEX_PATH)
+    target = resolve_index_path(index_path)
+    if target is None:
+        raise FileNotFoundError(
+            "no local watch index resolves; set AMBIX_WATCH_INDEX or FLEET_RUNTIME_DIR"
+        )
     status = index_status(target, when)
     if status["exists"]:
         try:
@@ -1491,7 +1500,6 @@ def _plain(markup: str, *, width: int = 110) -> str:
 
 
 __all__ = [
-    "DEFAULT_INDEX_PATH",
     "ESTIMATE_FILENAME",
     "CacheRateEstimate",
     "default_record_dir",

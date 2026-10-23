@@ -3093,7 +3093,10 @@ def receipts(
     "index_path",
     type=click.Path(),
     default=None,
-    help="Index file to query (default: ~/.cache/ambix/watch-index.sqlite3).",
+    help=(
+        "Local index to query (default: AMBIX_WATCH_INDEX, then "
+        "FLEET_RUNTIME_DIR/ambix/watch-index.sqlite3; otherwise published watch.json)."
+    ),
 )
 @click.option("--json", "as_json", help="Emit the figures as JSON.", is_flag=True)
 @click.option(
@@ -3132,6 +3135,7 @@ def watch(
     Emit only the lane, live and callers blocks, without opening the index:
         imas-ambix agent watch --json --live
     """
+    from imas_ambix.agent import index_placement
     from imas_ambix.agent import watch as watch_mod
 
     if as_live and not as_json:
@@ -3143,6 +3147,9 @@ def watch(
         click.echo(
             _json.dumps(watch_mod.live_document(record_dir=record_dir), indent=2)
         )
+        return
+    if index_placement.resolve_index_path(index_path) is None:
+        click.echo(watch_mod.PUBLISHED_WATCH_PATH.read_text(encoding="utf-8"), nl=False)
         return
     if as_json:
         click.echo(
@@ -3194,7 +3201,10 @@ def watch(
     "index_path",
     type=click.Path(),
     default=None,
-    help="Index file to query (default: ~/.cache/ambix/watch-index.sqlite3).",
+    help=(
+        "Local index to query (default: AMBIX_WATCH_INDEX, then "
+        "FLEET_RUNTIME_DIR/ambix/watch-index.sqlite3; otherwise published watch.json)."
+    ),
 )
 def publish_watch(
     output_path: str | None,
@@ -3289,7 +3299,10 @@ def _emit_ingest_tick(
     "index_path",
     type=click.Path(),
     default=None,
-    help="Index file to write (default: ~/.cache/ambix/watch-index.sqlite3).",
+    help=(
+        "Local index to write (default: AMBIX_WATCH_INDEX, then "
+        "FLEET_RUNTIME_DIR/ambix/watch-index.sqlite3)."
+    ),
 )
 @click.option(
     "--cadence",
@@ -3327,8 +3340,8 @@ def ingest(
     index_path: str | None,
     cadence: float,
     once: bool,
-    retention: bool,
-    manifest_dir: str | None,
+    retention: bool = True,
+    manifest_dir: str | None = None,
 ) -> None:
     """Keep the telemetry index current from the recorded receipts.
 
@@ -3336,8 +3349,8 @@ def ingest(
     scans the receipts directory, appends what is new from each source at its
     recorded offset, and ticks on its cadence -- so a reader such as
     ``agent watch`` is never the process that maintains the store it queries.
-    The index is disposable, so it stays under the user's cache while the
-    receipts it derives from live on shared storage.
+    The index is disposable and lives on node-local disk while the receipts
+    it derives from live on shared storage.
 
     This is a standing loop, not a pass that exits: the fleet allocation's
     supervisor starts it and keeps it running, so the store stays current for a
@@ -3369,25 +3382,36 @@ def ingest(
     Take one tick and exit, against a specific record and index:
         imas-ambix agent ingest --once --record /path/to/receipts
     """
-    from imas_ambix.agent import telemetry_ingest, telemetry_retention
+    from imas_ambix.agent import index_placement, telemetry_ingest, telemetry_retention
     from imas_ambix.agent.telemetry_index import TelemetryIndex
-    from imas_ambix.agent.watch import DEFAULT_INDEX_PATH, default_record_dir
+    from imas_ambix.agent.watch import default_record_dir
 
     resolved_record = (
         Path(record_dir).expanduser() if record_dir else default_record_dir()
     ).resolve()
-    resolved_index = (
-        Path(index_path).expanduser() if index_path else DEFAULT_INDEX_PATH
-    ).resolve()
-
+    resolved_index = index_placement.resolve_index_path(index_path)
+    if resolved_index is None:
+        raise click.ClickException(
+            "no local watch index: set AMBIX_WATCH_INDEX or FLEET_RUNTIME_DIR"
+        )
+    resolved_index = resolved_index.resolve()
+    resolved_index.parent.mkdir(parents=True, exist_ok=True)
+    index_placement.restore_index(resolved_index)
     index = TelemetryIndex(resolved_index)
+    index_placement.enable_wal(index)
+
+    def _on_tick(report: TickReport) -> None:
+        """Log the tick and snapshot the TelemetryIndex captured by this closure."""
+        _emit_ingest_tick(report)
+        index_placement.snapshot_if_due(index)
+
     try:
         telemetry_ingest.run(
             index,
             resolved_record,
             cadence=cadence,
             iterations=1 if once else None,
-            on_tick=_emit_ingest_tick,
+            on_tick=_on_tick,
             retention=(
                 telemetry_ingest.ScheduledRetention(
                     index,

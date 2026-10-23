@@ -1,0 +1,59 @@
+<section class="evidence-fragment" data-reckon="evidence" id="wil-index-on-node-local-disk">
+  <header>
+    <h3>Watch index on local disk, with verified daily snapshots</h3>
+    <p>Implementation <code>aa4a09b4f6db8073d4d9b7a552a4f6813c1013b3</code>;
+      resolved-path guard <code>d99a8955c78f5b1e7dd98fb036243496c2bed1ce</code>;
+      review repairs <code>2fefa896ec2a6448cea5a2de8d73d66931ab3487</code>
+      and <code>5a1477b060eb1d869a8eeabcfad9eb6e3195ffdb</code>.</p>
+  </header>
+  <p>The recorded defect reproduced before the edit: the default resolved as
+    <code>current index: /home/ITER/mcintos/.cache/ambix/watch-index.sqlite3</code>,
+    a home path on GPFS. The resolver now takes an explicit path or
+    <code>AMBIX_WATCH_INDEX</code> first, then a local
+    <code>FLEET_RUNTIME_DIR/ambix/watch-index.sqlite3</code>. In the absence of a
+    resolved local index, <code>agent watch</code> reads the published document,
+    including <code>published_at</code>. The ingest restores the newest verified
+    snapshot before opening the writer, enables WAL only on a local filesystem,
+    then catches up from the receipt offsets. A second reproducer printed
+    <code>resolved network candidate: /var/tmp/ambix/watch-index.sqlite3</code>
+    when the final path was injected as GPFS beneath a local runtime root; the
+    resolver now checks the final path and skips that candidate.</p>
+  <table id="wil-index-on-node-local-disk-measures">
+    <thead><tr><th>Measure</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Placement, ingest CLI, watch, publisher and serving interpreter tests</td><td>48 passed; 14 unrelated registry cases deselected; exit 0</td></tr>
+      <tr><td>Whole-tree Ruff</td><td>All checks passed; exit 0</td></tr>
+      <tr><td>Snapshot round trip</td><td>2 ingested samples; source and restored row counts and SQLite dump SHA-256 equal</td></tr>
+      <tr><td>Retention and recovery</td><td>3 verified snapshots retained after a fourth; corrupt newest falls back to its predecessor; restored index catches up to 3 samples with no duplicate</td></tr>
+      <tr><td>Negative control</td><td>Removing the network filesystem refusal failed <code>test_network_filesystem_refuses_wal</code> with “DID NOT RAISE”; 1 failed, 1 passed; exit 1</td></tr>
+    </tbody>
+  </table>
+  <h4>Independent review repairs</h4>
+  <table id="wil-index-on-node-local-disk-review-repairs">
+    <thead><tr><th>Finding</th><th>Reproduction and repair</th><th>Inverse-commit check</th></tr></thead>
+    <tbody>
+      <tr><td><code>faf95bfa5da</code></td><td>A corrupt same-day file made
+        <code>snapshot_if_due</code> return <code>None</code>. The scheduler now
+        decompresses and checks changed candidates, caches only stable verified
+        signatures, and writes a replacement when no valid copy exists that day.</td>
+        <td>Restoring the prior index-placement source made
+        <code>test_corrupt_same_day_snapshot_does_not_suppress_replacement</code>
+        fail: replacement was <code>None</code>; exit 1.</td></tr>
+      <tr><td><code>f1a7791a8bb</code></td><td>Without a local index,
+        <code>publish-watch</code> wrote an old document with a new
+        <code>published_at</code>. Derivation now refuses that case; the CLI
+        still prints the existing publication for readers.</td>
+        <td>Restoring the prior watch source made
+        <code>test_publisher_refuses_to_refresh_old_published_document</code>
+        fail as the publisher reported “wrote”; exit 1.</td></tr>
+    </tbody>
+  </table>
+  <p>The gate logs are
+    <code>repair-all-tests.log</code>, <code>repair-ruff.log</code>,
+    <code>repair-reproduction.log</code>,
+    <code>repair-snapshot-inverse.log</code>, and
+    <code>repair-publisher-inverse.log</code> under
+    <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T062515139658-wil-index-on-node-local-disk/</code>.
+    The coordinator owns migration of the live GPFS index, the service restart,
+    and the post-deployment equality check.</p>
+</section>
