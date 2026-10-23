@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T15:05:29.592Z",
+  "dispatched_at": "2026-10-23T14:49:05Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/b300-bring-up-and-open-model-bakeoff.html:102",
+      "id": "wiring-1",
+      "reason": "the pinned revisions are the section's whole point (\u00a73) and must land in a form that is already there when \u00a73 runs, so it declares the dependency or drops the pin to whatever today's generator accepts.",
+      "text": "\u00a73's profiles are to be written \"with pinned revisions\" and its done-when (line 122) requires their \"download scripts name the pinned revisions\", but no `revision` field exists in `ModelProfile` today (`imas_ambix/agent/profile.py` has `hf_repo` and `weights_slug` only, and `imas_ambix/agent/slurm.py` carries no revision), the field being added by `rotate-to-deepseek-v4-1-flash-1017` \u00a72 (write paths: profile.py, slurm.py), while \u00a73's `depends-on` names only `b300-bring-up-and-open-model-bakeoff#s2`",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/b300-bring-up-and-open-model-bakeoff.html:198",
+      "id": "wiring-2",
+      "reason": "\u00a75's first measure is quoted as a named symbol a node can type, so \u00a75's dependency list must carry `rotate-to-deepseek-v4-1-flash-1017#s3` or the reject must be to the bench category that exists today.",
+      "text": "\u00a75 requires the tool-call probe it calls `bench.check_tool_call`, a symbol that does not exist in the snapshot's tree (`imas_ambix/agent/bench.py` holds only the legacy `run_tool_call_bench` at line 1625 and the `tools` category) and that `rotate-to-deepseek-v4-1-flash-1017` \u00a73 introduces, still `implementable`, while \u00a75's `depends-on` names only `b300-bring-up-and-open-model-bakeoff#s4`",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/b300-bring-up-and-open-model-bakeoff.html:204",
+      "id": "reasoning-1",
+      "reason": "the node's central measure has no producer, and the missing piece is a code change in a module \u00a75 does not name as a write path, so the section as written sends a worker to type a reduction that does not exist and cannot legally add it.",
+      "text": "\u00a75 says the knee (\"the concurrency beyond which aggregate throughput gains less than 5%\") \"comes from `bench_report`'s existing reduction\", but `imas_ambix/agent/bench_report.py` computes no knee \u2014 its reductions are `describe_run` and `compare_runs` over medians and percentiles, and the word \"knee\" appears nowhere in it, in `bench.py` or in `cli.py` except as help text (`cli.py:2825`, `bench.py:1405`) \u2014 and \u00a75's only write paths are new documents under `docs/`, so the sweep described (a ladder to 64, prompts drawn from the receipts' prompt-size distribution, and the knee derived from it, neither of which `_run_concurrency` takes as an input today \u2014 its prompt is hard-coded and its ladder is `--levels`) cannot be produced by any path the section owns.",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "418ead65cee0799822ca83ff61e1a27ff57be434374b945c4272ca158b5f4379",
+  "plan_slug": "b300-bring-up-and-open-model-bakeoff",
+  "plan_version": 14,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T143220642318-plan-review-of-b300-bring-up-and-open-model-bakeoff",
+  "reviewed_blob_sha": "714319af8591d60a9247ef9dc5bbf01051148618",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 the cited targets resolve: `docs/research/serving-capacity-and-b300-projection.html` \u00a76 carries the four 8\u00d7B300 bands the plan's \u00a71 table repeats (2,300\u20133,600 / 600\u20131,400 / 900\u20131,800 / 800\u20131,500), `docs/plans/serving-across-servers.html` \u00a73 is done and its runner's `--server` option, `SiteConfig.servers` and `AMBIX_AGENT_SERVERS` (profile.py:481,544,569,706) are present in the snapshot's tree, the referenced rotation plan resolves to `docs/plans/rotate-to-deepseek-v4-1-flash-1017.html`, and `tests/test_agent_site_servers.py` exists and declares a `b300` server at line 55.",
+    "done_when": "pass \u2014 \u00a73, \u00a74 and \u00a75 each name a negative control that can fail (an index naming an absent shard, a mutated shard byte, a request for an undeclared card count, a repeated sweep point), and each core measure is a stated comparison against a recorded figure.",
+    "evidence_paths": "pass \u2014 every gate lands on a durable repository path (`docs/research/model-store-audit.html`, `docs/research/b300-launch-recipes.html`, `docs/research/b300-throughput.html`, `docs/figures/b300-throughput`), none in a scratchpad or node-local temporary directory.",
+    "naming": "pass \u2014 the units' prose, write paths and deliverables name mechanisms and files, with no plan labels, stage names, ticket numbers or version tags, and no changelog prose.",
+    "reasoning": "a finding \u2014 \u00a75 derives its headline quantity from a reduction `bench_report` does not perform, and neither the sweep's prompt source nor that reduction is reachable through \u00a75's declared write paths.",
+    "single_goal": "pass \u2014 \u00a73 delivers the two candidate profiles, \u00a74 the three DeepSeek launch configurations, \u00a75 one figure with the measured knees per configuration; no unit carries two deliverables.",
+    "wiring": "a finding \u2014 the depends-on map at docs/plans/b300-bring-up-and-open-model-bakeoff.html:24, read with \u00a73 (lines 102\u2013122) and \u00a75 (lines 198\u2013205), omits two dependencies the sections' own gates require."
+  },
+  "section_digests": {
+    "_document": "1406f9ee270da0e9b2ab84b2d20bde8cf96d1fc299996d177e8135ef43291b1f",
+    "s1": "d9b20b2462b714c588777137a3f84dbe6a6285a13698086ef6821d81debdb695",
+    "s2": "ef2e8b754c4b28e05b82f3535fc7322406b9d18639938cf7c46f1c11284568df",
+    "s3": "9ec35b3e8578bd88dadce89dfa0e3dd4465128b6eeb6f1407bc4c373d5044761",
+    "s4": "e72b73d91eb30886cc98000ecb4b9517f9c2b5f6e5b64a2063a19b8f00678a50",
+    "s5": "d575a9ff2eb06bbfe8e89fffd2b892e85c9008996d202fae3b2833d41fff8386",
+    "s6": "674a0529c4ddc184440560b0b1af0260b0d8fe8ca872c01962bb449d503609bc",
+    "s7": "c1f33679b46a5b2d5f8b8876f25f4d795a4e027b15c00400090e7ee070000a1c"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T15:09:07.519930+00:00"
+}
