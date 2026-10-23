@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="29">
+<meta name="plan-version" content="30">
 <meta name="plan-modified" content="2026-10-23">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -733,6 +733,9 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 </div>
 <div class="r-comment" data-section="s8" data-id="c-run-r-20261023T003116706369-review-of-callers-grouped-by-account-9686156a0be4" data-who="reckon-build" data-when="2026-10-23T00:59:13.504Z">
     <div class="r-comment-body"><p>review recorded for run r-20261022T235023436789-callers-grouped-by-account at reviewed head 9686156a over base 12bf8d57 — scores goal_fidelity 19, evidence 16, scope_discipline 20, durability 18, fit 19, reuse 20, one follow-on finding (the gate log header names the base revision), zero added failures across arms the reviewer re-ran (head 50 passed, base 42 passed, both EXIT=0)</p></div>
+</div>
+<div class="r-comment" data-section="s8" data-id="c-run-r-20261022T235023436789-callers-grouped-by-account" data-who="reckon-build" data-when="2026-10-23T00:30:57.000Z">
+    <div class="r-comment-body"><p>lane_callers&#x27; callers block now carries accounts (sessions, runs, held, held per run, mean gate wait, share) and projects keyed by (account, project), copied from row.get(&quot;account&quot;)/row.get(&quot;project&quot;) with rows with no account totalled under one unattributed entry listing their hosts and an account with no project landing in unattributed within it, while the per-session list keeps every base value and gains account/project; 50 passed (19 in tests/test_lane_callers.py), ruff check imas_ambix tests exit 0, negative control EXIT=1 with test_a_row_with_no_account_stays_unattributed_when_its_host_reports_one failing</p></div>
 </div>
 </section>
 </main>
