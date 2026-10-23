@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="callers-grouped-by-account-levels">
+      <p>The callers block gained two levels beside the unchanged per-session
+      list. <code>accounts</code> totals the window per account with its
+      sessions, runs, held, held per run, mean gate wait and share;
+      <code>projects</code> totals it per <code>(account, project)</code> with
+      the same figures bar the share. Both are read from
+      <code>row.get("account")</code> and <code>row.get("project")</code> and
+      copy them without inference: a row with no account is totalled under one
+      <code>unattributed</code> account carrying the hosts it came from, and an
+      account with no project is totalled under <code>unattributed</code>
+      <em>within that account</em>. Each per-session entry gained
+      <code>account</code> and <code>project</code>.</p>
+    </section>
+    <section id="callers-grouped-by-account-measure">
+      <p>Gate: <code>pytest tests/test_lane_callers.py tests/test_live_panel.py
+      tests/test_agent_watch_live.py</code> — <strong>50 passed</strong>
+      (<code>tests/test_lane_callers.py</code> carries 19 of them);
+      <code>ruff check imas_ambix tests</code> exits 0; the
+      <code>claude/projects|squeue|gethostbyaddr</code> grep over
+      <code>lane_callers.py</code> and <code>live_panel.py</code> finds
+      nothing.</p>
+    </section>
+    <section id="callers-grouped-by-account-reconciliation">
+      <p>On a fixture of two accounts and one unattributed host the accounts sum
+      to the block's <code>held</code> and each account's projects sum to that
+      account's <code>held</code>, both within 0.01, and one account's rows sum
+      to 0.7 across four runs. On a fixture copied verbatim from today's
+      <code>lane.json</code> and the tail of the router's request record, every
+      key the base block carried is unchanged — block-level and per session —
+      and the only additions are <code>accounts</code>, <code>projects</code>
+      and the per-session <code>account</code> and <code>project</code> keys.
+      The base figures were captured by running the pre-change revision over
+      the same two files at the same moment, and agree exactly.</p>
+    </section>
+    <section id="callers-grouped-by-account-negative-control">
+      <p>Negative control: with the row-level account replaced by the sole
+      account reporting from its host, the gate is red — <code>EXIT=1</code>,
+      <code>test_a_row_with_no_account_stays_unattributed_when_its_host_reports_one</code>
+      and one sibling failing. The mutation is absent from the landed code,
+      and the worktree was restored to the pre-mutation bytes and re-run green
+      afterwards.</p>
+    </section>
+  </main>
+</body>
+</html>
