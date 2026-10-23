@@ -28,6 +28,7 @@ NETWORK_FILESYSTEM_TYPES = frozenset(
 SNAPSHOT_DIR = Path.home() / ".local" / "state" / "ambix" / "index-snapshots"
 SNAPSHOT_PREFIX = "watch-index-"
 SNAPSHOT_SUFFIX = ".sqlite3.zst"
+_VERIFIED_SIGNATURES: dict[Path, tuple[int, int, int, int, int]] = {}
 
 
 def filesystem_type(path: str | Path) -> int:
@@ -94,25 +95,44 @@ def _decompress_and_check(source: Path, destination: Path) -> None:
             raise ValueError(f"snapshot quick_check failed: {source}: {result}")
 
 
+def _signature(path: Path) -> tuple[int, int, int, int, int]:
+    info = path.stat()
+    return (
+        info.st_dev,
+        info.st_ino,
+        info.st_size,
+        info.st_mtime_ns,
+        info.st_ctime_ns,
+    )
+
+
+def _snapshot_is_verified(source: Path, local_dir: Path) -> bool:
+    """Verify changed snapshot bytes, reusing only an unchanged prior verdict."""
+    try:
+        signature = _signature(source)
+        if _VERIFIED_SIGNATURES.get(source) == signature:
+            return True
+        with tempfile.TemporaryDirectory(dir=local_dir) as scratch:
+            _decompress_and_check(source, Path(scratch) / "check.sqlite3")
+        if _signature(source) != signature:
+            raise ValueError("snapshot changed while it was checked")
+    except (OSError, ValueError, sqlite3.DatabaseError, zstd.ZstdError) as error:
+        _VERIFIED_SIGNATURES.pop(source, None)
+        print(
+            f"snapshot verification failed: {source}: {error}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return False
+    _VERIFIED_SIGNATURES[source] = signature
+    return True
+
+
 def _verified_snapshots(directory: Path, local_dir: Path) -> list[Path]:
     verified = []
     for source in _snapshot_paths(directory):
-        with tempfile.TemporaryDirectory(dir=local_dir) as scratch:
-            try:
-                _decompress_and_check(source, Path(scratch) / "check.sqlite3")
-            except (
-                OSError,
-                ValueError,
-                sqlite3.DatabaseError,
-                zstd.ZstdError,
-            ) as error:
-                print(
-                    f"snapshot verification failed: {source}: {error}",
-                    file=sys.stderr,
-                    flush=True,
-                )
-            else:
-                verified.append(source)
+        if _snapshot_is_verified(source, local_dir):
+            verified.append(source)
     return verified
 
 
@@ -139,7 +159,11 @@ def snapshot_index(
                 os.fsync(stream.fileno())
             os.replace(staged, final)
             check = Path(scratch) / "check.sqlite3"
+            signature = _signature(final)
             _decompress_and_check(final, check)
+            if _signature(final) != signature:
+                raise ValueError("snapshot changed while it was checked")
+            _VERIFIED_SIGNATURES[final] = signature
         finally:
             staged.unlink(missing_ok=True)
         verified = _verified_snapshots(directory, index.path.parent)
@@ -183,9 +207,9 @@ def snapshot_if_due(
     if index._conn.execute("SELECT 1 FROM sample LIMIT 1").fetchone() is None:
         return None
     today = datetime.now(UTC).strftime("%Y%m%d")
-    if any(
-        path.name.startswith(f"{SNAPSHOT_PREFIX}{today}T")
-        for path in _snapshot_paths(directory)
-    ):
-        return None
+    for path in _snapshot_paths(directory):
+        if path.name.startswith(f"{SNAPSHOT_PREFIX}{today}T") and _snapshot_is_verified(
+            path, index.path.parent
+        ):
+            return None
     return snapshot_index(index, directory=directory)
