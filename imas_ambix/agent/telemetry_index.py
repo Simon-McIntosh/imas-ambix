@@ -28,20 +28,16 @@ measurement no sample in the window carried returns ``None`` rather than
 ``0.0``, which is the distinction the flat receipt row's recorded nulls
 destroyed: a missing reading and a measured zero must not read the same.
 
-**A rewrite is detected by the content of the whole consumed region, not by
-length.** A file shorter than the recorded offset was plainly rebuilt in place,
-but a rewrite that is not shorter is invisible to a length comparison, and one
-that happens to leave the final line intact is invisible to a digest of that
-line alone. Either way the index would answer with the values the content it
-discarded produced, and the answer would carry nothing that is true of the file.
-So the digest of every byte this index has consumed from a file is stored with
-its source and re-checked on resume, which catches a change anywhere in the
-region already read -- a same-length rewrite, and a rewrite reusing the line
-that was last read, included. The check re-reads the consumed region, which is
-what a content identity costs; what a resume keeps incremental is the database
-work of consuming a line, not the bytes the digest is computed over. A source
-with no digest recorded carries no identity to compare against, so its region is
-re-read rather than trusted.
+**A rewrite is checked on a changed source.** A source whose size and mtime
+match its consumed row is skipped without opening it. When either differs, the
+index compares the first and last 64 KiB of the consumed region with stored
+probe digests, and checks size and mtime direction. A running hash extends the
+stored whole-prefix digest with appended lines, so an ordinary changed-source
+tick reads only the new bytes and the probes. The first changed-source check in
+a new process builds the hash from the consumed prefix; a later changed-source
+check repeats that verification after the hourly interval. A rewrite confined
+to the middle is detected on the first changed-source check after that interval.
+A missing recorded digest cannot be trusted and makes the source start again.
 
 **Every key carries the host that recorded the row, because an inode does not
 name a machine.** An inode number is unique within one filesystem and nowhere
@@ -111,6 +107,7 @@ import json
 import re
 import sqlite3
 import subprocess
+import time
 from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -227,6 +224,23 @@ CUMULATIVE_MEASUREMENTS: frozenset[str] = frozenset(
 #: no committed row. It is a keyword on :meth:`TelemetryIndex.ingest` so tests
 #: can lower it and observe the boundaries.
 DEFAULT_BATCH_ROWS = 1000
+IDENTITY_PROBE_BYTES = 64 * 1024
+FULL_IDENTITY_INTERVAL = 3600.0
+
+
+@dataclasses.dataclass
+class _SourceHash:
+    offset: int
+    digest: Any
+    head: bytes
+    tail: bytes
+    verified_at: float
+
+    def copy(self) -> _SourceHash:
+        return _SourceHash(
+            self.offset, self.digest.copy(), self.head, self.tail, self.verified_at
+        )
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS source (
@@ -241,6 +255,8 @@ CREATE TABLE IF NOT EXISTS source (
     -- digest of the first `offset` bytes of the file; NULL means no identity is
     -- recorded for the consumed region, which makes that region unverifiable
     prefix_sha TEXT,
+    head_sha TEXT,
+    tail_sha TEXT,
     -- modification time in nanoseconds as the consuming pass saw it; NULL means
     -- a pass older than this column wrote the row, so nothing about the file's
     -- metadata is known and the region is re-read rather than assumed
@@ -887,6 +903,8 @@ class TelemetryIndex:
         self._conn.execute("PRAGMA foreign_keys = ON")
         self._conn.executescript(_SCHEMA)
         self._migrate()
+        self._identity_clock = time.monotonic
+        self._hashes: dict[tuple[int, int], _SourceHash] = {}
 
     @classmethod
     def readonly(
@@ -921,6 +939,8 @@ class TelemetryIndex:
         uri = target.resolve().as_uri() + "?mode=ro"
         index._conn = sqlite3.connect(uri, uri=True, timeout=timeout)
         index._conn.row_factory = sqlite3.Row
+        index._identity_clock = time.monotonic
+        index._hashes = {}
         return index
 
     def _migrate(self) -> None:
@@ -936,35 +956,13 @@ class TelemetryIndex:
         if "mtime_ns" not in have:
             self._conn.execute("ALTER TABLE source ADD COLUMN mtime_ns INTEGER")
             self._conn.commit()
+        for column in ("head_sha", "tail_sha"):
+            if column not in have:
+                self._conn.execute(f"ALTER TABLE source ADD COLUMN {column} TEXT")
+                self._conn.commit()
 
     def _consumed_whole_and_untouched(self, path: Path, stat: os.stat_result) -> bool:
-        """Whether this file is the one a previous pass consumed to its end.
-
-        Verifying that a consumed region still holds the bytes it held means
-        re-reading and digesting that region, which is what :meth:`_was_rewritten`
-        does and what makes a pass cost the whole record rather than what was
-        added to it. Measured 2026-09-23 over 49 sources and 220 MB: 8.6 s a
-        pass, nearly all of it re-digesting serves that had already exited.
-
-        So the digest is skipped in exactly one case -- the file is recorded as
-        consumed to its end, its length has not moved, and its modification time
-        is the one the consuming pass saw. Any difference in either, and a null
-        mtime from a pass that never recorded one, fall through to the full
-        comparison. This trades a content identity for a metadata one *only
-        where nothing has changed*, and it does not weaken the case the digest
-        exists for: a rewrite that leaves both length and modification time
-        untouched is not something the recorder, a roll or a compaction can
-        produce, because each of them writes.
-
-        The row read is the one that recorded the file's end, which is not
-        necessarily the only row the file has. One receipts file spanning a
-        reboot is keyed by two boots, so a batched pass writes a pre-reboot row
-        at its batch boundary and a post-reboot row at the file's end; the
-        earlier row's offset is below its size and answers ``False`` on its own.
-        The highest offset is taken instead, exactly as the resume lookup does,
-        so the file is judged by where it was last consumed rather than by
-        whichever row the query returned first.
-        """
+        """Skip a consumed source whose size and mtime have not moved."""
         row = self._conn.execute(
             "SELECT size, offset, mtime_ns FROM source "
             "WHERE path = ? AND inode = ? ORDER BY offset DESC LIMIT 1",
@@ -1030,6 +1028,9 @@ class TelemetryIndex:
             "DELETE FROM source WHERE host = ? AND boot_id = ? AND inode = ?",
             identity,
         )
+        for key in tuple(self._hashes):
+            if key[1] == row["inode"]:
+                self._hashes.pop(key)
 
     def vacuum(self) -> None:
         """Return the index file's free pages to the filesystem.
@@ -1070,8 +1071,8 @@ class TelemetryIndex:
         tier are removed only after the selected tier has been read, so a read
         that raises on the selected file leaves the job's previously held
         samples in place. A source already consumed to its end whose length and
-        modification time have not moved is left unopened, so offering the
-        directory whole on every pass does not re-read it.
+        modification time have not moved is left unopened, so the directory
+        can be offered whole without reading settled sources again.
 
         A source is read from its recorded offset; a file whose consumed region
         no longer carries the bytes this index read there was rebuilt in place,
@@ -1118,10 +1119,12 @@ class TelemetryIndex:
             if self._consumed_whole_and_untouched(path, stat):
                 continue
             scanned += 1
-            lines, tail, digest, source_host, source_boot = self._resume(path, stat)
+            lines, tail, identity, source_host, source_boot = self._resume(path, stat)
             added = 0
             since_commit = 0
             wrote_source = False
+            pending_head = bytearray()
+            pending_tail = bytearray()
             carried: str | None = None
             # The boot the file's consumed region was keyed by, if the previous
             # pass established one: a row that names no boot of its own belongs
@@ -1165,10 +1168,25 @@ class TelemetryIndex:
                             added += 1
                         else:
                             duplicate += 1
-                    if digest is not None:
-                        digest.update(raw)
+                    identity.digest.update(raw)
+                    if len(identity.head) + len(pending_head) < IDENTITY_PROBE_BYTES:
+                        needed = (
+                            IDENTITY_PROBE_BYTES
+                            - len(identity.head)
+                            - len(pending_head)
+                        )
+                        pending_head.extend(raw[:needed])
+                    pending_tail.extend(raw)
+                    if len(pending_tail) > IDENTITY_PROBE_BYTES:
+                        del pending_tail[:-IDENTITY_PROBE_BYTES]
                     since_commit += 1
                     if since_commit >= batch_rows:
+                        identity.head = (identity.head + pending_head)[
+                            :IDENTITY_PROBE_BYTES
+                        ]
+                        identity.tail = (identity.tail + pending_tail)[
+                            -IDENTITY_PROBE_BYTES:
+                        ]
                         self._record_source(
                             path,
                             stat,
@@ -1177,8 +1195,10 @@ class TelemetryIndex:
                             file_kind,
                             offset + len(raw),
                             added,
-                            digest,
+                            identity,
                         )
+                        pending_head.clear()
+                        pending_tail.clear()
                         added = 0
                         since_commit = 0
                         wrote_source = True
@@ -1186,8 +1206,21 @@ class TelemetryIndex:
                 # still records where the pass stopped, so the next one resumes
                 # rather than re-reading.
                 if since_commit or not wrote_source:
+                    identity.head = (identity.head + pending_head)[
+                        :IDENTITY_PROBE_BYTES
+                    ]
+                    identity.tail = (identity.tail + pending_tail)[
+                        -IDENTITY_PROBE_BYTES:
+                    ]
                     self._record_source(
-                        path, stat, file_host, file_boot, file_kind, tail, added, digest
+                        path,
+                        stat,
+                        file_host,
+                        file_boot,
+                        file_kind,
+                        tail,
+                        added,
+                        identity,
                     )
             except BaseException:
                 # An uncommitted batch leaves no half-written state: its samples,
@@ -1217,28 +1250,26 @@ class TelemetryIndex:
         key_kind: str,
         offset: int,
         added: int,
-        digest: Any | None,
+        identity: _SourceHash,
     ) -> None:
         """Commit one batch with the source row describing how far it read.
 
-        *offset* is the byte after the batch's last complete line, and *digest*
-        describes every byte this index has consumed from the file up to that
-        line -- ``None`` where no line has been consumed yet, which leaves any
-        recorded digest in place. The samples of the batch, this row and the
-        commit are one transaction, so a pass that dies after it leaves the
-        source advanced to exactly the batch it committed.
+        *offset* is the byte after the batch's last complete line. The samples,
+        source row and commit are one transaction, so an interrupted pass
+        resumes at exactly the last committed batch.
         """
         with self._conn:
             self._conn.execute(
                 "INSERT INTO source "
                 "(host, boot_id, key_kind, path, inode, size, offset, rows, "
-                " prefix_sha, mtime_ns) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                " prefix_sha, head_sha, tail_sha, mtime_ns) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
                 "ON CONFLICT (host, boot_id, path, inode) DO UPDATE SET "
                 "  size = excluded.size, offset = excluded.offset, "
                 "  rows = source.rows + excluded.rows, "
                 "  mtime_ns = excluded.mtime_ns, "
-                "  prefix_sha = COALESCE(excluded.prefix_sha, source.prefix_sha)",
+                "  prefix_sha = excluded.prefix_sha, "
+                "  head_sha = excluded.head_sha, tail_sha = excluded.tail_sha",
                 (
                     host,
                     boot_id,
@@ -1248,10 +1279,14 @@ class TelemetryIndex:
                     stat.st_size,
                     offset,
                     added,
-                    None if digest is None else digest.hexdigest(),
+                    identity.digest.hexdigest(),
+                    hashlib.sha256(identity.head).hexdigest(),
+                    hashlib.sha256(identity.tail).hexdigest(),
                     stat.st_mtime_ns,
                 ),
             )
+        identity.offset = offset
+        self._hashes[(stat.st_dev, stat.st_ino)] = identity.copy()
 
     def _tier_has_no_row(self, path: Path) -> bool:
         """Whether *path* is a job's receipts tier file that carries no record line.
@@ -1280,7 +1315,10 @@ class TelemetryIndex:
             return False
         if not path.is_file():
             return False
-        if self._consumed_whole_and_untouched(path, stat):
+        if self._conn.execute(
+            "SELECT 1 FROM source WHERE path = ? AND inode = ? LIMIT 1",
+            (str(path), stat.st_ino),
+        ).fetchone():
             return False
         return not _holds_a_record_line(path)
 
@@ -1340,29 +1378,27 @@ class TelemetryIndex:
         which is the resume point whichever boot wrote last.
         """
         row = self._conn.execute(
-            "SELECT host, boot_id, path, offset, prefix_sha FROM source "
+            "SELECT host, boot_id, path, offset, prefix_sha, head_sha, tail_sha, "
+            "mtime_ns FROM source "
             "WHERE inode = ? AND path = ? ORDER BY offset DESC LIMIT 1",
             (inode, str(path)),
         ).fetchone()
         if row is not None:
             return row
         return self._conn.execute(
-            "SELECT host, boot_id, path, offset, prefix_sha FROM source "
+            "SELECT host, boot_id, path, offset, prefix_sha, head_sha, tail_sha, "
+            "mtime_ns FROM source "
             "WHERE inode = ? ORDER BY offset DESC LIMIT 1",
             (inode,),
         ).fetchone()
 
     def _resume(
         self, path: Path, stat: os.stat_result
-    ) -> tuple[Iterator[tuple[int, bytes]], int, Any | None, str, str | None]:
+    ) -> tuple[Iterator[tuple[int, bytes]], int, _SourceHash, str, str | None]:
         """Lines to consume, the offset they carry to, a digest, host, boot.
 
-        The digest is seeded with every byte of the file this index had already
-        consumed, so the caller extends it with the lines returned and reads off
-        the digest of the region consumed to any line boundary -- the identity a
-        later pass compares against. It is ``None`` when the file holds no
-        complete line to consume, so the caller records no new identity rather
-        than an empty one.
+        The hash is seeded once from the consumed region, then advanced only
+        with complete lines. A committed copy remains available on later ticks.
 
         The host returned is the one the file's already-consumed region was
         attributed to, which is the host its samples must be dropped under if
@@ -1378,8 +1414,11 @@ class TelemetryIndex:
         host = self.host if row is None else row["host"]
         boot = None if row is None else row["boot_id"]
         start = 0
+        key = (stat.st_dev, stat.st_ino)
+        identity = _SourceHash(0, hashlib.sha256(), b"", b"", self._identity_clock())
         if row is not None and row["offset"]:
-            if self._was_rewritten(path, stat, row["offset"], row["prefix_sha"]):
+            if self._was_rewritten(path, stat, row):
+                self._hashes.pop(key, None)
                 if row["path"] == str(path):
                     # Rewritten in place: the bytes this index already consumed
                     # no longer describe anything, so every sample from this
@@ -1396,52 +1435,57 @@ class TelemetryIndex:
                 # discarding them would destroy content this file never held.
             else:
                 start = row["offset"]
+                identity = self._hashes[key].copy()
         if start >= stat.st_size:
-            # Nothing was appended, so the consumed region is the whole file and
-            # the digest stored beside it already describes it.
-            return iter(()), start, None, host, boot
+            return iter(()), start, identity, host, boot
         with path.open("rb") as handle:
-            head = handle.read(start)
+            handle.seek(start)
             data = handle.read(stat.st_size - start)
         complete = data.rfind(b"\n")
         if complete < 0:
-            # Nothing but a partial line so far: leave the offset alone.
-            return iter(()), start, None, host, boot
-        # Seed the digest with the region already consumed, so the caller can
-        # read off the digest of the file as of any line it has just taken.
-        seed = hashlib.sha256(head)
+            return iter(()), start, identity, host, boot
         return (
             iter(_lines(data[: complete + 1], start)),
             start + complete + 1,
-            seed,
+            identity,
             host,
             boot,
         )
 
     def _was_rewritten(
-        self, path: Path, stat: os.stat_result, offset: int, prefix_sha: str | None
+        self, path: Path, stat: os.stat_result, row: sqlite3.Row
     ) -> bool:
-        """Whether *path* still carries the bytes at *offset* this index read.
-
-        Size is not identity: a file rewritten in place at a length no shorter
-        than the recorded offset passes a size comparison while its content is
-        entirely different, and the index then answers with the values the
-        previous content produced. Nor is the last line identity: a rewrite that
-        leaves the line this index read last byte-identical passes a digest of
-        that line alone, and every earlier value the index answers with is gone.
-        So the digest of the whole consumed region is compared, which means
-        re-reading that region. That read is what a content identity over the
-        region costs, and the alternative is an answer no byte of the file
-        supports.
-
-        A source with no digest recorded has no identity to compare, so its
-        region is re-read rather than assumed: unknown is not unchanged.
-        """
+        """Check bounded probes now and the full consumed prefix periodically."""
+        offset = row["offset"]
         if stat.st_size < offset:
             return True
-        if prefix_sha is None:
+        if row["prefix_sha"] is None:
             return True
-        return _digest_of(path, offset) != prefix_sha
+        if row["mtime_ns"] is not None and stat.st_mtime_ns < row["mtime_ns"]:
+            return True
+        head, tail = _probe_windows(path, offset)
+        if row["head_sha"] and hashlib.sha256(head).hexdigest() != row["head_sha"]:
+            return True
+        if row["tail_sha"] and hashlib.sha256(tail).hexdigest() != row["tail_sha"]:
+            return True
+        key = (stat.st_dev, stat.st_ino)
+        cached = self._hashes.get(key)
+        if cached is not None and (
+            cached.offset != offset or cached.digest.hexdigest() != row["prefix_sha"]
+        ):
+            cached = None
+        now = self._identity_clock()
+        if (
+            cached is None
+            or not row["head_sha"]
+            or not row["tail_sha"]
+            or now - cached.verified_at >= FULL_IDENTITY_INTERVAL
+        ):
+            digest = _hash_of(path, offset)
+            if digest is None or digest.hexdigest() != row["prefix_sha"]:
+                return True
+            self._hashes[key] = _SourceHash(offset, digest, head, tail, now)
+        return False
 
     def _parse(self, raw: bytes, path: Path, offset: int) -> Mapping[str, Any] | None:
         text = raw.decode("utf-8", errors="replace").strip()
@@ -1801,12 +1845,18 @@ def _lines(data: bytes, base: int) -> Iterator[tuple[int, bytes]]:
         offset += len(line)
 
 
-def _digest_of(path: Path, end: int, chunk: int = 1 << 20) -> str | None:
-    """Digest of the first *end* bytes of *path*, or None if it cannot be read.
+def _probe_windows(path: Path, end: int) -> tuple[bytes, bytes]:
+    """Read the bounded windows at the head and consumed tail of a source."""
+    width = min(end, IDENTITY_PROBE_BYTES)
+    with path.open("rb") as handle:
+        head = handle.read(width)
+        handle.seek(end - width)
+        tail = handle.read(width)
+    return head, tail
 
-    Read in bounded chunks so the digest of a large consumed region does not
-    have to be held in memory to be computed.
-    """
+
+def _hash_of(path: Path, end: int, chunk: int = 1 << 20) -> Any | None:
+    """Build a resumable hash of the first *end* bytes in bounded chunks."""
     digest = hashlib.sha256()
     try:
         with path.open("rb") as handle:
@@ -1819,7 +1869,15 @@ def _digest_of(path: Path, end: int, chunk: int = 1 << 20) -> str | None:
                 remaining -= len(block)
     except OSError:
         return None
-    return digest.hexdigest()
+    if remaining:
+        return None
+    return digest
+
+
+def _digest_of(path: Path, end: int, chunk: int = 1 << 20) -> str | None:
+    """Digest of the first *end* bytes of *path*, or None if unreadable."""
+    digest = _hash_of(path, end, chunk)
+    return None if digest is None else digest.hexdigest()
 
 
 def _as_text(value: Any) -> str | None:
