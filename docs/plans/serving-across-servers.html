@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="37">
+<meta name="plan-version" content="40">
 <meta name="plan-modified" content="2026-10-23">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -233,9 +233,16 @@
     <ul>
       <li>From one engine's fixture readings, a golden test shows <code>lane.json</code>
       carrying the same keys and values the base revision publishes, plus the
-      <code>lanes</code> index.</li>
+      <code>lanes</code> index, plus the schema version where this section bumps it. No
+      other key is added or dropped.</li>
       <li>A two-pool fixture writes two pool documents, and <code>lane.json</code> equals the
       default pool's document plus the index.</li>
+      <li>The second writer is retired. The node's search of the reckon, dotfiles and
+      imas-ambix trees and of the scheduler's running job names for the <code>lane</code>
+      command and its refresher is recorded. The command and
+      <code>generate_lane_refresher_script</code> are removed. A test finds no call to
+      <code>write_lane_document</code> or <code>write_unavailable_document</code> outside
+      <code>RouterApp._publish_lane</code>.</li>
       <li>reckon's reader, <code>reckon.crew.lane_document.read_lane_document</code>, resolves
       every field from a pool document exactly as it does from today's
       <code>lane.json</code>. This runs as a contract test where reckon is importable, and is
@@ -591,6 +598,10 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
       and confirm the router lists the engines and their pool documents appear. For a new
       model, add a reckon backend whose <code>lane_document</code> names
       <code>lanes/&lt;model id&gt;.json</code>.</li>
+      <li><strong>The watch learns engines.</strong> &sect;14 lands after step 2's lane cycle
+      has deployed &sect;5 and &sect;6, because it reads the per-pool documents and per-engine
+      figures they publish. It changes no service. Any worker node can build it, and the
+      single-engine view is unchanged until a second engine registers.</li>
       <li><strong>Retire the alias.</strong> <code>agent watch --json --live</code> is removed
       once nothing reads it.</li>
     </ol>
@@ -655,7 +666,7 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 
     <h2 id="s14">§14 — The watch shows several engines</h2>
 <section data-reckon="section" data-id="s14" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
-<p><strong>Why this is its own section.</strong> §8 and §9 build llm-watch for one engine, which is today's lane, so it ships before the router work. The engine dimension depends on shapes only §5 and §6 publish: one pool document per model, with an <code>engines</code> array, and live figures per engine. Building it against fixtures before those shapes exist would freeze a guess, so it waits for them.</p><p><strong>What it adds.</strong> To the §8 document it adds one entry per engine (live and gate figures, from §5's pool documents and §6's per-engine live block), each caller's held figures split by engine from the request record's <code>upstream</code>, and per-engine outcomes and history bins. To the §9 view it adds the router header line, the engines table, the engine column in the account-detail table, one history line per engine, the ledger grouped by model, and <code>--engine ID</code>. All of these are specified in §9 under <em>With several engines</em>.</p><p><strong>Write paths.</strong> <code>imas_ambix/agent/lane_callers.py</code>, <code>imas_ambix/agent/live_panel.py</code>, the llm-watch view module §9 creates, and their tests.</p><p><strong>Done when.</strong></p><ul><li>A two-engine fixture yields two engine entries, and each caller's held figures per engine sum to its total within 0.01.</li><li>A golden render at 120 columns of a three-engine fixture is committed, and no line exceeds 100 or 120 columns.</li><li>With one engine, the document and the render are byte-identical to §8's and §9's goldens, so the engine dimension costs a single-engine reader nothing.</li><li><strong>Negative control:</strong> attribute every request to the first engine; the per-engine sum test must fail.</li></ul>
+<p><strong>Why this is its own section.</strong> §8 and §9 build llm-watch for one engine, which is today's lane, so it ships before the router work. The engine dimension depends on shapes only §5 and §6 publish: one pool document per model, with an <code>engines</code> array, and live figures per engine. Building it against fixtures before those shapes exist would freeze a guess, so it waits for them.</p><p><strong>What it adds.</strong> To the §8 document it adds one entry per engine (live and gate figures, from §5's pool documents and §6's per-engine live block), each caller's held figures split by engine from the request record's <code>upstream</code>, and per-engine outcomes and history bins. To the §9 view it adds the router header line, the engines table, the engine column in the account-detail table, one history line per engine, the ledger grouped by model, and <code>--engine ID</code>. All of these are specified in §9 under <em>With several engines</em>.</p><p><strong>Write paths.</strong> <code>imas_ambix/agent/lane_callers.py</code>, <code>imas_ambix/agent/live_panel.py</code>, the llm-watch view module §9 creates, and their tests.</p><p><strong>Done when.</strong></p><ul><li>A two-engine fixture yields two engine entries, and each caller's held figures per engine sum to its total within 0.01.</li><li>A golden render at 120 columns of a three-engine fixture is committed, and no line exceeds 100 or 120 columns.</li><li>With one engine, the document still passes §8's comparison against the base revision's <code>agent watch --json --live</code> output, and the render is byte-identical to §9's committed one-engine golden. So the engine dimension costs a single-engine reader nothing.</li><li><strong>Negative control:</strong> attribute every request to the first engine; the per-engine sum test must fail.</li></ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
