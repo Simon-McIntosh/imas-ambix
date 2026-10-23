@@ -1,0 +1,90 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "after_suite_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T014923551774-lane-history-and-outcomes/gate.log",
+  "assertion_analysis": [
+    {
+      "failure_condition": "Any change to the bin edge alignment, the overlap integration or the per-bin percentile aggregation reddens the hard-coded occupancy list, its requests counts or its p50/p95 figures; the declared mutation (every edge shifted one minute) was applied and the log records 3 failed.",
+      "file": "tests/test_lane_callers.py",
+      "lines": "824-853"
+    },
+    {
+      "failure_condition": "A document builder that read the record once per block instead of once per build makes the patched tail-reader count exceed 1 and reddens assert len(reads) == 1.",
+      "file": "tests/test_lane_callers.py",
+      "lines": "791-804"
+    },
+    {
+      "failure_condition": "Removing the byte ceiling binding, or reporting covered true on a cut read, removes the False readings the lowered-ceiling arm asserts; the covered control arm fails if the uncut fixture stops building bins.",
+      "file": "tests/test_lane_callers.py",
+      "lines": "807-846"
+    },
+    {
+      "failure_condition": "Counting a gate expiry also as a failure, or dropping the self-answered sentinel test from the expiry predicate, changes the completed/aborted/failed/gate_expired split the fixture pins.",
+      "file": "tests/test_lane_callers.py",
+      "lines": "959-975"
+    },
+    {
+      "failure_condition": "Making the missing receipts directory take the lane block down with it, or dropping the history/outcomes unavailable arm, reddens the lane-headroom and state assertions.",
+      "file": "tests/test_live_panel.py",
+      "lines": "634-673"
+    }
+  ],
+  "baseline_suite_log": null,
+  "call_sites": [
+    "imas_ambix/agent/live_panel.py:live_panel",
+    "imas_ambix/agent/watch.py:1396"
+  ],
+  "completed_at": "2026-10-23T03:02:24.867Z",
+  "dispatched_at": "2026-10-23T02:41:35Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/lane_callers.py",
+      "line": "261",
+      "severity": "follow-on",
+      "text": "follow-on: callers_block now reads the record over HISTORY_WINDOW_SECONDS whatever window_seconds it is passed, and returns that read's covered flag, so a caller of the still-exported callers_block(dir, window_seconds=60) gets a block whose window_seconds says 60 while the read and its coverage describe thirty minutes; the module docstring at imas_ambix/agent/lane_callers.py:63 compounds this by stating each block reports whether the read reached the start of its own window, which is true only of history. The direction is conservative (a cut read can only understate coverage) but the flag no longer means what the block it sits on publishes."
+    },
+    {
+      "file": "imas_ambix/agent/lane_callers.py",
+      "line": "510",
+      "severity": "follow-on",
+      "text": "follow-on: _percentile is a third private copy of an interpolated quantile the repository already implements at imas_ambix/agent/receipt_bins.py:291 (_inclusive_quantile, the same sorted-list linear interpolation) and imas_ambix/agent/bench_report.py:270 (_percentile, nearest-rank); the addition duplicates rather than extends either owner, differing only in rounding and the empty case."
+    }
+  ],
+  "justifications": {
+    "durability": "tests/test_lane_callers.py:824 test_history_bins_hold_the_occupancy_computed_by_hand asserts a hand-computed occupancy list whose bin-edge mutation was shown to redden it (negative-control.log), so the assertion is not re-reading its own input.",
+    "evidence": "The gate log at the reviewed run's gate.log carries the manifest's command, '58 passed' and a bare EXIT=0, and the declared negative control produced negative-control.log with '3 failed, 50 passed' and EXIT=1.",
+    "fit": "imas_ambix/agent/lane_callers.py:533 _history_from_rows follows the surrounding block idiom (state/window/reason) and reuses the module's own _weight, _overlap and receipt_interval rather than restating them.",
+    "goal_fidelity": "imas_ambix/agent/lane_callers.py:265 record_blocks reads the record tail once over HISTORY_WINDOW_SECONDS and returns the callers, thirty one-minute history bins and four-figure outcomes the goal names.",
+    "reuse": "imas_ambix/agent/lane_callers.py:510 _percentile re-implements the interpolated quantile already owned at imas_ambix/agent/receipt_bins.py:291.",
+    "scope_discipline": "Every path in git diff 3998831f a8d8ca6e is inside the reviewed run's declared write paths, and the declared-but-unused docs/figures path adds nothing."
+  },
+  "negative_control_log": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261023T014923551774-lane-history-and-outcomes/negative-control.log",
+  "project": "imas-ambix",
+  "review_run_id": "r-20261023T024013127017-review-of-lane-history-and-outcomes-a8d8ca6e1b93",
+  "reviewed_base_revision": "3998831f99fd149675f8c245f0740972121f615d",
+  "reviewed_base_sha": "3998831f99fd149675f8c245f0740972121f615d",
+  "reviewed_head_sha": "a8d8ca6e1b93aa31c7bc0a113c589376c5d07071",
+  "reviewed_revision": "a8d8ca6e1b93aa31c7bc0a113c589376c5d07071",
+  "reviewed_run_id": "r-20261023T014923551774-lane-history-and-outcomes",
+  "scores": {
+    "durability": 19,
+    "evidence": 18,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "reuse": 5,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T03:03:38.364885+00:00",
+  "total": 98,
+  "verdicts": {
+    "diff": "Read commit by commit (5fd9374e feat, a8d8ca6e docs) against base 3998831f; the landed change is record_blocks plus the history and outcomes builders and their tests, with tests/test_agent_watch_live.py untouched.",
+    "done_when": "The done_when names pytest over tests/test_lane_callers.py, tests/test_live_panel.py and tests/test_agent_watch_live.py plus ruff; the manifest records the run at a8d8ca6e (after_suite exit_status 0) and the log carries the identical command, '58 passed' and EXIT=0.",
+    "goal": "The node's goal is for the live watch document to gain a 30-minute history strip and a 5-minute outcomes line built from the same single bounded read of the request record the callers block uses; imas_ambix/agent/lane_callers.py:265 record_blocks does exactly that.",
+    "manifest": "Read; it states status complete at head a8d8ca6e, records the gate command and its 58-passed result with the log path, and records the negative-control log alongside it.",
+    "write_paths": "Read the six declared write paths from the reviewed run's manifest; the diff touches five files and every one of them is inside that set (imas_ambix/agent/lane_callers.py, imas_ambix/agent/live_panel.py, tests/test_lane_callers.py, tests/test_live_panel.py, docs/evidence/fragments/serving-across-servers/lane-history-and-outcomes.html)."
+  }
+}
