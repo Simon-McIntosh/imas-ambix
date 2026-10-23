@@ -19,7 +19,7 @@
   <meta name="plan-owner"     content="Simon McIntosh">
   <meta name="plan-tags"      content="agent-serving">
   <meta name="plan-blocks"    content="serving-record-warehouse">
-  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;]}">
+  <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;watch-index-lifecycle#s3&quot;,&quot;watch-index-lifecycle#s4&quot;],&quot;s6&quot;:[&quot;watch-index-lifecycle#s4&quot;,&quot;watch-index-lifecycle#s5&quot;],&quot;s7&quot;:[&quot;watch-index-lifecycle#s6&quot;]}">
   <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;implementable&quot;,&quot;s9&quot;:&quot;deferred&quot;}">
   <title>Watch Index Lifecycle | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
@@ -150,9 +150,17 @@
           <li>in either case, let the ingest catch up from each source's recorded offset. That catch-up is idempotent because samples are unique on (host, boot, inode, offset).</li>
         </ol>
       </li>
-      <li><strong>Wiring</strong>: <code>cli.py</code> resolves the index through this module for <code>ingest</code>, <code>watch</code> and <code>publish-watch</code>. The daily snapshot is composed into the ingest loop through its existing <code>on_tick</code> hook, so <code>telemetry_ingest.py</code> is not touched.</li>
+      <li><strong>Wiring</strong>: the resolver replaces <code>DEFAULT_INDEX_PATH</code> (<code>watch.py:91</code>), which is today the one declaration of where the index lives. Every place that restates it calls the resolver instead, so no fallback can reach the GPFS path:
+        <ul>
+          <li>the two <code>Path(index_path or DEFAULT_INDEX_PATH)</code> fallbacks in <code>watch.py</code>;</li>
+          <li>the three <code>--index</code> help strings in <code>cli.py</code>;</li>
+          <li>the <code>ingest</code> command's own resolution.</li>
+        </ul>
+        The argparse entry point in <code>telemetry_ingest.py</code> requires <code>--index</code>, so it never resolves a default, and it is left as it is.</li>
+      <li><strong>The snapshot schedule</strong> is a closure that the <code>ingest</code> command in <code>cli.py</code> passes as the loop's <code>on_tick</code>. The closure captures the <code>TelemetryIndex</code> the command opened, and its docstring says so. The hook keeps its <code>TickReport</code> signature, and <code>telemetry_ingest.py</code> is not touched.</li>
+      <li><strong>The public surface</strong> is one resolver in place of one constant. The network-filesystem refusal is an error the resolver raises, not a new option. The resolution order is an environment override, then a node-local root. That order follows the shape of <code>imas_ambix/gs/artifact_resolution.py</code>, which owns a different artefact (machine bundles) and is not extended.</li>
     </ul>
-    <p>Write scope: <code>imas_ambix/agent/index_placement.py</code> (new), <code>tests/test_index_placement.py</code> (new), <code>imas_ambix/agent/cli.py</code>.</p>
+    <p>Write scope: <code>imas_ambix/agent/index_placement.py</code> (new), <code>tests/test_index_placement.py</code> (new), <code>imas_ambix/agent/cli.py</code>, <code>imas_ambix/agent/watch.py</code>.</p>
     <p><strong>Done when:</strong></p>
     <ul>
       <li>Unit tests cover:
@@ -188,8 +196,9 @@
         </ul>
       </li>
     </ul>
+    <p>This rollup is not a second copy of the compaction tiers in <code>telemetry_store.py</code>. Those tiers, raw, minute and hour, are per receipt file, and the index already reads only the finest tier offered for each job. The rollup's axis is per source, per measurement and per hour. It carries gauge time integrals and coverage, which a file-level tier does not carry. The rollup reads samples the index already holds, and it does not replace any tier.</p>
     <p>A period sums its whole hours from the rollup and reads raw samples only for the partial hours at its two edges. Every remaining raw-sample query is bounded to its window plus each source's last sample before the window, and all cards of one period are read in one statement rather than one statement per card.</p>
-    <p>Write scope: <code>imas_ambix/agent/telemetry_index.py</code>, <code>imas_ambix/agent/watch.py</code>, <code>tests/test_telemetry_index.py</code>, <code>tests/test_agent_telemetry_watch.py</code>. It follows §3 because both write <code>telemetry_index.py</code>.</p>
+    <p>Write scope: <code>imas_ambix/agent/telemetry_index.py</code>, <code>imas_ambix/agent/watch.py</code>, <code>tests/test_telemetry_index.py</code>, <code>tests/test_agent_telemetry_watch.py</code>. It follows §3, which also writes <code>telemetry_index.py</code>, and §4, which also writes <code>watch.py</code>.</p>
     <p><strong>Done when</strong>, measured on the fleet allocation against a node-local copy of the live index rebuilt with the new schema:</p>
     <ul>
       <li><code>watch_document</code> gives the same value in every field as the raw computation over that rebuilt index. The comparison is exact equality, made field by field by a script that prints any mismatching path.</li>
@@ -204,7 +213,7 @@
     <section data-reckon="section" data-id="s6" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-attempts="0" data-status="implementable" data-links=""></section>
     <p>The <code>ingest</code> command composes publication into its <code>on_tick</code> hook:</p>
     <ul>
-      <li>When at least <code>--publish-every</code> seconds (default 300) have passed since the last successful publication, it computes <code>watch_document</code> from its own connection and writes <code>~/public/imas-ambix/watch.json</code> atomically. The contract is unchanged: <code>published_at</code> and <code>compute_seconds</code> at top level, mode 0644, one flushed line per publication, and a failed publication leaving the previous file byte-identical.</li>
+      <li>When at least <code>--publish-every</code> seconds (default 300) have passed since the last successful publication, it publishes by calling <code>watch_publish.one_iteration</code>. That function already implements the whole contract: an atomic write through <code>os.replace</code>, <code>published_at</code> and <code>compute_seconds</code> at top level, mode 0644, one flushed line, and a failure leaving the previous file byte-identical. The section passes it the index the closure captures, rather than re-implementing any of it, so the contract keeps one owner.</li>
       <li>A failed publication never fails the tick.</li>
       <li><code>publish-watch</code> keeps <code>--once</code> for manual use and loses its loop. This narrows the interface to one standing process.</li>
     </ul>
@@ -229,7 +238,7 @@
 
     <h2 id="s7">§7 — SLURM job logs leave the repository root, and the existing ones are archived compressed</h2>
     <section data-reckon="section" data-id="s7" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-attempts="0" data-status="implementable" data-links=""></section>
-    <p>Every <code>#SBATCH --output</code> that <code>imas_ambix/agent/slurm.py</code> and <code>imas_ambix/agent/cli.py</code> generate is written under <code>$AMBIX_LOG_DIR</code>, which defaults to <code>~/.local/state/ambix/slurm-logs/</code>, instead of the submitting directory. The places that read a job's log back resolve it through the same function. These include the runtime check, which reads <code>ambix-runtime-check-&lt;engine&gt;-&lt;job&gt;.log</code>.</p>
+    <p>Every <code>#SBATCH --output</code> that <code>imas_ambix/agent/slurm.py</code> and <code>imas_ambix/agent/cli.py</code> generate is written under <code>~/.local/state/ambix/slurm-logs/</code> instead of the submitting directory. For the serve, lane, router and download scripts, the change is made at the single <code>#SBATCH --output=</code> writer in <code>slurm.py</code>. It adds no environment variable. The places that read a job's log back resolve it through the same function. These include the runtime check, which reads <code>ambix-runtime-check-&lt;engine&gt;-&lt;job&gt;.log</code>.</p>
     <p>The 451 existing root-level logs are archived by the coordinator as a separate step:</p>
     <ol>
       <li>Leave in place every log whose job is still in <code>squeue</code>.</li>
@@ -290,8 +299,8 @@
     <section data-reckon="followups" id="followups" class="r-followups">
       <h2><span class="sec">§</span> Followups</h2>
       <article class="r-fu" data-id="f-wil-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build watch-index-lifecycle">
-        <h4 class="r-fu-title">Dispatch §3, §4 and §8 now; §5 after §3; §6 after §4 and §5; §7 after §6</h4>
-        <div class="r-fu-body"><p>The write scopes fix this order. §3 and §5 both write <code>telemetry_index.py</code>, and §4, §6 and §7 each write <code>cli.py</code>. §8 writes only its research document. Restarting a fleet service is a deployment step that needs the lead's authority each time; record each deployment's measurement in its section.</p></div>
+        <h4 class="r-fu-title">Dispatch §3, §4 and §8 now; §5 after §3 and §4; §6 after §4 and §5; §7 after §6</h4>
+        <div class="r-fu-body"><p>The write scopes fix this order. §3 and §5 both write <code>telemetry_index.py</code>; §4 and §5 both write <code>watch.py</code>; and §4, §6 and §7 each write <code>cli.py</code>. §8 writes only its research document. Restarting a fleet service is a deployment step that needs the lead's authority each time; record each deployment's measurement in its section.</p></div>
         <pre class="r-fu-prompt">/reckon-build watch-index-lifecycle</pre>
       </article>
     </section>
