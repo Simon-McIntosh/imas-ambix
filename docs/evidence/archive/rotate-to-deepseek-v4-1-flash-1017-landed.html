@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="rotate-to-deepseek-v4-1-flash-1017-landed">
+  <meta name="plan-title" content="Rotate the Lane to DeepSeek-V4.1-Flash-1017 — landed record">
+  <meta name="plan-summary" content="Closure synthesis for Rotate the Lane to DeepSeek-V4.1-Flash-1017: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).">
+  <meta name="plan-evidence-for" content="rotate-to-deepseek-v4-1-flash-1017">
+  <meta name="plan-verdict" content="qualified">
+  <title>Rotate the Lane to DeepSeek-V4.1-Flash-1017 — landed record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+ <main class="plan-doc">
+  <h1>Rotate the Lane to DeepSeek-V4.1-Flash-1017 — landed record</h1>
+  <p>Closure synthesis for Rotate the Lane to DeepSeek-V4.1-Flash-1017: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).</p>
+
+
+   <section id="s2">
+    <h2>§2 — The 1017 release in its own directory</h2>
+    <p><strong>Landed in merges <code>6219370b</code> and <code>9752d9ab</code></strong> (run <code>r-20261023T140736542637-profile-points-at-1017</code>, final head <code>24d38329</code>).</p><ul><li>The weights were downloaded on 2026-10-23 by SLURM job 1294102 into <code>/work/projects/imas_gpu/agents/deepseek-v4-1-flash-1017/model</code>: 48 shards, 476 GiB, about 12 minutes. The node verified all 48 shards against the repository listing at <code>1bae0e1088993b9b82de08f59de5be5a34e42170</code> by size and SHA-256 (<code>shard-verify.log</code>). The first shard is <code>13bd1210…</code>; the September copy's is <code>886aebda…</code>.</li><li>The <code>deepseek-v4-1-flash</code> profile names <code>deepseek-ai/DeepSeek-V4.1-Flash-1017</code>, with <code>revision</code> pinned and <code>weights_slug = deepseek-v4-1-flash-1017</code>. <code>served_name</code> is unchanged.</li><li>Download scripts pass the pinned revision and refuse one the repository does not publish. Profiles with no revision generate byte-identical scripts. The serve script moves only its weights directory, and its log names the revision.</li></ul><p><strong>Measure.</strong> The node's tests pass in <code>tests/test_agent_dspark_profile.py</code>, and verify-gate passed at <code>9752d9ab</code>. The independent reviews scored 16 to 19 at <code>6c02d728</code> and 16 to 19 at <code>24d38329</code>, with no added failures. The running serve is untouched until §5's swap.</p><p><strong>Follow-ons.</strong> Two test docstrings still give the retracted rationale for the pin, or describe the serve-script change as one line. One assertion compares the generator against the accessor it calls. These are left to the next node that edits that test file.</p>
+  </section>
+
+</main>
+</body>
+</html>

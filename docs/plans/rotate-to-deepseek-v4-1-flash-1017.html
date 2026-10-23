@@ -20,12 +20,12 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
   <meta name="plan-blocks" content="b300-bring-up-and-open-model-bakeoff">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
   <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s3&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s4&quot;],&quot;s4&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;]}">
   <title>Rotate to DeepSeek-V4.1-Flash-1017 | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="23">
+<meta name="plan-version" content="24">
 <meta name="plan-modified" content="2026-10-23">
 </head>
 <body>
@@ -54,7 +54,7 @@
     parsers. That is why §3 exists.</p>
 
     <h2 id="s2">§2 — Download the 1017 release into its own directory</h2>
-<section data-reckon="section" data-id="s2" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s2" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
     <p>The release lands in its own directory, <code>deepseek-v4-1-flash-1017</code>, for the
     reason the profile already gives: a shared directory would leave one release's shards
     beside the other's index, with no record of which checkpoint a run loaded. The profile
@@ -271,6 +271,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261023T140736542637-profile-points-at-1017" data-who="reckon-build" data-when="2026-10-23T16:51:02Z">
     <div class="r-comment-body"><p>pinned the DeepSeek-V4.1-Flash profile to the 1017 release - repository deepseek-ai/DeepSeek-V4.1-Flash-1017, revision 1bae0e1088993b9b82de08f59de5be5a34e42170, weights directory deepseek-v4-1-flash-1017 - with the serve script naming that weights directory and the pinned revision, the download script resolving the pinned revision through the client that fetches it and refusing one the repository does not publish, and 48 of 48 shards matching the repository listing at that commit</p></div>
+</div>
+<div class="r-comment" data-section="s2" data-id="c-close-s2" data-who="reckon-build" data-when="2026-10-23T17:15:00Z">
+    <div class="r-comment-body"><p>§2 landed in <code>6219370b</code> and <code>9752d9ab</code>. The profile is pinned to DeepSeek-V4.1-Flash-1017 at <code>1bae0e10</code> in its own directory, all 48 shards are verified, and the download checks the revision. verify-gate passed, and the reviews scored 16 to 19. <a href="/imas-ambix/evidence/archive/rotate-to-deepseek-v4-1-flash-1017-landed.html#s2">evidence</a></p></div>
 </div>
 </section>
 </main>
