@@ -41,20 +41,56 @@
       <p><strong>The capacity band renders what the document carries, and a
       dash where it carries nothing.</strong> The band replaces the serve
       panel's card conditions (°C, kW, % of cap), which belong to gpu-watch,
-      with the engine's capacity: <code>kv pool %</code> from
-      <code>live.pool_occupancy</code>, <code>eng headrm</code> from
-      <code>lane.engine_headroom</code>, and <code>host tier %</code>,
-      <code>mean ctx</code>, <code>ceiling</code> and <code>preemptions</code>
-      read under the lane document's own published names —
+      with the engine's capacity. Its figures come from two places:
+      <code>kv pool %</code> from <code>live.pool_occupancy</code>, the
+      engine's own counter, and <code>host tier %</code>,
+      <code>mean ctx</code>, <code>ceiling</code>, <code>eng headrm</code> and
+      <code>preemptions</code> from the lane block, under the names the lane
+      document publishes them by —
       <code>hicache_host.used_fraction</code>, <code>mean_context</code>,
-      <code>concurrent_requests</code> and <code>preemptions</code>. The §8
-      document's <code>lane</code> block does not copy those four today, so on
-      a live document they render as dashes until §6 publishes per-engine live
-      figures into the block; the fixture carries them by hand, the same way
-      §8's fixtures carry <code>account</code> and <code>project</code> before
-      §13 deploys. <strong>The view needs no change when they land</strong>,
-      which is the point of reading them under the names the pool document
-      will publish them by.</p>
+      <code>concurrent_requests</code> and <code>preemptions</code>. The block
+      copies those under the names the lane document publishes them by, and it
+      omits one the lane does not publish rather than writing a null: a figure
+      absent from the document and a figure the engine measured as zero are
+      different facts, and only one of them is a dash. A lane publishing
+      <code>preemptions: null</code>, as the lane does for an engine that
+      reported no such count, is the dash case and not the zero case.</p>
+    </section>
+    <section id="llm-watch-view-capacity-copy">
+      <p><strong>The band is only as full as the lane block's copy of the
+      document, and the copy is what a live render rests on.</strong> The lane
+      document published these fields all along; the block carried only the
+      gate, admission, headroom and worker-slot figures, so a live render drew
+      dashes over a lane that had published every one of them. The test copies
+      the lane document the router published on 2026-10-23 key for key, asserts
+      the band's figure row against it, and then deletes the copied keys and
+      asserts the same row read as dashes instead — so the check fails on the
+      state it exists to catch, rather than merely on the copy being present.</p>
+    </section>
+    <section id="llm-watch-view-per-worker-colour">
+      <p><strong><code>tok/s each</code> is coloured against a share of the
+      per-worker reference, so one rate takes one colour on both tools.</strong>
+      The serve panel ramps <code>100 × rate / 40.0</code> against 60 and 30.
+      The view ramped the raw rate against those same two thresholds, which
+      calls the deployment's own best single-stream rate — the reference
+      itself, 40 tok/s — cautionary from a view that calls the same figure
+      healthy. The view ramps the panel's expression now, and the test asserts
+      the colour class at the reference rather than restating the arithmetic:
+      green at 40 tok/s, yellow at half of it. The reference is a level on this
+      deployment rather than a constant of this view, so it is named once and
+      both tools ramp it the same way.</p>
+    </section>
+    <section id="llm-watch-view-engine-flag">
+      <p><strong><code>--engine</code> is refused when it names an engine that
+      is not the one served, and the refusal names the served engine.</strong>
+      This view renders one engine — the lane the record, the pool figures and
+      the gate all came from — so an id naming another one is a barrier the
+      document cannot answer. Ignoring the flag was the worse failure: the
+      caller would have read this lane's figures under another engine's name,
+      and nothing on the screen would have said which had happened. The refusal
+      goes to stderr with exit status 2 and states the engine that is served; a
+      document naming no engine refuses every id and says so, because there is
+      no served engine to name.</p>
     </section>
     <section id="llm-watch-view-accounts-level">
       <p><strong>The accounts table is built from the <code>accounts</code>
