@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T12:36:31.204Z",
+  "dispatched_at": "2026-10-23T12:26:57Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/b300-bring-up-and-open-model-bakeoff.html:155",
+      "id": "reasoning-1",
+      "reason": "the node either blocks on a missing entry point or edits a file outside its scope, and the interface \u00a74 fixes (a new topology verb) is decided nowhere in the plan.",
+      "text": "\u00a74's done-when is `imas-ambix agent serve deepseek-v4-1-flash --topology <name> --dry-run`, but `imas_ambix/agent/cli.py` defines no `--topology` option (its serve signature carries `--server`, `--gpus`, `--cpus`, `--port`, `--auth`, `--no-speculative`, `--dspark-block-size`, `--time`, `--dry-run`), and `imas_ambix/agent/cli.py` is not among \u00a74's declared write paths \u2014 so the node implementing \u00a74 as written cannot make its own done-when command run, and the three configurations it names are already expressible with the existing `--server` plus `--gpus` pair",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/b300-bring-up-and-open-model-bakeoff.html:22",
+      "id": "wiring-1",
+      "reason": "run under the declared ordering the audit meets the rotation's checkpoint and reports its own positive control as failed against a correct store, so either the plan-level relationship or \u00a72's expected row must move.",
+      "text": "the document's `plan-after` is `rotate-to-deepseek-v4-1-flash-1017` (and that plan carries `plan-blocks: b300-bring-up-and-open-model-bakeoff`), while \u00a72's done-when at line 86 fixes its positive control as the served checkpoint reading `deepseek-ai/DeepSeek-V4.1-Flash` at commit `dba1be0a` \u2014 measured on 2026-10-23, i.e. the September release that the rotation's \u00a72 replaces with `DeepSeek-V4.1-Flash-1017` at commit `1bae0e10`",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/b300-bring-up-and-open-model-bakeoff.html:48",
+      "id": "anchors_resolve-1",
+      "reason": "the plan's central claim (no candidate is clearly better; 1017 leads on tokens per card) rests on this row, so a citation that does not carry it and a band that is narrower than the source leave \u00a71's decision weaker than the evidence it cites.",
+      "text": "the table row \"8\u00d7B300 throughput relative to 1017, from the capacity study \u00a75\" carries GLM-5.3, MiMo-V2.6-Pro and Kimi K3 bands that \u00a75 does not contain (its \u00a75 is DeepSeek-V4.1-Flash only; the per-model projections are \u00a76, where the like-for-like column reads 1017 2,300\u20133,600, GLM 600\u20131,400, MiMo 900\u20131,800, Kimi 800\u20131,500 tok/s) \u2014 a reader sent to \u00a75 finds three of the four columns unsupported, and the stated Kimi band of \"a fifth to a third\" understates the study's own ratio (800/3,600 to 1,500/2,300, about a third to two-fifths)",
+      "type": "anchors_resolve",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "f4287bbbf07260cff909e7c5c4b0aa67a09318f3fd37e97ec4857946a12d8c58",
+  "plan_slug": "b300-bring-up-and-open-model-bakeoff",
+  "plan_version": 1,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T122638112477-plan-review-of-b300-bring-up-and-open-model-bakeoff",
+  "reviewed_blob_sha": "6524f54f554017ec2441a7e3d31e787d66e03fdb",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 \u00a71's cross-model throughput row cites the capacity study \u00a75, which carries no GLM/MiMo/Kimi figures; \u00a76 carries them.",
+    "done_when": "pass \u2014 s2, s3, s4, s5 and s6 each declare a negative control that can fail (an absent shard, a byte-flipped shard, an undeclared topology, a repeated sweep point, a before/after registration probe).",
+    "evidence_paths": "pass \u2014 every gate writes to a durable repository path (`docs/research/*.html`, `docs/figures`\u2192`docs/figures/b300-throughput`, `tests/`), and \u00a76 reads the published `~/public/imas-ambix/endpoints.json` rather than a scratch path.",
+    "naming": "pass \u2014 no plan labels, stage names or version tags in the declared filenames (`model-store-audit.html`, `test_*`.py, `b300-launch-recipes.html`); the one numbered id in the document is the open-question id `b300-arrival-facts`, which is data, not a symbol.",
+    "reasoning": "a finding \u2014 \u00a74's done-when runs a CLI verb the code does not have and the plan cannot add within \u00a74's declared write paths.",
+    "single_goal": "pass \u2014 each of s2\u2013s6 names one deliverable (a store record, two profiles, three launch recipes, one sweep, one cutover).",
+    "wiring": "a finding \u2014 the plan-level `after`/`blocks` relationship to the rotation contradicts \u00a72's positive control, which needs the pre-rotation checkpoint to still be the served one."
+  },
+  "section_digests": {
+    "_document": "782c86decf200c62ad986717485b679a68c2de1ae738f3e484a2adecf1277482",
+    "s1": "2edbca4f28b2c682ce00207652db46adc534d9e0c0a0f060220a399b4c9660e5",
+    "s2": "ec66e0565913adc9a989e0ac7b8eeac943c337ac7a907adcd8515de8b9975d09",
+    "s3": "874e6db9ee4f2713837fc6786123cdafcc611ca8412b1c41989f5bf77d7b75f8",
+    "s4": "f608a4b6381bbd28dde921fc9653c470defe7557d54a6fa2df7af585924abdec",
+    "s5": "5edf46e6f134cf940793ed0fcb96058b59158f2cfb4143029e2e4aa8eade952e",
+    "s6": "650cb861c4aac9c9c9665dd4fcd4feb999410dc7effef5f974679bc2ce5bc8f8",
+    "s7": "c1f33679b46a5b2d5f8b8876f25f4d795a4e027b15c00400090e7ee070000a1c"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-23T12:46:08.371282+00:00"
+}
