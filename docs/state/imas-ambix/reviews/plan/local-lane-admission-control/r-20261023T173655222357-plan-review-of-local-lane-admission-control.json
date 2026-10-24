@@ -1,0 +1,89 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T18:00:27.045Z",
+  "dispatched_at": "2026-10-23T17:48:15Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/local-lane-admission-control.html:949",
+      "id": "wiring-1",
+      "reason": "without the edge a wave can dispatch both at once, and whichever merges second carries the other's stop mechanism without the refusal wrapping it.",
+      "text": "\u00a725 and \u00a726 are two separately declared nodes that both rewrite the same stop path (`agent shutdown` / `agent restart` in `imas_ambix/agent/cli.py`), and the plan declares no runs-after edge between them, although \u00a721's node table uses a \"Runs after\" column for precisely this case",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/local-lane-admission-control.html:952",
+      "id": "done_when-1",
+      "reason": "a build that signals and then reports a shape-only value passes \u00a725's declared gate while the wait the section exists for stays untested.",
+      "text": "\u00a725's done-when asserts only what argv the stubbed `scancel` and `squeue` recorded, so the section's central behaviour \u2014 the bounded wait for the job to leave the queue by itself, and that a plain cancel is withheld without the explicit flag \u2014 is covered by no fail-able assertion",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/local-lane-admission-control.html:951",
+      "id": "anchors_resolve-1",
+      "reason": "a reader following the pointer finds no such procedure, and no node is scoped to add one.",
+      "text": "\u00a725 states \"The ops/lane-cycle procedure names the new stop\", but `ops/lane-cycle/AGENTS.md` names `agent restart` and no stop, and \u00a725's write scope (`imas_ambix/agent/cli.py` and its tests) does not include that document",
+      "type": "anchors_resolve",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/local-lane-admission-control.html:950",
+      "id": "reasoning-1",
+      "reason": "a worker dispatched to edit `imas_ambix/agent/cli.py` reads that AGENTS.md first and is told the change is forbidden, so the section must either cite the newer measurement that supersedes \u00a72a or rest the change on the clean-`SIGTERM` practice \u00a72b already endorses.",
+      "text": "\u00a725 attributes the 17 October gpu-0003 drain to the account's own cancel of job 1287897 and builds the stop to prevent it, while `imas_ambix/agent/AGENTS.md` \u00a72a (settled 2026-06-10) records such a drain as an environmental, node-level condition, explicitly exonerates `scancel`, and forbids reintroducing drain-defence scaffolding \"in code, sbatch headers, or plans\"; \u00a725 cites no evidence record for the October event, and the plan's own archive (`docs/evidence/archive/local-lane-admission-control-landed.html`, mtime 2026-10-05) predates it",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "3155b47c2f1fe12c4d25801cb7a32c6aa995fdef904f9de8cb5cddfae6643cb0",
+  "plan_slug": "local-lane-admission-control",
+  "plan_version": 186,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T173655222357-plan-review-of-local-lane-admission-control",
+  "reviewed_blob_sha": "401b3b19f50653779aa3f19ebee1eda432cec9ae",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 \u00a725 asserts \"The ops/lane-cycle procedure names the new stop\", but `ops/lane-cycle/AGENTS.md` names `agent restart` and no stop.",
+    "done_when": "a finding \u2014 \u00a725's done-when measures only the argv a stubbed `scancel`/`squeue` records, so the bounded wait the section describes has no fail-able assertion.",
+    "evidence_paths": "pass \u2014 the three sections name repository sources and unit tests as their measure, and route no gate output to a session scratchpad or node-local temporary path.",
+    "naming": "pass \u2014 the symbols these sections introduce (`worker_slots`, `live_runs`, `requests_per_run`, `observed_seconds`, `unkeyed_share`, `active_sessions`, `fair_share`, `borrow_reserve`, `new_session_worker_slots`) are mechanism names carrying no plan label, ticket number or version tag, and the section headings' `\u00a7` numbers are the plan's own house convention applied to every section.",
+    "reasoning": "a finding \u2014 \u00a725's stated root cause is a cancel-induced drain, the mechanism `imas_ambix/agent/AGENTS.md` \u00a72a settles as not-an-agent-concern and forbids reintroducing as scaffolding.",
+    "single_goal": "pass \u2014 \u00a725 is the signal-then-wait stop, \u00a726 the refusal to cancel on an all-drained partition, \u00a727 the removal of the per-session figures; each carries one deliverable and one done-when.",
+    "wiring": "a finding \u2014 \u00a725 and \u00a726 both rewrite the same serve/restart stop path in `imas_ambix/agent/cli.py`, but the plan declares no ordering between them, although \u00a721 uses a \"Runs after\" column for exactly this case."
+  },
+  "section_digests": {
+    "_document": "0de48c5c6bd44c4e411b56a400783b0454f22a6f2e7e2d6896462250d27fa713",
+    "s1": "1b1d1b4500b53c57897447c9a177dece179e88e753686121fc2b84b09e1c760c",
+    "s10": "e458403d24604404f8f0b0d532c7ab2ed558456be0e6eb0b0a8c9eb89cc84b7c",
+    "s11": "0e0c45e067609b58693c36afc6a9d2cbaf3fe5a14c434241dc15c77c058680e4",
+    "s12": "eb93b318f4f4d1cda5651527a949745199b1bf2b5ab0a0983d88259cd206fa36",
+    "s13": "f2fdec5caaa675f5cc049e44561c6c919f0686083509e568cfe1b7f76f348235",
+    "s14": "003d2055d94b7d42122b5ea822c0278e4d20d24fdaef92a0f28710625210a25e",
+    "s15": "4268180cd95ebb2d676fb7f65f75d8111042ab3937c9814dbd2d30214f10f8ea",
+    "s16": "a84afe91c80937fe01f5f5bacf7f4ec231c01ed155d54299f6fb0b0f009b8573",
+    "s17": "38d113a1441a6259b71f33dbfe2ef408a48e7972d188a9704df834066421da39",
+    "s18": "0a8c9f9402c222f13e020bf34faeb9c742726ccba504ab9541cefb04dbb3f2f7",
+    "s19": "ec9128e383534b85c1b86d3e36018d19f6cf34b5fca068a5d6ca21446eb65ce8",
+    "s2": "d9c810c33b810d6ff8b74cadde08242bd6060fbe49bf942a04eb1562e846a941",
+    "s20": "31ae010e68bd00cded83689b140d051c9319dae7e5aa5bc63279634bbed94ff0",
+    "s21": "c7c4d31f97836375364a72929628e0c326b7ae6a94d5fed37c9fa45c9a832909",
+    "s22": "152a8709b3717d309769a09b46355a4b29072424d968cedd493306ea7c0ad5cd",
+    "s23": "2ab2549ef0bf50eb6f108886db1d720a0860b4a9281902bbec968c1eeefd74d4",
+    "s24": "cab191e2f792e15924162d475c033e6c40469d9cf818a3ddf256ff8407419c0c",
+    "s25": "d581582900c354fdc11b8c2325b6b86449b56647e003557128eb54a5a5ba6cc0",
+    "s26": "dcb8c8554d76effe4a922df5640b94c7f3c1da7d772dde105870d201e4c7974a",
+    "s27": "a0c6c3c8f363e4194083ecb0e2f7db84030261a3aacb2c32696ca90cf001cef3",
+    "s3": "564dc8bf433bd514e5844908120075b7971e91522576425e376c55cc5364aa95",
+    "s4": "c39d3c5235419d0e7d55b9a2815cac98ee3df28cb9d93f392d232b3ed324f0ed",
+    "s5": "9470b9366625e7be8e7b66eac5505aecf8ecfbf7cbd24d62136af5e308784a00",
+    "s6": "0234e45f5118a54e635718d640af5ffe33e9bcc1cd6ad8990469320f2f9365df",
+    "s7": "2cd5b5f631eb986e90526fb5dcd8ab69ddb24d1715c8a384e465db5f7b607cab",
+    "s8": "76158fd44f36a4ab25033c54573c6f38645750c3d460b4994f3a3c1b6b012c9b",
+    "s9": "62fa9c6e7189e9a66ec92c0c3fe0506ed147f89b172415959b846ca83f8fe212"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-24T20:58:49.426153+00:00"
+}
