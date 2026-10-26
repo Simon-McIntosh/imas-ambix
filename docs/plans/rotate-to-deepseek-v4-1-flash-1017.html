@@ -20,13 +20,13 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
   <meta name="plan-blocks" content="b300-bring-up-and-open-model-bakeoff">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;}">
   <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s3&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s4&quot;],&quot;s4&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;]}">
   <title>Rotate to DeepSeek-V4.1-Flash-1017 | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="30">
-<meta name="plan-modified" content="2026-10-23">
+<meta name="plan-version" content="32">
+<meta name="plan-modified" content="2026-10-26">
 </head>
 <body>
   <main class="plan-doc">
@@ -142,7 +142,7 @@
     </ul>
 
     <h2 id="s4">§4 — Record which release answered</h2>
-<section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s4" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
     <p>The served name stays <code>deepseek-v4.1-flash</code> through the rotation, so the name
     no longer says which weights answered. Two records carry it instead. The field is named
     <code>checkpoint</code>, because "release" already means two other things in this
@@ -190,7 +190,7 @@
     </ul>
 
     <h2 id="s5">§5 — The rotation itself</h2>
-<section data-reckon="section" data-id="s5" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s5" data-effort-hours="1.5" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-status="done" data-links=""></section>
     <p>An engine relaunch under the lane-cycle runbook
     (<code>ops/lane-cycle/AGENTS.md</code>), run by the coordinator as a reported inline exception. A cycle is an
     operational action on a shared service, so it is never a worker node. The router does not
@@ -242,6 +242,14 @@
       real path.</li>
     </ul>
 
+    <h2 id="s6">§6 — Is 1017 better on our work?</h2>
+<section data-reckon="section" data-id="s6" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p>Public benchmarks put 1017 ahead of the September weights: +12 points on Vals' Terminal-Bench 4.0, and +6 on the Artificial Analysis index. Whether that holds on this lane's own work is a separate fact, and the lead asked for it to be measured. Every local-lane run is attributable to one checkpoint by the swap boundary, <strong>2026-10-23T20:14:30Z</strong>, and the recorder file per job. That makes a before/after comparison free.</p><p><strong>The comparison.</strong> Every <code>clive</code>-backend implementation run in every mounted project's ledger (<code>~/Code/*/docs/state/*/runs/*.json</code>) is split by dispatch time into a <em>before</em> window and an <em>after</em> window of equal length on each side of the boundary. Excluded are runs whose attempts straddle the boundary, and review runs. Per window it reports:</p><ul><li>promotion rate;</li><li>first-attempt gate pass rate;</li><li>the share of runs needing a repair or resume round;</li><li>mean independent-review score per dimension;</li><li>wall time per promoted run;</li><li>input, cached and output tokens per promoted run, joined from the request record by run id;</li><li>the share of requests that failed or aborted.</li></ul><p>Each difference gets a 95% bootstrap interval over runs. The work mix shifts between windows, and the comparison says so: it reports the project mix of each window and repeats the main figures restricted to the projects present in both. Its verdict is one of three: <em>better</em>, <em>no detectable difference</em>, or <em>worse</em>. A paired comparison on identical tasks is the deferred bake-off (<code>b300-bring-up-and-open-model-bakeoff</code> §7). This section names it as the next step if the verdict is no detectable difference.</p><p><strong>Write paths.</strong> <code>docs/research/deepseek-1017-on-our-work.html</code> (new), <code>docs/figures/deepseek-1017-on-our-work</code> (new). The analysis runs as a script recorded under <code>docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/</code>.</p><p><strong>Done when.</strong></p><ul><li>The research document gives both windows' bounds, run counts and project mix, every metric above with its interval, and the verdict, with one figure of the per-metric differences.</li><li>The analysis script and its log are committed, and rerunning it reproduces the document's numbers.</li><li><strong>Negative control:</strong> the same analysis with the boundary moved to a point inside the before window, splitting September runs from September runs, must report no detectable difference on the promotion and first-attempt rates.</li></ul>
+
+    <h2 id="s7">§7 — llm-watch names the checkpoint</h2>
+<section data-reckon="section" data-id="s7" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<p>gpu-watch's head line now names the checkpoint from <code>endpoints.json</code>'s <code>checkpoints</code> map (dotfiles <code>252dc4e</code>). llm-watch's head line still shows only the served name, which is the same for both checkpoints. It gains the same label, read from the same map: the repository's last path part and a short commit, or a yellow <code>checkpoint unrecorded</code> when the map names none. The live document carries the map, so the view renders it and does not read the file itself.</p><p><strong>Write paths.</strong> <code>imas_ambix/agent/live_panel.py</code>, <code>imas_ambix/agent/llm_watch.py</code>, <code>tests/test_llm_watch.py</code>, <code>tests/golden/llm_watch</code>.</p><p><strong>Done when.</strong></p><ul><li>The live document carries the <code>checkpoints</code> map, and llm-watch's head line renders <code>DeepSeek-V4.1-Flash-1017@1bae0e10</code> from a fixture holding today's map. The goldens are updated.</li><li><strong>Negative control:</strong> a fixture with no <code>checkpoints</code> map renders <code>checkpoint unrecorded</code>, never a blank.</li></ul>
+
     <section data-reckon="decisions" id="decisions" class="r-decisions">
 <h2><span class="sec">§</span> Decisions</h2>
 <div class="r-dec" data-key="served-name" data-choice="keep-name-record-release" data-by="Simon McIntosh" data-when="2026-10-23">
@@ -291,7 +299,13 @@
     <div class="r-comment-body"><p>A serve's registration and the published document now carry the checkpoint the serve loaded. The generated serve script writes `--checkpoint &lt;hf_repo&gt;@&lt;revision&gt;` from its profile, or `&lt;hf_repo&gt;@unpinned` where the profile pins no revision; the registration keeps that field, and endpoints.json publishes it in a top-level `checkpoints` map keyed by engine id, with every engine entry keeping the seven keys it had, because a deployed launcher validates an entry by exact key set and fails closed on an unfamiliar field. The recorder's serve_config gains model_path read from the engine's own report. Gate: 81 passed EXIT=0 over the three declared files; `ruff check imas_ambix tests` exits 0.</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261023T194321441579-review-of-serve-records-its-checkpoint-22ee75734bbd-figure" data-who="reckon-build" data-when="2026-10-23T19:58:00.431Z">
-    <div class="r-comment-body"><p>Read-only figure review of the single PNG attached to run r-20261023T171537431674-serve-records-its-checkpoint; the record was written, not committed, because a review record lives outside the repo at the run&#x27;s review-records path.</p></div>
+    <div class="r-comment-body"><p>Read-only figure review of the single PNG attached to run r-20261023T171537431674-serve-records-its-checkpoint; the record was written, not committed, because a review record lives outside the repo at the run's review-records path.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-close-s4" data-who="reckon-build" data-when="2026-10-26T20:45:00Z">
+    <div class="r-comment-body"><p>§4 landed in <code>bfdf4073</code>. The registration carries the checkpoint, <code>endpoints.json</code> publishes a top-level <code>checkpoints</code> map (entry keys unchanged, so installed clive keeps validating), and recorder rows carry <code>model_path</code>. 81 tests pass and the review scored 16 to 20. <a href="/imas-ambix/evidence/archive/rotate-to-deepseek-v4-1-flash-1017-landed.html#s4">evidence</a></p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-close-s5" data-who="reckon-build" data-when="2026-10-26T20:45:00Z">
+    <div class="r-comment-body"><p>§5 done. The H200 lane has served DeepSeek-V4.1-Flash-1017 since 2026-10-23T20:14:30Z (job 1294597), after a 10-minute pause with tool-call validation and no rollback. The router was restarted afterwards (job 1294603; held registrations live, 5 s startup). The first hour's failed share was 2.24% against 1.90% the day before, and 90 local-lane runs were promoted on 1017 since. <a href="/imas-ambix/evidence/archive/rotate-to-deepseek-v4-1-flash-1017-landed.html#s5">evidence</a></p></div>
 </div>
 </section>
 </main>
