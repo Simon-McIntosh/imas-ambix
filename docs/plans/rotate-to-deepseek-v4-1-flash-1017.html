@@ -25,7 +25,7 @@
   <title>Rotate to DeepSeek-V4.1-Flash-1017 | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="42">
+<meta name="plan-version" content="43">
 <meta name="plan-modified" content="2026-10-26">
 </head>
 <body>
@@ -310,6 +310,9 @@
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261026T214155779982-review-of-llm-watch-names-the-checkpoint-86d25dda8677" data-who="reckon-build" data-when="2026-10-26T21:51:18.211Z">
     <div class="r-comment-body"><p>review of llm-watch-names-the-checkpoint (base f7631d98, head 86d25dda) scores goal_fidelity 19, evidence 15, scope_discipline 19, durability 17, fit 17, reuse 18 (total 105) with two non-blocking findings — the declared negative control reddens the yellow-path test through a fixture KeyError rather than through the assertion it guards, and the log labelled with the base revision collected the head's 24 items so the run holds no clean-base arm — and no blocking finding, added_failure_count 0.</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-run-r-20261026T212948569739-llm-watch-names-the-checkpoint" data-who="reckon-build" data-when="2026-10-26T21:40:33.690Z">
+    <div class="r-comment-body"><p>llm-watch&#x27;s head line now names the checkpoint the served engine loaded, looked up in the endpoint document&#x27;s checkpoints map through registry._engine_id (a raw-host key misses, which a test asserts), rendering &quot;deepseek-v4.1-flash · DeepSeek-V4.1-Flash-1017@1bae0e10 · 4×H200 · gpu-0003 · 262k ctx&quot; on today&#x27;s map and a yellow &quot;checkpoint unrecorded&quot; when the map names none — 24 passed plus whole-tree ruff clean, EXIT=0.</p></div>
 </div>
 <div class="r-comment" data-section="_top" data-id="c-close-s7" data-who="reckon-build" data-when="2026-10-26T22:00:00Z">
     <div class="r-comment-body"><p>§7 landed in <code>ab9fc2a9</code>. llm-watch's head line names <code>DeepSeek-V4.1-Flash-1017@1bae0e10</code>, looked up through the registry's engine-id function, and shows a yellow <code>checkpoint unrecorded</code> when no checkpoint is recorded. 24 tests passed, and the review scored 15 to 20. <a href="/imas-ambix/evidence/archive/rotate-to-deepseek-v4-1-flash-1017-landed.html#s7">evidence</a></p></div>
