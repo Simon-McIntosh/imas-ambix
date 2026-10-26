@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="research">
+  <meta name="plan-slug"     content="deepseek-1017-on-our-work">
+  <meta name="plan-title"    content="Is DeepSeek-V4.1-Flash-1017 better on our work? — local-lane implementation runs either side of the 2026-10-23 swap">
+  <meta name="plan-summary"  content="300 before-window and 97 after-window clive implementation runs: first-attempt gate pass rate rose 17.5 points and repair/resume share fell 12.2 points, with input and output tokens per promoted run down a third and a half; verdict better">
+  <meta name="plan-tags"     content="agent-serving,local-lane">
+  <meta name="plan-informs"  content="imas-ambix:rotate-to-deepseek-v4-1-flash-1017,imas-ambix:b300-bring-up-and-open-model-bakeoff">
+  <title>DeepSeek-1017 on our work | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — What was measured</h2>
+    <p>The local lane swapped checkpoints at <strong>2026-10-23T20:14:30Z</strong>: job
+    1280470 served the September weights and job 1294597 has served
+    <code>DeepSeek-V4.1-Flash-1017</code> since. Both jobs are recorded in
+    <a href="/imas-ambix/lane-cycles.jsonl"><code>lane-cycles.jsonl</code></a>, so every
+    <code>clive</code>-backend run dispatches entirely to one side of that instant. This
+    document compares the implementation runs on each side.</p>
+    <ul>
+      <li><strong>Before window:</strong> 2026-10-20T20:14:30Z to 2026-10-23T20:14:30Z, three
+      days ending at the boundary.</li>
+      <li><strong>After window:</strong> 2026-10-23T20:14:30Z to 2026-10-26T20:14:30Z, three
+      days starting at it.</li>
+      <li><strong>Seven-day before window</strong> (a sensitivity check, not the main
+      comparison): 2026-10-16T20:14:30Z to the boundary.</li>
+    </ul>
+    <p>Every mounted project's run ledger was read
+    (<code>~/Code/*/docs/state/*/runs/*.json</code>, 12,527 records). A record counts only
+    when its <code>role</code> is <code>implement</code> and its <code>backend</code> is
+    <code>clive</code>; that pair selects 2,865 records across all history. Runs whose
+    dispatch-to-completion interval straddles the boundary are excluded from both windows,
+    because the work a straddling run did is attributable to neither checkpoint alone.</p>
+    <table>
+      <thead>
+        <tr><th>window</th><th>bounds (UTC)</th><th>runs in window</th><th>straddling, excluded</th><th>analysed</th><th>promoted</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>before</td><td>2026-10-20T20:14:30Z .. 2026-10-23T20:14:30Z</td><td>314</td><td>14</td><td>300</td><td>297</td></tr>
+        <tr><td>after</td><td>2026-10-23T20:14:30Z .. 2026-10-26T20:14:30Z</td><td>97</td><td>0</td><td>97</td><td>97</td></tr>
+        <tr><td>before, seven days</td><td>2026-10-16T20:14:30Z .. 2026-10-23T20:14:30Z</td><td>697</td><td>14</td><td>683</td><td>671</td></tr>
+      </tbody>
+    </table>
+    <p><strong>Project mix.</strong> The windows do not hold the same kinds of work, and the
+    comparison says so rather than assuming it away. Before: reckon 132, power_convertor 79,
+    imas-codex 37, imas-efit 30, nova 13, imas-ambix 8, imas-standard-names 1. After:
+    reckon 59, imas-codex 17, power_convertor 12, nova 8, imas-efit 1. Reckon is a larger
+    share after the swap (61% against 44%), imas-efit almost disappears, and imas-ambix and
+    imas-standard-names appear only before. Every headline figure is therefore repeated in
+    <a href="#s4">§4</a> restricted to the five projects present in both windows.</p>
+
+    <h2 id="s2">§2 — Positive control, evaluated before any verdict</h2>
+    <p>The comparison is only reported as a result if the instrument can see the population
+    it claims to describe. Three checks ran first, and all passed:</p>
+    <table>
+      <thead><tr><th>check</th><th>before</th><th>after</th></tr></thead>
+      <tbody>
+        <tr><td>at least 30 runs</td><td>300 &#10003;</td><td>97 &#10003;</td></tr>
+        <tr><td>independent ledger count</td><td>314</td><td>97</td></tr>
+        <tr><td>analysed + excluded reconciles to it</td><td>300 + 14 = 314 &#10003;</td><td>97 + 0 = 97 &#10003;</td></tr>
+        <tr><td>token join to the request record</td><td>297 / 297 = 100% &#10003;</td><td>97 / 97 = 100% &#10003;</td></tr>
+      </tbody>
+    </table>
+    <p>The independent count walks the ledger directories itself and applies its own window
+    test, so a filter defect in the analysis path shows up as a mismatch rather than as a
+    quietly smaller sample. A failed check yields <em>insufficient data</em> and nothing
+    else; none failed.</p>
+
+    <h2 id="s3">§3 — The metrics</h2>
+    <p>Each estimate carries a 95% bootstrap interval over runs (2,000 resamples). Rates and
+    per-run quantities are means over the runs in the window; review scores are means over
+    the runs that carried a parsed independent review (288 before, 95 after).</p>
+    <table>
+      <thead>
+        <tr><th>metric</th><th>before (n)</th><th>after (n)</th><th>after − before [95% CI]</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>promotion rate</td><td>0.990 (300)</td><td>1.000 (97)</td><td>+0.010 [0.000, +0.023]</td></tr>
+        <tr><td>first-attempt gate pass rate</td><td>0.320 (300)</td><td>0.495 (97)</td><td><strong>+0.175 [+0.065, +0.291]</strong></td></tr>
+        <tr><td>repair or resume share</td><td>0.607 (300)</td><td>0.485 (97)</td><td><strong>−0.122 [−0.235, −0.005]</strong></td></tr>
+        <tr><td>review: durability</td><td>16.10 (288)</td><td>16.46 (95)</td><td>+0.37 [−0.32, +1.04]</td></tr>
+        <tr><td>review: evidence</td><td>16.32 (288)</td><td>16.43 (95)</td><td>+0.11 [−0.31, +0.54]</td></tr>
+        <tr><td>review: fit</td><td>17.80 (288)</td><td>18.16 (95)</td><td><strong>+0.36 [+0.10, +0.61]</strong></td></tr>
+        <tr><td>review: goal fidelity</td><td>18.37 (288)</td><td>18.60 (95)</td><td>+0.23 [−0.14, +0.56]</td></tr>
+        <tr><td>review: scope discipline</td><td>19.06 (288)</td><td>19.37 (95)</td><td>+0.31 [−0.12, +0.67]</td></tr>
+        <tr><td>wall time per promoted run [s]</td><td>10,491 (297)</td><td>8,670 (97)</td><td>−1,821 [−6,145, +3,870]</td></tr>
+        <tr><td>input tokens per promoted run</td><td>31.60M (297)</td><td>20.25M (97)</td><td><strong>−11.35M [−15.35M, −7.25M]</strong></td></tr>
+        <tr><td>output tokens per promoted run</td><td>163,545 (297)</td><td>87,089 (97)</td><td><strong>−76,457 [−96,694, −56,912]</strong></td></tr>
+        <tr><td>cached tokens per promoted run</td><td colspan="3">not measured — see <a href="#s7">§7</a></td></tr>
+        <tr><td>failed or aborted requests</td><td>0.0187 (141,782)</td><td>0.0196 (42,093)</td><td>+0.0008 [−0.0007, +0.0023]</td></tr>
+      </tbody>
+    </table>
+    <figure>
+      <img src="/imas-ambix/figures/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work/differences.svg"
+           alt="Per-metric after-minus-before differences with 95% intervals, on three scales">
+      <figcaption>After-minus-before differences for every metric, each with its 95% interval.
+      The three panels carry three different scales, because a rate difference of 0.17 and a
+      token difference of eleven million cannot share an axis without hiding the rates.
+      Teal marks an interval that excludes zero; grey crosses it. Per-run quantities are
+      expressed relative to the before-window mean. Cached tokens are omitted because the
+      request record never fills that column. Every label is drawn as a vector path rather
+      than as an SVG <code>&lt;text&gt;</code> element, because a renderer without the named
+      font drops the label silently and leaves an unreadable figure with no error.
+      Produced by
+      <code>docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.py</code>.</figcaption>
+    </figure>
+
+    <h2 id="s4">§4 — Restricted to projects present in both windows</h2>
+    <p>The restriction drops imas-ambix and imas-standard-names from the before side, leaving
+    291 before and 97 after. Every material result survives, and the first-attempt gain is
+    essentially unchanged, so it is not an artefact of the shifting work mix:</p>
+    <table>
+      <thead><tr><th>metric</th><th>after − before, common projects [95% CI]</th></tr></thead>
+      <tbody>
+        <tr><td>promotion rate</td><td>+0.010 [0.000, +0.024]</td></tr>
+        <tr><td>first-attempt gate pass rate</td><td><strong>+0.175 [+0.065, +0.285]</strong></td></tr>
+        <tr><td>repair or resume share</td><td>−0.120 [−0.230, 0.000]</td></tr>
+        <tr><td>review: fit</td><td><strong>+0.362 [+0.104, +0.624]</strong></td></tr>
+        <tr><td>review: durability</td><td>+0.399 [−0.327, +1.095]</td></tr>
+        <tr><td>review: scope discipline</td><td>+0.300 [−0.144, +0.699]</td></tr>
+        <tr><td>wall time per promoted run [s]</td><td>−1,948 [−6,309, +4,387]</td></tr>
+        <tr><td>input tokens per promoted run</td><td><strong>−11.43M [−15.74M, −7.18M]</strong></td></tr>
+        <tr><td>output tokens per promoted run</td><td><strong>−77,988 [−99,735, −56,696]</strong></td></tr>
+        <tr><td>failed or aborted requests</td><td>+0.0008 [−0.0007, +0.0023]</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s5">§5 — Sensitivity: the seven-day before window</h2>
+    <p>A three-day before window is short, and the day it starts on may be unrepresentative.
+    Against the seven-day window (683 runs) the direction of every material result holds:
+    first-attempt gate pass <strong>+0.160 [+0.054, +0.263]</strong>, repair or resume share
+    −0.076 [−0.182, +0.027], input tokens per promoted run −5.65M [−8.94M, −2.21M], output
+    tokens −45,807 [−60,781, −30,410]. The token reductions are smaller against the longer
+    baseline, which is expected if the lane was already converging on a shorter working
+    pattern before the swap; the first-attempt gain is not, which is the result the verdict
+    rests on.</p>
+
+    <h2 id="s6">§6 — Moved-boundary control</h2>
+    <p>The same analysis was run with the boundary moved to
+    2026-10-22T08:14:30Z, the midpoint of the before window, so that both sides hold runs
+    from the same checkpoint and the same weeks. The positive control still passed on both
+    sides, and neither primary metric shows a detectable difference: promotion rate
+    +0.005 [−0.015, +0.030], first-attempt gate pass −0.042 [−0.147, +0.058]. The instrument
+    therefore reports no change where the weights did not change, which is what makes the
+    real boundary's first-attempt result worth reading.</p>
+
+    <h2 id="s7">§7 — What the instrument could not measure</h2>
+    <ul>
+      <li><strong>Cached tokens are not recorded.</strong> Every row of
+      <code>requests-2026-10-25.jsonl</code> (3,088 rows; the same holds for the other days)
+      carries <code>cached_prompt_tokens: null</code>. The metric is reported as unmeasured
+      rather than as a zero, because a zero here would describe the recorder, not the lane.</li>
+      <li><strong>Promotion rate is at its ceiling.</strong> 297 of 300 before and 97 of 97
+      after promoted, so the metric is reported and its interval is real, but it has no room
+      to show an improvement. A regression would still show.</li>
+      <li><strong>Wall time is heavy-tailed.</strong> The before mean carries a standard
+      error wide enough that the interval spans both a large improvement and a large
+      regression. The median would be tighter, and the mean is what the section asked for.</li>
+      <li><strong>Failed and aborted requests are counted over the whole lane</strong>
+      (141,782 before, 42,093 after), not only over implementation runs, because the request
+      record's <code>run_id</code> is absent on the router-level rows that fail before a run
+      is attributed.</li>
+    </ul>
+
+    <h2 id="s8">§8 — Verdict</h2>
+    <p><strong>Better.</strong> The local lane's implementation runs pass their gate on the
+    first attempt 17.5 points more often after the swap (95% CI +6.5 to +29.1 points), need
+    a repair or resume round 12.2 points less often (−23.5 to −0.5), score 0.36 points
+    higher on the reviewers' fit dimension (+0.10 to +0.61), and spend about a third less
+    input and half less output per promoted run. Both restrictions hold the direction, the
+    positive control passed in both windows, and the moved-boundary control is clean.</p>
+    <p>The limits of the claim are worth stating plainly. This is a before/after comparison
+    of work that was not assigned by design: the tasks differ, the project mix differs, and
+    the after window is a third the size of the before window. It answers "did the lane do
+    our work better after the swap" and not "is 1017 better than the September weights at
+    the same task". The second question needs the paired bake-off, which
+    <code>b300-bring-up-and-open-model-bakeoff</code> §7 already names and which this result
+    does not replace.</p>
+    <p><strong>Reproducing this.</strong> The analysis script and its log live at
+    <code>docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.py</code>
+    and <code>…/deepseek-1017-on-our-work.log</code>. The script reads the ledgers and the
+    request record, seeds its resampling, and prints every figure above; rerunning it
+    reproduces these numbers. It reads the whole request record, so it belongs on a compute
+    node, not a login node.</p>
+  </main>
+</body>
+</html>

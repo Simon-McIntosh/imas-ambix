@@ -1,0 +1,88 @@
+# revision: 987c54c1035fe7350503806340d5417a40468dfc
+# tree: /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/b52968d9-6db7-419c-88fb-9893fefc4514/deepseek-1017-on-our-work
+# host: 98dci4-clu-2068.iter.org job 1291586
+# command: ANALYSIS_JSON=results.json FIGURE_PNG=figure-preview.png /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python -u /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/b52968d9-6db7-419c-88fb-9893fefc4514/deepseek-1017-on-our-work/docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.py
+# cwd: /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/b52968d9-6db7-419c-88fb-9893fefc4514/deepseek-1017-on-our-work
+# module.__file__: /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/b52968d9-6db7-419c-88fb-9893fefc4514/deepseek-1017-on-our-work/docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.py
+# analysis: local-lane implementation runs around 2026-10-23T20:14:30+00:00
+# ledger glob: /home/ITER/mcintos/Code/*/docs/state/*/runs/*.json
+# request files: 5
+# implement/clive ledger records: 2869
+  request file requests.jsonl: 853565 rows
+  request file requests-2026-10-23.jsonl.gz: 7021 rows
+  request file requests-2026-10-24.jsonl: 31683 rows
+  request file requests-2026-10-25.jsonl: 3088 rows
+  request file requests-2026-10-26.jsonl: 2934 rows
+# request rows with a timestamp: 898291
+# distinct run ids in the request record: 11319
+# projects present in both windows: ['imas-codex', 'imas-efit', 'nova', 'power_convertor', 'reckon']
+
+== windows ==
+before: 2026-10-20T20:14:30+00:00 .. 2026-10-23T20:14:30+00:00 analysed=300 excluded_straddlers=14 promoted=297
+  projects: {'reckon': 132, 'power_convertor': 79, 'imas-codex': 37, 'imas-efit': 30, 'nova': 13, 'imas-ambix': 8, 'imas-standard-names': 1}
+after: 2026-10-23T20:14:30+00:00 .. 2026-10-26T20:14:30+00:00 analysed=97 excluded_straddlers=0 promoted=97
+  projects: {'reckon': 59, 'imas-codex': 17, 'power_convertor': 12, 'nova': 8, 'imas-efit': 1}
+before_7d: 2026-10-16T20:14:30+00:00 .. 2026-10-23T20:14:30+00:00 analysed=683 excluded_straddlers=14 promoted=671
+  projects: {'reckon': 311, 'power_convertor': 150, 'imas-codex': 109, 'imas-efit': 52, 'nova': 46, 'imas-ambix': 10, 'hanney': 3, 'imas-standard-names': 2}
+
+== positive control ==
+before: {"runs_at_least_30": true, "independent_count": 314, "analysed_count": 300, "straddlers_excluded": 14, "count_reconciles": true, "token_join_share": 1.0, "token_join_at_least_90pct": true, "passed": true}
+after: {"runs_at_least_30": true, "independent_count": 97, "analysed_count": 97, "straddlers_excluded": 0, "count_reconciles": true, "token_join_share": 1.0, "token_join_at_least_90pct": true, "passed": true}
+passed: True
+
+== metrics ==
+promotion_rate: before 0.99 [0.976667, 1.0] (n=300) | after 1.0 [1.0, 1.0] (n=97) | diff 0.01 [0.0, 0.023333]
+first_attempt_pass: before 0.32 [0.27, 0.373333] (n=300) | after 0.494845 [0.402062, 0.597938] (n=97) | diff 0.174845 [0.064777, 0.290653]
+repair_resume_share: before 0.606667 [0.55, 0.66] (n=300) | after 0.484536 [0.381443, 0.57732] (n=97) | diff -0.122131 [-0.234914, -0.005395]
+review_durability: before 16.097222 [15.736111, 16.444444] (n=288) | after 16.463158 [15.842105, 17.021053] (n=95) | diff 0.365936 [-0.316959, 1.044371]
+review_evidence: before 16.319444 [16.09375, 16.53125] (n=288) | after 16.431579 [16.052632, 16.8] (n=95) | diff 0.112135 [-0.314218, 0.539108]
+review_fit: before 17.802083 [17.666667, 17.927083] (n=288) | after 18.157895 [17.936842, 18.368421] (n=95) | diff 0.355811 [0.097332, 0.606469]
+review_goal_fidelity: before 18.368056 [18.177083, 18.527778] (n=288) | after 18.6 [18.252632, 18.873684] (n=95) | diff 0.231944 [-0.14364, 0.557602]
+review_scope_discipline: before 19.0625 [18.819444, 19.270833] (n=288) | after 19.368421 [18.989474, 19.663158] (n=95) | diff 0.305921 [-0.120541, 0.672039]
+wall_seconds: before 10490.754209 [8723.259259, 12718.23569] (n=297) | after 8669.979381 [5102.030928, 14394.443299] (n=97) | diff -1820.774827 [-6144.835815, 3869.522163]
+input_tokens: before 31597342.93266 [28783317.420875, 34648743.148148] (n=297) | after 20250993.927835 [17634324.381443, 23253662.041237] (n=97) | diff -11346349.004825 [-15354590.927314, -7254671.153702]
+cached_tokens: before 0.0 [0.0, 0.0] (n=297) | after 0.0 [0.0, 0.0] (n=97) | diff 0.0 [0.0, 0.0]
+output_tokens: before 163545.441077 [147680.141414, 181063.397306] (n=297) | after 87088.649485 [76607.329897, 99508.402062] (n=97) | diff -76456.791593 [-96693.818147, -56911.781179]
+request_failure_share: before 0.018705 [0.018012, 0.019423] (n=141782) | after 0.019552 [0.018272, 0.020919] (n=42093) | diff 0.000847 [-0.000652, 0.002346]
+
+== differences restricted to projects present in both windows ==
+promotion_rate: 0.010309 [0.0, 0.024055] (n_after=97, n_before=291)
+first_attempt_pass: 0.175258 [0.065292, 0.285223] (n_after=97, n_before=291)
+repair_resume_share: -0.120275 [-0.230241, 0.0] (n_after=97, n_before=291)
+review_durability: 0.398642 [-0.327033, 1.095227] (n_after=95, n_before=279)
+review_evidence: 0.148425 [-0.276212, 0.576646] (n_after=95, n_before=279)
+review_fit: 0.362196 [0.104395, 0.624486] (n_after=95, n_before=279)
+review_goal_fidelity: 0.245161 [-0.147897, 0.576231] (n_after=95, n_before=279)
+review_scope_discipline: 0.300321 [-0.143822, 0.698547] (n_after=95, n_before=279)
+wall_seconds: -1948.378257 [-6309.37006, 4387.319051] (n_after=97, n_before=288)
+input_tokens: -11425885.013137 [-15738685.477019, -7176185.883233] (n_after=97, n_before=288)
+cached_tokens: 0.0 [0.0, 0.0] (n_after=97, n_before=288)
+output_tokens: -77987.76371 [-99735.150451, -56696.072129] (n_after=97, n_before=288)
+request_failure_share: 0.000847 [-0.000652, 0.002346] (n_after=42093, n_before=141782)
+
+== sensitivity: 7-day before window ==
+promotion_rate: 0.01757 [0.008785, 0.027818]
+first_attempt_pass: 0.15956 [0.053599, 0.262653]
+repair_resume_share: -0.076225 [-0.182186, 0.026868]
+review_durability: 0.537407 [-0.09788, 1.15698]
+review_evidence: 0.005039 [-0.410244, 0.414052]
+review_fit: 0.347468 [0.12432, 0.578565]
+review_goal_fidelity: 0.255608 [-0.108589, 0.562435]
+review_scope_discipline: 0.30365 [-0.102719, 0.634722]
+wall_seconds: -136.804523 [-4056.827754, 5451.669166]
+input_tokens: -5650302.458156 [-8942506.97846, -2205891.493708]
+cached_tokens: 0.0 [0.0, 0.0]
+output_tokens: -45806.982408 [-60781.152319, -30410.051639]
+request_failure_share: -0.000405 [-0.001826, 0.001016]
+
+== moved-boundary control ==
+boundary 2026-10-22T08:14:30+00:00 control_passed=True no_detectable_difference=True
+promotion_rate: 0.005429 [-0.014768, 0.030274]
+first_attempt_pass: -0.041697 [-0.147331, 0.057725]
+
+== verdict ==
+better: first_attempt_pass +0.175 [0.065, 0.285]
+# results written to /tmp/reckon-crew-scratch/r-20261026T212818772272-deepseek-1017-on-our-work/results.json
+
+# figure written to /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/b52968d9-6db7-419c-88fb-9893fefc4514/deepseek-1017-on-our-work/docs/figures/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work/differences.svg
+EXIT=0

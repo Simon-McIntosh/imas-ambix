@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="reckon-type" content="evidence">
+  <title>DeepSeek-1017 on our work — evidence</title>
+</head>
+<body>
+  <section id="deepseek-1017-on-our-work-evidence">
+    <h3 id="deepseek-1017-on-our-work-what">What was measured</h3>
+    <p id="deepseek-1017-on-our-work-what-body">Every mounted project's run ledger was
+    scanned for records whose <code>role</code> is <code>implement</code> and whose
+    <code>backend</code> is <code>clive</code>, and split at the checkpoint swap boundary
+    2026-10-23T20:14:30Z into equal three-day windows: 300 analysed runs before (14
+    straddlers excluded) and 97 after. The request record was joined by
+    <code>run_id</code>. The analysis reads the whole request record and ran on compute node
+    98dci4-clu-2068 under job 1291586.</p>
+
+    <h3 id="deepseek-1017-on-our-work-control">Positive control</h3>
+    <p id="deepseek-1017-on-our-work-control-body">Passed in both windows. Before: 314 ledger
+    records independently counted, 300 analysed plus 14 straddling excluded, token join
+    297 of 297. After: 97 counted, 97 analysed, token join 97 of 97. Each window holds more
+    than the required 30 runs. The moved-boundary control, with the boundary at
+    2026-10-22T08:14:30Z inside the before window, also passed and reported no detectable
+    difference on promotion (+0.005 [−0.015, +0.030]) or first-attempt gate pass
+    (−0.042 [−0.147, +0.058]).</p>
+
+    <h3 id="deepseek-1017-on-our-work-result">Result</h3>
+    <p id="deepseek-1017-on-our-work-result-body">Verdict <strong>better</strong>.
+    First-attempt gate pass rate +0.175 [+0.065, +0.291]; repair or resume share
+    −0.122 [−0.235, −0.005]; review fit +0.36 [+0.10, +0.61]; input tokens per promoted run
+    −11.35M [−15.35M, −7.25M]; output tokens −76,457 [−96,694, −56,912]. Restricted to the
+    five projects present in both windows (291 before, 97 after) the first-attempt gain is
+    +0.175 [+0.065, +0.285] and every material direction holds. Promotion rate is at its
+    ceiling (0.99 vs 1.00) and cannot discriminate; wall time's interval spans zero; cached
+    tokens are null in every request row and are reported as unmeasured, not zero.</p>
+
+    <h3 id="deepseek-1017-on-our-work-artifacts">Artifacts</h3>
+    <ul id="deepseek-1017-on-our-work-artifacts-list">
+      <li id="deepseek-1017-on-our-work-artifacts-doc"><a href="/imas-ambix/research/deepseek-1017-on-our-work.html">research document</a></li>
+      <li id="deepseek-1017-on-our-work-artifacts-script"><code>docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.py</code></li>
+      <li id="deepseek-1017-on-our-work-artifacts-log"><code>docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.log</code></li>
+      <li id="deepseek-1017-on-our-work-artifacts-figure"><a href="/imas-ambix/figures/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work/differences.svg">per-metric differences, three panels</a></li>
+    </ul>
+  </section>
+</body>
+</html>
