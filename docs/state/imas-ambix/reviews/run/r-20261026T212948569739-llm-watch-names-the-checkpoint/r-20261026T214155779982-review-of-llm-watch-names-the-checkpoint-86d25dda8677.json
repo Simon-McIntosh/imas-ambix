@@ -1,0 +1,87 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/llm_watch.py:810 (render -> head_line)",
+    "imas_ambix/agent/llm_watch.py:868 (main.once -> build_document)",
+    "pyproject.toml:162 (llm-watch console script)"
+  ],
+  "completed_at": "2026-10-26T21:51:18.211Z",
+  "dispatched_at": "2026-10-26T21:42:57Z",
+  "findings": [
+    {
+      "file": "tests/test_llm_watch.py",
+      "line": "565",
+      "severity": "non-blocking",
+      "text": "non-blocking: the declared negative control removes the checkpoints map from the fixtures, so this test failed with KeyError: 'checkpoints' at its own del line (logs/negative-control.log:373-377) rather than through the assertion it guards, leaving the \"checkpoint unrecorded, never blank\" path undemonstrated by the control even though removing the else branch at imas_ambix/agent/llm_watch.py:265-266 does redden it."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T212948569739-llm-watch-names-the-checkpoint/logs/gate-head.log",
+      "line": "1",
+      "severity": "non-blocking",
+      "text": "non-blocking: the log's header names rev f7631d98 while it reports 24 passed, the head's collected count (the base file holds 13 test functions, one parametrized over 8, so 20 items), so it measured a tree already carrying the four new tests and the run holds no clean-base arm; the recorded delta is therefore 0 vs 0 rather than base against head."
+    }
+  ],
+  "gate_evidence": {
+    "after": {
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T212948569739-llm-watch-names-the-checkpoint/logs/gate-head-final.log",
+      "revision": "1df6563caf3ee6e8487f8e6c21f0d4f068833bb7"
+    },
+    "baseline": {
+      "completed": true,
+      "exit_status": 0,
+      "failure_count": 0,
+      "failure_ids": [],
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T212948569739-llm-watch-names-the-checkpoint/logs/gate-head.log",
+      "note": "header names the base revision but collected the head's 24 items, so the tree already carried the new tests; treated as the run's only before-arm.",
+      "revision": "f7631d9839e773dc3d4cef80bb478c4bc9b1ab28"
+    },
+    "negative_control": {
+      "exit_status": 1,
+      "failure_count": 11,
+      "log_path": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T212948569739-llm-watch-names-the-checkpoint/logs/negative-control.log"
+    }
+  },
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "read commit by commit against f7631d98 \u2014 1df6563c adds checkpoint_label and the build's site-path read, the four tests and eight goldens; 86d25dda adds only the evidence fragment; 212 insertions, 10 deletions, all inside the declared scope.",
+    "done_when": "read the done_when against tests/test_llm_watch.py:527-600 and logs/gate-head-final.log; the named command ran at 1df6563c with 24 passed, EXIT=0, and ruff exited 0 in logs/ruff.log.",
+    "goal": "read the node goal (head line names the checkpoint read from endpoints.json's checkpoints map in llm_watch's document build) against imas_ambix/agent/llm_watch.py:212-246, 264-266 and 761-772; the head line now renders the map's value through registry._engine_id.",
+    "manifest": "read at /home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T212948569739-llm-watch-names-the-checkpoint/manifest.md; it states status complete, names the tests line, the three logs, the negative-control log and its 11 failed/13 passed figure.",
+    "write_paths": "read the manifest's declared paths (imas_ambix/agent/llm_watch.py, tests/test_llm_watch.py, tests/golden/llm_watch, the plan fragment, the figures dir) against `git diff --stat f7631d98 86d25dda`; every changed path is inside them and no figure was written."
+  },
+  "justifications": {
+    "durability": "tests/test_llm_watch.py:559-561 fails if checkpoint_label keys on the raw host instead of registry._engine_id, and the eight goldens redden if the label is dropped.",
+    "evidence": "tests/test_llm_watch.py:527-600 is the named gate and logs/gate-head-final.log records 24 passed EXIT=0, but the control's yellow-path failure is a fixture KeyError (tests/test_llm_watch.py:565) and logs/gate-head.log:1 is not a clean base arm.",
+    "fit": "imas_ambix/agent/llm_watch.py:212-246 follows the module's existing engine_endpoint lookup and yellow-unavailable idiom at :463, and every new name states the mechanism.",
+    "goal_fidelity": "imas_ambix/agent/llm_watch.py:264-266 renders the short label between the served name and the card count, and :766-772 carries the map from the endpoint document into the build.",
+    "reuse": "imas_ambix/agent/llm_watch.py:239 keys through registry._engine_id, the owner of that identifier; the label formatter has no in-repo owner (searched imas_ambix for checkpoints, rsplit(\"/\"), [:8], short_rev) and gpu-watch's equivalent lives outside this repository.",
+    "scope_discipline": "every path in `git diff --stat f7631d98 86d25dda` sits inside the manifest's declared write paths, and live_panel.py is untouched as the plan requires."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: read the node goal (head line names the checkpoint read from endpoints.json's checkpoints map in llm_watch's document build) against imas_ambix/agent/llm_watch.py:212-246, 264-266 and 761-772; the head line now renders the map's value through registry._engine_id.\nVERDICT done_when: read the done_when against tests/test_llm_watch.py:527-600 and logs/gate-head-final.log; the named command ran at 1df6563c with 24 passed, EXIT=0, and ruff exited 0 in logs/ruff.log.\nVERDICT write_paths: read the manifest's declared paths (imas_ambix/agent/llm_watch.py, tests/test_llm_watch.py, tests/golden/llm_watch, the plan fragment, the figures dir) against `git diff --stat f7631d98 86d25dda`; every changed path is inside them and no figure was written.\nVERDICT manifest: read at /home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T212948569739-llm-watch-names-the-checkpoint/manifest.md; it states status complete, names the tests line, the three logs, the negative-control log and its 11 failed/13 passed figure.\nVERDICT diff: read commit by commit against f7631d98 \u2014 1df6563c adds checkpoint_label and the build's site-path read, the four tests and eight goldens; 86d25dda adds only the evidence fragment; 212 insertions, 10 deletions, all inside the declared scope.\nCALL_SITES: imas_ambix/agent/llm_watch.py:810 (render -> head_line), imas_ambix/agent/llm_watch.py:868 (main.once -> build_document), pyproject.toml:162 (llm-watch console script)\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/llm_watch.py:264-266 renders the short label between the served name and the card count, and :766-772 carries the map from the endpoint document into the build.\nSCORE evidence: 15\nJUSTIFICATION evidence: tests/test_llm_watch.py:527-600 is the named gate and logs/gate-head-final.log records 24 passed EXIT=0, but the control's yellow-path failure is a fixture KeyError (tests/test_llm_watch.py:565) and logs/gate-head.log:1 is not a clean base arm.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every path in `git diff --stat f7631d98 86d25dda` sits inside the manifest's declared write paths, and live_panel.py is untouched as the plan requires.\nSCORE durability: 17\nJUSTIFICATION durability: tests/test_llm_watch.py:559-561 fails if checkpoint_label keys on the raw host instead of registry._engine_id, and the eight goldens redden if the label is dropped.\nSCORE fit: 17\nJUSTIFICATION fit: imas_ambix/agent/llm_watch.py:212-246 follows the module's existing engine_endpoint lookup and yellow-unavailable idiom at :463, and every new name states the mechanism.\nSCORE reuse: 18\nJUSTIFICATION reuse: imas_ambix/agent/llm_watch.py:239 keys through registry._engine_id, the owner of that identifier; the label formatter has no in-repo owner (searched imas_ambix for checkpoints, rsplit(\"/\"), [:8], short_rev) and gpu-watch's equivalent lives outside this repository.\nFINDING tests/test_llm_watch.py:565 non-blocking: the declared negative control removes the checkpoints map from the fixtures, so this test failed with KeyError: 'checkpoints' at its own del line (logs/negative-control.log:373-377) rather than through the assertion it guards, leaving the \"checkpoint unrecorded, never blank\" path undemonstrated by the control even though removing the else branch at imas_ambix/agent/llm_watch.py:265-266 does redden it.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T212948569739-llm-watch-names-the-checkpoint/logs/gate-head.log:1 non-blocking: the log's header names rev f7631d98 while it reports 24 passed, the head's collected count (the base file holds 13 test functions, one parametrized over 8, so 20 items), so it measured a tree already carrying the four new tests and the run holds no clean-base arm; the recorded delta is therefore 0 vs 0 rather than base against head.",
+  "review_run_id": "r-20261026T214155779982-review-of-llm-watch-names-the-checkpoint-86d25dda8677",
+  "reviewed_base_sha": "f7631d9839e773dc3d4cef80bb478c4bc9b1ab28",
+  "reviewed_head_sha": "86d25dda8677c4926af6637122692b0485dfe654",
+  "reviewed_run_id": "r-20261026T212948569739-llm-watch-names-the-checkpoint",
+  "scores": {
+    "durability": 17,
+    "evidence": 15,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "reuse": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T21:53:58.140735+00:00",
+  "total": 105
+}
