@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project"  content="imas-ambix">
+  <meta name="reckon-type"   content="research">
+  <meta name="plan-slug"     content="b300-launch-recipes">
+  <meta name="plan-title"    content="B300 launch recipes — what each Blackwell serve setting rests on">
+  <meta name="plan-summary"  content="Every setting the deepseek-v4-1-flash profile declares for a B300 server at four and eight cards, with the source each one rests on and the one it does not yet have: the memory fraction is carried over from the Hopper measurement because no Blackwell counterpart exists">
+  <meta name="plan-tags"     content="agent-serving,blackwell,sglang">
+  <meta name="plan-informs"  content="imas-ambix:b300-bring-up-and-open-model-bakeoff">
+  <title>B300 launch recipes | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <h2 id="s1">§1 — What this records</h2>
+    <p>The <code>deepseek-v4-1-flash</code> profile renders a serve script for three
+    configurations: the H200 four-card default, and a B300 server at four and at eight
+    cards. The Blackwell configurations are selected by
+    <code>agent serve deepseek-v4-1-flash --server b300 --gpus 4|8</code>, resolved
+    through <code>ModelProfile.server_gpu_variants</code> — a section keyed by the
+    site-declared server name and then by card count.</p>
+    <p>This document records, for each Blackwell setting, the source it rests on. It
+    exists because a launch topology that was reasoned about and one that was scaled
+    proportionally from a different generation of silicon look identical in a generated
+    script, and the second kind fails on the model's own startup path rather than at
+    review time.</p>
+    <p><strong>The distinction that matters throughout:</strong> settings that follow from
+    the checkpoints and the kernels have a source and are stated as such; settings that
+    follow from measured device memory have one source only on Hopper, and are marked
+    unverified here rather than transferred silently.</p>
+
+    <h2 id="s2">§2 — The three configurations</h2>
+    <table>
+      <thead>
+        <tr><th>setting</th><th>H200 ×4 (default)</th><th>B300 ×4</th><th>B300 ×8</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>tensor / expert parallel</td><td>TP4 / EP4</td><td>TP4 / EP4</td><td>TP8 / EP8</td></tr>
+        <tr><td>KV pool (<code>max_total_tokens</code>)</td><td>4,000,000</td><td>4,000,000</td><td>8,000,000</td></tr>
+        <tr><td><code>context_length</code></td><td>262,144</td><td>524,288</td><td>524,288</td></tr>
+        <tr><td>running-request bound</td><td>36</td><td>24</td><td>48</td></tr>
+        <tr><td>decode CUDA-graph batch</td><td>36</td><td>24</td><td>48</td></tr>
+        <tr><td><code>kv_cache_dtype</code></td><td><em>profile default</em></td><td><code>fp8_e4m3</code></td><td><code>fp8_e4m3</code></td></tr>
+        <tr><td>MoE runner</td><td><em>profile default</em></td><td><code>auto</code></td><td><code>auto</code></td></tr>
+        <tr><td>DSpark draft depth</td><td>3</td><td>5</td><td>5</td></tr>
+        <tr><td>hierarchical cache</td><td>on, ratio 2.0</td><td>off</td><td>off</td></tr>
+        <tr><td>Engram host table</td><td>on</td><td>off</td><td>off</td></tr>
+        <tr><td>SLURM cores</td><td>12</td><td>12</td><td>16</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="s3">§3 — The Blackwell image, and why it is the local one</h2>
+    <p>A Blackwell serve needs an engine whose kernels were built for <code>sm_100</code>
+    <em>and</em> whose model registry knows <code>deepseek_v41</code>. Those are two
+    different facts about two different artifacts, and the second is the scarcer one.</p>
+    <ul>
+      <li><strong>Registry support.</strong> The SGLang release that carries the
+      <code>deepseek_v41</code> model module and the <code>DSPARK</code> draft path is the
+      build already pinned for this checkpoint; the install notes describe the release
+      channel but do not by itself guarantee a given build was compiled for a given
+      architecture
+      (<a href="https://docs.sglang.ai/get_started/install.html">SGLang install</a>).
+      Treating "pip install sglang" as an answer is how a serve reaches the node, loads
+      the model, and only then discovers the draft path is absent.</li>
+      <li><strong>Architecture.</strong> The pinned container
+      <code>/work/projects/imas_gpu/containers/sglang-dev-dsv41.sif</code> was inspected
+      directly, and its torch build publishes
+      <code>['sm_75', 'sm_80', 'sm_86', 'sm_90', 'sm_100', 'sm_120']</code> — <code>sm_100</code>
+      present. The inspection is the evidence; a version string is not.</li>
+      <li><strong>Kernels that are not prebuilt.</strong> The container's
+      <code>sgl-kernel</code> is JIT-compiled per device through <code>tvm-ffi</code>,
+      resolved under <code>~/.cache/tvm-ffi</code> at <code>flashinfer 0.6.18</code>, so a
+      Blackwell device compiles its own variants rather than depending on a prebuilt
+      <code>sm_100</code> wheel that may not exist.</li>
+      <li><strong>The one CUDA patch the serve binds.</strong> The generated script binds
+      <code>imas_ambix/agent/kernel_patches/…/main_norm_rope.cuh</code> into the container.
+      It is generic CUDA for the normalisation and rotary step, carries no architecture
+      guard, and so compiles on Blackwell unchanged — which is why no second patch was
+      written for this launch.</li>
+    </ul>
+    <p>The script therefore names an image that exists under <code>/work</code> and needs
+    no network at launch, which is the requirement a launch from this node has.</p>
+
+    <h2 id="s4">§4 — Topology, KV dtype and the MoE runner</h2>
+    <p>The vLLM recipe for this checkpoint publishes a Blackwell section that names, per
+    SKU, exactly the choices a Hopper-scaled launch would get wrong
+    (<a href="https://recipes.vllm.ai/deepseek-ai/DeepSeek-V4.1-Flash">vLLM recipe,
+    DeepSeek-V4.1-Flash</a>). vLLM and SGLang are different engines with different
+    kernels, so the recipe is used here for what is a property of the <em>checkpoint and
+    the silicon</em> rather than a property of vLLM's flags:</p>
+    <ul>
+      <li><strong>Parallel shape.</strong> Blackwell uses TP2 with
+      <code>FLASHINFER_MLA_SPARSE_DSV41</code> and Engram CPU offload, and data+expert
+      parallel at the hardware's own GPU count — <strong>DEP8 on B200/B300 nodes</strong>,
+      DEP4 on GB200/GB300 trays. On these profiles the parallel width equals the card
+      count (TP4/EP4 on four cards, TP8/EP8 on eight), which is the Blackwell
+      expert-parallel arrangement rather than a rescale of the Hopper TP4.</li>
+      <li><strong>KV dtype.</strong> Both Blackwell configurations set
+      <code>--kv-cache-dtype fp8</code>, and the indexer dtype to
+      <code>mxfp4</code>. SGLang's spelling of the same choice is
+      <code>fp8_e4m3</code>, which is what the variants declare; the container's flashinfer
+      build is the current one, so the FP8 KV path is available. <strong>Rollback:</strong>
+      if the model's startup rejects an FP8 KV entry on this engine, the variants fall back
+      to the profile's bf16 default, at half the tokens per byte of pool.</li>
+      <li><strong>MoE runner.</strong> The Hopper path names
+      <code>flashinfer_mxfp4</code> — a deliberate choice for MXFP4 routed experts on SM90.
+      On Blackwell the recipe's expert-parallel arrangement runs its MoE through
+      <code>deep_gemm</code>'s fused mega-MoE kernel, so a backend named for the SM90
+      flashinfer path is the wrong pin to inherit: the variants declare
+      <code>auto</code> and let the engine select for the silicon it is on. This is the
+      setting to confirm in the first launch's startup log, because <code>auto</code>
+      resolves to a concrete backend and only the log says which.</li>
+    </ul>
+
+    <h2 id="s5">§5 — Context, pool and the running-request bound</h2>
+    <p>Three numbers, three different kinds of evidence, and they must not be confused.</p>
+    <ul>
+      <li><strong>Context 524,288.</strong> The Hopper path is capped at 262,144 by the
+      decode-indexer cost on SM90 — a <em>hardware</em> limit, stated in the profile's own
+      tuning comments. That cap does not travel to a compute capability without SM90's
+      indexer. 512K also sits above the largest per-turn input ever measured from a worker
+      on this lane, 356,574 tokens, so it covers observed agent traffic with room rather
+      than being chosen as a round number.</li>
+      <li><strong>Pool 4,000,000 / 8,000,000 tokens.</strong> Device memory is
+      <strong>288 GB per B300 card</strong> against 140.4 GB per H200, so the pool the
+      Hopper path runs at (<code>max_total_tokens = 4000000</code> at four cards) fits on
+      four B300 cards with the checkpoint's resident weights and Engram tables on-device,
+      and doubles with the card count. The pool is declared rather than auto-sized for the
+      reason the profile gives on Hopper: a lazily allocated fused-MoE workspace lives
+      <em>outside</em> the memory fraction, so an auto-sized pool is a bet against a
+      concurrency-dependent allocation.</li>
+      <li><strong>Running bound 48 at eight cards, 24 at four.</strong> The Hopper path's
+      own bound is 36, which is a per-profile scheduler ceiling rather than a measured
+      capacity; the Blackwell bound is instead scaled from the one throughput knee on
+      record for this lane: <code>width 10</code> at four H200 cards, and the capacity
+      study's projection that a B300 node carries
+      <strong>3.9–6.3×</strong> the H200 four-card capacity
+      (<a href="/imas-ambix/serving-capacity-and-b300-projection.html">serving capacity and
+      the B300 projection</a>; device figures compared in
+      <a href="/imas-ambix/h200-b300-performance-comparison.html">H200/B300 performance</a>).
+      10 × 3.9 ≈ 39 and 10 × 6.3 = 63, so the eight-card starting width of 48 sits inside
+      that bracket rather than at either end of it; the four-card variant is half the
+      width of the eight-card one because the pool it draws on is half the size. This is
+      a <strong>starting</strong> gate width: it is a launch bound to be measured against
+      the engine's own counters, not a capacity finding.</li>
+      <li><strong>CUDA-graph batch equals the running bound.</strong> Decode capture is
+      sized to the widest batch the scheduler will admit, so a request admitted outside a
+      captured shape falls back to the eager path — the profile's Hopper comment records
+      that shape of cost.</li>
+    </ul>
+
+    <h2 id="s6">§6 — Speculative decoding and the caches</h2>
+    <ul>
+      <li><strong>DSpark depth 5.</strong> The recipe states DSpark "still drafts 5 tokens
+      per round" on this checkpoint, and that DSpark is the only speculative method it
+      supports (the MTP module was dropped). The Hopper profile's 3 was chosen by a live
+      A/B on real traffic <em>on that topology</em>; the Blackwell variants start at the
+      recipe's stated depth and are to be re-tested the same way rather than inheriting a
+      measurement taken at a different width.</li>
+      <li><strong>Hierarchical cache off.</strong> On Hopper the host cache earns its
+      place by holding prefixes the device pool would otherwise recompute. On eight B300
+      cards the device pool is 8,000,000 tokens against a measured working set in the tens
+      of thousands per session, so there is little to evict to the host, while the feature
+      keeps a second index and moves prefixes over the host link. It is switched on again
+      only against a reading that shows the device pool evicting.</li>
+      <li><strong>Engram host table off.</strong> On Hopper the 183.1 GiB of Engram tables
+      are moved to pinned host RAM because four 140.4 GB cards cannot hold them beside the
+      resident weights. 8 × 288 GB = 2.3 TB against a 511 GB on-device footprint, so the
+      offload buys nothing and costs UVA reads on every token. The variants set
+      <code>SGLANG_ENABLE_DSV41_ENGRAM_HOST_TABLE=0</code>.</li>
+    </ul>
+
+    <h2 id="s7">§7 — What is carried over rather than sourced, and what to measure first</h2>
+    <p>One setting has no Blackwell source and is carried over deliberately, said so in the
+    profile, and should be re-measured at bring-up:</p>
+    <ul>
+      <li><strong><code>mem_fraction_static = 0.85</code></strong> — the profile default,
+      inherited by both Blackwell variants. The figure comes from a Hopper measurement:
+      at 0.92 the fused-MoE workspace, allocated lazily outside the fraction, died at 256
+      concurrent while the KV pool sat at 3–7% occupancy; at 0.85 the same requests ran
+      1.7× faster and the pool still held 2,200,283 tokens. <strong>Neither the workspace
+      size nor the split has been measured on Blackwell</strong>, and the Hopper numbers
+      cannot be rescaled into one: the workspace is an SM90 kernel-batch allocation. Hold
+      0.85 as a conservative start, then read free device memory after a real
+      multi-hundred-token generation — not after startup, because the allocation is lazy —
+      before moving it in either direction.</li>
+      <li><strong>SLURM cores</strong> are not scaled from cards — cores are the scarce
+      reserved resource on the Hopper node — so the Blackwell variants declare the same
+      12/16 core counts as the equivalent Hopper widths. The B300 node's own reservation
+      core count is an arrival fact that has not been read, and the number to use is
+      whatever the live ledger shows.</li>
+    </ul>
+    <p>Nothing above claims a B300 serve has run. The first real launch should validate
+    three things in order: the engine's startup reports <code>sm_100</code> kernels rather
+    than a fallback, a multi-hundred-token completion succeeds (which is when the fused-MoE
+    workspace actually allocates), and the engine's KV occupancy at the declared gate width
+    matches the pool this document computes.</p>
+  </main>
+</body>
+</html>
