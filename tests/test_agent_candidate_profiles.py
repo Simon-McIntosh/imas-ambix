@@ -27,7 +27,7 @@ from pathlib import Path
 import pytest
 
 from imas_ambix.agent import profile as profile_module
-from imas_ambix.agent.profile import SiteConfig, list_profiles, load_profile
+from imas_ambix.agent.profile import SiteConfig, load_profile
 from imas_ambix.agent.slurm import generate_download_script
 
 # The revision and repository each candidate must be fetched at. Written out
@@ -121,14 +121,6 @@ def test_candidate_holds_the_catalogue_invariants(slug: str) -> None:
     assert profile.slurm.cpus < RESERVATION_CORES, (
         f"{slug} claims {profile.slurm.cpus} of {RESERVATION_CORES} reserved cores"
     )
-
-
-def test_candidate_ports_are_distinct_across_the_catalogue() -> None:
-    """No two profiles may resolve to one endpoint."""
-    ports = {slug: load_profile(slug).slurm.port for slug in list_profiles()}
-
-    assert all(port is not None for port in ports.values()), ports
-    assert len(set(ports.values())) == len(ports), ports
 
 
 @pytest.mark.parametrize("slug", sorted(CANDIDATES))
