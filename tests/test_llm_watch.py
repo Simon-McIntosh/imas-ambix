@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from rich.text import Text
 
 from imas_ambix.agent import live_panel
 from imas_ambix.agent import llm_watch as lw
@@ -208,6 +209,14 @@ def _callers(*, accounts: list[dict[str, Any]], projects: list[dict[str, Any]],
 
 
 ENDPOINT = {
+    # The map the publishing side writes, key for key: the key is the engine id,
+    # which shortens the cluster component out of the host, and the value is the
+    # repository and the commit the engine id was loaded from.
+    "checkpoints": {
+        "gpu-0003.iter.org:18810":
+            "deepseek-ai/DeepSeek-V4.1-Flash-1017@"
+            "1bae0e1088993b9b82de08f59de5be5a34e42170",
+    },
     "endpoints": [
         {
             "accelerator_count": 4,
@@ -309,6 +318,7 @@ def one_engine_fixture() -> dict[str, Any]:
             occupancy=[0.0] * 14 + [3.0, 4.0, 6.0, 8.0, 9.0, 7.0, 5.0] + [2.0] * 9,
         ),
         "engine": ENDPOINT,
+        "checkpoints": ENDPOINT["checkpoints"],
         "ledger": LEDGER,
     }
 
@@ -351,6 +361,7 @@ def eight_project_fixture() -> dict[str, Any]:
             outcomes=_outcomes(412.0, 3.0, 0.0, 0.0),
         ),
         "engine": ENDPOINT,
+        "checkpoints": ENDPOINT["checkpoints"],
         "ledger": LEDGER,
     }
 
@@ -511,6 +522,80 @@ def test_a_published_lane_document_fills_the_capacity_band() -> None:
         del lane[key]
     bare = render(document).split("kv pool %", 1)[1].splitlines()[1]
     assert bare.split() == ["█░░░░", "21", "—", "—", "—", "23", "—"]
+
+
+def test_head_line_names_the_checkpoint_the_served_engine_loaded() -> None:
+    """The head line states which weights answered, not just the served name.
+
+    The served name is unchanged across this lane's weights-only rotation, so a
+    head line carrying only the name reads identically before and after it. The
+    label comes from the endpoint document's map, where the repository's last
+    path part and a short commit say which release is loaded.
+    """
+    assert "DeepSeek-V4.1-Flash-1017@1bae0e10" in render(one_engine_fixture())
+
+
+def test_checkpoint_lookup_uses_the_engines_registry_id() -> None:
+    """The lookup keys on the engine id, never on the host the entry carries.
+
+    The map is written by the side that registers the serve, so its keys are
+    built by the registry's engine-id function, which shortens the cluster
+    component out of the host. A lookup built from the raw host would still be
+    a plausible-looking string and would miss every entry, so this asserts both
+    halves: the served engine's entry resolves, and the same entry keyed by the
+    raw host does not.
+    """
+    from imas_ambix.agent.registry import _engine_id
+
+    assert _engine_id("98dci4-gpu-0003.iter.org", 18810) == "gpu-0003.iter.org:18810"
+    assert lw.checkpoint_label(one_engine_fixture()) == (
+        "DeepSeek-V4.1-Flash-1017@1bae0e10"
+    )
+    raw = one_engine_fixture()
+    recorded = ENDPOINT["checkpoints"]["gpu-0003.iter.org:18810"]
+    raw["checkpoints"] = {"98dci4-gpu-0003.iter.org:18810": recorded}
+    assert lw.checkpoint_label(raw) is None
+
+
+def test_no_checkpoints_map_renders_checkpoint_unrecorded() -> None:
+    """A document recording no checkpoint says so in yellow, never blank.
+
+    A blank would read as "no checkpoint applies", and the view would look the
+    same as one that simply dropped the label.
+    """
+    document = one_engine_fixture()
+    del document["checkpoints"]
+    head = lw.head_line(document)
+    assert "[yellow]checkpoint unrecorded[/]" in head
+    assert "checkpoint unrecorded" in lw.render_text(document)
+    assert "33" in _cell_colour(_coloured(Text.from_markup(head)),
+                                "checkpoint").split(";")
+    # An empty map is the same absence, not a recorded checkpoint under no key.
+    document["checkpoints"] = {}
+    assert lw.checkpoint_label(document) is None
+
+
+def test_document_build_reads_the_endpoint_document_the_site_declares(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no path given, the build reads the site's own endpoint document.
+
+    The command line takes an override for a test or a one-off, but the live
+    view is launched with none: a build that only read the argument would carry
+    no endpoint entry and no checkpoints map at all.
+    """
+    endpoints = tmp_path / "endpoints.json"
+    endpoints.write_text(json.dumps(ENDPOINT), encoding="utf-8")
+    monkeypatch.setenv("AMBIX_AGENT_ENDPOINT_DOCUMENT", str(endpoints))
+    watch = tmp_path / "watch.json"
+    watch.write_text(json.dumps({"ledger": LEDGER}), encoding="utf-8")
+    record = tmp_path / "requests"
+    record.mkdir()
+    document = lw.build_document(
+        record_dir=record, lane_path=tmp_path / "lane.json", watch_path=watch
+    )
+    assert document["checkpoints"] == ENDPOINT["checkpoints"]
+    assert document["engine"]["endpoints"] == ENDPOINT["endpoints"]
 
 
 def test_an_engine_other_than_the_served_one_is_refused(

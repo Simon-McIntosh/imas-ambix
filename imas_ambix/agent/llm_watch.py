@@ -57,6 +57,7 @@ from rich.text import Text
 
 from imas_ambix.agent import watch as watch_mod
 from imas_ambix.agent import watch_publish
+from imas_ambix.agent.registry import _engine_id
 from imas_ambix.agent.watch_style import (
     CELL_WIDTH,
     COLUMNS,
@@ -202,6 +203,47 @@ def context_ceiling(lane: dict[str, Any], endpoint: dict[str, Any]) -> object:
 
 # ── the head line ────────────────────────────────────────────────────
 
+#: What the head line says when the endpoint document records no checkpoint for
+#: the served engine. A blank would read as "not applicable" rather than "not
+#: recorded", and the served name is the same across a weights-only rotation.
+CHECKPOINT_UNRECORDED = "checkpoint unrecorded"
+
+
+def checkpoint_label(document: dict[str, Any]) -> str | None:
+    """The checkpoint the served engine loaded, or None when none is recorded.
+
+    The served name is the same across a weights-only rotation, so it cannot say
+    which weights answered; the endpoint document's ``checkpoints`` map can. The
+    key is the one the publishing side wrote, so it is built with the registry's
+    own engine-id function rather than from the host the entry carries: the
+    registry shortens the cluster component out of the host before writing, so a
+    key built here from the raw host would miss every entry.
+
+    The value is ``<hf_repo>@<revision>``; the label keeps the repository's last
+    path part and a short commit, so a rotation shows as a different label under
+    an unchanged served name.
+    """
+    lane = document.get("lane") or {}
+    endpoint = engine_endpoint(document.get("engine") or {}, lane.get("model_id"))
+    host = endpoint.get("host")
+    port = endpoint.get("port")
+    checkpoints = document.get("checkpoints")
+    if not isinstance(host, str) or not host:
+        return None
+    if isinstance(port, bool) or not isinstance(port, int):
+        return None
+    if not isinstance(checkpoints, dict):
+        return None
+    recorded = checkpoints.get(_engine_id(host, port))
+    if not isinstance(recorded, str) or not recorded:
+        return None
+    repository, _, revision = recorded.partition("@")
+    name = repository.rsplit("/", 1)[-1]
+    # ``unpinned`` is how a profile whose weights are not pinned to a revision
+    # reports itself, so it is carried as written rather than shortened.
+    short = revision[:8] if revision and revision != "unpinned" else revision
+    return f"{name}@{short}" if short else name
+
 
 def head_line(document: dict[str, Any]) -> str:
     """The engine in one line: what is served, on what, and at what context.
@@ -219,6 +261,9 @@ def head_line(document: dict[str, Any]) -> str:
     )
     host = str(endpoint.get("host") or "").split(".", 1)[0]
     bits = [f"[bold]{model}[/]"]
+    checkpoint = checkpoint_label(document)
+    bits.append(f"[cyan]{checkpoint}[/]" if checkpoint
+                else f"[yellow]{CHECKPOINT_UNRECORDED}[/]")
     count = endpoint.get("accelerator_count")
     family = endpoint.get("accelerator_family")
     if count and family:
@@ -713,16 +758,34 @@ def build_document(
     changes: it reads the tail of the newest receipt file and the tail of the
     router's request record. The ledger and the endpoint entry describe a
     deployment rather than a moment, so they are read from the published
-    documents the router and the recorder already write.
+    documents the router and the recorder already write. The endpoint document
+    is read once per build, which is once per refresh, because the checkpoint it
+    records changes only when the lane is rotated.
     """
     document = watch_mod.live_document(
         record_dir=record_dir, lane_path=lane_path, now=now
     )
-    document["engine"] = _read_json(endpoints_path) or {}
+    endpoints = _read_json(
+        endpoints_path if endpoints_path is not None else _endpoint_document()
+    ) or {}
+    document["engine"] = endpoints
+    document["checkpoints"] = endpoints.get("checkpoints") or {}
     published = _read_json(watch_path or watch_publish.DEFAULT_OUTPUT) or {}
     document["ledger"] = published.get("ledger") or []
     document["ledger_published_at"] = published.get("published_at")
     return document
+
+
+def _endpoint_document() -> Path:
+    """The published endpoint document, at the path the site declares.
+
+    Imported here rather than at module load because the render path does not
+    need the site configuration at all: a caller that hands its own document in
+    reads no environment, so a view of a fixture costs no configuration.
+    """
+    from imas_ambix.agent.profile import SiteConfig
+
+    return SiteConfig.from_env().endpoint_document
 
 
 def _read_json(path: str | Path | None) -> dict[str, Any] | None:
