@@ -1,0 +1,82 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_sites": [],
+  "completed_at": "2026-10-26T22:36:06.049Z",
+  "dispatched_at": "2026-10-26T22:26:02Z",
+  "evidence_inputs": [
+    "The reviewed run's manifest declares no baseline_suite or after_suite: its gate is an analysis script, not a test suite. added_failure_count is therefore 0 over an empty failure set rather than a measured zero, and the gate log docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.log ends with a bare EXIT=0 line.",
+    "Figure rendered and inspected by this reviewer, not taken from the worker's account: convert -density 100 on the committed differences.svg produced a 1400x880 PNG at /tmp/reckon-crew-scratch/r-20261026T222428106819-review-of-deepseek-1017-on-our-work-d9fecb4dd263/render/head.png. Three panels, twelve row labels, per-panel axis label and unit, and the bottom note are all legible; no label overlaps another or is clipped at the canvas edge; only the left and bottom spines are drawn.",
+    "Negative control reproduced independently: the guard predicate at deepseek-1017-on-our-work.py:507-512 was run over both arms in this review's scratch tree. Committed head figure -> text_elements=0 font_refs=0 exit=0. The figure as committed at 987c54c1 (git show 987c54c1:...differences.svg) -> text_elements=37 font_refs=1 exit=1. Both counts match the manifest's negative_control_note exactly.",
+    "The repair changed no number: diffing the log committed at 987c54c1 against the one committed at d9fecb4d shows every metric, interval and control line identical; only the revision header, the command line, three unbounded context counts (2,867 -> 2,869 ledger records, 2,506 -> 2,934 request rows, 11,313 -> 11,319 run ids) and the added results-written line differ. That is the expected behaviour of a window-bounded analysis as the ledgers grow.",
+    "The headline numbers reconcile between the three surfaces: log :41 first_attempt_pass diff 0.174845 [0.064777, 0.290653], document table :83 +0.175 [+0.065, +0.291], fragment html result paragraph the same pair plus the restricted +0.175 [+0.065, +0.285].",
+    "An earlier independent review of this run at 987c54c1 is stored beside this one; its four non-blocking findings about the log's revision header, the 2,865 record count, the non-gating moved-boundary control and the bootstrap method sentence are all still present at d9fecb4d, and are re-emitted here rather than assumed carried."
+  ],
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.log",
+      "line": 1,
+      "severity": "non-blocking",
+      "text": "The log's '# revision: 987c54c1' header names the previous commit while the code that produced the log is the d9fecb4d blob: the '# command:' line at :4 carries ANALYSIS_JSON and FIGURE_PNG and the body at :85 prints '# results written to ...', both of which exist only after d9fecb4d. A reader checking provenance by the header concludes the log predates the code, which is the second occurrence of this defect in this node (the 987c54c1 log named 7d09b85b); the fix is to commit the script before running the gate, not to relabel the header."
+    },
+    {
+      "file": "docs/research/deepseek-1017-on-our-work.html",
+      "line": 37,
+      "severity": "non-blocking",
+      "text": "The document says the implement/clive pair 'selects 2,865 records across all history'; the committed log prints 2,869 at :10 (it printed 2,867 when the document was written). The number is context rather than a reported metric, but it is one of the document's own figures that its script no longer reproduces, and the repair regenerated the log without reconciling it."
+    },
+    {
+      "file": "docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.py",
+      "line": 638,
+      "severity": "non-blocking",
+      "text": "The moved-boundary control's results are computed into moved_ok and moved_no_change and printed, but verdict_from at :376-377 is gated only on control_ok (the positive control) and the call site at :677 passes only control_ok. A negative control that had reported a detectable difference would still have emitted 'better'; the control passed on this run, so the recorded output is right, but the instrument does not enforce it."
+    },
+    {
+      "file": "docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.log",
+      "line": 84,
+      "severity": "non-blocking",
+      "text": "The verdict line quotes first_attempt_pass +0.175 [0.065, 0.285], the restricted interval, while the metrics block at :41 prints diff 0.174845 [0.064777, 0.290653] for the same metric forty lines earlier, and the document reports the second as +0.175 [+0.065, +0.291]. Both readings are correct because verdict_from at :385 prefers the restricted estimate, but the log never says which interval its verdict line repeats, so a reader comparing the two lines in one file sees a 0.006 discrepancy with no explanation."
+    },
+    {
+      "file": "docs/research/deepseek-1017-on-our-work.html",
+      "line": 76,
+      "severity": "non-blocking",
+      "text": "The section says 'Each estimate carries a 95% bootstrap interval over runs (2,000 resamples)', but the failed-or-aborted request row at :100 is a Wilson interval over 141,782 request rows, not a bootstrap over runs; deepseek-1017-on-our-work.py substitutes the closed-form interval above 20,000 rows. The method sentence overstates what the bootstrap covers for one row of the table it introduces."
+    }
+  ],
+  "item_verdicts": {
+    "diff": "Read commit by commit against f7631d98: 7d09b85b adds the analysis script and its evidence fragment; 987c54c1 adds the research document, the committed log and a hand-written three-panel SVG and rewrites 267 lines of the script; d9fecb4d replaces write_svg with a matplotlib write_figure that emits labels as vector paths, refuses to save a figure carrying <text> or font-family, adds an ANALYSIS_JSON/FIGURE_PNG results hook, and updates the log, the figure and one caption paragraph. No product source and no test file changed.",
+    "done_when": "The done-when asks for both windows' bounds and counts, every listed metric with a 95% interval, the common-project restriction, one verdict, one inspected SVG figure, and a committed script and log that reproduce the numbers; deepseek-1017-on-our-work.log:20-88 records all of them and ends EXIT=0, and the metrics block is byte-identical between the run at 987c54c1 and the run at d9fecb4d, which is what a window-bounded analysis should do as the ledgers grow.",
+    "goal": "The goal is a research document comparing local-lane implement runs either side of the 2026-10-23T20:14:30Z swap and returning one of four verdicts with intervals; docs/research/deepseek-1017-on-our-work.html:78-101 gives both windows (300 analysed / 97 analysed) with twelve metrics and 95% intervals and :172-175 states the verdict 'Better', so the landed change does what the goal states.",
+    "manifest": "Read; it records status complete, commits 7d09b85b / 987c54c1 / d9fecb4d, the analysis script as its gate with its log path, the before/after counts, the positive control, the moved-boundary control, the font-independence negative control with both arms' counts, and the unmeasured cached-token column.",
+    "write_paths": "Six paths were granted under docs/research, docs/figures and docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017; `git diff --numstat f7631d98 d9fecb4d` lists five files and every one is inside a declared path (the docs/figures/deepseek-1017-on-our-work grant went unused, which is not a violation)."
+  },
+  "justifications": {
+    "durability": "deepseek-1017-on-our-work.py:507-512 raises when the saved SVG still contains '<text' or 'font-family', which is a genuine fail-on-regression guard and not a value compared against itself, since it reads the written file rather than the arguments; the metrics and window-filter path still has no test that reddens, so the node's numbers rest on a re-run against a committed log.",
+    "evidence": "deepseek-1017-on-our-work.log:20-88 records every metric, interval and control and ends EXIT=0, and I re-ran the write_figure guard's own predicate over both arms with the result the manifest claims (head text_elements=0 font_refs=0 exit=0; the 987c54c1 figure text_elements=37 font_refs=1 exit=1); the log's revision header at :1 is nonetheless wrong, naming 987c54c1 while the command line it carries is d9fecb4d-only.",
+    "fit": "The rewrite follows the repository's figure idiom by applying the shared data-ink sheet with a local fallback at deepseek-1017-on-our-work.py:411-424, despines both panels and labels units directly, and adds no plan or stage identifier in any symbol or path.",
+    "goal_fidelity": "docs/research/deepseek-1017-on-our-work.html:172-175 returns 'Better' with the interval that carries it, and the figure at docs/figures/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work/differences.svg now renders its three panel titles, twelve row labels, per-panel units and note from vector paths.",
+    "reuse": "A capability search over imas_ambix/, scripts/ and docs/evidence/ for a shared figure style or save helper found none: scripts/plot_serving_accelerator_figures.py:27-42 sets its own rcParams inline and picks svg.fonttype 'none', so the font-independence guard is the first owner of that capability rather than a fork of one.",
+    "scope_discipline": "Every path in `git diff --numstat f7631d98 d9fecb4d` is inside the node's declared write paths and the repair commit adds nothing the goal does not imply."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: read docs/research/deepseek-1017-on-our-work.html against the node goal; :78-101 reports both windows (300 before / 97 after analysed), twelve metrics with 95% intervals, the common-project restriction and one verdict, and :172-175 returns 'Better'.\nVERDICT done_when: read the done-when's measures against deepseek-1017-on-our-work.log; the log records both window bounds and counts, every listed metric and interval, the positive control, the moved-boundary control, the 7-day sensitivity and EXIT=0, and its metrics block is byte-identical between the two runs at 987c54c1 and d9fecb4d.\nVERDICT write_paths: read the manifest's declared paths against `git diff --numstat f7631d98 d9fecb4d`; five files changed, all inside the six declared paths.\nVERDICT manifest: read the reviewed run's manifest; it records status complete, commits 7d09b85b / 987c54c1 / d9fecb4d, the analysis script as the gate with its log, both controls including the font-independence arms, and the cached-token instrument gap.\nVERDICT diff: read all three commits against f7631d98; the repair at d9fecb4d replaces the hand-written SVG writer with a matplotlib write_figure at deepseek-1017-on-our-work.py:402-520 that emits labels as paths and refuses a figure carrying <text> or font-family, and the committed figure now has 0 text elements and 0 font references against 37 and 1 at 987c54c1.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: docs/research/deepseek-1017-on-our-work.html:172-175 returns 'Better' with the interval that carries it, and the embedded figure renders all twelve row labels and three panel units.\nSCORE evidence: 17\nJUSTIFICATION evidence: deepseek-1017-on-our-work.log:20-88 records every metric and control and ends EXIT=0, but the log's own revision header at :1 names 987c54c1 while the command it carries is the d9fecb4d script.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every path in `git diff --numstat f7631d98 d9fecb4d` is inside the node's declared write paths.\nSCORE durability: 14\nJUSTIFICATION durability: deepseek-1017-on-our-work.py:507-512 raises when the written SVG still carries '<text' or 'font-family', and running that predicate over both arms here gave 0/0 exit 0 on the head figure and 37/1 exit 1 on the pre-repair figure, but the metrics and window-filter path has no test that reddens.\nSCORE fit: 17\nJUSTIFICATION fit: deepseek-1017-on-our-work.py:411-424 applies the shared data-ink sheet with a local fallback and the figure despines both axes, matching the repository's figure idiom.\nSCORE reuse: 19\nJUSTIFICATION reuse: a capability search over imas_ambix/, scripts/ and docs/evidence/ found no shared figure style or save owner; scripts/plot_serving_accelerator_figures.py:27-42 sets its own rcParams inline and uses svg.fonttype 'none', so the guard is the first owner of this capability.\nFINDING docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.log:1 non-blocking: the revision header names 987c54c1 while the code that produced the log is the d9fecb4d blob, whose command line and results-written line the log carries.\nFINDING docs/research/deepseek-1017-on-our-work.html:37 non-blocking: the document's '2,865 records' no longer matches the log's 2,869, and the repair regenerated the log without reconciling it.\nFINDING docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.py:638 non-blocking: the moved-boundary control is computed and printed but never reaches verdict_from, so a detected difference would still print 'better'.\nFINDING docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.log:84 non-blocking: the verdict line quotes the restricted interval 0.285 while :41 prints 0.291 for the same metric, and neither line says which computation it repeats.\nFINDING docs/research/deepseek-1017-on-our-work.html:76 non-blocking: the method sentence describes every estimate as a bootstrap over runs, but the failed-or-aborted request row is a Wilson interval over 141,782 request rows.",
+  "review_run_id": "r-20261026T222428106819-review-of-deepseek-1017-on-our-work-d9fecb4dd263",
+  "reviewed_at": "2026-10-26T23:35:00Z",
+  "reviewed_base_sha": "f7631d9839e773dc3d4cef80bb478c4bc9b1ab28",
+  "reviewed_head_sha": "d9fecb4dd263758e4115042ac0b284eac7260063",
+  "reviewed_run_id": "r-20261026T212818772272-deepseek-1017-on-our-work",
+  "rubric": "independent",
+  "scores": {
+    "durability": 14,
+    "evidence": 17,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T22:38:28.391807+00:00",
+  "total": 105
+}
