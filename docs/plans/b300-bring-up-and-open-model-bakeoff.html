@@ -25,8 +25,8 @@
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="17">
-<meta name="plan-modified" content="2026-10-23">
+<meta name="plan-version" content="18">
+<meta name="plan-modified" content="2026-10-26">
 </head>
 <body>
   <main class="plan-doc">
@@ -197,28 +197,45 @@
     <p>Launch <code>b300-8x</code> and measure it with the repository's own benchmark,
     <code>imas-ambix agent bench</code>. Its tool-call probe (<code>run_tool_call_bench</code>,
     now <code>bench.check_tool_call</code> after the rotation) runs first. Then its
-    concurrency ladder (<code>_run_concurrency</code>), extended from the default
-    <code>1–32</code> to 64 through its concurrency option, sweeps the engine with prompts
-    drawn from the receipts' measured prompt-size distribution, not the 128-token prompts
-    of the published benchmark. Aggregate and per-request tokens per second, time to first
-    token, and the knee (the concurrency beyond which aggregate throughput gains less than
-    5%) are read from the ladder's results. <code>bench_report</code> has no knee
-    reduction today (its reductions are <code>describe_run</code> and
-    <code>compare_runs</code>), so this section adds one, <code>bench_report.knee</code>,
-    beside them with a unit test, rather than computing it in the throughput document. The
-    figure is drawn from that report. Repeat for <code>b300-4x</code>, so both
-    configurations have a measured knee. The <code>b300-8x</code> knee becomes the engine's
-    starting gate width.</p>
-    <p><strong>Write paths.</strong> <code>imas_ambix/agent/bench_report.py</code>,
-    <code>tests/test_bench.py</code>, <code>docs/research/b300-throughput.html</code> (new),
+    concurrency ladder (<code>_run_concurrency</code>) runs at <code>--levels
+    1,2,4,8,16,32,64</code>; the option already takes a custom ladder, so the extension to
+    64 needs no code. The ladder today sends one fixed one-sentence prompt
+    (<code>bench.py</code>, inside <code>_run_concurrency</code>) and takes no prompt
+    argument. This section adds a prompt-size option to <code>_run_concurrency</code> and the
+    <code>bench</code> command, which samples prompt lengths from a stated census of the
+    request record (<code>census-1280470.json</code>, the census
+    <code>docs/research/serving-capacity-and-b300-projection.html</code> names), so the
+    sweep runs on the prompt sizes our callers send. Aggregate and per-request tokens per
+    second, time to first token, and the knee (the concurrency beyond which aggregate
+    throughput gains less than 5%) are read from the ladder's results.
+    <code>bench_report</code> has no knee reduction today (its reductions are
+    <code>describe_run</code> and <code>compare_runs</code>), so this section adds one,
+    <code>bench_report.knee</code>, beside them, tested where those reductions are tested,
+    rather than computing it in the throughput document. The figure is drawn from that
+    report. Repeat for <code>b300-4x</code>, so both configurations have a measured knee.
+    The <code>b300-8x</code> knee becomes the engine's starting gate width.</p>
+    <p>The only H200 knee on record (width 10, in
+    <code>local-lane-throughput-against-occupancy.html</code>) is a plateau in production
+    router occupancy, found by a different rule and a different instrument. It is not
+    comparable with a bench sweep, so it is quoted in the text as a reference with that
+    caveat. It is not drawn on the B300 figure's axes.</p>
+    <p><strong>Write paths.</strong> <code>imas_ambix/agent/bench.py</code>,
+    <code>imas_ambix/agent/cli.py</code>, <code>imas_ambix/agent/bench_report.py</code>,
+    <code>tests/test_bench.py</code>, <code>tests/agent/test_bench_report.py</code>,
+    <code>docs/research/b300-throughput.html</code> (new),
     <code>docs/figures/b300-throughput</code> (new).</p>
     <p><strong>Done when.</strong></p>
     <ul>
-      <li>Both configurations have a sweep with a stated knee, on one figure with shared
-      axes, beside the H200's measured knee.</li>
+      <li>Both B300 configurations have a sweep on census-sampled prompts with a stated
+      knee, on one figure with shared axes. The H200 occupancy plateau is quoted in the
+      text and marked as not like-for-like.</li>
+      <li><code>tests/test_bench.py</code> covers the prompt-size option and
+      <code>tests/agent/test_bench_report.py</code> covers <code>bench_report.knee</code>.</li>
       <li>The tool-call probes pass on <code>b300-8x</code>.</li>
-      <li><strong>Negative control:</strong> a repeat of the 16-concurrent point lies within
-      10% of the first, or the sweep is reported noisy and repeated.</li>
+      <li><strong>Negative control:</strong> a repeat of the 16-concurrent point must lie
+      within 10% of the first. If it does not, the whole sweep is rerun once. If the rerun's
+      repeat is again outside 10%, the section reports the knee as unmeasured and does not
+      set a gate width from it.</li>
     </ul>
 
     <h2 id="s6">§6 — Cut over</h2>
