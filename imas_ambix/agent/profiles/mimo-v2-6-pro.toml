@@ -41,3 +41,14 @@ weights_slug = "mimo-v2-6-pro-mopd"
 
 [engine]
 type = "vllm"
+
+[slurm]
+# The catalogue requires a port and a core count even where no deployment has
+# been chosen: two profiles must never resolve to one endpoint, and a
+# device-resident engine that claimed the shared reservation ceiling would
+# leave a neighbour pending on cores. The card count, host memory and engine
+# tuning stay undeclared, because those are the deployment decisions this
+# profile defers.
+port = 18812
+cpus = 12
+

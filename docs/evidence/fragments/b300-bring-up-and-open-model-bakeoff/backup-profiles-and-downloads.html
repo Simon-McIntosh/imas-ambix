@@ -1,9 +1,19 @@
 <section class="r-evidence" data-node="backup-profiles-and-downloads">
   <h2 id="backup-profiles-and-downloads-title">Two backup profiles, pinned and downloading</h2>
-  <p>Two candidate profiles exist in the catalogue carrying identity and weights only — no card
-  count, no memory split, no port, no engine tuning — and both checkpoints are being fetched as
-  resumable SLURM jobs on <code>sirius</code>. Revisions were read from the Hugging Face API at
-  dispatch time, not inferred from a branch name.</p>
+  <p>Two candidate profiles exist in the catalogue carrying identity and weights, with their card
+  count, host memory and engine tuning deliberately undeclared until a deployment is chosen, and
+  both checkpoints are being fetched as resumable SLURM jobs on <code>sirius</code>. Revisions were
+  read from the Hugging Face API at dispatch time, not inferred from a branch name.</p>
+  <p>Two catalogue invariants do apply to a profile nothing is served from yet, and both are
+  declared in <code>[slurm]</code>: an endpoint no other profile holds
+  (<code>kimi-k3</code> 18811, <code>mimo-v2-6-pro</code> 18812, against 18800–18810 already in use)
+  and a core request inside the shared 30-core reservation (<code>cpus = 12</code>). Leaving them to
+  the schema defaults made both profiles resolve to no port and to 30 cores, which the catalogue
+  suite refuses: it requires every profile to hold a distinct port, and it refuses a
+  device-resident engine that claims the whole reservation, since host cores are not the work for a
+  vLLM serve and taking the ceiling leaves a neighbour pending on cores. The CPU-offloading
+  <code>ktransformers</code> profiles keep 30 because cold experts are computed on the host; these
+  are not those.</p>
 
   <h3 id="backup-profiles-and-downloads-pins">Pinned releases</h3>
   <table>
@@ -52,16 +62,22 @@
   <h3 id="backup-profiles-and-downloads-gate">Gate</h3>
   <ul>
     <li id="backup-profiles-and-downloads-gate-suite">Both profiles load, and
-    <code>tests/test_agent_candidate_profiles.py</code> passes — <strong>7 passed</strong>. It pins each
-    profile's repository and 40-character revision, asserts no serving topology is declared, and
-    asserts the rendered download script carries <code>REVISION=&lt;sha&gt;</code>, passes
-    <code>--revision "$REVISION"</code> to <code>hf download</code>, and lands in
-    <code>agents/&lt;weights_slug&gt;/model</code>.</li>
+    <code>tests/test_agent_candidate_profiles.py</code> passes — <strong>10 passed</strong>. It pins
+    each profile's repository and 40-character revision, asserts the engine tuning and deployment
+    sizing are undeclared while the port and core invariants are, asserts the candidate ports are
+    distinct across the whole catalogue, and asserts the rendered download script carries
+    <code>REVISION=&lt;sha&gt;</code>, passes <code>--revision "$REVISION"</code> to
+    <code>hf download</code>, and lands in <code>agents/&lt;weights_slug&gt;/model</code>.</li>
+    <li id="backup-profiles-and-downloads-gate-catalogue">The catalogue invariants hold:
+    <code>test_every_profile_declares_a_distinct_port</code> and
+    <code>test_every_full_gpu_serve_leaves_reservation_headroom</code> both pass, and the same two
+    tests fail when the <code>[slurm]</code> blocks are removed — the reproduction of the defect
+    the block answers.</li>
     <li id="backup-profiles-and-downloads-gate-ruff">Whole-tree <code>ruff check imas_ambix tests</code>
     exits 0.</li>
     <li id="backup-profiles-and-downloads-gate-control"><strong>Negative control:</strong> with the
     <code>revision</code> line removed from <code>kimi-k3.toml</code>, the same suite reports
-    <strong>2 failed, 5 passed</strong> and exits 1 —
+    <strong>2 failed, 8 passed</strong> and exits 1 —
     <code>test_candidate_pins_its_release_and_weights_directory[kimi-k3]</code> and
     <code>test_download_script_names_the_pinned_revision[kimi-k3]</code> both fail while the MiMo arms
     stay green, so the red is the missing pin and not a broken suite. The line was restored and the

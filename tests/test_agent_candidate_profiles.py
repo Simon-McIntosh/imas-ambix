@@ -1,11 +1,17 @@
 """Identity and download contracts for the candidate backup profiles.
 
 Two profiles exist so that trying a candidate later costs a launch rather than
-a multi-terabyte transfer. They carry identity and weights only: the release,
-the repository, the commit the weights are fetched at, and the directory the
-checkpoint lands in. No serving topology is declared, because a deployment is
-sized against hardware that has not been chosen yet, and a topology written now
-would be a guess that later reads as a decision.
+a multi-terabyte transfer. They carry the release, the repository, the commit
+the weights are fetched at, and the directory the checkpoint lands in. Their
+engine tuning and deployment sizing are deferred, because a deployment is sized
+against hardware that has not been chosen yet and a value written now would be
+a guess that later reads as a decision.
+
+Two catalogue invariants still apply to this node however little is being
+served from it, and are declared in ``[slurm]``: an endpoint no other profile
+holds, and a core request that leaves room inside the shared reservation. The
+agent suite asserts both across the catalogue; these tests assert them where a
+reader of the candidate contract will look, and name the profile that broke one.
 
 The download script is the surface these tests measure, because it is where the
 pin either reaches the transfer or does not: a profile holding a revision that
@@ -21,7 +27,7 @@ from pathlib import Path
 import pytest
 
 from imas_ambix.agent import profile as profile_module
-from imas_ambix.agent.profile import SiteConfig, load_profile
+from imas_ambix.agent.profile import SiteConfig, list_profiles, load_profile
 from imas_ambix.agent.slurm import generate_download_script
 
 # The revision and repository each candidate must be fetched at. Written out
@@ -38,11 +44,15 @@ CANDIDATES = {
     ),
 }
 
-# Keys that describe how a model is served rather than what it is. A candidate
-# profile declares no card count, no memory split, no port and no engine
-# tuning until a deployment is chosen.
+# The shared Group A reservation. A device-resident engine computes nothing on
+# the host, so a profile asking for the whole ceiling leaves a neighbour
+# pending on cores; CPU-offloading engines are the mechanism that legitimately
+# needs them and are not candidates here.
+RESERVATION_CORES = 30
+
+# Engine keys that describe how a model is served rather than what it is. A
+# candidate declares none of them until a deployment is chosen.
 SERVING_TOPOLOGY_KEYS = {
-    "slurm",
     "gpus",
     "cpus",
     "memory",
@@ -78,15 +88,47 @@ def test_candidate_pins_its_release_and_weights_directory(slug: str) -> None:
 
 
 @pytest.mark.parametrize("slug", sorted(CANDIDATES))
-def test_candidate_declares_no_serving_topology(slug: str) -> None:
-    """A candidate carries identity and weights only."""
+def test_candidate_defers_its_serving_topology(slug: str) -> None:
+    """A candidate declares no card count, memory split or engine tuning.
+
+    What it does declare in ``[slurm]`` are the two catalogue invariants that
+    apply even to a profile nothing is served from yet: an endpoint no other
+    profile holds, and a core request inside the shared reservation.
+    """
     document = tomllib.loads(_profile_text(slug))
 
-    assert "slurm" not in document
     declared = set(document.get("engine", {}))
     assert not declared & SERVING_TOPOLOGY_KEYS, (
-        f"{slug} declares serving topology: {sorted(declared & SERVING_TOPOLOGY_KEYS)}"
+        f"{slug} declares engine topology: {sorted(declared & SERVING_TOPOLOGY_KEYS)}"
     )
+    slurm = document.get("slurm", {})
+    assert set(slurm) <= {"port", "cpus"}, (
+        f"{slug} declares deployment sizing: {sorted(set(slurm) - {'port', 'cpus'})}"
+    )
+
+
+@pytest.mark.parametrize("slug", sorted(CANDIDATES))
+def test_candidate_holds_the_catalogue_invariants(slug: str) -> None:
+    """One endpoint per profile, and cores left for the neighbours.
+
+    The catalogue test in the agent suite asserts both across every profile;
+    asserting them here as well makes the candidate contract legible where a
+    reader looks for it, and localises a failure to the profile that caused it.
+    """
+    profile = load_profile(slug)
+
+    assert profile.slurm.port is not None
+    assert profile.slurm.cpus < RESERVATION_CORES, (
+        f"{slug} claims {profile.slurm.cpus} of {RESERVATION_CORES} reserved cores"
+    )
+
+
+def test_candidate_ports_are_distinct_across_the_catalogue() -> None:
+    """No two profiles may resolve to one endpoint."""
+    ports = {slug: load_profile(slug).slurm.port for slug in list_profiles()}
+
+    assert all(port is not None for port in ports.values()), ports
+    assert len(set(ports.values())) == len(ports), ports
 
 
 @pytest.mark.parametrize("slug", sorted(CANDIDATES))
