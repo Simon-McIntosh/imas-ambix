@@ -1,0 +1,71 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:620",
+    "imas_ambix/agent/cli.py:2499",
+    "imas_ambix/agent/cli.py:805",
+    "imas_ambix/agent/cli.py:3011",
+    "imas_ambix/agent/cli.py:3160"
+  ],
+  "completed_at": "2026-10-26T23:31:07.140Z",
+  "dispatched_at": "2026-10-26T23:18:55Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/cli.py",
+      "line": "2499",
+      "severity": "blocking",
+      "text": "blocking: restart passes placement.name to _scale_profile, but _placement_of_running_serve returns None when the job has no registration or is not exactly one, so `agent restart <slug> --gpus N` raises AttributeError instead of generating a script; reproduced against a two-server site with a RUNNING job and no registration."
+    },
+    {
+      "file": "imas_ambix/agent/cli.py",
+      "line": "234",
+      "severity": "non-blocking",
+      "text": "non-blocking: the file is edited outside the five declared write paths; the done_when's restart requirement cannot be satisfied without it, so the coordinator must add imas_ambix/agent/cli.py to the section's write-path list."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T225015859094-deepseek-launchers-4x-8x/manifest.md",
+      "line": "20",
+      "severity": "non-blocking",
+      "text": "non-blocking: the failure_attribution line cites logs/head-control.log as the base arm that establishes the six pre-existing failures, but that log holds only the two restart tests; an independent base arm run here shows 9 failures at faa32881 versus 6 at head, so the zero-added claim is true but was not evidenced in the run."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 5 production call site(s)",
+    "diff": "read change by change against faa32881; a8e84b2c adds for_gpus(server=) and the serve/restart wiring, b6f5df2b adds docs/research/b300-launch-recipes.html, 2831967f lands the evidence fragment, six files and 646 insertions.",
+    "done_when": "the EVIDENCE fence names ModelProfile.for_gpus and _scale_profile on serve and restart, three dry runs, a digest-pinned default, and the four-file pytest plus ruff; imas_ambix/agent/profile.py:451 implements the lookup and the gate result is recorded in the manifest.",
+    "goal": "the node goal is a complete serve script for h200-4x, b300-4x and b300-8x via --server/--gpus; tests/test_agent_site_servers.py:551 and :576 render all three, but imas_ambix/agent/cli.py:2499 crashes on the restart half of the goal when a placement cannot be resolved.",
+    "manifest": "read; it states the three revisions, the 33-passed scoped arm, the 245-passed/6-failed named gate, the ruff exit 0, and the cli.py scope adjudication.",
+    "write_paths": "the fence lists five paths ending at the evidence fragment; the diff touches those plus imas_ambix/agent/cli.py, which is outside the fence and is declared by the worker under blockers."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_site_servers.py:563 pins the default script against an independently verified base digest and the negative control fires, but no test drives the restart --gpus path that imas_ambix/agent/cli.py:2499 breaks.",
+    "evidence": "the gate result is recorded at logs/gate-tests.log:1889 as 6 failed / 245 passed, but the zero-added claim in the manifest cites logs/head-control.log, which records only the two site-server restart tests.",
+    "fit": "the new mapping at imas_ambix/agent/profile.py:447 follows the existing gpu_variants idiom and introduces no forbidden name, though the comment at imas_ambix/agent/cli.py:3007 still claims bench resolves exactly as serve now does not.",
+    "goal_fidelity": "imas_ambix/agent/cli.py:2499 ships a restart path that raises AttributeError when placement is None, so the goal's \"both the serve and restart paths\" holds only where a registration exists.",
+    "reuse": "the addition extends ModelProfile.for_gpus at imas_ambix/agent/profile.py:451, the existing owner of variant resolution; a search over imas_ambix/agent found no other per-server topology mechanism, so nothing is forked.",
+    "scope_discipline": "imas_ambix/agent/cli.py:234 is edited and lies outside the five declared write paths, though the done_when prose requires _scale_profile to pass the server."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is a complete serve script for h200-4x, b300-4x and b300-8x via --server/--gpus; tests/test_agent_site_servers.py:551 and :576 render all three, but imas_ambix/agent/cli.py:2499 crashes on the restart half of the goal when a placement cannot be resolved.\nVERDICT done_when: the EVIDENCE fence names ModelProfile.for_gpus and _scale_profile on serve and restart, three dry runs, a digest-pinned default, and the four-file pytest plus ruff; imas_ambix/agent/profile.py:451 implements the lookup and the gate result is recorded in the manifest.\nVERDICT write_paths: the fence lists five paths ending at the evidence fragment; the diff touches those plus imas_ambix/agent/cli.py, which is outside the fence and is declared by the worker under blockers.\nVERDICT manifest: read; it states the three revisions, the 33-passed scoped arm, the 245-passed/6-failed named gate, the ruff exit 0, and the cli.py scope adjudication.\nVERDICT diff: read change by change against faa32881; a8e84b2c adds for_gpus(server=) and the serve/restart wiring, b6f5df2b adds docs/research/b300-launch-recipes.html, 2831967f lands the evidence fragment, six files and 646 insertions.\nCALL_SITES: imas_ambix/agent/cli.py:620, imas_ambix/agent/cli.py:2499, imas_ambix/agent/cli.py:805, imas_ambix/agent/cli.py:3011, imas_ambix/agent/cli.py:3160\nSCORE goal_fidelity: 16\nJUSTIFICATION goal_fidelity: imas_ambix/agent/cli.py:2499 ships a restart path that raises AttributeError when placement is None, so the goal's \"both the serve and restart paths\" holds only where a registration exists.\nSCORE evidence: 13\nJUSTIFICATION evidence: the gate result is recorded at logs/gate-tests.log:1889 as 6 failed / 245 passed, but the zero-added claim in the manifest cites logs/head-control.log, which records only the two site-server restart tests.\nSCORE scope_discipline: 13\nJUSTIFICATION scope_discipline: imas_ambix/agent/cli.py:234 is edited and lies outside the five declared write paths, though the done_when prose requires _scale_profile to pass the server.\nSCORE durability: 14\nJUSTIFICATION durability: tests/test_agent_site_servers.py:563 pins the default script against an independently verified base digest and the negative control fires, but no test drives the restart --gpus path that imas_ambix/agent/cli.py:2499 breaks.\nSCORE fit: 17\nJUSTIFICATION fit: the new mapping at imas_ambix/agent/profile.py:447 follows the existing gpu_variants idiom and introduces no forbidden name, though the comment at imas_ambix/agent/cli.py:3007 still claims bench resolves exactly as serve now does not.\nSCORE reuse: 20\nJUSTIFICATION reuse: the addition extends ModelProfile.for_gpus at imas_ambix/agent/profile.py:451, the existing owner of variant resolution; a search over imas_ambix/agent found no other per-server topology mechanism, so nothing is forked.\nFINDING imas_ambix/agent/cli.py:2499 blocking: restart passes placement.name to _scale_profile, but _placement_of_running_serve returns None when the job has no registration or is not exactly one, so `agent restart <slug> --gpus N` raises AttributeError instead of generating a script; reproduced against a two-server site with a RUNNING job and no registration.\nFINDING imas_ambix/agent/cli.py:234 non-blocking: the file is edited outside the five declared write paths; the done_when's restart requirement cannot be satisfied without it, so the coordinator must add imas_ambix/agent/cli.py to the section's write-path list.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T225015859094-deepseek-launchers-4x-8x/manifest.md:20 non-blocking: the failure_attribution line cites logs/head-control.log as the base arm that establishes the six pre-existing failures, but that log holds only the two restart tests; an independent base arm run here shows 9 failures at faa32881 versus 6 at head, so the zero-added claim is true but was not evidenced in the run.",
+  "review_run_id": "r-20261026T231745023864-review-of-deepseek-launchers-4x-8x-2831967fb2bb",
+  "reviewed_base_sha": "faa328816dcaed3f7ffd9e9631d5e7d9db20e06a",
+  "reviewed_head_sha": "2831967fb2bbaef50e6916893792e3d5e93288ef",
+  "reviewed_run_id": "r-20261026T225015859094-deepseek-launchers-4x-8x",
+  "scores": {
+    "durability": 14,
+    "evidence": 13,
+    "fit": 17,
+    "goal_fidelity": 16,
+    "reuse": 20,
+    "scope_discipline": 13
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T23:32:53.220026+00:00",
+  "total": 93
+}
