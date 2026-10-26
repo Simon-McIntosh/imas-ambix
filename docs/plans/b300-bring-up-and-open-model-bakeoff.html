@@ -25,7 +25,7 @@
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="18">
+<meta name="plan-version" content="21">
 <meta name="plan-modified" content="2026-10-26">
 </head>
 <body>
@@ -202,10 +202,12 @@
     64 needs no code. The ladder today sends one fixed one-sentence prompt
     (<code>bench.py</code>, inside <code>_run_concurrency</code>) and takes no prompt
     argument. This section adds a prompt-size option to <code>_run_concurrency</code> and the
-    <code>bench</code> command, which samples prompt lengths from a stated census of the
-    request record (<code>census-1280470.json</code>, the census
-    <code>docs/research/serving-capacity-and-b300-projection.html</code> names), so the
-    sweep runs on the prompt sizes our callers send. Aggregate and per-request tokens per
+    <code>bench</code> command, which sets the prompt length in tokens. The census
+    <code>docs/research/serving-capacity-and-b300-projection.html</code> names
+    (<code>docs/figures/b300-serving-projection/census-1280470.json</code>) holds summary
+    quantiles, not per-request lengths. So each configuration is swept at its two
+    <code>receipts.job</code> quantiles, <code>prompt_median</code> (118,490 tokens) and
+    <code>prompt_p90</code> (168,151 tokens), the prompt sizes our callers send. Aggregate and per-request tokens per
     second, time to first token, and the knee (the concurrency beyond which aggregate
     throughput gains less than 5%) are read from the ladder's results.
     <code>bench_report</code> has no knee reduction today (its reductions are
@@ -226,16 +228,17 @@
     <code>docs/figures/b300-throughput</code> (new).</p>
     <p><strong>Done when.</strong></p>
     <ul>
-      <li>Both B300 configurations have a sweep on census-sampled prompts with a stated
+      <li>Both B300 configurations have a sweep at each of the two census prompt sizes with a stated
       knee, on one figure with shared axes. The H200 occupancy plateau is quoted in the
       text and marked as not like-for-like.</li>
       <li><code>tests/test_bench.py</code> covers the prompt-size option and
       <code>tests/agent/test_bench_report.py</code> covers <code>bench_report.knee</code>.</li>
       <li>The tool-call probes pass on <code>b300-8x</code>.</li>
       <li><strong>Negative control:</strong> a repeat of the 16-concurrent point must lie
-      within 10% of the first. If it does not, the whole sweep is rerun once. If the rerun's
-      repeat is again outside 10%, the section reports the knee as unmeasured and does not
-      set a gate width from it.</li>
+      within 2.5% of the first, half the 5% gain that defines the knee, so the noise is
+      smaller than the margin the knee is read from. If it does not, the whole sweep is
+      rerun once. If the rerun's repeat is again outside 2.5%, the section reports the knee
+      as unmeasured and does not set a gate width from it.</li>
     </ul>
 
     <h2 id="s6">§6 — Cut over</h2>
