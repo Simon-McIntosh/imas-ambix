@@ -25,7 +25,7 @@
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="25">
+<meta name="plan-version" content="26">
 <meta name="plan-modified" content="2026-10-27">
 </head>
 <body>
@@ -305,6 +305,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261026T231527169841-review-of-backup-profiles-and-downloads-f2aa2615d067" data-who="reckon-build" data-when="2026-10-26T23:22:38.601Z">
     <div class="r-comment-body"><p>Reviewed r-20261026T224926476951-backup-profiles-and-downloads at head f2aa2615d0676f69ab74b121667931ef33cfe183 against base faa328816dcaed3f7ffd9e9631d5e7d9db20e06a; the repair answers the prior blocking finding (both candidate profiles now declare a [slurm] port and cores inside the reservation), scores goal_fidelity 19, evidence 15, scope_discipline 19, durability 15, fit 17, reuse 5 (total 90), records five non-blocking findings — duplicated port-uniqueness test at tests/test_agent_candidate_profiles.py:126, self-referential MODEL_DIR assertion at :150, topology check reading only [engine]/[slurm] keys at :98, gate log header naming 81de3fc2 at logs/pytest-candidate-profiles.log:1, and the reviewed manifest naming no baseline_suite/after_suite — with added_failure_count 0 derived from the base arm at faa32881 and a head arm rerun at f2aa2615 (4 passed, EXIT=0 each).</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20261026T224926476951-backup-profiles-and-downloads" data-who="reckon-build" data-when="2026-10-26T23:14:44Z">
+    <div class="r-comment-body"><p>Added two pinned candidate profiles (kimi-k3 @ f831ab66814297da540d832a5235f8e904f29d06, MXFP4, 1.42 TiB; mimo-v2-6-pro @ 6a7f202e8dbd0e57b3fe1da03917d08d75abc4b8, FP8, 527 GiB, the -MOPD variant on the model card&#x27;s tool-call-repetition sentence), deferring engine tuning and deployment sizing while declaring the two catalogue invariants a profile needs even unserved (distinct ports 18811/18812, cpus 12 inside the 30-core reservation); tests/test_agent_candidate_profiles.py pins both releases, their rendered download revisions and the invariants, passing 10/10, with both negative controls red (slurm blocks removed: the two named catalogue tests fail 2/192; kimi-k3 revision stripped: 2 failed / 8 passed); both downloads submitted on sirius as jobs 1296374 and 1296375, targets /work/projects/imas_gpu/agents/kimi-k3/model and /work/projects/imas_gpu/agents/mimo-v2-6-pro-mopd/model.</p></div>
 </div>
 </section>
 </main>
