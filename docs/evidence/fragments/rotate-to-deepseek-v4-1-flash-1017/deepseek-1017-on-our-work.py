@@ -62,8 +62,15 @@ BEFORE = (BOUNDARY - WINDOW, BOUNDARY)
 BEFORE_7D = (BOUNDARY - timedelta(days=7), BOUNDARY)
 
 DIMENSIONS = ("durability", "evidence", "fit", "goal_fidelity", "scope_discipline")
-BOOTSTRAP_ROUNDS = 5000
+BOOTSTRAP_ROUNDS = 2000
 RNG_SEED = 20261023
+# A per-request rate vector holds hundreds of thousands of rows, and resampling
+# it that many times per round is intractable. Above this length the interval
+# comes from the Wilson score interval (single rate) or the normal
+# approximation (difference of two rates), both of which agree with the
+# bootstrap at the sample sizes where the bootstrap is affordable.
+LARGE_N = 20000
+Z95 = 1.959963984540054
 
 
 def parse_ts(value):
@@ -197,9 +204,21 @@ def load_requests():
     return tokens, per_day
 
 
+def wilson_interval(successes, n, z=Z95):
+    if not n:
+        return [None, None]
+    p = successes / n
+    denom = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denom
+    half = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / denom
+    return [round(max(0.0, centre - half), 6), round(min(1.0, centre + half), 6)]
+
+
 def bootstrap_ci(values, statistic, rounds=BOOTSTRAP_ROUNDS, seed=RNG_SEED):
     if not values:
         return [None, None]
+    if len(values) > LARGE_N:
+        return wilson_interval(sum(1 for v in values if v), len(values))
     rng = random.Random(seed)
     n = len(values)
     stats = []
@@ -300,6 +319,16 @@ def difference(after_vector, before_vector):
     b = surviving(before_vector)
     if not a or not b:
         return {"n_after": len(a), "n_before": len(b), "estimate": None, "ci95": [None, None]}
+    if len(a) > LARGE_N or len(b) > LARGE_N:
+        pa = statistics.fmean(a)
+        pb = statistics.fmean(b)
+        se = ((pa * (1 - pa) / len(a)) + (pb * (1 - pb) / len(b))) ** 0.5
+        return {
+            "n_after": len(a),
+            "n_before": len(b),
+            "estimate": round(pa - pb, 6),
+            "ci95": [round(pa - pb - Z95 * se, 6), round(pa - pb + Z95 * se, 6)],
+        }
     rng = random.Random(RNG_SEED)
     stats = []
     for _ in range(BOOTSTRAP_ROUNDS):
@@ -370,50 +399,47 @@ def verdict_from(diffs, control_ok):
     return "no detectable difference", "; ".join(detail) or "no primary metric interval excludes zero"
 
 
-def write_svg(path, diffs, title_note):
-    order = [
-        ("promotion_rate", "promotion rate"),
-        ("first_attempt_pass", "first-attempt gate pass"),
-        ("repair_resume_share", "repair or resume share"),
-        ("request_failure_share", "failed/aborted requests"),
+def write_svg(path, diffs, before_means, note):
+    """Three panels, because the metrics carry three different scales.
+
+    Plotting a rate difference of 0.17 beside a token difference of 11 million
+    on one axis makes every rate row invisible; each panel therefore gets its
+    own axis and its own unit, and per-run quantities are expressed relative to
+    the before-window mean so one axis serves all of them.
+    """
+    panels = [
+        (
+            "rates [percentage points]",
+            [
+                ("promotion rate", "promotion_rate", 100.0),
+                ("first-attempt gate pass", "first_attempt_pass", 100.0),
+                ("repair or resume share", "repair_resume_share", 100.0),
+                ("failed or aborted requests", "request_failure_share", 100.0),
+            ],
+        ),
+        (
+            "review score [points]",
+            [
+                (f"review {dim.replace('_', ' ')}", f"review_{dim}", 1.0)
+                for dim in DIMENSIONS
+            ],
+        ),
+        (
+            "per promoted run, relative to the before mean [%]",
+            [
+                ("wall time", "wall_seconds", None),
+                ("input tokens", "input_tokens", None),
+                ("output tokens", "output_tokens", None),
+            ],
+        ),
     ]
-    rows = [(label, key) for key, label in order if key in diffs]
-    for dim in DIMENSIONS:
-        key = f"review_{dim}"
-        if key in diffs:
-            rows.append((f"review {dim.replace('_', ' ')}", key))
-    for key, label in (
-        ("wall_seconds", "wall time [s]"),
-        ("input_tokens", "input tokens [k]"),
-        ("cached_tokens", "cached tokens [k]"),
-        ("output_tokens", "output tokens [k]"),
-    ):
-        if key in diffs:
-            rows.append((label, key))
 
-    width, row_h = 1400, 44
-    top, bottom = 90, 70
-    height = top + row_h * len(rows) + bottom
-    left, right = 420, 130
-
-    spans = []
-    for _, key in rows:
-        entry = diffs[key]
-        est, (low, high) = entry["estimate"], entry["ci95"]
-        if est is None or low is None:
-            continue
-        if key.endswith("_tokens"):
-            est, low, high = est / 1000.0, low / 1000.0, high / 1000.0
-        spans.append((low, high))
-    if not spans:
-        return
-    lo = min(min(s[0] for s in spans), 0.0)
-    hi = max(max(s[1] for s in spans), 0.0)
-    pad = (hi - lo) * 0.12 or 1.0
-    lo, hi = lo - pad, hi + pad
-
-    def x(value):
-        return left + (value - lo) / (hi - lo) * (width - left - right)
+    width, row_h = 1400, 38
+    left, right = 400, 120
+    header_h, axis_h = 44, 62
+    height = 20
+    for title, rows in panels:
+        height += header_h + row_h * len(rows) + axis_h
 
     parts = [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -422,67 +448,106 @@ def write_svg(path, diffs, title_note):
         f'font-family="Helvetica, Arial, sans-serif">',
         f'<rect id="deepseek-1017-on-our-work-bg" width="1400" height="{height}" fill="#ffffff"/>',
     ]
-    axis_y = top + row_h * len(rows) - row_h * 0.2
-    parts.append(
-        f'<line id="deepseek-1017-on-our-work-zero" x1="{x(0):.1f}" y1="{top - 24}" '
-        f'x2="{x(0):.1f}" y2="{axis_y:.1f}" stroke="#444444" stroke-width="1.2"/>'
-    )
-    parts.append(
-        f'<line id="deepseek-1017-on-our-work-axis" x1="{left}" y1="{axis_y:.1f}" '
-        f'x2="{width - right}" y2="{axis_y:.1f}" stroke="#444444" stroke-width="1.2"/>'
-    )
-    tick = lo
-    while tick <= hi:
-        tx = x(tick)
-        if left - 1 <= tx <= width - right + 1:
-            parts.append(
-                f'<text id="deepseek-1017-on-our-work-tick-{int(round(tick * 1000))}" x="{tx:.1f}" '
-                f'y="{axis_y + 26:.1f}" font-size="14" fill="#333333" text-anchor="middle">{tick:.3g}</text>'
-            )
-        tick += (hi - lo) / 8.0
-    parts.append(
-        f'<text id="deepseek-1017-on-our-work-xlabel" x="{(left + width - right) / 2:.1f}" '
-        f'y="{axis_y + 56:.1f}" font-size="16" fill="#222222" text-anchor="middle">'
-        "after minus before (95% bootstrap interval)</text>"
-    )
 
-    for index, (label, key) in enumerate(rows):
-        entry = diffs[key]
-        est, (low, high) = entry["estimate"], entry["ci95"]
-        cy = top + row_h * index + row_h / 2 - 6
+    y = 20
+    for title, rows in panels:
+        scaled = []
+        for _, key, factor in rows:
+            entry = diffs.get(key)
+            if not entry or entry["estimate"] is None or entry["ci95"][0] is None:
+                continue
+            if factor is None:
+                base = before_means.get(key) or 0.0
+                if not base:
+                    continue
+                est = entry["estimate"] / base * 100.0
+                low = entry["ci95"][0] / base * 100.0
+                high = entry["ci95"][1] / base * 100.0
+            else:
+                est = entry["estimate"] * factor
+                low = entry["ci95"][0] * factor
+                high = entry["ci95"][1] * factor
+            scaled.append((low, high))
+
         parts.append(
-            f'<text id="deepseek-1017-on-our-work-label-{key}" x="{left - 18}" y="{cy + 5:.1f}" '
-            f'font-size="14" fill="#222222" text-anchor="end">{label}</text>'
+            f'<text id="deepseek-1017-on-our-work-title-{title.split()[0]}" x="{left - 260}" y="{y + 18}" '
+            f'font-size="16" fill="#222222">{title}</text>'
         )
-        if est is None or low is None:
+        y += header_h
+
+        if scaled:
+            lo = min(min(s[0] for s in scaled), 0.0)
+            hi = max(max(s[1] for s in scaled), 0.0)
+            pad = (hi - lo) * 0.1 or 1.0
+            lo, hi = lo - pad, hi + pad
+        else:
+            lo, hi = -1.0, 1.0
+
+        def xpos(value, lo=lo, hi=hi):
+            return left + (value - lo) / (hi - lo) * (width - left - right)
+
+        axis_y = y + row_h * len(rows)
+        parts.append(
+            f'<line id="deepseek-1017-on-our-work-zero-{int(y)}" x1="{xpos(0):.1f}" y1="{y - 6}" '
+            f'x2="{xpos(0):.1f}" y2="{axis_y:.1f}" stroke="#444444" stroke-width="1.2"/>'
+        )
+        parts.append(
+            f'<line id="deepseek-1017-on-our-work-axis-{int(y)}" x1="{left}" y1="{axis_y:.1f}" '
+            f'x2="{width - right}" y2="{axis_y:.1f}" stroke="#444444" stroke-width="1.2"/>'
+        )
+        steps = 6
+        for step in range(steps + 1):
+            tick = lo + (hi - lo) * step / steps
+            tx = xpos(tick)
             parts.append(
-                f'<text id="deepseek-1017-on-our-work-empty-{key}" x="{left + 8}" y="{cy + 5:.1f}" '
-                f'font-size="14" fill="#8a8a8a">no data</text>'
+                f'<text id="deepseek-1017-on-our-work-tick-{int(y)}-{step}" x="{tx:.1f}" '
+                f'y="{axis_y + 24:.1f}" font-size="14" fill="#333333" text-anchor="middle">{tick:.1f}</text>'
             )
-            continue
-        if key.endswith("_tokens"):
-            est, low, high = est / 1000.0, low / 1000.0, high / 1000.0
-        crosses = low <= 0.0 <= high
-        colour = "#929292" if crosses else "#1f6f8b"
-        parts.append(
-            f'<line id="deepseek-1017-on-our-work-ci-{key}" x1="{x(low):.1f}" y1="{cy:.1f}" '
-            f'x2="{x(high):.1f}" y2="{cy:.1f}" stroke="{colour}" stroke-width="2.4"/>'
-        )
-        parts.append(
-            f'<line id="deepseek-1017-on-our-work-cap-lo-{key}" x1="{x(low):.1f}" y1="{cy - 7:.1f}" '
-            f'x2="{x(low):.1f}" y2="{cy + 7:.1f}" stroke="{colour}" stroke-width="2.4"/>'
-        )
-        parts.append(
-            f'<line id="deepseek-1017-on-our-work-cap-hi-{key}" x1="{x(high):.1f}" y1="{cy - 7:.1f}" '
-            f'x2="{x(high):.1f}" y2="{cy + 7:.1f}" stroke="{colour}" stroke-width="2.4"/>'
-        )
-        parts.append(
-            f'<circle id="deepseek-1017-on-our-work-point-{key}" cx="{x(est):.1f}" cy="{cy:.1f}" '
-            f'r="5" fill="{colour}"/>'
-        )
+
+        for index, (label, key, factor) in enumerate(rows):
+            entry = diffs.get(key)
+            cy = y + row_h * index + row_h / 2
+            parts.append(
+                f'<text id="deepseek-1017-on-our-work-label-{key}" x="{left - 18}" y="{cy + 5:.1f}" '
+                f'font-size="14" fill="#222222" text-anchor="end">{label}</text>'
+            )
+            if not entry or entry["estimate"] is None or entry["ci95"][0] is None:
+                parts.append(
+                    f'<text id="deepseek-1017-on-our-work-empty-{key}" x="{left + 8}" y="{cy + 5:.1f}" '
+                    f'font-size="14" fill="#8a8a8a">no data</text>'
+                )
+                continue
+            if factor is None:
+                base = before_means.get(key) or 0.0
+                if not base:
+                    continue
+                est = entry["estimate"] / base * 100.0
+                low = entry["ci95"][0] / base * 100.0
+                high = entry["ci95"][1] / base * 100.0
+            else:
+                est = entry["estimate"] * factor
+                low = entry["ci95"][0] * factor
+                high = entry["ci95"][1] * factor
+            colour = "#929292" if low <= 0.0 <= high else "#1f6f8b"
+            parts.append(
+                f'<line id="deepseek-1017-on-our-work-ci-{key}" x1="{xpos(low):.1f}" y1="{cy:.1f}" '
+                f'x2="{xpos(high):.1f}" y2="{cy:.1f}" stroke="{colour}" stroke-width="2.6"/>'
+            )
+            for tag, value in (("lo", low), ("hi", high)):
+                parts.append(
+                    f'<line id="deepseek-1017-on-our-work-cap-{tag}-{key}" x1="{xpos(value):.1f}" '
+                    f'y1="{cy - 6:.1f}" x2="{xpos(value):.1f}" y2="{cy + 6:.1f}" '
+                    f'stroke="{colour}" stroke-width="2.6"/>'
+                )
+            parts.append(
+                f'<circle id="deepseek-1017-on-our-work-point-{key}" cx="{xpos(est):.1f}" cy="{cy:.1f}" '
+                f'r="5" fill="{colour}"/>'
+            )
+        y = axis_y + axis_h
+
     parts.append(
-        f'<text id="deepseek-1017-on-our-work-note" x="{left}" y="{height - 18}" font-size="14" '
-        f'fill="#555555">{title_note}</text>'
+        f'<text id="deepseek-1017-on-our-work-note" x="{left}" y="{height - 14}" font-size="14" '
+        f'fill="#555555">{note}</text>'
     )
     parts.append("</svg>")
     with open(path, "w") as handle:
@@ -680,10 +745,16 @@ def main():
     )
     os.makedirs(figure_dir, exist_ok=True)
     figure = os.path.join(figure_dir, "differences.svg")
+    before_means = {
+        name: (result["metrics"]["before"][name]["estimate"] or 0.0)
+        for name in main_diffs
+    }
     write_svg(
         figure,
         main_diffs,
-        "bars: point estimate, whiskers: 95% bootstrap interval over runs; grey crosses zero",
+        before_means,
+        "point: estimate, whisker: 95% interval; grey crosses zero; "
+        "cached tokens omitted because the request record never fills that column",
     )
     print(f"\n# figure written to {figure}")
     return 0
