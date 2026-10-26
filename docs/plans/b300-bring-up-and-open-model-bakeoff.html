@@ -20,12 +20,12 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
   <meta name="plan-after" content="rotate-to-deepseek-v4-1-flash-1017">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;deferred&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;deferred&quot;,&quot;s7&quot;:&quot;deferred&quot;}">
   <meta name="plan-section-depends-on" content="{&quot;s3&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s2&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s4&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s5&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s4&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s3&quot;],&quot;s6&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s5&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s5&quot;,&quot;serving-across-servers#s7&quot;]}">
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="27">
+<meta name="plan-version" content="28">
 <meta name="plan-modified" content="2026-10-27">
 </head>
 <body>
@@ -193,7 +193,7 @@
     </ul>
 
     <h2 id="s5">§5 — Measure the B300 on arrival</h2>
-<section data-reckon="section" data-id="s5" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s5" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="moderate" data-status="deferred" data-links=""></section>
     <p>Launch <code>b300-8x</code> and measure it with the repository's own benchmark,
     <code>imas-ambix agent bench</code>. Its tool-call probe (<code>run_tool_call_bench</code>,
     now <code>bench.check_tool_call</code> after the rotation) runs first. Then its
@@ -242,7 +242,7 @@
     </ul>
 
     <h2 id="s6">§6 — Cut over</h2>
-<section data-reckon="section" data-id="s6" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s6" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="orchestrator" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="elevated" data-status="deferred" data-links=""></section>
     <p><strong>The H200 keeps serving</strong> (lead, 2026-10-23). After cutover, the lane is
     two engines of one model: <code>b300-8x</code> and the H200's <code>h200-4x</code>.
     Today's routing would send every new key to the widest engine
@@ -297,6 +297,9 @@
 <div class="r-comment" data-section="_top" data-id="c-close-s2" data-who="reckon-build" data-when="2026-10-26T22:12:00Z">
     <div class="r-comment-body"><p>§2 landed in <code>ada5434c</code>. All 13 checkpoint directories (7.2 TB) are complete, and 12 are hash-verified upstream. Recommended: 11 keep, 1 backup (<code>glm-5-3-w4a8</code>), 1 prune (<code>deepseek-v4-flash</code>, 160 GB). Pruning is the lead's decision. <a href="/imas-ambix/evidence/archive/b300-bring-up-and-open-model-bakeoff-landed.html#s2">evidence</a></p></div>
 </div>
+<div class="r-comment" data-section="_top" data-id="c-defer-s5-s6" data-who="reckon-build" data-when="2026-10-27T00:40:00Z">
+    <div class="r-comment-body"><p>§5 and §6 are deferred until the B300 is installed and its host facts are known (question <code>b300-arrival-facts</code>). Both run on the hardware. Their only declared wait is on §4, so a queued dispatch would launch as soon as §4 lands, against a node that does not exist yet. They return to implementable on arrival.</p></div>
+</div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261026T214720935593-model-store-audit" data-who="reckon-build" data-when="2026-10-26T22:07:13.003Z">
     <div class="r-comment-body"><p>Model store audit — thirteen checkpoint directories under /work/projects/imas_gpu/agents measured complete and hash-verified against their recorded Hugging Face commit (12/13; the exception is camel-ai/GLM-5.3-W4A8, which refuses an anonymous listing), 7.208 TB total, recommended 11 keep / 1 backup (glm-5-3-w4a8, sole copy) / 1 prune (deepseek-v4-flash, 159.6 GB, superseded and named by no profile); positive control reads deepseek-ai/DeepSeek-V4.1-Flash @ dba1be0a with first-shard 886aebda, negative control reports an absent shard as incomplete.</p></div>
 </div>
@@ -310,7 +313,7 @@
     <div class="r-comment-body"><p>Added two pinned candidate profiles (kimi-k3 @ f831ab66814297da540d832a5235f8e904f29d06, MXFP4, 1.42 TiB; mimo-v2-6-pro @ 6a7f202e8dbd0e57b3fe1da03917d08d75abc4b8, FP8, 527 GiB, the -MOPD variant on the model card's tool-call-repetition sentence), deferring engine tuning and deployment sizing while declaring the two catalogue invariants a profile needs even unserved (distinct ports 18811/18812, cpus 12 inside the 30-core reservation); tests/test_agent_candidate_profiles.py pins both releases, their rendered download revisions and the invariants, passing 10/10, with both negative controls red (slurm blocks removed: the two named catalogue tests fail 2/192; kimi-k3 revision stripped: 2 failed / 8 passed); both downloads submitted on sirius as jobs 1296374 and 1296375, targets /work/projects/imas_gpu/agents/kimi-k3/model and /work/projects/imas_gpu/agents/mimo-v2-6-pro-mopd/model.</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261026T231745023864-review-of-deepseek-launchers-4x-8x-2831967fb2bb" data-who="reckon-build" data-when="2026-10-26T23:31:07.140Z">
-    <div class="r-comment-body"><p>review of r-20261026T225015859094-deepseek-launchers-4x-8x at head 2831967f scores goal 16, evidence 13, scope 13, durability 14, fit 17, reuse 20 — one blocking finding (restart --gpus raises AttributeError at imas_ambix/agent/cli.py:2499 when placement resolves to None) and two non-blocking findings (cli.py written outside the declared scope by done-when necessity; the manifest&#x27;s cited base-arm log does not contain the six failures it attributes).</p></div>
+    <div class="r-comment-body"><p>review of r-20261026T225015859094-deepseek-launchers-4x-8x at head 2831967f scores goal 16, evidence 13, scope 13, durability 14, fit 17, reuse 20 — one blocking finding (restart --gpus raises AttributeError at imas_ambix/agent/cli.py:2499 when placement resolves to None) and two non-blocking findings (cli.py written outside the declared scope by done-when necessity; the manifest's cited base-arm log does not contain the six failures it attributes).</p></div>
 </div>
 </section>
 </main>
