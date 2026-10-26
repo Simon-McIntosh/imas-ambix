@@ -1,0 +1,69 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-26T20:55:40.227Z",
+  "dispatched_at": "2026-10-26T20:43:56Z",
+  "findings": [
+    {
+      "anchor": "plan.html:247",
+      "id": "done_when-1",
+      "reason": "the plan needs a positive arm beside this control (both windows asserted to carry a nonzero run count, or a planted known difference the same code reports as detected), otherwise the two outcomes that should be told apart are reported identically.",
+      "text": "\u00a76's negative control (boundary moved inside the before window, requiring \"no detectable difference\" on the promotion and first-attempt rates) is satisfied by an analysis that reads nothing at all: an empty window, a failed join to the request record, or a filter that matches no run each yield \"no detectable difference\", which is also the verdict that sends the plan to the deferred bake-off. The contract this review is held to requires exactly the check the control omits: show the instrument sees something known present before accepting an absence.",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html:247",
+      "id": "reasoning-1",
+      "reason": "a node implementing \u00a76 would attempt a recorder join for the before window, find no rows, and either discard half the comparison or fall back to an attribution the section does not authorise; the section should say attribution is by the boundary alone and name the recorder as an after-window corroboration.",
+      "text": "\u00a76 says \"Every local-lane run is attributable to one checkpoint by the swap boundary, 2026-10-23T20:14:30Z, and the recorder file per job\", but the recorder instrument it names is the `serve_config.model_path` key \u00a74 introduces (\"That section gains the engine's own reported `model_path`\", plan.html:158-160); \u00a74 landed at 19:41Z on 2026-10-23 and the serve that answered the whole before window (2026-10-20T20:14:30Z to the boundary) had been recording since before that, so the before window carries no `model_path` and the recorder cannot attribute it.",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html:251",
+      "id": "reasoning-2",
+      "reason": "the \u00a77 done-when already makes \"the live document carries the `checkpoints` map\" a deliverable, so the sentence misleads the reading but the gate still requires the input be added.",
+      "text": "\u00a77 states in the present tense that \"The live document carries the map, so the view renders it and does not read the file itself\", but `imas_ambix/agent/live_panel.py` reads only the lane document, the tail of the recorder's receipt file and the router's request record, and neither it nor `watch.py`'s live path reads `endpoints.json`: no `checkpoints` block exists in the live document today. The write paths include `live_panel.py`, so the change is in scope, but the sentence a node reads first says the input is already there.",
+      "type": "reasoning",
+      "would_change": false
+    },
+    {
+      "anchor": "plan.html:24",
+      "id": "wiring-1",
+      "reason": "both dependencies have landed and are live (the lane has served 1017 since 2026-10-23T20:14:30Z, and `endpoints.json` publishes the map), so adding the edges would not reorder or gate any dispatch.",
+      "text": "`plan-section-depends-on` carries `s5:[s2,s3,s4]` and `s4:[s2]` but no entry for s6 (which measures \u00a75's swap outcome) or s7 (which reads the `checkpoints` map \u00a74 publishes), so the sections \u00a76 and \u00a77 rest on are recorded nowhere in the relationship map.",
+      "type": "wiring",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "461a6bd556cacf25504526a02e90d5f19ac8771c7c55d7c81bd13b73b596f272",
+  "plan_slug": "rotate-to-deepseek-v4-1-flash-1017",
+  "plan_version": 32,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261026T204341090899-plan-review-of-rotate-to-deepseek-v4-1-flash-1017",
+  "reviewed_blob_sha": "ebefc59b32687fea57f2314656f1ff0483dba197",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `docs/research/` and `docs/figures/` exist, `imas_ambix/agent/{live_panel,llm_watch}.py`, `tests/test_llm_watch.py` and `tests/golden/llm_watch` exist, `docs/plans/b300-bring-up-and-open-model-bakeoff.html#s7` is the paired bake-off \u00a76 defers to, dotfiles `252dc4e` is the gpu-watch checkpoint commit \u00a77 cites, and \u00a76's ledger glob `~/Code/*/docs/state/*/runs/*.json` resolves to 12,498 records (314 clive-implementation runs in the before window, 93 in the after window).",
+    "done_when": "a finding \u2014 \u00a76's negative control moves the boundary inside the before window and requires \"no detectable difference\", which is the same result the analysis returns when it reads neither window, so the control cannot show the instrument sees anything.",
+    "evidence_paths": "pass \u2014 \u00a76's analysis script and log are committed under `docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/`, beside \u00a73's committed probe log, and \u00a77's change lands in committed source, tests and goldens; neither writes to a session scratchpad or node-local path.",
+    "naming": "pass \u2014 `docs/research/deepseek-1017-on-our-work.html` and `docs/figures/deepseek-1017-on-our-work` name the work they do, and \"1017\" is the release's own identifier rather than a plan, sprint or stage label.",
+    "reasoning": "a finding \u2014 \u00a76 attributes every run to a checkpoint by the swap boundary \"and the recorder file per job\", but the recorder key it leans on is the `serve_config.model_path` \u00a74 says it adds, so no before-window row can carry it (\u00a74 landed 2026-10-23T19:41Z, 33 minutes before the 20:14:30Z boundary, and the serve running through the before window was recorded by code that predates it); \u00a77's other claim, that \"the live document carries the map\", does not hold in the code today.",
+    "single_goal": "pass \u2014 \u00a76 carries one deliverable (one research document with one verdict) and \u00a77 one (one checkpoint label on llm-watch's head line).",
+    "wiring": "a finding \u2014 `_document`'s `plan-section-depends-on` (plan.html:24) declares no edge for s6 or s7, although \u00a76 consumes \u00a75's swap outcome and \u00a77 consumes \u00a74's `checkpoints` map; both dependencies have landed, so this is an incomplete relationship map rather than a blocked node."
+  },
+  "section_digests": {
+    "_document": "f32118365ee5fbcd16f9f7dd724f68279100345032ce2309b678f2d07b561851",
+    "s1": "8deac0a58e020378e898a334465e0ec83803b509b7e5a610b21591def4c21d25",
+    "s2": "a23e81a77c9227613a42419b5fefc7dfd90022596cc8ae2a2b9264290cada17c",
+    "s3": "2cd96ad6a1c5ffa33a1cc88ee45c427a044080539e66daf427d2a501eca8cb57",
+    "s4": "dd5f9393ccd43e0bd8f7ff1df7926173c61aacc54ccca9adf0d6fb85501f29fa",
+    "s5": "5ad304a77e9f7f61a47473fdbeaeec6748251f6e887bcba8a9472024dff8cf98",
+    "s6": "6b53511c94a3223b9215e7dffa3fcf56ce0aadf1dd71cd38ddaad1570e3f6f14",
+    "s7": "7affb3a8b44bc561f6845dc9a35ff8026aef18a45ef39a9002f4d02e89b8bb3e"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T21:01:05.126105+00:00"
+}
