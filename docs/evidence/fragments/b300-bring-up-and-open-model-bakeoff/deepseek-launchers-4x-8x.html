@@ -56,6 +56,18 @@
     declares 'b300' at 4, 8 cards"</em> — and the same assertion executed against the base
     revision fails, because there the count is accepted silently.</p>
 
+    <p id="deepseek-launchers-4x-8x-repair-placement">Review repair (786d7475): the restart
+    path resolved the running serve's placement and then read the server name off it, so a
+    running job with no registration — a serve started outside the CLI, or one whose
+    registration is not current — raised <code>AttributeError</code> on
+    <code>agent restart &lt;slug&gt; --gpus N</code> instead of rendering the script. An
+    unknown placement now falls back to the card count alone, which is what the flag meant
+    before a profile could describe several servers; the placement it does resolve still
+    wins, which the two existing restart tests pin. The regression test restarts an
+    unregistered RUNNING job under a two-server site and requires the eight-card topology on
+    the server the site starts at. Reverting the fix reproduces the
+    <code>AttributeError</code> and fails that test.</p>
+
     <p id="deepseek-launchers-4x-8x-limits">Not established here: no B300 serve has been
     launched, so the startup reports, the lazy workspace headroom and the KV occupancy at
     the declared bound are all still to be measured, and the research document lists them
