@@ -1,0 +1,84 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 6,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:253",
+    "imas_ambix/agent/cli.py:620",
+    "imas_ambix/agent/cli.py:2502",
+    "imas_ambix/agent/cli.py:805",
+    "imas_ambix/agent/cli.py:3016",
+    "imas_ambix/agent/cli.py:3165"
+  ],
+  "completed_at": "2026-10-26T23:46:28.189Z",
+  "dispatched_at": "2026-10-26T23:36:44Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/cli.py",
+      "line": "3016",
+      "severity": "non-blocking",
+      "text": "non-blocking: bench (and status at :805 and receipts at :3165) still call _scale_profile without the resolved server, so a B300 serve is now described and filed under the card-count-only topology the serve no longer launches, and the comment at :3012 asserts the opposite."
+    },
+    {
+      "file": "tests/test_agent_site_servers.py",
+      "line": "669",
+      "severity": "non-blocking",
+      "text": "non-blocking: the placement assertions compare the rendered script against _B300, the same object the test passes in through AMBIX_AGENT_SERVERS, so they hold for any relay of the declared server and would move if the fixture moved; the settings assertions at :684-693 are the independent half."
+    },
+    {
+      "file": "docs/evidence/fragments/b300-bring-up-and-open-model-bakeoff/deepseek-launchers-4x-8x.html",
+      "line": "41",
+      "severity": "non-blocking",
+      "text": "non-blocking: the gate paragraph records 33 passed while the reviewed head's scoped run records 34 (logs/gate-scoped.log:4), so the landed evidence understates the arm it cites."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T225015859094-deepseek-launchers-4x-8x/manifest.md",
+      "line": "19",
+      "severity": "non-blocking",
+      "text": "non-blocking: baseline_suite and after_suite are prose rather than the required JSON and cite logs/head-control.log as the base arm, which holds only the two restart tests, so the six-failure pre-existence claim has no readable arm inside this run."
+    },
+    {
+      "file": "docs/research/b300-launch-recipes.html",
+      "line": "91",
+      "severity": "non-blocking",
+      "text": "non-blocking: the done_when asks for the SGLang release note or cookbook page each B300 setting rests on, but KV dtype, MoE runner and DSpark depth are cited to the vLLM Blackwell recipe with a single SGLang install page for the image."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 6 production call site(s)",
+    "diff": "read commit by commit from faa32881 to d812e6f8; a8e84b2c adds server_gpu_variants and the serve/restart wiring, b6f5df2b adds docs/research/b300-launch-recipes.html, 2831967f lands the evidence fragment, 786d7475 makes the restart placement None-safe, d812e6f8 records that repair \u2014 six files, 710 insertions, all inside the fence.",
+    "done_when": "the EVIDENCE fence names for_gpus(gpus, server=) at imas_ambix/agent/profile.py:453, _scale_profile on both paths at imas_ambix/agent/cli.py:2502, three dry runs, a digest-pinned default, and the four-file pytest plus ruff; all are implemented, but the named four-file gate exits 1 with six failures (logs/repair-gate.log:1889) rather than passing.",
+    "goal": "the node goal is that deepseek-v4-1-flash renders a complete serve script for h200-4x, b300-4x and b300-8x via --server/--gpus; imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:667 and :688 declare both B300 topologies and tests/test_agent_site_servers.py:627, :658 and :696 render and pin all three, so the goal is met.",
+    "manifest": "read; it records five commits to d812e6f8, the 34-passed scoped arm, the 245-passed/6-failed named gate, ruff exit 0, and the cli.py scope adjudication, but its baseline_suite and after_suite are prose rather than the required JSON and it cites logs/head-control.log as the base arm though that log holds only two tests.",
+    "write_paths": "the dispatch fence lists six paths; all six paths in the diff (profile.py, cli.py, the toml, the test file, the research doc, the evidence fragment) are inside it, though the plan write-path list at docs/plans/b300-bring-up-and-open-model-bakeoff.html:264 omits imas_ambix/agent/cli.py."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_site_servers.py:467 fails with AttributeError when the fix at imas_ambix/agent/cli.py:2503 is reverted (logs/negative-control-repair.log), and :675 pins TP8 for the eight-card b300 variant no other profile declares.",
+    "evidence": "logs/repair-gate.log:1889 records 6 failed / 246 passed (EXIT=1) and logs/gate-scoped.log:4 the 34-passed scoped arm, but the six-failure base arm the manifest attributes to logs/head-control.log is not in that log (2 failed, 12 deselected).",
+    "fit": "server_gpu_variants at imas_ambix/agent/profile.py:447 mirrors the gpu_variants idiom and names nothing the naming rules forbid, but the comment at imas_ambix/agent/cli.py:3012 still claims bench resolves exactly as serve now does not.",
+    "goal_fidelity": "imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:667 and :688 give the two B300 topologies and imas_ambix/agent/cli.py:620 hands the resolved server to _scale_profile on serve, so all three configurations render.",
+    "reuse": "the addition extends ModelProfile.for_gpus at imas_ambix/agent/profile.py:453, the existing owner of variant resolution, and a search over imas_ambix found only SiteConfig.servers (placement) and no other per-server topology mechanism.",
+    "scope_discipline": "every path in the diff is one of the six dispatch write paths, and the plan's own write-path list at docs/plans/b300-bring-up-and-open-model-bakeoff.html:264 omits imas_ambix/agent/cli.py which its prose requires."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is that deepseek-v4-1-flash renders a complete serve script for h200-4x, b300-4x and b300-8x via --server/--gpus; imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:667 and :688 declare both B300 topologies and tests/test_agent_site_servers.py:627, :658 and :696 render and pin all three, so the goal is met.\nVERDICT done_when: the EVIDENCE fence names for_gpus(gpus, server=) at imas_ambix/agent/profile.py:453, _scale_profile on both paths at imas_ambix/agent/cli.py:2502, three dry runs, a digest-pinned default, and the four-file pytest plus ruff; all are implemented, but the named four-file gate exits 1 with six failures (logs/repair-gate.log:1889) rather than passing.\nVERDICT write_paths: the dispatch fence lists six paths; all six paths in the diff (profile.py, cli.py, the toml, the test file, the research doc, the evidence fragment) are inside it, though the plan write-path list at docs/plans/b300-bring-up-and-open-model-bakeoff.html:264 omits imas_ambix/agent/cli.py.\nVERDICT manifest: read; it records five commits to d812e6f8, the 34-passed scoped arm, the 245-passed/6-failed named gate, ruff exit 0, and the cli.py scope adjudication, but its baseline_suite and after_suite are prose rather than the required JSON and it cites logs/head-control.log as the base arm though that log holds only two tests.\nVERDICT diff: read commit by commit from faa32881 to d812e6f8; a8e84b2c adds server_gpu_variants and the serve/restart wiring, b6f5df2b adds docs/research/b300-launch-recipes.html, 2831967f lands the evidence fragment, 786d7475 makes the restart placement None-safe, d812e6f8 records that repair \u2014 six files, 710 insertions, all inside the fence.\nCALL_SITES: imas_ambix/agent/cli.py:253, imas_ambix/agent/cli.py:620, imas_ambix/agent/cli.py:2502, imas_ambix/agent/cli.py:805, imas_ambix/agent/cli.py:3016, imas_ambix/agent/cli.py:3165\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/profiles/deepseek-v4-1-flash.toml:667 and :688 give the two B300 topologies and imas_ambix/agent/cli.py:620 hands the resolved server to _scale_profile on serve, so all three configurations render.\nSCORE evidence: 15\nJUSTIFICATION evidence: logs/repair-gate.log:1889 records 6 failed / 246 passed (EXIT=1) and logs/gate-scoped.log:4 the 34-passed scoped arm, but the six-failure base arm the manifest attributes to logs/head-control.log is not in that log (2 failed, 12 deselected).\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every path in the diff is one of the six dispatch write paths, and the plan's own write-path list at docs/plans/b300-bring-up-and-open-model-bakeoff.html:264 omits imas_ambix/agent/cli.py which its prose requires.\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_agent_site_servers.py:467 fails with AttributeError when the fix at imas_ambix/agent/cli.py:2503 is reverted (logs/negative-control-repair.log), and :675 pins TP8 for the eight-card b300 variant no other profile declares.\nSCORE fit: 17\nJUSTIFICATION fit: server_gpu_variants at imas_ambix/agent/profile.py:447 mirrors the gpu_variants idiom and names nothing the naming rules forbid, but the comment at imas_ambix/agent/cli.py:3012 still claims bench resolves exactly as serve now does not.\nSCORE reuse: 20\nJUSTIFICATION reuse: the addition extends ModelProfile.for_gpus at imas_ambix/agent/profile.py:453, the existing owner of variant resolution, and a search over imas_ambix found only SiteConfig.servers (placement) and no other per-server topology mechanism.\nFINDING imas_ambix/agent/cli.py:3016 non-blocking: bench (and status at :805 and receipts at :3165) still call _scale_profile without the resolved server, so a B300 serve is now described and filed under the card-count-only topology the serve no longer launches, and the comment at :3012 asserts the opposite.\nFINDING tests/test_agent_site_servers.py:669 non-blocking: the placement assertions compare the rendered script against _B300, the same object the test passes in through AMBIX_AGENT_SERVERS, so they hold for any relay of the declared server and would move if the fixture moved; the settings assertions at :684-693 are the independent half.\nFINDING docs/evidence/fragments/b300-bring-up-and-open-model-bakeoff/deepseek-launchers-4x-8x.html:41 non-blocking: the gate paragraph records 33 passed while the reviewed head's scoped run records 34 (logs/gate-scoped.log:4), so the landed evidence understates the arm it cites.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T225015859094-deepseek-launchers-4x-8x/manifest.md:19 non-blocking: baseline_suite and after_suite are prose rather than the required JSON and cite logs/head-control.log as the base arm, which holds only the two restart tests, so the six-failure pre-existence claim has no readable arm inside this run.\nFINDING docs/research/b300-launch-recipes.html:91 non-blocking: the done_when asks for the SGLang release note or cookbook page each B300 setting rests on, but KV dtype, MoE runner and DSpark depth are cited to the vLLM Blackwell recipe with a single SGLang install page for the image.",
+  "review_run_id": "r-20261026T233601795979-review-of-deepseek-launchers-4x-8x-d812e6f82acd",
+  "reviewed_base_sha": "faa328816dcaed3f7ffd9e9631d5e7d9db20e06a",
+  "reviewed_head_sha": "d812e6f82acd497e0842d9ad3e73c9edd85e3f9b",
+  "reviewed_run_id": "r-20261026T225015859094-deepseek-launchers-4x-8x",
+  "scores": {
+    "durability": 18,
+    "evidence": 15,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T23:49:08.856429+00:00",
+  "total": 108
+}
