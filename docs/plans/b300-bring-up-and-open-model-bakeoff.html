@@ -25,8 +25,8 @@
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="23">
-<meta name="plan-modified" content="2026-10-26">
+<meta name="plan-version" content="24">
+<meta name="plan-modified" content="2026-10-27">
 </head>
 <body>
   <main class="plan-doc">
@@ -299,6 +299,9 @@
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261026T214720935593-model-store-audit" data-who="reckon-build" data-when="2026-10-26T22:07:13.003Z">
     <div class="r-comment-body"><p>Model store audit — thirteen checkpoint directories under /work/projects/imas_gpu/agents measured complete and hash-verified against their recorded Hugging Face commit (12/13; the exception is camel-ai/GLM-5.3-W4A8, which refuses an anonymous listing), 7.208 TB total, recommended 11 keep / 1 backup (glm-5-3-w4a8, sole copy) / 1 prune (deepseek-v4-flash, 159.6 GB, superseded and named by no profile); positive control reads deepseek-ai/DeepSeek-V4.1-Flash @ dba1be0a with first-shard 886aebda, negative control reports an absent shard as incomplete.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20261026T225834004046-review-of-backup-profiles-and-downloads-81de3fc22972" data-who="reckon-build" data-when="2026-10-26T23:06:58.977Z">
+    <div class="r-comment-body"><p>Independent review of run r-20261026T224926476951-backup-profiles-and-downloads at 81de3fc229727a85daab4e55ba897cb43b879bec: 88/120 across the six dimensions, one blocking finding — imas_ambix/agent/profiles/kimi-k3.toml:30 and mimo-v2-6-pro.toml:42 declare no [slurm] section, so both resolve to port None / 4 GPUs / 30 cores / 640G and fail tests/test_agent.py:355 and :853 at head (4 passed EXIT=0 at base, 2 failed EXIT=1 at head) — plus four non-blocking findings on coupled and partial assertions, a topology check that sees only [engine], a duplicated pin contract, and a gate log header naming the base revision.</p></div>
 </div>
 </section>
 </main>

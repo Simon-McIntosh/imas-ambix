@@ -1,0 +1,90 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 2,
+  "added_failure_ids": [
+    "tests/test_agent.py::test_every_profile_declares_a_distinct_port",
+    "tests/test_agent.py::test_every_full_gpu_serve_leaves_reservation_headroom"
+  ],
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:495 downloads verb calls generate_download_script",
+    "imas_ambix/agent/slurm.py:1205 renders the batch script",
+    "imas_ambix/agent/profile.py:843-847 list_profiles discovers the new TOMLs",
+    "imas_ambix/agent/cli.py:389 lists them in agent list",
+    "imas_ambix/agent/router.py:1691 folds their served_name into the routable catalog"
+  ],
+  "completed_at": "2026-10-26T23:06:58.977Z",
+  "dispatched_at": "2026-10-26T22:59:14Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/profiles/kimi-k3.toml",
+      "line": "30",
+      "severity": "blocking",
+      "text": "blocking: neither new profile declares a [slurm] section, so SlurmSettings defaults apply and both resolve to port None, gpus 4, cpus 30, memory 640G; at head tests/test_agent.py:355 test_every_profile_declares_a_distinct_port fails (assert all(port is not None)) and tests/test_agent.py:853 test_every_full_gpu_serve_leaves_reservation_headroom fails naming kimi-k3 and mimo-v2-6-pro at 4 GPUs / 30 cores, while both pass at base faa32881 with 4 passed EXIT=0, and cpus 30 on a device-resident vLLM profile is exactly the neighbour-starving topology that test exists to prevent."
+    },
+    {
+      "file": "tests/test_agent_candidate_profiles.py",
+      "line": "105",
+      "severity": "non-blocking",
+      "text": "non-blocking: the assertion compares the rendered script against site.model_dir(profile), the very function generate_download_script uses to fill MODEL_DIR, so both sides move together and a regression in model_dir leaves the assertion true; the independent half of that claim is the weights_slug check on :107."
+    },
+    {
+      "file": "tests/test_agent_candidate_profiles.py",
+      "line": "87",
+      "severity": "non-blocking",
+      "text": "non-blocking: the topology check inspects only the literal top-level key \"slurm\" and the keys under [engine], so a topology declared at top level (gpus, port, tensor_parallel) or in a new section such as [serving] would pass a test whose name claims no serving topology is declared."
+    },
+    {
+      "file": "tests/test_agent_candidate_profiles.py",
+      "line": "96",
+      "severity": "non-blocking",
+      "text": "non-blocking: the pin-reaches-transfer assertion duplicates the contract tests/test_agent_dspark_profile.py:287 already owns through an hf stub, and duplicates it more weakly, matching text in the script rather than the argv actually handed to the fetcher."
+    },
+    {
+      "file": "logs/pytest-candidate-profiles.log",
+      "line": "1",
+      "severity": "non-blocking",
+      "text": "non-blocking: the gate log's revision header names faa328816dcaed3f7ffd9e9631d5e7d9db20e06a, the base, because the suite ran before the commit that carries the files it exercises, so a reader cannot tell from the log that the tested tree is the committed head 81de3fc2."
+    }
+  ],
+  "gate_sources": {
+    "after_suite": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T225834004046-review-of-backup-profiles-and-downloads-81de3fc22972/profile-iteration-tests-at-head.log",
+    "baseline_suite": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T225834004046-review-of-backup-profiles-and-downloads-81de3fc22972/profile-iteration-tests-at-base.log"
+  },
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "imas_ambix/agent/cli.py:495 downloads verb calls generate_download_script; imas_ambix/agent/slurm.py:1205 renders the batch script; imas_ambix/agent/profile.py:843-847 list_profiles discovers the new TOMLs; imas_ambix/agent/cli.py:389 lists them in agent list; imas_ambix/agent/router.py:1691 folds their served_name into the routable catalog",
+    "diff": "One commit against faa32881, four files, 273 insertions and no deletions: two new profile TOMLs, the new test file, and the landing fragment; no production Python changed.",
+    "done_when": "Every named part is recorded - profiles and pins, the MiMo -MOPD sentence quoted verbatim in docs/evidence/fragments/b300-bring-up-and-open-model-bakeoff/backup-profiles-and-downloads.html, 7 passed in the gate log, ruff EXIT=0, and both job ids, partition and target directories in the fragment - but the gate ran only the new test file, and two pre-existing whole-profile tests in tests/test_agent.py fail at head because of these two files.",
+    "goal": "The goal is two pinned backup profiles plus resumable downloads submitted; both profiles exist at imas_ambix/agent/profiles/kimi-k3.toml and mimo-v2-6-pro.toml with hf_repo, a 40-character revision, weights_slug and no serving topology, and jobs 1296374/1296375 are live on sirius, but neither file declares a [slurm] section, so the serve path inherits 4 GPUs, 30 cores and 640G.",
+    "manifest": "Read; it records commit 81de3fc2, changed_paths matching the diff, the 7-passed gate command and log, the ruff log, and negative_control_log logs/negative-control-kimi-k3-revision-removed.log at 2 failed/5 passed EXIT=1; it records no baseline_suite or after_suite block.",
+    "write_paths": "The brief grants five paths (two TOMLs, one test file, one evidence fragment, one figure directory); git diff --name-only faa32881..81de3fc2 changes exactly the four non-figure paths and nothing else."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_candidate_profiles.py:66 fails when the revision is stripped, as the negative control shows, but tests/test_agent_candidate_profiles.py:105 compares the script against site.model_dir, the same function that built it, so a model_dir regression leaves it green.",
+    "evidence": "The gate log logs/pytest-candidate-profiles.log ends 7 passed EXIT=0 as the done_when asks, but its selection covers only the new test file and misses tests/test_agent.py:352 and :842, which the two new profiles break.",
+    "fit": "The TOML shape follows imas_ambix/agent/profiles/mimo-v2-5-pro.toml, but neither new file ends with a newline and both are the only profiles in the directory without a [slurm] section.",
+    "goal_fidelity": "The pins and the download submission land, but imas_ambix/agent/profiles/kimi-k3.toml and mimo-v2-6-pro.toml omit [slurm], so a serve resolves to 4 GPUs, 30 cores and 640G and no port, which is a topology declared by inheritance rather than by design.",
+    "reuse": "The profiles extend the existing profile owner at imas_ambix/agent/profile.py:843 and the tests call the owned generate_download_script, but tests/test_agent_candidate_profiles.py:96 re-asserts the revision-reaches-argv contract that tests/test_agent_dspark_profile.py:287 already owns.",
+    "scope_discipline": "All four changed paths sit inside the brief's five granted paths, the declared figure directory is untouched, and no production source was edited."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The goal is two pinned backup profiles plus resumable downloads submitted; both profiles exist at imas_ambix/agent/profiles/kimi-k3.toml and mimo-v2-6-pro.toml with hf_repo, a 40-character revision, weights_slug and no serving topology, and jobs 1296374/1296375 are live on sirius, but neither file declares a [slurm] section, so the serve path inherits 4 GPUs, 30 cores and 640G.\nVERDICT done_when: Every named part is recorded - profiles and pins, the MiMo -MOPD sentence quoted verbatim in docs/evidence/fragments/b300-bring-up-and-open-model-bakeoff/backup-profiles-and-downloads.html, 7 passed in the gate log, ruff EXIT=0, and both job ids, partition and target directories in the fragment - but the gate ran only the new test file, and two pre-existing whole-profile tests in tests/test_agent.py fail at head because of these two files.\nVERDICT write_paths: The brief grants five paths (two TOMLs, one test file, one evidence fragment, one figure directory); git diff --name-only faa32881..81de3fc2 changes exactly the four non-figure paths and nothing else.\nVERDICT manifest: Read; it records commit 81de3fc2, changed_paths matching the diff, the 7-passed gate command and log, the ruff log, and negative_control_log logs/negative-control-kimi-k3-revision-removed.log at 2 failed/5 passed EXIT=1; it records no baseline_suite or after_suite block.\nVERDICT diff: One commit against faa32881, four files, 273 insertions and no deletions: two new profile TOMLs, the new test file, and the landing fragment; no production Python changed.\nCALL_SITES: imas_ambix/agent/cli.py:495 downloads verb calls generate_download_script, imas_ambix/agent/slurm.py:1205 renders the batch script, imas_ambix/agent/profile.py:843-847 list_profiles discovers the new TOMLs, imas_ambix/agent/cli.py:389 lists them in agent list, imas_ambix/agent/router.py:1691 folds their served_name into the routable catalog\nSCORE goal_fidelity: 14\nJUSTIFICATION goal_fidelity: The pins and the download submission land, but imas_ambix/agent/profiles/kimi-k3.toml and mimo-v2-6-pro.toml omit [slurm], so a serve resolves to 4 GPUs, 30 cores and 640G and no port, which is a topology declared by inheritance rather than by design.\nSCORE evidence: 13\nJUSTIFICATION evidence: The gate log logs/pytest-candidate-profiles.log ends 7 passed EXIT=0 as the done_when asks, but its selection covers only the new test file and misses tests/test_agent.py:352 and :842, which the two new profiles break.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: All four changed paths sit inside the brief's five granted paths, the declared figure directory is untouched, and no production source was edited.\nSCORE durability: 12\nJUSTIFICATION durability: tests/test_agent_candidate_profiles.py:66 fails when the revision is stripped, as the negative control shows, but tests/test_agent_candidate_profiles.py:105 compares the script against site.model_dir, the same function that built it, so a model_dir regression leaves it green.\nSCORE fit: 14\nJUSTIFICATION fit: The TOML shape follows imas_ambix/agent/profiles/mimo-v2-5-pro.toml, but neither new file ends with a newline and both are the only profiles in the directory without a [slurm] section.\nSCORE reuse: 16\nJUSTIFICATION reuse: The profiles extend the existing profile owner at imas_ambix/agent/profile.py:843 and the tests call the owned generate_download_script, but tests/test_agent_candidate_profiles.py:96 re-asserts the revision-reaches-argv contract that tests/test_agent_dspark_profile.py:287 already owns.\nFINDING imas_ambix/agent/profiles/kimi-k3.toml:30 blocking: neither new profile declares a [slurm] section, so SlurmSettings defaults apply and both resolve to port None, gpus 4, cpus 30, memory 640G; at head tests/test_agent.py:355 test_every_profile_declares_a_distinct_port fails (assert all(port is not None)) and tests/test_agent.py:853 test_every_full_gpu_serve_leaves_reservation_headroom fails naming kimi-k3 and mimo-v2-6-pro at 4 GPUs / 30 cores, while both pass at base faa32881 with 4 passed EXIT=0, and cpus 30 on a device-resident vLLM profile is exactly the neighbour-starving topology that test exists to prevent.\nFINDING tests/test_agent_candidate_profiles.py:105 non-blocking: the assertion compares the rendered script against site.model_dir(profile), the very function generate_download_script uses to fill MODEL_DIR, so both sides move together and a regression in model_dir leaves the assertion true; the independent half of that claim is the weights_slug check on :107.\nFINDING tests/test_agent_candidate_profiles.py:87 non-blocking: the topology check inspects only the literal top-level key \"slurm\" and the keys under [engine], so a topology declared at top level (gpus, port, tensor_parallel) or in a new section such as [serving] would pass a test whose name claims no serving topology is declared.\nFINDING tests/test_agent_candidate_profiles.py:96 non-blocking: the pin-reaches-transfer assertion duplicates the contract tests/test_agent_dspark_profile.py:287 already owns through an hf stub, and duplicates it more weakly, matching text in the script rather than the argv actually handed to the fetcher.\nFINDING logs/pytest-candidate-profiles.log:1 non-blocking: the gate log's revision header names faa328816dcaed3f7ffd9e9631d5e7d9db20e06a, the base, because the suite ran before the commit that carries the files it exercises, so a reader cannot tell from the log that the tested tree is the committed head 81de3fc2.\n",
+  "review_run_id": "r-20261026T225834004046-review-of-backup-profiles-and-downloads-81de3fc22972",
+  "reviewed_base_sha": "faa328816dcaed3f7ffd9e9631d5e7d9db20e06a",
+  "reviewed_head_sha": "81de3fc229727a85daab4e55ba897cb43b879bec",
+  "reviewed_run_id": "r-20261026T224926476951-backup-profiles-and-downloads",
+  "scores": {
+    "durability": 12,
+    "evidence": 13,
+    "fit": 14,
+    "goal_fidelity": 14,
+    "reuse": 16,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T23:05:41.404423+00:00",
+  "total": 88
+}
