@@ -1,0 +1,69 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-26T21:39:47.062Z",
+  "dispatched_at": "2026-10-26T21:34:41Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/b300-bring-up-and-open-model-bakeoff.html:200",
+      "id": "wiring-1",
+      "reason": "the mechanism cannot be built inside the declared write paths, and the node would either breach its fence or ship a sweep on the wrong prompts while believing the prompt plumbing already existed.",
+      "text": "\u00a75 requires the ladder to sweep \"with prompts drawn from the receipts' measured prompt-size distribution\", but `_run_concurrency` sends one fixed one-sentence prompt (`bench.py:1655`, \"Explain how magnetic confinement works in fusion reactors.\"), takes no prompt argument, and `run_benchmark`/the `bench` CLI expose no knob for one, so delivering this needs edits to `bench.py` and the CLI \u2014 neither of which is among \u00a75's declared write paths (`bench_report.py`, `tests/test_bench.py`, the two docs paths). The same sentence also misdescribes today's default as \"the 128-token prompts of the published benchmark\": 128-token prompts belong to the published Kimi K3 anchor (`docs/research/serving-capacity-and-b300-projection.html:145`), not to this repository's ladder, so a node reads existing 128-token support that does not exist.",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/b300-bring-up-and-open-model-bakeoff.html:217",
+      "id": "reasoning-1",
+      "reason": "the figure is the section's headline deliverable and its central comparison is between two non-comparable knees; the plan must either require an H200 sweep on the same ladder and rule or state that the points are not like-for-like.",
+      "text": "\u00a75's first done-when puts the two B300 bench knees \"on one figure with shared axes, beside the H200's measured knee\", but the only measured H200 knee on record is `local-lane-throughput-against-occupancy.html:202` \u2014 width 10, derived from production router occupancy bins by the rule \"smallest median within 5% of the maximum, with at least a 15% rise above the first bin\", not from a bench ladder and not by \u00a75's rule (\"the concurrency beyond which aggregate throughput gains less than 5%\"). Shared axes therefore assert a comparability between a telemetry plateau and a synthetic-prompt sweep that neither the instruments nor the two rules support, and \u00a75 names no source for the H200 point at all.",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/b300-bring-up-and-open-model-bakeoff.html:213",
+      "id": "wiring-2",
+      "reason": "a node obeying the declared write path lands a reduction test in an unrelated module (or deviates from its fence to reach the right one), and the reduction's regression cover ends up away from the file that already owns it.",
+      "text": "\u00a75 pins the unit test for the new `bench_report.knee` reduction at `tests/test_bench.py`, but `test_bench.py` covers `bench.py` and its ladder; `bench_report`'s reductions are tested in `tests/agent/test_bench_report.py` (632 lines, `describe_run`/`compare_runs` cases from line 272), which the plan does not name.",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/b300-bring-up-and-open-model-bakeoff.html:220",
+      "id": "done_when-1",
+      "reason": "the node's only declared negative control can always be discharged, so a genuinely unstable or mis-scaled sweep is documented as noise rather than caught \u2014 restate it as a tolerance the run must meet, with the noisy branch a separate, bounded action.",
+      "text": "the negative control reads \"a repeat of the 16-concurrent point lies within 10% of the first, or the sweep is reported noisy and repeated\", and the second disjunct absorbs any repeat that falls outside 10%, with no bound on how many times \"repeated\" may be used, so the control has no state in which it fails.",
+      "type": "done_when",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "d4ccdd3b8a419439a593244560f22bd100cd9ce09bc744913eda3036b02ba626",
+  "plan_slug": "b300-bring-up-and-open-model-bakeoff",
+  "plan_version": 17,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261026T213428990425-plan-review-of-b300-bring-up-and-open-model-bakeoff",
+  "reviewed_blob_sha": "32c97de7eced222da8a8fc2372620da5e2d6fe77",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every symbol \u00a75 names resolves in the tree: `bench.check_tool_call` exists at `imas_ambix/agent/bench.py:783`, `_run_concurrency` at `bench.py:1633`, `bench_report` reductions are `describe_run` (`bench_report.py:490`) and `compare_runs` (`bench_report.py:620`) with no knee, and the concurrency ladder is exposed as `--levels` (`cli.py:2922`).",
+    "done_when": "a finding \u2014 \u00a75's negative control is satisfied either by a repeat within 10% or by calling the sweep noisy and repeating it, so no deviation can fail it.",
+    "evidence_paths": "pass \u2014 the gate evidence and the figure land on repository paths (`docs/research/b300-throughput.html`, `docs/figures/b300-throughput`), not a scratchpad.",
+    "naming": "pass \u2014 the new symbol is named by what it computes (`bench_report.knee`), the configuration names (`b300-8x`, `h200-4x`) are deployment identifiers rather than plan labels, and no ticket or stage label appears in \u00a75.",
+    "reasoning": "a finding \u2014 the H200 knee the B300 knees are to be plotted beside is a router-telemetry plateau at width 10 by a different rule and from a different instrument, so the like-for-like comparison the done-when requires is not established.",
+    "single_goal": "pass \u2014 \u00a75 carries one deliverable, a measured knee for each B300 configuration plus the report reduction that states it.",
+    "wiring": "a finding \u2014 \u00a75's concurrency sweep is to use prompts from the receipts' prompt-size distribution, but the prompt is hard-coded in `_run_concurrency` and neither `imas_ambix/agent/bench.py` nor `imas_ambix/agent/cli.py` is in \u00a75's write paths."
+  },
+  "section_digests": {
+    "_document": "1406f9ee270da0e9b2ab84b2d20bde8cf96d1fc299996d177e8135ef43291b1f",
+    "s1": "d9b20b2462b714c588777137a3f84dbe6a6285a13698086ef6821d81debdb695",
+    "s2": "ef2e8b754c4b28e05b82f3535fc7322406b9d18639938cf7c46f1c11284568df",
+    "s3": "9ec35b3e8578bd88dadce89dfa0e3dd4465128b6eeb6f1407bc4c373d5044761",
+    "s4": "e72b73d91eb30886cc98000ecb4b9517f9c2b5f6e5b64a2063a19b8f00678a50",
+    "s5": "bc38c8c3200b0e7cff6a0cc43b08410f34ec02cf5bb1a752818bb9bb07cf1c4c",
+    "s6": "674a0529c4ddc184440560b0b1af0260b0d8fe8ca872c01962bb449d503609bc",
+    "s7": "c1f33679b46a5b2d5f8b8876f25f4d795a4e027b15c00400090e7ee070000a1c"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T21:41:36.388844+00:00"
+}
