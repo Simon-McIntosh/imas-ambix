@@ -1,0 +1,54 @@
+# MiMo-V2.6-Pro — Xiaomi MiMo 1.02T MoE, FP8 checkpoint
+#
+# Identity and weights only: no serving topology is declared, because a
+# deployment is sized against the hardware it actually runs on and no card
+# count has been chosen for this release yet. The download job resolves the
+# identity below; a serve reads a topology added when one is decided.
+#
+# Release chosen: the -MOPD variant. Xiaomi publishes the family as two
+# checkpoints, -RL (the flagship mixed-RL stage) and -MOPD (the MOPD2
+# upgrade of that checkpoint), and the -MOPD card names the reason this one
+# is the release for agentic use:
+#
+#   "Following the release of MiMo-V2.6, tool-call repetition emerged as one
+#    of the most noticeable issues in agentic settings: the model would
+#    sometimes issue the same or highly similar tool calls repeatedly,
+#    consuming time and context without making progress. ... This checkpoint
+#    mitigates it."
+#
+# Repository: https://huggingface.co/XiaomiMiMo/MiMo-V2.6-Pro-MOPD
+# Checkpoint: ~527 GiB, FP8 (e4m3, 128x128 weight blocks). Native context
+#   1,048,576 tokens; 1.02T total / 42B activated parameters; 5-layer MTP
+#   speculative decoder.
+# License: MIT
+#
+# Deployment recipe (upstream): `vllm serve` on the model repository.
+
+[model]
+name = "MiMo-V2.6-Pro"
+hf_repo = "XiaomiMiMo/MiMo-V2.6-Pro-MOPD"
+# Commit pinned at the time of writing, read from the Hugging Face API
+# (GET https://huggingface.co/api/models/XiaomiMiMo/MiMo-V2.6-Pro-MOPD ->
+# "sha").
+revision = "6a7f202e8dbd0e57b3fe1da03917d08d75abc4b8"
+# One release, one client-visible name: the variant is a checkpoint choice,
+# not a distinct model, so a consumer never has to name it.
+served_name = "MiMo-V2.6-Pro"
+size_gb = 527
+max_context = 1048576
+checkpoint_precision = "fp8"
+weights_slug = "mimo-v2-6-pro-mopd"
+
+[engine]
+type = "vllm"
+
+[slurm]
+# The catalogue requires a port and a core count even where no deployment has
+# been chosen: two profiles must never resolve to one endpoint, and a
+# device-resident engine that claimed the shared reservation ceiling would
+# leave a neighbour pending on cores. The card count, host memory and engine
+# tuning stay undeclared, because those are the deployment decisions this
+# profile defers.
+port = 18812
+cpus = 12
+

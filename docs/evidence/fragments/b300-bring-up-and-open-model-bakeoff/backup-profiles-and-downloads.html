@@ -1,0 +1,91 @@
+<section class="r-evidence" data-node="backup-profiles-and-downloads">
+  <h2 id="backup-profiles-and-downloads-title">Two backup profiles, pinned and downloading</h2>
+  <p>Two candidate profiles exist in the catalogue carrying identity and weights, with their card
+  count, host memory and engine tuning deliberately undeclared until a deployment is chosen, and
+  both checkpoints are being fetched as resumable SLURM jobs on <code>sirius</code>. Revisions were
+  read from the Hugging Face API at dispatch time, not inferred from a branch name.</p>
+  <p>Two catalogue invariants do apply to a profile nothing is served from yet, and both are
+  declared in <code>[slurm]</code>: an endpoint no other profile holds
+  (<code>kimi-k3</code> 18811, <code>mimo-v2-6-pro</code> 18812, against 18800–18810 already in use)
+  and a core request inside the shared 30-core reservation (<code>cpus = 12</code>). Leaving them to
+  the schema defaults made both profiles resolve to no port and to 30 cores, which the catalogue
+  suite refuses: it requires every profile to hold a distinct port, and it refuses a
+  device-resident engine that claims the whole reservation, since host cores are not the work for a
+  vLLM serve and taking the ceiling leaves a neighbour pending on cores. The CPU-offloading
+  <code>ktransformers</code> profiles keep 30 because cold experts are computed on the host; these
+  are not those.</p>
+
+  <h3 id="backup-profiles-and-downloads-pins">Pinned releases</h3>
+  <table>
+    <tr><th>Profile</th><th>Repository</th><th>Revision</th><th>Precision</th><th>Checkpoint</th>
+        <th>Target directory</th><th>Download job</th></tr>
+    <tr id="backup-profiles-and-downloads-pin-kimi-k3">
+        <td><code>kimi-k3</code></td>
+        <td><code>moonshotai/Kimi-K3</code></td>
+        <td><code>f831ab66814297da540d832a5235f8e904f29d06</code></td>
+        <td>MXFP4 (compressed-tensors, group_size 32, 4-bit symmetric)</td>
+        <td>~1.42 TiB</td>
+        <td><code>/work/projects/imas_gpu/agents/kimi-k3/model</code></td>
+        <td><code>1296374</code>, partition <code>sirius</code></td></tr>
+    <tr id="backup-profiles-and-downloads-pin-mimo-v2-6-pro">
+        <td><code>mimo-v2-6-pro</code></td>
+        <td><code>XiaomiMiMo/MiMo-V2.6-Pro-MOPD</code></td>
+        <td><code>6a7f202e8dbd0e57b3fe1da03917d08d75abc4b8</code></td>
+        <td>FP8 (e4m3, 128×128 weight blocks)</td>
+        <td>~527 GiB (566,079,309,784 bytes)</td>
+        <td><code>/work/projects/imas_gpu/agents/mimo-v2-6-pro-mopd/model</code></td>
+        <td><code>1296375</code>, partition <code>sirius</code></td></tr>
+  </table>
+  <p>The Kimi K3 repository listing at the pinned commit is 115 entries totalling
+  <strong>1,560,998,899,275 bytes</strong>, and its <code>text_config</code> declares
+  <code>max_position_embeddings = 1048576</code> with
+  <code>quantization_config.format = "mxfp4-pack-quantized"</code> — the MXFP4 figure the plan
+  states, confirmed against the checkpoint's own config rather than taken on trust.</p>
+
+  <h3 id="backup-profiles-and-downloads-mimo-choice">Why the MiMo profile tracks <code>-MOPD</code></h3>
+  <p>Xiaomi publishes the family as two checkpoints, <code>-RL</code> and <code>-MOPD</code>. The
+  <code>-MOPD</code> model card names itself the upgrade of the <code>-RL</code> checkpoint and gives
+  the reason that makes it the release for agentic use:</p>
+  <blockquote id="backup-profiles-and-downloads-mimo-sentence">
+    <p>“Following the release of MiMo-V2.6, tool-call repetition emerged as one of the most noticeable
+    issues in agentic settings: the model would sometimes issue the same or highly similar tool calls
+    repeatedly, consuming time and context without making progress. Nothing fails outright, so it tends
+    to go unnoticed. The MOPD stage handles it efficiently, with a short specialized-teacher run that
+    converges quickly.”</p>
+    <p>— <code>XiaomiMiMo/MiMo-V2.6-Pro-MOPD</code>, README, “Important” callout and §1</p>
+  </blockquote>
+  <p>The <code>-RL</code> card carries no equivalent statement, so a candidate chosen for agent work
+  takes the checkpoint that names the agentic failure mode and its repair. The variant is a checkpoint
+  choice, not a distinct model: <code>served_name</code> stays <code>MiMo-V2.6-Pro</code>, and only
+  <code>weights_slug</code> (<code>mimo-v2-6-pro-mopd</code>) names which checkpoint is on disk.</p>
+
+  <h3 id="backup-profiles-and-downloads-gate">Gate</h3>
+  <ul>
+    <li id="backup-profiles-and-downloads-gate-suite">Both profiles load, and
+    <code>tests/test_agent_candidate_profiles.py</code> passes — <strong>10 passed</strong>. It pins
+    each profile's repository and 40-character revision, asserts the engine tuning and deployment
+    sizing are undeclared while the port and core invariants are, asserts the candidate ports are
+    distinct across the whole catalogue, and asserts the rendered download script carries
+    <code>REVISION=&lt;sha&gt;</code>, passes <code>--revision "$REVISION"</code> to
+    <code>hf download</code>, and lands in <code>agents/&lt;weights_slug&gt;/model</code>.</li>
+    <li id="backup-profiles-and-downloads-gate-catalogue">The catalogue invariants hold:
+    <code>test_every_profile_declares_a_distinct_port</code> and
+    <code>test_every_full_gpu_serve_leaves_reservation_headroom</code> both pass, and the same two
+    tests fail when the <code>[slurm]</code> blocks are removed — the reproduction of the defect
+    the block answers.</li>
+    <li id="backup-profiles-and-downloads-gate-ruff">Whole-tree <code>ruff check imas_ambix tests</code>
+    exits 0.</li>
+    <li id="backup-profiles-and-downloads-gate-control"><strong>Negative control:</strong> with the
+    <code>revision</code> line removed from <code>kimi-k3.toml</code>, the same suite reports
+    <strong>2 failed, 8 passed</strong> and exits 1 —
+    <code>test_candidate_pins_its_release_and_weights_directory[kimi-k3]</code> and
+    <code>test_download_script_names_the_pinned_revision[kimi-k3]</code> both fail while the MiMo arms
+    stay green, so the red is the missing pin and not a broken suite. The line was restored and the
+    suite re-run green.</li>
+  </ul>
+
+  <h3 id="backup-profiles-and-downloads-scope">Scope</h3>
+  <p>Shard-by-shard verification of the two transfers against their repository listings is a later
+  node, run once the jobs finish; it is not this node's measure. <code>glm-5-3</code> at FP8 needs no
+  action here: the model-store audit found it complete and hash-verified.</p>
+</section>
