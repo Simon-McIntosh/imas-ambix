@@ -1,0 +1,62 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "derived by differencing the reviewed run's baseline_suite (4 failure ids at a24125f2) against after_suite (0 failure ids at ee5e6ffe): after minus baseline is empty, so the change adds no failures.",
+  "call_site_count": 2,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:548",
+    "imas_ambix/agent/clive.py"
+  ],
+  "completed_at": "2026-10-26T23:43:46.582Z",
+  "dispatched_at": "2026-10-26T23:37:51Z",
+  "findings": [
+    {
+      "file": "tests/test_agent.py",
+      "line": "2485",
+      "severity": "non-blocking",
+      "text": "non-blocking: the docstring says the shared path 'needs only Bash, Python, and a harness', but the sandbox at tests/test_agent.py:2496 now also provisions id, basename, dirname and grep, so the docstring no longer states the exclusion contract the test enforces."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T232837267494-agent-catalogue-tests-green/manifest.md",
+      "line": "17",
+      "text": "non-blocking: the artifacts line reports the whole-tree ruff result as 'All checks passed!' EXIT=0, but no log path for it appears in test_logs, so that arm of the done_when cannot be re-read from a log (I re-ran it at ee5e6ffe and it does exit 0)."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "the changed tests exercise production code at imas_ambix/agent/cli.py:548 (the 'agent serve' help text) and imas_ambix/agent/clive.py generate_clive_script (the launcher text).",
+    "diff": "read the single commit ee5e6ffe against a24125f2: tests/test_agent.py changes the help, clean-directory and picker assertions, tests/test_agent_candidate_profiles.py removes the duplicate port test, and the fragment is added; 74 insertions, 15 deletions.",
+    "done_when": "the done_when's command is exactly the one in both gate logs; base-gate.log records the four named failures (4 failed, 200 passed) at a24125f2 and head-gate.log records 203 passed EXIT=0 at ee5e6ffe, and the manifest gives a per-failure test-versus-code diagnosis; the ruff arm exits 0 when I re-ran it but carries no log path in test_logs.",
+    "goal": "the goal is that tests/test_agent.py and tests/test_agent_candidate_profiles.py pass at head with the catalogue's distinct-port invariant asserted in one place; head-gate.log records 203 passed EXIT=0 at ee5e6ffe and tests/test_agent.py:351 is the sole distinct-port assertion.",
+    "manifest": "read /home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T232837267494-agent-catalogue-tests-green/manifest.md; status complete, commits ee5e6ffe, both suite arms recorded, and negative_control_log named with its log ending EXIT=1 on the expected test id.",
+    "write_paths": "the declared paths are tests/test_agent.py, tests/test_agent_candidate_profiles.py, imas_ambix/agent/cli.py, imas_ambix/agent/clive.py and the fragment/figures; git diff --stat a24125f2 ee5e6ffe changes only the two test files and the fragment, all inside them."
+  },
+  "justifications": {
+    "durability": "the repairs fail on the regressions they name: c75bfd55's removed banners all begin 'Clive', so tests/test_agent.py:2948 'assert \"Clive\" not in result.stderr' reddens if any is reinstated; tests/test_agent.py:668 still requires the help phrase present at imas_ambix/agent/cli.py:548, so removing the claim reddens it; and negative-control.log shows tests/test_agent.py:356 fails (EXIT=1) when a profile repeats another's port.",
+    "evidence": "the done_when's pytest gate is recorded at both arms (base-gate.log headers a24125f2 and ends '4 failed, 200 passed' EXIT=1; head-gate.log headers ee5e6ffe and ends '203 passed' EXIT=0), but the done_when's ruff arm carries no log path in test_logs and is only claimed in the manifest's artifacts line; I re-ran 'uv run --no-sync ruff check imas_ambix tests' at ee5e6ffe and got 'All checks passed!' EXIT=0, so the claim is true but not recorded as an artefact.",
+    "fit": "the added comments and assertions follow the file's idiom (an inline rationale above a one-line assert, no new imports beyond the existing shutil) and introduce no plan, ticket or version label; tests/test_agent.py:2485's docstring however still says the path needs 'only Bash, Python, and a harness' after the sandbox gained id, basename, dirname and grep.",
+    "goal_fidelity": "tests/test_agent.py and tests/test_agent_candidate_profiles.py are green at ee5e6ffe (head-gate.log: 203 passed, EXIT=0), and tests/test_agent.py:351 test_every_profile_declares_a_distinct_port is now the only distinct-port assertion in tests/ (a grep for distinct_port/ports_are_distinct returns that one hit), so the goal's one-place invariant holds.",
+    "reuse": "the change adds no production definition and removes a duplicated assertion site (test_candidate_ports_are_distinct_across_the_catalogue), consolidating onto the owner at tests/test_agent.py:351; a search of tests/ for a second distinct-port assertion found none, and the picker's model-list coverage is retained by the existing trace assertion at tests/test_agent.py:2949.",
+    "scope_discipline": "git diff --stat a24125f2 ee5e6ffe lists three files \u2014 tests/test_agent.py, tests/test_agent_candidate_profiles.py and the node's own landing fragment \u2014 all inside the declared write paths; the optionally permitted imas_ambix/agent/cli.py and clive.py are untouched, matching the manifest's no-product-change claim."
+  },
+  "node": "review-of-agent-catalogue-tests-green-ee5e6ffe6c47",
+  "node:reviewed": "agent-catalogue-tests-green",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the goal is that tests/test_agent.py and tests/test_agent_candidate_profiles.py pass at head with the catalogue's distinct-port invariant asserted in one place; head-gate.log records 203 passed EXIT=0 at ee5e6ffe and tests/test_agent.py:351 is the sole distinct-port assertion.\nVERDICT done_when: the done_when's command is exactly the one in both gate logs; base-gate.log records the four named failures (4 failed, 200 passed) at a24125f2 and head-gate.log records 203 passed EXIT=0 at ee5e6ffe, and the manifest gives a per-failure test-versus-code diagnosis; the ruff arm exits 0 when re-run but has no log path in test_logs.\nVERDICT write_paths: the declared paths include tests/test_agent.py, tests/test_agent_candidate_profiles.py, imas_ambix/agent/cli.py, imas_ambix/agent/clive.py and the fragment/figures; git diff --stat a24125f2 ee5e6ffe changes only the two test files and the fragment, all inside them.\nVERDICT manifest: read manifest.md; status complete, commit ee5e6ffe, both suite arms recorded, negative_control_log named and its log ends EXIT=1 on tests/test_agent.py::test_every_profile_declares_a_distinct_port.\nVERDICT diff: read commit ee5e6ffe against a24125f2: tests/test_agent.py changes the help, clean-directory and picker assertions, tests/test_agent_candidate_profiles.py removes the duplicate port test, and the fragment is added; 74 insertions, 15 deletions.\nCALL_SITES: imas_ambix/agent/cli.py:548, imas_ambix/agent/clive.py\nSCORE goal_fidelity: 20\nJUSTIFICATION goal_fidelity: head-gate.log records 203 passed EXIT=0 at ee5e6ffe and tests/test_agent.py:351 is the only distinct-port assertion left in tests/.\nSCORE evidence: 17\nJUSTIFICATION evidence: both pytest arms are logged with revisions and exit codes (base-gate.log, head-gate.log), but the done_when's ruff arm at manifest.md:17 carries no log path, though a re-run at ee5e6ffe exits 0.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --stat a24125f2 ee5e6ffe lists three files, all inside the declared write paths, and imas_ambix/agent/cli.py and clive.py are untouched.\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_agent.py:2948 reddens if any reinstated banner (each beginning 'Clive', per c75bfd55) is restored, and negative-control.log shows tests/test_agent.py:356 failing EXIT=1 on a duplicated port.\nSCORE fit: 17\nJUSTIFICATION fit: the assertions follow the file idiom, but tests/test_agent.py:2485's docstring still claims the path needs 'only Bash, Python, and a harness' after the sandbox gained id, basename, dirname and grep.\nSCORE reuse: 20\nJUSTIFICATION reuse: the change adds no production definition and removes the duplicate port assertion, consolidating on the owner at tests/test_agent.py:351.\nFINDING tests/test_agent.py:2485 non-blocking: the docstring says the shared path needs 'only Bash, Python, and a harness', but the sandbox at tests/test_agent.py:2496 now also provisions id, basename, dirname and grep, so it no longer states the exclusion contract the test enforces.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T232837267494-agent-catalogue-tests-green/manifest.md:17 non-blocking: the artifacts line reports the whole-tree ruff result as 'All checks passed!' EXIT=0, but no log path for it appears in test_logs, so that arm of the done_when cannot be re-read from a log; I re-ran it at ee5e6ffe and it exits 0.",
+  "review_run_id": "r-20261026T233709100784-review-of-agent-catalogue-tests-green-ee5e6ffe6c47",
+  "reviewed_base_sha": "a24125f2613a3aa60582977e6aea13a196266cf8",
+  "reviewed_head_sha": "ee5e6ffe6c47a7be8550300069df7e1a0d5ef500",
+  "reviewed_run_id": "r-20261026T232837267494-agent-catalogue-tests-green",
+  "scores": {
+    "durability": 18,
+    "evidence": 17,
+    "fit": 17,
+    "goal_fidelity": 20,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T23:40:43+00:00",
+  "total": 112
+}
