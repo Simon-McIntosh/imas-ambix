@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="b300-bring-up-and-open-model-bakeoff-landed">
+  <meta name="plan-title" content="B300 Bring-up — DeepSeek-1017 on Eight Cards, Backups on Disk — landed record">
+  <meta name="plan-summary" content="Closure synthesis for B300 Bring-up — DeepSeek-1017 on Eight Cards, Backups on Disk: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).">
+  <meta name="plan-evidence-for" content="b300-bring-up-and-open-model-bakeoff">
+  <meta name="plan-verdict" content="qualified">
+  <title>B300 Bring-up — DeepSeek-1017 on Eight Cards, Backups on Disk — landed record | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+ <main class="plan-doc">
+  <h1>B300 Bring-up — DeepSeek-1017 on Eight Cards, Backups on Disk — landed record</h1>
+  <p>Closure synthesis for B300 Bring-up — DeepSeek-1017 on Eight Cards, Backups on Disk: 0 committed run(s), 0 section-anchored comment(s), and 0 landed commit(s).</p>
+
+
+   <section id="s2">
+    <h2>§2 — Review the model store on /work</h2>
+    <p>Landed in merge <code>ada5434c</code> (worker commit <code>d4ff056c</code>). <a href="/imas-ambix/research/model-store-audit">model-store-audit</a> covers thirteen checkpoint directories, 7.2 TB in total. The audit ran on compute node clu-2068 and deleted nothing. Every directory has all of its index's shards. Twelve of thirteen match their Hugging Face listing in size and first-shard SHA-256. The exception is <code>glm-5-3-w4a8</code> (<code>camel-ai/GLM-5.3-W4A8</code>), whose repository refuses an anonymous listing, so its sizes and hash cannot be checked upstream. Recommendations: 11 keep; 1 backup (<code>glm-5-3-w4a8</code>, the only copy of the four-card GLM-5.3 default); 1 prune (<code>deepseek-v4-flash</code>, 159.6 GB, superseded by <code>-0731</code> and named by no profile). Pruning is left to the lead. Positive control: the September <code>deepseek-v4-1-flash</code> row reads <code>deepseek-ai/DeepSeek-V4.1-Flash@dba1be0a</code>, first shard <code>886aebda</code>. The 1017 directory reads <code>@1bae0e10</code> and is the one the live profile names. Negative control: an index naming an absent shard is reported incomplete. The audit also lists an abandoned partial hub cache, <code>glm-5-2-4x</code>. Worker record: <a href="/imas-ambix/evidence/fragments/b300-bring-up-and-open-model-bakeoff/model-store-audit.html">model-store-audit</a>.</p>
+  </section>
+
+</main>
+</body>
+</html>

@@ -20,12 +20,12 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
   <meta name="plan-after" content="rotate-to-deepseek-v4-1-flash-1017">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;implementable&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;deferred&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;deferred&quot;}">
   <meta name="plan-section-depends-on" content="{&quot;s3&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s2&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s4&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s5&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s4&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s3&quot;],&quot;s6&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s5&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s5&quot;,&quot;serving-across-servers#s7&quot;]}">
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="21">
+<meta name="plan-version" content="22">
 <meta name="plan-modified" content="2026-10-26">
 </head>
 <body>
@@ -55,7 +55,7 @@
     weights and parsers before the B300 arrives.</p>
 
     <h2 id="s2">§2 — Review the model store on /work</h2>
-<section data-reckon="section" data-id="s2" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s2" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
     <p><code>/work/projects/imas_gpu/agents</code> holds checkpoints accumulated over several
     serving plans: <code>deepseek-v4-flash</code>, <code>deepseek-v4-flash-0731</code>,
     <code>deepseek-v4-1-flash</code>, three GLM-5 releases with their int4 and W4A8
@@ -293,6 +293,11 @@
     <pre class="r-fu-prompt">/reckon-build b300-bring-up-and-open-model-bakeoff</pre>
     </article>
 </section>
-  </main>
+  <section data-reckon="comments" id="comments" class="r-comments">
+<div class="r-comment" data-section="_top" data-id="c-close-s2" data-who="reckon-build" data-when="2026-10-26T22:12:00Z">
+    <div class="r-comment-body"><p>§2 landed in <code>ada5434c</code>. All 13 checkpoint directories (7.2 TB) are complete, and 12 are hash-verified upstream. Recommended: 11 keep, 1 backup (<code>glm-5-3-w4a8</code>), 1 prune (<code>deepseek-v4-flash</code>, 160 GB). Pruning is the lead's decision. <a href="/imas-ambix/evidence/archive/b300-bring-up-and-open-model-bakeoff-landed.html#s2">evidence</a></p></div>
+</div>
+</section>
+</main>
 </body>
 </html>
