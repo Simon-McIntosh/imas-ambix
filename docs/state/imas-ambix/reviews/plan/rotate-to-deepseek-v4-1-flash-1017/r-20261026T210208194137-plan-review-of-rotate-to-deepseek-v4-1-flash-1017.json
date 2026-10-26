@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-26T21:07:24.937Z",
+  "dispatched_at": "2026-10-26T21:02:23Z",
+  "findings": [
+    {
+      "anchor": "plan.html#s6",
+      "id": "reasoning-1",
+      "reason": "the verdict enum is the node's output contract, so the fourth value has to be declared for the guard to be implementable rather than improvised.",
+      "text": "\u00a76 states \"Its verdict is one of three: *better*, *no detectable difference*, or *worse*\", then its positive control requires \"the verdict is *insufficient data*, never *no detectable difference*\"; a worker implementing the verdict enumeration from the first sentence has no value to return when the positive control fails",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html#s6",
+      "id": "reasoning-2",
+      "reason": "review runs carry different gate and promotion semantics, so a guessed filter either contaminates the promotion rate in both windows or silently under-samples them, and neither is detectable from the document's own figures.",
+      "text": "\u00a76 excludes \"review runs\" from the comparison but names no discriminator for them, and the ledger vocabulary offers none: `attempt_kind` across 11,407 records holds only `dispatch`, `redispatch`, `resume`, `lane-change`, `shadow`, so a worker must guess (node-name prefix or role) whether a review run is in or out",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html#s7",
+      "id": "reasoning-3",
+      "reason": "both routes reach the section's done-when on the real path (`live_document` \u2192 `live_panel` \u2192 published `watch.json` \u2192 `head_line`), so this is a preference for one working mechanism over another, not a claim the plan's own content contradicts.",
+      "text": "the module docstring of `imas_ambix/agent/live_panel.py` fixes the block's contract as reading \"only the lane document and the tail of one receipt file\" every five seconds, and \u00a77 asks that module to gain a read of `endpoints.json`; the endpoint path is already resolvable there (`SiteConfig.from_env().endpoint_document`), so the mechanism runs, but the section states no reason this deployment fact belongs in a per-poll moment document rather than in `llm_watch.build_document`, which already has an `endpoints_path` parameter and an `engine` block built for exactly this",
+      "type": "reasoning",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "eab317cb8365e4d3f6e7c9a1c565985ca5b7daf1475534d3137f25b324372299",
+  "plan_slug": "rotate-to-deepseek-v4-1-flash-1017",
+  "plan_version": 36,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261026T210208194137-plan-review-of-rotate-to-deepseek-v4-1-flash-1017",
+  "reviewed_blob_sha": "2b869ccfbb05e38863f5dc609e71c3dbe50472c4",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `lane-cycles.jsonl` exists beside `endpoints.json` in `~/public/imas-ambix` and holds both job ids `1280470`/`1294597` with `pause_end 2026-10-23T20:14:30.430194Z`; the `checkpoints` map is present in `endpoints.json` keyed `gpu-0003.iter.org:18810` \u2192 `deepseek-ai/DeepSeek-V4.1-Flash-1017@1bae0e1088\u2026`; dotfiles commit `252dc4e` resolves; `tests/test_llm_watch.py` and `tests/golden/llm_watch/` exist; `b300-bring-up-and-open-model-bakeoff` has an `s7`.",
+    "done_when": "a finding \u2014 \u00a77's negative control is falsifiable and \u00a76's positive/negative controls are real, but \u00a76's verdict vocabulary declares three values while its own positive control requires a fourth.",
+    "evidence_paths": "pass \u2014 \u00a76's script and log go to `docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/`, the document to `docs/research/`, the figure to `docs/figures/`; \u00a77's goldens are in-tree at `tests/golden/llm_watch`.",
+    "naming": "pass \u2014 neither section introduces a symbol, and no plan label, ticket number or version tag is carried into code.",
+    "reasoning": "a finding \u2014 the token join and the boundary both check out against the live data, but the run-population the comparison declares is not selectable by any ledger field the plan names.",
+    "single_goal": "pass \u2014 \u00a76 is one measurement (a research document with one figure and its script); \u00a77 is one label on one head line.",
+    "wiring": "pass \u2014 `plan-section-depends-on` now carries `s6:[s5]` and `s7:[s4]`, which match what \u00a76 reads (the \u00a75 swap boundary) and what \u00a77 reads (the \u00a74 `checkpoints` map); both targets exist as section ids."
+  },
+  "section_digests": {
+    "_document": "f32118365ee5fbcd16f9f7dd724f68279100345032ce2309b678f2d07b561851",
+    "s1": "8deac0a58e020378e898a334465e0ec83803b509b7e5a610b21591def4c21d25",
+    "s2": "a23e81a77c9227613a42419b5fefc7dfd90022596cc8ae2a2b9264290cada17c",
+    "s3": "2cd96ad6a1c5ffa33a1cc88ee45c427a044080539e66daf427d2a501eca8cb57",
+    "s4": "dd5f9393ccd43e0bd8f7ff1df7926173c61aacc54ccca9adf0d6fb85501f29fa",
+    "s5": "5ad304a77e9f7f61a47473fdbeaeec6748251f6e887bcba8a9472024dff8cf98",
+    "s6": "c457ef975ae1b8f5d6fbb51d4868d93a362d937577c01b12199980319d4672ca",
+    "s7": "23a0bcea962bd8ff50c8f4e07678645a05ddea53d534f50d419d46bcb8cfd16c"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T21:12:43.466048+00:00"
+}
