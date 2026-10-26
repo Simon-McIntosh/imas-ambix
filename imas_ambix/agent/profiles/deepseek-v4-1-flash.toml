@@ -586,3 +586,120 @@ memory = "600G"
 port = 18810
 time_serve = "0"
 time_download = "24:00:00"
+
+# -- Blackwell topologies -----------------------------------------------------
+#
+# Anything above this line is the Hopper deployment: four H200 NVL cards, host
+# Engram tables, a hierarchical cache behind them, and a per-request context
+# capped at 262,144 because on SM90 the decode indexer pays for that width on
+# every step whatever a request's real length. None of that arithmetic survives
+# the move to eight B300 cards, so each server-named topology below restates the
+# settings its own silicon implies rather than inheriting a Hopper compromise.
+#
+# WHAT DOES NOT CHANGE. The container stays the pinned SGLang V4.1 build. It is
+# the only build that registers this architecture at all: V4.1 support merged to
+# sglang main after every released wheel, and the image's own torch build
+# publishes sm_75 through sm_120, sm_100 included, so the same SIF carries
+# Blackwell kernels (`torch.cuda.get_arch_list()` inside
+# /work/projects/imas_gpu/containers/sglang-dev-dsv41.sif). The sgl-kernel side
+# is JIT-compiled for the device while it runs, and the one bound kernel patch
+# is generic CUDA C++, so nothing in the bind is Hopper-only.
+#
+# MEMORY. A B300 carries 288 GB against the H200 NVL's 141 GB, and the whole
+# 511 GB checkpoint fits on eight cards at about 64 GB a card, Engram tables
+# included. The host-table offload below therefore stops being a saving and
+# becomes one: it moves ~24 GiB a rank to host DRAM and costs 0.4-1.0% of output
+# throughput to gather it back over UVA. Both Blackwell topologies turn it off
+# and keep the 183.1 GiB resident, which is why `memory` stays at 600G with no
+# host tier behind it.
+#
+# MEMORY FRACTION stays 0.85. The value above is not a Hopper tuning
+# preference: it exists because the MXFP4 fused-MoE workspace is allocated
+# lazily at generation OUTSIDE `mem_fraction_static`, and serves died at 0.92
+# with the KV pool at 3-7% occupancy while that workspace wanted 7.52 GiB. No
+# Blackwell measurement exists, so the conservative split stands rather than
+# being raised to spend cards nobody has measured.
+#
+# POOL. 8,000,000 tokens on eight cards is concurrency times working context,
+# not the largest value that starts: the lane's measured working context is
+# about 98,000 tokens per resident request and the running bound below is 48, so
+# 48 x 130,000 is about 6.2M tokens with room to spare. At the measured ~10.1 KB
+# per token that is roughly 10 GB a card of 288, so the pool is nowhere near
+# what the fraction permits — deliberately, because a pool sized to the card
+# rather than to the traffic is what the H200 profile had to walk back.
+#
+# CONTEXT. 524,288 per request, not the model's native 1,048,576 and not
+# Hopper's 262,144. The largest per-turn input this lane has recorded is 356,574
+# tokens, which a 262,144 cap refuses outright; 524,288 clears it with about 47%
+# headroom while staying page-aligned at page_size 256. Whether the Blackwell
+# decode path also pays for its graph width the way the SM90 indexer did is
+# unmeasured, and this figure is the first thing to move once it is.
+#
+# KV DTYPE. `fp8_e4m3` on both Blackwell topologies. The synthetic-evaluation
+# recipe for this checkpoint on Blackwell pairs `--kv-cache-dtype fp8` with
+# mxfp4 indexer key/value and sparse logits, and an eight-card node leaves the
+# pool nowhere near binding, so the entry size is free to halve. If the pinned
+# SGLang build's V4.1 attention path refuses the flag, remove `kv_cache_dtype`
+# from the variant and relaunch: the engine asserts the dtype it accepted at
+# startup, so the log settles it in one line.
+#
+# MOE RUNNER. `auto` rather than the Hopper pin. `flashinfer_mxfp4` is named
+# above because SM90 has no FP4 datapath and the MXFP4 experts otherwise need an
+# FP8 conversion pass; Blackwell applies MXFP4 block scales in the tensor core
+# itself, so the reason for pinning the runner is gone and the engine's own
+# choice for this silicon is the better default. The activation-precision lever
+# below is tied to the pinned runner and is therefore inert here.
+#
+# DSPARK. Five drafted tokens a round, against three on Hopper. The vendor
+# Blackwell recipe for this checkpoint drafts five per round, and the capacity
+# study carries that as a reported acceptance of 3.51; the depth-3 choice above
+# was measured on this lane's H200 traffic and does not transfer.
+#
+# STARTING WIDTH. `max_running_requests` 48 at eight cards and 24 at four, which
+# are starting points rather than a measurement. They scale the one H200 knee on
+# record, width 10, by the capacity study's like-for-like projection for this
+# node: 3.9x to 6.3x the four-card H200 at eight B300 cards, giving 39 to 63, of
+# which 48 is the middle; four cards take half of that projection, 19.5 to 31.5,
+# of which 24 is the middle. The router's own gate sits at or below the running
+# bound. Replace both with the measured knee before either is quoted as a
+# ceiling.
+
+[server_gpu_variants.b300."8".engine]
+tensor_parallel = 8
+ep_size = 8
+max_total_tokens = 8000000
+context_length = 524288
+max_running_requests = 48
+cuda_graph_max_bs_decode = 48
+enable_hierarchical_cache = false
+kv_cache_dtype = "fp8_e4m3"
+moe_runner_backend = "auto"
+speculative_dspark_block_size = 5
+
+[server_gpu_variants.b300."8".engine.env]
+SGLANG_ENABLE_DSV41_ENGRAM_HOST_TABLE = "0"
+
+[server_gpu_variants.b300."8".slurm]
+gpus = 8
+# Sixteen, as the eight-card H200 path declares. Cores do not scale off cards,
+# and this node's own reservation is one of the arrival facts still outstanding.
+cpus = 16
+
+[server_gpu_variants.b300."4".engine]
+tensor_parallel = 4
+ep_size = 4
+max_total_tokens = 4000000
+context_length = 524288
+max_running_requests = 24
+cuda_graph_max_bs_decode = 24
+enable_hierarchical_cache = false
+kv_cache_dtype = "fp8_e4m3"
+moe_runner_backend = "auto"
+speculative_dspark_block_size = 5
+
+[server_gpu_variants.b300."4".engine.env]
+SGLANG_ENABLE_DSV41_ENGRAM_HOST_TABLE = "0"
+
+[server_gpu_variants.b300."4".slurm]
+gpus = 4
+cpus = 12

@@ -31,8 +31,11 @@ _BASE_SITE = SiteConfig(
 
 # sha256 of the serve script under the site above. The script embeds the
 # checkout root and the user's state-log directory, so both paths are
-# normalized to keep the digest independent of the checkout and home.
-_BASE_SCRIPT_DIGEST = "87e59fa736232e8bb0d63bf4b3d93bf342a3dbba7f6bb7b94e248dd47f122653"
+# normalized to keep the digest independent of the checkout and home. It
+# records the script this profile produces with the checkpoint it pins, so a
+# profile change that reaches the default launch has to move this figure with
+# it rather than leaving it describing a launch nobody makes any more.
+_BASE_SCRIPT_DIGEST = "71c056eaa2589d7ffd9e16a7615a035e89248ef069bc4589ea6067f1e53e6db0"
 
 _REPOSITORY_ROOT = str(Path(__file__).resolve().parents[1])
 
@@ -62,6 +65,22 @@ _B300 = SiteServerConfig(
 
 def _two_server_site() -> SiteConfig:
     return _BASE_SITE.model_copy(update={"servers": [_H200, _B300]})
+
+
+def _complete_checkpoint(site_base: Path, slug: str) -> None:
+    """Put a checkpoint on disk whose index names a shard that is present.
+
+    A restart reads the checkpoint index before it generates a replacement, so
+    a dry run still needs one to reach the script it exists to check.
+    """
+    model_dir = SiteConfig(base_dir=str(site_base)).model_dir(load_profile(slug))
+    model_dir.mkdir(parents=True, exist_ok=True)
+    shard = "model-00001-of-00001.safetensors"
+    (model_dir / shard).write_bytes(b"x")
+    (model_dir / agent_cli.WEIGHTS_INDEX_NAME).write_text(
+        json.dumps({"metadata": {}, "weight_map": {"w": shard}}),
+        encoding="utf-8",
+    )
 
 
 def test_no_declared_servers_match_reference_script():
@@ -361,6 +380,7 @@ def test_restart_keeps_a_serve_on_the_server_it_runs_on(tmp_path, monkeypatch):
         ),
         registration_directory(site_base),
     )
+    _complete_checkpoint(site_base, "deepseek-v4-1-flash")
     monkeypatch.setattr(
         agent_cli,
         "_profile_jobs",
@@ -418,6 +438,7 @@ def test_a_registration_naming_the_short_host_still_resolves_its_server(
         ),
         registration_directory(site_base),
     )
+    _complete_checkpoint(site_base, "deepseek-v4-1-flash")
     monkeypatch.setattr(
         agent_cli,
         "_profile_jobs",
@@ -527,3 +548,160 @@ def test_serve_refuses_a_server_that_no_declaration_names(monkeypatch):
     assert "gpu-9999" in message
     assert "h200" in message and "b300" in message
     assert "#!/bin/bash" not in message
+
+
+# -- A second accelerator generation on the same profile ----------------------
+#
+# One release serves on two node generations at once, and the same card count is
+# not the same deployment on both. These tests pin the topology each of the
+# three configurations launches, because the flags below are what a launch is:
+# a wrong tensor width, KV dtype or weights directory is not visible until the
+# engine reads it.
+
+_H200_DEFAULT_DIGEST = _BASE_SCRIPT_DIGEST
+
+# (server, gpus, tensor width, expert width, cards) for the Blackwell rows.
+_BLACKWELL_TOPOLOGIES = (("b300", 4, 4, 4, 4), ("b300", 8, 8, 8, 8))
+
+
+def _serve_dry_run(monkeypatch, *options: str) -> str:
+    """Render a serve script through the CLI, with the two-server site declared."""
+    monkeypatch.setenv(
+        "AMBIX_AGENT_SERVERS", json.dumps([_H200.model_dump(), _B300.model_dump()])
+    )
+    result = CliRunner().invoke(
+        main,
+        ["agent", "serve", "deepseek-v4-1-flash", *options, "--dry-run"],
+    )
+    assert result.exit_code == 0, result.output
+    return result.output
+
+
+def test_the_default_serve_renders_the_hopper_topology_unchanged(monkeypatch):
+    """The profile's own default is still the four-card H200 script.
+
+    A topology is selected by flags; it is not a change to what a bare serve
+    launches. The digest is the one recorded for the script the profile
+    produced before a second accelerator generation was described in it, so a
+    Blackwell setting that leaked into the default would show up here.
+    """
+    profile = load_profile("deepseek-v4-1-flash")
+    script = generate_serve_script(profile, _BASE_SITE, port=profile.slurm.port)
+    normalised = script.replace(_REPOSITORY_ROOT, "<repo>").replace(
+        str(Path.home()), "<home>"
+    )
+
+    assert hashlib.sha256(normalised.encode()).hexdigest() == _H200_DEFAULT_DIGEST
+
+    # Asking for the default card count explicitly resolves to the same script,
+    # so the card count alone cannot pick up a server-keyed entry.
+    resolved = generate_serve_script(
+        profile.for_gpus(4), _BASE_SITE, port=profile.slurm.port
+    )
+    assert resolved == script
+
+    # And the same holds for the Hopper server when the site declares two.
+    rendered = _serve_dry_run(monkeypatch)
+    assert "--kv-cache-dtype" not in rendered
+    assert "--tensor-parallel-size 4" in rendered
+    assert "--ep-size 4" in rendered
+    assert "#SBATCH --gres=gpu:4" in rendered
+
+
+def test_each_blackwell_card_count_renders_its_own_placement_and_topology(
+    monkeypatch,
+):
+    """Four and eight B300 cards each launch a complete, differently shaped script."""
+    for _server, gpus, tensor_width, expert_width, cards in _BLACKWELL_TOPOLOGIES:
+        rendered = _serve_dry_run(
+            monkeypatch, "--server", "b300", "--gpus", str(gpus)
+        )
+
+        assert "#!/bin/bash" in rendered
+        # Placement.
+        assert f"#SBATCH --partition={_B300.partition}" in rendered
+        assert f"#SBATCH --reservation={_B300.reservation}" in rendered
+        assert f"#SBATCH --account={_B300.account}" in rendered
+        assert "--accelerator-family B300" in rendered
+        assert f"#SBATCH --gres=gpu:{cards}" in rendered
+        # Topology.
+        assert f"--tensor-parallel-size {tensor_width}" in rendered
+        assert f"--ep-size {expert_width}" in rendered
+        # The checkpoint the rotation points at, on the Blackwell build.
+        assert "deepseek-v4-1-flash-1017" in rendered
+        assert (
+            "/work/projects/imas_gpu/containers/sglang-dev-dsv41.sif" in rendered
+        )
+        # Blackwell settings: KV entry size, memory split, and the five-token
+        # DSpark depth the vendor recipe uses on this silicon.
+        assert "--kv-cache-dtype fp8_e4m3" in rendered
+        assert "--mem-fraction-static 0.85" in rendered
+        assert "--speculative-algorithm DSPARK" in rendered
+        assert "--speculative-dspark-block-size 5" in rendered
+        # The host Engram tables stay on the card here: the checkpoint fits.
+        assert "SGLANG_ENABLE_DSV41_ENGRAM_HOST_TABLE=0" in rendered
+        # No hierarchical cache without a host tier behind it.
+        assert "--enable-hierarchical-cache" not in rendered
+        # The SM90 runner pin was a statement about SM90.
+        assert "--moe-runner-backend auto" in rendered
+
+
+def test_the_eight_card_pool_is_sized_for_the_concurrency_it_admits(monkeypatch):
+    """Pool and running bound are read together, because either alone misleads."""
+    eight = _serve_dry_run(monkeypatch, "--server", "b300", "--gpus", "8")
+    four = _serve_dry_run(monkeypatch, "--server", "b300", "--gpus", "4")
+
+    assert "--max-total-tokens 8000000" in eight
+    assert "--max-running-requests 48" in eight
+    assert "--context-length 524288" in eight
+    assert "--max-total-tokens 4000000" in four
+    assert "--max-running-requests 24" in four
+    assert "--context-length 524288" in four
+
+
+def test_a_card_count_the_server_does_not_declare_is_refused(monkeypatch):
+    """A profile that names a server's topologies has a closed set of them.
+
+    Two B300 cards are not one of them, and the proportional rescaling that
+    covers a card count on the profile's own generation would produce a
+    topology nobody reasoned about: half the tensor width of a widening the two
+    generations do not share. The refusal names what is on offer, because the
+    caller's next move is to ask for one of them.
+    """
+    monkeypatch.setenv(
+        "AMBIX_AGENT_SERVERS", json.dumps([_H200.model_dump(), _B300.model_dump()])
+    )
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "agent",
+            "serve",
+            "deepseek-v4-1-flash",
+            "--server",
+            "b300",
+            "--gpus",
+            "2",
+            "--dry-run",
+        ],
+    )
+    message = result.output + (getattr(result, "stderr", "") or "")
+
+    assert result.exit_code != 0
+    assert "b300" in message
+    assert "4" in message and "8" in message
+    assert "#!/bin/bash" not in message
+
+
+def test_a_server_the_profile_says_nothing_about_keeps_the_card_count_rule():
+    """A profile with no topology for a server keeps the card-count behaviour.
+
+    Only the profiles that describe a generation's topologies close their set;
+    the rest keep one lookup, so naming a server neither refuses a card count
+    nor changes what the count resolves to.
+    """
+    profile = load_profile("glm-5-3")
+
+    assert profile.for_gpus(2, server="b300") is profile
+    # The same lookup by card count alone is unchanged by naming the server.
+    assert profile.for_gpus(4, server="b300") == profile.for_gpus(4)
