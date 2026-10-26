@@ -20,12 +20,12 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
   <meta name="plan-after" content="rotate-to-deepseek-v4-1-flash-1017">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;implementable&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;deferred&quot;,&quot;s7&quot;:&quot;deferred&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;deferred&quot;,&quot;s7&quot;:&quot;deferred&quot;}">
   <meta name="plan-section-depends-on" content="{&quot;s3&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s2&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s4&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s5&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s4&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s3&quot;],&quot;s6&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s5&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s5&quot;,&quot;serving-across-servers#s7&quot;]}">
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="31">
+<meta name="plan-version" content="32">
 <meta name="plan-modified" content="2026-10-27">
 </head>
 <body>
@@ -126,7 +126,7 @@
     </ul>
 
     <h2 id="s4">§4 — DeepSeek launchers for four and eight cards</h2>
-<section data-reckon="section" data-id="s4" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s4" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="done" data-links=""></section>
     <p>The <code>deepseek-v4-1-flash</code> profile, which the rotation points at the 1017
     weights, gains named topologies for the three configurations that will exist:</p>
     <table>
@@ -299,6 +299,9 @@
 </div>
 <div class="r-comment" data-section="_top" data-id="c-defer-s5-s6" data-who="reckon-build" data-when="2026-10-27T00:40:00Z">
     <div class="r-comment-body"><p>§5 and §6 are deferred until the B300 is installed and its host facts are known (question <code>b300-arrival-facts</code>). Both run on the hardware. Their only declared wait is on §4, so a queued dispatch would launch as soon as §4 lands, against a node that does not exist yet. They return to implementable on arrival.</p></div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-close-s4" data-who="reckon-build" data-when="2026-10-27T00:55:00Z">
+    <div class="r-comment-body"><p>§4 landed in <code>44182bf7</code>. DeepSeek-1017 launch scripts exist for h200-4x (unchanged, byte-identical), b300-4x and b300-8x, selected with <code>--server</code> and <code>--gpus</code>. A restart without a registration no longer crashes. Carried to §5: bench, status and receipts must pass the server too. <a href="/imas-ambix/evidence/archive/b300-bring-up-and-open-model-bakeoff-landed.html#s4">evidence</a></p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261026T214720935593-model-store-audit" data-who="reckon-build" data-when="2026-10-26T22:07:13.003Z">
     <div class="r-comment-body"><p>Model store audit — thirteen checkpoint directories under /work/projects/imas_gpu/agents measured complete and hash-verified against their recorded Hugging Face commit (12/13; the exception is camel-ai/GLM-5.3-W4A8, which refuses an anonymous listing), 7.208 TB total, recommended 11 keep / 1 backup (glm-5-3-w4a8, sole copy) / 1 prune (deepseek-v4-flash, 159.6 GB, superseded and named by no profile); positive control reads deepseek-ai/DeepSeek-V4.1-Flash @ dba1be0a with first-shard 886aebda, negative control reports an absent shard as incomplete.</p></div>
