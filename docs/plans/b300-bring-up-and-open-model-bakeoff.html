@@ -25,7 +25,7 @@
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="24">
+<meta name="plan-version" content="25">
 <meta name="plan-modified" content="2026-10-27">
 </head>
 <body>
@@ -302,6 +302,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261026T225834004046-review-of-backup-profiles-and-downloads-81de3fc22972" data-who="reckon-build" data-when="2026-10-26T23:06:58.977Z">
     <div class="r-comment-body"><p>Independent review of run r-20261026T224926476951-backup-profiles-and-downloads at 81de3fc229727a85daab4e55ba897cb43b879bec: 88/120 across the six dimensions, one blocking finding — imas_ambix/agent/profiles/kimi-k3.toml:30 and mimo-v2-6-pro.toml:42 declare no [slurm] section, so both resolve to port None / 4 GPUs / 30 cores / 640G and fail tests/test_agent.py:355 and :853 at head (4 passed EXIT=0 at base, 2 failed EXIT=1 at head) — plus four non-blocking findings on coupled and partial assertions, a topology check that sees only [engine], a duplicated pin contract, and a gate log header naming the base revision.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20261026T231527169841-review-of-backup-profiles-and-downloads-f2aa2615d067" data-who="reckon-build" data-when="2026-10-26T23:22:38.601Z">
+    <div class="r-comment-body"><p>Reviewed r-20261026T224926476951-backup-profiles-and-downloads at head f2aa2615d0676f69ab74b121667931ef33cfe183 against base faa328816dcaed3f7ffd9e9631d5e7d9db20e06a; the repair answers the prior blocking finding (both candidate profiles now declare a [slurm] port and cores inside the reservation), scores goal_fidelity 19, evidence 15, scope_discipline 19, durability 15, fit 17, reuse 5 (total 90), records five non-blocking findings — duplicated port-uniqueness test at tests/test_agent_candidate_profiles.py:126, self-referential MODEL_DIR assertion at :150, topology check reading only [engine]/[slurm] keys at :98, gate log header naming 81de3fc2 at logs/pytest-candidate-profiles.log:1, and the reviewed manifest naming no baseline_suite/after_suite — with added_failure_count 0 derived from the base arm at faa32881 and a head arm rerun at f2aa2615 (4 passed, EXIT=0 each).</p></div>
 </div>
 </section>
 </main>

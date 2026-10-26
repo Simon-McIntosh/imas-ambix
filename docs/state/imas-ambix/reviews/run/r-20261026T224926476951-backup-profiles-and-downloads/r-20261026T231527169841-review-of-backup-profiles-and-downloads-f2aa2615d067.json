@@ -1,0 +1,89 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "derived from arms the reviewer read, because the reviewed manifest names no baseline_suite/after_suite: base faa32881 arm 4 passed EXIT=0, head f2aa2615 arm 4 passed EXIT=0, same command, so no failing id is added.",
+  "call_site_count": 6,
+  "call_sites": [
+    "imas_ambix/agent/profile.py:843:list_profiles",
+    "imas_ambix/agent/cli.py:389:agent list",
+    "imas_ambix/agent/cli.py:630:profile.slurm.port",
+    "imas_ambix/agent/cli.py:2057:serve port",
+    "imas_ambix/agent/slurm.py:1205:generate_download_script",
+    "imas_ambix/agent/router.py:1691:routable catalog"
+  ],
+  "completed_at": "2026-10-26T23:22:38.601Z",
+  "dispatched_at": "2026-10-26T23:16:12Z",
+  "findings": [
+    {
+      "file": "tests/test_agent_candidate_profiles.py",
+      "line": "126",
+      "severity": "non-blocking",
+      "text": "non-blocking: test_candidate_ports_are_distinct_across_the_catalogue repeats tests/test_agent.py:351 assertion for assertion ({slug: port}, all not None, set length equals profile count), so the repository now carries two copies of one capability and a future change to the invariant must be made in both."
+    },
+    {
+      "file": "tests/test_agent_candidate_profiles.py",
+      "line": "150",
+      "severity": "non-blocking",
+      "text": "non-blocking: the MODEL_DIR assertion compares the rendered script against site.model_dir(profile), the same function generate_download_script uses to fill MODEL_DIR, so a regression in model_dir leaves both sides moving together and the assertion green; the independent pin evidence is the REVISION checks at :147-148."
+    },
+    {
+      "file": "tests/test_agent_candidate_profiles.py",
+      "line": "98",
+      "severity": "non-blocking",
+      "text": "non-blocking: the assertion set reads only the keys under [engine] and the key names under [slurm], so a topology written at top level (gpus, port, tensor_parallel) or in a new section would pass a test whose name claims the serving topology is deferred, and it inspects the base profile only rather than the for_gpus variants the catalogue owner at tests/test_agent.py:850 walks."
+    },
+    {
+      "file": "logs/pytest-candidate-profiles.log",
+      "line": "1",
+      "severity": "non-blocking",
+      "text": "non-blocking: the gate log's revision header names 81de3fc2, the pre-repair commit, while the run it records is the repaired tree (10 tests exist only at f2aa2615), so a reader cannot tie the passing gate to the head being promoted."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T224926476951-backup-profiles-and-downloads/manifest.md",
+      "line": "1",
+      "severity": "non-blocking",
+      "text": "non-blocking: the manifest carries no baseline_suite and no after_suite block, so a reader annotating this review from the reviewed run's own evidence derives an unmeasured added-failure count rather than a measured zero; the zero below is derived from the recorded base arm at faa32881 (4 passed, EXIT=0) and the head arm rerun at f2aa2615 (4 passed, EXIT=0) under this review's own run directory."
+    }
+  ],
+  "gate_sources": {
+    "after_suite": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T231527169841-review-of-backup-profiles-and-downloads-f2aa2615d067/logs/rev-at-head.log",
+    "baseline_suite": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T225834004046-review-of-backup-profiles-and-downloads-81de3fc22972/profile-iteration-tests-at-base.log"
+  },
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 6 production call site(s)",
+    "diff": "read both commits against base faa32881 \u2014 81de3fc2 adds the two profiles, the candidate test file and the fragment (273 insertions), f2aa2615 adds the [slurm] blocks (ports 18811/18812, cpus 12), rewrites the topology test, adds two invariant tests and updates the fragment (106 insertions, 26 deletions); four files, all inside the declared scope, no production Python changed.",
+    "done_when": "read the done_when \u2014 profiles with hf_review/revision/weights_slug, pytest tests/test_agent_candidate_profiles.py, ruff, and both downloads with ids, partition and targets in the fragment; the manifest records logs/pytest-candidate-profiles.log (10 passed, EXIT=0), logs/ruff.log (\"All checks passed!\", EXIT=0), and logs/pytest-named-finding-tests.log (2 passed, EXIT=0), and docs/evidence/fragments/b300-bring-up-and-open-model-bakeoff/backup-profiles-and-downloads.html:29,37 records both job ids and target directories.",
+    "goal": "read the goal \u2014 two pinned backup profiles and their resumable /work downloads; imas_ambix/agent/profiles/kimi-k3.toml and mimo-v2-6-pro.toml exist with 40-character pins read from the HF API, and jobs 1296374 (kimi-k3, sirius, RUNNING) and 1296375 (mimo-v2-6-pro, sirius, COMPLETED exit 0:0) are the submitted transfers.",
+    "manifest": "read /home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T224926476951-backup-profiles-and-downloads/manifest.md; it reports the repair, the candidate suite at 10 passed, the two catalogue tests at 2 passed, ruff EXIT=0, both negative controls red, and names its gate logs under logs/.",
+    "write_paths": "read the declared write paths (kimi-k3.toml, mimo-v2-6-pro.toml, tests/test_agent_candidate_profiles.py, the evidence fragment, docs/figures/b300-bring-up-and-open-model-bakeoff/backup-profiles-and-downloads); every path in the two commits is inside them and the figure directory is untouched."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_candidate_profiles.py:120-132 fails if a [slurm] block is removed (the recorded negative control shows the catalogue pair red at 2 failed), but :150 compares the rendered script against site.model_dir, the function that built it, so that assertion moves with the code it tests.",
+    "evidence": "logs/pytest-candidate-profiles.log ends \"10 passed in 1.45s\" and EXIT=0, but its header names revision 81de3fc2 rather than the tree that carried the f2aa2615 changes, so the log cannot be tied to the head it measured without the test count as a proxy.",
+    "fit": "both TOMLs follow the shape of imas_ambix/agent/profiles/mimo-v2-5-pro.toml and the tests follow tests/test_agent.py:351 in style, with no plan or ticket labels in paths, symbols or comments.",
+    "goal_fidelity": "imas_ambix/agent/profiles/kimi-k3.toml:40 and mimo-v2-6-pro.toml:52 now pin port 18811/18812 and cpus 12, so the profiles no longer inherit the 30-core, no-port defaults the catalogue refuses.",
+    "reuse": "tests/test_agent_candidate_profiles.py:126 restates the catalogue-wide port-uniqueness capability that tests/test_agent.py:351 already owns, assertion for assertion, without extending it.",
+    "scope_discipline": "git diff faa32881..f2aa2615 touches only the four declared paths, and the granted docs/figures directory was not touched."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: read the goal \u2014 two pinned backup profiles and their resumable /work downloads; imas_ambix/agent/profiles/kimi-k3.toml and mimo-v2-6-pro.toml exist with 40-character pins read from the HF API, and jobs 1296374 (kimi-k3, sirius, RUNNING) and 1296375 (mimo-v2-6-pro, sirius, COMPLETED exit 0:0) are the submitted transfers.\nVERDICT done_when: read the done_when \u2014 profiles with hf_review/revision/weights_slug, pytest tests/test_agent_candidate_profiles.py, ruff, and both downloads with ids, partition and targets in the fragment; the manifest records logs/pytest-candidate-profiles.log (10 passed, EXIT=0), logs/ruff.log (\"All checks passed!\", EXIT=0), and logs/pytest-named-finding-tests.log (2 passed, EXIT=0), and docs/evidence/fragments/b300-bring-up-and-open-model-bakeoff/backup-profiles-and-downloads.html:29,37 records both job ids and target directories.\nVERDICT write_paths: read the declared write paths (kimi-k3.toml, mimo-v2-6-pro.toml, tests/test_agent_candidate_profiles.py, the evidence fragment, docs/figures/b300-bring-up-and-open-model-bakeoff/backup-profiles-and-downloads); every path in the two commits is inside them and the figure directory is untouched.\nVERDICT manifest: read /home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T224926476951-backup-profiles-and-downloads/manifest.md; it reports the repair, the candidate suite at 10 passed, the two catalogue tests at 2 passed, ruff EXIT=0, both negative controls red, and names its gate logs under logs/.\nVERDICT diff: read both commits against base faa32881 \u2014 81de3fc2 adds the two profiles, the candidate test file and the fragment (273 insertions), f2aa2615 adds the [slurm] blocks (ports 18811/18812, cpus 12), rewrites the topology test, adds two invariant tests and updates the fragment (106 insertions, 26 deletions); four files, all inside the declared scope, no production Python changed.\nCALL_SITES: imas_ambix/agent/profile.py:843:list_profiles, imas_ambix/agent/cli.py:389:agent list, imas_ambix/agent/cli.py:630:profile.slurm.port, imas_ambix/agent/cli.py:2057:serve port, imas_ambix/agent/slurm.py:1205:generate_download_script, imas_ambix/agent/router.py:1691:routable catalog\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/profiles/kimi-k3.toml:40 and mimo-v2-6-pro.toml:52 now pin port 18811/18812 and cpus 12, so the profiles no longer inherit the 30-core, no-port defaults the catalogue refuses.\nSCORE evidence: 15\nJUSTIFICATION evidence: logs/pytest-candidate-profiles.log ends \"10 passed in 1.45s\" and EXIT=0, but its header names revision 81de3fc2 rather than the tree that carried the f2aa2615 changes, so the log cannot be tied to the head it measured without the test count as a proxy.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: git diff faa32881..f2aa2615 touches only the four declared paths, and the granted docs/figures directory was not touched.\nSCORE durability: 15\nJUSTIFICATION durability: tests/test_agent_candidate_profiles.py:120-132 fails if a [slurm] block is removed (the recorded negative control shows the catalogue pair red at 2 failed), but :150 compares the rendered script against site.model_dir, the function that built it, so that assertion moves with the code it tests.\nSCORE fit: 17\nJUSTIFICATION fit: both TOMLs follow the shape of imas_ambix/agent/profiles/mimo-v2-5-pro.toml and the tests follow tests/test_agent.py:351 in style, with no plan or ticket labels in paths, symbols or comments.\nSCORE reuse: 5\nJUSTIFICATION reuse: tests/test_agent_candidate_profiles.py:126 restates the catalogue-wide port-uniqueness capability that tests/test_agent.py:351 already owns, assertion for assertion, without extending it.\nFINDING tests/test_agent_candidate_profiles.py:126 non-blocking: test_candidate_ports_are_distinct_across_the_catalogue repeats tests/test_agent.py:351 assertion for assertion ({slug: port}, all not None, set length equals profile count), so the repository now carries two copies of one capability and a future change to the invariant must be made in both.\nFINDING tests/test_agent_candidate_profiles.py:150 non-blocking: the MODEL_DIR assertion compares the rendered script against site.model_dir(profile), the same function generate_download_script uses to fill MODEL_DIR, so a regression in model_dir leaves both sides moving together and the assertion green; the independent pin evidence is the REVISION checks at :147-148.\nFINDING tests/test_agent_candidate_profiles.py:98 non-blocking: the assertion set reads only the keys under [engine] and the key names under [slurm], so a topology written at top level (gpus, port, tensor_parallel) or in a new section would pass a test whose name claims the serving topology is deferred, and it inspects the base profile only rather than the for_gpus variants the catalogue owner at tests/test_agent.py:850 walks.\nFINDING logs/pytest-candidate-profiles.log:1 non-blocking: the gate log's revision header names 81de3fc2, the pre-repair commit, while the run it records is the repaired tree (10 tests exist only at f2aa2615), so a reader cannot tie the passing gate to the head being promoted.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T224926476951-backup-profiles-and-downloads/manifest.md:1 non-blocking: the manifest carries no baseline_suite and no after_suite block, so a reader annotating this review from the reviewed run's own evidence derives an unmeasured added-failure count rather than a measured zero; the zero below is derived from the recorded base arm at faa32881 (4 passed, EXIT=0) and the head arm rerun at f2aa2615 (4 passed, EXIT=0) under this review's own run directory.\n",
+  "review_run_id": "r-20261026T231527169841-review-of-backup-profiles-and-downloads-f2aa2615d067",
+  "reviewed_base_sha": "faa328816dcaed3f7ffd9e9631d5e7d9db20e06a",
+  "reviewed_head_sha": "f2aa2615d0676f69ab74b121667931ef33cfe183",
+  "reviewed_run_id": "r-20261026T224926476951-backup-profiles-and-downloads",
+  "scores": {
+    "durability": 15,
+    "evidence": 15,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "reuse": 5,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T23:23:46.891899+00:00",
+  "total": 90
+}
