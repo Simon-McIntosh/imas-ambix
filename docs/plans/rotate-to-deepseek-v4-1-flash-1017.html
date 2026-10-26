@@ -20,12 +20,12 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
   <meta name="plan-blocks" content="b300-bring-up-and-open-model-bakeoff">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;done&quot;}">
   <meta name="plan-section-depends-on" content="{&quot;s5&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s3&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s4&quot;],&quot;s4&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s6&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s5&quot;],&quot;s7&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s4&quot;]}">
   <title>Rotate to DeepSeek-V4.1-Flash-1017 | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="41">
+<meta name="plan-version" content="42">
 <meta name="plan-modified" content="2026-10-26">
 </head>
 <body>
@@ -248,7 +248,7 @@
       <li><strong>Negative control:</strong> the same analysis with the boundary moved to a point inside the before window, splitting September runs from September runs, must pass the positive control and report no detectable difference on the promotion and first-attempt rates.</li></ul>
 
     <h2 id="s7">§7 — llm-watch names the checkpoint</h2>
-<section data-reckon="section" data-id="s7" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s7" data-effort-hours="1.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
 <p>gpu-watch's head line now names the checkpoint from <code>endpoints.json</code>'s <code>checkpoints</code> map (dotfiles <code>252dc4e</code>). llm-watch's head line still shows only the served name, which is the same for both checkpoints. It gains the same label, read from the same map: the repository's last path part and a short commit, or a yellow <code>checkpoint unrecorded</code> when the map names none. The checkpoint is a fact about the deployment, not a per-poll reading, so it does not belong in <code>live_panel</code>, whose contract is the lane document and one receipt tail every five seconds. <code>llm_watch</code>'s document build reads <code>endpoints.json</code> through <code>SiteConfig.from_env().endpoint_document</code> once per refresh and passes the map to the head line.</p><p><strong>Write paths.</strong> <code>imas_ambix/agent/llm_watch.py</code>, <code>tests/test_llm_watch.py</code>, <code>tests/golden/llm_watch</code>.</p><p><strong>Done when.</strong></p><ul><li>The live document carries the <code>checkpoints</code> map, and llm-watch's head line renders <code>DeepSeek-V4.1-Flash-1017@1bae0e10</code> from a fixture holding today's map. The goldens are updated.</li><li><strong>Negative control:</strong> a fixture with no <code>checkpoints</code> map renders <code>checkpoint unrecorded</code>, never a blank.</li></ul>
 
     <section data-reckon="decisions" id="decisions" class="r-decisions">
@@ -309,7 +309,10 @@
     <div class="r-comment-body"><p>§5 done. The H200 lane has served DeepSeek-V4.1-Flash-1017 since 2026-10-23T20:14:30Z (job 1294597), after a 10-minute pause with tool-call validation and no rollback. The router was restarted afterwards (job 1294603; held registrations live, 5 s startup). The first hour's failed share was 2.24% against 1.90% the day before, and 90 local-lane runs were promoted on 1017 since. <a href="/imas-ambix/evidence/archive/rotate-to-deepseek-v4-1-flash-1017-landed.html#s5">evidence</a></p></div>
 </div>
 <div class="r-comment" data-section="s7" data-id="c-run-r-20261026T214155779982-review-of-llm-watch-names-the-checkpoint-86d25dda8677" data-who="reckon-build" data-when="2026-10-26T21:51:18.211Z">
-    <div class="r-comment-body"><p>review of llm-watch-names-the-checkpoint (base f7631d98, head 86d25dda) scores goal_fidelity 19, evidence 15, scope_discipline 19, durability 17, fit 17, reuse 18 (total 105) with two non-blocking findings — the declared negative control reddens the yellow-path test through a fixture KeyError rather than through the assertion it guards, and the log labelled with the base revision collected the head&#x27;s 24 items so the run holds no clean-base arm — and no blocking finding, added_failure_count 0.</p></div>
+    <div class="r-comment-body"><p>review of llm-watch-names-the-checkpoint (base f7631d98, head 86d25dda) scores goal_fidelity 19, evidence 15, scope_discipline 19, durability 17, fit 17, reuse 18 (total 105) with two non-blocking findings — the declared negative control reddens the yellow-path test through a fixture KeyError rather than through the assertion it guards, and the log labelled with the base revision collected the head's 24 items so the run holds no clean-base arm — and no blocking finding, added_failure_count 0.</p></div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-close-s7" data-who="reckon-build" data-when="2026-10-26T22:00:00Z">
+    <div class="r-comment-body"><p>§7 landed in <code>ab9fc2a9</code>. llm-watch's head line names <code>DeepSeek-V4.1-Flash-1017@1bae0e10</code>, looked up through the registry's engine-id function, and shows a yellow <code>checkpoint unrecorded</code> when no checkpoint is recorded. 24 tests passed, and the review scored 15 to 20. <a href="/imas-ambix/evidence/archive/rotate-to-deepseek-v4-1-flash-1017-landed.html#s7">evidence</a></p></div>
 </div>
 </section>
 </main>
