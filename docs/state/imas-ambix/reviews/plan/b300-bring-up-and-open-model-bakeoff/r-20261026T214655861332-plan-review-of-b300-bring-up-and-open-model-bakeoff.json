@@ -1,0 +1,53 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-26T21:52:31.066Z",
+  "dispatched_at": "2026-10-26T21:47:10Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/b300-bring-up-and-open-model-bakeoff.html:235",
+      "id": "done_when-1",
+      "reason": "as written a node can pass the gate and then set the router's starting gate width from a knee that the gate's own tolerance has already declared indistinguishable from noise; the tolerance must be tighter than the 5% decision margin, or the knee reported only where level-to-level gain exceeds the measured repeat spread.",
+      "text": "the negative control requires a repeat of the 16-concurrent point to lie \"within 10% of the first\", but the knee is defined at line 209 as the concurrency beyond which aggregate throughput gains \"less than 5%\", so a sweep can pass the control with 10% point-to-point variation while the 4\u20139% level gains the knee is read from are inside that noise \u2014 the control certifies stability it cannot establish at the resolution the measure needs",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/b300-bring-up-and-open-model-bakeoff.html:205",
+      "id": "reasoning-1",
+      "reason": "a node implementing this must invent its sample set, and the figure then cannot state which prompt sizes it ran at or that they came from our callers, which is the whole point of replacing the fixed one-sentence prompt; one clause naming the quantiles the sweep uses (median and p90 of `receipts.job`) fixes it.",
+      "text": "\u00a75 says the prompt-size option \"samples prompt lengths from a stated census of the request record (`census-1280470.json`)\", but that file holds only per-window summary quantiles and per-day totals \u2014 `receipts.job.prompt_median` 118,490 and `prompt_p90` 168,151 tokens, with `receipts_daily` carrying `prompt` sums and `requests` counts \u2014 and no per-request lengths, so the census gives two quantiles to sweep, not a distribution to sample",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "7fae5f0bfac7cf3928735a678fa64e4fc24a90c31cb35fdf89445303dcdee29f",
+  "plan_slug": "b300-bring-up-and-open-model-bakeoff",
+  "plan_version": 18,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261026T214655861332-plan-review-of-b300-bring-up-and-open-model-bakeoff",
+  "reviewed_blob_sha": "850fa7b8c9f79071a98a0da5f4cca2a6876401e0",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `serving-capacity-and-b300-projection.html`, `local-lane-throughput-against-occupancy.html`, `census-1280470.json`, `tests/test_bench.py` and `tests/agent/test_bench_report.py` all resolve, and extensionless hrefs resolve as `<path>.html`.",
+    "done_when": "a finding \u2014 \u00a75's negative control tolerates 10% repeat variation while the knee it protects is defined by a 5% gain threshold.",
+    "evidence_paths": "pass \u2014 the sweep data, the knee reduction and the figure land under `docs/research/b300-throughput.html` and `docs/figures/b300-throughput`, both durable, with gate logs under the run's own directory.",
+    "naming": "pass \u2014 `bench_report.knee` and the prompt-size option are named by what they measure; no plan label, stage name or ticket number reaches a symbol or comment.",
+    "reasoning": "a finding \u2014 the cited census carries summary quantiles, not a per-request prompt-size distribution, so \"sampling prompt lengths\" from it does not yield the sample set \u00a75 assumes.",
+    "single_goal": "pass \u2014 \u00a75's one deliverable is a measured knee per B300 configuration, and the prompt-size option and knee reduction are the means to it, not second goals.",
+    "wiring": "pass \u2014 \u00a75's depends-on (`b300#s4`, `rotate#s3`) both land what \u00a75 uses: \u00a74 gives the `b300-4x`/`b300-8x` variants the sweeps run, and `rotate-to-deepseek-v4-1-flash-1017#s3` (status done) is the tool-call probe \u00a75 names; every write path in \u00a75 exists except the two declared new ones."
+  },
+  "section_digests": {
+    "_document": "1406f9ee270da0e9b2ab84b2d20bde8cf96d1fc299996d177e8135ef43291b1f",
+    "s1": "d9b20b2462b714c588777137a3f84dbe6a6285a13698086ef6821d81debdb695",
+    "s2": "ef2e8b754c4b28e05b82f3535fc7322406b9d18639938cf7c46f1c11284568df",
+    "s3": "9ec35b3e8578bd88dadce89dfa0e3dd4465128b6eeb6f1407bc4c373d5044761",
+    "s4": "e72b73d91eb30886cc98000ecb4b9517f9c2b5f6e5b64a2063a19b8f00678a50",
+    "s5": "70cc26b8db119171365c7ef7f5c9ff2980b9b56cb2ea1d8107f899023905fd57",
+    "s6": "674a0529c4ddc184440560b0b1af0260b0d8fe8ca872c01962bb449d503609bc",
+    "s7": "c1f33679b46a5b2d5f8b8876f25f4d795a4e027b15c00400090e7ee070000a1c"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T22:05:01.936736+00:00"
+}
