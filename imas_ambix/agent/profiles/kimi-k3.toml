@@ -1,0 +1,31 @@
+# Kimi-K3 — Moonshot AI flagship MoE, MXFP4 checkpoint
+#
+# Identity and weights only: no serving topology is declared, because a
+# deployment is sized against the hardware it actually runs on and no card
+# count has been chosen for this release yet. The download job resolves the
+# identity below; a serve reads a topology added when one is decided.
+#
+# Repository: https://huggingface.co/moonshotai/Kimi-K3
+# Checkpoint: ~1.42 TiB, compressed-tensors MXFP4 (group_size 32, 4-bit
+#   symmetric float, packed) over Linear targets; attention, shared experts,
+#   MLP projections, lm_head, vision tower and projector stay unquantized.
+#   Native context 1,048,576 tokens.
+# License: Kimi K3 License (custom, open frontier weights).
+#
+# Deployment recipe (upstream): vLLM or SGLang; the repository's own
+#   Deployment section links a recipe for each.
+
+[model]
+name = "Kimi-K3"
+hf_repo = "moonshotai/Kimi-K3"
+# Commit pinned at the time of writing, read from the Hugging Face API
+# (GET https://huggingface.co/api/models/moonshotai/Kimi-K3 -> "sha").
+revision = "f831ab66814297da540d832a5235f8e904f29d06"
+served_name = "Kimi-K3"
+size_gb = 1454
+max_context = 1048576
+checkpoint_precision = "mxfp4"
+weights_slug = "kimi-k3"
+
+[engine]
+type = "vllm"
