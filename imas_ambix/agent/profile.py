@@ -423,8 +423,15 @@ class ModelProfile(BaseModel):
     WEIGHTS; where they differ only in tensor-parallel width, plain ``--gpus``
     rescaling already covers it and no variant is needed.
 
+    ``server_gpu_variants`` is the same mapping one axis wider: a deployment
+    on a different accelerator generation needs different topology, memory
+    split and KV precision for the same card count, because what the silicon
+    allows differs. It is keyed on the declared server's name and then on the
+    card count.
+
     Each entry may override any ``[model]``, ``[engine]``, or ``[slurm]`` key,
-    and is deep-merged over the base when that card count is requested.
+    and is deep-merged over the base when that card count is requested. A
+    ``(server, gpus)`` entry wins over one keyed by ``gpus`` alone.
     """
 
     slug: str
@@ -433,20 +440,52 @@ class ModelProfile(BaseModel):
     slurm: SlurmDefaults = SlurmDefaults()
     # Per-card-count checkpoint overrides, keyed on the GPU count they suit.
     gpu_variants: dict[int, dict] = {}
+    # Per-server, per-card-count overrides, keyed on the declared server name
+    # and then the GPU count. A server that this section names must have its
+    # card counts listed here, so a launch asks for one of the topologies the
+    # profile actually describes rather than any count that divides.
+    server_gpu_variants: dict[str, dict[int, dict]] = {}
 
-    def for_gpus(self, gpus: int) -> ModelProfile:
+    def _declared_server_variant(self, gpus: int, server: str) -> dict | None:
+        """Return the variant declared for exactly *(server, gpus)*."""
+        return self.server_gpu_variants.get(server, {}).get(gpus)
+
+    def for_gpus(self, gpus: int, server: str | None = None) -> ModelProfile:
         """Return this profile resolved for a *gpus*-card deployment.
 
-        Applies the matching :attr:`gpu_variants` entry when one exists and
-        returns ``self`` unchanged otherwise, so a profile without variants
-        behaves exactly as before.
+        Applies the matching variant when one exists and returns ``self``
+        unchanged otherwise, so a profile without variants behaves exactly as
+        before. A variant keyed on *(server, gpus)* wins over one keyed on
+        ``gpus`` alone, and ``server=None`` looks at the card count only.
+
+        A server whose topologies this profile names is a closed set: asking
+        for a card count it does not declare is refused rather than scaled
+        proportionally, because on a different accelerator generation the
+        proportional result is a topology nobody reasoned about.
         """
-        variant = self.gpu_variants.get(gpus)
+        declared = self.server_gpu_variants.get(server) if server is not None else None
+        variant = self._declared_server_variant(gpus, server) if declared else None
         if not variant:
+            variant = self.gpu_variants.get(gpus)
+        if not variant:
+            if declared:
+                counts = ", ".join(str(count) for count in sorted(declared))
+                raise ValueError(
+                    f"{self.slug} declares no variant for server {server!r} at "
+                    f"{gpus} cards; it declares {server!r} at {counts} cards."
+                )
             return self
-        merged = _deep_merge(self.model_dump(exclude={"gpu_variants"}), dict(variant))
+        merged = _deep_merge(
+            self.model_dump(exclude={"gpu_variants", "server_gpu_variants"}),
+            dict(variant),
+        )
         merged.pop("slug", None)
-        return ModelProfile(slug=self.slug, gpu_variants=self.gpu_variants, **merged)
+        return ModelProfile(
+            slug=self.slug,
+            gpu_variants=self.gpu_variants,
+            server_gpu_variants=self.server_gpu_variants,
+            **merged,
+        )
 
     @property
     def weights_directory_slug(self) -> str:

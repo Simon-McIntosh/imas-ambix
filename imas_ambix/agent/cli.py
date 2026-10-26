@@ -231,7 +231,7 @@ def _load_profile(slug: str | None):
         raise click.ClickException(str(exc)) from exc
 
 
-def _scale_profile(profile, gpus: int):
+def _scale_profile(profile, gpus: int, server: str | None = None):
     """Return a copy of *profile* with GPU count and dependent resources scaled.
 
     Adjusts ``engine.tensor_parallel``, ``slurm.gpus`` and ``slurm.memory``.
@@ -242,10 +242,15 @@ def _scale_profile(profile, gpus: int):
     exhausts a reservation that two groups share and leaves a co-running job
     pending on cores beside idle GPUs. Override a single launch with ``--cpus``.
     The caller's profile is not mutated.
+
+    *server* is the declared server the launch is placed on. A profile may
+    describe a topology per server, because the same card count needs a
+    different split on a different accelerator generation, so the resolution
+    is keyed on both. ``None`` asks about the card count alone.
     """
     # A declared variant for this card count carries its own checkpoint and
     # sizing, so it replaces proportional scaling rather than being scaled.
-    variant = profile.for_gpus(gpus)
+    variant = profile.for_gpus(gpus, server=server)
     if variant is not profile:
         return variant
     base_gpus = profile.slurm.gpus
@@ -602,8 +607,19 @@ def serve(
     from imas_ambix.agent.slurm import generate_serve_script, submit_script
 
     profile = _load_profile(slug)
+    # Placement is resolved before the card count narrows the profile, because
+    # a profile may describe a topology per server: the same card count needs a
+    # different split on a different accelerator generation.
+    site = SiteConfig.from_env()
+    try:
+        placement = site.resolve_server(server)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
     if gpus is not None:
-        profile = _scale_profile(profile, gpus)
+        try:
+            profile = _scale_profile(profile, gpus, server=placement.name)
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
     if cpus is not None:
         profile = profile.model_copy(
             update={"slurm": profile.slurm.model_copy(update={"cpus": cpus})}
@@ -623,7 +639,6 @@ def serve(
         profile = _override_dspark_block_size(profile, dspark_block_size)
     if no_speculative:
         profile = _without_speculation(profile)
-    site = SiteConfig.from_env()
     resolved_port = (
         port
         if port is not None
@@ -632,13 +647,6 @@ def serve(
         else site.default_port
     )
     resolved_key = _resolve_serve_auth(auth, api_key, site)
-    # Place on the declared server before anything is generated or submitted: a
-    # name no declaration matches must stop the launch rather than place a
-    # serve on a partition, account and reservation nobody asked for.
-    try:
-        placement = site.resolve_server(server)
-    except ValueError as exc:
-        raise click.ClickException(str(exc)) from exc
     script = generate_serve_script(
         profile,
         site,
@@ -2476,8 +2484,26 @@ def restart(
     from imas_ambix.agent.slurm import generate_serve_script
 
     profile = _load_profile(slug)
+    # The replacement keeps the placement the running serve holds, and that
+    # placement is resolved before the card count narrows the profile: a
+    # profile may describe a topology per server, and the replacement must be
+    # generated from the topology its own server declares. A job with no
+    # registration leaves the placement unknown, which is not a reason to
+    # refuse the card count: the topology then comes from the card count alone,
+    # as it did when a profile could describe one generation of cards.
+    site = SiteConfig.from_env()
+    jobs = _profile_jobs(site, profile.slug)
+    old_job = jobs[0] if len(jobs) == 1 else None
+    placement = _placement_of_running_serve(
+        site, old_job["jobid"] if old_job is not None else None
+    )
     if gpus is not None:
-        profile = _scale_profile(profile, gpus)
+        try:
+            profile = _scale_profile(
+                profile, gpus, server=placement.name if placement else None
+            )
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
     if cpus is not None:
         profile = profile.model_copy(
             update={"slurm": profile.slurm.model_copy(update={"cpus": cpus})}
@@ -2497,7 +2523,6 @@ def restart(
         profile = _override_dspark_block_size(profile, dspark_block_size)
     if no_speculative:
         profile = _without_speculation(profile)
-    site = SiteConfig.from_env()
     resolved_port = (
         port
         if port is not None
@@ -2543,9 +2568,6 @@ def restart(
         raise click.ClickException(
             f"matching serve job {old_job['jobid']} is not RUNNING"
         )
-    placement = _placement_of_running_serve(
-        site, old_job["jobid"] if old_job is not None else None
-    )
     pause_script = generate_serve_script(
         profile, site, port=resolved_port, api_key=resolved_key, server=placement
     )

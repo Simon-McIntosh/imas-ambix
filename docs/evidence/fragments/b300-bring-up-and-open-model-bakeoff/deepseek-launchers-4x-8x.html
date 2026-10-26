@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="b300-bring-up-and-open-model-bakeoff">
+</head>
+<body>
+  <main class="plan-doc">
+    <p id="deepseek-launchers-4x-8x-outcome">The <code>deepseek-v4-1-flash</code>
+    profile now renders a complete serve script for a B300 server at four and at eight
+    cards through <code>--server</code> and <code>--gpus</code>, with no new CLI option.
+    <code>ModelProfile.server_gpu_variants</code> is keyed by the declared server name and
+    then by card count, <code>for_gpus(gpus, server=None)</code> prefers a variant for the
+    pair over one keyed by the count alone, and <code>_scale_profile</code> hands the
+    resolved server on both the serve and the restart path. A server the profile names has
+    a closed set of counts: asking for one it does not declare is refused with the declared
+    ones listed rather than rescaled into an unreasoned topology. With
+    <code>server=None</code> the lookup is unchanged, and the default script is
+    byte-identical to the base revision's — pinned by digest, not asserted by eye.</p>
+
+    <p id="deepseek-launchers-4x-8x-topology">Each rendered script is pinned on the lines
+    that decide where it runs and how wide it is: for <code>--server b300 --gpus 4</code>,
+    TP4/EP4, four cards, <code>fp8_e4m3</code> KV, <code>auto</code> MoE runner, DSpark
+    depth 5, a 4,000,000-token pool, 524,288-token context and the pinned
+    <code>sglang-dev-dsv41.sif</code> under <code>/work</code>; for <code>--gpus 8</code>
+    the same topology at TP8/EP8 with an 8,000,000-token pool and a 48-request bound. The
+    four-card pool is sized to the bound and the context rather than auto-sized, because
+    the fused-MoE workspace allocates lazily outside the memory fraction.</p>
+
+    <p id="deepseek-launchers-4x-8x-sources">Every Blackwell setting carries its source in
+    <code>docs/research/b300-launch-recipes.html</code>: the container whose torch build
+    was inspected for <code>sm_100</code> rather than inferred from a version string, the
+    JIT kernel path that compiles per device, the vLLM Blackwell recipe for parallel shape
+    and KV dtype, and the capacity projection for the starting request bound. The memory
+    fraction is the one figure carried over from the Hopper measurement with no Blackwell
+    counterpart, and the document says so.</p>
+
+    <p id="deepseek-launchers-4x-8x-gate">Gate: 33 passed across
+    <code>tests/test_agent_site_servers.py</code> and
+    <code>tests/test_agent_dspark_profile.py</code>, and
+    <code>ruff check imas_ambix tests</code> exit 0. The named four-file gate reports six
+    failures, all of which reproduce identically on a pristine extraction of the base
+    revision (four in <code>tests/test_agent.py</code>, two in
+    <code>tests/test_agent_reload.py</code>), so the delta this change adds to it is zero;
+    they are recorded as outside scope rather than repaired from here. Two failures the
+    change did reach — the two restart tests, which broke when a weights preflight was
+    added ahead of their dry-run assertion — are repaired in the change's own file by
+    putting the checkpoint their scenario needs on disk.</p>
+
+    <p id="deepseek-launchers-4x-8x-control">Negative control (declared): ask for
+    <code>--server b300 --gpus 2</code>, a count no variant declares. The serve refuses and
+    names what is on offer — <em>"declares no variant for server 'b300' at 2 cards; it
+    declares 'b300' at 4, 8 cards"</em> — and the same assertion executed against the base
+    revision fails, because there the count is accepted silently.</p>
+
+    <p id="deepseek-launchers-4x-8x-repair-placement">Review repair (786d7475): the restart
+    path resolved the running serve's placement and then read the server name off it, so a
+    running job with no registration — a serve started outside the CLI, or one whose
+    registration is not current — raised <code>AttributeError</code> on
+    <code>agent restart &lt;slug&gt; --gpus N</code> instead of rendering the script. An
+    unknown placement now falls back to the card count alone, which is what the flag meant
+    before a profile could describe several servers; the placement it does resolve still
+    wins, which the two existing restart tests pin. The regression test restarts an
+    unregistered RUNNING job under a two-server site and requires the eight-card topology on
+    the server the site starts at. Reverting the fix reproduces the
+    <code>AttributeError</code> and fails that test.</p>
+
+    <p id="deepseek-launchers-4x-8x-limits">Not established here: no B300 serve has been
+    launched, so the startup reports, the lazy workspace headroom and the KV occupancy at
+    the declared bound are all still to be measured, and the research document lists them
+    as the first launch's checks in order.</p>
+  </main>
+</body>
+</html>
