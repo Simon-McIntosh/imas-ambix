@@ -1,0 +1,54 @@
+<section data-reckon="evidence" data-id="llm-watch-names-the-checkpoint">
+  <h3 id="llm-watch-names-the-checkpoint-landing">llm-watch's head line names the loaded checkpoint</h3>
+  <p id="llm-watch-names-the-checkpoint-summary">
+    The served name is identical across the lane's weights-only rotation, so a
+    head line carrying only the name reads the same before and after it.
+    <code>llm_watch</code>'s head line now carries the release the served engine
+    actually loaded, read from the endpoint document's <code>checkpoints</code>
+    map: on today's map it renders
+    <code>deepseek-v4.1-flash · DeepSeek-V4.1-Flash-1017@1bae0e10 · 4×H200 ·
+    gpu-0003 · 262k ctx</code>. The label is the repository's last path part and
+    an eight-character commit, as gpu-watch draws it from the same map.
+  </p>
+  <p id="llm-watch-names-the-checkpoint-key">
+    The lookup key is built with <code>registry._engine_id</code>, the function
+    that wrote the map's keys, so the same short host form is used on both
+    sides: <code>gpu-0003.iter.org:18810</code> for the entry whose host is
+    <code>98dci4-gpu-0003.iter.org</code> at port 18810. A key assembled here
+    from the entry's raw host would be a plausible string that misses every
+    entry, so both directions are asserted — the engine id resolves, and the
+    same record keyed by the raw host does not.
+  </p>
+  <p id="llm-watch-names-the-checkpoint-unrecorded">
+    A document that records no checkpoint for the served engine states
+    <code>checkpoint unrecorded</code> in yellow rather than leaving the slot
+    blank, because a blank reads as "no checkpoint applies" and is
+    indistinguishable from a label that was dropped. An empty map is the same
+    absence as an absent one.
+  </p>
+  <p id="llm-watch-names-the-checkpoint-build">
+    The document build reads <code>endpoints.json</code> through
+    <code>SiteConfig.from_env().endpoint_document</code> when the caller gives no
+    path, once per build — which is once per refresh — and carries the map at
+    the document's top level as <code>checkpoints</code>. The head line was
+    already drawing its card count and context ceiling from the endpoint entry,
+    which the live view received empty, so the site path is what makes both the
+    existing figures and the new label reachable without a command-line flag.
+    <code>live_panel.py</code> is unchanged: the checkpoint is a fact about the
+    deployment, not a per-poll reading.
+  </p>
+  <p id="llm-watch-names-the-checkpoint-measure">
+    Measure:
+    <code>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv uv run
+    --no-sync pytest -p no:cacheprovider tests/test_llm_watch.py</code> gives
+    <code>24 passed</code>, <code>EXIT=0</code>, and
+    <code>uv run --no-sync ruff check imas_ambix tests</code> gives
+    <code>All checks passed!</code>, <code>EXIT=0</code>. The eight goldens are
+    updated and committed; each one's head line now reads
+    <code>deepseek-v4.1-flash · DeepSeek-V4.1-Flash-1017@1bae0e10 · …</code>
+    instead of only the served name. Negative control, as declared — render the
+    head line without the checkpoints map: dropping the map from the fixtures
+    fails all eight goldens plus the three new tests,
+    <code>11 failed, 13 passed</code>, <code>EXIT=1</code>.
+  </p>
+</section>
