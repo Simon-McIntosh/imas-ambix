@@ -8,7 +8,7 @@
   <meta name="plan-slug" content="rotate-to-deepseek-v4-1-flash-1017">
   <meta name="plan-title" content="Rotate the Lane to DeepSeek-V4.1-Flash-1017">
   <meta name="plan-summary" content="Replace the September V4.1-Flash weights with the 1017 release on the running lane, keep the served name, and record which release answered">
-  <meta name="plan-status" content="active">
+  <meta name="plan-status" content="shipped">
   <meta name="plan-roi" content="high">
   <meta name="plan-effort-hours" content="6.0">
   <meta name="plan-capability-version" content="1.0">
@@ -25,7 +25,7 @@
   <title>Rotate to DeepSeek-V4.1-Flash-1017 | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="49">
+<meta name="plan-version" content="50">
 <meta name="plan-modified" content="2026-10-26">
 </head>
 <body>
@@ -265,10 +265,11 @@
 
     <section data-reckon="followups" id="followups" class="r-followups">
 <h2><span class="sec">§</span> Followups</h2>
-<article class="r-fu" data-id="f-r1017-001" data-status="open" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build rotate-to-deepseek-v4-1-flash-1017" data-resolved-at="" data-resolved-by="">
+<article class="r-fu" data-id="f-r1017-001" data-status="resolved" data-capability-version="1.0" data-capability-class="general" data-written-by="reckon-create" data-written-at="2026-10-23" data-recommends-skill="/reckon-build rotate-to-deepseek-v4-1-flash-1017" data-resolved-at="2026-10-26T22:47:34+00:00" data-resolved-by="reckon-build">
     <h4 class="r-fu-title">Build §2–§4, then rotate (§5)</h4>
     <div class="r-fu-body"><p>§2 and §3 write disjoint files and run in parallel. §4 shares <code>slurm.py</code> with §2, so it starts when §2 lands. §5 is the coordinator's live swap, once all three have landed.</p></div>
     <pre class="r-fu-prompt">/reckon-build rotate-to-deepseek-v4-1-flash-1017</pre>
+    <p class="r-fu-outcome">done — no followup. §2–§7 landed and the rotation is live. The B300 work that builds on it continues in its own plan: /reckon-build b300-bring-up-and-open-model-bakeoff §3</p>
     </article>
 </section>
   <section data-reckon="comments" id="comments" class="r-comments">
@@ -333,7 +334,7 @@
     <div class="r-comment-body"><p>Compare 300 before-window and 97 after-window local-lane implement runs: first-attempt gate pass rate +17.5 points (95% CI +6.5 to +29.1), repair/resume share -12.2 points (-23.5 to -0.5), review fit +0.36 (+0.10 to +0.61), input tokens per promoted run -11.35M (-15.35M to -7.25M), output tokens -76,457 (-96,694 to -56,912); verdict better, positive control passed in both windows and the moved-boundary control reports no detectable difference. The figure redrawn at d9fecb4d carries its labels as vector paths.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261026T222642707948-review-of-deepseek-1017-on-our-work-d9fecb4dd263-figure" data-who="reckon-build" data-when="2026-10-26T22:42:15.571Z">
-    <div class="r-comment-body"><p>Figure review of run r-20261026T212818772272-deepseek-1017-on-our-work at head d9fecb4dd263758e4115042ac0b284eac7260063 reads parsed: the redrawn differences.svg PNG now carries its whole text layer as vector paths (three axis labels, twelve row labels, every tick label, the bottom note), so all six rubric items pass; the one recorded finding is non-blocking and exempted — the &quot;failed or aborted requests&quot; interval spans 0.003 of the top panel&#x27;s range and renders as a 6 px sliver on the zero line, which the shared scale honestly implies and the document table resolves.</p></div>
+    <div class="r-comment-body"><p>Figure review of run r-20261026T212818772272-deepseek-1017-on-our-work at head d9fecb4dd263758e4115042ac0b284eac7260063 reads parsed: the redrawn differences.svg PNG now carries its whole text layer as vector paths (three axis labels, twelve row labels, every tick label, the bottom note), so all six rubric items pass; the one recorded finding is non-blocking and exempted — the "failed or aborted requests" interval spans 0.003 of the top panel's range and renders as a 6 px sliver on the zero line, which the shared scale honestly implies and the document table resolves.</p></div>
 </div>
 </section>
 </main>
