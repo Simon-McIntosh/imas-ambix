@@ -1,0 +1,53 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-26T22:15:16.848Z",
+  "dispatched_at": "2026-10-26T22:09:09Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/b300-bring-up-and-open-model-bakeoff/r-20261026T220852191482-plan-review-of-b300-bring-up-and-open-model-bakeoff/plan.html:198",
+      "id": "anchors_resolve-1",
+      "reason": "the probe the done-when asserts is reachable either way, so the repair is a wording correction rather than a change of mechanism.",
+      "text": "\u00a75 calls the tool-call probe \"`run_tool_call_bench`, now `bench.check_tool_call` after the rotation\", but rotate \u00a73 states \"Nothing is retired, because the\" existing categories stay, and the tree agrees: `run_tool_call_bench` still exists at bench.py:1848 while `check_tool_call` was factored out of the `tool_use` category at bench.py:783 \u2014 so a node reading \"now\" as a rename may look for a symbol that was removed, or retire one that was kept, when the section's live requirement is only that the `tools` category pass",
+      "type": "anchors_resolve",
+      "would_change": false
+    },
+    {
+      "anchor": "/home/ITER/mcintos/.config/reckon/crew/reports/imas-ambix/plan-review/b300-bring-up-and-open-model-bakeoff/r-20261026T220852191482-plan-review-of-b300-bring-up-and-open-model-bakeoff/plan.html:237",
+      "id": "reasoning-1",
+      "reason": "the section sets the engine's starting gate width from this knee, so a knee located within the declared noise puts the gate a level away from the measurement it claims to rest on, and the existing \"unmeasured\" escape keys only on repeat dispersion, never on the knee being unresolvable.",
+      "text": "the negative control sets the repeat tolerance at 2.5% \"half the 5% gain that defines the knee, so the noise is smaller than the margin the knee is read from\", but the knee is read from the *difference* between two ladder points, so two points each within 2.5% leave that difference uncertain by about 3.5% (and more at 64, where 128 requests carry the largest sampling error and where the knee most likely falls) \u2014 comparable to the 5% criterion itself; and the control samples only the 16-concurrent level, not the level the knee is read at, so a true 6% gain can read as 2.5% and a true 4% as 7.5%, moving the knee by a full ladder step",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_fingerprint": "e954ed5204a68576d14f61df15056d52d986b47f063f42ec8615dd7362055b85",
+  "plan_slug": "b300-bring-up-and-open-model-bakeoff",
+  "plan_version": 21,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261026T220852191482-plan-review-of-b300-bring-up-and-open-model-bakeoff",
+  "reviewed_blob_sha": "7a6ba6a069983a5c99e650411327ca4fb8ff7151",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "a finding \u2014 the probe parenthetical names a rename that the cited plan says did not happen.",
+    "done_when": "pass \u2014 each bullet is measurable against a named artifact, and the negative control is now bounded (repeat at 16 concurrent within 2.5%, one whole-sweep rerun, then the knee is reported unmeasured and no gate width is set), so it can fail and its failure has a defined outcome.",
+    "evidence_paths": "pass \u2014 the figure lands under `docs/figures/b300-throughput` and the write-up at `docs/research/b300-throughput.html`, both durable repository paths; the underlying ladder reports go to `default_bench_dir()` (`~/.local/share/ambix/bench`, cli.py:3054), also durable and outside any scratchpad.",
+    "naming": "pass \u2014 `bench_report.knee`, `check_tool_call` and `_run_concurrency` are mechanism names; no plan labels, stage names or ticket numbers reach a symbol or comment in this section.",
+    "reasoning": "a finding \u2014 the stated tolerance does not make the 5% knee criterion resolvable, so the mechanism cannot locate the knee its done-when requires.",
+    "single_goal": "pass \u2014 \u00a75 carries one deliverable, a measured knee for each B300 configuration; the prompt-size option and `bench_report.knee` are the means to it, not separate outcomes.",
+    "wiring": "pass \u2014 \u00a75's declared depends-on (`b300-bring-up-and-open-model-bakeoff#s4`, `rotate-to-deepseek-v4-1-flash-1017#s3`) both resolve, and each supplies exactly what \u00a75 consumes: the `b300-8x` launcher from \u00a74, and `bench.check_tool_call` (bench.py:783) which rotate \u00a73 lands and names in its own text."
+  },
+  "section_digests": {
+    "_document": "1406f9ee270da0e9b2ab84b2d20bde8cf96d1fc299996d177e8135ef43291b1f",
+    "s1": "d9b20b2462b714c588777137a3f84dbe6a6285a13698086ef6821d81debdb695",
+    "s2": "ef2e8b754c4b28e05b82f3535fc7322406b9d18639938cf7c46f1c11284568df",
+    "s3": "9ec35b3e8578bd88dadce89dfa0e3dd4465128b6eeb6f1407bc4c373d5044761",
+    "s4": "e72b73d91eb30886cc98000ecb4b9517f9c2b5f6e5b64a2063a19b8f00678a50",
+    "s5": "d92e9e310f61f9bb3bf88c1b93f7240a81302abf16454dd1ca83a6a455538b4e",
+    "s6": "674a0529c4ddc184440560b0b1af0260b0d8fe8ca872c01962bb449d503609bc",
+    "s7": "c1f33679b46a5b2d5f8b8876f25f4d795a4e027b15c00400090e7ee070000a1c"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T22:22:15.568199+00:00"
+}
