@@ -464,6 +464,53 @@ def test_a_registration_naming_the_short_host_still_resolves_its_server(
     assert f"#SBATCH --partition={_H200.partition}" not in result.output
 
 
+def test_a_restart_of_an_unregistered_job_still_honours_the_card_count(
+    tmp_path, monkeypatch
+):
+    """A serve with no registration has an unknown server, not an unusable flag.
+
+    Registration is written by the serve that succeeded, so a job that started
+    outside the CLI, or whose registration was never current, leaves the
+    placement unknown. That is not a reason to refuse `--gpus`: with no server
+    to ask about, the card count is the whole question, and the answer is
+    whatever it was before a profile could describe several servers. The
+    alternative -- reading a name off a placement that is absent -- raises
+    instead of generating the replacement the operator asked to see.
+    """
+    site_base = tmp_path / "site"
+    monkeypatch.setenv("AMBIX_AGENT_BASE_DIR", str(site_base))
+    monkeypatch.setenv(
+        "AMBIX_AGENT_SERVERS", json.dumps([_H200.model_dump(), _B300.model_dump()])
+    )
+    _complete_checkpoint(site_base, "deepseek-v4-1-flash")
+    monkeypatch.setattr(
+        agent_cli,
+        "_profile_jobs",
+        lambda _site, slug: [{"jobid": "42", "name": slug, "state": "RUNNING"}],
+    )
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "agent",
+            "restart",
+            "deepseek-v4-1-flash",
+            "--gpus",
+            "8",
+            "--reason",
+            "an unregistered serve still takes a card count",
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "#!/bin/bash" in result.output
+    # The card count decided the topology, on the server the site starts at.
+    assert "--tensor-parallel-size 8" in result.output
+    assert "#SBATCH --gres=gpu:8" in result.output
+    assert f"#SBATCH --partition={_H200.partition}" in result.output
+
+
 def test_key_rotation_keeps_a_serve_on_the_server_it_runs_on(tmp_path, monkeypatch):
     """Rotating the key replaces a serve where it runs, not where the site starts.
 

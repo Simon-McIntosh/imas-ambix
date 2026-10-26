@@ -2487,7 +2487,10 @@ def restart(
     # The replacement keeps the placement the running serve holds, and that
     # placement is resolved before the card count narrows the profile: a
     # profile may describe a topology per server, and the replacement must be
-    # generated from the topology its own server declares.
+    # generated from the topology its own server declares. A job with no
+    # registration leaves the placement unknown, which is not a reason to
+    # refuse the card count: the topology then comes from the card count alone,
+    # as it did when a profile could describe one generation of cards.
     site = SiteConfig.from_env()
     jobs = _profile_jobs(site, profile.slug)
     old_job = jobs[0] if len(jobs) == 1 else None
@@ -2496,7 +2499,9 @@ def restart(
     )
     if gpus is not None:
         try:
-            profile = _scale_profile(profile, gpus, server=placement.name)
+            profile = _scale_profile(
+                profile, gpus, server=placement.name if placement else None
+            )
         except ValueError as exc:
             raise click.ClickException(str(exc)) from exc
     if cpus is not None:
