@@ -1,0 +1,44 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "completed_at": "2026-10-26T22:42:15.571Z",
+  "dispatched_at": "2026-10-26T22:27:59Z",
+  "figures_read": [
+    {
+      "canvas_px": [
+        1400,
+        881
+      ],
+      "caption": "After-minus-before differences for every metric, each with its 95% interval. The three panels carry three different scales, because a rate difference of 0.17 and a token difference of eleven million cannot share an axis without hiding the rates.",
+      "figure": "docs/figures/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work/differences.svg",
+      "image": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T222642707948-review-of-deepseek-1017-on-our-work-d9fecb4dd263-figure/image-0.png"
+    }
+  ],
+  "findings": [
+    {
+      "file": "docs/figures/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work/differences.svg",
+      "line": null,
+      "severity": "non-blocking",
+      "summary": "The 'failed or aborted requests' interval spans about 0.0031 of the top panel's 50-percentage-point range, so in the rendered PNG it is a roughly 6 px grey sliver from x 776 to x 784 straddling the zero line at x=778, and its estimate dot sits inside its own bar in the same colour: a reader can see that this row is essentially zero, but cannot read the interval's width or which way it leans, and has to take both from the document table (+0.0008 percentage points, -0.0007 to +0.0023). On a panel shared with a +17 pp and a -12 pp effect no honest linear scale can show that interval, so the shared scale is the right form and this is a limit of it rather than a defect to repair in the drawing; disposition: exempted, because a broken axis or an inset would overstate a 0.003-of-range interval and the table already carries the exact numbers."
+    }
+  ],
+  "item_verdicts": {
+    "contrast": "PASS \u2014 row and tick labels are near-black and the bottom note is mid grey (#555555), all on pure white, and no glyph is drawn over a bar or a fill, so every text element clears the contrast of its background by a wide margin.",
+    "data_ink": "PASS \u2014 the ink is twelve thin interval bars with end caps, twelve small dots and three thin vertical zero lines on white; no area encoding, no second redundant encoding and nothing decorative, so the intervals carry essentially all of the ink.",
+    "decoration": "PASS \u2014 no gradient, panel fill, background band, shadow or styled theme; the canvas is white with three bottom axis lines, three thin zero reference lines and the labels.",
+    "label_collision": "PASS \u2014 no label is clipped or overlapping: the ink bounding box is x 4-1396, y 3-875 of the 1400x881 canvas, so the longest row label ('failed or aborted requests', beginning at x=13) clears the left edge and the bottom note's last ink row is 875 with five rows of white beneath it; the three axis labels sit in the gaps at y\u2248269, 553 and 828 with the next panel's row labels starting at y\u2248323 and 611, and the marks that sit on a zero line are drawn above it (the grey bars cover x 777-786 at y=39 and y=185 over the #444444 line at x=778), so no mark is hidden by its reference line.",
+    "legibility": "PASS \u2014 the rendered PNG now carries its full text layer: three panel axis labels, twelve row labels, every tick label and the bottom note all render as solid glyph paths, each row label reading cleanly at about 14 pt, so a reader can name every metric and read each panel's scale at a glance.",
+    "table_form": "PASS \u2014 an interval plot of twelve per-metric differences on three scales shows the uncertainty that the document's \u00a76 table reports only as bracketed numbers; this is geometry the table cannot carry, not information that belongs in one."
+  },
+  "project": "imas-ambix",
+  "review_run_id": "r-20261026T222642707948-review-of-deepseek-1017-on-our-work-d9fecb4dd263-figure",
+  "reviewed_at": "2026-10-26T22:40:00Z",
+  "reviewed_base_sha": "f7631d9839e773dc3d4cef80bb478c4bc9b1ab28",
+  "reviewed_head_sha": "d9fecb4dd263758e4115042ac0b284eac7260063",
+  "reviewed_run_id": "r-20261026T212818772272-deepseek-1017-on-our-work",
+  "rubric": "figure",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T22:42:17.790708+00:00",
+  "total": null
+}
