@@ -399,14 +399,34 @@ def verdict_from(diffs, control_ok):
     return "no detectable difference", "; ".join(detail) or "no primary metric interval excludes zero"
 
 
-def write_svg(path, diffs, before_means, note):
-    """Three panels, because the metrics carry three different scales.
+def write_figure(path, diffs, before_means, note):
+    """Draw the differences as three panels and save them with text as paths.
 
-    Plotting a rate difference of 0.17 beside a token difference of 11 million
-    on one axis makes every rate row invisible; each panel therefore gets its
-    own axis and its own unit, and per-run quantities are expressed relative to
-    the before-window mean so one axis serves all of them.
+    Text is emitted as vector paths (``svg.fonttype = "path"``) rather than as
+    ``<text>`` elements. Font handling is the one part of SVG rendering that
+    differs between renderers: a renderer with no matching font installed drops
+    the label instead of substituting one, which turns a labelled figure into
+    three unlabelled strips with no error anywhere. Paths carry no font
+    reference, so every renderer draws the same picture.
     """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    matplotlib.rcParams["svg.fonttype"] = "path"
+    try:
+        plt.style.use("data-ink")
+    except OSError:
+        matplotlib.rcParams.update(
+            {
+                "axes.spines.top": False,
+                "axes.spines.right": False,
+                "axes.grid": False,
+                "font.size": 14,
+            }
+        )
+
     panels = [
         (
             "rates [percentage points]",
@@ -419,10 +439,7 @@ def write_svg(path, diffs, before_means, note):
         ),
         (
             "review score [points]",
-            [
-                (f"review {dim.replace('_', ' ')}", f"review_{dim}", 1.0)
-                for dim in DIMENSIONS
-            ],
+            [(f"review {dim.replace('_', ' ')}", f"review_{dim}", 1.0) for dim in DIMENSIONS],
         ),
         (
             "per promoted run, relative to the before mean [%]",
@@ -434,124 +451,76 @@ def write_svg(path, diffs, before_means, note):
         ),
     ]
 
-    width, row_h = 1400, 38
-    left, right = 400, 120
-    header_h, axis_h = 44, 62
-    height = 20
-    for title, rows in panels:
-        height += header_h + row_h * len(rows) + axis_h
+    def scaled(entry, key, factor):
+        if factor is None:
+            base = before_means.get(key) or 0.0
+            if not base:
+                return None
+            return (
+                entry["estimate"] / base * 100.0,
+                entry["ci95"][0] / base * 100.0,
+                entry["ci95"][1] / base * 100.0,
+            )
+        return (
+            entry["estimate"] * factor,
+            entry["ci95"][0] * factor,
+            entry["ci95"][1] * factor,
+        )
 
-    parts = [
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        f'<svg xmlns="http://www.w3.org/2000/svg" id="deepseek-1017-on-our-work-differences" '
-        f'width="1400" height="{height}" viewBox="0 0 1400 {height}" '
-        f'font-family="Helvetica, Arial, sans-serif">',
-        f'<rect id="deepseek-1017-on-our-work-bg" width="1400" height="{height}" fill="#ffffff"/>',
-    ]
-
-    y = 20
-    for title, rows in panels:
-        scaled = []
-        for _, key, factor in rows:
+    fig, axes = plt.subplots(3, 1, figsize=(14, 8.8), constrained_layout=True)
+    for ax, (title, rows) in zip(axes, panels):
+        labels, points = [], []
+        for label, key, factor in rows:
             entry = diffs.get(key)
+            labels.append(label)
             if not entry or entry["estimate"] is None or entry["ci95"][0] is None:
+                points.append(None)
                 continue
-            if factor is None:
-                base = before_means.get(key) or 0.0
-                if not base:
-                    continue
-                est = entry["estimate"] / base * 100.0
-                low = entry["ci95"][0] / base * 100.0
-                high = entry["ci95"][1] / base * 100.0
-            else:
-                est = entry["estimate"] * factor
-                low = entry["ci95"][0] * factor
-                high = entry["ci95"][1] * factor
-            scaled.append((low, high))
+            points.append(scaled(entry, key, factor))
 
-        parts.append(
-            f'<text id="deepseek-1017-on-our-work-title-{title.split()[0]}" x="{left - 260}" y="{y + 18}" '
-            f'font-size="16" fill="#222222">{title}</text>'
-        )
-        y += header_h
-
-        if scaled:
-            lo = min(min(s[0] for s in scaled), 0.0)
-            hi = max(max(s[1] for s in scaled), 0.0)
-            pad = (hi - lo) * 0.1 or 1.0
-            lo, hi = lo - pad, hi + pad
-        else:
-            lo, hi = -1.0, 1.0
-
-        def xpos(value, lo=lo, hi=hi):
-            return left + (value - lo) / (hi - lo) * (width - left - right)
-
-        axis_y = y + row_h * len(rows)
-        parts.append(
-            f'<line id="deepseek-1017-on-our-work-zero-{int(y)}" x1="{xpos(0):.1f}" y1="{y - 6}" '
-            f'x2="{xpos(0):.1f}" y2="{axis_y:.1f}" stroke="#444444" stroke-width="1.2"/>'
-        )
-        parts.append(
-            f'<line id="deepseek-1017-on-our-work-axis-{int(y)}" x1="{left}" y1="{axis_y:.1f}" '
-            f'x2="{width - right}" y2="{axis_y:.1f}" stroke="#444444" stroke-width="1.2"/>'
-        )
-        steps = 6
-        for step in range(steps + 1):
-            tick = lo + (hi - lo) * step / steps
-            tx = xpos(tick)
-            parts.append(
-                f'<text id="deepseek-1017-on-our-work-tick-{int(y)}-{step}" x="{tx:.1f}" '
-                f'y="{axis_y + 24:.1f}" font-size="14" fill="#333333" text-anchor="middle">{tick:.1f}</text>'
-            )
-
-        for index, (label, key, factor) in enumerate(rows):
-            entry = diffs.get(key)
-            cy = y + row_h * index + row_h / 2
-            parts.append(
-                f'<text id="deepseek-1017-on-our-work-label-{key}" x="{left - 18}" y="{cy + 5:.1f}" '
-                f'font-size="14" fill="#222222" text-anchor="end">{label}</text>'
-            )
-            if not entry or entry["estimate"] is None or entry["ci95"][0] is None:
-                parts.append(
-                    f'<text id="deepseek-1017-on-our-work-empty-{key}" x="{left + 8}" y="{cy + 5:.1f}" '
-                    f'font-size="14" fill="#8a8a8a">no data</text>'
+        positions = list(range(len(labels)))[::-1]
+        ax.axvline(0.0, color="#444444", linewidth=1.2, zorder=1)
+        for position, point in zip(positions, points):
+            if point is None:
+                ax.annotate(
+                    "no data",
+                    xy=(0.0, position),
+                    xytext=(4, 0),
+                    textcoords="offset points",
+                    va="center",
+                    color="#8a8a8a",
                 )
                 continue
-            if factor is None:
-                base = before_means.get(key) or 0.0
-                if not base:
-                    continue
-                est = entry["estimate"] / base * 100.0
-                low = entry["ci95"][0] / base * 100.0
-                high = entry["ci95"][1] / base * 100.0
-            else:
-                est = entry["estimate"] * factor
-                low = entry["ci95"][0] * factor
-                high = entry["ci95"][1] * factor
-            colour = "#929292" if low <= 0.0 <= high else "#1f6f8b"
-            parts.append(
-                f'<line id="deepseek-1017-on-our-work-ci-{key}" x1="{xpos(low):.1f}" y1="{cy:.1f}" '
-                f'x2="{xpos(high):.1f}" y2="{cy:.1f}" stroke="{colour}" stroke-width="2.6"/>'
-            )
-            for tag, value in (("lo", low), ("hi", high)):
-                parts.append(
-                    f'<line id="deepseek-1017-on-our-work-cap-{tag}-{key}" x1="{xpos(value):.1f}" '
-                    f'y1="{cy - 6:.1f}" x2="{xpos(value):.1f}" y2="{cy + 6:.1f}" '
-                    f'stroke="{colour}" stroke-width="2.6"/>'
-                )
-            parts.append(
-                f'<circle id="deepseek-1017-on-our-work-point-{key}" cx="{xpos(est):.1f}" cy="{cy:.1f}" '
-                f'r="5" fill="{colour}"/>'
-            )
-        y = axis_y + axis_h
+            estimate, low, high = point
+            crosses = low <= 0.0 <= high
+            colour = "#929292" if crosses else "#1f6f8b"
+            ax.plot([low, high], [position, position], color=colour, linewidth=2.6, zorder=2)
+            for cap in (low, high):
+                ax.plot([cap, cap], [position - 0.14, position + 0.14], color=colour, linewidth=2.6, zorder=2)
+            ax.plot([estimate], [position], marker="o", markersize=6, color=colour, zorder=3)
 
-    parts.append(
-        f'<text id="deepseek-1017-on-our-work-note" x="{left}" y="{height - 14}" font-size="14" '
-        f'fill="#555555">{note}</text>'
-    )
-    parts.append("</svg>")
-    with open(path, "w") as handle:
-        handle.write("\n".join(parts) + "\n")
+        ax.set_yticks(positions)
+        ax.set_yticklabels(labels)
+        ax.set_xlabel(title)
+        ax.tick_params(axis="x", labelsize=14)
+        ax.margins(y=0.18)
+
+    # supxlabel rather than fig.text: the layout engine reserves the room, so the
+    # note cannot land on the bottom panel's axis label.
+    fig.supxlabel(note, fontsize=13, color="#555555")
+    fig.savefig(path, format="svg")
+    # Refuse to leave a font-dependent figure behind. A renderer without the
+    # named font draws the glyphs as nothing, and the file still looks valid, so
+    # the dependency has to be tested at the moment the file is written.
+    written = open(path).read()
+    if "<text" in written or "font-family" in written:
+        raise RuntimeError(
+            f"{path} still carries font-dependent text; labels must be emitted as paths"
+        )
+    preview = os.environ.get("FIGURE_PNG")
+    if preview:
+        fig.savefig(preview, format="png", dpi=100)
+    plt.close(fig)
 
 
 def report_window(name, window, runs, tokens, statuses, boundary):
@@ -584,6 +553,18 @@ def report_window(name, window, runs, tokens, statuses, boundary):
 
 
 def main():
+    if os.environ.get("ANALYSIS_FIGURE_ONLY") and os.environ.get("ANALYSIS_JSON"):
+        with open(os.environ["ANALYSIS_JSON"]) as handle:
+            result = json.load(handle)
+        write_figure(
+            result["figure_path"],
+            result["differences"],
+            {name: (result["metrics"]["before"][name]["estimate"] or 0.0) for name in result["differences"]},
+            "point: estimate, whisker: 95% interval; grey crosses zero; "
+            "cached tokens not recorded by the request log",
+        )
+        print(f"# figure redrawn from {os.environ['ANALYSIS_JSON']}")
+        return 0
     print(f"# analysis: local-lane implementation runs around {BOUNDARY.isoformat()}")
     print(f"# ledger glob: {LEDGER_GLOB}")
     print(f"# request files: {len(REQUEST_FILES)}")
@@ -749,13 +730,18 @@ def main():
         name: (result["metrics"]["before"][name]["estimate"] or 0.0)
         for name in main_diffs
     }
-    write_svg(
+    write_figure(
         figure,
         main_diffs,
         before_means,
         "point: estimate, whisker: 95% interval; grey crosses zero; "
-        "cached tokens omitted because the request record never fills that column",
+        "cached tokens not recorded by the request log",
     )
+    result["figure_path"] = figure
+    if os.environ.get("ANALYSIS_JSON"):
+        with open(os.environ["ANALYSIS_JSON"], "w") as handle:
+            json.dump(result, handle, indent=1)
+        print(f"# results written to {os.environ['ANALYSIS_JSON']}")
     print(f"\n# figure written to {figure}")
     return 0
 
