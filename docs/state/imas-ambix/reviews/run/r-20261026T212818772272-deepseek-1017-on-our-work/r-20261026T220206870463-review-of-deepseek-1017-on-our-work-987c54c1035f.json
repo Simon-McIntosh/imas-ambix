@@ -1,0 +1,79 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_sites": [],
+  "completed_at": "2026-10-26T22:12:49.532Z",
+  "dispatched_at": "2026-10-26T22:03:38Z",
+  "evidence_inputs": [
+    "Reproduction check: the landed script (blob d05b4c06 at 987c54c1) was re-run from a scratch copy at /tmp/reckon-crew-scratch/r-20261026T220206870463-review-of-deepseek-1017-on-our-work-987c54c1035f/tree/a/b/analysis.py on node 98dci4-clu-2068 under job 1291586; it printed 300 before / 97 after analysed, 14 before straddlers, first_attempt_pass diff 0.174845 [0.064777, 0.290653], moved-boundary control passed with no detectable difference, verdict better, and exited 1 only because its final figure write hit the review fence. Log: /tmp/reckon-crew-scratch/r-20261026T220206870463-review-of-deepseek-1017-on-our-work-987c54c1035f/rerun/landed-script-rerun.log",
+    "The request record has grown since the reviewed run (requests-2026-10-26.jsonl 2,506 rows then, 2,672 now) and the numbers are unchanged, confirming the analysis is window-bounded rather than sample-bounded.",
+    "A separate peer node (r-20261026T220340522060-...-figure) reviewed the figure and reported a blocking render defect: the rendered PNG carries no text layer, so the panel titles, row labels, tick labels and note are absent. The SVG source does contain those <text> elements, so that verdict is about the render step, not the markup this node committed.",
+    "Figure source inspection: differences.svg carries the three expected panel titles, twelve row labels, per-panel tick labels and the note, matching the landed write_svg."
+  ],
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.log",
+      "line": 1,
+      "severity": "non-blocking",
+      "summary": "The committed log's '# revision: 7d09b85b' header names the first commit, but the script committed at 987c54c1 is a different blob (267 changed lines: BOOTSTRAP_ROUNDS 5000 to 2000, plus the LARGE_N Wilson/normal fallback). Re-running the landed script reproduces every number in the log exactly, so the log is accurate for the landed script; the defect is that a reader checking provenance by the header would conclude the log predates the code that produces it and would distrust a reproduction that in fact holds."
+    },
+    {
+      "file": "docs/research/deepseek-1017-on-our-work.html",
+      "line": 37,
+      "severity": "non-blocking",
+      "summary": "The document says the implement/clive pair 'selects 2,865 records across all history'; the committed log prints 2,867 and a re-run of the landed script prints 2,868. The number is context rather than a reported metric, but it is one of the document's own figures that its script does not reproduce."
+    },
+    {
+      "file": "docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.py",
+      "line": 657,
+      "severity": "non-blocking",
+      "summary": "The moved-boundary control's results are computed into moved_ok and moved_no_change and printed, but neither value reaches verdict_from: only control_ok (the positive control) gates the verdict. If the negative control had reported a detectable difference, the script would still have emitted 'better', which is the case the plan's negative control exists to catch. The control passed on this run, so the recorded output is correct; the instrument does not enforce it."
+    },
+    {
+      "file": "docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.py",
+      "line": 291,
+      "severity": "non-blocking",
+      "summary": "metric_values publishes '\"promoted\": len(runs)', which is the analysed-run count labelled as the promoted count. report_window recomputes the promoted total separately, so nothing currently reads this field, but any later caller that trusts it gets a wrong number under a name that looks authoritative."
+    },
+    {
+      "file": "docs/research/deepseek-1017-on-our-work.html",
+      "line": 76,
+      "severity": "non-blocking",
+      "summary": "The section says 'Each estimate carries a 95% bootstrap interval over runs (2,000 resamples)', but the failed-or-aborted request row is a Wilson interval over 141,782 request rows, not a bootstrap over runs; deepseek-1017-on-our-work.py:221 substitutes the closed-form interval above LARGE_N. The method sentence therefore overstates what the bootstrap covers for one row of the table it introduces."
+    }
+  ],
+  "item_verdicts": {
+    "diff": "Read commit by commit against f7631d98: 7d09b85b adds the analysis script and its fragment html; 987c54c1 adds the research document, the committed log and the three-panel figure, and rewrites 267 lines of the script (bootstrap rounds 5000 to 2000, a Wilson/normal fallback above 20,000 rows, and a three-panel write_svg); no test file and no product source changed.",
+    "done_when": "The done_when asks for both windows' bounds and counts, every listed metric with an interval, the common-project restriction, a verdict, one figure, and a committed script and log that reproduce the numbers; the script at docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.py, re-run from a scratch copy against the live ledgers and request record, reproduced every metric, interval, control and the verdict exactly as committed in the .log.",
+    "goal": "The goal is a research document comparing local-lane implementation runs either side of the 2026-10-23T20:14:30Z swap and returning one of four verdicts with intervals; docs/research/deepseek-1017-on-our-work.html does exactly that, reporting both windows (300/97 analysed), the project mix, ten metrics with 95% intervals, and the verdict 'better'.",
+    "manifest": "Read; it records status complete, commits 7d09b85b and 987c54c1, the analysis script as its gate, the log as its test log, the before/after counts, the positive control, the moved-boundary control and the unmeasured cached-token column.",
+    "write_paths": "Declared scope was six paths under docs/research, docs/figures and docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017; the diff touches five files and every one lies inside a declared path (the declared docs/figures/deepseek-1017-on-our-work grant went unused, which is not a violation)."
+  },
+  "justifications": {
+    "durability": "The positive control at deepseek-1017-on-our-work.py:369-382 does gate the verdict through verdict_from, but the moved-boundary control computed at :657-658 never reaches the verdict, and no test reddens if the window filter or the metrics regress; the only standing check is a human-or-agent re-run against the committed log.",
+    "evidence": "The gate log at docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work.log:44-67 records each interval and I re-ran the landed script to the same numbers, but the log's revision header at line 1 names 7d09b85b while the committed script blob is 267 lines different.",
+    "fit": "The deliverable follows the repository's evidence-fragment convention (script plus .log plus node-id-prefixed fragment html) and uses node-prefixed SVG ids, but draw_svg at deepseek-1017-on-our-work.py:402-500 hand-writes the SVG rather than using the repository's plotting stack.",
+    "goal_fidelity": "docs/research/deepseek-1017-on-our-work.html:110-113 states the verdict 'better' with the interval that carries it, and every metric the plan names is present at :80-95.",
+    "reuse": "A search by capability over imas_ambix/, scripts/ and docs/evidence/ found no existing owner of ledger-window comparison or bootstrap interval estimation; the nearest hits were unrelated eval modules, so the addition forks nothing in-repo.",
+    "scope_discipline": "Every path in the diff (docs/research/deepseek-1017-on-our-work.html, the figure under docs/figures/rotate-to-deepseek-v4-1-flash-1017/, and the three fragments) is inside the node's declared write paths."
+  },
+  "project": "imas-ambix",
+  "review_run_id": "r-20261026T220206870463-review-of-deepseek-1017-on-our-work-987c54c1035f",
+  "reviewed_at": "2026-10-26T22:14:00Z",
+  "reviewed_base_sha": "f7631d9839e773dc3d4cef80bb478c4bc9b1ab28",
+  "reviewed_head_sha": "987c54c1035fe7350503806340d5417a40468dfc",
+  "reviewed_run_id": "r-20261026T212818772272-deepseek-1017-on-our-work",
+  "rubric": "independent",
+  "scores": {
+    "durability": 13,
+    "evidence": 17,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "reuse": 18,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T22:14:48.044481+00:00",
+  "total": 103
+}

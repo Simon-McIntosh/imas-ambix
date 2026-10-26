@@ -1,0 +1,50 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "completed_at": "",
+  "dispatched_at": "2026-10-26T22:04:43Z",
+  "figures_read": [
+    {
+      "canvas_px": [
+        1400,
+        794
+      ],
+      "caption": "After-minus-before differences for every metric, each with its 95% interval; three panels carry three scales; teal marks an interval that excludes zero, grey crosses it; per-run quantities relative to the before mean.",
+      "figure": "docs/figures/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work/differences.svg",
+      "image": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T220340522060-review-of-deepseek-1017-on-our-work-987c54c1035f-figure/image-0.png"
+    }
+  ],
+  "findings": [
+    {
+      "file": "docs/figures/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work/differences.svg",
+      "line": null,
+      "severity": "blocking",
+      "summary": "The rendered PNG contains no text whatsoever, so the figure cannot be read. In the 1400x794 image the left region where the panel titles (script x = left-260) and row labels (x = left-18) belong is pure white: zero non-white pixels lie left of x=380. None of the four text is present \u2014 no pixel carries any of the script's text fills #222222, #333333, #555555 or #8a8a8a. Every dark pixel in the image (433 with max channel < 120) falls inside x 643-925, the three vertical zero lines. So the three panel titles, all twelve metric row labels, the tick labels that carry each panel's scale, and the bottom explanatory note are all absent. A reader sees three unlabelled strips of grey and teal intervals and cannot identify a metric, a panel, a scale, or even which side of the zero line means the after-window is better. The drawing script emits every one of these as an SVG <text> element with an explicit position and fill, so the loss is in the render step that produced this PNG, and the producing run recorded that it rendered and inspected this image \u2014 the inspection did not catch a figure with no text."
+    },
+    {
+      "file": "docs/figures/rotate-to-deepseek-v4-1-flash-1017/deepseek-1017-on-our-work/differences.svg",
+      "line": null,
+      "severity": "non-blocking",
+      "summary": "Two top-panel rows whose estimates sit at the boundary draw as dots on top of the vertical zero line: the grey marks occupy x 800-834 and x 798-806 at y 77-88 and y 191-202, while the zero reference line is at x=801. The second mark is a 9 px dot bisected by the line, so a reader cannot tell it from the reference line and cannot see the interval's extent at all. This is a mark-versus-line collision rather than a text problem, and it survives a fix to the missing labels; a small horizontal offset, a white under-stroke behind the marks, or drawing the marks above the reference line would resolve it."
+    }
+  ],
+  "item_verdicts": {
+    "contrast": "FAIL \u2014 there is no rendered text whose contrast could clear a background; the marks themselves are legible (grey #929292 and teal #1f6f8b on white), but the required text layer is missing rather than low-contrast.",
+    "data_ink": "PASS \u2014 thin interval bars and small dots carry essentially all the ink against a white canvas; no chart junk competes with them.",
+    "decoration": "PASS \u2014 no gradient, background band, shadow or styled theme; only a white background, thin horizontal axis lines and three thin vertical zero lines.",
+    "label_collision": "FAIL \u2014 the labels are missing rather than clipped or overlapping, and the two near-zero rows in the top panel render as roughly 9 px grey dots sitting directly on the vertical zero line at x=801, where mark and reference line are hard to tell apart.",
+    "legibility": "FAIL \u2014 the rendered PNG carries no text at all: the three panel titles, all twelve row labels, every axis tick label and the bottom note are absent, so a reader cannot tell what any bar is or read any value from it.",
+    "table_form": "PASS \u2014 an interval plot of twelve per-metric differences on three scales is the right form for this data; the document's \u00a73 table carries the numbers and the figure adds the interval geometry."
+  },
+  "project": "imas-ambix",
+  "review_run_id": "r-20261026T220340522060-review-of-deepseek-1017-on-our-work-987c54c1035f-figure",
+  "reviewed_at": "2026-10-26T22:08:46Z",
+  "reviewed_base_sha": "f7631d9839e773dc3d4cef80bb478c4bc9b1ab28",
+  "reviewed_head_sha": "987c54c1035fe7350503806340d5417a40468dfc",
+  "reviewed_run_id": "r-20261026T212818772272-deepseek-1017-on-our-work",
+  "rubric": "figure",
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T22:10:38.963019+00:00",
+  "total": null
+}
