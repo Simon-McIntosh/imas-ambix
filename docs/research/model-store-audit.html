@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="research">
+  <meta name="plan-slug" content="model-store-audit">
+  <meta name="plan-title" content="Model store audit — what /work/projects/imas_gpu/agents actually holds">
+  <meta name="plan-summary" content="Completeness, provenance and a keep/backup/prune recommendation for thirteen checkpoint directories, measured 2026-10-26">
+  <meta name="plan-status" content="reference">
+  <meta name="plan-informs" content="b300-bring-up-and-open-model-bakeoff">
+  <meta name="plan-source" content="Read-only walk of /work/projects/imas_gpu/agents, Hugging Face file listings at each recorded commit, imas_ambix/agent/profiles, serving receipts">
+  <meta name="plan-source-quality" content="primary">
+  <meta name="plan-reviewed-at" content="2026-10-26">
+  <meta name="plan-read" content="1">
+  <meta name="plan-tags" content="agent-serving,gpu-deployment">
+  <title>Model store audit | imas-ambix</title>
+  <link rel="stylesheet" href="/_shared/foundation.css">
+  <link rel="stylesheet" href="/_shared/dashboard.css">
+</head>
+<body>
+  <main class="plan-doc">
+    <header>
+      <p class="eyebrow">Research input</p>
+      <h1>Model store audit — what <code>/work/projects/imas_gpu/agents</code> actually holds</h1>
+      <p class="lead">Thirteen checkpoint directories carry 7.21 TB of weights accumulated across several
+      serving plans. Nothing recorded which were complete, which a profile still resolves to, or which are
+      superseded. This is that record. Nothing was deleted and nothing was modified: every figure below comes
+      from a read-only walk on 2026-10-26.</p>
+    </header>
+
+    <section>
+      <h2>What the store holds</h2>
+      <ul>
+        <li><strong>13</strong> directories under <code>/work/projects/imas_gpu/agents</code> hold a
+        <code>model/</code> subdirectory. Together they are <strong>7.21 TB</strong> apparent size, of which
+        7.21 TB is the weights themselves.</li>
+        <li><strong>12 of 13</strong> directories carry a shard set that matches their repository's file
+        listing at the commit the download recorded — every shard the index names is present, at the size the
+        repository gives it. One, <code>glm-5-3-w4a8</code>, is present and self-consistent but cannot be
+        checked against its repository, because that repository refuses an anonymous listing.</li>
+        <li><strong>12 of 13</strong> first shards hash to the repository's LFS object at that commit. The
+        thirteenth is the same <code>glm-5-3-w4a8</code>, for the same reason.</li>
+        <li>Two further directories, <code>glm-5-2-4x</code> and <code>glm-5-3-int4</code>, hold a download
+        cache and <em>no</em> <code>model/</code> directory. They are not in the table below; see
+        <a href="#stubs">the two cache-only directories</a>.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>How each figure was produced</h2>
+      <p>The audit is one script with three phases, committed beside this document as
+      <a href="/imas-ambix/evidence/fragments/b300-bring-up-and-open-model-bakeoff/model-store-audit.py"><code>model-store-audit.py</code></a>.
+      Its whole output is the log
+      <a href="/imas-ambix/evidence/fragments/b300-bring-up-and-open-model-bakeoff/model-store-audit.log"><code>model-store-audit.log</code></a>.</p>
+      <table>
+        <thead><tr><th>Phase</th><th>Where</th><th>Command</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>fetch</code></td>
+            <td>login node (needs outbound network)</td>
+            <td><code>python3 -I model-store-audit.py fetch --out &lt;run&gt;/audit</code> — reads each
+            directory's <code>.cache/hub/models--&lt;org&gt;--&lt;name&gt;/refs/main</code> for the repository and
+            commit, falls back to <code>model/.cache/huggingface/download/*.metadata</code> (line 1 is the
+            commit), then downloads
+            <code>https://huggingface.co/api/models/&lt;repo&gt;/tree/&lt;commit&gt;?recursive=1</code>, which
+            gives every file's byte size and its LFS <code>sha256</code>.</td>
+          </tr>
+          <tr>
+            <td><code>audit</code></td>
+            <td>compute node (never the login node)</td>
+            <td><code>python3 -I model-store-audit.py audit --trees &lt;run&gt;/audit --out &lt;run&gt;/audit/report.json</code>
+            — <code>du -sb</code> for sizes, <code>model.safetensors.index.json</code>'s <code>weight_map</code>
+            for the shard list, <code>stat</code> for each shard's size against the listing,
+            <code>hashlib.sha256</code> over the first shard, the profile loader for
+            <code>weights_slug</code>, and each receipt's header line for the served
+            <code>serve_config.model_path</code>.</td>
+          </tr>
+          <tr>
+            <td><code>control</code></td>
+            <td>compute node</td>
+            <td><code>python3 -I model-store-audit.py control --trees &lt;run&gt;/audit --dir mimo-v2-5-pro --scratch &lt;tmp&gt;/control --out &lt;run&gt;/audit/control.json</code>
+            — the negative control, below.</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>Sizes are <strong>apparent</strong> bytes (<code>du -sb</code>), not allocated blocks, so they are
+      comparable with the repository's own file sizes. <em>Profile</em> is the profile whose
+      <code>weights_directory_slug</code> — a declared <code>model.weights_slug</code>, else the profile's own
+      slug — names that directory, with a card-count variant shown as <code>slug@Ngpu</code>. <em>Last
+      receipt</em> is the newest receipt whose header line names that directory, by
+      <code>serve_config.model_path</code> where the receipt carries one — that is the directory a serve
+      actually loaded, a stronger statement than the profile name. Only the newest receipts carry
+      <code>model_path</code>; where it is absent the receipt is attributed by profile and marked
+      <span class="dim">by profile only</span>.</p>
+    </section>
+
+    <section>
+      <h2>The record</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Directory</th>
+            <th>Size<br>[GB]</th>
+            <th>Repository<br>@ commit</th>
+            <th>Shards against the index</th>
+            <th>First shard<br>SHA-256</th>
+            <th>Profile naming it<br>as <code>weights_slug</code></th>
+            <th>Last receipt naming it</th>
+            <th>Recommendation</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>deepseek-v4-1-flash</code></td>
+            <td class="num">510.3</td>
+            <td><code>deepseek-ai/DeepSeek-V4.1-Flash</code><br><code>dba1be0a40</code></td>
+            <td>complete — 48/48, sizes match the listing</td>
+            <td><code>886aebda</code><br>matches</td>
+            <td>none</td>
+            <td>none</td>
+            <td><strong>keep</strong> — the rotation’s rollback target and this document’s positive control; the profile moved to 1017, so no profile names it</td>
+          </tr>
+          <tr>
+            <td><code>deepseek-v4-1-flash-1017</code></td>
+            <td class="num">510.3</td>
+            <td><code>deepseek-ai/DeepSeek-V4.1-Flash-1017</code><br><code>1bae0e1088</code></td>
+            <td>complete — 48/48, sizes match the listing</td>
+            <td><code>13bd1210</code><br>matches</td>
+            <td><code>deepseek-v4-1-flash</code></td>
+            <td><code>deepseek-v4-1-flash-1294597.hour.jsonl</code><br><span class="dim">2026-10-26T00:59:59Z · <code>model_path</code></span></td>
+            <td><strong>keep</strong> — the checkpoint the live profile serves today</td>
+          </tr>
+          <tr>
+            <td><code>deepseek-v4-flash</code></td>
+            <td class="num">159.6</td>
+            <td><code>deepseek-ai/DeepSeek-V4-Flash</code><br><code>6976c7ff1b</code></td>
+            <td>complete — 46/46, sizes match the listing</td>
+            <td><code>51765866</code><br>matches</td>
+            <td>none</td>
+            <td>none</td>
+            <td><strong>prune</strong> — superseded by <code>-0731</code>; named by no profile and by no receipt</td>
+          </tr>
+          <tr>
+            <td><code>deepseek-v4-flash-0731</code></td>
+            <td class="num">166.9</td>
+            <td><code>deepseek-ai/DeepSeek-V4-Flash-0731</code><br><code>7872f01b1d</code></td>
+            <td>complete — 48/48, sizes match the listing</td>
+            <td><code>f3668ba4</code><br>matches</td>
+            <td><code>deepseek-v4-flash</code>, <code>deepseek-v4-flash-2x</code></td>
+            <td><code>deepseek-v4-flash-1271487.hour.jsonl</code><br><span class="dim">2026-09-15T13:59:57Z · by profile only</span></td>
+            <td><strong>keep</strong> — weights of the <code>deepseek-v4-flash</code> and <code>deepseek-v4-flash-2x</code> profiles</td>
+          </tr>
+          <tr>
+            <td><code>glm-5-1</code></td>
+            <td class="num">756.2</td>
+            <td><code>zai-org/GLM-5.1-FP8</code><br><code>f396cf8051</code></td>
+            <td>complete — 142/142, sizes match the listing</td>
+            <td><code>205976fd</code><br>matches</td>
+            <td><code>glm-5-1</code></td>
+            <td>none</td>
+            <td><strong>keep</strong> — weights of the <code>glm-5-1</code> profile</td>
+          </tr>
+          <tr>
+            <td><code>glm-5-2</code></td>
+            <td class="num">755.7</td>
+            <td><code>zai-org/GLM-5.2-FP8</code><br><code>70311cfa01</code></td>
+            <td>complete — 141/141, sizes match the listing</td>
+            <td><code>cd4b3893</code><br>matches</td>
+            <td><code>glm-5-2</code></td>
+            <td>none</td>
+            <td><strong>keep</strong> — weights of the <code>glm-5-2</code> profile at eight cards</td>
+          </tr>
+          <tr>
+            <td><code>glm-5-2-int4</code></td>
+            <td class="num">480.2</td>
+            <td><code>cyankiwi/GLM-5.2-AWQ-INT4</code><br><code>956f4d228e</code></td>
+            <td>complete — 83/83, sizes match the listing</td>
+            <td><code>004bf940</code><br>matches</td>
+            <td><code>glm-5-2@4gpu</code>, <code>glm-5-2@6gpu</code></td>
+            <td>none</td>
+            <td><strong>keep</strong> — weights of the <code>glm-5-2</code> four- and six-card variants</td>
+          </tr>
+          <tr>
+            <td><code>glm-5-3</code></td>
+            <td class="num">755.7</td>
+            <td><code>zai-org/GLM-5.3</code><br><code>187fb9fff6</code></td>
+            <td>complete — 141/141, sizes match the listing</td>
+            <td><code>29c537ab</code><br>matches</td>
+            <td><code>glm-5-3@8gpu</code></td>
+            <td>none</td>
+            <td><strong>keep</strong> — weights of the <code>glm-5-3</code> profile at eight cards</td>
+          </tr>
+          <tr>
+            <td><code>glm-5-3-w4a8</code></td>
+            <td class="num">399.8</td>
+            <td><code>camel-ai/GLM-5.3-W4A8</code><br><code>9ad5642de5</code></td>
+            <td>present — 141/141; sizes unverifiable</td>
+            <td><code>f944968a</code><br><span class="dim">no upstream hash to compare</span></td>
+            <td><code>glm-5-3</code></td>
+            <td>none</td>
+            <td><strong>backup</strong> — the four-card GLM-5.3 default, held only here; its repository refuses an anonymous listing, so it can be neither re-downloaded nor hash-verified</td>
+          </tr>
+          <tr>
+            <td><code>kimi-k2-6</code></td>
+            <td class="num">595.8</td>
+            <td><code>moonshotai/Kimi-K2.6</code><br><code>b5aabbfb20</code></td>
+            <td>complete — 64/64, sizes match the listing</td>
+            <td><code>cb6e0372</code><br>matches</td>
+            <td><code>kimi-k2-6</code></td>
+            <td>none</td>
+            <td><strong>keep</strong> — weights of the <code>kimi-k2-6</code> profile</td>
+          </tr>
+          <tr>
+            <td><code>mimo-v2-5-pro</code></td>
+            <td class="num">1,033.5</td>
+            <td><code>XiaomiMiMo/MiMo-V2.5-Pro</code><br><code>f5953f1b99</code></td>
+            <td>complete — 34/34, sizes match the listing</td>
+            <td><code>e0f1599b</code><br>matches</td>
+            <td><code>mimo-v2-5-pro</code></td>
+            <td>none</td>
+            <td><strong>keep</strong> — weights of the <code>mimo-v2-5-pro</code> profile</td>
+          </tr>
+          <tr>
+            <td><code>minimax-m2-7</code></td>
+            <td class="num">230.2</td>
+            <td><code>MiniMaxAI/MiniMax-M2.7</code><br><code>d494266a4a</code></td>
+            <td>complete — 125/125, sizes match the listing</td>
+            <td><code>9785f5a8</code><br>matches</td>
+            <td><code>minimax-m2-7</code></td>
+            <td>none</td>
+            <td><strong>keep</strong> — weights of the <code>minimax-m2-7</code> profile</td>
+          </tr>
+          <tr>
+            <td><code>minimax-m3</code></td>
+            <td class="num">854.2</td>
+            <td><code>MiniMaxAI/MiniMax-M3</code><br><code>bfd6c97f02</code></td>
+            <td>complete — 59/59, sizes match the listing</td>
+            <td><code>dd43571e</code><br>matches</td>
+            <td><code>minimax-m3</code></td>
+            <td>none</td>
+            <td><strong>keep</strong> — weights of the <code>minimax-m3</code> profile</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Controls</h2>
+      <h3>Positive control — the September V4.1-Flash directory</h3>
+      <p>The row the plan fixes as the control reads as required. <code>deepseek-v4-1-flash</code> is
+      <code>deepseek-ai/DeepSeek-V4.1-Flash</code> at commit <code>dba1be0a40aa45a94ad051997016db3960a90277</code>,
+      and its first shard hashes to
+      <code>886aebdafa08cc27bbae2165ed35bdfe0de9370bf88c1411283c155c6ae4ff89</code>, identical to the
+      repository's LFS object at that commit. The figure below is the audit's own line for it, not a
+      transcription:</p>
+      <pre><code>{"dir": "deepseek-v4-1-flash", "repo": "deepseek-ai/DeepSeek-V4.1-Flash",
+ "commit": "dba1be0a40aa45a94ad051997016db3960a90277",
+ "index_named_shards": 48, "first_shard_match": true}</code></pre>
+
+      <h3>Negative control — an index naming a shard that is absent</h3>
+      <p>The completeness check was run against a scratch copy of one checkpoint's index — the smallest shard
+      set in the store, <code>mimo-v2-5-pro</code>, 34 shards — in two arms. Both arms hold the real index and
+      reach the real shards by symlink; the short arm is missing the first shard entirely, which is the state a
+      download stopped one shard early leaves behind. Run on 2026-10-26:</p>
+      <pre><code>full arm complete=True missing=0 size_mismatch=0
+short arm complete=False missing=1 size_mismatch=0
+CONTROL PASS</code></pre>
+      <p>The check therefore reports <em>incomplete</em> when a shard the index names is not there, and
+      <em>complete</em> when the same tree is whole. Without the full arm a check that simply always said
+      <em>incomplete</em> would pass the short arm too.</p>
+    </section>
+
+    <section>
+      <h2>What the audit found beyond the row values</h2>
+      <ul>
+        <li><strong>An index's own <code>total_size</code> is not a completeness instrument.</strong> For
+        <code>minimax-m2-7</code> the index declares 480.8 GB of tensor data while the 125 shards it names
+        resolve to 230.1 GB, both locally and in the repository's listing at that commit. For
+        <code>minimax-m3</code> the split is 869.2 GB declared against 854.2 GB of shards, again identical on
+        both sides. In both cases the local tree and the repository agree exactly — so the check that matters
+        is <em>the named shard set present at the listed sizes</em>, and comparing a directory's byte total
+        against the index's <code>total_size</code> would have reported two complete checkpoints as truncated.
+        Their shard-name suffixes overstate the set the same way: <code>model-00000-of-00130.safetensors</code>
+        is the first of 125 files, not of 130.</li>
+        <li><strong>One repository cannot be reached, so one directory's provenance stops at what was
+        recorded locally.</strong> <code>glm-5-3-w4a8</code> records <code>camel-ai/GLM-5.3-W4A8</code> at
+        <code>9ad5642de554</code> in its hub cache, and the download metadata agrees, but
+        <code>huggingface.co/api/models/camel-ai/GLM-5.3-W4A8</code> answers HTTP 401 without a credential.
+        Its 141 shards are all present and its index is self-consistent; its sizes and hash are unverified
+        because there is nothing to verify them against.</li>
+        <li><strong>The rotation already moved the profile off its rollback directory.</strong>
+        <code>deepseek-v4-1-flash.toml</code> now declares <code>weights_slug = "deepseek-v4-1-flash-1017"</code>,
+        so no profile resolves to <code>deepseek-v4-1-flash</code> any more, and no receipt names its
+        <code>serve_config.model_path</code> — yet that directory is the rollback target the rotation keeps
+        for a week, and it is also this document's positive control. Both facts make it the one unreferenced
+        directory that must not be pruned on the strength of being unreferenced.</li>
+        <li><strong>One directory is genuinely superseded.</strong> <code>deepseek-v4-flash</code> (159.6 GB,
+        46 shards, June revision) is named by no profile, because <code>deepseek-v4-flash.toml</code> declares
+        <code>weights_slug = "deepseek-v4-flash-0731"</code>. Nothing has served it since: the last receipt under the
+        <code>deepseek-v4-flash</code> profile is dated 2026-09-15, and no receipt names this directory's
+        <code>model_path</code> at all. It is complete and downloadable, which is what makes it the cheapest
+        prune.</li>
+        <li><strong>Receipts name a directory, and only DeepSeek has any.</strong> The 117 receipt files carry
+        <code>profile_slug</code> in their header and <code>serve_config.model_path</code> in the same line;
+        the second is the directory the engine loaded. Every receipt in the store belongs to a DeepSeek
+        profile, so the GLM, Kimi, MiMo and MiniMax rows have no receipt at all — an absence of recording, not
+        evidence the checkpoint was never served.</li>
+      </ul>
+    </section>
+
+    <section id="stubs">
+      <h2>The two cache-only directories</h2>
+      <table>
+        <thead><tr><th>Directory</th><th>What it holds</th><th>Reading</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>glm-5-2-4x</code></td>
+            <td>a hub cache for <code>cyankiwi/GLM-5.2-AWQ-INT4</code> and no <code>model/</code></td>
+            <td>an abandoned download of the checkpoint that <code>glm-5-2-int4</code> already holds in full;
+            safe to prune once the lead decides</td>
+          </tr>
+          <tr>
+            <td><code>glm-5-3-int4</code></td>
+            <td>a hub cache for <code>vikasclawd/GLM-5.3-Int4-Int8Mix</code> and no <code>model/</code></td>
+            <td>an abandoned download of a repository no profile resolves to — the four-card GLM-5.3 path
+            serves <code>camel-ai/GLM-5.3-W4A8</code> instead</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Recommendations, and the space behind them</h2>
+      <p>Eleven directories are <strong>keep</strong>: each is the checkpoint a profile resolves to, and each is
+      complete with a verified hash. One is <strong>backup</strong>: <code>glm-5-3-w4a8</code> is the four-card
+      GLM-5.3 default and exists on this store alone, so its 399.8 GB is the only copy of a checkpoint its
+      repository will not serve anonymously. One is <strong>prune</strong>:
+      <code>deepseek-v4-flash</code>, at 159.6 GB, superseded by <code>-0731</code> and named by no profile.
+      Pruning it, and the two cache-only directories, would return about 160 GB of the 7.21 TB.</p>
+      <p>Pruning is the lead's decision and is not taken here. The recommendation that needs a decision sooner
+      than pruning is the backup: a checkpoint whose only copy is on this filesystem and whose upstream refuses
+      an anonymous listing has no path back if this copy is lost.</p>
+    </section>
+  </main>
+</body>
+</html>

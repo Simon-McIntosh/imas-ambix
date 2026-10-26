@@ -1,0 +1,56 @@
+<section class="r-evidence" data-node="model-store-audit">
+  <h2 id="model-store-audit-title">Model store audit — what the checkpoint store holds</h2>
+  <p>The store under <code>/work/projects/imas_gpu/agents</code> holds thirteen checkpoint directories
+  (a <code>model/</code> subdirectory each) totalling <strong>7.21 TB</strong>. The audit records, per
+  directory, its size, the Hugging Face repository and commit its download metadata names, whether every
+  shard its index names is present at the size the repository lists, the first shard's SHA-256 against the
+  repository LFS object, the profile whose <code>weights_slug</code> resolves to it, the last receipt whose
+  <code>serve_config.model_path</code> names it, and a keep/backup/prune recommendation. Nothing was deleted
+  or modified.</p>
+
+  <h3 id="model-store-audit-result">Result</h3>
+  <ul id="model-store-audit-findings">
+    <li id="model-store-audit-complete"><strong>12 of 13</strong> directories match their repository's file
+    listing shard-for-shard and size-for-size; <strong>12 of 13</strong> first shards hash to the recorded
+    LFS object. The exception in both counts is <code>glm-5-3-w4a8</code>, whose repository
+    (<code>camel-ai/GLM-5.3-W4A8</code>) answers HTTP 401 to an anonymous listing, so its sizes and hash
+    cannot be checked upstream.</li>
+    <li id="model-store-audit-controls"><strong>Positive control passes:</strong>
+    <code>deepseek-v4-1-flash</code> reads <code>deepseek-ai/DeepSeek-V4.1-Flash</code> at commit
+    <code>dba1be0a40aa45a94ad051997016db3960a90277</code> with first-shard hash
+    <code>886aebdafa08cc27bbae2165ed35bdfe0de9370bf88c1411283c155c6ae4ff89</code>.
+    <strong>Negative control passes:</strong> the completeness check on a scratch copy of the
+    <code>mimo-v2-5-pro</code> index reports <code>full arm complete=True missing=0</code> and
+    <code>short arm complete=False missing=1</code> when the first shard is absent.</li>
+    <li id="model-store-audit-totalsize"><strong>An index's <code>total_size</code> is not a completeness
+    instrument.</strong> <code>minimax-m2-7</code> declares 480.8 GB against 230.1 GB of shards named by that
+    same index, and <code>minimax-m3</code> 869.2 GB against 854.2 GB — with the local tree and the
+    repository listing agreeing exactly in both cases. A byte-total comparison would have called two complete
+    checkpoints truncated.</li>
+    <li id="model-store-audit-recommendations"><strong>Eleven keep, one backup, one prune.</strong>
+    <code>glm-5-3-w4a8</code> is <code>backup</code>: the four-card GLM-5.3 weights, at 399.8 GB, held only
+    here, from a repository that will not serve an anonymous listing. <code>deepseek-v4-flash</code> is
+    <code>prune</code>: 159.6 GB, superseded by <code>-0731</code>, named by no profile, receipts silent since
+    2026-09-15. <code>deepseek-v4-1-flash</code> is unreferenced by any profile but is the rotation's
+    rollback target and the positive control, so it is <code>keep</code> rather than a prune candidate.</li>
+    <li id="model-store-audit-stubs">Two directories, <code>glm-5-2-4x</code> and <code>glm-5-3-int4</code>,
+    hold a Hugging Face download cache and no <code>model/</code>; both are abandoned downloads of
+    checkpoints another directory already holds in full, or that no profile resolves to.</li>
+  </ul>
+
+  <h3 id="model-store-audit-artifacts">Artifacts</h3>
+  <ul>
+    <li><a href="/imas-ambix/research/model-store-audit">docs/research/model-store-audit.html</a> — the full
+    table, the commands beside each figure, and the recommendation reasons.</li>
+    <li><a href="/imas-ambix/evidence/fragments/b300-bring-up-and-open-model-bakeoff/model-store-audit.py">model-store-audit.py</a>
+    — the audit script (fetch / audit / control phases).</li>
+    <li><a href="/imas-ambix/evidence/fragments/b300-bring-up-and-open-model-bakeoff/model-store-audit.log">model-store-audit.log</a>
+    — the run log: revision, tree, command, the per-directory lines and the control output.</li>
+  </ul>
+
+  <h3 id="model-store-audit-placement">Where the work ran</h3>
+  <p>All hashing and size walks ran on the compute node <code>98dci4-clu-2068</code> inside the fleet
+  allocation (job 1291586), never on the login node. The named <code>srun --partition=sun_debug</code> step
+  is refused from inside a held allocation by the nested-launch shim, so the audit ran directly on that
+  compute node; the network-only <code>fetch</code> phase ran on the login node.</p>
+</section>
