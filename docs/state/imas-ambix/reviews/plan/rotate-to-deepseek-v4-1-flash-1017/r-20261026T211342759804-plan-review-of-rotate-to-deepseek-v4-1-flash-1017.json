@@ -1,0 +1,61 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-26T21:23:37.800Z",
+  "dispatched_at": "2026-10-26T21:13:57Z",
+  "findings": [
+    {
+      "anchor": "plan.html#s7",
+      "id": "reasoning-1",
+      "reason": "the plan says only that the map is \"passed to the head line\", so the implementer must guess a join that the measured document does not support, and llm-watch resolves its engine by `model_id` where gpu-watch took the sole value.",
+      "text": "the `checkpoints` map in today's `endpoints.json` is keyed `gpu-0003.iter.org:18810`, while the endpoint entry the head line holds carries `host: 98dci4-gpu-0003.iter.org` and `port: 18810`, so the obvious join `f\"{entry['host']}:{entry['port']}\"` misses; the existing consumer in dotfiles `252dc4e` avoids the question entirely by taking `checkpoints.values()` rather than matching a key",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html#s6",
+      "id": "done_when-1",
+      "reason": "an unnamed free parameter decides the run counts, the project mix and whether the \u226530-run control is met, and it is one sentence to pin.",
+      "text": "\u00a76 splits runs into \"a before window and an after window of equal length on each side of the boundary\" without fixing the length, and the equal-length form cannot exceed the 3.03 days between the boundary and the analysis, so the before side is whatever the worker picks: clive `implement` runs dispatched in that span measure 89 (1 day), 187 (2), 314 (3), 697 (7) and 1,356 (14) against 96 in the whole available after window",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "plan.html#s6",
+      "id": "reasoning-2",
+      "reason": "the discriminator argument holds on its own (`role` is populated on 12,517 of 12,518 records), so only a stale illustration is wrong, not the choice it supports.",
+      "text": "\u00a76 justifies `role` over the node-name prefix with \"the node-name prefix `review-of-` misses 1,136 of 2,739 review runs\", but the ledgers hold 8,296 `review` records of which 2,974 (35.8%) lack the prefix",
+      "type": "reasoning",
+      "would_change": false
+    }
+  ],
+  "plan_fingerprint": "dce345d409acfb3c2adcaa25defe2e2242b7c0761aece1ac87ef7b0ff8672602",
+  "plan_slug": "rotate-to-deepseek-v4-1-flash-1017",
+  "plan_version": 40,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261026T211342759804-plan-review-of-rotate-to-deepseek-v4-1-flash-1017",
+  "reviewed_blob_sha": "7b2298d53dbf50417a00dcb69b93d42b7ce2d6bb",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 \u00a76's boundary and job ids resolve in `~/public/imas-ambix/lane-cycles.jsonl` (one row: `pause_end 2026-10-23T20:14:30.430194Z`, `replaced_job_id 1280470`, `new_job_id 1294597`); \u00a77's dotfiles anchor `252dc4e` resolves (`feat(gpu-watch): name the checkpoint the served engine loaded`); `SiteConfig.from_env().endpoint_document` resolves (`imas_ambix/agent/profile.py:684`, a `Path` property); `imas_ambix/agent/llm_watch.py`, `tests/test_llm_watch.py` and `tests/golden/llm_watch` all exist; the extensionless `hot-reload-the-serve` reference resolves as `hot-reload-the-serve.html`.",
+    "done_when": "pass \u2014 \u00a76's three arms are measurable and its positive control (\u226530 runs per window, run count matching an independent count of `dispatched_at` in the window, \u226590% token join) is a real gate that returns *insufficient data* rather than the null verdict; \u00a77's positive control renders a named label from a fixture and its negative control requires `checkpoint unrecorded` rather than a blank. The token join is achievable: 95.6% of request rows carry `run_id` (41,488 of 43,391 across 2026-10-23..26).",
+    "evidence_paths": "pass \u2014 \u00a76 names `docs/research/deepseek-1017-on-our-work.html`, `docs/figures/deepseek-1017-on-our-work` and the analysis script under `docs/evidence/fragments/rotate-to-deepseek-v4-1-flash-1017/`; \u00a77's goldens sit in the committed `tests/golden/llm_watch`. None is a scratch or node-local path.",
+    "naming": "pass \u2014 \u00a76's new prose names `role`, `review-of-` and the window fields by what they are; no plan label, stage name or ticket id reaches a symbol, and \u00a77 adds no symbol at all.",
+    "reasoning": "a finding \u2014 \u00a77 says the `checkpoints` map is \"passed to the head line\" with no join from the `model_id` the head line resolves to the engine id that keys the map, and the endpoint entry carries no such key.",
+    "single_goal": "pass \u2014 \u00a76 carries one deliverable (the before/after research document and its verdict), \u00a77 one (the checkpoint label in llm-watch's head line).",
+    "wiring": "pass \u2014 `plan-section-depends-on` now carries `s6:[#s5]` and `s7:[#s4]` (plan.html:24), the two sections each rests on: \u00a76 measures \u00a75's swap, \u00a77 reads the `checkpoints` map \u00a74 makes the registry publish."
+  },
+  "section_digests": {
+    "_document": "f32118365ee5fbcd16f9f7dd724f68279100345032ce2309b678f2d07b561851",
+    "s1": "8deac0a58e020378e898a334465e0ec83803b509b7e5a610b21591def4c21d25",
+    "s2": "a23e81a77c9227613a42419b5fefc7dfd90022596cc8ae2a2b9264290cada17c",
+    "s3": "2cd96ad6a1c5ffa33a1cc88ee45c427a044080539e66daf427d2a501eca8cb57",
+    "s4": "dd5f9393ccd43e0bd8f7ff1df7926173c61aacc54ccca9adf0d6fb85501f29fa",
+    "s5": "5ad304a77e9f7f61a47473fdbeaeec6748251f6e887bcba8a9472024dff8cf98",
+    "s6": "4d1c814971684618c8dac315dd51a19c57350f445ef5e3f80faca37b753d2b09",
+    "s7": "a5c0d3b12ca1d44fc524003d97704da8478a3673fc3aa84503b904fe3ed67aac"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-26T21:25:21.843482+00:00"
+}
