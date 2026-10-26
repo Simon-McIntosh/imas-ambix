@@ -661,9 +661,11 @@ def test_generate_serve_script():
 
 def test_agent_serve_gpu_help_matches_core_scaling():
     result = CliRunner().invoke(main, ["agent", "serve", "--help"])
-    assert (
-        result.exit_code == 0 and "Host cores do not scale with cards" in result.output
-    )
+    # Click wraps help to the terminal width, so the sentence arrives split
+    # across lines; compare on collapsed whitespace to assert the claim rather
+    # than one rendering of it.
+    help_text = " ".join(result.output.split())
+    assert result.exit_code == 0 and "Host cores do not scale with cards" in help_text
 
 
 def test_serve_script_launches_drain_sidecar():
@@ -2489,8 +2491,10 @@ def test_clive_clean_directory_uses_no_forbidden_consumer_dependency(tmp_path):
 
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
-    (fake_bin / "bash").symlink_to(shutil.which("bash"))
-    (fake_bin / "python3").symlink_to(shutil.which("python3"))
+    # The launcher is allowed ordinary shell utilities; what this test excludes
+    # is the operator CLI and the scheduler, shimmed below to record any call.
+    for command in ("bash", "python3", "id", "basename", "dirname", "grep"):
+        (fake_bin / command).symlink_to(shutil.which(command))
     forbidden_marker = tmp_path / "forbidden-called"
     for command in ("imas-ambix", "squeue", "scontrol", "sbatch"):
         _write_executable(
@@ -2938,7 +2942,10 @@ def test_clive_openrouter_opt_in_starts_proxy_and_presents_picker(
     assert result.returncode == 0, result.stderr
     assert accepted == [True]
     assert "start imas-ambix-llm.service" in proxy_marker.read_text(encoding="utf-8")
-    assert "or-opus-4.8, or-gpt-5.5, or-glm-5.2" in result.stderr
+    # The launcher hands over without a banner: the release, topology and
+    # budget already reach the harness through the exported variables and the
+    # picker settings above.
+    assert "Clive" not in result.stderr
     assert trace.read_text(encoding="utf-8").splitlines() == [
         f"http://127.0.0.1:{proxy_port}",
         "served-local-model",

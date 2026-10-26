@@ -1,0 +1,60 @@
+<section class="r-evidence" data-node="agent-catalogue-tests-green">
+  <h2 id="agent-catalogue-tests-green-title">The catalogue tests are green again, at their causes</h2>
+  <p>At the base revision <code>a24125f2</code>, <code>tests/test_agent.py</code> carried four
+  failures and <code>tests/test_agent_candidate_profiles.py</code> carried one redundant test. All
+  four were stale tests rather than serving defects: the launcher and the serve help carry the
+  behaviour the tests meant to assert. Each is repaired at its cause below, none skipped, xfailed or
+  deleted, and the distinct-port invariant is now asserted in exactly one place.</p>
+
+  <table id="agent-catalogue-tests-green-diagnoses">
+    <tr><th>Test</th><th>Observation at the base revision</th><th>Wrong side</th><th>Repair</th></tr>
+    <tr id="agent-catalogue-tests-green-diag-help">
+      <td><code>test_agent_serve_gpu_help_matches_core_scaling</code></td>
+      <td>The phrase <em>Host cores do not scale with cards</em> is present in
+      <code>agent serve --help</code>, but Click wraps it between <em>with</em> and
+      <em>cards</em>, so the literal substring is absent.</td>
+      <td>Test: it asserted one rendering of the claim.</td>
+      <td>Collapse whitespace in the help output before matching.</td></tr>
+    <tr id="agent-catalogue-tests-green-diag-clean-dir">
+      <td><code>test_clive_clean_directory_uses_no_forbidden_consumer_dependency</code></td>
+      <td>The generated launcher exits 127 at its account header:
+      <code>line 905: id: command not found</code>. The test's <code>PATH</code> held only
+      <code>bash</code> and <code>python3</code>, so the ordinary shell utilities the launcher
+      uses (<code>id</code>, <code>basename</code>, <code>dirname</code>, <code>grep</code>) were
+      unavailable. The forbidden set the test exists for — <code>imas-ambix</code>,
+      <code>squeue</code>, <code>scontrol</code>, <code>sbatch</code> — was never reached.</td>
+      <td>Test: its sandbox starved the launcher of coreutils while claiming to exclude only the
+      operator CLI and the scheduler.</td>
+      <td>Provision those utilities in the fake bin, and keep the forbidden four as recording
+      shims.</td></tr>
+    <tr id="agent-catalogue-tests-green-diag-picker">
+      <td><code>test_clive_openrouter_opt_in_starts_proxy_and_presents_picker</code> (both
+      parametrisations)</td>
+      <td><code>stderr</code> was <code>clive: starting imas-ambix-llm.service ...</code> only, with
+      the expected picker banner absent. Commit <code>c75bfd55</code> deliberately removed the
+      pre-launch banner from the local, hybrid and Codex paths; its message states the picker
+      contract now asserts a silent launch. The assertion outlived the behaviour it pinned.</td>
+      <td>Test: stale against a documented, intentional change.</td>
+      <td>Assert the contract that replaced it — the launch prints no <code>Clive</code>
+      banner.</td></tr>
+  </table>
+
+  <h3 id="agent-catalogue-tests-green-ports">One place for the distinct-port invariant</h3>
+  <p><code>test_candidate_ports_are_distinct_across_the_catalogue</code> restated a catalogue-wide
+  invariant that <code>tests/test_agent.py::test_every_profile_declares_a_distinct_port</code>
+  already asserts for every profile, unchanged. The duplicate is removed and the remaining test
+  cited here is the single assertion site. The candidate-specific invariants stay: the port is
+  non-null and the core request sits inside the 30-core reservation, asserted per candidate so a
+  failure names the profile.</p>
+
+  <p><strong>Measure.</strong> The gate
+  <code>uv run --no-sync pytest -p no:cacheprovider tests/test_agent.py
+  tests/test_agent_candidate_profiles.py</code> ran at the base revision as
+  <code>4 failed, 200 passed</code> and at the head as <code>203 passed</code>. The whole-tree lint
+  gate <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0.</p>
+
+  <p><strong>Negative control.</strong> A scratch copy of the tree, built from the head commit,
+  gives <code>kimi-k3.toml</code> a port another profile already holds. The catalogue's
+  distinct-port test fails there and the head arm does not fail it, which is the fact the control
+  exists to establish.</p>
+</section>
