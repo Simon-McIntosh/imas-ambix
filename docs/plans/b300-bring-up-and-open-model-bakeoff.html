@@ -20,12 +20,12 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment">
   <meta name="plan-after" content="rotate-to-deepseek-v4-1-flash-1017">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;implementable&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;deferred&quot;,&quot;s7&quot;:&quot;deferred&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;deferred&quot;,&quot;s6&quot;:&quot;deferred&quot;,&quot;s7&quot;:&quot;deferred&quot;}">
   <meta name="plan-section-depends-on" content="{&quot;s3&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s2&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s4&quot;:[&quot;rotate-to-deepseek-v4-1-flash-1017#s2&quot;],&quot;s5&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s4&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s3&quot;],&quot;s6&quot;:[&quot;b300-bring-up-and-open-model-bakeoff#s5&quot;,&quot;rotate-to-deepseek-v4-1-flash-1017#s5&quot;,&quot;serving-across-servers#s7&quot;]}">
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="33">
+<meta name="plan-version" content="35">
 <meta name="plan-modified" content="2026-10-27">
 </head>
 <body>
@@ -95,7 +95,7 @@
     </ul>
 
     <h2 id="s3">§3 — Download the backups</h2>
-<section data-reckon="section" data-id="s3" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s3" data-effort-hours="2.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
     <p>The candidates go on disk now so that trying one later costs a launch rather than a
     multi-terabyte transfer. Two new profiles are added to the catalogue. They retire nothing
     yet: <code>kimi-k2-6</code> and <code>mimo-v2-5-pro</code> stay until §2's audit
@@ -302,6 +302,12 @@
 </div>
 <div class="r-comment" data-section="_top" data-id="c-close-s4" data-who="reckon-build" data-when="2026-10-27T00:55:00Z">
     <div class="r-comment-body"><p>§4 landed in <code>44182bf7</code>. DeepSeek-1017 launch scripts exist for h200-4x (unchanged, byte-identical), b300-4x and b300-8x, selected with <code>--server</code> and <code>--gpus</code>. A restart without a registration no longer crashes. Carried to §5: bench, status and receipts must pass the server too. <a href="/imas-ambix/evidence/archive/b300-bring-up-and-open-model-bakeoff-landed.html#s4">evidence</a></p></div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-close-s3" data-who="reckon-build" data-when="2026-10-27T01:45:00Z">
+    <div class="r-comment-body"><p>§3 landed in <code>35741570</code>. Kimi K3 (<code>f831ab66</code>, 1.5 TB) and MiMo-V2.6-Pro-MOPD (<code>6a7f202e</code>, 535 GB) are on disk, and all 235 LFS shards are verified by size and SHA-256 against their listings. Both profiles are pinned and tested. <a href="/imas-ambix/evidence/archive/b300-bring-up-and-open-model-bakeoff-landed.html#s3">evidence</a></p></div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-s5-carry" data-who="reckon-build" data-when="2026-10-27T01:50:00Z">
+    <div class="r-comment-body"><p>Carried from §4's review, for when §5 is built. First, <code>bench</code>, <code>status</code> and <code>receipts</code> still resolve the topology without the server, so they must pass it, or a B300 bench is filed under the card-count-only variant. Second, the KV-cache dtype, MoE runner and DSpark depth in <a href="/imas-ambix/research/b300-launch-recipes">b300-launch-recipes</a> cite the vLLM Blackwell recipe rather than an SGLang page, so confirm them on the hardware.</p></div>
 </div>
 <div class="r-comment" data-section="s2" data-id="c-run-r-20261026T214720935593-model-store-audit" data-who="reckon-build" data-when="2026-10-26T22:07:13.003Z">
     <div class="r-comment-body"><p>Model store audit — thirteen checkpoint directories under /work/projects/imas_gpu/agents measured complete and hash-verified against their recorded Hugging Face commit (12/13; the exception is camel-ai/GLM-5.3-W4A8, which refuses an anonymous listing), 7.208 TB total, recommended 11 keep / 1 backup (glm-5-3-w4a8, sole copy) / 1 prune (deepseek-v4-flash, 159.6 GB, superseded and named by no profile); positive control reads deepseek-ai/DeepSeek-V4.1-Flash @ dba1be0a with first-shard 886aebda, negative control reports an absent shard as incomplete.</p></div>
