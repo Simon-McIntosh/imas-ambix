@@ -1,0 +1,38 @@
+<section id="one-host-one-server-entry">
+  <h2>One host is one server entry, however the registration spells it</h2>
+  <p>Work at <code>814675eb</code>, node one-host-one-server-entry. Placement
+  accepted a registration's host only in the spellings the site's declaration
+  itself carried, so a registration naming the node the way the node reports
+  itself — the fully qualified <code>98dci4-gpu-0003.iter.org</code> — resolved
+  to no declared server. <code>endpoints.json</code> then published a second
+  server entry named by that raw host while the declared entry sat empty: one
+  machine listed twice, and every reader that iterates the servers array counted
+  two places to look.</p>
+  <p><strong>Reproduced before the repair.</strong> On the base revision,
+  <code>server_for_registration</code> resolved
+  <code>98dci4-gpu-0003</code> to the declared server and
+  <code>98dci4-gpu-0003.iter.org</code> to <code>None</code>, with the two
+  spellings also giving different engine ids
+  (<code>gpu-0003:18810</code> and <code>gpu-0003.iter.org:18810</code>) because
+  the cluster component is dropped only on a hyphen and never across a dot.</p>
+  <p><strong>The change.</strong> <code>registry._host_name</code> returns the
+  node name a spelling denotes — the domain suffix and the cluster component
+  both removed — and both the declared-server index and the lookup of a
+  registration's server and host go through it. An engine id is unchanged and
+  still carries the spelling its registration recorded, because it names a port
+  on one allocation rather than making a statement about the node; the grouping
+  is the only place the two spellings are reconciled. Nothing is filled in that
+  the declaration does not state: an engine on a genuinely undeclared host still
+  appears under its own entry with an unknown family and card count.</p>
+  <p><strong>The measure.</strong> <code>tests/test_agent_site_servers.py</code>
+  gains both cases. A site whose single declared server is
+  <code>98dci4-gpu-0003</code> with one registration on
+  <code>98dci4-gpu-0003.iter.org:18810</code> publishes exactly one server
+  entry, named <code>98dci4-gpu-0003</code>, whose engines are
+  <code>["gpu-0003.iter.org:18810"]</code>; a registration on the undeclared
+  <code>another-node.iter.org</code> keeps its own entry. The declared mutation
+  — comparing hosts by their raw spelling again — publishes two entries and
+  fails the first test with <code>Left contains one more item:
+  '98dci4-gpu-0003.iter.org'</code>, against one entry at the head. The three
+  gate suites pass (61 tests) and whole-tree lint is clean.</p>
+</section>
