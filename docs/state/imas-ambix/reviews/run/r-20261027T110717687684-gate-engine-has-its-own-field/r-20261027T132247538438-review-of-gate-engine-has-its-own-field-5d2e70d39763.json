@@ -1,0 +1,60 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed manifest carries neither baseline_suite nor after_suite, so the after arm is derived from its recorded head gate log: /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T110717687684-gate-engine-has-its-own-field/gate-head.log ends '132 passed in 16.50s' and 'EXIT=0' over the eight named files, so it records zero failing ids. No readable baseline arm exists in the run directory: the file named 'gate-head.log 2>&1' is headed '# rev 5f645391 tree ...' and reports '131 passed' EXIT=0, but a clean base tree cannot produce that result (see the finding), so it is not usable as the base arm. The after arm has zero failing ids, therefore added_failure_count is zero. I re-ran the single test the gate names at base 5f645391 and it fails with \"assert {'router shutdown; engine=127.0.0.1:38925'} == {'router shutdown'}\" at tests/test_agent_router_service.py:373, confirming the differential the done_when claims while leaving added_failure_count at zero.",
+  "call_site_count": 6,
+  "call_sites": [
+    "imas_ambix/agent/router.py:2200",
+    "imas_ambix/agent/router.py:2990",
+    "imas_ambix/agent/router.py:3060",
+    "imas_ambix/agent/router.py:3321",
+    "imas_ambix/agent/request_receipts.py:861",
+    "imas_ambix/agent/lane_callers.py:565"
+  ],
+  "completed_at": "2026-10-27T13:45:11.779Z",
+  "dispatched_at": "2026-10-27T13:31:38Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T110717687684-gate-engine-has-its-own-field/gate-head.log 2>&1",
+      "line": "1",
+      "severity": "non-blocking",
+      "text": "a stale intermediate run is labelled as the base tree: its header reads '# rev 5f645391 tree ...' and it reports '131 passed' EXIT=0, but a clean base tree cannot pass this suite (I re-ran tests/test_agent_router_service.py::test_shutdown_signal_answers_every_gate_waiter_with_overload at 5f645391 and it fails with reason 'router shutdown; engine=127.0.0.1:38925'), so its 131 passing tests are a head-state arm missing the later-added spelling test and a reader taking the header at face value would conclude the base arm is green."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "diff": "read the single commit 5d2e70d3 against base 5f645391: request_receipts.py +10 adds the dataclass field and the sink keyword, router.py +12/-21 deletes _engine_reason and renames the engine argument to gate_engine at the refusal, self-answer and overload paths, tests/test_agent_router_gate.py +19/-1 adds the spelling test and reads the new column, tests/test_agent_router_service.py +4 asserts the end-to-end column, tests/test_request_receipts.py +38 adds the sink round-trip, and the fragment +56 records the change.",
+    "done_when": "the done_when names the eight-file pytest command plus whole-tree ruff; gate-head.log records that command as '132 passed in 16.50s' EXIT=0 and ruff.log records 'All checks passed!' EXIT=0, and the spelling clause is measured literally at tests/test_agent_router_gate.py:1058 while the new column is read at tests/test_agent_router_gate.py:1115 and tests/test_agent_router_service.py:373-377.",
+    "goal": "the node goal is that a receipt names the engine whose gate a request waited at in its own field while reason carries only the reason; imas_ambix/agent/request_receipts.py:207 adds gate_engine to RequestReceipt, imas_ambix/agent/router.py:2200 writes it from the gate's own identity at the gate-expiry and shutdown refusal, and router.py:1711's _engine_reason is deleted so reason holds only SHUTDOWN_REASON or null.",
+    "manifest": "read /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T110717687684-gate-engine-has-its-own-field/manifest.md; status complete, one commit 5d2e70d3, gate '132 passed, EXIT=0' reconciling with gate-head.log, ruff EXIT=0, and a declared negative control whose gate-red.log fails test_shutdown_signal_answers_every_gate_*waiter_with_overload and test_gate_expiry_names_the_engine_it_waited_at at EXIT=1; it records no baseline_suite/after_suite arms.",
+    "write_paths": "the node declared imas_ambix/agent/router.py, imas_ambix/agent/request_receipts.py, tests/test_agent_router_gate.py, tests/test_agent_router_service.py, tests/test_request_receipts.py and the serving-across-servers fragment; git diff --stat 5f645391..5d2e70d3 lists exactly those six files and nothing else."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_router_service.py:373 and tests/test_agent_router_gate.py:1115 both redden when _engine_reason is reinstated (gate-red.log EXIT=1) and the second fails at base 5f645391 with reason 'router shutdown; engine=127.0.0.1:38925' in my own re-run, while tests/test_request_receipts.py:336 guards only the sink and tests/test_agent_router_gate.py:1058 pins the spelling as a literal.",
+    "evidence": "gate-head.log records the eight-file command as '132 passed in 16.50s' EXIT=0 and ruff.log as EXIT=0, both reconciling with the manifest, but the run records no baseline_suite/after_suite arms and the head log's header names '5f645391+worktree' rather than the commit 5d2e70d3, so the after arm is inferred from a pre-commit tree.",
+    "fit": "imas_ambix/agent/request_receipts.py:200-206 and router.py:3283-3290 explain the mechanism in the module's own vocabulary and introduce no plan, ticket or author label.",
+    "goal_fidelity": "imas_ambix/agent/router.py:2200 passes gate.engine_id as gate_engine on the gate's own refusal path and request_receipts.py:224 serialises it as its own JSON key, while router.py:2197 keeps reason to SHUTDOWN_REASON or null so a self-answered row names the queue and the event in separate columns.",
+    "reuse": "the change extends the existing RequestReceipt owner (request_receipts.py:197) and reuses engine_id_for_origin at router.py:2200 rather than adding a second engine-identity path; a capability search over imas_ambix/agent found upstream (the '(router)' sentinel for self-answered rows) is the only other engine-bearing receipt column, and it is the gap this field fills rather than a duplicate owner.",
+    "scope_discipline": "git diff --stat 5f645391..5d2e70d3 lists only the five declared source/test files and docs/evidence/fragments/serving-across-servers/gate-engine-has-its-own-field.html, and every hunk serves the gate_engine field."
+  },
+  "node": "review-of-gate-engine-has-its-own-field-5d2e70d39763",
+  "node:reviewed": "gate-engine-has-its-own-field",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is that a receipt names the engine whose gate a request waited at in its own field while reason carries only the reason; imas_ambix/agent/request_receipts.py:207 adds gate_engine to RequestReceipt, imas_ambix/agent/router.py:2200 writes it from the gate's own identity at the gate-expiry and shutdown refusal, and router.py:1711's _engine_reason is deleted so reason holds only SHUTDOWN_REASON or null.\nVERDICT done_when: the done_when names the eight-file pytest command plus whole-tree ruff; gate-head.log records that command as '132 passed in 16.50s' EXIT=0 and ruff.log records 'All checks passed!' EXIT=0, and the spelling clause is measured literally at tests/test_agent_router_gate.py:1058 while the new column is read at tests/test_agent_router_gate.py:1115 and tests/test_agent_router_service.py:373-377.\nVERDICT write_paths: the node declared imas_ambix/agent/router.py, imas_ambix/agent/request_receipts.py, tests/test_agent_router_gate.py, tests/test_agent_router_service.py, tests/test_request_receipts.py and the serving-across-servers fragment; git diff --stat 5f645391..5d2e70d3 lists exactly those six files and nothing else.\nVERDICT manifest: read /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T110717687684-gate-engine-has-its-own-field/manifest.md; status complete, one commit 5d2e70d3, gate '132 passed, EXIT=0' reconciling with gate-head.log, ruff EXIT=0, and a declared negative control whose gate-red.log fails test_shutdown_signal_answers_every_gate_waiter_with_overload and test_gate_expiry_names_the_engine_it_waited_at at EXIT=1; it records no baseline_suite/after_suite arms.\nVERDICT diff: read the single commit 5d2e70d3 against base 5f645391: request_receipts.py +10 adds the dataclass field and the sink keyword, router.py +12/-21 deletes _engine_reason and renames the engine argument to gate_engine at the refusal, self-answer and overload paths, tests/test_agent_router_gate.py +19/-1 adds the spelling test and reads the new column, tests/test_agent_router_service.py +4 asserts the end-to-end column, tests/test_request_receipts.py +38 adds the commit's sink round-trip, and the fragment +56 records the change.\nCALL_SITES: imas_ambix/agent/router.py:2200, imas_ambix/agent/router.py:2990, imas_ambix/agent/router.py:3060, imas_ambix/agent/router.py:3321, imas_ambix/agent/request_receipts.py:861, imas_ambix/agent/lane_callers.py:565\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/router.py:2200 passes gate.engine_id as gate_engine on the gate's own refusal path and request_receipts.py:224 serialises it as its own JSON key, while router.py:2197 keeps reason to SHUTDOWN_REASON or null so a self-answered row names the queue and the event in separate columns.\nSCORE evidence: 16\nJUSTIFICATION evidence: gate-head.log records the eight-file command as '132 passed in 16.50s' EXIT=0 and ruff EXIT=0, both reconciling with the manifest, but the run records no baseline_suite/after_suite arms and the head log's header names '5f645391+worktree' rather than the commit 5d2e70d3, so the after arm is inferred from a pre-commit tree.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --stat 5f645391..5d2e70d3 lists only the five declared source and test files plus docs/evidence/fragments/serving-across-servers/gate-engine-has-its-own-field.html, and every hunk serves the gate_engine field.\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_agent_router_service.py:373 and tests/test_agent_router_gate.py:1115 redden when _engine_reason is reinstated (gate-red.log EXIT=1) and the service test fails at base 5f645391 in my own re-run, while tests/test_request_receipts.py:336 guards only the sink round-trip and tests/test_agent_router_gate.py:1058 pins the spelling as a literal.\nSCORE fit: 19\nJUSTIFICATION fit: imas_ambix/agent/request_receipts.py:200-206 and router.py:3283-3290 explain the mechanism in the module's own vocabulary and introduce no plan, ticket or author label.\nSCORE reuse: 20\nJUSTIFICATION reuse: the change extends the existing RequestReceipt owner at request_receipts.py:197 and reuses engine_id_for_origin at router.py:2200 rather than adding a second engine-identity path, and a capability search over imas_ambix/agent found the upstream column is the only other engine-bearing receipt field and it is the gap this fills.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T110717687684-gate-engine-has-its-own-field/gate-head.log 2>&1:1 non-blocking: a stale intermediate run is labelled as the base tree, reporting '131 passed' EXIT=0 under a header naming rev 5f645391, although a clean base tree cannot pass this suite, so its 131 passing tests are a head-state arm missing the later-added spelling test.",
+  "review_run_id": "r-20261027T132247538438-review-of-gate-engine-has-its-own-field-5d2e70d39763",
+  "reviewed_base_sha": "5f645391e563bc60ca632d9848cc4e1786ade891",
+  "reviewed_head_sha": "5d2e70d39763be98f1cc53d1ff51159c05cc6f57",
+  "reviewed_run_id": "r-20261027T110717687684-gate-engine-has-its-own-field",
+  "scores": {
+    "durability": 18,
+    "evidence": 16,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T13:45:00+00:00",
+  "total": 112
+}
