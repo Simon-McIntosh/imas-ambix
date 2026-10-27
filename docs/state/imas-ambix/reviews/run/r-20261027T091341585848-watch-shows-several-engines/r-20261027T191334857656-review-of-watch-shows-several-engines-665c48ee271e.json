@@ -1,0 +1,71 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_sites": [
+    "imas_ambix/agent/watch.py:1435 live_panel(...) is the single production caller of the changed join",
+    "imas_ambix/agent/live_panel.py:971 live_panel calls panel_engines with the document _lane_document built",
+    "imas_ambix/agent/cli.py:3271 agent watch --json --live calls watch_mod.live_document",
+    "imas_ambix/agent/llm_watch.py:499 document_engines consumes the engines array this join fills",
+    "pyproject.toml:165 console script llm-watch = imas_ambix.agent.llm_watch:main"
+  ],
+  "completed_at": "2026-10-27T19:23:49.914Z",
+  "dispatched_at": "2026-10-27T19:15:45Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/live_panel.py",
+      "line": 730,
+      "severity": "non-blocking",
+      "text": "the panel_engines docstring states the join is by engine identity -- 'the registration id's host and port' -- but _matching_engine (live_panel.py:776) compares the host and then the served model and never a port, _pool_identity's port element (:866) is computed and never read, and the docstring now omits the model-only join this commit adds at :836, so the documented identity is not the implemented one."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T091341585848-watch-shows-several-engines/gate.log",
+      "line": 1,
+      "severity": "non-blocking",
+      "text": "the suite log's revision header reads 'c96c1512 (working tree with the repair applied)' while the tree it tested is this commit's head 665c48ee, so a promotion gate comparing the recorded log revision against reviewed_head_sha reads the base revision for a run that did test the head; the head-specific attribution lives only in ruff.log and negative-control-pool-join.log."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T091341585848-watch-shows-several-engines/manifest.md",
+      "line": 33,
+      "severity": "non-blocking",
+      "text": "baseline_suite still claims '90 passed ... at the base revision' with no base-arm log anywhere in the run directory, while the base revision of this increment (c96c1512) was measured at 102 passed by the previous review's gate and the feature's own first gate was 94 passed; the number is unsupported and no reader can reconcile it, although added_failure_count is zero under either arm because all arms are green."
+    }
+  ],
+  "justifications": {
+    "durability": "tests/test_live_panel.py:1076 fails with 'assert 4 == 2' when the model-only join is reverted -- reproduced independently by this review in a git-archive export of 665c48ee -- and :1086 fails when no single-engine document contributes an entry, the recorded no-standalone arm.",
+    "evidence": "ruff.log names revision 665c48ee with EXIT=0 and negative-control-pool-join.log names 665c48ee with three recorded runs, but gate.log's revision header reads c96c1512 while the tree it tested carries this commit's repair, so the suite log does not name the head.",
+    "fit": "live_panel.py:730 still describes the join as 'the registration id's host and port' although _matching_engine at :776 compares host then model and never a port, and it omits the model-only path this commit adds.",
+    "goal_fidelity": "live_panel.py:836 joins a host-less pool entry to its live reading by the served model when exactly one entry and one reading carry it, which is the duplicate-row case the previous review reproduced, though a live row whose served_name is absent still cannot join any pool entry.",
+    "reuse": "the change extends the module's own _lane_document/_document_engines/_matching_engine and reuses registry._host_name; a search of imas_ambix/agent for another pool-document reader or engine-to-reading join found only llm_watch.document_engines, which consumes the array this join produces, and router.py, which composes documents and joins nothing.",
+    "scope_discipline": "every one of the three paths in c96c1512..665c48ee is inside the reviewed run's declared write paths, and the fragment edit is the landing record the node's own contract requires."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is one entry per engine from the pool documents and the per-engine live block; 665c48ee adds the model-only join at imas_ambix/agent/live_panel.py:836 so a pool document spanning one engine, which router.py:2522-2575 writes with no engine id, joins its own live reading instead of standing beside it as a second row.\nVERDICT done_when: the done_when names tests/test_llm_watch.py tests/test_lane_callers.py tests/test_live_panel.py plus whole-tree ruff; gate.log records 102 passed in 1.48s with EXIT=0 and ruff.log records All checks passed at revision 665c48ee with EXIT=0.\nVERDICT write_paths: the source prompt's FENCE SCOPE lists nine paths; the diff between c96c1512 and 665c48ee touches exactly three of them -- imas_ambix/agent/live_panel.py, tests/test_live_panel.py and docs/evidence/fragments/serving-across-servers/watch-shows-several-engines.html -- and nothing outside.\nVERDICT manifest: read; it reports status complete, five commits naming 665c48ee, 102 passed with both logs named, and a negative control at negative-control-pool-join.log whose intact arm passes and whose two variants fail at revision 665c48ee, while its baseline_suite at manifest.md:33 quotes 90 passed with no base log behind it.\nVERDICT diff: read commit by commit against c96c1512; 665c48ee is the only commit gained since the previous review, and it changes live_panel.py (the Counter model census at :763, the _match_on_host/_match_by_model_only split at :811/:836, and the lanes-index standalone handling at :1004-1020), tests/test_live_panel.py (a router-shaped one-engine pool document helper at :994 and the rewritten second-model test at :1019) and 21 lines of the evidence fragment.\nCALL_SITES: imas_ambix/agent/watch.py:1435 live_panel, imas_ambix/agent/live_panel.py:971 live_panel calls panel_engines, imas_ambix/agent/cli.py:3271 agent watch --json --live calls watch_mod.live_document, imas_ambix/agent/llm_watch.py:499 document_engines consumes the engines array, pyproject.toml:165 console script llm-watch = imas_ambix.agent.llm_watch:main\nSCORE goal_fidelity: 17\nJUSTIFICATION goal_fidelity: live_panel.py:836 joins a host-less pool entry to its live reading by the served model when exactly one entry and one reading carry it, which repairs the duplicate-row case the previous review reproduced, though a live row whose served_name is absent still cannot join any pool entry.\nSCORE evidence: 14\nJUSTIFICATION evidence: ruff.log names revision 665c48ee with EXIT=0 and negative-control-pool-join.log names 665c48ee with three recorded runs, but gate.log:1 reads 'c96c1512 (working tree with the repair applied)' while the tree it tested carries this commit's repair, so the suite log does not name the head.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every path in c96c1512..665c48ee -- live_panel.py, tests/test_live_panel.py and the evidence fragment -- is inside the reviewed run's declared write paths.\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_live_panel.py:1076 fails with 'assert 4 == 2' when the model-only join is reverted, reproduced independently by this review in a git-archive export of 665c48ee, and :1086 fails when no single-engine document contributes an entry.\nSCORE fit: 16\nJUSTIFICATION fit: live_panel.py:730 still describes the join as 'the registration id's host and port' although _matching_engine at :776 compares host then model and never reads the port, and it omits the model-only path this commit adds.\nSCORE reuse: 19\nJUSTIFICATION reuse: the change extends the module's own _lane_document and _document_engines and reuses registry._host_name (live_panel.py:873), and a search of imas_ambix/agent found no other pool-document reader or engine-to-reading join -- llm_watch.py:499 only consumes the array this join produces.\nFINDING imas_ambix/agent/live_panel.py:730 non-blocking: the panel_engines docstring states the join is by 'the registration id's host and port', but _matching_engine at :776 compares host then served model and never a port, _pool_identity's port element at :866 is computed and never read, and the docstring omits the model-only join added at :836, so the documented identity is not the implemented one.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T091341585848-watch-shows-several-engines/gate.log:1 non-blocking: the suite log's revision header reads c96c1512 while the tree it tested is this commit's head 665c48ee, so a promotion gate comparing the recorded log revision against reviewed_head_sha reads the base for a run that did test the head.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T091341585848-watch-shows-several-engines/manifest.md:33 non-blocking: baseline_suite still claims 90 passed at the base revision with no base-arm log in the run directory, while the base revision of this increment was measured at 102 passed by the previous review's gate, so the recorded figure is unsupported; added_failure_count stays 0 because every arm is green.\n",
+  "review_run_id": "r-20261027T191334857656-review-of-watch-shows-several-engines-665c48ee271e",
+  "reviewed_base_sha": "c96c151267185ef798124ea72054e6549c89a475",
+  "reviewed_head_sha": "665c48ee271e4c2d28eca8ab4256e171026de433",
+  "reviewed_run_id": "r-20261027T091341585848-watch-shows-several-engines",
+  "scores": {
+    "durability": 18,
+    "evidence": 14,
+    "fit": 16,
+    "goal_fidelity": 17,
+    "reuse": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "suite_arms_read": {
+    "after_suite": "gate.log: header '# revision: c96c1512 (working tree with the repair applied)', command 'UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv uv run --no-sync pytest -p no:cacheprovider tests/test_llm_watch.py tests/test_lane_callers.py tests/test_live_panel.py', summary '102 passed in 1.48s', last line EXIT=0, no failing ids. ruff.log: header '# revision: 665c48ee', 'All checks passed!', EXIT=0.",
+    "baseline_suite": "not recorded as a log by the reviewed run; manifest.md:33 states 90 passed with no base-revision run behind it, and the prior review measured 447bf316 at 84 passed and c96c1512 at 102 passed. Zero failing ids on every arm, so added_failure_count is 0 regardless of which baseline figure is believed.",
+    "review_gate": "this review exported 665c48ee with git archive to $TMPDIR and ran the three tests the head touches: '3 passed, 35 deselected' EXIT=0, with module.__file__ naming the export tree (log review-gate.log). It then reinstated the regression by making _match_by_model_only return None and re-ran the test: '1 failed' with 'assert 4 == 2' at tests/test_live_panel.py:1076, EXIT=1 (log review-negative-control.log)."
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T20:30:00+00:00",
+  "total": 103,
+  "verdicts": {
+    "diff": "Read commit by commit against c96c1512: 665c48ee is the only commit gained since the previous review and it changes live_panel.py (the Counter-based model census, _match_on_host/_match_by_model_only split, and the lanes-index handling in _lane_document), tests/test_live_panel.py (a router-shaped one-engine document helper and the rewritten second-model test) and 21 lines of the evidence fragment.",
+    "done_when": "The done_when names tests/test_llm_watch.py tests/test_lane_callers.py tests/test_live_panel.py plus a whole-tree ruff check; gate.log records '102 passed in 1.48s' with EXIT=0 and ruff.log records 'All checks passed!' with '# revision: 665c48ee' and EXIT=0.",
+    "goal": "The node goal is one entry per engine from the pool documents and the per-engine live block; 665c48ee adds the model-only join at live_panel.py:836 so a pool document spanning one engine (which carries no engine id, router.py:2522-2575) joins its own live reading instead of standing beside it as a second row.",
+    "manifest": "Read; status complete, five commits naming 665c48ee, a gate of 102 passed with both logs named, and a negative control at negative-control-pool-join.log whose three runs are recorded at revision 665c48ee; its baseline_suite at manifest.md:33 still quotes 90 passed with no base log behind it.",
+    "write_paths": "The source prompt's FENCE SCOPE lists nine paths; 665c48ee touches exactly three of them -- imas_ambix/agent/live_panel.py, tests/test_live_panel.py and docs/evidence/fragments/serving-across-servers/watch-shows-several-engines.html -- and nothing outside."
+  }
+}
