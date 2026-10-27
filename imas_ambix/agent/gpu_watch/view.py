@@ -34,6 +34,7 @@ import json
 import math
 import sys
 import time
+from collections import deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -514,10 +515,11 @@ def _machine(server: Mapping[str, Any]) -> str:
 
     Two declarations may name one machine with different spellings; they are
     the same cards, and sampling them twice would date the same silicon twice
-    and could only disagree with itself.
+    and could only disagree with itself. The name the scheduler accepts is kept
+    whole, so it is also the key a sampler pool is held under.
     """
     host = server.get("host") or server.get("name") or ""
-    return node_probe.scheduler_node_name(_short_host(str(host)))
+    return node_probe.scheduler_node_name(str(host))
 
 
 def _no_job_reading(server: Mapping[str, Any]) -> Reading:
@@ -589,9 +591,8 @@ def sample_readings(
         if _is_local(entry, host):
             continue
         remote_groups.setdefault(_machine(entry), []).append(entry)
-    for entries in remote_groups.values():
-        target = str(entries[0].get("host") or entries[0].get("name") or "")
-        step = sampler.read(target, window_s=window_s, interval_s=interval_s)
+    for machine, entries in remote_groups.items():
+        step = sampler.read(machine, window_s=window_s, interval_s=interval_s)
         for entry in entries:
             if step.job_id is None:
                 readings[_server_name(entry)] = _no_job_reading(entry)
@@ -599,6 +600,75 @@ def sample_readings(
                 readings[_server_name(entry)] = Reading(
                     step.samples, unavailable=step.reason
                 )
+    return readings
+
+
+def _live_groups(
+    servers: list[Mapping[str, Any]], host: str
+) -> tuple[list[Mapping[str, Any]], dict[str, list[Mapping[str, Any]]]]:
+    """Split the declarations into those on this host and those grouped by machine."""
+    local = [entry for entry in servers if _is_local(entry, host)]
+    remote_groups: dict[str, list[Mapping[str, Any]]] = {}
+    for entry in servers:
+        if not _is_local(entry, host):
+            remote_groups.setdefault(_machine(entry), []).append(entry)
+    return local, remote_groups
+
+
+def _bucket(history: dict[str, deque], name: str, capacity: int) -> deque:
+    bucket = history.get(name)
+    if bucket is None:
+        bucket = history[name] = deque(maxlen=capacity)
+    return bucket
+
+
+def _live_tick(
+    servers: list[Mapping[str, Any]],
+    *,
+    local: list[Mapping[str, Any]],
+    remote_groups: dict[str, list[Mapping[str, Any]]],
+    probe: Any,
+    pool: Any,
+    history: dict[str, deque],
+    capacity: int,
+) -> dict[str, Reading]:
+    """One redraw: take what each machine offers now, and read it per server.
+
+    Everything for a machine is filed under each of that machine's
+    declarations, so two spellings of one machine render the same cards instead
+    of sampling the silicon twice. The pool is keyed by the machine name for
+    ``ensure``, ``drain`` and ``state`` alike -- a key that differs between the
+    three asks one target and drains another, so a block whose step was
+    launched never sees its samples.
+    """
+    if local:
+        tick = probe.sample(time.monotonic())
+        for entry in local:
+            _bucket(history, _server_name(entry), capacity).append(tick)
+    for machine, entries in remote_groups.items():
+        pool.ensure(machine)
+        for sample in pool.drain(machine):
+            for entry in entries:
+                _bucket(history, _server_name(entry), capacity).append(sample)
+
+    readings: dict[str, Reading] = {}
+    for entry in servers:
+        name = _server_name(entry)
+        samples = tuple(_bucket(history, name, capacity))
+        if samples:
+            readings[name] = Reading(samples)
+            continue
+        machine = _machine(entry)
+        if machine not in remote_groups:
+            readings[name] = Reading(())
+            continue
+        job_id, reason = pool.state(machine)
+        if job_id is None:
+            readings[name] = _no_job_reading(entry)
+        else:
+            readings[name] = Reading(
+                (), unavailable=reason or "waiting for the step's first sample"
+            )
     return readings
 
 
@@ -621,7 +691,6 @@ def _run_live(
     The steps are reaped on the way out, so none outlives the watcher.
     """
     import signal
-    from collections import deque
 
     from rich.live import Live
 
@@ -631,17 +700,10 @@ def _run_live(
     host = probe.hostname
     sampler_pool = launcher.SamplerPool(interval_s=interval_s) if pool is None else pool
     servers = servers_of(document)
-    local = [entry for entry in servers if _is_local(entry, host)]
-    remote_groups: dict[str, list[Mapping[str, Any]]] = {}
-    for entry in servers:
-        if not _is_local(entry, host):
-            remote_groups.setdefault(_machine(entry), []).append(entry)
+    local, remote_groups = _live_groups(servers, host)
 
     capacity = max(1, int(math.ceil(window_s / interval_s)) + 1) if window_s > 0 else 1
     history: dict[str, deque] = {}
-
-    def bucket(name: str) -> deque:
-        return history.setdefault(name, deque(maxlen=capacity))
 
     def stop(*_args: object) -> None:
         raise SystemExit(143)
@@ -652,35 +714,15 @@ def _run_live(
         with Live(console=console, auto_refresh=False, screen=True) as live:
             while True:
                 started = time.monotonic()
-                if local:
-                    tick = probe.sample(started)
-                    for entry in local:
-                        bucket(_server_name(entry)).append(tick)
-                for entries in remote_groups.values():
-                    target = str(entries[0].get("host") or entries[0].get("name") or "")
-                    sampler_pool.ensure(target)
-                    for sample in sampler_pool.drain(target):
-                        for entry in entries:
-                            bucket(_server_name(entry)).append(sample)
-                readings: dict[str, Reading] = {}
-                for entry in servers:
-                    name = _server_name(entry)
-                    samples = tuple(bucket(name))
-                    if samples:
-                        readings[name] = Reading(samples)
-                    elif not _is_local(entry, host):
-                        target = str(entry.get("host") or entry.get("name") or "")
-                        job_id, reason = sampler_pool.state(target)
-                        if job_id is None:
-                            readings[name] = _no_job_reading(entry)
-                        else:
-                            readings[name] = Reading(
-                                (),
-                                unavailable=reason
-                                or "waiting for the step's first sample",
-                            )
-                    else:
-                        readings[name] = Reading(())
+                readings = _live_tick(
+                    servers,
+                    local=local,
+                    remote_groups=remote_groups,
+                    probe=probe,
+                    pool=sampler_pool,
+                    history=history,
+                    capacity=capacity,
+                )
                 live.update(render(document, readings, server=server), refresh=True)
                 elapsed = time.monotonic() - started
                 if elapsed < interval_s:

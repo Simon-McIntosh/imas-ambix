@@ -22,6 +22,12 @@ Coverage
     asserted by reading the package's own sources.
 9.  The style module is shared with llm-watch: both views resolve their
     percentage formatter to the same function object.
+10. A step that writes more than a pipe buffer to stderr still streams its
+    samples, so a warning from ``srun`` cannot freeze the view; a step that
+    stops streaming reports its last stderr line as the reason.
+11. Two declarations naming one machine in different spellings are sampled by
+    one step and both render its cards, because the live loop keys the pool by
+    the machine name for ``ensure``, ``drain`` and ``state`` alike.
 """
 
 from __future__ import annotations
@@ -319,8 +325,13 @@ def _install_fake_srun(
     """Write a fake ``srun`` onto ``PATH`` and return its argv log.
 
     *mode* selects the step's behaviour: ``samples`` prints the given JSON
-    lines and exits, ``empty`` exits at once without streaming, and ``hang``
-    streams nothing until it is signalled -- recording that it was terminated.
+    lines and exits, ``noisy`` writes more than a pipe buffer to stderr first
+    and then prints the same lines, ``empty`` exits at once without streaming,
+    ``noisy-empty`` writes one stderr line and exits without streaming, and
+    ``hang`` streams nothing until it is signalled -- recording that it was
+    terminated.
+    ``noisy`` is what a real ``srun`` does when it warns: the launcher must
+    drain stderr or the step blocks on a full pipe and never streams a sample.
     """
     log = tmp_path / "argv.log"
     samples_path = samples_path or tmp_path / "samples.jsonl"
@@ -332,7 +343,11 @@ def _install_fake_srun(
         f"printf '%s\\n' \"$*\" >> '{log}'\n"
         f"case '{mode}' in\n"
         f"  samples) cat '{samples_path}' ;;\n"
+        "  noisy) i=0; while [ $i -lt 3000 ]; do "
+        'echo "step warning line $i that is long enough to fill a pipe" >&2; '
+        f"i=$((i+1)); done; cat '{samples_path}' ;;\n"
         "  empty) ;;\n"
+        "  noisy-empty) echo 'srun: error: could not open the sampler' >&2 ;;\n"
         "  hang) while :; do sleep 0.02; done ;;\n"
         "esac\n"
         "exit 0\n",
@@ -465,3 +480,130 @@ def test_a_step_that_exits_without_streaming_renders_not_sampled_with_a_reason(
     assert launcher.NO_SAMPLES_REASON in text, text
     assert "util now" not in text, text
     assert view.NO_JOB not in text, text
+
+
+def _two_spellings_document():
+    """One machine, declared twice: bare and fully qualified."""
+    return {
+        "servers": [
+            {
+                "name": "gpu-0003",
+                "host": "98dci4-gpu-0003",
+                "accelerator_family": "H200",
+                "accelerator_count": 8,
+                "engines": [],
+            },
+            {
+                "name": "gpu-0003-fqdn",
+                "host": "98dci4-gpu-0003.iter.org",
+                "accelerator_family": "H200",
+                "accelerator_count": 8,
+                "engines": [],
+            },
+        ],
+        "endpoints": [],
+    }
+
+
+def _live_readings(document, pool, *, capacity=4):
+    servers = view.servers_of(document)
+    local, groups = view._live_groups(servers, "98dci4-clu-2068")
+    history: dict = {}
+
+    def tick():
+        return view._live_tick(
+            servers,
+            local=local,
+            remote_groups=groups,
+            probe=None,
+            pool=pool,
+            history=history,
+            capacity=capacity,
+        )
+
+    return servers, groups, tick
+
+
+def test_a_steps_stderr_larger_than_a_pipe_buffer_does_not_stop_the_stream(
+    tmp_path, monkeypatch
+):
+    """A step that writes to stderr must still be able to stream its samples.
+
+    ``srun`` warns on stderr. With nobody reading that pipe the step blocks as
+    soon as it fills, so the cards freeze while the pool still calls the step
+    live -- the view shows a server that was working a moment ago and then
+    never changes again.
+    """
+    samples = tmp_path / "noisy.jsonl"
+    samples.write_text(
+        "\n".join(json.dumps(_sample()) for _ in range(2)) + "\n", encoding="utf-8"
+    )
+    _install_fake_srun(tmp_path, monkeypatch, mode="noisy", samples_path=samples)
+    document = _remote_document()
+    pool = launcher.SamplerPool(run=_job, user="tester", interval_s=0.05)
+
+    try:
+        _, groups, tick = _live_readings(document, pool)
+        assert list(groups) == ["98dci4-gpu-0003"]
+        assert _wait_until(
+            lambda: bool(tick()["gpu-0003"].samples), timeout_s=15.0
+        ), "the step filled its stderr pipe and stopped streaming"
+        text = view.render_text(document, tick())
+        assert "util now" in text, text
+        assert "NVIDIA H200" in text, text
+        assert "not sampled" not in text, text
+    finally:
+        pool.close()
+
+
+def test_a_step_that_stops_streaming_names_its_last_stderr_line(
+    tmp_path, monkeypatch
+):
+    _install_fake_srun(tmp_path, monkeypatch, mode="noisy-empty")
+    document = _remote_document()
+    pool = launcher.SamplerPool(run=_job, user="tester", interval_s=0.05)
+
+    try:
+        _, _, tick = _live_readings(document, pool)
+        assert _wait_until(
+            lambda: "could not open the sampler" in tick()["gpu-0003"].unavailable,
+            timeout_s=10.0,
+        ), "a step that stopped streaming did not report why"
+        text = view.render_text(document, tick())
+        assert "not sampled: srun: error: could not open the sampler" in text, text
+    finally:
+        pool.close()
+
+
+def test_two_spellings_of_one_machine_render_the_same_cards(tmp_path, monkeypatch):
+    """One machine declared twice is sampled once and drawn twice.
+
+    The live loop keys its pool by the machine name, so both declarations read
+    the step and both show the cards. Keying by each declaration's own spelling
+    launches one step and looks up another, and the second block then waits for
+    samples that are already arriving.
+    """
+    samples = tmp_path / "one.jsonl"
+    samples.write_text(json.dumps(_sample()) + "\n", encoding="utf-8")
+    _install_fake_srun(tmp_path, monkeypatch, mode="samples", samples_path=samples)
+    document = _two_spellings_document()
+    pool = launcher.SamplerPool(run=_job, user="tester", interval_s=0.05)
+
+    try:
+        _, groups, tick = _live_readings(document, pool)
+        assert list(groups) == ["98dci4-gpu-0003"], groups
+        assert _wait_until(
+            lambda: all(
+                reading.samples for reading in tick().values()
+            ),
+            timeout_s=10.0,
+        ), "a declaration of the sampled machine rendered nothing"
+        # One target under the machine name; the second spelling never became a
+        # key of its own, which is the defect this guards.
+        assert pool.launches("98dci4-gpu-0003") >= 1
+        assert pool.launches("98dci4-gpu-0003.iter.org") == 0
+        text = view.render_text(document, tick())
+        assert text.count("NVIDIA H200") >= 2, text
+        assert "not sampled" not in text, text
+    finally:
+        pool.close()

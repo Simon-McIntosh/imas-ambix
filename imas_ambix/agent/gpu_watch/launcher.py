@@ -38,6 +38,7 @@ import json
 import subprocess
 import sys
 import threading
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -170,6 +171,14 @@ def step_argv(
     ]
 
 
+def _last_line(text: str | None) -> str | None:
+    """The last non-empty line of a step's stderr, or ``None`` when it wrote none."""
+    for line in reversed((text or "").splitlines()):
+        if line.strip():
+            return line.strip()
+    return None
+
+
 def _decode(line: str) -> dict[str, Any] | None:
     """One streamed line as a sample mapping, or ``None`` if it is not one."""
     text = line.strip()
@@ -262,15 +271,16 @@ class RemoteSampler:
                 job_id=job_id, reason=f"could not start a step: {failure}"
             )
         samples: list[dict[str, Any]] = []
+        err = ""
         try:
             try:
-                out, _ = proc.communicate(timeout=window_s + self._slack_s)
+                out, err = proc.communicate(timeout=window_s + self._slack_s)
             except subprocess.TimeoutExpired:
                 # A step that never finishes its count is stopped rather than
                 # waited on, and whatever it already wrote is still read.
                 reap(proc)
                 try:
-                    out, _ = proc.communicate(timeout=STEP_GRACE_S)
+                    out, err = proc.communicate(timeout=STEP_GRACE_S)
                 except _CALL_FAILURES:
                     out = ""
             for line in (out or "").splitlines():
@@ -280,7 +290,11 @@ class RemoteSampler:
         finally:
             reap(proc)
         if not samples:
-            return StepReading(job_id=job_id, reason=NO_SAMPLES_REASON)
+            # A step that wrote to stderr and streamed nothing explains itself;
+            # the generic reason would hide the one line that says why.
+            return StepReading(
+                job_id=job_id, reason=_last_line(err) or NO_SAMPLES_REASON
+            )
         return StepReading(samples=tuple(samples), job_id=job_id)
 
 
@@ -292,7 +306,11 @@ class _Target:
     job_id: str | None = None
     proc: subprocess.Popen | None = None
     reader: threading.Thread | None = None
+    stderr_reader: threading.Thread | None = None
     buffer: list[dict[str, Any]] = field(default_factory=list)
+    #: The last few stderr lines, so a step that stops streaming can say why
+    #: without the pipe ever filling.
+    stderr_tail: deque[str] = field(default_factory=lambda: deque(maxlen=20))
     lock: threading.Lock = field(default_factory=threading.Lock)
     launches: int = 0
     restarts: int = 0
@@ -358,7 +376,13 @@ class SamplerPool:
                 return
             target.proc = proc
             target.reason = None
+            with target.lock:
+                target.stderr_tail.clear()
             target.launches += 1
+            target.stderr_reader = threading.Thread(
+                target=self._consume_stderr, args=(target, proc), daemon=True
+            )
+            target.stderr_reader.start()
             target.reader = threading.Thread(
                 target=self._consume, args=(target, proc), daemon=True
             )
@@ -376,6 +400,24 @@ class SamplerPool:
         with contextlib.suppress(*_CALL_FAILURES):
             proc.wait(timeout=STEP_GRACE_S)
 
+    def _consume_stderr(self, target: _Target, proc: subprocess.Popen) -> None:
+        """Drain a step's stderr, keeping a bounded tail.
+
+        A step whose stderr nobody reads blocks once the pipe buffer fills, and
+        stops streaming samples while the pool still counts it as live. The
+        tail is what a step that stops streaming leaves behind, so it is the
+        reason the view prints for that server.
+        """
+        stream = proc.stderr
+        if stream is None:
+            return
+        with contextlib.suppress(*_CALL_FAILURES, ValueError):
+            for line in stream:
+                text = line.strip()
+                if text:
+                    with target.lock:
+                        target.stderr_tail.append(text)
+
     def drain(self, host: str) -> list[dict[str, Any]]:
         """Every sample streamed since the last drain, oldest first."""
         target = self._targets.get(host)
@@ -386,11 +428,22 @@ class SamplerPool:
         return out
 
     def state(self, host: str) -> tuple[str | None, str | None]:
-        """``(job_id, reason)`` for *host*, for a block with no samples yet."""
+        """``(job_id, reason)`` for *host*, for a block with no samples yet.
+
+        A step that has exited without streaming is asked why from its own
+        stderr, because that line distinguishes a job refusing steps from a
+        node whose cards are simply not readable.
+        """
         target = self._targets.get(host)
         if target is None:
             return None, None
-        return target.job_id, target.reason
+        reason = target.reason
+        proc = target.proc
+        if reason is None and proc is not None and proc.poll() is not None:
+            with target.lock:
+                reason = target.stderr_tail[-1] if target.stderr_tail else None
+            reason = reason or NO_SAMPLES_REASON
+        return target.job_id, reason
 
     def launches(self, host: str) -> int:
         """How many steps this pool has opened for *host*; a test's measure."""
