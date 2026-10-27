@@ -150,6 +150,9 @@ dev = [
     # at module level; the extra is declared by its owner (nova), so a plain
     # sync installs it and the suite collects without the viz extra.
     "nova-stella[bokeh]",
+    # The router shutdown tests run the router under a real uvicorn server, so
+    # the suite needs it without the agent extra.
+    "uvicorn>=0.54.0",
 ]
 
 [project.urls]
