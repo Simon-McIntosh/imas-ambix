@@ -1,0 +1,63 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 0,
+  "call_sites": [],
+  "completed_at": "2026-10-27T00:16:40.983Z",
+  "dispatched_at": "2026-10-27T00:09:00Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T235341086647-reload-threshold-tests-green/logs/head.txt",
+      "line": "1",
+      "severity": "non-blocking",
+      "text": "non-blocking: the head gate log's own header line records rev 72236e1b58106536e694dc262e4e42778eba270c, which is the base revision, because the gate ran before b4624dc2 existed; the same header names the passing 24-test arm, so the receipt as stored labels the revision that fails 2 tests as the one that passed, and only the manifest's commit line ties the result to the landed head."
+    },
+    {
+      "file": "tests/test_agent_reload.py",
+      "line": "385",
+      "severity": "non-blocking",
+      "text": "non-blocking: the added Answer class duplicates the fake urlopen response already owned by tests/agent/test_bench_provenance.py:85 (_FakeResponse: _body/status/read/__enter__/__exit__) and the suffix-routed dispatcher at tests/agent/test_bench_provenance.py:102 (_stub_urlopen); it copies rather than extends the owner, adding only a headers attribute, so promoting one shared response/fixture helper would stop the two drifting apart."
+    }
+  ],
+  "gate_sources": {
+    "after_suite": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T000848080190-review-of-reload-threshold-tests-green-b4624dc269e3/head-arm-review.txt",
+    "baseline_suite": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T235341086647-reload-threshold-tests-green/logs/base.txt"
+  },
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "The landed change is confined to tests/test_agent_reload.py, so no production module can reach it; the production path it exercises was read instead (imas_ambix/agent/cli.py:2351 _serving_validator calling _completion_verdict at :2270 and _dialect_probe_failures at :2340, and imas_ambix/agent/bench.py:783 check_tool_call / :907 check_tool_use) and is unchanged by the commit.",
+    "diff": "Read commit b4624dc2 against base 72236e1b: one file, tests/test_agent_reload.py (63 insertions, 8 deletions), replacing the bare io.BytesIO urlopen stub with an Answer response object plus a route-dispatched completion stub; no assertion in the test was added, removed or relaxed.",
+    "done_when": "The done_when names the exact pytest command and requires base and head logs; logs/base.txt and logs/head.txt both carry that command in their header and a bare EXIT line (EXIT=1 and EXIT=0), with 24 collected in both arms, but the head log's header names revision 72236e1b (the base) rather than the landed b4624dc2.",
+    "goal": "The node goal is that tests/test_agent_reload.py passes at main with both failing parametrisations of test_real_validation_closure_enforces_completion_threshold fixed at their cause; logs/base.txt records the two parametrisations failing with AttributeError at imas_ambix/agent/cli.py:2906 and logs/head.txt records 24 passed, with imas_ambix/agent/cli.py unchanged.",
+    "manifest": "The manifest records commit b4624dc2, changed path tests/test_agent_reload.py, both gate logs and the negative-control log, states the cause as a stale test rather than product code, and its claimed ruff result carries no log although a re-run of ruff check on the reviewed head passes.",
+    "write_paths": "The declared scope is tests/test_agent_reload.py and imas_ambix/agent/cli.py; git diff 72236e1b b4624dc2 changes only tests/test_agent_reload.py and leaves imas_ambix/agent/cli.py untouched."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_reload.py:457-466 keeps the 199/200 boundary assertions unchanged and they read production output, and both directions were falsified: reverting the stub reproduces logs/base.txt's 2 failures, and raising the threshold to 201 makes [200-reloaded] red with 'replacement completion validation failed' at logs/negative-control-200.txt:160.",
+    "evidence": "logs/base.txt and logs/head.txt each carry the named command, 24 collected and a bare EXIT line (1 then 0), and the negative-control logs show the threshold refusal traceback, but the head log's header names the base revision and the ruff result in the manifest has no log.",
+    "fit": "tests/test_agent_reload.py:385-410 follows the file's existing stub-in-test idiom, names nothing forbidden, and the commit b4624dc2 carries a conventional subject with a mechanism-level body.",
+    "goal_fidelity": "tests/test_agent_reload.py:400-433 answers /v1/messages with a tool_use block and /v1/chat/completions carrying tools with a tool_calls message, which is what imas_ambix/agent/bench.py:783 and :907 require, so the two failing parametrisations now reach the completion threshold they assert.",
+    "reuse": "the capability search over tests/ found the same fake urlopen response owned at tests/agent/test_bench_provenance.py:85 (_FakeResponse) and its routed dispatcher at :102, and the added Answer class at tests/test_agent_reload.py:385 duplicates them instead of extending them, with no shared conftest helper existing to extend.",
+    "scope_discipline": "git diff 72236e1b b4624dc2 changes only tests/test_agent_reload.py, inside the two declared write paths, and every hunk is the stub rewrite or the import it made dead."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The node goal is that tests/test_agent_reload.py passes at main with both failing parametrisations of test_real_validation_closure_enforces_completion_threshold fixed at their cause; logs/base.txt records the two parametrisations failing with AttributeError at imas_ambix/agent/cli.py:2906 and logs/head.txt records 24 passed, with imas_ambix/agent/cli.py unchanged.\nVERDICT done_when: The done_when names the exact pytest command and requires base and head logs; logs/base.txt and logs/head.txt both carry that command in their header and a bare EXIT line (EXIT=1 and EXIT=0), with 24 collected in both arms, but the head log's header names revision 72236e1b (the base) rather than the landed b4624dc2.\nVERDICT write_paths: The declared scope is tests/test_agent_reload.py and imas_ambix/agent/cli.py; git diff 72236e1b b4624dc2 changes only tests/test_agent_reload.py and leaves imas_ambix/agent/cli.py untouched.\nVERDICT manifest: The manifest records commit b4624dc2, changed path tests/test_agent_reload.py, both gate logs and the negative-control log, states the cause as a stale test rather than product code, and its claimed ruff result carries no log although a re-run of ruff check on the reviewed head passes.\nVERDICT diff: Read commit b4624dc2 against base 72236e1b: one file, tests/test_agent_reload.py (63 insertions, 8 deletions), replacing the bare io.BytesIO urlopen stub with an Answer response object plus a route-dispatched completion stub; no assertion in the test was added, removed or relaxed.\nCALL_SITES: none\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: tests/test_agent_reload.py:400-433 answers /v1/messages with a tool_use block and /v1/chat/completions carrying tools with a tool_calls message, which is what imas_ambix/agent/bench.py:783 and :907 require, so the two failing parametrisations now reach the completion threshold they assert.\nSCORE evidence: 15\nJUSTIFICATION evidence: logs/base.txt and logs/head.txt each carry the named command, 24 collected and a bare EXIT line (1 then 0), and the negative-control logs show the threshold refusal traceback, but the head log's header names the base revision and the ruff result in the manifest has no log.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff 72236e1b b4624dc2 changes only tests/test_agent_reload.py, inside the two declared write paths, and every hunk is the stub rewrite or the import it made dead.\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_agent_reload.py:457-466 keeps the 199/200 boundary assertions unchanged and they read production output, and both directions were falsified: reverting the stub reproduces logs/base.txt's 2 failures, and raising the threshold to 201 makes [200-reloaded] red with 'replacement completion validation failed' at logs/negative-control-200.txt:160.\nSCORE fit: 18\nJUSTIFICATION fit: tests/test_agent_reload.py:385-410 follows the file's existing stub-in-test idiom, names nothing forbidden, and the commit b4624dc2 carries a conventional subject with a mechanism-level body.\nSCORE reuse: 5\nJUSTIFICATION reuse: the capability search over tests/ found the same fake urlopen response owned at tests/agent/test_bench_provenance.py:85 (_FakeResponse) and its routed dispatcher at :102, and the added Answer class at tests/test_agent_reload.py:385 duplicates them instead of extending them, with no shared conftest helper existing to extend.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261026T235341086647-reload-threshold-tests-green/logs/head.txt:1 non-blocking: the head gate log's own header line records rev 72236e1b58106536e694dc262e4e42778eba270c, which is the base revision, because the gate ran before b4624dc2 existed; the same header names the passing 24-test arm, so the receipt as stored labels the revision that fails 2 tests as the one that passed, and only the manifest's commit line ties the result to the landed head.\nFINDING tests/test_agent_reload.py:385 non-blocking: the added Answer class duplicates the fake urlopen response already owned by tests/agent/test_bench_provenance.py:85 (_FakeResponse: _body/status/read/__enter__/__exit__) and the suffix-routed dispatcher at tests/agent/test_bench_provenance.py:102 (_stub_urlopen); it copies rather than extends the owner, adding only a headers attribute, so promoting one shared response/fixture helper would stop the two drifting apart.\n",
+  "review_run_id": "r-20261027T000848080190-review-of-reload-threshold-tests-green-b4624dc269e3",
+  "reviewed_base_sha": "72236e1b58106536e694dc262e4e42778eba270c",
+  "reviewed_head_sha": "b4624dc269e32ec0c624927aa1b36e4ceadbe71c",
+  "reviewed_run_id": "r-20261026T235341086647-reload-threshold-tests-green",
+  "scores": {
+    "durability": 18,
+    "evidence": 15,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 5,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T00:22:00.000000+00:00",
+  "total": 95
+}
