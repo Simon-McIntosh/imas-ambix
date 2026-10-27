@@ -654,11 +654,18 @@ class _GenerationGate:
         self,
         config_path: Path | None,
         *,
+        engine_id: str = "",
         default_width: int = DEFAULT_GENERATION_WIDTH,
         default_wait_seconds: float = DEFAULT_GENERATION_WAIT_SECONDS,
         scrape_interval: float = 30.0,
     ) -> None:
         self.config_path = config_path
+        # Which engine's queue this gate is. Empty for the gate that holds a
+        # request whose engine has not resolved yet, which is also the gate a
+        # single-engine router keeps using. The identity selects this engine's
+        # entry in the control file's ``engines`` map and names the gate in a
+        # refusal row.
+        self._engine_id = engine_id
         # How long the lane publisher waits between the readings the width
         # controller differences. The controller uses it to tell a counter read
         # before it advanced from one that has genuinely stopped.
@@ -709,6 +716,21 @@ class _GenerationGate:
         self._controller_note: str | None = "memory rule: no throughput reading"
         self._throughput_tokens: int | None = None
         self._throughput_stamp = 0.0
+
+    @property
+    def engine_id(self) -> str:
+        """The engine whose queue this gate is, or empty before one resolves."""
+        return self._engine_id
+
+    def claim_engine(self, engine_id: str) -> None:
+        """Name the engine of a gate created before that engine was known."""
+        if self._engine_id and self._engine_id != engine_id:
+            raise ValueError("gate already belongs to another engine")
+        self._engine_id = engine_id
+        # A gate that has already read the control file read it without this
+        # engine's entry, so the next read has to resolve again rather than
+        # serving the flat defaults for up to one refresh interval.
+        self._next_config_refresh_at = 0.0
 
     @property
     def in_flight(self) -> int:
@@ -827,6 +849,7 @@ class _GenerationGate:
                 payload = json.loads(self.config_path.read_text(encoding="utf-8"))
                 if not isinstance(payload, Mapping):
                     raise ValueError("the root must be an object")
+                payload = self._engine_payload(payload)
                 self._auto_transition_pending = (
                     payload.get("width") == GATE_AUTO_WIDTH
                     and not self._cached_settings.auto
@@ -849,9 +872,10 @@ class _GenerationGate:
         self._cached_settings = settings
         if settings != self._last_logged_settings:
             logger.info(
-                "generation gate config path=%s width=%d wait_seconds=%s "
-                "paused=%s reason=%s",
+                "generation gate config path=%s engine=%s width=%d "
+                "wait_seconds=%s paused=%s reason=%s",
                 self.config_path,
+                self._engine_id or "(unresolved)",
                 settings.width,
                 settings.wait_seconds,
                 settings.paused,
@@ -859,6 +883,35 @@ class _GenerationGate:
             )
             self._last_logged_settings = settings
         return settings
+
+    def _engine_payload(self, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        """Resolve the control file for this gate's engine.
+
+        The flat keys are the defaults for every engine, so a deployment that
+        writes only them behaves exactly as it did with one queue. An
+        ``engines`` map, keyed by engine id, overrides width, wait and pause for
+        the engine it names -- the throughput knee is a property of that
+        engine's hardware and configuration, not of the lane. A top-level
+        ``paused`` is applied after the engine's own entry, so it still pauses
+        every engine and the lane-cycle runbook keeps working as written.
+
+        A malformed ``engines`` map is an error rather than a quiet fallback:
+        silently ignoring it would leave every engine on the flat defaults while
+        an operator believes they retuned one.
+        """
+        engines = payload.get("engines")
+        merged = {key: value for key, value in payload.items() if key != "engines"}
+        if engines is not None:
+            if not isinstance(engines, Mapping):
+                raise ValueError("engines must be an object")
+            override = engines.get(self._engine_id) if self._engine_id else None
+            if override is not None:
+                if not isinstance(override, Mapping):
+                    raise ValueError("each engines entry must be an object")
+                merged.update(override)
+        if payload.get("paused") is True:
+            merged["paused"] = True
+        return merged
 
     def _settings_from_payload(self, payload: Mapping[str, Any]) -> _GateSettings:
         """Resolve one gate file into settings, including the automatic width.
@@ -1637,6 +1690,39 @@ class Upstream:
     accelerator_count: int | None = None
 
 
+def engine_id_for_origin(origin: str) -> str:
+    """Return the engine identity for a serve origin: host short name and port.
+
+    The spelling is the registry's own (``_engine_id``), so a control file's
+    ``engines`` map is keyed exactly as an operator reads that engine's identity
+    on every endpoint record and published document.
+    """
+    from urllib.parse import urlsplit
+
+    from imas_ambix.agent.registry import _engine_id
+
+    parts = urlsplit(origin)
+    host = parts.hostname or origin
+    if parts.port is None:
+        return host
+    return _engine_id(host, parts.port)
+
+
+def _engine_reason(reason: str | None, engine: str | None) -> str | None:
+    """Name the engine a refusal row waited at, beside the reason for it.
+
+    The receipt's ``reason`` column is the row's only free-text field, so the
+    engine identity rides there as a machine-readable suffix. With one gate per
+    engine, a refusal that named no engine would not say which queue expired,
+    while the upstream sentinel correctly says no engine served the request.
+    """
+    if not engine:
+        return reason
+    if not reason:
+        return f"gate expired; engine={engine}"
+    return f"{reason}; engine={engine}"
+
+
 class UpstreamResolver(Protocol):
     """Return the engine endpoints currently eligible for routing."""
 
@@ -1840,10 +1926,20 @@ class RouterApp:
         self._lane_document = lane_document
         self._lane_interval = lane_interval
         self._lane_task: asyncio.Task[None] | None = None
+        # One gate per engine, because a queue width is a property of the
+        # engine's own throughput knee rather than of the lane: an engine held
+        # to a peer's narrower width would run below the width it can sustain.
+        # Each gate owns its queue, width, width controller and admission
+        # ledger, and each is fed only the reading taken from its own engine.
+        # The gate named here is the one a request waits at before its engine
+        # resolves, and the first engine to be gated takes it over, so a
+        # one-engine router queues exactly where it always did.
+        self._gate_path = resolve_gate_path(gate_file, lane_document)
         self._generation_gate = _GenerationGate(
-            resolve_gate_path(gate_file, lane_document),
+            self._gate_path,
             scrape_interval=lane_interval,
         )
+        self._engine_gates: dict[str, _GenerationGate] = {}
         # Model ids this process has resolved an owner for, so a request whose
         # known model has no reachable engine right now waits instead of being
         # refused as if the id were meaningless. The profile set is deployment
@@ -1861,6 +1957,34 @@ class RouterApp:
         # capacity are separate limits; aiohttp's unset default of 100 would
         # otherwise become an invisible second queue.
         self._connection_limit = connection_limit
+
+    def gate_for(self, engine_id: str | None) -> _GenerationGate:
+        """Return the gate one engine's requests queue at, creating it once.
+
+        A request waits only at its own engine's gate, so a gate that is full
+        cannot delay work bound for another engine. The first engine to be
+        gated takes over the gate this process has always had, which is what
+        keeps a one-engine router queueing exactly where it did; every further
+        engine gets a gate of its own. An engine that has not resolved yet has
+        no identity to key on, so it waits at that same default gate until its
+        owner appears -- the condition the single gate already expressed.
+        """
+        if not engine_id:
+            return self._generation_gate
+        gate = self._engine_gates.get(engine_id)
+        if gate is not None:
+            return gate
+        if not self._engine_gates and not self._generation_gate.engine_id:
+            gate = self._generation_gate
+            gate.claim_engine(engine_id)
+        else:
+            gate = _GenerationGate(
+                self._gate_path,
+                engine_id=engine_id,
+                scrape_interval=self._lane_interval,
+            )
+        self._engine_gates[engine_id] = gate
+        return gate
 
     async def __call__(
         self, scope: dict[str, Any], receive: Receive, send: Send
@@ -2011,9 +2135,14 @@ class RouterApp:
             resolved.append(selected)
             return True
 
+        gate = (
+            self.gate_for(engine_id_for_origin(owner[0].base_url))
+            if owner is not None
+            else self._generation_gate
+        )
         if path in self._GENERATION_PATHS:
             run_id, session, _, _ = self._request_identity(scope)
-            admission = await self._generation_gate.acquire(
+            admission = await gate.acquire(
                 receive,
                 run_id=run_id,
                 session=session,
@@ -2048,6 +2177,7 @@ class RouterApp:
                 reason=(
                     SHUTDOWN_REASON if admission.outcome == "shutdown" else None
                 ),
+                engine=gate.engine_id or None,
             )
             return
         if not resolved:
@@ -2080,19 +2210,24 @@ class RouterApp:
                 gate_wait_s=admission.gate_wait_s,
                 disconnect_task=admission.disconnect_task,
                 watch_cut=admission.outcome == "acquired",
+                gate=gate,
             )
         finally:
             if admission.outcome == "acquired":
-                await self._generation_gate.release(admission.busy)
+                await gate.release(admission.busy)
 
     def initiate_shutdown(self) -> None:
-        """Answer every request the gate is holding, before uvicorn closes.
+        """Answer every request the gates are holding, before uvicorn closes.
 
         Idempotent and safe from a signal handler, because that is where it is
         called from: the handler runs on the main thread while uvicorn's own
-        shutdown signal handler runs immediately after it.
+        shutdown signal handler runs immediately after it. Every engine's gate
+        is stopped, because a request held at any of them would otherwise wait
+        for an admission that can no longer come.
         """
         self._generation_gate.initiate_shutdown()
+        for gate in self._engine_gates.values():
+            gate.initiate_shutdown()
 
     async def _lifespan(self, receive: Receive, send: Send) -> None:
         while True:
@@ -2183,6 +2318,61 @@ class RouterApp:
         port = client[1] if isinstance(client, Sequence) and len(client) > 1 else 0
         return f"{host}:{port}|{agent.decode('utf-8', 'replace')[:32]}"
 
+    def observe_engine(self, upstream: Upstream, capacity: LaneCapacity) -> None:
+        """Fold one engine's own reading into that engine's width controller.
+
+        Each engine's knee is a property of its hardware and configuration, so
+        a reading is fed to the gate of the engine it was taken from and to no
+        other. That is what lets a wide engine run at its own width beside a
+        narrow one instead of being capped at the narrow engine's knee.
+
+        The FIFO depth fed to the controller is the same gate's own, because a
+        width is justified by the demand queued at it rather than by a peer's.
+        """
+        gate = self.gate_for(engine_id_for_origin(upstream.base_url))
+        gate.observe_lane(
+            capacity.pool_tokens,
+            capacity.mean_context,
+            generation_tokens=capacity.generation_tokens,
+            running=capacity.running,
+            waiting=gate.waiting,
+            prefix_hit_rate=capacity.prefix_hit_rate,
+            kv_occupancy=capacity.kv_occupancy,
+        )
+
+    async def _observe_peer_engines(self, upstreams: Sequence[Upstream]) -> None:
+        """Feed every engine beyond the primary its own lane reading.
+
+        A peer that cannot be read is skipped rather than disturbing the
+        primary engine's reading or the published document: the lane document
+        describes the primary, and a peer's outage must not blank it. The
+        skipped engine's gate holds the width it last justified, exactly as it
+        does across any missing reading.
+        """
+        from imas_ambix.agent.lane import fetch_lane_capacity
+
+        for upstream in upstreams:
+            try:
+                capacity = await asyncio.to_thread(
+                    fetch_lane_capacity, upstream.base_url
+                )
+            except (
+                aiohttp.ClientError,
+                OSError,
+                RuntimeError,
+                ValueError,
+                EOFError,
+                zlib.error,
+            ) as error:
+                logger.warning(
+                    "peer engine reading unavailable engine=%s error=%s: %s",
+                    engine_id_for_origin(upstream.base_url),
+                    type(error).__name__,
+                    error,
+                )
+                continue
+            self.observe_engine(upstream, capacity)
+
     async def _publish_lane(self) -> None:
         """Republish the shared lane budget for as long as the router runs.
 
@@ -2259,15 +2449,8 @@ class RouterApp:
                 # watches trip on, and the gate's own FIFO depth is the demand
                 # that says whether the width in force is the thing limiting the
                 # lane or merely idle under it.
-                self._generation_gate.observe_lane(
-                    capacity.pool_tokens,
-                    capacity.mean_context,
-                    generation_tokens=capacity.generation_tokens,
-                    running=capacity.running,
-                    waiting=self._generation_gate.waiting,
-                    prefix_hit_rate=capacity.prefix_hit_rate,
-                    kv_occupancy=capacity.kv_occupancy,
-                )
+                self.observe_engine(upstreams[0], capacity)
+                await self._observe_peer_engines(upstreams[1:])
                 write_lane_document(
                     capacity,
                     self._lane_document,
@@ -2494,7 +2677,11 @@ class RouterApp:
         gate_wait_s: float = 0.0,
         disconnect_task: asyncio.Task[None] | None = None,
         watch_cut: bool = False,
+        gate: _GenerationGate | None = None,
     ) -> None:
+        # The gate this request was admitted at, so a cut or a shutdown is read
+        # from that engine's own control entry rather than from a peer's.
+        gate = self._generation_gate if gate is None else gate
         session = await self._client()
         # content-length and transfer-encoding describe the body the CLIENT
         # sent, and this relay may forward a different one: both
@@ -2542,7 +2729,7 @@ class RouterApp:
         # the relays holding decode width and never a catalog or token-count
         # request that consumes none.
         cut_task = (
-            asyncio.create_task(self._generation_gate.wait_for_cut())
+            asyncio.create_task(gate.wait_for_cut())
             if watch_cut
             else None
         )
@@ -2623,7 +2810,7 @@ class RouterApp:
                         next_chunk.cancel()
                         await asyncio.gather(next_chunk, return_exceptions=True)
                         response.close()
-                        if self._generation_gate.settings().cut_form == "error":
+                        if gate.settings().cut_form == "error":
                             await send(
                                 {
                                     "type": "http.response.body",
@@ -2663,7 +2850,7 @@ class RouterApp:
             # record aborted, and only one of them is the router's doing.
             reason = (
                 "router shutdown cut the relay"
-                if self._generation_gate.shutdown_requested
+                if gate.shutdown_requested
                 else None
             )
             raise
@@ -2797,6 +2984,7 @@ class RouterApp:
         caller_gone: bool,
         gate_wait_s: float = 0.0,
         reason: str | None = None,
+        engine: str | None = None,
     ) -> None:
         """Record a request this process answered without relaying it.
 
@@ -2845,7 +3033,7 @@ class RouterApp:
             started_at=datetime.now(UTC),
             began=began,
             gate_wait_s=gate_wait_s,
-            reason=reason,
+            reason=_engine_reason(reason, engine),
         )
 
     @staticmethod
@@ -3061,6 +3249,7 @@ class RouterApp:
         gate_wait_s: float = 0.0,
         message: str = "router generation queue wait limit exceeded",
         reason: str | None = None,
+        engine: str | None = None,
     ) -> None:
         """Return the native overload shape after a generation wait expires.
 
@@ -3069,6 +3258,11 @@ class RouterApp:
         because the router is shutting down. Both are retried by a client that
         honours ``Retry-After``; the receipt keeps them apart so a reader can
         count what a restart cost rather than infer it from a status alone.
+
+        ``engine`` names the queue the request expired at. With one gate per
+        engine, a refusal says which engine's width was saturated, and the
+        self-answered sentinel still says the router rather than an engine
+        produced the row.
         """
         body = json.dumps(
             {
@@ -3099,6 +3293,7 @@ class RouterApp:
             caller_gone=caller_gone,
             gate_wait_s=gate_wait_s,
             reason=reason,
+            engine=engine,
         )
 
 

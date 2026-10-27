@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="one-gate-per-engine-release">
+      <p>The router keeps one <code>_GenerationGate</code> per engine instead of
+      one for the whole lane. Each gate owns its own FIFO, width, width
+      controller and admission ledger, and each is fed only the reading taken
+      from its own engine, because the throughput knee is a property of that
+      engine's hardware and configuration rather than of the lane. A gate that
+      is full therefore delays only work bound for its own engine.</p>
+      <ul>
+        <li><strong>Resolution before queueing.</strong> A request's owner is
+        resolved from the model id before it queues, and the engine's identity
+        is the registry's own spelling — host short name and port, via
+        <code>engine_id_for_origin</code>. A request whose engine is not up yet
+        has no identity to key on, so it waits at the process's original gate
+        until an owner appears; the first engine to be gated takes that same
+        gate over, which is what keeps a one-engine router queueing exactly
+        where it did.</li>
+        <li><strong>The control file.</strong> The flat keys remain the defaults
+        for every engine. An <code>engines</code> map keyed by engine id
+        overrides width, wait and pause for the engine it names. A top-level
+        <code>paused</code> is applied after the engine's entry and so still
+        pauses every engine, which is what keeps the lane-cycle runbook working
+        as written. A malformed <code>engines</code> map is an error rather than
+        a quiet fallback, so a typo cannot leave every engine on the flat
+        defaults while an operator believes one was retuned.</li>
+        <li><strong>Cut, shutdown and refusals follow the gate.</strong>
+        <code>_relay</code> now reads its cut form and shutdown flag from the
+        gate the request was admitted at, and every gate is stopped on the
+        shutdown signal. A refusal row keeps the <code>(router)</code> upstream
+        sentinel and names the engine it waited at in its <code>reason</code>
+        column (<code>gate expired; engine=gpu-0003:18800</code>), the only
+        free-text field a receipt carries.</li>
+        <li><strong>The lane publisher feeds each gate its own engine.</strong>
+        The primary engine's reading is taken exactly as before; every further
+        engine's metrics are read and folded into that engine's gate, and a peer
+        that cannot be read is skipped rather than blanking the document, whose
+        subject remains the primary engine.</li>
+      </ul>
+      <p><strong>Measured.</strong> Two fake upstreams gated at widths 2 and 4
+      take six concurrent requests each: the narrow gate holds
+      <code>in_flight=2, waiting=4</code> while the wide gate reaches
+      <code>in_flight=4, waiting=2</code>, so the wide engine runs at its own
+      width while the narrow one is saturated — impossible under one shared
+      queue at either width. An automatic-width reading fed to the first engine
+      moves its width 16 → 36 and leaves the peer at 16. A gate expiry at a
+      named engine writes one row with <code>upstream="(router)"</code>,
+      <code>status="failed"</code> and that engine id in its reason. The five
+      pre-existing gate, admission, width-controller, worker-slot and router
+      tests pass unchanged (71 passed).</p>
+      <p><strong>Negative control.</strong> Applying an engine's own
+      <code>paused</code> entry to every gate makes
+      <code>test_a_pause_in_the_engines_map_holds_only_its_own_engine</code>
+      fail — the peer's <code>settings().paused</code> reads <code>True</code> —
+      while a top-level <code>paused</code> holds both engines either way.</p>
+    </section>
+  </main>
+</body>
+</html>
