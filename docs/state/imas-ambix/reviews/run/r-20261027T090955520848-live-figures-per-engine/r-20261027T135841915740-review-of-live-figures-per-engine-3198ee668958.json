@@ -1,0 +1,58 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_sites": [
+    "imas_ambix/agent/watch.py:1492 watch_document calls document with the index open read-only",
+    "imas_ambix/agent/watch.py:1397 document passes model=reading.get('model_id') into ledger",
+    "imas_ambix/agent/cli.py:3285 the agent-watch --json path calls watch_mod.watch_document"
+  ],
+  "completed_at": "2026-10-27T14:12:59.817Z",
+  "dispatched_at": "2026-10-27T14:05:54Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090955520848-live-figures-per-engine/manifest.md",
+      "line": "15",
+      "severity": "non-blocking",
+      "text": "the manifest's tests field is again a sentence ('120 passed across the four gated files after the repair; ruff check imas_ambix tests exits 0') rather than the literal command that ran, and baseline_suite/after_suite at :21-22 are prose rather than the armed-only JSON the contract asks for; the same defect was raised as a non-blocking finding on the prior review at 83fbbe72 and the repair round left it unfixed, so the gate receipt still depends on the '# command:' headers of logs/gate-pytest-repair.log and logs/gate-ruff-repair.log rather than on the manifest."
+    }
+  ],
+  "gate_sources": {
+    "after_suite": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090955520848-live-figures-per-engine/logs/gate-pytest-repair.log (120 passed, EXIT=0)",
+    "baseline_suite": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090955520848-live-figures-per-engine/logs/after-suite.log (119 passed, EXIT=0, the pre-repair head arm)",
+    "negative_control": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090955520848-live-figures-per-engine/logs/negative-control-repair.log (1 failed, EXIT=1)"
+  },
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "Read commit 3198ee66 against 83fbbe72: 15 lines in imas_ambix/agent/watch.py replace the caller-named model set with window_models() and keep the caller's model only for a single-model window, 36 lines in tests/test_agent_watch_cost.py add a document-path test, and 16 lines in the evidence fragment record the behaviour and the 120-test measure.",
+    "done_when": "The source done-when names the pytest gate over tests/test_live_panel.py, tests/test_agent_watch_cost.py and tests/test_llm_watch.py plus ruff over imas_ambix tests; logs/gate-pytest-repair.log runs a four-file superset (adding tests/test_agent_telemetry_watch.py) and ends '120 passed' EXIT=0, and logs/gate-ruff-repair.log ends EXIT=0, so the measure is run and recorded, though through the log headers rather than the manifest's prose tests field.",
+    "goal": "The node's goal is one live entry per engine plus a ledger row per model at its own rate and a total; the reviewed increment (3198ee66) addresses the second half at imas_ambix/agent/watch.py:1149, where ledger() now takes the model set from window_models() instead of the caller's model id, so the per-model rows and total added at watch.py:1152-1174 are reachable from the production document() path at watch.py:1397.",
+    "manifest": "Read; it declares status complete, commits 1e240969/83fbbe72/3198ee66, the 120-test repair gate and a red negative control, and no out-of-scope edits, but its tests, baseline_suite and after_suite fields are prose rather than the literal command and the armed-only JSON.",
+    "write_paths": "The source node was granted six paths (imas_ambix/agent/live_panel.py, imas_ambix/agent/watch.py, tests/test_live_panel.py, tests/test_agent_watch_cost.py, docs/evidence/fragments/serving-across-servers/live-figures-per-engine.html, docs/figures/serving-across-servers/live-figures-per-engine); git diff 83fbbe72..3198ee66 changes only imas_ambix/agent/watch.py, tests/test_agent_watch_cost.py and docs/evidence/fragments/serving-across-servers/live-figures-per-engine.html, every one inside the grant."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_watch_cost.py:1142 drives watch.document() and logs/negative-control-repair.log shows the same test returning ['glm-5.3'] with the pre-repair narrowing reinstated, while the final assertion at :1157 only checks membership of either fixture model and distinguishes nothing on its own.",
+    "evidence": "logs/gate-pytest-repair.log ends '120 passed' EXIT=0 over the four gated files and logs/gate-ruff-repair.log ends EXIT=0, but the manifest's tests field at manifest.md:15 is a sentence, so the receipt rests on the log headers rather than the field promotion reads.",
+    "fit": "imas_ambix/agent/watch.py:1134-1149 extends the existing ledger() docstring in the module's own idiom and introduces no plan label, ticket reference or version suffix.",
+    "goal_fidelity": "imas_ambix/agent/watch.py:1149 now derives the model set from window_models() rather than from the caller's model id, which is the only path that made the per-model rows at watch.py:1152-1174 unreachable from document() at watch.py:1397.",
+    "reuse": "the change calls the existing window_models() at imas_ambix/agent/watch.py:587 and model_series() at :640 rather than adding a second model-set reader; no capability is forked.",
+    "scope_discipline": "git diff --stat 83fbbe72..3198ee66 lists three files, all inside the six paths granted to the source node."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is one live entry per engine plus a ledger row per model at its own rate and a total; the reviewed increment (3198ee66) addresses the second half at imas_ambix/agent/watch.py:1149, where ledger() now takes the model set from window_models() instead of the caller's model id, so the per-model rows and total added at watch.py:1152-1174 are reachable from the production document() path at watch.py:1397.\nVERDICT done_when: the source done-when names the pytest gate over tests/test_live_panel.py, tests/test_agent_watch_cost.py and tests/test_llm_watch.py plus ruff over imas_ambix tests; logs/gate-pytest-repair.log runs a four-file superset and ends '120 passed' EXIT=0, and logs/gate-ruff-repair.log ends EXIT=0, so the measure is run and recorded, though through the log headers rather than the manifest's prose tests field.\nVERDICT write_paths: the source node was granted six paths; git diff 83fbbe72..3198ee66 changes only imas_ambix/agent/watch.py, tests/test_agent_watch_cost.py and docs/evidence/fragments/serving-across-servers/live-figures-per-engine.html, every one inside the grant.\nVERDICT manifest: read; it declares status complete, commits 1e240969/83fbbe72/3198ee66, the 120-test repair gate and a red negative control, and no out-of-scope edits, but its tests, baseline_suite and after_suite fields are prose rather than the literal command and the armed-only JSON.\nVERDICT diff: read commit 3198ee66 against 83fbbe72: 15 lines in imas_ambix/agent/watch.py replace the caller-named model set with window_models() and keep the caller's model only for a single-model window, 36 lines in tests/test_agent_watch_cost.py add a document-path test, and 16 lines in the evidence fragment record the behaviour and the 120-test measure.\nCALL_SITES: imas_ambix/agent/watch.py:1492 watch_document calls document, imas_ambix/agent/watch.py:1397 document passes model=reading.get('model_id') into ledger, imas_ambix/agent/cli.py:3285 the agent-watch --json path calls watch_mod.watch_document\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/watch.py:1149 now derives the model set from window_models() rather than from the caller's model id, which is the only path that made the per-model rows at watch.py:1152-1174 unreachable from document() at watch.py:1397.\nSCORE evidence: 17\nJUSTIFICATION evidence: logs/gate-pytest-repair.log ends '120 passed' EXIT=0 and logs/gate-ruff-repair.log ends EXIT=0, but manifest.md:15 is a sentence rather than the literal command, so the receipt rests on the log headers.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --stat 83fbbe72..3198ee66 lists three files, all inside the six paths granted to the source node.\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_agent_watch_cost.py:1142 drives watch.document() and logs/negative-control-repair.log shows it returning ['glm-5.3'] with the pre-repair narrowing reinstated, while the final assertion at :1157 only checks membership of either fixture model.\nSCORE fit: 19\nJUSTIFICATION fit: imas_ambix/agent/watch.py:1134-1149 extends the existing ledger() docstring in the module's idiom and introduces no plan label, ticket reference or version suffix.\nSCORE reuse: 20\nJUSTIFICATION reuse: the change calls the existing window_models() at imas_ambix/agent/watch.py:587 and model_series() at :640 rather than adding a second model-set reader.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090955520848-live-figures-per-engine/manifest.md:15 non-blocking: the manifest's tests field is again a sentence rather than the literal command that ran, and baseline_suite/after_suite at :21-22 are prose rather than the armed-only JSON; the same defect was raised as a non-blocking finding at 83fbbe72 and the repair round left it unfixed, so the gate receipt depends on the '# command:' headers of logs/gate-pytest-repair.log and logs/gate-ruff-repair.log.\n",
+  "review_run_id": "r-20261027T135841915740-review-of-live-figures-per-engine-3198ee668958",
+  "reviewed_base_sha": "83fbbe72781e38c460c89ec5e3f7afdab2e13403",
+  "reviewed_head_sha": "3198ee6689583a38914da9061ea170c1a11d89f9",
+  "reviewed_run_id": "r-20261027T090955520848-live-figures-per-engine",
+  "scores": {
+    "durability": 18,
+    "evidence": 17,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T15:22:00.000000+00:00",
+  "total": 113
+}
