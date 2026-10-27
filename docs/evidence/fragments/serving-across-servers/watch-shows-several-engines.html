@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="watch-shows-several-engines-release">
+      <p>The watch view carries one entry per engine at every level it reports,
+      and a lane of one engine renders exactly as it did before the engine
+      dimension existed.</p>
+
+      <h3>What the view now says</h3>
+      <ul>
+        <li><strong>A router line above the bands</strong> — the router's
+        address, when the reading was taken, and how much the document spans:
+        <code>3 servers · 3 engines · 2 models</code>. A reader needs it before
+        attributing any row below to one engine.</li>
+        <li><strong>An engines table</strong>, one row per engine, naming the
+        model it serves and the engine id it answers on, with its running
+        count, router queue, output rate, per-stream rate, time to first
+        token, KV pool and available percentage. The model and the engine id
+        are separate columns: in one column the two DeepSeek engines truncated
+        to the same prefix and became indistinguishable.</li>
+        <li><strong>An engine column in the account detail</strong>, carrying
+        the engine that took the engine-dominant share of each project's or
+        session's held time.</li>
+        <li><strong>One history line per engine</strong>, on the same two
+        strips as the total — in flight against the gate's width, and the
+        median gate wait — so a reader can see which engine is filling rather
+        than only that the lane is.</li>
+        <li><strong>One outcomes line per engine</strong>, because a lane in
+        which one engine fails everything it accepts and another completes
+        everything reads as a healthy lane in the total alone.</li>
+        <li><strong>The ledger grouped by model, and <code>--engine</code></strong>
+        choosing whose bands are drawn. With several engines one engine's three
+        bands are drawn — the busiest unless one is named — because three bands
+        per engine do not fit a terminal; the table above carries every
+        engine's figures.</li>
+      </ul>
+
+      <h3>The document</h3>
+      <ul>
+        <li><code>callers.held_by_engine</code> splits each account, project
+        and session row's held time by engine; <code>callers.engines</code>
+        lists every bucket the window holds.</li>
+        <li><code>history.engines</code> carries one bin series per engine,
+        and <code>outcomes.engines</code>/<code>outcomes.by_engine</code>
+        counts each request's ending under the engine it ended on.</li>
+        <li><code>live_panel</code> joins the pool document's
+        <code>engines</code> array to the per-engine live entries by host,
+        keeping an engine that appears on only one side, and publishes a
+        top-level <code>engines</code> array only when there is more than
+        one.</li>
+        <li><strong>Every one of those keys is absent for a single-engine
+        document.</strong> The one-engine document is byte-identical to the
+        base revision's <code>agent watch --json --live</code> output, and the
+        one-engine render is byte-identical to its committed golden.</li>
+      </ul>
+
+      <h3>Why the split can be trusted</h3>
+      <p>Every request row lands in exactly one bucket: the engine its
+      <code>upstream</code> names, or a <code>(router)</code> bucket when the
+      router answered it itself after its gate wait ran out. A request given to
+      an engine it never reached would make the split disagree with the total
+      it is a split of, so the reconciliation is asserted rather than assumed:</p>
+      <pre>abs(sum(row["held_by_engine"].values()) - float(row["held"])) &lt; 0.01</pre>
+      <p>The declared negative control — attribute every request to the first
+      per-engine sum test fails at that assertion: the account's buckets sum to
+      0.6 s against a held total of 0.3 s. The log is kept with the run record
+      as <code>negative-control.log</code>.</p>
+
+      <h3>The three-engine render</h3>
+      <pre>router · http://98dci4-gpu-0003.iter.org:18802 · 04:40:55 · 3 servers · 3 engines · 2 models
+
+ model                 engine              running    router q      tok/s        each     ttft s   kv pool %    avail %
+ ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ deepseek-v4.1-flash   gpu-0003:18810          9.0           0        812        41.0        0.8    ██░░░ 41   ███░░ 64
+ deepseek-v4.1-flash   gpu-0001:18812          4.0           0        402        38.0        1.1    █░░░░ 22   ████░ 81
+ glm-5.3               b300-0001:18814         2.0           1        210        33.0        1.6     ░░░░░ 9   █████ 93
+
+history 30m   in flight ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▅▆▇▅▄▂▂▂▂▂▂▂▂▂   wait ▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂
+              gpu-0003:18810   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▅▆▇▅▄▂▂▂▂▂▂▂▂▂   wait ▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂
+              b300-0001:18814  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   wait ▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂
+outcomes 5m   412 completed · 3 aborted · 0 failed · 0 expired at the end
+              gpu-0003:18810   380 completed · 3 aborted · 0 failed · 0 expired at the end
+              b300-0001:18814  32 completed · 0 aborted · 0 failed · 0 expired at the end
+
+ ledger                        model        tok in      cached %       tok out        util %        cost $       window
+ ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ 1 hour          deepseek-v4.1-flash          232M      █████ 98         1.15M      █████ 97          7.45         full
+ 1 hour                      glm-5.3          232M      █████ 98         1.15M      █████ 97          7.45         full
+ 1 day           deepseek-v4.1-flash         3.31G      █████ 96         18.2M      █████ 96        131.02          12h
+ 1 day                       glm-5.3         3.31G      █████ 96         18.2M      █████ 96        131.02          12h</pre>
+      <p>The committed artifact is
+      <code>tests/golden/llm_watch/three_engines.txt</code>, rendered at 120
+      columns; no line in the view exceeds either 100 or 120 columns.</p>
+    </section>
+  </main>
+</body>
+</html>
