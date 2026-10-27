@@ -598,6 +598,35 @@ def test_document_build_reads_the_endpoint_document_the_site_declares(
     assert document["engine"]["endpoints"] == ENDPOINT["endpoints"]
 
 
+def test_document_build_reads_the_default_published_watch_document(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With no watch path given, the build reads the publisher's own default.
+
+    The live view is launched with no argument, so its ledger block can only
+    arrive through the path the publisher writes. The build must resolve that
+    path through the resolver the publisher actually offers: naming the output
+    of the published ledger was an attribute that does not exist, and reaching
+    for it raised on every refresh of the live view.
+    """
+    endpoints = tmp_path / "endpoints.json"
+    endpoints.write_text(json.dumps(ENDPOINT), encoding="utf-8")
+    monkeypatch.setenv("AMBIX_AGENT_ENDPOINT_DOCUMENT", str(endpoints))
+    published = tmp_path / "watch.json"
+    published.write_text(
+        json.dumps({"ledger": LEDGER, "published_at": "2026-10-27T09:00:00Z"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(lw.watch_publish, "default_output_path", lambda: published)
+    record = tmp_path / "requests"
+    record.mkdir()
+    document = lw.build_document(
+        record_dir=record, lane_path=tmp_path / "lane.json"
+    )
+    assert document["ledger"] == LEDGER
+    assert document["ledger_published_at"] == "2026-10-27T09:00:00Z"
+
+
 def test_an_engine_other_than_the_served_one_is_refused(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

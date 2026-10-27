@@ -770,7 +770,7 @@ def build_document(
     ) or {}
     document["engine"] = endpoints
     document["checkpoints"] = endpoints.get("checkpoints") or {}
-    published = _read_json(watch_path or watch_publish.DEFAULT_OUTPUT) or {}
+    published = _read_json(watch_path or watch_publish.default_output_path()) or {}
     document["ledger"] = published.get("ledger") or []
     document["ledger_published_at"] = published.get("published_at")
     return document
