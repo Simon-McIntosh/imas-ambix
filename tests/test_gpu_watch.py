@@ -104,8 +104,8 @@ def _sample(*, with_cards=True, jobs=None):
                     "name": "NVIDIA H200",
                     "utilisation_percent": 40.0,
                     "temperature_c": 61.0,
-                    "power_draw_w": 420000.0,
-                    "power_cap_w": 700000.0,
+                    "power_draw_w": 420.0,
+                    "power_cap_w": 600.0,
                     "memory_used_mib": 90000.0,
                     "memory_total_mib": 143771.0,
                 },
@@ -114,8 +114,8 @@ def _sample(*, with_cards=True, jobs=None):
                     "name": "NVIDIA H200",
                     "utilisation_percent": 20.0,
                     "temperature_c": 55.0,
-                    "power_draw_w": 300000.0,
-                    "power_cap_w": 700000.0,
+                    "power_draw_w": 300.0,
+                    "power_cap_w": 600.0,
                     "memory_used_mib": 60000.0,
                     "memory_total_mib": 143771.0,
                 },
@@ -213,6 +213,27 @@ def test_card_figures_carry_the_window_mean_beside_the_latest_reading():
     assert rows[0]["util_mean"] == 50.0
     assert rows[1]["util_now"] == 20.0
     assert rows[1]["util_mean"] == 20.0
+
+
+def test_a_declared_power_cap_is_a_watt_reading_scaled_to_kilowatts():
+    """The declaration is watts and the draw is kilowatts, so both must be one unit.
+
+    A 700 W declaration is a 0.70 kW cap. Read unscaled it renders 700 kW and a
+    share a thousand times too small, which is what a declared cap used to do.
+    """
+    sample = _sample()
+    cards = sample["cards"]["cards"]
+    cards[0]["power_draw_w"] = 420.0
+    cards[1]["power_draw_w"] = 0.0
+
+    figures = view.conditions(view.Reading((sample,)), 700)
+    line = view.conditions_line(view.Reading((sample,)), 700).plain
+
+    assert figures["kilowatts"] == 0.42
+    assert figures["cap_kilowatts"] == 0.7
+    assert figures["cap_percent"] == 60.0
+    assert "0.70 kW cap" in line
+    assert "60% of cap" in line
 
 
 class _Probe:

@@ -164,9 +164,11 @@ def conditions(reading: Reading, declared_cap_watts: int | None) -> dict[str, An
 
     The cap is the server's declaration when it makes one, because that is the
     figure the operator sizes against and it is published where every other
-    consumer reads it. Without one, the cards' own caps are summed; a node where
-    neither is readable reports no percentage rather than a rate against a cap
-    nobody stated.
+    consumer reads it. The declaration is in watts while this section reports
+    kilowatts, so it is scaled here -- a declared ``700`` is a 0.70 kW cap.
+    Without one, the cards' own caps are summed, already divided to kilowatts;
+    a node where neither is readable reports no percentage rather than a rate
+    against a cap nobody stated.
     """
     cards = reading.cards
     temperatures = [
@@ -179,7 +181,10 @@ def conditions(reading: Reading, declared_cap_watts: int | None) -> dict[str, An
         for card in cards
         if isinstance(card.get("power_draw_w"), (int, float))
     ]
-    cap = declared_cap_watts
+    # The declaration states watts (``SiteServerConfig.power_cap_watts``) and
+    # the draw beside it is kilowatts, so the two are only comparable after the
+    # declaration is scaled to the unit the line prints.
+    cap = declared_cap_watts / 1000.0 if declared_cap_watts else None
     if cap is None:
         card_caps = [
             card["power_cap_w"]
