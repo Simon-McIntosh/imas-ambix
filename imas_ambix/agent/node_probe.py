@@ -102,11 +102,12 @@ from __future__ import annotations
 import csv
 import os
 import subprocess
+import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Callable, Iterator, Mapping, Sequence
 
 #: ``nvidia-smi`` query field for each card quantity, and the name it is
 #: recorded under. The names carry their unit because the query returns bare
@@ -760,3 +761,34 @@ class NodeProbe:
             self._jobs_at = now
 
         return sections
+
+    def stream(
+        self,
+        interval_s: float,
+        *,
+        count: int | None = None,
+        clock: Callable[[], float] = time.monotonic,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> Iterator[dict[str, Any]]:
+        """Yield one sample per *interval_s*, forever unless *count* bounds it.
+
+        This is the entry point a long-lived step runs on the node: the caller
+        reads a sample, draws it, and asks again, while this method owns the
+        cadence. The clock and the sleep are parameters for the same reason
+        :meth:`sample`'s stamp is -- a bounded run and a test drive one path,
+        and a test measures the cadence rather than restating it.
+
+        The cadence is a floor, not a schedule: a tick whose reads outlast the
+        interval is followed immediately, because sleeping an interval after a
+        slow read reports a period that did not elapse.
+        """
+        tick = 0
+        while count is None or tick < count:
+            started = clock()
+            yield self.sample(started)
+            tick += 1
+            if count is not None and tick >= count:
+                return
+            elapsed = clock() - started
+            if elapsed < interval_s:
+                sleep(interval_s - elapsed)

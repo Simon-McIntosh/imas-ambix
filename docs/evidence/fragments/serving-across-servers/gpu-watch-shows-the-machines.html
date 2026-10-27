@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="gpu-watch-shows-the-machines-package">
+      <h3>gpu-watch renders the declared servers from the node probe</h3>
+      <p>The renderer lives in <code>imas_ambix/agent/gpu_watch/</code> and is
+      reached through the <code>gpu-watch</code> console script. For each server
+      declared in the published endpoint document it draws the card table
+      (utilisation and memory, now and window mean), the host row, the
+      conditions line moved from the serve grid, the node's SLURM job table, and
+      one dim identity row per engine pointing at <code>llm-watch</code>.
+      <code>--server NAME</code> limits the view; the default stacks every
+      declared server. The reservation-group label is read from the server's own
+      declaration, and a document that declares none renders a dash.</p>
+      <p>The on-node readings come from <code>node_probe.NodeProbe</code>, not
+      from a private sampler: the card, host and job sections are the same ones
+      the recorder and the retention pass consume, so physical card numbering
+      and the meaning of an unread job table have one owner.
+      <code>NodeProbe.stream</code> is the entry point a long-lived on-node step
+      runs; a one-shot run takes a bounded window of it. The style module is the
+      <code>watch_style</code> llm-watch already reads.</p>
+      <p>A declared server with no running job has no allocation for a card
+      query to see through, so its block prints <code>no job to sample</code>
+      rather than an empty card table, and a server on another host is reported
+      as not sampled here rather than drawn from the local node's figures.</p>
+    </section>
+
+    <section id="gpu-watch-shows-the-machines-onnode">
+      <h3>Both watchers on 98dci4-gpu-0003, 11 s apart</h3>
+      <p>One read-only <code>srun --overlap</code> step under the existing
+      serving job (1294597): the new console path first, the dotfiles script
+      immediately after. The step was allocated four cards, which is why the
+      physical indices read 4–7. Rows match — four card rows, one host row, the
+      same four running jobs. Values differ within the sampling window, which is
+      expected: utilisation moved between 96 and 100 % and the conditions line
+      was taken over a different eight-second window. The pending
+      <code>nemotron_embed_8b</code> row the dotfiles view lists appeared
+      between the two reads, after the new view had already read its table.</p>
+      <pre>2026-10-27T13:23:52Z
+=== NEW gpu-watch ===
+98dci4-gpu-0003.iter.org    groups —
+conditions  temperature 62.5°C mean / 64°C max    power 1.68 kW / 2.40 kW cap    70% of cap
+             card   util now   util mean   mem now   mem mean
+─────────────────────────────────────────────────────────────
+4 NVIDIA H200 NVL   ████ 100     ████ 99   ███░ 77    ███░ 77
+5 NVIDIA H200 NVL    ████ 99     ████ 98   ███░ 77    ███░ 77
+6 NVIDIA H200 NVL   ████ 100     ████ 99   ███░ 77    ███░ 77
+7 NVIDIA H200 NVL   ████ 100     ████ 96   ███░ 77    ███░ 77
+host        cpu 7%    memory 379 GiB (25%)
+jobs
+    job   user      name                  state     cpus   gres         elapsed   
+──────────────────────────────────────────────────────────────────────────────────
+1291781   murawan   wemm_embed_4b         RUNNING      7   N/A          2:34:57   
+1285740   murawan   nemotron_embed_8b     RUNNING      7   N/A          6-07:30:11
+1294597   mcintos   deepseek-v4-1-flash   RUNNING     12   gres/gpu:4   3-17:17:38
+1294603   mcintos   ambix-router          RUNNING      2   N/A          3-17:03:46
+engines
+  engine gpu-0003.iter.org:18810  model deepseek-v4.1-flash  cards 4×H200  port 18810  → llm-watch
+2026-10-27T13:24:03Z
+=== DOTFILES gpu-watch ===
+98dci4-gpu-0003  ·  14:24:14  ·  mix@  ·  Group A  ·  4/8 GPUs alloc · 4 sampled
+·  now + 8s mean                                                                
+                                                                                
+  process             util now       util 8s        mem now       mem 8s        
+ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 
+  deepseek-v4-1-fl…   ████████ 10…   ████████  9…   ██████░░  …   ██████░░  7…  
+  deepseek-v4-1-fl…   ███████░  8…   ████████  9…   ██████░░  …   ██████░░  7…  
+  deepseek-v4-1-fl…   ███████░  9…   ████████  9…   ██████░░  …   ██████░░  7…  
+  deepseek-v4-1-fl…   ████████  9…   ████████  9…   ██████░░  …   ██████░░  7…  
+  ambix-router        unsampled                     running, n…                 
+                                                                                
+  mean                ███████░  9…   ████████  9…   ██████░░  …   ██████░░  7…  
+                                                                                
+  host                cpu ░░░░   …   —              ram █░░░  …   397/1585 GB   
+                                                                                
+deepseek-v4.1-flash · DeepSeek-V4.1-Flash-1017@1bae0e10 · 4×H200 · 262k ctx
+                                                                                
+   running     queued   tok/s out   tok/s e…   prefill/s     ttft s     cache % 
+       2.9          0         234       81.3       2.41k        0.5    █████ 96 
+                                                                                
+   °C mean     °C max          kW   % of cap   kv pool %                        
+        64         65        1.40   ███░░ 58     ░░░░░ 8                        
+                                                                                
+ in flight   router …   oldest w…    verdict    headroom   worker …   availabl… 
+      3/12          0           —       open           9          7    ████░ 75 
+                                                                                
+                                                                                
+ callers …   user       host            runs      in use    per run      wait s 
+ ────────────────────────────────────────────────────────────────────────────── 
+ reckon 4…   mcintos    clu-2068           2         1.1        0.5           0 
+ imas-efit   mcintos    clu-2068           3         1.0        0.3           0 
+ imas-amb…   mcintos    clu-2068           2         0.9        0.5           0 
+ reckon 6…   mcintos    clu-2068           1         0.6        0.6           0 
+ power-co…   mcintos    clu-2068           2         0.2        0.1           0 
+ no sessi…   ?          clu-2068           —         0.0          —           0 
+ no sessi…   ?          sdcc-log…          —         0.0          —           0 
+                                                                                
+                                                                                
+    ledger     tok in    cached %    tok out      util %     cost $      window 
+ ────────────────────────────────────────────────────────────────────────────── 
+    1 hour       312M    █████ 98       1.4M    █████ 96       9.06        full 
+     1 day      2.14G    █████ 98      10.3M    ██░░░ 46      60.32        full 
+    1 week      23.9G    █████ 98       138M    ███░░ 65     703.00        full 
+   1 month      94.2G    █████ 97       594M    ████░ 72       2955        full 
+                                                                                
+                                                                                
+  gr…   jobid   user   a…   name               partiti…   sta…   elapsed    g…  
+ ────────────────────────────────────────────────────────────────────────────── 
+  A     1294…   mci…   g…   deepseek-v4-1-f…   betelge…   RUN…   3-17:17…   g…  
+  A     1294…   mci…   g…   ambix-router       betelge…   RUN…   3-17:04…   N…  
+                                                                                
+  B     1291…   mur…   g…   wemm_embed_4b      betelge…   RUN…   2:35:16    N…  
+  B     1285…   mur…   g…   nemotron_embed_…   betelge…   RUN…   6-07:30…   N…  
+  B     1292…   mur…   g…   nemotron_embed_…   betelge…   PEN…   0:00       N…  
+                                                                                
+2026-10-27T13:24:14Z</pre>
+      <p>Verbatim from the step, with the two <code>slurmstepd</code> TMPDIR lines dropped. The commands were <code>gpu-watch --server 98dci4-gpu-0003.iter.org --window 8</code> (through the package entry point, since the console script is not yet installed in the shared environment) and <code>uv run --quiet --script bin/gpu-watch 8</code> from the dotfiles checkout.</p>
+    </section>
+
+    <section id="gpu-watch-shows-the-machines-negative-control">
+      <h3>Negative control: a server with no running job</h3>
+      <p>The declared mutation points the test configuration at a server with no
+      job. The card-table assertion fails, and the mutated block prints
+      <code>no job to sample</code>, which is the assertion the control requires
+      to pass:</p>
+      <pre>FAILED tests/test_gpu_watch.py::test_two_server_configuration_renders_two_stacked_blocks
+E   AssertionError: … gpu-0003  8×H200    groups gpu_0003_grpA
+E     no job to sample
+E     jobs        none resident
+EXIT=1</pre>
+      <p>The full log is <code>negative-control.log</code> in the run
+      directory.</p>
+    </section>
+
+    <section id="gpu-watch-shows-the-machines-power-cap-units">
+      <h3>Repair: the declared power cap is a watt reading</h3>
+      <p><code>SiteServerConfig.power_cap_watts</code> is watts, while the draw
+      beside it in the conditions line is a kilowatt figure. The line used the
+      declaration unscaled, so a declared cap rendered as a figure a thousand
+      times too large and the share of cap a thousand times too small —
+      reproduced on the landed module with the reported values:</p>
+      <pre>$ python -c '…conditions(reading, 700)…'   # 420 W draw, 700 W declared
+{'kilowatts': 0.42, 'cap_kilowatts': 700, 'cap_percent': 0.1}
+'conditions  temperature — mean / — max    power 0.42 kW / 700.00 kW cap    0% of cap'</pre>
+      <p>The declaration is now divided before it is compared with the draw, and
+      the same call returns what the truth is:</p>
+      <pre>{'temp_mean': 58.0, 'temp_max': 61.0, 'kilowatts': 0.42,
+ 'cap_kilowatts': 0.7, 'cap_percent': 60.0}
+'conditions  temperature 58.0°C mean / 61°C max    power 0.42 kW / 0.70 kW cap    60% of cap'</pre>
+      <p>The regression test pins that arithmetic on the reported values
+      (<code>tests/test_gpu_watch.py::test_a_declared_power_cap_is_a_watt_reading_scaled_to_kilowatts</code>).
+      Reverting only the scaling line makes it fail on <code>assert 700 == 0.7</code>
+      with the same <code>EXIT=1</code> the other controls report; the log is
+      <code>negative-control-repair.log</code> in the run directory.</p>
+    </section>
+  </main>
+</body>
+</html>
