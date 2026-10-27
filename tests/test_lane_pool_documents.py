@@ -328,12 +328,14 @@ def test_a_pool_document_reads_through_reckon_the_same_as_lane_json(tmp_path):
     """reckon's reader resolves a pool document exactly as it reads lane.json.
 
     The contract is that a second model's document is the same shape, so a
-    reckon backend pointing ``lane_document`` at it needs no reckon change.
+    reckon backend pointing its lane document at that file needs no reckon
+    change. The reader resolves a path through ``read_lane_document_file``;
+    ``read_lane_document`` takes the parsed object or its raw JSON text and
+    reports a path as malformed, so passing it a path tests nothing.
     Skipped, with its reason printed, where reckon is not importable.
     """
-    read_lane_document = pytest.importorskip(
-        "reckon.crew.lane_document", reason="reckon is not importable here"
-    ).read_lane_document
+    reason = "reckon is not importable here, so the contract cannot be read"
+    lane_document = pytest.importorskip("reckon.crew.lane_document", reason=reason)
     document = lane.build_lane_document(
         lane.LaneCapacity(
             model_id="fixture-a",
@@ -341,13 +343,23 @@ def test_a_pool_document_reads_through_reckon_the_same_as_lane_json(tmp_path):
             running=10,
             waiting=0,
             kv_occupancy=0.3,
+            preemptions=0,
+            prefix_hit_rate=0.4,
         ),
         refresh_interval=30,
     )
     document["lanes"] = {"fixture-a": "lane.json"}
-    lane.write_document(document, tmp_path / "lanes" / "fixture-a.json")
-    read = read_lane_document(tmp_path / "lanes" / "fixture-a.json")
-    assert "fixture-a" in read if isinstance(read, dict) else read is not None
+    destination = tmp_path / "lanes" / "fixture-a.json"
+    lane.write_document(document, destination)
+
+    read = lane_document.read_lane_document_file(destination)
+
+    assert read["malformed"] is False, read.get("detail")
+    assert read["unknown_fields"] == []
+    assert read["state"] == "measured"
+    assert read["running"] == 10
+    assert read["kv_occupancy"] == pytest.approx(0.3)
+    assert read["headroom"] == document["headroom"]
 
 
 def test_no_module_writes_a_lane_document_outside_the_composer():
