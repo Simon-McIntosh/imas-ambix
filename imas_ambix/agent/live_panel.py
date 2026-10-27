@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -747,8 +748,21 @@ def panel_engines(
     ]
     used: set[int] = set()
     entries: list[dict[str, Any]] = []
+    # A pool document that spans one engine is written from that engine's own
+    # reading and carries no engine id, so the model is the only key it offers.
+    # Both sides are counted first: the model joins such an entry only when one
+    # pool entry and one live reading carry it, which is a fact rather than a
+    # guess.
+    live_models: Counter[str] = Counter(
+        str(live.get("served_name")) for live in live_entries
+        if live.get("served_name")
+    )
+    unnamed_models: Counter[str] = Counter(
+        model for entry in pool
+        if (model := _pool_model(entry)) and _pool_identity(entry)[0] is None
+    )
     for live in live_entries:
-        match = _matching_engine(pool, used, live)
+        match = _matching_engine(pool, used, live, live_models, unnamed_models)
         if match is not None:
             used.add(match)
         entries.append(_engine_entry(pool[match] if match is not None
@@ -760,27 +774,44 @@ def panel_engines(
 
 
 def _matching_engine(
-    pool: list[dict[str, Any]], used: set[int], live: dict[str, Any]
+    pool: list[dict[str, Any]],
+    used: set[int],
+    live: dict[str, Any],
+    live_models: Counter[str],
+    unnamed_models: Counter[str],
 ) -> int | None:
     """The pool entry a live reading belongs to, or None when nothing tells.
 
     Identity is ``host:port``, which the pool entry carries and the receipt row
     does not. So the host narrows the pool to the engines on that node and the
-    served model separates them when the node carries more than one engine. A
-    node with two engines serving two models resolves on the model; a node with
+    served model separates them when the host carries more than one engine. A
+    host with two engines serving two models resolves on the model; a host with
     two engines serving one model has nothing left to separate them and yields
     no match, because pairing them by position is what gives an engine another
     engine's figures.
 
-    The model is also a cross-check on a single-candidate match: a node whose
+    The model is also a cross-check on a single-candidate match: a host whose
     only pool engine serves a different model is a reading the pool does not
     describe, and it is left unjoined rather than pinned to the wrong engine.
+
+    A pool document spanning one engine carries no engine id at all -- the
+    router composes it from that engine's own reading -- so it arrives with no
+    host. That engine is joined by its model, and only when the model is unique
+    on both sides: a fact about the record rather than a guess about order.
     """
     host = live.get("hostname")
-    if not isinstance(host, str) or not host:
-        return None
-    host = _host_name(host)
     model = live.get("served_name")
+    if isinstance(host, str) and host:
+        index = _match_on_host(pool, used, _host_name(host), model)
+        if index is not None:
+            return index
+    return _match_by_model_only(pool, used, model, live_models, unnamed_models)
+
+
+def _match_on_host(
+    pool: list[dict[str, Any]], used: set[int], host: str, model: Any
+) -> int | None:
+    """The entry on *host*, separated from its neighbours by *model*."""
     on_host = [
         index for index, engine in enumerate(pool)
         if index not in used and _pool_identity(engine)[0] == host
@@ -800,6 +831,27 @@ def _matching_engine(
     if model and entry_model and entry_model != model:
         return None
     return index
+
+
+def _match_by_model_only(
+    pool: list[dict[str, Any]],
+    used: set[int],
+    model: Any,
+    live_models: Counter[str],
+    unnamed_models: Counter[str],
+) -> int | None:
+    """The one host-less entry serving *model*, when the model names it alone."""
+    if not model:
+        return None
+    name = str(model)
+    if live_models.get(name) != 1 or unnamed_models.get(name) != 1:
+        return None
+    for index, engine in enumerate(pool):
+        if index in used or _pool_identity(engine)[0] is not None:
+            continue
+        if _pool_model(engine) == name:
+            return index
+    return None
 
 
 def _pool_identity(engine: dict[str, Any]) -> tuple[str | None, str | None]:
@@ -941,16 +993,32 @@ def _lane_document(path: str | Path, *, now: datetime | None = None) -> dict[str
     """
     target = Path(path)
     document = _read_document(target)
-    engines = _document_engines(document, standalone=False)
     index = document.get("lanes")
+    # One document per model, so an index naming more than one document is a
+    # lane serving more than one pool -- and this document is then the default
+    # pool's own, whatever it spans. A lane carrying a single pool keeps the
+    # document it has always had.
+    several = isinstance(index, dict) and len(
+        {name for name in index.values() if isinstance(name, str) and name}
+    ) > 1
+    engines = _document_engines(document, standalone=several)
     if isinstance(index, dict):
-        for name in index.values():
+        for model, name in index.items():
             if not isinstance(name, str) or not name:
                 continue
             other = target.parent / name
             if other == target:
                 continue
-            engines.extend(_document_engines(_read_document(other), standalone=True))
+            document_of_other = _read_document(other)
+            if isinstance(model, str) and model and not document_of_other.get(
+                "model_id"
+            ):
+                # The index is keyed by model, so a document that does not name
+                # its own still has one, and the entry needs it to be joined.
+                document_of_other = {**document_of_other, "model_id": model}
+            engines.extend(
+                _document_engines(document_of_other, standalone=True)
+            )
     if not engines:
         return document
     merged = dict(document)
@@ -975,9 +1043,10 @@ def _document_engines(
     A pool spanning several engines lists them under ``engines``. A pool
     spanning one is that engine's own document and carries no list, so it is an
     entry only where the document is known to stand for one engine on its own:
-    a pool named by the ``lanes`` index is, while the lane document is not --
-    it is also a one-engine lane's whole reading, and the recorder already names
-    the engine it serves.
+    a pool named by a ``lanes`` index that names several is, and so is the lane
+    document when it is one of those pools. A lane document holding the only
+    pool is not, because it is then the whole lane and the recorder already
+    names the engine it serves.
     """
     entries = [entry for entry in (document.get("engines") or [])
                if isinstance(entry, dict)]

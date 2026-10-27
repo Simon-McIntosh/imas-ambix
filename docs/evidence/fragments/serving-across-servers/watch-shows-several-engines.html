@@ -51,15 +51,18 @@
         <li><code>history.engines</code> carries one bin series per engine,
         and <code>outcomes.by_engine</code> counts each request's ending under
         the engine it ended on.</li>
-        <li><code>live_panel</code> joins the pool document's
-        <code>engines</code> array to the per-engine live entries by engine
-        identity -- the host narrows the pool to one node and the served model
-        separates the engines on it, a pair neither separates being left
-        unjoined rather than paired by position -- keeps an engine that appears
-        on only one side, and publishes a top-level <code>engines</code> array
-        only when there is more than one. Every pool document the lane's
-        <code>lanes</code> index names is read, so a second model served by a
-        single engine reaches the view as well.</li>
+        <li><code>live_panel</code> joins each pool entry to its own live
+        entry by engine identity -- the host narrows the pool to one node and
+        the served model separates the engines on it, a pair neither separates
+        being left unjoined rather than paired by position. A pool spanning one
+        engine is that engine's own reading and carries no engine id, so it
+        joins on the served model, and only when one pool entry and one live
+        reading carry it. The view keeps an engine that appears on only one
+        side and publishes a top-level <code>engines</code> array only when
+        there is more than one. Every pool document the lane's
+        <code>lanes</code> index names is read, and the lane document is one of
+        them, so a second model served by a single engine reaches the view as
+        its own joined row rather than as a second unjoined one.</li>
         <li><strong>Every one of those keys is absent for a single-engine
         document.</strong> The one-engine document is byte-identical to the
         base revision's <code>agent watch --json --live</code> output, and the

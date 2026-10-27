@@ -991,6 +991,30 @@ def test_two_serves_on_one_host_each_carry_their_own_figures(tmp_path: Path):
     assert again == {entry["model"]: entry["engine"] for entry in paneled}
 
 
+def _one_engine_pool_document(
+    model: str, *, availability: float, index: dict | None = None
+) -> dict:
+    """A pool spanning one engine, as the router publishes it.
+
+    The router composes such a document from that engine's own reading, so it
+    carries the reading's counters and the gate fields and no engine identity
+    at all: there is no ``engine_id``, ``hostname`` or ``host`` key to read.
+    """
+    document = {
+        "state": "measured",
+        "model_id": model,
+        "observed_at": _stamp(0),
+        "running": 6,
+        "waiting": 1,
+        "kv_occupancy": 0.37,
+        "availability_percent": availability,
+        "router_generation_gate": {"waiting": 1, "width": 12},
+    }
+    if index is not None:
+        document["lanes"] = index
+    return document
+
+
 def test_a_second_models_pool_document_reaches_the_engine_list(tmp_path: Path):
     """An engine list spans every model, not only the lane block's own pool.
 
@@ -998,48 +1022,69 @@ def test_a_second_models_pool_document_reaches_the_engine_list(tmp_path: Path):
     engines carries an ``engines`` array, so a second model served by a single
     engine is named nowhere but its own document under ``lanes/`` -- which the
     ``lanes`` index the lane document publishes is what points at.
+
+    Neither document names its engine, so the model is the only key either
+    offers, and the entry joins the recorder's reading for that model rather
+    than standing beside it as a second row for the same engine.
     """
     lanes = tmp_path / "lanes"
     lanes.mkdir()
+    index = {
+        "deepseek-v4-1-flash": "lane.json",
+        "glm-5.3": "lanes/glm-5-3.json",
+    }
     (tmp_path / "lane.json").write_text(
         json.dumps(
-            {
-                "state": "measured",
-                "model_id": "deepseek-v4-1-flash",
-                "observed_at": _stamp(0),
-                "lanes": {
-                    "deepseek-v4-1-flash": "lane.json",
-                    "glm-5.3": "lanes/glm-5-3.json",
-                },
-                "engines": [
-                    _pool_engine("98dci4-gpu-0003:18810", "deepseek-v4-1-flash"),
-                ],
-            }
+            _one_engine_pool_document(
+                "deepseek-v4-1-flash", availability=64.0, index=index
+            )
         ),
         encoding="utf-8",
     )
     (lanes / "glm-5-3.json").write_text(
-        json.dumps(
-            {
-                "state": "measured",
-                "model_id": "glm-5.3",
-                "engine_id": "98dci4-gpu-0007:18811",
-                "observed_at": _stamp(0),
-            }
-        ),
+        json.dumps(_one_engine_pool_document("glm-5.3", availability=93.0)),
         encoding="utf-8",
+    )
+    _write(
+        tmp_path,
+        "deepseek-v4-1-flash-4811.jsonl",
+        _serve_rows(
+            hostname="98dci4-gpu-0003",
+            served_name="deepseek-v4-1-flash",
+            job_id=4811,
+            generation_step=500.0,
+        ),
+    )
+    _write(
+        tmp_path,
+        "glm-5-3-5200.jsonl",
+        _serve_rows(
+            hostname="98dci4-gpu-0007",
+            served_name="glm-5.3",
+            job_id=4812,
+            generation_step=250.0,
+        ),
     )
 
     document = _lane_document(tmp_path / "lane.json")
+    entries = panel_engines(
+        document, live_entries(tmp_path, now=BASE + timedelta(seconds=10))
+    )
 
-    assert [entry["engine_id"] for entry in document["engines"]] == [
-        "98dci4-gpu-0003:18810",
-        "98dci4-gpu-0007:18811",
-    ]
-    assert {entry["model"] for entry in panel_engines(document, [])} == {
-        "deepseek-v4-1-flash",
-        "glm-5.3",
-    }
+    # One row per engine: the second model's document is an engine entry, and
+    # the default pool's is too, and neither is joined to the other's reading.
+    assert len(entries) == 2
+    by_model = {entry["model"]: entry for entry in entries}
+    assert set(by_model) == {"deepseek-v4-1-flash", "glm-5.3"}
+    for model, rate, availability in (
+        ("deepseek-v4-1-flash", 100.0, 64.0),
+        ("glm-5.3", 50.0, 93.0),
+    ):
+        entry = by_model[model]
+        assert entry["live"], f"{model} kept no reading of its own"
+        assert entry["tok_s"] == pytest.approx(rate)
+        assert entry["available"] == pytest.approx(availability)
+        assert entry["router_q"] == 1
 
 
 def test_a_lane_document_with_no_index_reads_as_it_always_did(tmp_path: Path):
