@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="71">
+<meta name="plan-version" content="72">
 <meta name="plan-modified" content="2026-10-27">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;,&quot;serving-across-servers#s10&quot;],&quot;s15&quot;:[&quot;serving-across-servers#s16&quot;,&quot;serving-across-servers#s5&quot;],&quot;s7&quot;:[&quot;serving-across-servers#s5&quot;],&quot;s4&quot;:[&quot;serving-across-servers#s16&quot;],&quot;s5&quot;:[&quot;serving-across-servers#s4&quot;,&quot;serving-across-servers#s9&quot;],&quot;s6&quot;:[&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -825,6 +825,9 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20261027T105154049636-review-of-agent-watch-points-to-llm-watch-cffb0f4043e8" data-who="reckon-build" data-when="2026-10-27T11:26:30.814Z">
     <div class="r-comment-body"><p>independent review of r-20261027T090551608204-agent-watch-points-to-llm-watch at reviewed_head_sha cffb0f4043e8bd6cc816d156e603ebee0ac09714 against reviewed_base_sha afa37ff43102a1d9ecc055781817c33529e88b09, stored parsed with goal_fidelity 19, evidence 15, scope_discipline 18, durability 16, fit 17, reuse 16 (total 101), added_failure_count 0, no blocking finding and five non-blocking ones; the earlier blocking memory-measurement defect is repaired and I reproduced it as repaired (71344 kB at t=60 s to 72272 kB at t=600 s, +1.30 %, on the console script's own pid 1028 read from /proc/1028/cmdline)</p></div>
+</div>
+<div class="r-comment" data-section="s9" data-id="c-run-r-20261027T090551608204-agent-watch-points-to-llm-watch" data-who="reckon-build" data-when="2026-10-27T10:42:46Z">
+    <div class="r-comment-body"><p>agent watch without --json prints one line naming llm-watch and exits 0 (watch_text and every text-render helper removed; --json and --json --live unchanged), and a ten-minute llm-watch --live run of the console script itself (pid 1028, /home/ITER/mcintos/Code/imas-ambix/.venv/bin/python3 .../llm-watch --live, cmdline read from /proc/1028/cmdline) holds resident memory at 71344 kB at t=60 s and 72272 kB at the end (+1.30 %), with 104 distinct refresh stamps over a 589 s span and four intervals longer than 6 s reported</p></div>
 </div>
 <div class="r-comment" data-section="_top" data-id="c-wave-order" data-who="reckon-build" data-when="2026-10-27T02:30:00Z">
     <div class="r-comment-body"><p>Waits added so that no two nodes write the same file at once. <code>router.py</code> is written by §16, then §4, §5 and §7, in that order. <code>cli.py</code> is written by §9, then §5, then §15. <code>watch.py</code> is written by §9, then §6. §9 and §16 run first. §11 is operator rollout and is not dispatched to a worker. §15's node builds the placement code and runs the consumer search; the move itself is a lane cycle under §11.</p></div>
