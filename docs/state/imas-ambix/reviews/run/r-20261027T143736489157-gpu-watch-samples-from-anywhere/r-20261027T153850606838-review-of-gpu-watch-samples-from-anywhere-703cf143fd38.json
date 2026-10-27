@@ -1,0 +1,63 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_sites": [
+    "pyproject.toml:166 console script gpu-watch = imas_ambix.agent.gpu_watch:main",
+    "imas_ambix/agent/gpu_watch/__init__.py:12 re-exports view.main as the console entry",
+    "imas_ambix/agent/gpu_watch/view.py:572 sample_readings constructs launcher.RemoteSampler, reaching the one-shot reason at launcher.py:296",
+    "imas_ambix/agent/gpu_watch/view.py:701 _run_live constructs launcher.SamplerPool",
+    "imas_ambix/agent/gpu_watch/view.py:717 _run_live calls _live_tick once per interval",
+    "imas_ambix/agent/gpu_watch/view.py:811 main dispatches --live to _run_live",
+    "imas_ambix/agent/gpu_watch/launcher.py:382 SamplerPool.ensure starts the stderr reader thread"
+  ],
+  "completed_at": "2026-10-27T16:32:57.613Z",
+  "dispatched_at": "2026-10-27T16:15:19Z",
+  "findings": [
+    {
+      "file": "tests/test_gpu_watch.py",
+      "line": 578,
+      "severity": "non-blocking",
+      "text": "test_two_spellings_of_one_machine_render_the_same_cards guards only the launch half of the keying repair. It asserts pool.launches('98dci4-gpu-0003.iter.org') == 0, which reddens if ensure were keyed per declaration, but it never inspects a tick taken before any sample has arrived, which is the only state reaching view.py:665 pool.state(machine). Reverting that line to the declaration's own spelling, the defect the previous review reported, renders the second declaration as 'no job to sample' and leaves all 65 tests green."
+    },
+    {
+      "file": "imas_ambix/agent/gpu_watch/launcher.py",
+      "line": 296,
+      "severity": "non-blocking",
+      "text": "The one-shot path's new reason, reason=_last_line(err) or NO_SAMPLES_REASON, has no test. The fake srun mode that writes a stderr line and streams nothing ('noisy-empty', tests/test_gpu_watch.py:350) is used only by the live test at line 562, and the one-shot no-sample test at line 458 drives mode='empty', which writes no stderr. Replacing line 296 with reason=NO_SAMPLES_REASON leaves the suite green, so the one-shot half of the stderr-reason change is unguarded."
+    },
+    {
+      "file": "imas_ambix/agent/gpu_watch/view.py",
+      "line": 606,
+      "severity": "non-blocking",
+      "text": "_live_groups re-implements the local/remote partition that sample_readings performs thirteen lines above (view.py:589-593), and _live_tick re-derives _machine(entry) a third time at view.py:661. The same commit edited the sample_readings loop without pointing it at the helper, so the split into local and per-machine groups now exists in three places that must stay in step."
+    },
+    {
+      "file": "gate1.log",
+      "line": 1,
+      "severity": "non-blocking",
+      "text": "The reviewed run again records no baseline_suite or after_suite, and its only base-labelled gate log names dedeb919 while reporting the a3807637 test count, so it is not a pre-change arm. The head logs are sound (gate.log 65 passed EXIT=0, ruff EXIT=0, negative-control EXIT=1 on a named failing id) but added_failure_count rests on the after arm alone. This is the same evidence defect the previous review recorded at this line, unfixed."
+    }
+  ],
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The source goal is that gpu-watch run from a login or fleet node samples each declared server's cards and host through one long-lived srun --overlap step with --live redrawing from its stream; the reviewed range a3807637..703cf143 repairs the two defects the previous review recorded, at imas_ambix/agent/gpu_watch/view.py:649-665 (one machine keyed once for ensure, drain and state) and imas_ambix/agent/gpu_watch/launcher.py:403 (the step's stderr drained into a bounded tail).\nVERDICT done_when: The done_when names the two-file pytest gate and whole-tree ruff; the range adds tests at tests/test_gpu_watch.py:527, 559 and 578 plus a negative control, gate.log records \"65 passed in 1.07s\" with EXIT=0 at 82e2e789, ruff.log records \"All checks passed!\" with EXIT=0, and the same gate re-run at the reviewed head records 65 passed with EXIT=0.\nVERDICT write_paths: The declared fence covers imas_ambix/agent/gpu_watch, imas_ambix/agent/node_probe.py, tests/test_gpu_watch.py and the serving-across-servers evidence fragment; the diff touches launcher.py, view.py, tests/test_gpu_watch.py and the fragment, every one inside it.\nVERDICT manifest: Read; it states status complete, commits 20d521c3, a3807637, 82e2e789 and 703cf143, a gate of 65 passed, ruff exit 0, a negative-control log at EXIT=1 on test_a_steps_stderr_larger_than_a_pipe_buffer_does_not_stop_the_stream and outside_scope none, but it records no baseline_suite and no after_suite.\nVERDICT diff: Read commit by commit against a3807637; 82e2e789 adds _last_line, a stderr reader thread with a 20-line tail and a stderr-derived not-sampled reason to launcher.py, extracts the live loop into _live_groups and _live_tick keyed by the scheduler machine name in view.py, and adds three fake-srun tests, while 703cf143 adds 22 lines to the evidence fragment and changes no source or test line.\nCALL_SITES: pyproject.toml:166 console script gpu-watch = imas_ambix.agent.gpu_watch:main, imas_ambix/agent/gpu_watch/__init__.py:12 re-exports view.main as the console entry, imas_ambix/agent/gpu_watch/view.py:572 sample_readings constructs launcher.RemoteSampler and so reaches launcher.py:296, imas_ambix/agent/gpu_watch/view.py:701 _run_live constructs launcher.SamplerPool, imas_ambix/agent/gpu_watch/view.py:717 _run_live calls _live_tick once per interval, imas_ambix/agent/gpu_watch/view.py:811 main dispatches --live to _run_live, imas_ambix/agent/gpu_watch/launcher.py:382 SamplerPool.ensure starts the stderr reader thread\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: view.py:649-665 keys ensure, drain and state by the machine name and launcher.py:403 drains the step's stderr, which are the two repairs the reviewed range set out to make.\nSCORE evidence: 14\nJUSTIFICATION evidence: gate.log records \"65 passed in 1.07s\" with EXIT=0 and ruff.log EXIT=0 while negative-control.log records EXIT=1 on a named failing id, but no readable base arm exists (gate1.log:1 names dedeb919 and reports the a3807637 count) and the keying repair is evidenced only by the fake suite, not by a real --live run after the change.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every path in the diff, imas_ambix/agent/gpu_watch/launcher.py, imas_ambix/agent/gpu_watch/view.py, tests/test_gpu_watch.py and the evidence fragment, lies inside the source prompt's FENCE SCOPE.\nSCORE durability: 13\nJUSTIFICATION durability: tests/test_gpu_watch.py:527 reddens under the recorded negative control when the stderr reader is stubbed out, but the state lookup at view.py:665 and the one-shot reason at launcher.py:296 have no assertion that fails if each is reverted.\nSCORE fit: 18\nJUSTIFICATION fit: launcher.py:174 _last_line and view.py:606 _live_groups follow the package's dataclass and function-local-import idiom, and no path, symbol, docstring or commit message carries a plan, version or ticket label.\nSCORE reuse: 15\nJUSTIFICATION reuse: no owner of a streaming stderr drain exists (node_probe.py:187 run_capture uses subprocess.run and cannot stream), but view.py:606 _live_groups duplicates the local/remote partition already written at view.py:589-593.\nFINDING tests/test_gpu_watch.py:578 non-blocking: test_two_spellings_of_one_machine_render_the_same_cards guards only the launch half of the keying repair; it asserts pool.launches(\"98dci4-gpu-0003.iter.org\") == 0, which reddens if ensure were keyed per declaration, but it never inspects a tick taken before any sample has arrived, which is the only state that reaches view.py:665 pool.state(machine). Reverting that line to the declaration's own spelling, the defect the previous review reported, renders the second declaration as \"no job to sample\" and leaves all 65 tests green.\nFINDING imas_ambix/agent/gpu_watch/launcher.py:296 non-blocking: the one-shot path's new reason, reason=_last_line(err) or NO_SAMPLES_REASON, has no test. The fake srun mode that writes a stderr line and streams nothing (\"noisy-empty\", tests/test_gpu_watch.py:350) is used only by the live test at line 562, and the one-shot no-sample test at line 458 drives mode=\"empty\", which writes no stderr. Replacing line 296 with reason=NO_SAMPLES_REASON leaves the suite green, so the one-shot half of the stderr-reason change is unguarded.\nFINDING imas_ambix/agent/gpu_watch/view.py:606 non-blocking: _live_groups re-implements the local/remote partition that sample_readings performs thirteen lines above at view.py:589-593, and _live_tick re-derives _machine(entry) a third time at view.py:661. The same commit edited the sample_readings loop without pointing it at the helper, so the split into local and per-machine groups now exists in three places that must stay in step.\nFINDING gate1.log:1 non-blocking: the reviewed run again records no baseline_suite or after_suite, and its only base-labelled gate log names dedeb919 while reporting the a3807637 test count, so it is not a pre-change arm. The head logs are sound (gate.log 65 passed EXIT=0, ruff EXIT=0, negative-control EXIT=1 on a named failing id) but added_failure_count rests on the after arm alone. This is the same evidence defect the previous review recorded at this line, unfixed.\n",
+  "review_run_id": "r-20261027T153850606838-review-of-gpu-watch-samples-from-anywhere-703cf143fd38",
+  "reviewed_base_sha": "a380763740e739452c3c75d12bf56af4f254ee62",
+  "reviewed_head_sha": "703cf143fd38185ce40f18bf2f5dcbaa5a1a06c9",
+  "reviewed_run_id": "r-20261027T143736489157-gpu-watch-samples-from-anywhere",
+  "scores": {
+    "durability": 13,
+    "evidence": 14,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "reuse": 15,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "suite_arms_read": {
+    "after_suite": "gate.log header '# revision 82e2e789e4792acf4b3b565d4299ccb4628302b9' with the node's own worktree and the literal command UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv PYTHONPATH=$PWD uv run --no-sync pytest -p no:cacheprovider tests/test_gpu_watch.py tests/test_node_probe.py, summary '65 passed in 1.07s', last line EXIT=0, zero failing ids. The reviewed head 703cf143 differs from 82e2e789 only by the docs-only commit (22 insertions in the evidence fragment), and the same command re-run at 703cf143 recorded 65 passed in 1.00s EXIT=0.",
+    "baseline_suite": "unreadable. The reviewed manifest records neither baseline_suite nor after_suite, and the only log naming a pre-change revision is gate1.log, whose header says 'revision: dedeb9197d13fa1f6896027c19ca02a961550cbd' while its body reports '62 passed'. 62 is the a3807637 collection count (the reviewed range adds exactly three test functions), so gate1.log is not a measurement of the revision it names. added_failure_count is derived from the after arm alone."
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T16:33:00.663163+00:00",
+  "total": 97
+}
