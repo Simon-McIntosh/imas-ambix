@@ -343,7 +343,6 @@ def test_peak_waiting_is_sampled_after_drain(tmp_path):
 def test_real_validation_closure_enforces_completion_threshold(
     tmp_path, monkeypatch, tokens, outcome
 ):
-    import io
     import urllib.request
     from types import SimpleNamespace
 
@@ -383,16 +382,72 @@ def test_real_validation_closure_enforces_completion_threshold(
             pytest.fail(str(args))
         return SimpleNamespace(returncode=0, stderr="")
 
+    class Answer:
+        """A urlopen response the engine's own readers can consume.
+
+        The validator reads ``status`` and ``read()`` through the bench
+        probes and ``headers`` through the routed completion check, so a
+        bare file object is not a substitute for the engine's answer.
+        """
+
+        def __init__(self, payload, headers=None):
+            self._body = json.dumps(payload).encode()
+            self.status = 200
+            self.headers = headers or {}
+
+        def read(self):
+            return self._body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
     def completion(request, **kwargs):
-        requests.append(json.loads(request.data))
-        count = tokens if world.submits == 1 else 200
-        return io.BytesIO(
-            json.dumps(
+        body = json.loads(request.data)
+        if request.full_url.endswith("/v1/messages"):
+            return Answer(
                 {
-                    "usage": {"completion_tokens": count},
-                    "choices": [{"finish_reason": "length"}],
+                    "stop_reason": "tool_use",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "get_weather",
+                            "input": {"location": "Cadarache, France"},
+                        }
+                    ],
                 }
-            ).encode()
+            )
+        if body.get("tools"):
+            return Answer(
+                {
+                    "choices": [
+                        {
+                            "finish_reason": "tool_calls",
+                            "message": {
+                                "tool_calls": [
+                                    {
+                                        "function": {
+                                            "name": "get_weather",
+                                            "arguments": (
+                                                '{"location": "Cadarache, France"}'
+                                            ),
+                                        }
+                                    }
+                                ]
+                            },
+                        }
+                    ],
+                }
+            )
+        requests.append(body)
+        count = tokens if world.submits == 1 else 200
+        return Answer(
+            {
+                "usage": {"completion_tokens": count},
+                "choices": [{"finish_reason": "length"}],
+            }
         )
 
     monkeypatch.setattr(cli.subprocess, "run", command)
