@@ -87,6 +87,21 @@ UNATTRIBUTED = "unattributed"
 #: Projects listed in the detail table before the rest fold into one row.
 DETAIL_ROWS = 6
 
+#: The widths of the engines table's columns: a model and an engine id, then one
+#: figure column each. The two names are sized so a model id survives whole and
+#: two engines on one node are told apart by their ports, which a single column
+#: carrying both did not.
+ENGINE_WIDTHS = (20, 17) + (9,) * 7
+
+#: The width of the detail table's engine column: a node name and a port.
+ENGINE_CELL_WIDTH = 20
+
+#: The width of an engine's name on its own history line. The strips are thirty
+#: bins wide, so an engine's name is a column the total line does not spend: it
+#: is sized to what a node name and a port need, no wider, so the line still
+#: fits a hundred-column terminal.
+ENGINE_STRIP_WIDTH = 16
+
 #: Per-worker decode reference, tok/s: the best single-stream rate measured on
 #: this deployment. The per-worker cell is coloured against this rather than
 #: against an absolute rate, so the figure answers whether each worker is
@@ -176,12 +191,22 @@ def engine_refusal(document: dict[str, Any], engine_id: str) -> str | None:
     asked for. A document that names no engine at all refuses every id and says
     so, because there is no served engine to name.
     """
+    for entry in document_engines(document):
+        if engine_id in _engine_names(entry):
+            return None
     served = served_engine(document)
     if engine_id == served:
         return None
-    if served is None:
+    if served is None and not document_engines(document):
         return (f"llm-watch: this document names no served engine, so "
                 f"{engine_id!r} cannot be selected")
+    known = sorted(
+        {_engine_display(entry.get("engine") or entry.get("engine_id"))
+         for entry in document_engines(document)}
+    )
+    if known:
+        return (f"llm-watch: this document describes "
+                f"{', '.join(known)}, not {engine_id!r}")
     return f"llm-watch: this view serves {served} only, not {engine_id!r}"
 
 
@@ -468,6 +493,188 @@ def bands(document: dict[str, Any]) -> list[object]:
     return parts
 
 
+# ── several engines ──────────────────────────────────────────────────
+
+
+def document_engines(document: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every engine entry the document carries, in the order it lists them."""
+    return [
+        entry for entry in (document.get("engines") or [])
+        if isinstance(entry, dict)
+    ]
+
+
+def multi_engine(document: dict[str, Any]) -> bool:
+    """Whether the document describes more than one engine.
+
+    One engine is the whole of today's view: no router line, no engines table,
+    no engine column. The engine dimension is drawn only when there is a second
+    engine to tell the first apart from, so a single-engine reader's document
+    and render are unchanged by it.
+    """
+    return len(document_engines(document)) > 1
+
+
+def engine_document(
+    document: dict[str, Any], entry: dict[str, Any]
+) -> dict[str, Any]:
+    """The whole view document, narrowed to one engine's own figures.
+
+    The bands read a ``live`` block and a lane document. Both exist per engine
+    -- the live entry from the recorder and the pool document's own engine
+    document -- so the engine's two are put where the bands look and the rest
+    of the document is carried through, keeping the endpoint and the ledger.
+    """
+    lane = dict(document.get("lane") or {})
+    gate = entry.get("gate") or {}
+    for key, value in gate.items():
+        if key != "engines":
+            lane[key] = value
+    if entry.get("model"):
+        lane["model_id"] = entry["model"]
+    return {**document, "lane": lane, "live": entry.get("live") or {}}
+
+
+def _pressure(entry: dict[str, Any]) -> float:
+    """How hard an engine is working, for choosing which bands to draw."""
+    running = _number(entry, "running")
+    available = _number(entry, "available")
+    if running is None:
+        return -1.0
+    return running if available is None else running + 100.0 - available
+
+
+def selected_engine(
+    document: dict[str, Any], engine_id: str | None = None
+) -> dict[str, Any] | None:
+    """The engine whose bands are drawn: the named one, else the busiest.
+
+    With several engines the terminal cannot hold every engine's three bands,
+    so one engine's are drawn. ``--engine`` chooses; with no choice, the engine
+    under most pressure is the one a reader needs first.
+    """
+    engines = document_engines(document)
+    if not engines:
+        return None
+    if engine_id:
+        for entry in engines:
+            if engine_id in _engine_names(entry):
+                return entry
+        return None
+    return max(engines, key=_pressure)
+
+
+def _engine_names(entry: dict[str, Any]) -> set[str]:
+    """Every id an engine entry answers to on the command line."""
+    names = {
+        value for value in (entry.get("engine"), entry.get("engine_id"))
+        if isinstance(value, str) and value
+    }
+    return names | {_engine_display(name) for name in names}
+
+
+def _engine_display(engine_id: object) -> str:
+    """An engine id as the tables print it: short node name and port.
+
+    The record names an upstream by its origin, and a registration names the
+    host as the node reported it. Both spellings reduce to the node name the
+    registry's engine ids carry, so one engine reads the same in the engines
+    table, the account detail and the history strip.
+    """
+    if not isinstance(engine_id, str) or not engine_id.strip():
+        return DASH
+    text = engine_id.strip()
+    if "://" in text:
+        text = text.split("://", 1)[1]
+    text = text.split("/", 1)[0]
+    host, separator, port = text.rpartition(":")
+    if not separator:
+        return text
+    from imas_ambix.agent.registry import _host_name
+
+    return f"{_host_name(host)}:{port}"
+
+
+def _count(total: int, noun: str) -> str:
+    return f"{total} {noun}" if total == 1 else f"{total} {noun}s"
+
+
+def router_line(document: dict[str, Any]) -> str:
+    """One line naming the router, when the reading was taken, and its engines.
+
+    The engine tables below are all of one document, so the line states how
+    much that document spans -- servers, engines and models -- before a reader
+    starts attributing rows to one of them.
+    """
+    engines = document_engines(document)
+    models = {str(entry["model"]) for entry in engines if entry.get("model")}
+    servers = {
+        name for entry in engines if (name := _server_name(entry)) is not None
+    }
+    bits = ["[bold]router[/]"]
+    address = document.get("router")
+    if isinstance(address, str) and address:
+        bits.append(f"[cyan]{address}[/]")
+    stamp = (document.get("lane") or {}).get("observed_at")
+    if isinstance(stamp, str) and len(stamp) >= 19:
+        bits.append(stamp[11:19])
+    bits.append(_count(len(servers), "server"))
+    bits.append(_count(len(engines), "engine"))
+    bits.append(_count(len(models), "model"))
+    return " [dim]·[/] ".join(bits)
+
+
+def _server_name(entry: dict[str, Any]) -> str | None:
+    """The node an engine entry runs on, without its port or cluster prefix."""
+    host = entry.get("host") or entry.get("engine")
+    if not isinstance(host, str) or not host:
+        return None
+    text = host.split("://", 1)[-1].split("/", 1)[0].split(":", 1)[0]
+    from imas_ambix.agent.registry import _host_name
+
+    return _host_name(text)
+
+
+def engines_table(
+    document: dict[str, Any], *, engine: str | None = None
+) -> Table:
+    """One row per engine: its throughput and its gate's room, on one grid.
+
+    The figures are the engines table's own: the rate and the time to first
+    token are the recorder's, the router queue and the available percentage are
+    the router's, and the KV pool is the engine's own counter. A figure a
+    source did not publish is a dash, never a zero.
+    """
+    table = _table(
+        ("model", "engine", "running", "router q", "tok/s", "each",
+         "ttft s", "kv pool %", "avail %"),
+        widths=ENGINE_WIDTHS,
+        left=(0, 1),
+    )
+    chosen = selected_engine(document, engine)
+    for entry in document_engines(document):
+        queue = _number(entry, "router_q")
+        kv_pool = _number(entry, "kv_pool")
+        available = _number(entry, "available")
+        table.add_row(
+            str(entry.get("model") or DASH),
+            _engine_display(entry.get("engine") or entry.get("engine_id")),
+            f"[cyan]{_number(entry, 'running'):.1f}[/]"
+            if _number(entry, "running") is not None else DASH,
+            f"[red]{queue:.0f}[/]" if queue is not None and queue >= 1
+            else f"[dim]{queue:.0f}[/]" if queue is not None else DASH,
+            fmt_rate(_number(entry, "tok_s")),
+            f"{_number(entry, 'per_stream'):.1f}"
+            if _number(entry, "per_stream") is not None else DASH,
+            f"{_number(entry, 'ttft'):.1f}"
+            if _number(entry, "ttft") is not None else DASH,
+            pct(100.0 * kv_pool) if kv_pool is not None else DASH,
+            pct(available, "good") if available is not None else DASH,
+            style="bold" if entry is chosen else "",
+        )
+    return table
+
+
 # ── the two levels of the running-workers view ───────────────────────
 
 
@@ -480,14 +687,25 @@ def _heading(label: str, window_seconds: object) -> str:
     return label
 
 
-def _table(heads: Iterable[str]) -> Table:
+def _table(
+    heads: Iterable[str],
+    *,
+    label_width: int = LABEL_WIDTH,
+    cell_width: int = CELL_WIDTH,
+    widths: tuple[int, ...] | None = None,
+    left: tuple[int, ...] = (0,),
+) -> Table:
     table = Table(box=box.SIMPLE_HEAD, padding=(0, 1), expand=False,
                   pad_edge=False, header_style="dim")
     for index, name in enumerate(heads):
+        if widths is not None:
+            width = widths[index]
+        else:
+            width = label_width if index == 0 else cell_width
         table.add_column(
             name,
-            justify="left" if index == 0 else "right",
-            width=LABEL_WIDTH if index == 0 else CELL_WIDTH,
+            justify="left" if index in left else "right",
+            width=width,
             no_wrap=True,
         )
     return table
@@ -546,6 +764,14 @@ def accounts_table(callers: dict[str, Any], *, account: str | None = None) -> ob
     return table
 
 
+def _dominant_engine(row: dict[str, Any]) -> str | None:
+    """The engine one row's held time went to most, when a split was published."""
+    by_engine = row.get("held_by_engine")
+    if not isinstance(by_engine, dict) or not by_engine:
+        return None
+    return max(by_engine, key=lambda name: by_engine[name])
+
+
 def _detail_rows(
     callers: dict[str, Any], account: str, sessions: bool
 ) -> list[dict[str, Any]]:
@@ -566,6 +792,7 @@ def _detail_rows(
                 "held": caller.get("held"),
                 "held_per_run": caller.get("held_per_run"),
                 "mean_gate_wait_s": caller.get("mean_gate_wait_s"),
+                "engine": _dominant_engine(caller),
             }
             for caller in (callers.get("callers") or [])
             if caller.get("account") == account
@@ -579,6 +806,7 @@ def _detail_rows(
                 "held": row.get("held"),
                 "held_per_run": row.get("held_per_run"),
                 "mean_gate_wait_s": row.get("mean_gate_wait_s"),
+                "engine": _dominant_engine(row),
             }
             for row in (callers.get("projects") or [])
             if row.get("account") == account
@@ -588,7 +816,11 @@ def _detail_rows(
 
 
 def detail_table(
-    callers: dict[str, Any], *, account: str | None, sessions: bool = False
+    callers: dict[str, Any],
+    *,
+    account: str | None,
+    sessions: bool = False,
+    engines: bool = False,
 ) -> object:
     """One account's projects, or its sessions, heaviest first.
 
@@ -612,16 +844,22 @@ def detail_table(
             f"[dim]{name} holds nothing in the window — no finished request "
             f"in the record named it[/]"
         )
-    heads = (
-        (_heading(name, callers.get("window_seconds")),
-         "session" if sessions else "sessions",
-         "runs", "in use", "per run", "wait s")
+    head = [_heading(name, callers.get("window_seconds"))]
+    if engines:
+        head.append("engine")
+    head.extend(("session" if sessions else "sessions",
+                 "runs", "in use", "per run", "wait s"))
+    table = _table(
+        head,
+        label_width=LABEL_WIDTH,
+        cell_width=ENGINE_CELL_WIDTH if engines else CELL_WIDTH,
     )
-    table = _table(heads)
+    blank = DASH if engines else ""
     for row in rows[:DETAIL_ROWS]:
         wait = row.get("mean_gate_wait_s")
         table.add_row(
             row["label"],
+            *((_engine_display(row.get("engine")),) if engines else ()),
             (row.get("session") or DASH) if sessions
             else f"{row.get('sessions') or 0}",
             f"{row.get('runs') or 0}" if row.get("runs") is not None else DASH,
@@ -633,8 +871,9 @@ def detail_table(
     folded = rows[DETAIL_ROWS:]
     if folded:
         held = sum(float(row.get("held") or 0.0) for row in folded)
-        table.add_row(f"+{len(folded)} more", "", "", f"{held:.1f}", "", "",
-                      style="dim")
+        table.add_row(f"+{len(folded)} more",
+                      *((blank,) if engines else ()),
+                      "", "", f"{held:.1f}", "", "", style="dim")
     return table
 
 
@@ -662,10 +901,33 @@ def history_strip(callers: dict[str, Any], lane: dict[str, Any]) -> object:
     width = _number(gate, "effective_width")
     window = history.get("window_seconds")
     label = _heading("history", window)
-    return Text.from_markup(
+    lines = [
         f"{label}   in flight [bold]{spark(occupancy, width)}[/]"
         f"   wait [cyan]{spark(waits)}[/]"
-    )
+    ]
+    # One line per engine, on the same two strips, so a reader of a lane of
+    # several engines can see which one is filling rather than only that the
+    # lane is. The engine's own bins are the same quantity as the total's, so
+    # two draws are comparable; the label column is matched to the total's.
+    for entry in history.get("engines") or []:
+        if not isinstance(entry, dict):
+            continue
+        engine_bins = [
+            bin_ for bin_ in (entry.get("bins") or []) if isinstance(bin_, dict)
+        ]
+        if not engine_bins:
+            continue
+        name = _engine_display(entry.get("engine"))
+        engine_occupancy = [float(b.get("occupancy") or 0.0) for b in engine_bins]
+        engine_waits = [float(b.get("gate_wait_p50_s") or 0.0) for b in engine_bins]
+        lines.append(
+            f"{' ' * len(label)}   {name:<{ENGINE_STRIP_WIDTH}}"
+            f" [bold]{spark(engine_occupancy, width)}[/]"
+            f"   wait [cyan]{spark(engine_waits)}[/]"
+        )
+    if len(lines) == 1:
+        return Text.from_markup(lines[0])
+    return Group(*(Text.from_markup(line) for line in lines))
 
 
 def outcomes_line(callers: dict[str, Any]) -> object:
@@ -684,15 +946,40 @@ def outcomes_line(callers: dict[str, Any]) -> object:
             f"[yellow]outcomes unavailable[/][dim] — {reason}[/]"
         )
     label = _heading("outcomes", outcomes.get("window_seconds"))
-    completed = outcomes.get("completed") or 0
-    aborted = outcomes.get("aborted") or 0
-    failed = outcomes.get("failed") or 0
-    expired = outcomes.get("gate_expired") or 0
-    failed_s = f"[red]{failed:.0f} failed[/]" if failed else "0 failed"
-    return Text.from_markup(
-        f"{label}   {completed:.0f} completed · {aborted:.0f} aborted · "
-        f"{failed_s} · {expired:.0f} expired at the end"
-    )
+
+    def _line(completed: int, aborted: int, failed: int, expired: int) -> str:
+        failed_s = f"[red]{failed:.0f} failed[/]" if failed else "0 failed"
+        return (
+            f"{completed:.0f} completed · {aborted:.0f} aborted · "
+            f"{failed_s} · {expired:.0f} expired at the end"
+        )
+
+    lines = [
+        f"{label}   " + _line(
+            outcomes.get("completed") or 0,
+            outcomes.get("aborted") or 0,
+            outcomes.get("failed") or 0,
+            outcomes.get("gate_expired") or 0,
+        )
+    ]
+    # One line per engine under the total, for the same reason the history
+    # carries one per engine: a lane in which one engine failed every request it
+    # accepted and another completed them all reads as a healthy lane in the
+    # total alone.
+    for entry in outcomes.get("by_engine") or []:
+        name = _engine_display(entry.get("engine"))
+        lines.append(
+            f"{' ' * len(label)}   {name:<{ENGINE_STRIP_WIDTH}} "
+            + _line(
+                entry.get("completed") or 0,
+                entry.get("aborted") or 0,
+                entry.get("failed") or 0,
+                entry.get("gate_expired") or 0,
+            )
+        )
+    if len(lines) == 1:
+        return Text.from_markup(lines[0])
+    return Group(*(Text.from_markup(line) for line in lines))
 
 
 def ledger_table(
@@ -714,8 +1001,17 @@ def ledger_table(
             "[yellow]ledger unavailable[/][dim] — the published watch "
             "document carries no period rows[/]"
         )
-    table = _table(("ledger", "tok in", "cached %", "tok out", "util %",
-                    "cost $", "window"))
+    # A ledger of several models is one table with a model column rather than
+    # several tables: the rows are the same periods, and stacking one model's
+    # periods under another's would put two rows labelled "3d" in one table with
+    # nothing between them saying which model priced either.
+    models = {str(row.get("model")) for row in rows if row.get("model")}
+    grouped = len(models) > 1
+    head = ("ledger", "model", "tok in", "cached %", "tok out", "util %",
+            "cost $", "window") if grouped else (
+        "ledger", "tok in", "cached %", "tok out", "util %", "cost $", "window")
+    widths = ((LABEL_WIDTH, 20) + (CELL_WIDTH,) * 6) if grouped else None
+    table = _table(head, widths=widths)
     for row in rows:
         tokens_in = float(row.get("tokens_in") or 0.0)
         cached = float(row.get("cached") or 0.0)
@@ -727,6 +1023,7 @@ def ledger_table(
         cost = row.get("cost")
         table.add_row(
             str(row.get("label")),
+            *((str(row.get("model") or DASH),) if grouped else ()),
             fmt_tokens(tokens_in),
             pct(share, "good") if share is not None else DASH,
             fmt_tokens(tokens_out),
@@ -805,14 +1102,33 @@ def render(
     *,
     account: str | None = None,
     sessions: bool = False,
+    engine: str | None = None,
 ) -> Group:
-    """The whole view as one group of rich renderables."""
+    """The whole view as one group of rich renderables.
+
+    With one engine this is the view as it has always been drawn. With several,
+    two things are added above it and one inside it: the router line and the
+    engines table, which say how much the document spans, and the engine column
+    in the account detail. The bands stay one engine's, because three bands per
+    engine do not fit a terminal -- the table above them carries every engine's
+    figures, and ``--engine`` chooses whose bands are drawn.
+    """
     callers = document.get("callers") or {}
-    parts: list[object] = [Text.from_markup(head_line(document))]
-    parts.extend(bands(document))
+    parts: list[object] = []
+    multi = multi_engine(document)
+    scoped = document
+    if multi:
+        parts.append(Text.from_markup(router_line(document)))
+        parts.append(engines_table(document, engine=engine))
+        entry = selected_engine(document, engine)
+        if entry is not None:
+            scoped = engine_document(document, entry)
+    parts.append(Text.from_markup(head_line(scoped)))
+    parts.extend(bands(scoped))
     parts.append(accounts_table(callers, account=account))
-    parts.append(detail_table(callers, account=account, sessions=sessions))
-    parts.append(history_strip(callers, document.get("lane") or {}))
+    parts.append(detail_table(callers, account=account, sessions=sessions,
+                              engines=multi))
+    parts.append(history_strip(callers, scoped.get("lane") or {}))
     parts.append(outcomes_line(callers))
     parts.append(ledger_table(document.get("ledger")))
     return Group(*parts)
@@ -823,6 +1139,7 @@ def render_text(
     *,
     account: str | None = None,
     sessions: bool = False,
+    engine: str | None = None,
     width: int = GOLDEN_WIDTH,
 ) -> str:
     """The view as plain text at *width*, so the output is comparable."""
@@ -830,7 +1147,8 @@ def render_text(
 
     buffer = io.StringIO()
     Console(file=buffer, no_color=True, width=width, highlight=False).print(
-        render(document, account=account, sessions=sessions), soft_wrap=False
+        render(document, account=account, sessions=sessions, engine=engine),
+        soft_wrap=False,
     )
     return buffer.getvalue()
 
@@ -862,9 +1180,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="the published endpoint document")
     parser.add_argument("--watch", dest="watch_path", default=None,
                         help="the published watch document the ledger is read from")
-    parser.add_argument("--engine", dest="engine_id", default=None,
-                        help="the engine whose bands are shown; this view serves "
-                             "one engine, so any other id is refused")
+    parser.add_argument(
+        "--engine", dest="engine_id", default=None,
+        help="the engine whose bands are shown, by its id or node:port; with "
+             "several engines the busiest one is drawn unless this is given",
+    )
     parser.add_argument("--account", dest="account", default=None,
                         help="the account whose detail table is shown")
     parser.add_argument("--sessions", action="store_true",
@@ -899,6 +1219,7 @@ def main(argv: list[str] | None = None) -> int:
                     document,
                     account=args.account,
                     sessions=args.sessions,
+                    engine=args.engine_id,
                     width=args.width,
                 )
             )

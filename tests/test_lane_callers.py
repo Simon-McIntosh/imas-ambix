@@ -1041,3 +1041,113 @@ def test_a_missing_request_record_leaves_every_record_block_unavailable(
         assert blocks[name]["state"] == "unavailable", name
         assert "no request record" in blocks[name]["detail"], name
     assert blocks["history"]["bins"] == []
+
+
+# ── several engines ──────────────────────────────────────────────────
+
+ENGINE_A = "http://98dci4-gpu-0003.iter.org:18810"
+ENGINE_B = "http://98dci4-gpu-0001.iter.org:18812"
+
+
+def _served(offset: float, *, duration: float, engine: str, **kwargs) -> dict:
+    """One row an engine served, in the account and project a split is about."""
+    return _at(
+        offset, duration=duration, upstream=engine,
+        account="mcintos", project="reckon", **kwargs,
+    )
+
+
+def _split_fixture(tmp_path: Path) -> Path:
+    """One window on two engines, plus one request the router answered itself.
+
+    Two rows go to each engine and one is answered by the router. Held time is
+    one second per second of request, so a per-engine split that loses or
+    duplicates a row is visible by arithmetic rather than by eye.
+    """
+    rows = [
+        _served(-260, duration=10, engine=ENGINE_A, session="a", run_id="r-a"),
+        _served(-220, duration=20, engine=ENGINE_B, session="a", run_id="r-a"),
+        _served(-180, duration=30, run_id="r-a", engine=ENGINE_A, session="a"),
+        _served(-140, duration=40, engine=ENGINE_B, session="b", run_id="r-b"),
+        _at(
+            -100, duration=50, status="failed", session="b", run_id="r-b",
+            upstream=request_receipts.SELF_ANSWERED_UPSTREAM,
+            account="mcintos", project="reckon",
+        ),
+    ]
+    return _write(tmp_path, rows)
+
+
+def test_two_engines_split_every_callers_held_time_exactly(
+    tmp_path: Path,
+) -> None:
+    """Each row lands in exactly one bucket, so the parts sum to the whole."""
+    block = record_blocks(_split_fixture(tmp_path), now=NOW)["callers"]
+
+    assert block["engines"] == sorted(
+        [ENGINE_A, ENGINE_B, request_receipts.SELF_ANSWERED_UPSTREAM]
+    )
+    for row in block["accounts"] + block["projects"] + block["callers"]:
+        by_engine = row["held_by_engine"]
+        # A session need not have used every engine, so a row's buckets are a
+        # subset of the window's; what must hold is that they account for all
+        # of that row's held time.
+        assert set(by_engine) <= set(block["engines"])
+        assert abs(sum(by_engine.values()) - float(row["held"])) < 0.01
+
+    account = block["accounts"][0]
+    assert abs(
+        account["held_by_engine"][ENGINE_A]
+        + account["held_by_engine"][ENGINE_B]
+        + account["held_by_engine"][request_receipts.SELF_ANSWERED_UPSTREAM]
+        - float(account["held"])
+    ) < 0.01
+
+
+def test_two_engines_carry_a_history_line_each_that_sums_to_the_total(
+    tmp_path: Path,
+) -> None:
+    block = record_blocks(_split_fixture(tmp_path), now=NOW)["history"]
+
+    # The router's own answers are their own bucket: a request the gate expired
+    # was served by no engine, and giving it to one would double-count the row.
+    assert {entry["engine"] for entry in block["engines"]} == {
+        ENGINE_A, ENGINE_B, request_receipts.SELF_ANSWERED_UPSTREAM
+    }
+    for index, bin_ in enumerate(block["bins"]):
+        per_engine = sum(
+            float(entry["bins"][index]["occupancy"]) for entry in block["engines"]
+        )
+        assert abs(per_engine - float(bin_["occupancy"])) < 0.01
+
+
+def test_two_engines_count_each_outcome_under_the_engine_it_ended_on(
+    tmp_path: Path,
+) -> None:
+    block = record_blocks(_split_fixture(tmp_path), now=NOW)["outcomes"]
+
+    assert {entry["engine"] for entry in block["by_engine"]} == {
+        ENGINE_A, ENGINE_B, request_receipts.SELF_ANSWERED_UPSTREAM
+    }
+    for key in ("completed", "aborted", "failed", "gate_expired"):
+        assert sum(entry[key] for entry in block["by_engine"]) == block[key]
+
+
+def test_a_single_engine_document_carries_none_of_the_engine_dimension(
+    tmp_path: Path,
+) -> None:
+    """One engine is the view as it was: no split, no per-engine line, no list."""
+    rows = [
+        _served(-260, duration=10, engine=ENGINE_A, session="a", run_id="r-a"),
+        _served(-220, duration=20, engine=ENGINE_A, session="a", run_id="r-a"),
+        _at(
+            -100, duration=50, status="failed", session="b", run_id="r-b",
+            upstream=request_receipts.SELF_ANSWERED_UPSTREAM,
+            account="mcintos", project="reckon",
+        ),
+    ]
+    blocks = record_blocks(_write(tmp_path, rows), now=NOW)
+    assert "engines" not in blocks["callers"]
+    assert "held_by_engine" not in blocks["callers"]["accounts"][0]
+    assert "engines" not in blocks["history"]
+    assert "by_engine" not in blocks["outcomes"]

@@ -153,6 +153,66 @@ def _dominant(counts: Counter[str]) -> str:
     return counts.most_common(1)[0][0] if counts else UNATTRIBUTED
 
 
+def _served_engine(row: dict[str, Any]) -> str | None:
+    """The engine that relayed one row, or None for a row the router answered.
+
+    The record names the upstream origin a request was relayed to, and the
+    self-answered sentinel for the requests the router answered itself -- a
+    catalog read, a refusal, or an expired gate wait. Only the former names an
+    engine, so the sentinel is excluded rather than counted as one of the lane's
+    engines, which would report a one-engine lane as two.
+    """
+    upstream = row.get("upstream")
+    if not isinstance(upstream, str) or not upstream.strip():
+        return None
+    if upstream.strip() == SELF_ANSWERED_UPSTREAM:
+        return None
+    return upstream.strip()
+
+
+def _engine_label(row: dict[str, Any]) -> str:
+    """The engine bucket one row's held time belongs to.
+
+    Every row lands in exactly one bucket so the buckets sum to the caller's
+    held figure: a relayed row goes to its upstream, and a row the router
+    answered itself goes to the gate engine that held it when the record names
+    one and to the self-answered label when it does not.
+    """
+    engine = _served_engine(row)
+    if engine is not None:
+        return engine
+    gate_engine = row.get("gate_engine")
+    if isinstance(gate_engine, str) and gate_engine.strip():
+        return gate_engine.strip()
+    return SELF_ANSWERED_UPSTREAM
+
+
+def _served_engines(rows: list[dict[str, Any]]) -> set[str]:
+    """The distinct engines *rows* were relayed to."""
+    return {
+        engine for row in rows if (engine := _served_engine(row)) is not None
+    }
+
+
+def _engine_labels(rows: list[dict[str, Any]]) -> set[str]:
+    """Every bucket a row falls in, including the ones no engine served.
+
+    A request the router answered itself belongs to no engine, so it is neither
+    dropped from the split nor attributed to one: the split has to account for
+    every row, and a request given to an engine it never reached would make the
+    split disagree with the total it is a split of.
+    """
+    return {_engine_label(row) for row in rows}
+
+
+def _by_engine(counts: dict[str, float]) -> dict[str, float]:
+    """One group's held time per engine, heaviest first."""
+    return {
+        engine: round(value, 2)
+        for engine, value in sorted(counts.items(), key=lambda item: -item[1])
+    }
+
+
 def _tally(entry: dict[str, Any], session: str | None, run_id: str | None) -> None:
     """Count one row's session and run into a level's totals."""
     if session:
@@ -410,6 +470,12 @@ def _callers_from_rows(
         "basis": BASIS,
     }
     block["covered"] = covered
+    # The per-engine split is published only when the record shows more than
+    # one engine, so a one-engine lane's block carries exactly the keys it
+    # carried before the engine dimension existed. A reader of a single-engine
+    # document sees no new field, which is what makes the dimension cost it
+    # nothing.
+    multi = len(_served_engines(rows)) > 1
 
     groups: dict[tuple[str, str], dict[str, Any]] = {}
     spans: dict[tuple[str, str], list[tuple[float, float]]] = defaultdict(list)
@@ -447,6 +513,7 @@ def _callers_from_rows(
                 "gate_wait_count": 0.0,
                 "prompt_tokens": 0.0,
                 "completion_tokens": 0.0,
+                "held_by_engine": defaultdict(float),
             },
         )
         weight = _weight(row)
@@ -456,6 +523,8 @@ def _callers_from_rows(
         group["project_counts"][project] += weight
         held = weight * _overlap(arrived, ended, low, high) / window_seconds
         group["held"] += held
+        engine = _engine_label(row)
+        group["held_by_engine"][engine] += held
         group["waiting"] += (
             weight * _overlap(arrived, admitted, low, high) / window_seconds
         )
@@ -473,6 +542,7 @@ def _callers_from_rows(
                 "held": 0.0,
                 "gate_wait_sum": 0.0,
                 "gate_wait_count": 0.0,
+                "held_by_engine": defaultdict(float),
             },
         )
         project_entry = projects.setdefault(
@@ -485,10 +555,12 @@ def _callers_from_rows(
                 "held": 0.0,
                 "gate_wait_sum": 0.0,
                 "gate_wait_count": 0.0,
+                "held_by_engine": defaultdict(float),
             },
         )
         for entry in (account_entry, project_entry):
             entry["held"] += held
+            entry["held_by_engine"][engine] += held
             _tally(entry, session, run_id)
         if account == UNATTRIBUTED:
             account_entry["hosts"].add(host)
@@ -537,14 +609,32 @@ def _callers_from_rows(
                 else None,
             }
         )
+        if multi:
+            callers[-1]["held_by_engine"] = _by_engine(group["held_by_engine"])
+            callers[-1]["engine"] = next(
+                iter(callers[-1]["held_by_engine"]), None
+            )
     callers.sort(key=lambda caller: (-caller["held"], -caller["requests"]))
+    accounts_rows = _account_rows(accounts, total_held)
+    projects_rows = _project_rows(projects)
+    if multi:
+        for row in accounts_rows:
+            row["held_by_engine"] = _by_engine(
+                accounts[row["account"]]["held_by_engine"]
+            )
+        for row in projects_rows:
+            row["held_by_engine"] = _by_engine(
+                projects[(row["account"], row["project"])]["held_by_engine"]
+            )
     block.update(
         state="measured",
         held=round(total_held, 2),
-        accounts=_account_rows(accounts, total_held),
-        projects=_project_rows(projects),
+        accounts=accounts_rows,
+        projects=projects_rows,
         callers=callers,
     )
+    if multi:
+        block["engines"] = sorted(_engine_labels(rows))
     return block
 
 
@@ -613,35 +703,67 @@ def _history_from_rows(
     held = [0.0] * count
     admitted = [0.0] * count
     waits: list[list[float]] = [[] for _ in range(count)]
+    multi = len(_served_engines(rows)) > 1
+    engine_held: dict[str, list[float]] = defaultdict(lambda: [0.0] * count)
+    engine_waits: dict[str, list[list[float]]] = defaultdict(
+        lambda: [[] for _ in range(count)]
+    )
     for row in rows:
         interval = receipt_interval(row)
         if interval is None:
             continue
         arrived, admitted_at, ended = interval
         weight = _weight(row)
+        engine = _engine_label(row) if multi else None
         for index in range(count):
             low, high = edges[index], edges[index + 1]
-            held[index] += (
-                weight * _overlap(arrived, ended, low, high) / HISTORY_BIN_SECONDS
-            )
+            share = weight * _overlap(arrived, ended, low, high) / HISTORY_BIN_SECONDS
+            held[index] += share
+            if engine is not None:
+                engine_held[engine][index] += share
             if low <= admitted_at < high:
                 admitted[index] += weight
                 waits[index].append(admitted_at - arrived)
-    block["bins"] = [
+                if engine is not None:
+                    engine_waits[engine][index].append(admitted_at - arrived)
+    block["bins"] = _bin_rows(edges, held, admitted, waits)
+    block["state"] = "measured"
+    if multi:
+        block["engines"] = [
+            {
+                "engine": engine,
+                "bins": _bin_rows(
+                    edges, engine_held[engine], [0.0] * count,
+                    engine_waits[engine],
+                ),
+            }
+            for engine in sorted(
+                engine_held, key=lambda name: -sum(engine_held[name])
+            )
+        ]
+    if not covered:
+        block["reason"] = "the read stopped at the record's byte ceiling"
+    return block
+
+
+def _bin_rows(
+    edges: list[float],
+    held: list[float],
+    admitted: list[float],
+    waits: list[list[float]],
+) -> list[dict[str, Any]]:
+    """One entry per history bin, from its accumulated figures."""
+    return [
         {
             "start": _isoformat(datetime.fromtimestamp(edges[index], UTC)),
             "end": _isoformat(datetime.fromtimestamp(edges[index + 1], UTC)),
-            "occupancy": round(held[index], 2),
+            "occupancy": round(0.0 if held[index] is None else held[index], 2),
             "requests": round(admitted[index], 1),
             "gate_wait_p50_s": _bin_percentile(waits[index], 0.5),
             "gate_wait_p95_s": _bin_percentile(waits[index], 0.95),
         }
-        for index in range(count)
+        for index in range(len(edges) - 1)
     ]
-    block["state"] = "measured"
-    if not covered:
-        block["reason"] = "the read stopped at the record's byte ceiling"
-    return block
 
 
 def _outcomes_from_rows(
@@ -658,6 +780,10 @@ def _outcomes_from_rows(
     opened = moment - timedelta(seconds=OUTCOMES_WINDOW_SECONDS)
     low, high = opened.timestamp(), moment.timestamp()
     counts = dict.fromkeys((*OUTCOME_STATUSES, GATE_EXPIRED), 0.0)
+    per_engine: dict[str, dict[str, float]] = defaultdict(
+        lambda: dict.fromkeys((*OUTCOME_STATUSES, GATE_EXPIRED), 0.0)
+    )
+    multi = len(_served_engines(rows)) > 1
     seen = False
     for row in rows:
         interval = receipt_interval(row)
@@ -668,10 +794,16 @@ def _outcomes_from_rows(
             continue
         seen = True
         weight = _weight(row)
+        engine = _engine_label(row) if multi else None
         if _gate_expired(row):
-            counts[GATE_EXPIRED] += weight
+            outcome = GATE_EXPIRED
         elif row.get("status") in counts:
-            counts[row["status"]] += weight
+            outcome = row["status"]
+        else:
+            continue
+        counts[outcome] += weight
+        if engine is not None:
+            per_engine[engine][outcome] += weight
     block: dict[str, Any] = {
         "state": "unavailable",
         "window_seconds": OUTCOMES_WINDOW_SECONDS,
@@ -684,6 +816,16 @@ def _outcomes_from_rows(
         return block
     block["state"] = "measured"
     block.update({name: round(total, 1) for name, total in counts.items()})
+    if multi:
+        block["by_engine"] = [
+            {
+                "engine": engine,
+                **{name: round(total, 1) for name, total in per_engine[engine].items()},
+            }
+            for engine in sorted(
+                per_engine, key=lambda name: -sum(per_engine[name].values())
+            )
+        ]
     if not covered:
         block["reason"] = "the read stopped at the record's byte ceiling"
     return block

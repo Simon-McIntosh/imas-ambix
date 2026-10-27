@@ -1,0 +1,47 @@
+router · http://98dci4-gpu-0003.iter.org:18802 · 04:40:55 · 3 servers · 3 engines · 2 models
+                                                                                                                        
+ model                 engine              running    router q      tok/s        each     ttft s   kv pool %    avail % 
+ ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ deepseek-v4.1-flash   gpu-0003:18810          9.0           0        812        41.0        0.8    ██░░░ 41   ███░░ 64 
+ deepseek-v4.1-flash   gpu-0001:18812          4.0           0        402        38.0        1.1    █░░░░ 22   ████░ 81 
+ glm-5.3               b300-0001:18814         2.0           1        210        33.0        1.6     ░░░░░ 9   █████ 93 
+                                                                                                                        
+deepseek-v4.1-flash · DeepSeek-V4.1-Flash-1017@1bae0e10 · 4×H200 · gpu-0003 · 262k ctx
+                                                                                                  
+      running        queued     tok/s out    tok/s each     prefill/s        ttft s       cache % 
+          9.0             0           558          49.3         2.69k           0.6      █████ 95 
+                                                                                                  
+                                                                                                  
+    kv pool %   host tier %      mean ctx       ceiling    eng headrm   preemptions               
+     █░░░░ 21      █████ 99          144k            20            17             0               
+                                                                                                  
+                                                                                                  
+    in flight      router q   oldest wait       verdict      headroom         slots   available % 
+         4/12             0            1s         admit             8             9      ███░░ 64 
+                                                                                                  
+                                                                                                  
+ accounts 5m       sessions          runs        in use       per run        wait s       share % 
+ ──────────────────────────────────────────────────────────────────────────────────────────────── 
+ mcintos                  3            14           9.4           0.7             2     █████ 100 
+                                                                                                  
+                                                                                                                        
+ mcinto…             engine          sessions               runs            in use            per run            wait s 
+ ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ power-…     gpu-0003:18810                 1                  6               5.0                0.8                 2 
+ reckon      gpu-0003:18810                 1                  5               3.0                0.6                 2 
+ nova       b300-0001:18814                 1                  3               1.4                0.5                 2 
+                                                                                                                        
+history 30m   in flight ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▅▆▇▅▄▂▂▂▂▂▂▂▂▂   wait ▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂
+              gpu-0003:18810   ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▃▃▅▆▇▅▄▂▂▂▂▂▂▂▂▂   wait ▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂
+              b300-0001:18814  ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁   wait ▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂▃▅▆▇█▁▂
+outcomes 5m   412 completed · 3 aborted · 0 failed · 0 expired at the end
+              gpu-0003:18810   380 completed · 3 aborted · 0 failed · 0 expired at the end
+              b300-0001:18814  32 completed · 0 aborted · 0 failed · 0 expired at the end
+                                                                                                                        
+ ledger                        model        tok in      cached %       tok out        util %        cost $       window 
+ ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── 
+ 1 hour          deepseek-v4.1-flash          232M      █████ 98         1.15M      █████ 97          7.45         full 
+ 1 hour                      glm-5.3          232M      █████ 98         1.15M      █████ 97          7.45         full 
+ 1 day           deepseek-v4.1-flash         3.31G      █████ 96         18.2M      █████ 96        131.02          12h 
+ 1 day                       glm-5.3         3.31G      █████ 96         18.2M      █████ 96        131.02          12h 
+                                                                                                                        

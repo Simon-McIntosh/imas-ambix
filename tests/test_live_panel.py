@@ -17,9 +17,13 @@ import pytest
 
 from imas_ambix.agent import live_panel
 from imas_ambix.agent.live_panel import (
+    _engine_entry,
+    _lane_document,
     lane_block,
     live_block,
+    live_entries,
     newest_raw_receipt,
+    panel_engines,
     read_lane_block,
 )
 
@@ -905,3 +909,283 @@ def test_live_panel_imports_nothing_from_the_telemetry_index():
             imported.append(node.module)
     assert not any("telemetry_index" in name for name in imported)
     assert "TelemetryIndex" not in source
+
+
+def _pool_engine(
+    engine_id: str,
+    model: str,
+    *,
+    availability: float = 50.0,
+    waiting: int = 0,
+) -> dict:
+    """One engine as the router's pool document publishes it."""
+    return {
+        "engine_id": engine_id,
+        "model_id": model,
+        "availability_percent": availability,
+        "router_generation_gate": {"waiting": waiting, "width": 12},
+    }
+
+
+def _two_serve_entries(tmp_path: Path) -> list[dict]:
+    """The recorder's two serves on ONE node, differing in the model each answers."""
+    _write(
+        tmp_path,
+        "deepseek-v4-1-flash-4811.jsonl",
+        _serve_rows(
+            hostname="98dci4-gpu-0003",
+            served_name="deepseek-v4-1-flash",
+            job_id=4811,
+            generation_step=500.0,
+        ),
+    )
+    _write(
+        tmp_path,
+        "glm-5200.jsonl",
+        _serve_rows(
+            hostname="98dci4-gpu-0003",
+            served_name="glm-5.3",
+            job_id=4812,
+            generation_step=250.0,
+        ),
+    )
+    return live_entries(tmp_path, now=BASE + timedelta(seconds=10))
+
+
+def test_two_serves_on_one_host_each_carry_their_own_figures(tmp_path: Path):
+    """A pool in the other order must not hand an engine its neighbour's figures.
+
+    The recorder writes the two serves on one node in its own order and the
+    router lists its engines in its own, so pairing them by position pairs the
+    wrong two -- and the result still reads as a measurement. The host narrows
+    the pool to that node and the model separates the engines on it; the
+    generation rates (100 and 50 tok/s) make a mispairing visible in the figure
+    rather than only in a name.
+    """
+    entries = _two_serve_entries(tmp_path)
+    pool = {
+        "engines": [
+            _pool_engine("98dci4-gpu-0003:18812", "glm-5.3", availability=93.0),
+            _pool_engine("98dci4-gpu-0003:18810", "deepseek-v4-1-flash",
+                         availability=64.0),
+        ]
+    }
+
+    paneled = panel_engines(pool, list(reversed(entries)))
+
+    by_model = {entry["model"]: entry for entry in paneled}
+    assert set(by_model) == {"glm-5.3", "deepseek-v4-1-flash"}
+    deepseek = by_model["deepseek-v4-1-flash"]
+    assert deepseek["engine"] == "98dci4-gpu-0003:18810"
+    assert deepseek["tok_s"] == pytest.approx(100.0)
+    assert deepseek["available"] == pytest.approx(64.0)
+    assert deepseek["running"] == pytest.approx(deepseek["live"]["mean_running"])
+    glm = by_model["glm-5.3"]
+    assert glm["engine"] == "98dci4-gpu-0003:18812"
+    assert glm["tok_s"] == pytest.approx(50.0)
+    assert glm["available"] == pytest.approx(93.0)
+
+    # The order the readings arrive in decides nothing: the same pool joined to
+    # the same readings in the recorder's own order pairs identically.
+    again = {entry["model"]: entry["engine"] for entry in panel_engines(pool, entries)}
+    assert again == {entry["model"]: entry["engine"] for entry in paneled}
+
+
+def _one_engine_pool_document(
+    model: str, *, availability: float, index: dict | None = None
+) -> dict:
+    """A pool spanning one engine, as the router publishes it.
+
+    The router composes such a document from that engine's own reading, so it
+    carries the reading's counters and the gate fields and no engine identity
+    at all: there is no ``engine_id``, ``hostname`` or ``host`` key to read.
+    """
+    document = {
+        "state": "measured",
+        "model_id": model,
+        "observed_at": _stamp(0),
+        "running": 6,
+        "waiting": 1,
+        "kv_occupancy": 0.37,
+        "availability_percent": availability,
+        "router_generation_gate": {"waiting": 1, "width": 12},
+    }
+    if index is not None:
+        document["lanes"] = index
+    return document
+
+
+def test_a_second_models_pool_document_reaches_the_engine_list(tmp_path: Path):
+    """An engine list spans every model, not only the lane block's own pool.
+
+    The router writes one document per model and only a pool spanning several
+    engines carries an ``engines`` array, so a second model served by a single
+    engine is named nowhere but its own document under ``lanes/`` -- which the
+    ``lanes`` index the lane document publishes is what points at.
+
+    Neither document names its engine, so the model is the only key either
+    offers, and the entry joins the recorder's reading for that model rather
+    than standing beside it as a second row for the same engine.
+    """
+    lanes = tmp_path / "lanes"
+    lanes.mkdir()
+    index = {
+        "deepseek-v4-1-flash": "lane.json",
+        "glm-5.3": "lanes/glm-5-3.json",
+    }
+    (tmp_path / "lane.json").write_text(
+        json.dumps(
+            _one_engine_pool_document(
+                "deepseek-v4-1-flash", availability=64.0, index=index
+            )
+        ),
+        encoding="utf-8",
+    )
+    (lanes / "glm-5-3.json").write_text(
+        json.dumps(_one_engine_pool_document("glm-5.3", availability=93.0)),
+        encoding="utf-8",
+    )
+    _write(
+        tmp_path,
+        "deepseek-v4-1-flash-4811.jsonl",
+        _serve_rows(
+            hostname="98dci4-gpu-0003",
+            served_name="deepseek-v4-1-flash",
+            job_id=4811,
+            generation_step=500.0,
+        ),
+    )
+    _write(
+        tmp_path,
+        "glm-5-3-5200.jsonl",
+        _serve_rows(
+            hostname="98dci4-gpu-0007",
+            served_name="glm-5.3",
+            job_id=4812,
+            generation_step=250.0,
+        ),
+    )
+
+    document = _lane_document(tmp_path / "lane.json")
+    entries = panel_engines(
+        document, live_entries(tmp_path, now=BASE + timedelta(seconds=10))
+    )
+
+    # One row per engine: the second model's document is an engine entry, and
+    # the default pool's is too, and neither is joined to the other's reading.
+    assert len(entries) == 2
+    by_model = {entry["model"]: entry for entry in entries}
+    assert set(by_model) == {"deepseek-v4-1-flash", "glm-5.3"}
+    for model, rate, availability in (
+        ("deepseek-v4-1-flash", 100.0, 64.0),
+        ("glm-5.3", 50.0, 93.0),
+    ):
+        entry = by_model[model]
+        assert entry["live"], f"{model} kept no reading of its own"
+        assert entry["tok_s"] == pytest.approx(rate)
+        assert entry["available"] == pytest.approx(availability)
+        assert entry["router_q"] == 1
+
+
+def test_a_lane_document_with_no_index_reads_as_it_always_did(tmp_path: Path):
+    """A one-pool lane gains no engine it never published."""
+    (tmp_path / "lane.json").write_text(
+        json.dumps(
+            {"state": "measured", "model_id": "glm-5.3", "observed_at": _stamp(0)}
+        ),
+        encoding="utf-8",
+    )
+    document = _lane_document(tmp_path / "lane.json")
+    assert "engines" not in document
+    assert document["model_id"] == "glm-5.3"
+
+
+def test_engine_entry_puts_a_live_reading_beside_its_own_gate():
+    gate = _pool_engine("98dci4-gpu-0003:18810", "deepseek-v4-1-flash",
+                        availability=64.0, waiting=2)
+    gate["kv_occupancy"] = 0.41
+    live = {
+        "hostname": "98dci4-gpu-0003",
+        "served_name": "deepseek-v4-1-flash",
+        "mean_running": 9.0,
+        "generation_toks_per_s": 812.0,
+        "per_stream_toks_per_s": 41.0,
+        "median_time_to_first_token_s": 0.8,
+        "pool_occupancy": None,
+    }
+
+    entry = _engine_entry(gate, live)
+
+    assert entry["engine"] == "98dci4-gpu-0003:18810"
+    assert entry["engine_id"] == "98dci4-gpu-0003:18810"
+    assert entry["model"] == "deepseek-v4-1-flash"
+    assert entry["host"] == "98dci4-gpu-0003"
+    assert entry["running"] == pytest.approx(9.0)
+    assert entry["tok_s"] == pytest.approx(812.0)
+    assert entry["per_stream"] == pytest.approx(41.0)
+    assert entry["ttft"] == pytest.approx(0.8)
+    # The router's queue comes from the gate, and the pool figure falls back to
+    # the gate when the recorder measured none.
+    assert entry["router_q"] == 2
+    assert entry["kv_pool"] == pytest.approx(0.41)
+    assert entry["available"] == pytest.approx(64.0)
+
+
+def test_engine_entry_keeps_a_gate_the_recorder_has_not_read():
+    gate = _pool_engine("98dci4-gpu-0007:18811", "glm-5.3", availability=93.0)
+    gate["kv_occupancy"] = 0.09
+
+    entry = _engine_entry(gate, None)
+
+    assert entry["engine"] == "98dci4-gpu-0007:18811"
+    assert entry["model"] == "glm-5.3"
+    assert entry["host"] == "98dci4-gpu-0007"
+    assert entry["live"] == {}
+    assert entry["running"] is None
+    assert entry["tok_s"] is None
+    assert entry["kv_pool"] == pytest.approx(0.09)
+    assert entry["available"] == pytest.approx(93.0)
+
+
+def test_panel_engines_keeps_an_engine_the_recorder_has_not_read():
+    pool = {"engines": [
+        _pool_engine("98dci4-gpu-0007:18811", "glm-5.3", availability=93.0),
+    ]}
+    paneled = panel_engines(pool, [])
+    assert len(paneled) == 1
+    assert paneled[0]["engine"] == "98dci4-gpu-0007:18811"
+    assert paneled[0]["live"] == {}
+    assert paneled[0]["running"] is None
+    assert paneled[0]["available"] == pytest.approx(93.0)
+
+
+def test_a_model_the_pool_does_not_carry_is_left_unjoined(tmp_path: Path):
+    """A reading on a node whose only pool engine serves another model stays with
+    the recorder rather than being pinned to that engine.
+
+    The host is the same and the model is not, so the host alone would pair them,
+    and the paired entry would carry one engine's figures under another engine's
+    id.
+    """
+    entries = [entry for entry in _two_serve_entries(tmp_path)
+               if entry["served_name"] == "glm-5.3"]
+    pool = {"engines": [
+        _pool_engine("98dci4-gpu-0003:18810", "deepseek-v4-1-flash",
+                     availability=64.0),
+    ]}
+
+    paneled = panel_engines(pool, entries)
+
+    assert len(paneled) == 2
+    gate_only = [entry for entry in paneled
+                 if entry["engine"] == "98dci4-gpu-0003:18810"]
+    assert len(gate_only) == 1
+    assert gate_only[0]["live"] == {}
+    assert gate_only[0]["tok_s"] is None
+    assert gate_only[0]["available"] == pytest.approx(64.0)
+    live_only = [entry for entry in paneled
+                 if entry["engine"] != "98dci4-gpu-0003:18810"]
+    assert len(live_only) == 1
+    assert live_only[0]["gate"] == {}
+    assert live_only[0]["model"] == "glm-5.3"
+    assert live_only[0]["tok_s"] == pytest.approx(50.0)
