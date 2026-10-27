@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="router-shutdown-answers-waiters-release">
+      <p>A router restart now answers what it is holding instead of dropping
+      it. <code>serve_router</code> chains the router's release in front of
+      uvicorn's own signal handler, so on SIGTERM or SIGINT the generation gate
+      stops admitting and every request waiting in its FIFO is answered
+      <code>529</code> with <code>Retry-After: 5</code> — the same retryable
+      refusal the gate's wait bound already produced — before uvicorn begins
+      closing connections. The lifespan handler keeps its existing cleanup.</p>
+      <p>The release is installed on the signal rather than in the lifespan
+      handler because uvicorn reaches <code>lifespan.shutdown</code> only after
+      it has waited <code>timeout_graceful_shutdown</code> on open connections,
+      and that launch setting was unset, which means wait forever. The launch
+      now sets it, defaulting to 30 s, and that is the grace an already
+      streaming relay gets; one that outlasts it is cancelled and its receipt
+      row records <code>aborted</code> with the reason
+      <code>router shutdown cut the relay</code>.</p>
+      <ul>
+        <li><strong>The gate.</strong> <code>_GenerationGate.initiate_shutdown()</code>
+        sets a flag and schedules a condition wake onto the loop, because the
+        signal handler runs on the main thread outside the event loop. The flag
+        outranks the disabled-width bypass, so a gate with admission turned off
+        does not relay into a process already going away.</li>
+        <li><strong>The receipt.</strong> Rows gained a <code>reason</code>
+        field. The two shutdown paths set it (<code>router shutdown</code> for
+        a gate expiry, <code>router shutdown cut the relay</code> for a cut);
+        every other row leaves it <code>null</code>. Without it a shutdown
+        expiry and an ordinary wait expiry both read <code>failed</code>, and a
+        cut relay and a caller that left both read <code>aborted</code>.</li>
+        <li><strong>A cancelled relay now records at all.</strong> The row for a
+        relay was written after the cleanup awaits in its <code>finally</code>,
+        and a task cancelled from outside raises <code>CancelledError</code> at
+        the first await there — so the one row the shutdown exists to produce
+        was the one skipped. It is written before the cleanup now.</li>
+      </ul>
+    </section>
+    <section id="router-shutdown-answers-waiters-measure">
+      <p>The gate runs the router under a real uvicorn server in a subprocess
+      against a fake upstream, holds three requests behind a full gate, and
+      sends that process SIGTERM. All three answer <code>529</code> with
+      <code>Retry-After: 5</code> and their three receipt rows carry the
+      shutdown reason; the relay in flight completes with <code>200</code>
+      inside the grace. A second test sets the grace to 0.5 s, keeps the
+      upstream blocked past the process's exit, and asserts one
+      <code>aborted</code> row whose reason names the cut.</p>
+      <p><strong>Negative control.</strong> With <code>app.initiate_shutdown()</code>
+      removed from the chained handler, both tests fail and the waiters are
+      answered <code>200</code> as the FIFO drains instead of <code>529</code>
+      at the signal; the cut test fails on the missing shutdown reason. Logs:
+      <code>gate-head.log</code>, <code>negative-control.log</code>,
+      <code>ruff-head.log</code> in the run directory.</p>
+    </section>
+    <section id="router-shutdown-answers-waiters-budget">
+      <p>The runbook's restart budget is now a measurement rather than a
+      warning. On <code>98dci4-clu-2068</code> (8 cores), process start to the
+      first answered <code>/v1/models</code> against a fake upstream on a free
+      port took <strong>4.34 s cold</strong> and <strong>1.30 s warm</strong>.
+      Two samples, quoted as a range: the cold figure is the one a restart after
+      a code deploy sees.</p>
+    </section>
+  </main>
+</body>
+</html>
