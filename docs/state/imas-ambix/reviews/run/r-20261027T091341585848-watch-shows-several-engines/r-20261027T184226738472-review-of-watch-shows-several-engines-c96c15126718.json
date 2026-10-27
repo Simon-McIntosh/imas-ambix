@@ -1,0 +1,76 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_sites": [
+    "imas_ambix/agent/watch.py:1435 live_panel(...) builds the agent watch --json --live document",
+    "imas_ambix/agent/llm_watch.py:499 document_engines reads the engines array the change populates",
+    "imas_ambix/agent/live_panel.py:907 live_panel calls _lane_document, panel_engines",
+    "pyproject.toml console script llm-watch = imas_ambix.agent.llm_watch:main"
+  ],
+  "completed_at": "2026-10-27T19:00:11.833Z",
+  "dispatched_at": "2026-10-27T18:44:39Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/live_panel.py",
+      "line": 986,
+      "severity": "blocking",
+      "text": "A non-default pool spanning one engine is published by router.py:2555-2575 through build_lane_document plus _gate_fields, and neither sets engine_id, hostname or host (lane.py:854-1000 carries no such key). _document_engines returns that document as an engine entry anyway, so panel_engines emits it as a gate-only row with engine=None and host=None that can never satisfy the host test at live_panel.py:786, while the recorder's live row for the same engine is emitted separately with no gate: two rows for one engine, neither joined. Reproduced against the reviewed head with the module imported from a c96c1512 export: entry {'engine': '98dci4-gpu-0007', 'tok_s': 50.0, 'available': None, 'joined': False} plus entry {'engine': None, 'host': None, 'available': 93.0, 'joined': False}, two rows for one engine. The fragment's claim at watch-shows-several-engines.html:60-62 that a second model served by a single engine reaches the view is therefore not met, and the guard test hides it by hand-writing the engine_id at tests/test_live_panel.py:1026 that the router never writes."
+    },
+    {
+      "file": "tests/test_live_panel.py",
+      "line": 1026,
+      "severity": "blocking",
+      "text": "test_a_second_models_pool_document_reaches_the_engine_list asserts an engine_id list built from a fixture whose lanes document carries \"engine_id\": \"98dci4-gpu-0007:18811\", a field the router's single-engine branch never sets (router.py:2555-2575 with lane.py:854-1000), so the assertion is true of a document shape production cannot produce and survives the very defect it was added to catch."
+    },
+    {
+      "file": "tests/test_live_panel.py",
+      "line": 982,
+      "severity": "non-blocking",
+      "text": "assert deepseek[\"running\"] == pytest.approx(deepseek[\"live\"][\"mean_running\"]) compares an entry field with the field _engine_entry copies it from (live_panel.py:849-861), so the two sides move together; it restates the passthrough instead of an independent measurement."
+    },
+    {
+      "file": "imas_ambix/agent/live_panel.py",
+      "line": 729,
+      "severity": "non-blocking",
+      "text": "the panel_engines docstring states the join is by \"engine identity -- the registration id's host and port\", but _matching_engine (live_panel.py:786) compares the host and then the served model and never reads a port, and _pool_identity's port element (live_panel.py:805-815) is computed and never used; the documented identity is not the one implemented."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T091341585848-watch-shows-several-engines/gate.log",
+      "line": 1,
+      "severity": "non-blocking",
+      "text": "the gate log's revision header reads \"# revision: 743e66db\" while the tree it tested is the head c96c1512 -- the 102 collected items include the 8 tests that exist only at the head -- so a promotion gate comparing the recorded log revision against reviewed_head_sha reads a stale revision for a run that did test the head."
+    }
+  ],
+  "justifications": {
+    "durability": "the join has a real guard -- reverting it reddens test_two_serves_on_one_host_each_carry_their_own_figures per negative-control.log -- but test_a_second_models_pool_document_reaches_the_engine_list (tests/test_live_panel.py:1026) builds a document field the router never writes, so it cannot fail for the defect it claims to cover.",
+    "evidence": "gate.log records 102 passed with a bare EXIT=0 and negative-control.log holds EXIT=1 with tests/test_live_panel.py::test_two_serves_on_one_host_each_carry_their_own_figures among the failing ids, though the gate log's revision header names 743e66db rather than the head.",
+    "fit": "the helpers follow the module's own idiom, but live_panel.py:729 states the identity as host and port while the join at :786 compares host and model and _pool_identity's port element at :805 is never read.",
+    "goal_fidelity": "live_panel.py:907 now joins by host and served model and reads every lanes-indexed pool, but a second model served by a single engine arrives as a duplicate identity-less row (live_panel.py:986), so that half of the claimed dimension is not delivered.",
+    "reuse": "no other reader of the lanes index exists in imas_ambix at this revision; _lane_document (live_panel.py:925) extends the module that already owns the lane-document read rather than forking one.",
+    "scope_discipline": "every path in the diff (live_panel.py, tests/test_live_panel.py, tests/test_llm_watch.py, the fragment) is inside the manifest's declared write paths."
+  },
+  "project": "imas-ambix",
+  "review_run_id": "r-20261027T184226738472-review-of-watch-shows-several-engines-c96c15126718",
+  "reviewed_base_sha": "743e66dbf8b82de2702a2340813d706bf8ff3264",
+  "reviewed_head_sha": "c96c151267185ef798124ea72054e6549c89a475",
+  "reviewed_run_id": "r-20261027T091341585848-watch-shows-several-engines",
+  "scores": {
+    "durability": 13,
+    "evidence": 14,
+    "fit": 16,
+    "goal_fidelity": 15,
+    "reuse": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T19:01:05.455754+00:00",
+  "total": 96,
+  "verdicts": {
+    "diff": "Read commit by commit between 743e66db and c96c1512: one production commit (join and pool reading in live_panel.py), one tests commit adding 8 tests across the two test modules, and the fragment rewrite; no out-of-scope file is touched.",
+    "done_when": "The done_when names tests/test_llm_watch.py tests/test_lane_callers.py tests/test_live_panel.py with 102 collected items plus a whole-tree ruff check; gate.log records '102 passed in 1.15s' and EXIT=0 and ruff.log records the lint gate.",
+    "goal": "The node goal is one entry per engine from the pool documents and the per-engine live block; c96c1512 fixes the join at live_panel.py:762 to host+model and merges every pool document named by the lanes index at live_panel.py:943, which is what the review round asked for.",
+    "manifest": "The manifest reports four commits, 102 passed, ruff clean, and a negative control at negative-control.log; the control log holds EXIT=1 with two named failing ids, so the claim is backed by a file.",
+    "write_paths": "The four paths in 743e66db..c96c1512 -- imas_ambix/agent/live_panel.py, tests/test_live_panel.py, tests/test_llm_watch.py, docs/evidence/fragments/serving-across-servers/watch-shows-several-engines.html -- are all inside the declared write paths of the reviewed run."
+  }
+}
