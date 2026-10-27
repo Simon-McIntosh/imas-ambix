@@ -502,6 +502,34 @@ def summarise(jsonl: Path, targets: list[dict], trees: Path) -> dict:
     return out
 
 
+def hash_plan(plan, workers: int, out_jsonl: Path) -> list[dict]:
+    """Run the comparison pool, streaming each result to JSONL as it completes."""
+    out_jsonl.parent.mkdir(parents=True, exist_ok=True)
+    rows = []
+    done = 0
+    hashed = 0
+    t0 = time.time()
+    with out_jsonl.open("w") as fh, ProcessPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(verify_one, job): name for name, job in plan}
+        for fut in as_completed(futures):
+            name = futures[fut]
+            row = fut.result()
+            row["name"] = name
+            rows.append(row)
+            fh.write(json.dumps(row) + "\n")
+            fh.flush()
+            done += 1
+            hashed += row.get("size_local") or 0
+            el = time.time() - t0
+            if done % 10 == 0 or done == len(plan):
+                print(
+                    f"[{done}/{len(plan)}] {el:7.1f}s {hashed / 1e9 / el:5.2f} GB/s "
+                    f"last={name}:{row['path']} {row['state']}",
+                    flush=True,
+                )
+    return rows
+
+
 def cmd_shards(args: argparse.Namespace) -> int:
     targets = json.loads(Path(args.targets).read_text())
     trees = Path(args.trees)
@@ -525,33 +553,13 @@ def cmd_shards(args: argparse.Namespace) -> int:
         flush=True,
     )
 
-    done = 0
-    hashed = 0
-    t0 = time.time()
-    with out_jsonl.open("w") as fh, ProcessPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(verify_one, job): name for name, job in plan}
-        try:
-            for fut in as_completed(futures):
-                name = futures[fut]
-                row = fut.result()
-                row["name"] = name
-                fh.write(json.dumps(row) + "\n")
-                fh.flush()
-                done += 1
-                hashed += row.get("size_local") or 0
-                el = time.time() - t0
-                if done % 10 == 0 or done == len(plan):
-                    print(
-                        f"[{done}/{len(plan)}] {el:7.1f}s {hashed / 1e9 / el:5.2f} GB/s "
-                        f"last={name}:{row['path']} {row['state']}",
-                        flush=True,
-                    )
-        except BaseException:
-            fh.flush()
-            summary = summarise(out_jsonl, targets, trees)
-            summary["interrupted"] = True
-            summary_path.write_text(json.dumps(summary, indent=2))
-            raise
+    try:
+        hash_plan(plan, workers, out_jsonl)
+    except BaseException:
+        summary = summarise(out_jsonl, targets, trees)
+        summary["interrupted"] = True
+        summary_path.write_text(json.dumps(summary, indent=2))
+        raise
     summary = summarise(out_jsonl, targets, trees)
     summary_path.write_text(json.dumps(summary, indent=2))
     for t in summary["targets"]:
@@ -564,6 +572,66 @@ def cmd_shards(args: argparse.Namespace) -> int:
         )
     print(f"VERIFIED_ALL={summary['verified_all']}")
     return 0 if summary["verified_all"] else 1
+
+
+def cmd_control_shards(args: argparse.Namespace) -> int:
+    """One shard copied intact must read ok; the same copy with its last byte
+    changed must be reported as a SHA-256 mismatch."""
+    targets = json.loads(Path(args.targets).read_text())
+    trees = Path(args.trees)
+    rel = args.path
+    owner = None
+    for t in targets:
+        if rel in tree_map(trees, t["name"]):
+            owner = t
+            break
+    if owner is None:
+        print(f"{rel}: named by no target's listing")
+        return 2
+    remote = tree_map(trees, owner["name"])
+    if not (remote[rel].get("lfs") or {}).get("oid"):
+        print(f"{rel}: not an LFS file, the SHA-256 comparison does not apply")
+        return 2
+    src = Path(owner["root"]) / rel
+    scratch = Path(args.scratch)
+    if scratch.exists():
+        shutil.rmtree(scratch)
+    arms = {}
+    for arm in ("intact", "flipped"):
+        dst = scratch / arm / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dst)
+        if arm == "flipped":
+            with dst.open("r+b") as fh:
+                fh.seek(-1, 2)
+                last = fh.read(1)
+                fh.seek(-1, 2)
+                fh.write(bytes([last[0] ^ 0xFF]))
+        job = shard_jobs(owner, remote, rel, str(scratch / arm))[0]
+        arms[arm] = verify_one(job)
+    result = {
+        "target": owner["name"],
+        "path": rel,
+        "bytes": arms["intact"]["size_local"],
+        "intact": arms["intact"],
+        "flipped": arms["flipped"],
+    }
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(result, indent=2))
+    for arm in ("intact", "flipped"):
+        r = arms[arm]
+        print(
+            f"{arm:8s} state={r['state']:12s} sha_match={r['sha_match']} "
+            f"sha_local={r['sha_local']}"
+        )
+    ok = (
+        arms["intact"]["state"] == "ok"
+        and arms["flipped"]["state"] == "sha_mismatch"
+        and arms["flipped"]["size_match"] is True
+    )
+    print("CONTROL PASS" if ok else "CONTROL FAIL")
+    return 0 if ok else 1
 
 
 def main() -> int:
@@ -591,6 +659,13 @@ def main() -> int:
     p.add_argument("--only", default=None, help="verify one listing path only")
     p.add_argument("--root-override", default=None)
     p.set_defaults(fn=cmd_shards)
+    p = sub.add_parser("control-shards")
+    p.add_argument("--targets", required=True)
+    p.add_argument("--trees", required=True)
+    p.add_argument("--path", required=True, help="listing path of the shard to mutate")
+    p.add_argument("--scratch", required=True)
+    p.add_argument("--out", required=True)
+    p.set_defaults(fn=cmd_control_shards)
     args = ap.parse_args()
     return args.fn(args)
 
