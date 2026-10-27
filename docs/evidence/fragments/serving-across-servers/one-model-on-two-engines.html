@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="one-model-on-two-engines-a-session-holds-one-engine">
+      <p><strong>A session key is held to one engine inside a pool.</strong>
+      A request is keyed by <code>x-reckon-session</code>, else
+      <code>x-reckon-run-id</code>, else the caller's host.
+      <code>RouterApp._select_engine</code> places a key with no pin, follows the
+      pin on later requests, and lets the pin go only on a pause, on the engine
+      leaving the catalog, on a queue wait past the operator's bound, or on the
+      key going idle past its 180-second horizon. Fifty consecutive requests
+      under one session header all reach the same engine
+      (<code>test_fifty_requests_from_one_session_all_land_on_one_engine</code>),
+      measured against two engines bound to distinct loopback aliases so the
+      pair is a pool rather than one server's rotation.</p>
+      <p><strong>Placement counts pins per unit of gate width.</strong> A new key
+      goes to the engine carrying the fewest pinned keys divided by its gate
+      width, using an exact rational so two engines are never separated by
+      floating-point rounding; a paused gate is skipped, and a tie falls back to
+      the ranking that already decides a rotation — wider engine, then newer.
+      Sixteen sessions against gate widths 4 and 12 land 4 and 12, exactly the
+      1:3 the widths imply
+      (<code>test_sixteen_sessions_split_by_the_gate_widths_they_land_on</code>).</p>
+      <p><strong>The three departures are each recorded.</strong> A request row
+      now carries <code>routing</code>: <code>placed</code> when its key had no
+      pin, <code>pinned</code> when it followed one, <code>failed-over</code>
+      when the pin no longer held, and null when no engine was chosen.
+      Pausing the pinned engine sends that session's next request to the peer
+      with the row reading <code>failed-over</code> and naming the peer's
+      upstream, and the request after that returns to <code>pinned</code> at the
+      new engine
+      (<code>test_pausing_the_pinned_engine_fails_the_session_over</code>). A
+      key aged past the horizon against the same pause is <code>placed</code>
+      instead, which is what separates an expiry from a failover
+      (<code>test_a_pin_expires_after_its_idle_horizon</code>).</p>
+      <p><strong>The rotation overlap takes new keys on the incoming engine.</strong>
+      Two engines of one model on one server are a rotation: the wider one is
+      current and the other drains. With the old engine at gate width 4 and the
+      new one at 12, a session pinned to the old engine before the cutover stays
+      there, while every fresh session lands on the new engine
+      (<code>test_rotation_overlap_takes_new_keys_on_the_new_engine_and_keeps_old_pins</code>).</p>
+    </section>
+    <section id="one-model-on-two-engines-the-row-names-what-the-request-actually-did">
+      <p><strong>A row's <code>routing</code> is read by watch tools, so it must
+      state what the request did rather than what the routing code nearly
+      did.</strong> Three cases previously recorded the wrong thing.</p>
+      <p><strong>An engine appearing is still a placement.</strong> Readiness
+      polls until the catalog resolves, and placement ran inside that closure
+      with its reason discarded — so a request admitted in the interval where
+      the engine first appears wrote <code>routing: null</code> over a key it
+      had in fact just been placed on. The reason now leaves the closure to the
+      caller that writes the row
+      (<code>test_a_request_held_for_its_engine_records_why_it_was_placed</code>).</p>
+      <p><strong>A move to the same engine is not a failover.</strong> When every
+      candidate gate is paused, the placement fallback is "unpaused or live",
+      which can return the engine the key is already pinned to. That was
+      recorded as <code>failed-over</code> and re-pinned the key at the current
+      time — an expiry reset and a failover that did not happen, from one
+      branch. The placement now compares the chosen engine against the pin: an
+      unchanged engine keeps the row at <code>pinned</code> and refreshes the
+      idle clock without moving the pin
+      (<code>test_a_placement_that_stays_on_the_pinned_engine_is_recorded_as_pinned</code>).
+      The branch is asserted directly on <code>_select_engine</code>, because a
+      paused gate holds rather than refusing, so the same-engine landing cannot
+      be driven end-to-end without hanging the request.</p>
+      <p><strong>The wait is the whole queue, and the engine named is the one
+      that admitted.</strong> A request that timed out at its pinned engine's
+      gate and then waited at the alternate's recorded only the second wait —
+      the placement's own queue cost vanished from the row — and named no
+      engine, leaving <code>gate_engine</code> populated on refusals only. The
+      row now carries the sum across both gates and the engine whose gate
+      admitted the request
+      (<code>test_a_failover_records_the_wait_at_both_gates_and_the_admitting_engine</code>).
+      The gate wait at the pinned engine is bounded at 0.4 s in that test, so
+      the pair sums to at least 0.35 s where the second wait alone is
+      microseconds.</p>
+      <p><strong>Two paths that had no test now do.</strong> A pin whose engine
+      drops out of the catalog fails over on the next request rather than
+      holding a reference to an engine that is gone, and the row after that one
+      is back to <code>pinned</code> at the new engine
+      (<code>test_a_pin_whose_engine_leaves_the_catalog_fails_over</code>).
+      The key itself falls back from <code>x-reckon-session</code> to
+      <code>x-reckon-run-id</code> to the caller's host: three requests
+      carrying one of each key form land on one engine, and the host-keyed pair
+      that follows is recorded <code>pinned</code> rather than
+      <code>placed</code>
+      (<code>test_the_key_falls_back_from_the_session_to_the_run_to_the_caller_host</code>).</p>
+    </section>
+    <section id="one-model-on-two-engines-the-wait-bound-is-operator-configuration">
+      <p><strong>The wait bound defaults to 30 s and is set in the gate control
+      file.</strong> <code>DEFAULT_FAILOVER_WAIT_SECONDS</code> is 30.0 and a
+      per-engine <code>failover_wait_seconds</code> entry overrides it, validated
+      as a finite non-negative number at read time so a malformed value stops the
+      read rather than silently pulling an engine's sessions
+      (<code>test_the_failover_bound_defaults_to_thirty_seconds_and_the_file_sets_it</code>).
+      The bound is applied as a cap on the pinned engine's gate wait, and only
+      when an alternate engine exists, so a one-engine lane keeps the gate's own
+      300-second wait rather than failing over to nowhere.</p>
+      <p><strong>Negative control.</strong> With the bound at 0 s, a pinned
+      session whose engine is full — one slot, held by another admitted request —
+      moves to the peer and its row reads <code>failed-over</code>; with no bound
+      set the same session waits at its own engine and keeps
+      <code>pinned</code>. Removing the cap on <code>max_wait_seconds</code> in
+      <code>_GenerationGate.acquire</code> turns the first arm red
+      (the zero-bound test fails on <code>assert 'right' == 'left'</code>,
+      <code>EXIT=1</code>, trace at
+      <code>test_a_zero_bound_fails_a_pinned_session_over_from_a_full_engine</code>), while the unset-bound arm stays green — the pair is
+      not one assertion read twice.</p>
+      <p><strong>Gate.</strong> The six named files pass:
+      <code>tests/test_agent_router_session_affinity.py</code>,
+      <code>tests/test_agent_router_topology_preference.py</code>,
+      <code>tests/test_agent_router_resolution.py</code>,
+      <code>tests/test_request_receipts.py</code>,
+      <code>tests/test_agent_router_service.py</code>,
+      <code>tests/test_agent_router_gate.py</code> — 105 passed, and
+      <code>ruff check imas_ambix tests</code> exits 0. The pre-existing
+      <code>_preferred_owner</code> rotation tests and the gate tests for
+      unresolved requests pass unchanged.</p>
+      <p><strong>Negative control for the row fixes.</strong> Reverting the three
+      row changes in place turns exactly three tests red and leaves the other
+      nine in the affinity file green — <code>3 failed, 9 passed</code> — the
+      failures being <code>UnboundLocalError</code> on the discarded reason,
+      <code>assert 'failed-over' == 'pinned'</code>, and
+      <code>assert 2e-05 &gt;= 0.35</code> on the summed wait. The reversion was
+      applied by script from the committed text and the file was restored from a
+      byte-identical copy before the gate above was run, so the recorded result
+      is the committed tree's.</p>
+    </section>
+  </main>
+</body>
+</html>

@@ -13,11 +13,12 @@ import asyncio
 import json
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from aiohttp import web
 
-from imas_ambix.agent.router import RouterApp, Upstream
+from imas_ambix.agent.router import RouterApp, Upstream, engine_id_for_origin
 
 AsgiMessage = dict[str, Any]
 
@@ -93,9 +94,13 @@ async def _invoke(
     *,
     method: str = "POST",
     path: str = "/v1/messages",
+    session: str | None = None,
 ) -> list[AsgiMessage]:
     incoming: asyncio.Queue[AsgiMessage] = asyncio.Queue()
     await incoming.put({"type": "http.request", "body": body})
+    headers = [(b"content-type", b"application/json")]
+    if session is not None:
+        headers.append((b"x-reckon-session", session.encode()))
     sent: list[AsgiMessage] = []
 
     async def receive() -> AsgiMessage:
@@ -111,7 +116,7 @@ async def _invoke(
             "path": path,
             "raw_path": path.encode(),
             "query_string": b"",
-            "headers": [(b"content-type", b"application/json")],
+            "headers": headers,
         },
         receive,
         send,
@@ -260,9 +265,7 @@ def test_catalog_keeps_only_the_wider_engine() -> None:
                 [Upstream(wide_url), Upstream(narrow_url)],
             ):
                 async with _router(upstreams) as app:
-                    catalog = await _invoke(
-                        app, b"", method="GET", path="/v1/models"
-                    )
+                    catalog = await _invoke(app, b"", method="GET", path="/v1/models")
                     assert _status(catalog) == 200
                     assert json.loads(_body(catalog))["data"] == [wide_card]
 
@@ -281,9 +284,7 @@ def test_catalog_breaks_a_tie_towards_the_later_start() -> None:
                 [Upstream(newer_url), Upstream(older_url)],
             ):
                 async with _router(upstreams) as app:
-                    catalog = await _invoke(
-                        app, b"", method="GET", path="/v1/models"
-                    )
+                    catalog = await _invoke(app, b"", method="GET", path="/v1/models")
                     assert _status(catalog) == 200
                     cards = json.loads(_body(catalog))["data"]
                     assert [card["created"] for card in cards] == [1_757_003_600]
@@ -303,9 +304,7 @@ def test_catalog_refuses_a_pair_the_preference_cannot_rank() -> None:
             _server(second) as second_url,
             _router([Upstream(first_url), Upstream(second_url)]) as app,
         ):
-            catalog = await _invoke(
-                app, b"", method="GET", path="/v1/models"
-            )
+            catalog = await _invoke(app, b"", method="GET", path="/v1/models")
             assert _status(catalog) == 409
             assert f"duplicate model id: {MODEL_ID}".encode() in _body(catalog)
 
@@ -323,9 +322,51 @@ def test_catalog_refuses_an_unstamped_leader() -> None:
             _server(unstamped) as unstamped_url,
             _router([Upstream(stamped_url), Upstream(unstamped_url)]) as app,
         ):
-            catalog = await _invoke(
-                app, b"", method="GET", path="/v1/models"
-            )
+            catalog = await _invoke(app, b"", method="GET", path="/v1/models")
             assert _status(catalog) == 409
+
+    asyncio.run(exercise())
+
+
+def test_rotation_overlap_takes_new_keys_on_the_new_engine_and_keeps_old_pins(
+    tmp_path: Path,
+) -> None:
+    """A cutover's overlap window: fresh sessions follow the incoming engine.
+
+    Two engines of one model on one server are a rotation rather than a pool, so
+    the wider engine is current and the narrower one drains. A session already
+    on the draining engine keeps it -- its cache is there -- while every new
+    session lands ``placed`` on the current engine.
+    """
+
+    async def exercise() -> None:
+        older = _engine("older", _card(accelerators=2))
+        newer = _engine("newer", _card(accelerators=4))
+        async with _server(older) as older_url, _server(newer) as newer_url:
+            gate_file = tmp_path / "router-gate.json"
+            gate_file.write_text(
+                json.dumps(
+                    {
+                        "engines": {
+                            engine_id_for_origin(older_url): {"width": 4},
+                            engine_id_for_origin(newer_url): {"width": 12},
+                        }
+                    }
+                )
+            )
+            resolver = Resolver([Upstream(older_url)])
+            app = RouterApp(resolver, gate_file=gate_file)
+            try:
+                first = await _invoke(app, _request(), session="legacy")
+                assert json.loads(_body(first)) == {"served_by": "older"}
+                resolver.upstreams = [Upstream(older_url), Upstream(newer_url)]
+                for key in ("fresh-a", "fresh-b", "fresh-c"):
+                    relayed = await _invoke(app, _request(), session=key)
+                    assert json.loads(_body(relayed)) == {"served_by": "newer"}
+                still = await _invoke(app, _request(), session="legacy")
+                assert json.loads(_body(still)) == {"served_by": "older"}
+            finally:
+                if app._session is not None:
+                    await app._session.close()
 
     asyncio.run(exercise())

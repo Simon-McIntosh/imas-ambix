@@ -341,6 +341,40 @@ def test_the_gate_engine_is_its_own_column_and_reason_stays_free_text(
     assert [row["reason"] for row in rows] == [None, "router shutdown", None]
 
 
+def test_the_routing_receipt_names_why_a_request_reached_its_engine(
+    tmp_path: Path,
+) -> None:
+    """Placement, a live pin and a failover are three distinct columns.
+
+    A reader asking how much traffic a session's affinity kept on one engine
+    sums ``pinned``; a reader asking how often an engine's loss moved work sums
+    ``failed-over``. Neither is recoverable from ``reason``, which carries the
+    shutdown and cut events, so routing is its own column and is absent on every
+    row that never reached an engine.
+    """
+
+    sink = RequestReceiptSink(tmp_path / "requests.jsonl", max_rows_per_s=1e9)
+    for routing in ("placed", "pinned", "failed-over", None):
+        sink.record(
+            model="streamer",
+            upstream="http://98dci4-gpu-0003:18810",
+            caller_hint="local",
+            status=STATUS_COMPLETED,
+            duration_s=0.1,
+            accounting=_idle_accounting(),
+            routing=routing,
+        )
+    sink.close()
+
+    rows = _read_rows(tmp_path / "requests.jsonl")
+    assert [row["routing"] for row in rows] == [
+        "placed",
+        "pinned",
+        "failed-over",
+        None,
+    ]
+
+
 def test_rows_either_side_of_utc_midnight_land_in_two_day_files(
     tmp_path: Path,
 ) -> None:
