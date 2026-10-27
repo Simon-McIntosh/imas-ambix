@@ -42,142 +42,51 @@ $ echo $?
     </section>
     <section id="agent-watch-points-to-llm-watch-live-memory">
       <p><strong>A ten-minute <code>llm-watch --live</code> run holds its
-      memory.</strong> The run resolved the worktree's own
-      <code>imas_ambix/agent/llm_watch.py</code> (the console script plus
-      <code>PYTHONPATH</code> at the worktree), read the site's live lane and
-      endpoint documents, and was sampled once per refresh interval
-      (<code>LIVE_REFRESH_SECONDS = 5.0</code>), 119 samples over
-      590 s of wall clock with the child alive for every
-      sample. Resident set: <strong>27604 kB after the first minute
-      (t = 60 s), 27472 kB at the end</strong> — a change of
-      0.48 %,
+      memory.</strong> The console script was launched directly, not through
+      <code>uv run</code>: uv forks, so a pid taken from it is the uv launcher
+      and the view renders in a grandchild that is never the process measured.
+      The process measured here is the interpreter running the script --
+      <code>pid=1028</code>,
+      <code>/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python3
+      /home/ITER/mcintos/Code/imas-ambix/.venv/bin/llm-watch --live</code>,
+      read from <code>/proc/1028/cmdline</code> and kept in
+      <code>logs/llm-watch-pid-cmdline.txt</code> -- with <code>PYTHONPATH</code>
+      at the worktree, so the run executed this worktree's
+      <code>imas_ambix/agent/llm_watch.py</code>.</p>
+      <p>RSS was sampled on a fixed 5 s clock (targets at start + k x 5 s, not
+      "5 s after the last read"): <strong>121 samples over 0-600 s</strong>,
+      child alive at every one. Each refresh's own timestamp was read from the
+      <code># refreshed ...</code> line it printed, so the cadence is shown
+      rather than assumed: <strong>104 distinct refresh stamps</strong>,
+      spanning 589 s -- the same 104 distinct timestamps the CSV carries.</p>
+      <p><strong>Four intervals ran longer than 6 s</strong>, all of them here:
+      10 s ending 10:20:14Z, 20 s ending 10:22:53Z, 8 s ending 10:24:23Z, and
+      7 s ending 10:26:35Z. The remaining 99 gaps are 5 s (50) or 6 s (49); a
+      stamp carries whole seconds, so a 6 s gap is the quantisation of a 5 s
+      cadence rather than a stall. 104 renders over 589 s is a mean 5.72 s,
+      consistent with each pass spending about 0.7 s building the document
+      before its 5 s sleep.</p>
+      <p>Resident set: <strong>71344 kB after the first minute (t = 60 s),
+      72272 kB at the end</strong> -- a change of <strong>+1.30 %</strong>,
       well inside the 10 % the section allows. Post-first-minute range
-      27472–27604 kB.</p>
-      <p>The three sample regimes are visible in the series: the interpreter
-      coming up (36 kB at t = 0), the first two renders building their caches
-      (29492 kB at t = 5 s, 29492 kB at t = 10 s),
-      and then a flat plateau with no trend. Sample CSV:
-      <code>logs/llm-watch-live-rss.csv</code> in the run directory; the rendered
-      refreshes are in <code>logs/llm-watch-live-output.txt</code>.</p>
-      <pre>  0.000s       36 kB  running=True
-  5.000s    29492 kB  running=True
- 10.000s    29492 kB  running=True
- 15.000s    27604 kB  running=True
- 20.000s    27604 kB  running=True
- 25.000s    27604 kB  running=True
- 30.000s    27604 kB  running=True
- 35.000s    27604 kB  running=True
- 40.000s    27604 kB  running=True
- 45.000s    27604 kB  running=True
- 50.000s    27604 kB  running=True
- 55.000s    27604 kB  running=True
- 60.000s    27604 kB  running=True
- 65.000s    27604 kB  running=True
- 70.000s    27604 kB  running=True
- 75.000s    27604 kB  running=True
- 80.000s    27604 kB  running=True
- 85.000s    27604 kB  running=True
- 90.000s    27604 kB  running=True
- 95.000s    27604 kB  running=True
-100.000s    27604 kB  running=True
-105.000s    27604 kB  running=True
-110.000s    27604 kB  running=True
-115.001s    27604 kB  running=True
-120.000s    27604 kB  running=True
-125.000s    27604 kB  running=True
-130.000s    27604 kB  running=True
-135.000s    27564 kB  running=True
-140.000s    27564 kB  running=True
-145.000s    27532 kB  running=True
-150.000s    27476 kB  running=True
-155.000s    27476 kB  running=True
-160.000s    27476 kB  running=True
-165.000s    27476 kB  running=True
-170.000s    27476 kB  running=True
-175.000s    27476 kB  running=True
-180.000s    27476 kB  running=True
-185.000s    27476 kB  running=True
-190.000s    27476 kB  running=True
-195.000s    27476 kB  running=True
-200.000s    27476 kB  running=True
-222.561s    27476 kB  running=True
-222.561s    27476 kB  running=True
-222.562s    27476 kB  running=True
-222.562s    27476 kB  running=True
-225.000s    27476 kB  running=True
-230.000s    27476 kB  running=True
-235.000s    27476 kB  running=True
-240.000s    27476 kB  running=True
-245.000s    27476 kB  running=True
-250.000s    27476 kB  running=True
-255.000s    27476 kB  running=True
-260.000s    27476 kB  running=True
-265.000s    27476 kB  running=True
-270.000s    27476 kB  running=True
-275.000s    27476 kB  running=True
-280.000s    27476 kB  running=True
-285.000s    27476 kB  running=True
-290.000s    27476 kB  running=True
-295.000s    27476 kB  running=True
-300.000s    27476 kB  running=True
-305.000s    27476 kB  running=True
-310.000s    27476 kB  running=True
-315.000s    27476 kB  running=True
-320.000s    27472 kB  running=True
-325.000s    27472 kB  running=True
-330.000s    27472 kB  running=True
-335.000s    27472 kB  running=True
-340.000s    27472 kB  running=True
-345.000s    27472 kB  running=True
-350.000s    27472 kB  running=True
-355.000s    27472 kB  running=True
-360.000s    27472 kB  running=True
-365.000s    27472 kB  running=True
-370.000s    27472 kB  running=True
-375.000s    27472 kB  running=True
-380.000s    27472 kB  running=True
-385.000s    27472 kB  running=True
-390.000s    27472 kB  running=True
-395.000s    27472 kB  running=True
-400.000s    27472 kB  running=True
-405.000s    27472 kB  running=True
-410.000s    27472 kB  running=True
-415.000s    27472 kB  running=True
-420.000s    27472 kB  running=True
-425.000s    27472 kB  running=True
-430.000s    27472 kB  running=True
-435.000s    27472 kB  running=True
-440.000s    27472 kB  running=True
-445.000s    27472 kB  running=True
-450.000s    27472 kB  running=True
-455.000s    27472 kB  running=True
-460.000s    27472 kB  running=True
-465.000s    27472 kB  running=True
-470.000s    27472 kB  running=True
-475.000s    27472 kB  running=True
-480.000s    27472 kB  running=True
-485.000s    27472 kB  running=True
-490.000s    27472 kB  running=True
-495.000s    27472 kB  running=True
-500.000s    27472 kB  running=True
-505.000s    27472 kB  running=True
-510.000s    27472 kB  running=True
-515.000s    27472 kB  running=True
-520.000s    27472 kB  running=True
-525.000s    27472 kB  running=True
-530.000s    27472 kB  running=True
-535.000s    27472 kB  running=True
-540.000s    27472 kB  running=True
-545.000s    27472 kB  running=True
-550.000s    27472 kB  running=True
-555.000s    27472 kB  running=True
-560.000s    27472 kB  running=True
-565.000s    27472 kB  running=True
-570.000s    27472 kB  running=True
-575.000s    27472 kB  running=True
-580.000s    27472 kB  running=True
-585.000s    27472 kB  running=True
-590.000s    27472 kB  running=True</pre>
+      70476-78528 kB, median 72204 kB. The two readings above 74 MB are
+      transients rather than a trend: 77028 kB at t = 45 s in the window's
+      start-up, and 78528 kB at t = 290 s, coincident with the long render that
+      ended the 20 s interval; ten seconds later the figure is back at
+      72208 kB.</p>
+      <pre>    0.002s     2328 kB  before the first render
+    5.000s    59260 kB  10:18:15
+   10.000s    62140 kB  10:18:21
+   45.000s    77028 kB  10:18:53
+   60.000s    71344 kB  10:19:09
+  120.000s    71032 kB  10:20:04
+  290.000s    78528 kB  10:22:58
+  300.000s    72208 kB  10:23:09
+  420.000s    72248 kB  10:25:12
+  600.000s    72272 kB  10:28:04</pre>
+      <p>Full series and the rendered passes:
+      <code>logs/llm-watch-live-rss.csv</code> and
+      <code>logs/llm-watch-live-output.txt</code> in the run directory.</p>
     </section>
     <section id="agent-watch-points-to-llm-watch-published-ledger-fix">
       <p><strong>The live view could not render at all, and this node carries the
