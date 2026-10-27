@@ -49,17 +49,36 @@ def _engine_id(host: str, port: int) -> str:
     return f"{_short_host(host)}:{port}"
 
 
+def _host_name(host: str) -> str:
+    """Return the node name a host spelling denotes, without domain or cluster part.
+
+    A registration records the name the node itself reports, which is the fully
+    qualified ``98dci4-gpu-0003.iter.org``, while a site declares the
+    scheduler's ``98dci4-gpu-0003``. Both name one machine, so placement
+    compares them through this form rather than through their raw spelling. An
+    engine id keeps the spelling its registration carried, because that id
+    identifies a port on one allocation and is not a statement about a node.
+    """
+    return _short_host(host.split(".", 1)[0])
+
+
 def _server_index(servers: Sequence[SiteServerConfig]) -> dict[str, str]:
     """Map every spelling of a declared server onto its declared name.
 
     A registration may name its server by declaration name or carry only the
     host it ran on, and the host may be spelled with or without its cluster
-    component, so all three are accepted. The first spelling of a name wins, so
-    a declaration order decides between two servers that share one.
+    and domain components, so every form each of those takes is accepted. The
+    first spelling of a name wins, so a declaration order decides between two
+    servers that share one.
     """
     index: dict[str, str] = {}
     for server in servers:
-        for key in (server.name, server.host, _short_host(server.host)):
+        for key in (
+            server.name,
+            server.host,
+            _short_host(server.host),
+            _host_name(server.host),
+        ):
             if key:
                 index.setdefault(key, server.name)
     return index
@@ -74,8 +93,11 @@ def _server_key(registration: ServeRegistration, index: dict[str, str]) -> str:
     engine is dropped from the document for want of a declaration.
     """
     for candidate in (registration.server, registration.host):
-        if candidate and candidate in index:
-            return index[candidate]
+        if not candidate:
+            continue
+        for spelling in (candidate, _host_name(candidate)):
+            if spelling in index:
+                return index[spelling]
     return registration.host
 
 
@@ -88,8 +110,9 @@ def server_for_registration(
     a registration carries several spellings of its placement and a second
     implementation drifts from it. A registration may name its server by
     declaration name, or carry only the host it ran on, spelled with or without
-    its cluster component: ``gpu-0004``, ``98dci4-gpu-0004`` and the declared
-    name all resolve to the same server. A name the site does not declare falls
+    its cluster and domain components: ``gpu-0004``, ``98dci4-gpu-0004``,
+    ``98dci4-gpu-0004.iter.org`` and the declared name all resolve to the same
+    server. A name the site does not declare falls
     back to the host, so renaming a server does not lose the serve running on
     it, and a host the site does not declare resolves to ``None`` -- the engine
     is still published, under its host, but there is no declaration to place a
