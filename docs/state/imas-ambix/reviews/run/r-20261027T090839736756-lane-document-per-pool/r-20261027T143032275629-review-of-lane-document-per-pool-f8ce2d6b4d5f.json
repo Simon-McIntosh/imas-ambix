@@ -1,0 +1,85 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 7,
+  "call_sites": [
+    "imas_ambix/agent/router.py:2270 lifespan startup creates _publish_lane",
+    "imas_ambix/agent/router.py:2548 write_unavailable_document for an all-failed pool",
+    "imas_ambix/agent/router.py:2573 write_lane_document for a one-engine pool",
+    "imas_ambix/agent/router.py:2601 write_document for a composed pool",
+    "imas_ambix/agent/lane.py:639 write_unavailable_document -> write_document",
+    "imas_ambix/agent/lane.py:1086 write_lane_document -> write_document",
+    "imas_ambix/agent/cli.py agent lane command retired (no 'def lane' in the module)"
+  ],
+  "completed_at": "2026-10-27T14:44:33.672Z",
+  "dispatched_at": "2026-10-27T14:32:57Z",
+  "findings": [
+    {
+      "file": "tests/test_lane_pool_documents.py",
+      "line": 349,
+      "severity": "blocking",
+      "text": "The done_when's contract test calls read_lane_document(tmp_path / 'lanes' / 'fixture-a.json'), but reckon.crew.lane_document.read_lane_document takes a parsed mapping or raw JSON text and never a path: _as_mapping returns blank_report(malformed=True, detail='lane document is PosixPath, not a JSON object'), so the assertion at line 350 is False. Demonstrated under /home/ITER/mcintos/Code/reckon/.venv: read_lane_document(Path(...)) -> malformed True and the assertion evaluates False. The test is skipped on this host ('reckon is not importable here'), so the gate is green while the contract the done_when names is untested and would redden the suite in any environment where reckon imports."
+    },
+    {
+      "file": "tests/test_slurm_output_paths.py",
+      "line": 33,
+      "severity": "non-blocking",
+      "text": "This file and tests/test_agent_router_service.py:54 were modified although neither is in the dispatched write fence, and both are declared to the concurrent router-placed-on-rigel node; the manifest widens its own orientation_write_paths to cover them instead of reporting the need as a scope change, so two nodes now hold the same two files."
+    },
+    {
+      "file": "tests/test_lane_pool_documents.py",
+      "line": 124,
+      "severity": "non-blocking",
+      "text": "The golden's comparison base is recomputed with lane.write_lane_document for the same reading, which is the same composer the router's one-engine path calls, so the key-set assertion at line 138 and the value equality at lines 145-148 move with the code under test and cannot redden on a regression in build_lane_document; the fragment's claim that lane.json keeps 'the base revision's keys and values' is therefore not what this test establishes, only that the router adds nothing beyond the index and gate block to whatever the current builder emits."
+    },
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": 2537,
+      "severity": "non-blocking",
+      "text": "In a pool spanning several engines, an engine that failed to answer is dropped from the engine list and the remaining engines are composed and published as the whole pool, with no marker that an engine is missing; the all-failed case is published unavailable (router.py:2548), but a half-unreadable pool publishes a measured document that understates the pool's capacity and demand without saying so."
+    },
+    {
+      "file": "imas_ambix/agent/lane.py",
+      "line": 1241,
+      "severity": "non-blocking",
+      "text": "requests_per_run in a composed pool is an unweighted arithmetic mean of the engines' ratios, while every other per-request figure in the same composer (_pool_context, _weighted prefix and context rates, _merge_throughput) is running-weighted as the module's docstring and the done_when state; two engines with unequal run counts therefore publish a pool ratio neither engine supports."
+    }
+  ],
+  "item_verdicts": {
+    "diff": "Read commit by commit: 80bed95e composes pool documents in lane.py and router.py and removes the lane command and its SLURM refresher, 79fd44f4 repairs the two test modules the removal broke, f8ce2d6b records the fragment; nine files, 1202 insertions and 256 deletions, with only the two test-file repairs outside the dispatched fence.",
+    "done_when": "The done_when names a three-file pytest gate, the golden and two-pool and two-engine assertions, the caller search, the removal of agent lane and generate_lane_refresher_script, the single-writer search test, a reckon read_lane_document contract test and whole-tree ruff; logs/gate-five-files.log records the five-file superset at 54 passed, 1 skipped, EXIT=0 and logs/ruff-five-files.log records EXIT=0, but the one skipped id is the contract test and it is defective rather than merely unavailable (tests/test_lane_pool_documents.py:349).",
+    "goal": "The goal is one lane document per pool from each engine's own reading, the default pool at lane.json with a lanes index and every other pool at lanes/<model id>.json, with the composer the only writer; imas_ambix/agent/router.py:2408 _publish_lane groups engines by served model and writes each pool, and tests/test_lane_pool_documents.py:367 walks the package for any other writer. A pool whose engines only partly answer publishes the answered engines as the whole pool (router.py:2537).",
+    "manifest": "Read; it reports status complete, commits 80bed95e, 79fd44f4 and f8ce2d6b, the five-file gate at 54 passed 1 skipped, whole-tree ruff clean, a negative control log at EXIT=1, and outside_scope none, and the three logs on disk corroborate the two gate figures and the red control.",
+    "write_paths": "The dispatched fence lists nine paths; the diff writes eight files, of which tests/test_slurm_output_paths.py:33 and tests/test_agent_router_service.py:54 are outside that fence and are declared to the concurrent router-placed-on-rigel node, and the manifest's own orientation_write_paths widens the list to eleven rather than the nine dispatched."
+  },
+  "justifications": {
+    "durability": "tests/test_lane_pool_documents.py:271 reddens under the recorded negative control when an all-failed pool writes no document, and the two-pool and two-engine value assertions are independent fixture-derived figures, but the golden's comparison at tests/test_lane_pool_documents.py:138 and the contract test at :349 are not guards.",
+    "evidence": "logs/gate-five-files.log records 54 passed, 1 skipped at EXIT=0 over a five-file superset of the three named files and logs/ruff-five-files.log records EXIT=0, but the skipped id is the contract test at tests/test_lane_pool_documents.py:349 and that test cannot pass as written.",
+    "fit": "The added definitions follow lane.py's existing helper and docstring idiom (lane.py:797 build_lane_document, lane.py:1148 _sum_counts) and introduce no plan, version or ticket label in any path, symbol or comment.",
+    "goal_fidelity": "router.py:2408 _publish_lane writes lane.json for the default pool with a lanes index and lanes/<model id>.json for every other pool from each engine's own reading, which is the goal; a partly unreadable pool still publishes as if whole, hence not full marks.",
+    "reuse": "Every added definition extends the lane module that already owns the reader and writer (lane.py:797 build_lane_document, lane.py:1089 write_lane_document), and the change consolidates three duplicated atomic writers into lane.py:779 write_document; a search of imas_ambix/agent for an existing pool composer found none (serving_receipts.py:361 _merge_serve_config and telemetry_store.py:263 _merge merge configs and telemetry rows, not lane readings).",
+    "scope_discipline": "tests/test_slurm_output_paths.py:33 and tests/test_agent_router_service.py:54 lie outside the dispatched fence and are declared to the concurrent router-placed-on-rigel node, though the rest of the diff stays inside it."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The goal is one lane document per pool from each engine's own reading, the default pool at lane.json with a lanes index and every other pool at lanes/<model id>.json, with the composer the only writer; imas_ambix/agent/router.py:2408 _publish_lane groups engines by served model and writes each pool, and tests/test_lane_pool_documents.py:367 walks the package for any other writer. A pool whose engines only partly answer publishes the answered engines as the whole pool (router.py:2537).\nVERDICT done_when: The done_when names a three-file pytest gate, the golden and two-pool and two-engine assertions, the caller search, the removal of agent lane and generate_lane_refresher_script, the single-writer search test, a reckon read_lane_document contract test and whole-tree ruff; logs/gate-five-files.log records the five-file superset at 54 passed, 1 skipped, EXIT=0 and logs/ruff-five-files.log records EXIT=0, but the one skipped id is the contract test and it is defective rather than merely unavailable (tests/test_lane_pool_documents.py:349).\nVERDICT write_paths: The dispatched fence lists nine paths; the diff writes eight files, of which tests/test_slurm_output_paths.py:33 and tests/test_agent_router_service.py:54 are outside that fence and are declared to the concurrent router-placed-on-rigel node, and the manifest's own orientation_write_paths widens the list to eleven rather than the nine dispatched.\nVERDICT manifest: Read; it reports status complete, commits 80bed95e, 79fd44f4 and f8ce2d6b, the five-file gate at 54 passed 1 skipped, whole-tree ruff clean, a negative control log at EXIT=1, and outside_scope none, and the three logs on disk corroborate the two gate figures and the red control.\nVERDICT diff: Read commit by commit: 80bed95e composes pool documents in lane.py and router.py and removes the lane command and its SLURM refresher, 79fd44f4 repairs the two test modules the removal broke, f8ce2d6b records the fragment; nine files, 1202 insertions and 256 deletions, with only the two test-file repairs outside the dispatched fence.\nCALL_SITES: imas_ambix/agent/router.py:2270 lifespan startup creates _publish_lane; imas_ambix/agent/router.py:2548 write_unavailable_document for an all-failed pool; imas_ambix/agent/router.py:2573 write_lane_document for a one-engine pool; imas_ambix/agent/router.py:2601 write_document for a composed pool; imas_ambix/agent/lane.py:639 and imas_ambix/agent/lane.py:1086 write_document call sites; imas_ambix/agent/cli.py agent lane command absent (grep for 'def lane' returns 0)",
+  "review_run_id": "r-20261027T143032275629-review-of-lane-document-per-pool-f8ce2d6b4d5f",
+  "reviewed_base_sha": "7b095acea689a1bf060b6d00696afb2ac03d3b5d",
+  "reviewed_head_sha": "f8ce2d6b4d5fbe094b08660df41b59f12bde5b44",
+  "reviewed_run_id": "r-20261027T090839736756-lane-document-per-pool",
+  "scores": {
+    "durability": 13,
+    "evidence": 13,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "reuse": 19,
+    "scope_discipline": 11
+  },
+  "status": "parsed",
+  "suite_arms_read": {
+    "after_suite": "logs/gate-five-files.log: rev 80bed95e with working-tree changes at tree /home/ITER/mcintos/Code/.reckon-worktrees/imas-ambix-0405601943d2/b52968d9-6db7-419c-88fb-9893fefc4514/lane-document-per-pool, '54 passed, 1 skipped in 6.07s', EXIT=0; zero failing ids over 80bed95e..f8ce2d6b (the later two commits touch only a test comment repair and the fragment).",
+    "baseline_suite": "absent: the reviewed manifest records baseline_suite: null and the run gate-after.log is a 36-passed three-file run at the same revision 80bed95e with zero failing ids, not a pre-change base arm."
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T14:42:32.209565+00:00",
+  "total": 92
+}
