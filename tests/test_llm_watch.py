@@ -944,3 +944,33 @@ def test_no_line_exceeds_the_terminal_width_in_a_multi_engine_view() -> None:
         text = lw.render_text(three_engine_fixture(), width=width)
         longest = max(len(line) for line in text.splitlines())
         assert longest <= width, (width, longest)
+
+
+def test_main_draws_the_bands_of_the_engine_it_names(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``--engine`` decides whose three bands are drawn, not only which row is listed.
+
+    The bands hold one engine's figures, so a selection that only labelled the
+    table would leave the busiest engine's numbers above another engine's name.
+    The whole render is compared, which is what makes the assertion cover the
+    bands: they are the only part of it the selection changes.
+    """
+    document = three_engine_fixture()
+    monkeypatch.setattr(lw, "build_document", lambda **_: document)
+
+    assert lw.main(["--engine", B300, "--width", "120"]) == 0
+    chosen = capsys.readouterr().out
+    assert chosen == lw.render_text(document, engine=B300, width=120)
+
+    assert lw.main(["--width", "120"]) == 0
+    default = capsys.readouterr().out
+    assert default == lw.render_text(document, width=120)
+    # The two differ, so the assertion above is not passing on an unchanged
+    # render: with no choice the busiest engine's bands are drawn, and B300 is
+    # not it.
+    assert chosen != default
+
+    bands = [line for line in chosen.splitlines() if "b300-0001" in line]
+    assert bands, chosen
+    assert any("glm-5.3" in line for line in bands)

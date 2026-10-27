@@ -726,12 +726,20 @@ def panel_engines(
     The live block counts one entry per serve it read. The pool document the
     router publishes carries, when it spans several engines, an ``engines``
     array holding each engine's own reading and gate. This joins the two by
-    engine identity -- the registration id's host against the host the receipt
-    row was taken on -- so an entry carries both what the engine did (from the
-    recorder) and what its gate holds (from the router). An engine the pool
-    document names but the recorder has no fresh row for keeps an entry with no
-    live figures, and one the recorder saw but the pool document does not name
-    keeps its live figures with no gate, so neither is silently dropped.
+    engine identity -- the registration id's host and port -- so an entry
+    carries both what the engine did (from the recorder) and what its gate
+    holds (from the router). An engine the pool document names but the recorder
+    has no fresh row for keeps an entry with no live figures, and one the
+    recorder saw but the pool document does not name keeps its live figures
+    with no gate, so neither is silently dropped.
+
+    A receipt row names its host and model but carries no port, so two serves
+    on one node cannot be told apart by port from the record alone. They are
+    told apart by the model each serves, and a pair that neither identity nor
+    model separates is left unjoined rather than paired by list position: two
+    serves on one node, reported in the order the recorder happened to write
+    them, would otherwise each carry the other's figures and read as though
+    they had been measured.
     """
     pool = [
         entry for entry in (lane_document.get("engines") or [])
@@ -740,25 +748,76 @@ def panel_engines(
     used: set[int] = set()
     entries: list[dict[str, Any]] = []
     for live in live_entries:
-        host = live.get("hostname")
-        match = None
-        if isinstance(host, str) and host:
-            for index, engine in enumerate(pool):
-                if index in used:
-                    continue
-                engine_id = engine.get("engine_id")
-                if isinstance(engine_id, str) and _engine_host(engine_id) == _host_name(
-                    host
-                ):
-                    match = index
-                    used.add(index)
-                    break
+        match = _matching_engine(pool, used, live)
+        if match is not None:
+            used.add(match)
         entries.append(_engine_entry(pool[match] if match is not None
                                      else {}, live))
     for index, engine in enumerate(pool):
         if index not in used:
             entries.append(_engine_entry(engine, None))
     return entries
+
+
+def _matching_engine(
+    pool: list[dict[str, Any]], used: set[int], live: dict[str, Any]
+) -> int | None:
+    """The pool entry a live reading belongs to, or None when nothing tells.
+
+    Identity is ``host:port``, which the pool entry carries and the receipt row
+    does not. So the host narrows the pool to the engines on that node and the
+    served model separates them when the node carries more than one engine. A
+    node with two engines serving two models resolves on the model; a node with
+    two engines serving one model has nothing left to separate them and yields
+    no match, because pairing them by position is what gives an engine another
+    engine's figures.
+
+    The model is also a cross-check on a single-candidate match: a node whose
+    only pool engine serves a different model is a reading the pool does not
+    describe, and it is left unjoined rather than pinned to the wrong engine.
+    """
+    host = live.get("hostname")
+    if not isinstance(host, str) or not host:
+        return None
+    host = _host_name(host)
+    model = live.get("served_name")
+    on_host = [
+        index for index, engine in enumerate(pool)
+        if index not in used and _pool_identity(engine)[0] == host
+    ]
+    if not on_host:
+        return None
+    if len(on_host) > 1:
+        named = [
+            index for index in on_host
+            if model and _pool_model(pool[index]) == model
+        ]
+        if len(named) != 1:
+            return None
+        on_host = named
+    index = on_host[0]
+    entry_model = _pool_model(pool[index])
+    if model and entry_model and entry_model != model:
+        return None
+    return index
+
+
+def _pool_identity(engine: dict[str, Any]) -> tuple[str | None, str | None]:
+    """A pool entry's ``(host, port)``, from its engine id where it has one."""
+    engine_id = engine.get("engine_id")
+    if isinstance(engine_id, str) and engine_id:
+        host, _, port = engine_id.rpartition(":")
+        if host:
+            return (_host_name(host), port or None)
+        return (_host_name(engine_id), None)
+    host = engine.get("hostname") or engine.get("host")
+    return (_host_name(host) if isinstance(host, str) and host else None, None)
+
+
+def _pool_model(engine: dict[str, Any]) -> str | None:
+    """The model a pool entry serves, under either name a pool gives it."""
+    model = engine.get("model_id") or engine.get("model")
+    return str(model) if model else None
 
 
 def _host_name(host: str) -> str:
@@ -864,18 +923,69 @@ def live_panel(
 
 
 def _lane_document(path: str | Path, *, now: datetime | None = None) -> dict[str, Any]:
-    """The published lane document, or an empty one when it is unreadable.
+    """The published lane document, with every pool's engines gathered into it.
 
     The lane block copies only the fields it publishes; the ``engines`` array
     the pool document carries is read here, from the same file and the same
     pass, so the per-engine entries describe the document the lane block was
     built from.
+
+    The router composes one document per model, though, and a document carries
+    an ``engines`` array only when its own pool spans several engines. Every
+    other model's pool is written beside the lane document under ``lanes/`` and
+    named by the ``lanes`` index the lane document itself carries, so reading
+    the lane document alone loses a second model entirely. Each named document
+    therefore contributes its engines too, and a pool document that spans a
+    single engine contributes itself, because that is what a one-engine pool's
+    document is.
     """
+    target = Path(path)
+    document = _read_document(target)
+    engines = _document_engines(document, standalone=False)
+    index = document.get("lanes")
+    if isinstance(index, dict):
+        for name in index.values():
+            if not isinstance(name, str) or not name:
+                continue
+            other = target.parent / name
+            if other == target:
+                continue
+            engines.extend(_document_engines(_read_document(other), standalone=True))
+    if not engines:
+        return document
+    merged = dict(document)
+    merged["engines"] = engines
+    return merged
+
+
+def _read_document(path: Path) -> dict[str, Any]:
+    """One published document, or an empty one when it is unreadable."""
     try:
-        document = json.loads(Path(path).read_text(encoding="utf-8"))
+        document = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError):
         return {"state": "unavailable"}
     return document if isinstance(document, dict) else {"state": "unavailable"}
+
+
+def _document_engines(
+    document: dict[str, Any], *, standalone: bool
+) -> list[dict[str, Any]]:
+    """A pool document's engine entries.
+
+    A pool spanning several engines lists them under ``engines``. A pool
+    spanning one is that engine's own document and carries no list, so it is an
+    entry only where the document is known to stand for one engine on its own:
+    a pool named by the ``lanes`` index is, while the lane document is not --
+    it is also a one-engine lane's whole reading, and the recorder already names
+    the engine it serves.
+    """
+    entries = [entry for entry in (document.get("engines") or [])
+               if isinstance(entry, dict)]
+    if entries:
+        return entries
+    if standalone and document.get("state") != "unavailable":
+        return [document]
+    return []
 
 
 def published_shelf_life(path: str | Path) -> int:
