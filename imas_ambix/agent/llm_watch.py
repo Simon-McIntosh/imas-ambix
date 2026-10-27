@@ -87,9 +87,11 @@ UNATTRIBUTED = "unattributed"
 #: Projects listed in the detail table before the rest fold into one row.
 DETAIL_ROWS = 6
 
-#: The width of the engines table's first column, which carries a model and the
-#: node it runs on: wider than a plain label, because it names two things.
-ENGINE_LABEL_WIDTH = 24
+#: The widths of the engines table's columns: a model and an engine id, then one
+#: figure column each. The two names are sized so a model id survives whole and
+#: two engines on one node are told apart by their ports, which a single column
+#: carrying both did not.
+ENGINE_WIDTHS = (20, 17) + (9,) * 7
 
 #: The width of the detail table's engine column: a node name and a port.
 ENGINE_CELL_WIDTH = 20
@@ -644,23 +646,19 @@ def engines_table(
     source did not publish is a dash, never a zero.
     """
     table = _table(
-        ("engines", "running", "router q", "tok/s out", "tok/s each", "ttft s",
-         "kv pool %", "available %"),
-        label_width=ENGINE_LABEL_WIDTH,
+        ("model", "engine", "running", "router q", "tok/s", "each",
+         "ttft s", "kv pool %", "avail %"),
+        widths=ENGINE_WIDTHS,
+        left=(0, 1),
     )
     chosen = selected_engine(document, engine)
     for entry in document_engines(document):
-        name = " ".join(
-            part for part in (
-                str(entry.get("model") or ""),
-                _server_name(entry) or "",
-            ) if part
-        ) or DASH
         queue = _number(entry, "router_q")
         kv_pool = _number(entry, "kv_pool")
         available = _number(entry, "available")
         table.add_row(
-            name,
+            str(entry.get("model") or DASH),
+            _engine_display(entry.get("engine") or entry.get("engine_id")),
             f"[cyan]{_number(entry, 'running'):.1f}[/]"
             if _number(entry, "running") is not None else DASH,
             f"[red]{queue:.0f}[/]" if queue is not None and queue >= 1
@@ -694,14 +692,20 @@ def _table(
     *,
     label_width: int = LABEL_WIDTH,
     cell_width: int = CELL_WIDTH,
+    widths: tuple[int, ...] | None = None,
+    left: tuple[int, ...] = (0,),
 ) -> Table:
     table = Table(box=box.SIMPLE_HEAD, padding=(0, 1), expand=False,
                   pad_edge=False, header_style="dim")
     for index, name in enumerate(heads):
+        if widths is not None:
+            width = widths[index]
+        else:
+            width = label_width if index == 0 else cell_width
         table.add_column(
             name,
-            justify="left" if index == 0 else "right",
-            width=label_width if index == 0 else cell_width,
+            justify="left" if index in left else "right",
+            width=width,
             no_wrap=True,
         )
     return table
@@ -1006,7 +1010,8 @@ def ledger_table(
     head = ("ledger", "model", "tok in", "cached %", "tok out", "util %",
             "cost $", "window") if grouped else (
         "ledger", "tok in", "cached %", "tok out", "util %", "cost $", "window")
-    table = _table(head)
+    widths = ((LABEL_WIDTH, 20) + (CELL_WIDTH,) * 6) if grouped else None
+    table = _table(head, widths=widths)
     for row in rows:
         tokens_in = float(row.get("tokens_in") or 0.0)
         cached = float(row.get("cached") or 0.0)

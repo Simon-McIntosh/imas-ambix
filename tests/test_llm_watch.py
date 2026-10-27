@@ -24,6 +24,7 @@ from rich.text import Text
 
 from imas_ambix.agent import live_panel
 from imas_ambix.agent import llm_watch as lw
+from imas_ambix.agent.request_receipts import SELF_ANSWERED_UPSTREAM
 from imas_ambix.agent.watch_style import WIDTHS
 
 GOLDEN_DIR = Path(__file__).parent / "golden" / "llm_watch"
@@ -763,3 +764,183 @@ def test_console_script_is_declared() -> None:
 def test_json_document_is_serialisable() -> None:
     document = one_engine_fixture()
     assert json.loads(json.dumps(document, default=str))["lane"]["model_id"]
+
+
+# ── several engines ──────────────────────────────────────────────────
+
+#: The engine ids a three-engine lane publishes: three nodes, two models, and a
+#: router in front of all three. The host each id names is what the engines
+#: table shows beside the model, so a node with two models on it is two rows.
+GPU3 = "98dci4-gpu-0003.iter.org:18810"
+GPU1 = "98dci4-gpu-0001.iter.org:18812"
+B300 = "98dci4-b300-0001.iter.org:18814"
+
+
+def _engine_entry(engine: str, model: str, *, running: float,
+                  available: float, kv_pool: float, queue: float = 0.0,
+                  tok_s: float = 812.0, per_stream: float = 41.0,
+                  ttft: float = 0.8) -> dict[str, Any]:
+    """One row of the engines table, as the pool document publishes it."""
+    return {
+        "engine": engine,
+        "engine_id": engine,
+        "model": model,
+        "host": engine.split(":", 1)[0],
+        "running": running,
+        "router_q": queue,
+        "tok_s": tok_s,
+        "per_stream": per_stream,
+        "ttft": ttft,
+        "kv_pool": kv_pool,
+        "available": available,
+        "live": _live(mean_running=running),
+        "gate": {
+            "model_id": model,
+            "observed_at": "2026-10-23T07:44:34Z",
+            "kv_occupancy": kv_pool,
+            "availability_percent": available,
+            "concurrent_requests": 20,
+            "preemptions": 0,
+            "router_generation_gate": {
+                "width": 12, "effective_width": 12, "in_flight": 4,
+                "waiting": 0, "paused": False,
+            },
+            "admission": {"verdict": "admit", "oldest_wait_seconds": 1.0},
+            "headroom": 8,
+            "worker_slots": {"worker_slots": 9},
+        },
+    }
+
+
+def three_engine_fixture() -> dict[str, Any]:
+    """Three engines, two models, and a ledger priced per model.
+
+    Everything the one-engine fixture carries is carried through, with the
+    engine dimension added where the record publishes one: the per-account
+    split, one history line and one outcomes line per engine, and the model
+    each ledger row is priced for.
+    """
+    document = one_engine_fixture()
+    document["router"] = "http://98dci4-gpu-0003.iter.org:18802"
+    document["engines"] = [
+        _engine_entry(GPU3, "deepseek-v4.1-flash", running=9.0, available=64.0,
+                      kv_pool=0.41),
+        _engine_entry(GPU1, "deepseek-v4.1-flash", running=4.0, available=81.0,
+                      kv_pool=0.22, tok_s=402.0, per_stream=38.0, ttft=1.1),
+        _engine_entry(B300, "glm-5.3", running=2.0, available=93.0,
+                      kv_pool=0.09, queue=1.0, tok_s=210.0, per_stream=33.0,
+                      ttft=1.6),
+    ]
+    callers = document["callers"]
+    callers["engines"] = sorted([GPU3, GPU1, B300, SELF_ANSWERED_UPSTREAM])
+    callers["accounts"][0]["held_by_engine"] = {
+        GPU3: 5.6, B300: 2.4, SELF_ANSWERED_UPSTREAM: 1.4,
+    }
+    for row in callers["projects"]:
+        share = {"power-convertor": {GPU3: 4.0, B300: 1.0},
+                 "reckon": {GPU3: 1.4, SELF_ANSWERED_UPSTREAM: 1.4},
+                 "nova": {B300: 1.4}}.get(row["project"], {GPU3: 1.0})
+        row["held_by_engine"] = share
+    for row in callers["callers"]:
+        row["held_by_engine"] = {GPU3: 4.0, B300: 1.0}
+    bins = callers["history"]["bins"]
+    callers["history"]["engines"] = [
+        {"engine": GPU3, "bins": bins},
+        {"engine": B300, "bins": _bins([0.0] * 28 + [1.0, 1.0])["bins"]},
+    ]
+    callers["outcomes"]["by_engine"] = [
+        {"engine": GPU3, "completed": 380.0, "aborted": 3.0, "failed": 0.0,
+         "gate_expired": 0.0},
+        {"engine": B300, "completed": 32.0, "aborted": 0.0, "failed": 0.0,
+         "gate_expired": 0.0},
+    ]
+    document["ledger"] = [
+        {**row, "model": model}
+        for row in LEDGER
+        for model in ("deepseek-v4.1-flash", "glm-5.3")
+    ]
+    return document
+
+
+def test_a_three_engine_document_is_drawn_with_its_router_and_table() -> None:
+    text = render(three_engine_fixture())
+    lines = text.splitlines()
+
+    router = lines[0]
+    assert router.startswith("router")
+    assert "18802" in router
+    assert "3 servers" in router and "3 engines" in router and "2 models" in router
+    # One row per engine, naming the model it serves and the id it answers on.
+    for engine, model in ((GPU3, "deepseek-v4.1-flash"),
+                          (GPU1, "deepseek-v4.1-flash"), (B300, "glm-5.3")):
+        display = lw._engine_display(engine)
+        rows = [line for line in lines if display in line]
+        assert rows and model in rows[0], display
+    # The account detail gains the column, which the one-engine view lacks.
+    assert any("engine" in line and "sessions" in line for line in lines)
+    single = render(one_engine_fixture()).splitlines()
+    assert not any("engine" in line and "sessions" in line for line in single)
+
+
+def test_the_account_detail_engine_column_names_the_dominant_engine() -> None:
+    text = render(three_engine_fixture(), account="mcintos")
+    lines = text.splitlines()
+    head = next(
+        index for index, line in enumerate(lines)
+        if "sessions" in line and "engine" in line
+    )
+    body = []
+    for line in lines[head + 2:]:
+        if not line.strip():
+            break
+        body.append(line.split())
+    engines = [row[1] for row in body if len(row) > 3]
+    assert engines[0] == "gpu-0003:18810"
+    assert set(engines) == {"gpu-0003:18810", "b300-0001:18814"}
+
+
+def test_each_engine_carries_its_own_history_and_outcomes_line() -> None:
+    text = render(three_engine_fixture())
+    lines = text.splitlines()
+
+    total = next(index for index, line in enumerate(lines)
+                 if line.startswith("history 30m"))
+    assert "in flight" in lines[total]
+    assert "gpu-0003:18810" in lines[total + 1]
+    assert "b300-0001:18814" in lines[total + 2]
+
+    outcomes = next(index for index, line in enumerate(lines)
+                    if line.startswith("outcomes 5m"))
+    assert "412 completed" in lines[outcomes]
+    assert "gpu-0003:18810" in lines[outcomes + 1]
+    assert "380 completed" in lines[outcomes + 1]
+    assert "b300-0001:18814" in lines[outcomes + 2]
+    assert "32 completed" in lines[outcomes + 2]
+
+
+def test_the_ledger_is_grouped_by_model_when_it_prices_more_than_one() -> None:
+    text = render(three_engine_fixture())
+    head = next(line for line in text.splitlines() if "cached %" in line)
+    assert "model" in head
+    priced = [
+        line for line in text.splitlines()
+        if line.strip().startswith(("1 hour", "1 day"))
+    ]
+    assert len(priced) == 4
+    for model in ("deepseek-v4.1-flash", "glm-5.3"):
+        assert sum(model in line for line in priced) == 2
+    # One model's ledger is the table it always was: no model column.
+    single = render(one_engine_fixture())
+    single_head = next(line for line in single.splitlines() if "cached %" in line)
+    assert "model" not in single_head
+
+
+def test_a_three_engine_render_matches_its_golden() -> None:
+    assert render(three_engine_fixture()) == _golden("three_engines")
+
+
+def test_no_line_exceeds_the_terminal_width_in_a_multi_engine_view() -> None:
+    for width in WIDTHS:
+        text = lw.render_text(three_engine_fixture(), width=width)
+        longest = max(len(line) for line in text.splitlines())
+        assert longest <= width, (width, longest)
