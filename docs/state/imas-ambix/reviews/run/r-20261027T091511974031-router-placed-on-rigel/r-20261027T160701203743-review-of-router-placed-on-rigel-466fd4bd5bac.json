@@ -1,0 +1,53 @@
+{
+  "added_failure_count": 0,
+  "added_failure_derivation": "The reviewed run records after_suite (revision f3f75ed9, 21 passed, exit 0, failure_count 0, failure_ids []) and no baseline_suite arm, so the added-failure set is the after-set minus the baseline, and an after-set with zero failures admits no added failure whatever the baseline held; added_failure_count is therefore 0 with the baseline field absent rather than measured, which is recorded here so the zero is not read as a measured baseline comparison.",
+  "added_failure_ids": [],
+  "completed_at": "2026-10-27T17:00:43.168Z",
+  "dispatched_at": "2026-10-27T16:48:34Z",
+  "findings": [
+    {
+      "file": "tests/test_agent_gate_control_path.py",
+      "line": 372,
+      "severity": "blocking",
+      "summary": "The landed placement change reddens a pre-existing test that exercises generate_router_script: test_generated_script_without_the_option_unsets_the_gate_path compares the generated script byte-for-byte against the script produced at revision 268df346 (normalising only the --output line and the removed unset line), and the new placement headers (--partition=rigel instead of betelgeuse, no --reservation) plus the added TMPDIR fallback line break that equality. Verified by running tests/test_agent_gate_control_path.py against an extraction of 466fd4bd: 1 failed, 17 passed, EXIT=1, log /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T160701203743-review-of-router-placed-on-rigel-466fd4bd5bac/tests/pre-existing-gate-control-path-at-466fd4bd.log. The file is outside the reviewed node's declared write paths, which is why its gate never saw it; the node lands red until either that comparison is updated (needs a scope grant) or the equality is relaxed to the headers the change legitimately moves."
+    },
+    {
+      "file": "imas_ambix/agent/profile.py",
+      "line": 534,
+      "severity": "non-blocking",
+      "summary": "KNOWN_PARTITIONS hardcodes twelve ITER SDCC partition names into profile.py, and require_known_partition refuses anything outside it with no override, so a site that names its own partition through AMBIX_AGENT_ROUTER or SiteConfig.router cannot generate a router script at all, even though the rest of SiteConfig is site-parameterised. The list is also a snapshot ('sinfo read 2026-10-27') that goes stale silently: a new partition is refused with the same message as a typo."
+    },
+    {
+      "file": "docs/evidence/fragments/serving-across-servers/router-placed-on-rigel.html",
+      "line": 30,
+      "severity": "non-blocking",
+      "summary": "The generated-headers bullet claims 'A test pins exactly that' for the full unconfigured-site header set (--partition=rigel, --account=grpa, --cpus-per-task=2, --mem=8G, --time=0), but tests/test_agent_router_service.py:test_router_dry_run_requests_the_rigel_partition_without_a_gpu asserts only the partition and the absence of --gres/--nodelist/--constraint; the default account, CPU, memory and time limit, and the absence of --reservation at the default site, are asserted nowhere, so a regression in any of them would leave the fragment's claim standing."
+    }
+  ],
+  "item_verdicts": {
+    "call_sites": "imas_ambix/agent/cli.py:1740 router_command is the only production caller of generate_router_script, imas_ambix/agent/profile.py:793 SiteConfig.from_env is the only production caller of _router_from_env, and imas_ambix/agent/slurm.py:1081 is the only caller of require_known_partition.",
+    "diff": "Read commit by commit (b2fbc446 code, f3f75ed9 and 466fd4bd evidence only): 356 insertions and 26 deletions across five files, the code half confined to the router placement, the new RouterPlacementConfig, the KNOWN_PARTITIONS guard and the /scratch_local fallback.",
+    "done_when": "The done-when names two pytest files and a negative control; the manifest records the gate log /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T091511974031-router-placed-on-rigel/logs/gate-f3f75ed9.log with 21 passed EXIT=0 and the negative control log with 1 failed EXIT=1 at the failing id test_router_refuses_an_unknown_partition, but the same function is exercised by tests/test_agent_gate_control_path.py, which the gate omits and which now fails.",
+    "goal": "The goal is that generate_router_script takes the router's placement from a router entry in the site configuration (partition, account, CPU, memory, defaulting to rigel) and no longer takes the GPU host; imas_ambix/agent/slurm.py:1079-1100 reads site.router for all four headers with no read of site.partition, site.account or site.reservation, and imas_ambix/agent/cli.py:1740 passes the per-launch overrides through as None when unnamed.",
+    "manifest": "The manifest is complete for the fields the gate reads and states the gate command, both logs, the landing line and evidence inputs; it records no baseline_suite (only after_suite), so its own added-failure derivation rests on the clean after arm alone.",
+    "write_paths": "The manifest declares seven paths and the diff changes five (imas_ambix/agent/profile.py, imas_ambix/agent/slurm.py, imas_ambix/agent/cli.py, tests/test_agent_router_service.py, docs/evidence/fragments/serving-across-servers/router-placed-on-rigel.html); every changed path is inside the declared set and nothing else in the three-commit range is touched."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: read imas_ambix/agent/slurm.py:1079-1100 and imas_ambix/agent/cli.py:1740 against the node goal; the placement now comes entirely from site.router (partition, account, cpus, memory, default rigel) and no header reads the GPU server's flat partition/account/reservation fields.\nVERDICT done_when: read the done-when and the manifest's gate and negative-control logs; the gate ran exactly the two named files (21 passed, EXIT=0) and the negative control produces a red arm at tests/test_agent_router_service.py::test_router_refuses_an_unknown_partition, but the same function is covered by tests/test_agent_gate_control_path.py:372, which the gate omits and which fails at the reviewed head.\nVERDICT write_paths: read the seven declared paths against git diff --stat 704ae170..466fd4bd; all five changed files are inside the declared set, and the two declared-but-unused paths (tests/test_slurm_output_paths.py, docs/figures/...) carry no change.\nVERDICT manifest: read /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T091511974031-router-placed-on-rigel/manifest.md; it names the three commits, the gate command, the gate and negative-control logs and a landing line, and records after_suite but no baseline_suite arm.\nVERDICT diff: read b2fbc446, f3f75ed9 and 466fd4bd individually against base 704ae170; the code change is confined to profile.py, slurm.py and cli.py plus the new tests and the evidence fragment, and the two documentation commits touch only that fragment.\nCALL_SITES: imas_ambix/agent/cli.py:1740, imas_ambix/agent/profile.py:793, imas_ambix/agent/slurm.py:1081\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/agent/slurm.py:1081-1099 takes partition, account, cpus and memory from site.router and passes reservation=None, so the GPU host's flat fields no longer decide the router's placement.\nSCORE evidence: 13\nJUSTIFICATION evidence: the gate log /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T091511974031-router-placed-on-rigel/logs/gate-f3f75ed9.log records 21 passed EXIT=0 for the two named files, but tests/test_agent_gate_control_path.py:372 exercises the same generator and fails at this head, so the recorded green does not cover the change.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: all five changed paths in git diff --stat 704ae170..466fd4bd sit inside the manifest's declared write paths and the node wrote no figure, as its done-when naming no artifact requires.\nSCORE durability: 15\nJUSTIFICATION durability: tests/test_agent_router_service.py:160,166,213 assert the rigel partition, entry-supplied headers and the unknown-partition refusal against literals independent of the code, and the refusal assertion was shown red by the negative control; the net is nevertheless incomplete because tests/test_agent_gate_control_path.py:372 reddens and the node never ran it.\nSCORE fit: 18\nJUSTIFICATION fit: RouterPlacementConfig and require_known_partition follow the pydantic-model and module-constant idiom of imas_ambix/agent/profile.py:585-660 and carry no plan or ticket identifiers, though the refusal message ('this cluster offers') hardcodes one site's inventory into a shared module.\nSCORE reuse: 20\nJUSTIFICATION reuse: a search of imas_ambix, scripts and tests for a partition inventory, a scheduler-driven lister (sinfo/scontrol) or an existing validator found no owner, so KNOWN_PARTITIONS and require_known_partition are the first, and RouterPlacementConfig extends SiteConfig as a new field rather than duplicating SiteServerConfig.\nFINDING tests/test_agent_gate_control_path.py:372 blocking: the placement change reddens test_generated_script_without_the_option_unsets_the_gate_path, which compares the router script byte-for-byte with revision 268df346's output; measured at 466fd4bd as 1 failed, 17 passed, and the file is outside the node's write paths so its gate never saw it.\nFINDING imas_ambix/agent/profile.py:534 non-blocking: KNOWN_PARTITIONS hardcodes one cluster's twelve partition names with no override, so any other site's partition is refused at generation and a newly added partition reads as a typo.\nFINDING docs/evidence/fragments/serving-across-servers/router-placed-on-rigel.html:30 non-blocking: the fragment claims a test pins the full default header set, but the dry-run test asserts only the partition and the absence of --gres, --nodelist and --constraint; the default account, cpus, memory, time limit and reservation absence are unpinned.",
+  "review_run_id": "r-20261027T160701203743-review-of-router-placed-on-rigel-466fd4bd5bac",
+  "reviewed_base_sha": "704ae170a05ae7172574098fc514973b1d4a6dee",
+  "reviewed_head_sha": "466fd4bd5bac9b5e50c46a63e7e4fe3676375b94",
+  "reviewed_run_id": "r-20261027T091511974031-router-placed-on-rigel",
+  "scores": {
+    "durability": 15,
+    "evidence": 13,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "reuse": 20,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T17:01:42.113106+00:00",
+  "total": 103
+}
