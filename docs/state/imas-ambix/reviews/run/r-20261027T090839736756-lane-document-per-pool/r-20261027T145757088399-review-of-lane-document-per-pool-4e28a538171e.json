@@ -1,0 +1,51 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/agent/lane.py:779 write_document",
+    "imas_ambix/agent/lane.py:797 build_lane_document",
+    "imas_ambix/agent/router.py:2408 _publish_lane",
+    "imas_ambix/agent/router.py:2601 write_document call"
+  ],
+  "completed_at": "2026-10-27T15:05:51.871Z",
+  "dispatched_at": "2026-10-27T15:00:13Z",
+  "findings": [],
+  "item_verdicts": {
+    "diff": "Read both commits: 2ece13a6 replaces the path-handed read_lane_document call with read_lane_document_file and asserts malformed/unknown_fields/state/running/kv_occupancy/headroom over a document actually written to disk, and supplies the two LaneCapacity figures the original omitted; 4e28a538 records that repair in the fragment as new paragraph id lane-document-per-pool-reckon-reader. 32 insertions, 7 deletions, two files.",
+    "done_when": "The done_when's gate, golden/two-pool/two-engine assertions, caller search, single-writer test and ruff were satisfied by the earlier commits; the delta repairs the one piece the prior review found defective, and logs/gate-five-files.log records the five-file superset at 54 passed, 1 skipped, EXIT=0 at head 4e28a538 with a clean tree, while logs/reckon-contract.log records the repaired contract test passing under reckon's interpreter.",
+    "goal": "The source node's goal is one lane document per pool from each engine's own reading, default pool at lane.json with a lanes index and every other pool at lanes/<model id>.json, with the composer the only writer; the gained commits are a repair round that fixes the contract test the prior review left blocking \u2014 tests/test_lane_pool_documents.py:327 now reads the written document through reckon's file entry point and asserts resolved fields, serving that goal's contract clause.",
+    "manifest": "Read; status complete, commits 80bed95e/79fd44f4/f8ce2d6b/2ece13a6/4e28a538, tests line the five-file pytest gate, test_logs five logs on disk, negative_control_log logs/negative-control-reckon-reader.log; the delta's two commits and both logs corroborate the recorded figures.",
+    "write_paths": "The dispatched fence for the source node lists nine paths; the two gained commits write only tests/test_lane_pool_documents.py and docs/evidence/fragments/serving-across-servers/lane-document-per-pool.html, both inside that fence."
+  },
+  "justifications": {
+    "durability": "tests/test_lane_pool_documents.py:357-362 reddens when read_lane_document_file is reverted to read_lane_document, shown by logs/negative-control-reckon-reader.log (\"lane document is PosixPath, not a JSON object\", EXIT=1); the guard is skipped in the default gate environment where reckon is not importable, by the done_when's own allowance.",
+    "evidence": "logs/gate-five-files.log records 54 passed, 1 skipped, EXIT=0 at head 4e28a538 and logs/reckon-contract.log records the contract test passing under reckon's interpreter, with logs/negative-control-reckon-reader.log at EXIT=1, one failing id.",
+    "fit": "the rewrite follows the surrounding pytest idiom of tests/test_lane_pool_documents.py and adds no version, plan or ticket label; the fragment paragraph id is prefixed with the node id.",
+    "goal_fidelity": "tests/test_lane_pool_documents.py:355-362 now reads the pool document through reckon's own reader, so the contract the goal states (a document a reckon backend can read) is actually exercised.",
+    "reuse": "the repair reuses reckon's existing reckon/crew/lane_document.py:387 read_lane_document_file rather than re-implementing a reader, and adds no new definition to fork a capability.",
+    "scope_discipline": "the delta touches only tests/test_lane_pool_documents.py and docs/evidence/fragments/serving-across-servers/lane-document-per-pool.html, both in the source node's dispatched fence."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The source node's goal is one lane document per pool from each engine's own reading, default pool at lane.json with a lanes index and every other pool at lanes/<model id>.json, with the composer the only writer; the gained commits are a repair round that fixes the contract test the prior review left blocking \u2014 tests/test_lane_pool_documents.py:327 now reads the written document through reckon's file entry point and asserts resolved fields, serving that goal's contract clause.\nVERDICT done_when: The done_when's gate, golden/two-pool/two-engine assertions, caller search, single-writer test and ruff were satisfied by the earlier commits; the delta repairs the one piece the prior review found defective, and logs/gate-five-files.log records the five-file superset at 54 passed, 1 skipped, EXIT=0 at head 4e28a538 with a clean tree, while logs/reckon-contract.log records the repaired contract test passing under reckon's interpreter.\nVERDICT write_paths: The dispatched fence for the source node lists nine paths; the two gained commits write only tests/test_lane_pool_documents.py and docs/evidence/fragments/serving-across-servers/lane-document-per-pool.html, both inside that fence.\nVERDICT manifest: Read; status complete, commits 80bed95e/79fd44f4/f8ce2d6b/2ece13a6/4e28a538, tests line the five-file pytest gate, test_logs five logs on disk, negative_control_log logs/negative-control-reckon-reader.log; the delta's two commits and both logs corroborate the recorded figures.\nVERDICT diff: Read both commits: 2ece13a6 replaces the path-handed read_lane_document call with read_lane_document_file and asserts malformed/unknown_fields/state/running/kv_occupancy/headroom over a document actually written to disk, and supplies the two LaneCapacity figures the original omitted; 4e28a538 records that repair in the fragment as new paragraph id lane-document-per-pool-reckon-reader. 32 insertions, 7 deletions, two files.\nCALL_SITES: imas_ambix/agent/lane.py:779 write_document, imas_ambix/agent/lane.py:797 build_lane_document, imas_ambix/agent/router.py:2408 _publish_lane, imas_ambix/agent/router.py:2601 write_document call\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: tests/test_lane_pool_documents.py:355-362 now reads the pool document through reckon's own reader, so the contract the goal states (a document a reckon backend can read) is actually exercised.\nSCORE evidence: 18\nJUSTIFICATION evidence: logs/gate-five-files.log records 54 passed, 1 skipped, EXIT=0 at head 4e28a538 and logs/reckon-contract.log records the contract test passing under reckon's interpreter, with logs/negative-control-reckon-reader.log at EXIT=1, one failing id.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the delta touches only tests/test_lane_pool_documents.py and docs/evidence/fragments/serving-across-servers/lane-document-per-pool.html, both in the source node's dispatched fence.\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_lane_pool_documents.py:357-362 reddens when read_lane_document_file is reverted to read_lane_document, shown by logs/negative-control-reckon-reader.log (\"lane document is PosixPath, not a JSON object\", EXIT=1); the guard is skipped in the default gate environment where reckon is not importable, by the done_when's own allowance.\nSCORE fit: 19\nJUSTIFICATION fit: the rewrite follows the surrounding pytest idiom of tests/test_lane_pool_documents.py and adds no version, plan or ticket label; the fragment paragraph id is prefixed with the node id.\nSCORE reuse: 20\nJUSTIFICATION reuse: the repair reuses reckon's existing reckon/crew/lane_document.py:387 read_lane_document_file rather than re-implementing a reader, and adds no new definition to fork a capability.",
+  "review_run_id": "r-20261027T145757088399-review-of-lane-document-per-pool-4e28a538171e",
+  "reviewed_base_sha": "f8ce2d6b4d5fbe094b08660df41b59f12bde5b44",
+  "reviewed_head_sha": "4e28a538171edfd5c2e7ca14b185b1b45ddfcd56",
+  "reviewed_run_id": "r-20261027T090839736756-lane-document-per-pool",
+  "scores": {
+    "durability": 18,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 18,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "suite_arms_read": {
+    "after_suite": "logs/gate-five-files.log: rev 4e28a538 with clean tree, '54 passed, 1 skipped in 6.15s', EXIT=0; zero failing ids. Contract test separately: logs/reckon-contract.log '1 passed, 7 deselected' EXIT=0; negative control logs/negative-control-reckon-reader.log '1 failed' EXIT=1.",
+    "baseline_suite": "logs/gate-after.log: rev 80bed95e, five-file superset plus ruff, '36 passed, 1 skipped in 2.07s', PYTEST_EXIT=0, EXIT=0; zero failing ids."
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T15:03:52.182837+00:00",
+  "total": 113
+}
