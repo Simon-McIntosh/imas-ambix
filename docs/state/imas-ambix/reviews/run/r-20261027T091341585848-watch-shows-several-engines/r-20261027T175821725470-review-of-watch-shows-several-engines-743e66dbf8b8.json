@@ -1,0 +1,74 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_sites": [
+    "pyproject.toml:165 console script llm-watch = imas_ambix.agent.llm_watch:main",
+    "imas_ambix/agent/llm_watch.py:1167 main",
+    "imas_ambix/agent/llm_watch.py:1045 build_document",
+    "imas_ambix/agent/llm_watch.py:1063 build_document calls watch.live_document",
+    "imas_ambix/agent/watch.py:1412 live_document calls live_panel at watch.py:1435",
+    "imas_ambix/agent/watch.py:1442 watch_document"
+  ],
+  "completed_at": "2026-10-27T18:22:07.254Z",
+  "dispatched_at": "2026-10-27T18:00:33Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/live_panel.py",
+      "line": 721,
+      "severity": "non-blocking",
+      "text": "panel_engines and its helpers _engine_entry (:778) and _lane_document (:866) are 95 new production lines with no test. Nothing outside live_panel.py references panel_engines, tests/test_live_panel.py is declared in the fence and was left untouched, and replacing the function body with \"return []\" leaves all 94 tests green, so the join that produces every per-engine entry is unguarded."
+    },
+    {
+      "file": "imas_ambix/agent/live_panel.py",
+      "line": 750,
+      "severity": "non-blocking",
+      "text": "the pool/live join matches on host alone although both sides carry the served model (the live entry's served_name, the pool entry's model_id) and the live entry carries job_id, so two serves on one host are paired by list order. Demonstrated against the reviewed head with pool engines :18810 (m-a, available 64) and :18812 (m-b, available 5) and the live entries given in the other order: the entry returned for :18810 carries m-b's live figures (running 12.0) beside m-a's gate (available 64). During a restart overlap \u2014 two same-model serves on one host in one pool \u2014 each engine's availability and queue are published beside the other engine's throughput and running count."
+    },
+    {
+      "file": "imas_ambix/agent/live_panel.py",
+      "line": 860,
+      "severity": "non-blocking",
+      "text": "the live path reads one lane document, and lane.py:1322 compose_pool_document adds an engines array only to a pool document spanning more than one engine while router.py:2858 writes one pool document per model into lanes/<model>.json; the engines of a second model therefore never reach document[\"engines\"], although the committed golden and the fragment at watch-shows-several-engines.html:27 show \"3 servers - 3 engines - 2 models\", a state only the hand-built fixture produces. The decided single-pool deployment (the B300 serving the H200 model) is spanned and works."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T091341585848-watch-shows-several-engines/manifest.md",
+      "line": 26,
+      "severity": "non-blocking",
+      "text": "baseline_suite claims 90 passed at the base revision, but no base-revision run appears in the reviewed stream; the only full-suite run before the new tests were added (stream 17:38) reports 84 passed with the feature code already edited, and an independent base arm at 447bf316 run by this review in a scratch tree reports \"84 passed in 0.71s\" EXIT=0. added_failure_count is 0 under either count because both arms are green, but the recorded base figure is wrong and has no log behind it."
+    },
+    {
+      "file": "imas_ambix/agent/llm_watch.py",
+      "line": 184,
+      "severity": "non-blocking",
+      "text": "the multi-engine branch of engine_refusal and the explicit selection path it gates (main at llm_watch.py:1180 passing engine= into render_text, and selected_engine at :547) have no test; the refusal tests predate the change, no added test passes --engine, an earlier draft test for it was deleted during the run, and setting main's engine= argument back to None leaves all 94 tests green."
+    },
+    {
+      "file": "docs/evidence/fragments/serving-across-servers/watch-shows-several-engines.html",
+      "line": 52,
+      "severity": "non-blocking",
+      "text": "the fragment names \"outcomes.engines/outcomes.by_engine\", but lane_callers.py publishes only by_engine under outcomes (lane_callers.py:816ff), so a reader who looks for outcomes.engines finds no such key."
+    }
+  ],
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The node goal is that the llm-watch document and view carry one entry per engine from the pool documents and the per-engine live block, with the router header line, an engines table, an engine column in the account detail, one history line per engine, the ledger grouped by model and --engine ID; live_panel.py:721 panel_engines, llm_watch.py:602 router_line, :638 engines_table, :767 _dominant_engine, :880 history_strip and :933 outcomes_line each implement one of those, and llm_watch.py:1180 wires --engine through main, so every listed element is present.\nVERDICT done_when: The done_when names the three-module pytest gate and whole-tree ruff; gate.log records \"94 passed in 1.01s\" and EXIT=0 at 743e66db, ruff.log records \"All checks passed!\" with EXIT=0, and each of the four done-when bullets is asserted by a named added test at tests/test_lane_callers.py:1081/1107/1124/1136 and tests/test_llm_watch.py:865/885/902/921/938/942.\nVERDICT write_paths: The source prompt's FENCE SCOPE lists nine paths (three modules, three test modules, the golden directory, the evidence fragment and a figure directory); the diff touches seven of them, imas_ambix/agent/lane_callers.py, imas_ambix/agent/live_panel.py, imas_ambix/agent/llm_watch.py, tests/test_llm_watch.py, tests/test_lane_callers.py, tests/golden/llm_watch/three_engines.txt and the evidence fragment, and nothing outside them.\nVERDICT manifest: Read; it states status complete, commits 1c86d9e3, 1407b1d9 and 743e66db, a gate of 94 passed with ruff clean, a negative-control log whose failing id is named, and outside_scope none, but its baseline_suite claims 90 passed at the base revision and no base-revision run exists in the reviewed stream.\nVERDICT diff: Read commit by commit against 447bf316; 1c86d9e3 adds the per-upstream split to lane_callers.py, the pool/live join to live_panel.py and the router line, engines table, engine column and per-engine lines to llm_watch.py plus four tests, 1407b1d9 splits the engines table into model and engine columns and adds the 120-column golden with six render tests, and 743e66db adds the 105-line evidence fragment and changes no source line.\nCALL_SITES: pyproject.toml:165 console script llm-watch = imas_ambix.agent.llm_watch:main, imas_ambix/agent/llm_watch.py:1045 build_document, imas_ambix/agent/llm_watch.py:1167 main, imas_ambix/agent/llm_watch.py:1063 build_document calls watch.live_document, imas_ambix/agent/watch.py:1412 live_document calls live_panel at watch.py:1435, imas_ambix/agent/watch.py:1442 watch_document\nSCORE goal_fidelity: 15\nJUSTIFICATION goal_fidelity: every element of the goal is implemented and wired at llm_watch.py:602/638/767/880/933/1180, but live_panel.py:860 reads one lane document, so only the engines of the default pool (router.py:2858) can reach the table and a second model's engines never do.\nSCORE evidence: 14\nJUSTIFICATION evidence: gate.log records \"94 passed in 1.01s\" with EXIT=0 at 743e66db and ruff.log EXIT=0 while negative-control.log fails test_two_engines_split_every_callers_held_time_exactly at EXIT=1, but the manifest's base arm at manifest.md:26 quotes 90 passed where an independent base arm at 447bf316 gives \"84 passed in 0.71s\" EXIT=0 and no base log exists.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every one of the seven paths in the diff lies inside the source prompt's FENCE SCOPE, and the only edit outside the plan's three modules is the golden file and fragment the node's own done-when requires.\nSCORE durability: 13\nJUSTIFICATION durability: tests/test_lane_callers.py:1081 reddens under the recorded negative control and tests/test_llm_watch.py:938 pins the render byte for byte, but live_panel.py:721 panel_engines and the --engine selection path at llm_watch.py:1180 have no assertion that fails if reverted.\nSCORE fit: 18\nJUSTIFICATION fit: llm_watch.py:576 _engine_display and live_panel.py:721 panel_engines follow the surrounding module-local-import and docstring idiom, and no path, symbol, docstring or commit message carries a plan, version or ticket label.\nSCORE reuse: 17\nJUSTIFICATION reuse: the change reuses registry._host_name at llm_watch.py:592 and live_panel.py:731 and extends the module's own _table helper at llm_watch.py:692 rather than forking it, while llm_watch.py:576 _engine_display overlaps router.py:1739 engine_id_for_origin for the same origin-to-label job.\nFINDING imas_ambix/agent/live_panel.py:721 non-blocking: panel_engines and its helpers _engine_entry (:778) and _lane_document (:866) are 95 new production lines with no test. Nothing outside live_panel.py references panel_engines, tests/test_live_panel.py is declared in the fence and was left untouched, and replacing the function body with \"return []\" leaves all 94 tests green, so the join that produces every per-engine entry is unguarded.\nFINDING imas_ambix/agent/live_panel.py:750 non-blocking: the pool/live join matches on host alone although both sides carry the served model (the live entry's served_name, the pool entry's model_id) and the live entry carries job_id, so two serves on one host are paired by list order. Demonstrated against the reviewed head with pool engines :18810 (m-a, available 64) and :18812 (m-b, available 5) and the live entries given in the other order: the entry returned for :18810 carries m-b's live figures (running 12.0) beside m-a's gate (available 64). During a restart overlap \u2014 two same-model serves on one host in one pool \u2014 each engine's availability and queue are published beside the other engine's throughput and running count.\nFINDING imas_ambix/agent/live_panel.py:860 non-blocking: the live path reads one lane document, and lane.py:1322 compose_pool_document adds an engines array only to a pool document spanning more than one engine while router.py:2858 writes one pool document per model into lanes/<model>.json; the engines of a second model therefore never reach document[\"engines\"], although the committed golden and the fragment at watch-shows-several-engines.html:27 show \"3 servers - 3 engines - 2 models\", a state only the hand-built fixture produces. The decided single-pool deployment (the B300 serving the H200 model) is spanned and works.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T091341585848-watch-shows-several-engines/manifest.md:26 non-blocking: baseline_suite claims 90 passed at the base revision, but no base-revision run appears in the reviewed stream; the only full-suite run before the new tests were added (stream 17:38) reports 84 passed with the feature code already edited, and an independent base arm at 447bf316 run by this review in a scratch tree reports \"84 passed in 0.71s\" EXIT=0. added_failure_count is 0 under either count because both arms are green, but the recorded base figure is wrong and has no log behind it.\nFINDING imas_ambix/agent/llm_watch.py:184 non-blocking: the multi-engine branch of engine_refusal and the explicit selection path it gates (main at llm_watch.py:1180 passing engine= into render_text, and selected_engine at :547) have no test; the refusal tests predate the change, no added test passes --engine, an earlier draft test for it was deleted during the run, and setting main's engine= argument back to None leaves all 94 tests green.\nFINDING docs/evidence/fragments/serving-across-servers/watch-shows-several-engines.html:52 non-blocking: the fragment names \"outcomes.engines/outcomes.by_engine\", but lane_callers.py publishes only by_engine under outcomes (lane_callers.py:816ff), so a reader who looks for outcomes.engines finds no such key.\n",
+  "review_run_id": "r-20261027T175821725470-review-of-watch-shows-several-engines-743e66dbf8b8",
+  "reviewed_base_sha": "447bf316f9a0afaa3f30056bc2d5271dc7869ec5",
+  "reviewed_head_sha": "743e66dbf8b82de2702a2340813d706bf8ff3264",
+  "reviewed_run_id": "r-20261027T091341585848-watch-shows-several-engines",
+  "scores": {
+    "durability": 13,
+    "evidence": 14,
+    "fit": 18,
+    "goal_fidelity": 15,
+    "reuse": 17,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "suite_arms_read": {
+    "after_suite": "gate.log header '# base: 743e66db', cwd the node's worktree, command 'UV_PROJECT_ENVIRONMENT... uv run --no-sync pytest -p no:cacheprovider tests/test_llm_watch.py tests/test_lane_callers.py tests/test_live_panel.py', summary '94 passed in 1.01s', last line EXIT=0, zero failing ids; ruff.log 'All checks passed!' EXIT=0; negative-control.log '1 failed, 30 deselected' EXIT=1 on tests/test_lane_callers.py::test_two_engines_split_every_callers_held_time_exactly.",
+    "baseline_suite": "not recorded as a log by the reviewed run, and its manifest.md:26 quote of '90 passed at the base revision' is unsupported: no base-revision run exists in stream.jsonl, whose only pre-new-test full-suite run (17:38) reports '84 passed in 1.06s'. This review measured the base arm itself by extracting 447bf316 with git archive into a scratch tree and running the three modules there, logging module.__file__ and cwd to prove the scratch tree was imported: '84 passed in 0.71s', EXIT=0, zero failing ids. added_failure_count is 0: neither arm has a failing id."
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T18:24:00+00:00",
+  "total": 96
+}
