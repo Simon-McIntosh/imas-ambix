@@ -91,6 +91,28 @@ host        cpu 9%    memory 379 GiB (25%)</code></pre>
       naming the wrong <q>no job to sample</q> rendering, and the mutation was
       reverted.</p>
     </section>
+    <section id="gpu-watch-samples-from-anywhere-step-stderr">
+      <p><strong>A step that writes enough to stderr no longer freezes the
+      view.</strong> The step's stderr is a pipe, and a watcher that never reads
+      it stops the step as soon as the pipe buffer fills: the cards hold their
+      last values while the pool still counts the step as live. The pool now
+      drains stderr on its own thread into a bounded tail, and a step that stops
+      streaming is drawn as <code>not sampled: &lt;its last stderr line&gt;</code>,
+      which tells a job refusing steps apart from a node whose cards are simply
+      not readable. The check drives a fake <code>srun</code> that writes 3000
+      warn lines (well over 128 KiB) to stderr before streaming two samples and
+      asserts the card table renders; disabling the stderr reader makes it fail
+      at <code>EXIT=1</code> on the pipe filling, and the gate is
+      <code>EXIT=0</code> with the reader in place.</p>
+      <p><strong>One machine declared twice is sampled once and drawn
+      twice.</strong> The live loop launched its step under the group's first
+      declaration but looked state up under each declaration's own spelling, so
+      a server declared both bare and fully qualified launched one step and
+      asked about another. The pool is keyed by the machine's scheduler name for
+      <code>ensure</code>, <code>drain</code> and <code>state</code> alike, so
+      both blocks render the same cards; the check asserts one launch and no
+      target under the second spelling.</p>
+    </section>
   </main>
 </body>
 </html>
