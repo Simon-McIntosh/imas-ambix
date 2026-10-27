@@ -23,9 +23,9 @@ _DRAIN_SIDECAR = (
     Path(__file__).resolve().parents[2] / "scripts" / "slurm" / "drain_sidecar.sh"
 )
 
-# SLURM reads --time=0 as no limit. The router, the lane refresher and the
-# telemetry-ingest service are standing services that every session depends
-# on; a finite limit ends them on a schedule nobody is watching.
+# SLURM reads --time=0 as no limit. The router and the telemetry-ingest
+# service are standing services that every session depends on; a finite limit
+# ends them on a schedule nobody is watching.
 _SUPPORTING_SERVICE_TIME_LIMIT = "0"
 
 # The accelerator family a serve records when its site declares none, which is
