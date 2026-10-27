@@ -20,11 +20,11 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment,telemetry">
   <meta name="plan-after" content="local-lane-admission-control#s14,local-lane-admission-control">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;implementable&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;implementable&quot;,&quot;s15&quot;:&quot;implementable&quot;,&quot;s16&quot;:&quot;done&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;implementable&quot;,&quot;s15&quot;:&quot;implementable&quot;,&quot;s16&quot;:&quot;done&quot;}">
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="80">
+<meta name="plan-version" content="81">
 <meta name="plan-modified" content="2026-10-27">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;,&quot;serving-across-servers#s10&quot;],&quot;s15&quot;:[&quot;serving-across-servers#s16&quot;,&quot;serving-across-servers#s5&quot;],&quot;s7&quot;:[&quot;serving-across-servers#s5&quot;],&quot;s4&quot;:[&quot;serving-across-servers#s16&quot;],&quot;s5&quot;:[&quot;serving-across-servers#s4&quot;,&quot;serving-across-servers#s9&quot;],&quot;s6&quot;:[&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -253,7 +253,7 @@
     </ul>
 
     <h2 id="s6">&sect;6 &mdash; Live figures and the ledger are per engine</h2>
-<section data-reckon="section" data-id="s6" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s6" data-effort-hours="3.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="standard" data-capability-verification="strict" data-capability-risk="low" data-status="done" data-links=""></section>
     <p>The live block chooses the newest raw receipt for each serve, keyed on hostname, served
     model and job id, among files written within the lane's shelf life. It produces one live
     entry per engine, joined to the engine through its registration. The period ledger gains
@@ -840,6 +840,9 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 </div>
 <div class="r-comment" data-section="_top" data-id="c-close-s4" data-who="reckon-build" data-when="2026-10-27T13:55:00Z">
     <div class="r-comment-body"><p>§4 landed in merges <code>7edac339</code>, <code>5f645391</code> and <code>2853a21e</code>. Each engine has its own generation gate and width controller, and an <code>engines</code> map in the gate control file overrides one engine. A top-level pause still holds all engines, and the engine an expiry waited at is recorded in <code>gate_engine</code>. 132 router tests pass at main. It goes live at the next router restart. <a href="/imas-ambix/evidence/archive/serving-across-servers-landed.html#s4">evidence</a></p></div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-close-s6" data-who="reckon-build" data-when="2026-10-27T14:20:00Z">
+    <div class="r-comment-body"><p>§6 landed in merge <code>ad9afdcf</code>. The live block gives one entry per engine, and the published ledger has a row per model at its own rate plus a total. A blocked first delivery, which showed only one model's row in the document, was repaired. 135 tests pass at main, and the review scored 17 to 20. <a href="/imas-ambix/evidence/archive/serving-across-servers-landed.html#s6">evidence</a></p></div>
 </div>
 <div class="r-comment" data-section="s16" data-id="c-run-r-20261027T093359288589-review-of-router-shutdown-answers-waiters-26cfc5d4626b" data-who="reckon-build" data-when="2026-10-27T09:53:37.102Z">
     <div class="r-comment-body"><p>Independent review of r-20261027T090408257012-router-shutdown-answers-waiters at reviewed_base_sha afa37ff43102a1d9ecc055781817c33529e88b09 and reviewed_head_sha 26cfc5d4626bb2263029cd57b77ad17985826f4f scores 110/120 (goal_fidelity 19, evidence 17, scope_discipline 19, durability 18, fit 18, reuse 19), with two non-blocking findings and added_failure_count 0 derived from the head gate log (24 passed, EXIT=0, 0 failing ids); no blocking finding.</p></div>
