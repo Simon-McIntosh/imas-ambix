@@ -311,6 +311,64 @@ def test_a_server_declared_without_an_accelerator_family_publishes_none(tmp_path
     assert endpoint["accelerator_family"] == "H200"
 
 
+def test_a_fully_qualified_registration_host_groups_under_its_declared_server(
+    tmp_path,
+):
+    """A host named once is one server entry, however it is spelled.
+
+    The serve script records the name the node reports, which is the fully
+    qualified ``98dci4-gpu-0003.iter.org``, while the site declares the
+    scheduler's ``98dci4-gpu-0003``. Reading those as two hosts would publish a
+    second server that nothing declares, with the declared one left empty.
+    """
+    record = ServeRegistration(
+        "glm-5.3", "98dci4-gpu-0003.iter.org", 18810, "41", 4, "int4", "H200"
+    )
+    catalogs = {record.origin: _catalog("glm-5.3", "H200", 4, "int4")}
+    target = tmp_path / "endpoints.json"
+    node = SiteServerConfig(
+        name="98dci4-gpu-0003",
+        host="98dci4-gpu-0003",
+        partition="betelgeuse",
+        account="grpa",
+        accelerator_family="H200",
+        accelerator_count=4,
+    )
+
+    publish_endpoint_document(
+        (record,), target, fetch_catalog=catalogs.__getitem__, servers=(node,)
+    )
+
+    servers = json.loads(target.read_text(encoding="utf-8"))["servers"]
+    assert [server["name"] for server in servers] == ["98dci4-gpu-0003"]
+    (server,) = servers
+    assert server["host"] == "98dci4-gpu-0003"
+    assert server["engines"] == ["gpu-0003.iter.org:18810"]
+
+
+def test_a_fully_qualified_undeclared_host_keeps_its_own_entry(tmp_path):
+    """The short-name comparison groups one host; it does not merge two."""
+    record = ServeRegistration(
+        "glm-5.3", "another-node.iter.org", 18801, "41", 4, "int4", "H200"
+    )
+    catalogs = {record.origin: _catalog("glm-5.3", "H200", 4, "int4")}
+    target = tmp_path / "endpoints.json"
+
+    publish_endpoint_document(
+        (record,), target, fetch_catalog=catalogs.__getitem__, servers=(_H200,)
+    )
+
+    servers = {
+        server["name"]: server
+        for server in json.loads(target.read_text(encoding="utf-8"))["servers"]
+    }
+    assert sorted(servers) == ["another-node.iter.org", "h200"]
+    assert servers["another-node.iter.org"]["engines"] == [
+        "another-node.iter.org:18801"
+    ]
+    assert servers["h200"]["engines"] == []
+
+
 def test_an_undeclared_host_still_carries_its_engines(tmp_path):
     """Nothing is dropped for want of a declaration."""
     record = ServeRegistration(
