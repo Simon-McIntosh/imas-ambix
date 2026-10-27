@@ -62,8 +62,7 @@ _CARDS_TWO = (
 #: The same shape where a card exposes neither a power cap nor a memory clock
 #: -- ``nvidia-smi`` prints both as bracketed non-values.
 _CARDS_PARTIAL = (
-    "0, NVIDIA H200 NVL, 96, 63, 431.55, [N/A], 1980, [Not Supported], 138452, "
-    "143771\n"
+    "0, NVIDIA H200 NVL, 96, 63, 431.55, [N/A], 1980, [Not Supported], 138452, 143771\n"
 )
 
 #: The same shape carrying a different model in the name column, so a card's
@@ -74,9 +73,7 @@ _CARDS_OTHER_MODEL = (
 
 #: The same shape whose name column is a bracketed non-value, as a card with no
 #: name to report prints.
-_CARDS_NAMELESS = (
-    "0, [N/A], 0, 41, 12.62, 72.00, 210, 405, 726, 23034\n"
-)
+_CARDS_NAMELESS = "0, [N/A], 0, 41, 12.62, 72.00, 210, 405, 726, 23034\n"
 
 #: The same shape whose name column carries a comma, which ``nvidia-smi``
 #: quotes. A positional comma split cuts the name in two and shifts every
@@ -770,3 +767,43 @@ def test_the_real_runner_cuts_a_command_off_at_the_timeout_it_was_given():
 
     assert node_probe.run_capture(["sleep", "2"], timeout_s=0.05) is None
     assert time.monotonic() - started < 1.0
+
+
+# ── the streaming entry point ────────────────────────────────────────
+
+
+def test_the_stream_yields_one_sample_per_tick_and_stops_at_its_count():
+    """A bounded run is the same path a long-lived one takes, only stopped."""
+    probe = node_probe.NodeProbe(run=_node_runner(), env={}, hostname="n")
+    slept: list[float] = []
+
+    samples = list(probe.stream(1.0, count=3, clock=lambda: 0.0, sleep=slept.append))
+
+    assert len(samples) == 3
+    assert all(isinstance(sample, dict) for sample in samples)
+    assert slept == [1.0, 1.0]
+
+
+def test_the_stream_sleeps_only_for_what_the_read_did_not_use():
+    """The cadence is a floor: a slow read is followed by a shorter sleep."""
+    probe = node_probe.NodeProbe(run=_node_runner(), env={}, hostname="n")
+    ticks = iter([0.0, 0.75, 0.75])
+    slept: list[float] = []
+
+    samples = list(
+        probe.stream(1.0, count=2, clock=lambda: next(ticks), sleep=slept.append)
+    )
+
+    assert len(samples) == 2
+    assert slept == [0.25]
+
+
+def test_an_unbounded_stream_is_lazy():
+    """Without a count the stream is infinite, so a caller takes what it needs."""
+    probe = node_probe.NodeProbe(run=_node_runner(), env={}, hostname="n")
+    stream = probe.stream(1.0, clock=lambda: 0.0, sleep=lambda _s: None)
+
+    first = next(stream)
+    second = next(stream)
+
+    assert isinstance(first, dict) and isinstance(second, dict)
