@@ -1,0 +1,75 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failure_note": "The reviewed run recorded no baseline_suite/after_suite pair; its gate log reports 56 passed EXIT=0 at 7e2110b3 and its own negative control 1 failed EXIT=1, so no failures were added by the landed change.",
+  "call_site_count": 2,
+  "call_sites": [
+    "pyproject.toml:166 (gpu-watch console script -> imas_ambix.agent.gpu_watch:main)",
+    "imas_ambix/agent/gpu_watch/view.py:515 (sample_readings -> NodeProbe.stream)"
+  ],
+  "completed_at": "2026-10-27T13:46:42.051Z",
+  "dispatched_at": "2026-10-27T13:31:48Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/gpu_watch/view.py",
+      "line": "182",
+      "severity": "blocking",
+      "text": "blocking: the declared power cap is in watts (profile.py:577 power_cap_watts, site tests declare 700 W) but conditions() uses it unsplit against a kilowatt figure, so cap_kilowatts and cap_percent are both 1000x wrong whenever a server declares a cap; reproduced against the landed module with a 420 W draw and a declared 700 W cap, which returns cap_kilowatts 700 and cap_percent 0.1 and renders \"0.42 kW / 700.00 kW cap 0% of cap\" where the truth is 0.70 kW and 60%."
+    },
+    {
+      "file": "imas_ambix/agent/gpu_watch/view.py",
+      "line": "324",
+      "severity": "non-blocking",
+      "text": "non-blocking: _entry_for matches endpoints on host alone and discards the port, so two engines on one server both render the first endpoint's model, cards and port; reproduced with engines gpu-0003.iter.org:18810 and :18800, which both render \"model deepseek-v4.1-flash cards 4xH200 port 18810\", while the docstring at view.py:320 says the engine id's host:port is what is matched on."
+    },
+    {
+      "file": "tests/test_gpu_watch.py",
+      "line": "192",
+      "severity": "non-blocking",
+      "text": "non-blocking: the assertion compares the renderer's own NO_JOB constant against the output rather than against the literal the plan requires (\"no job to sample\"), so changing the constant keeps the test green while breaking the stated done-when; it is the same-variable shape the review contract asks to name."
+    },
+    {
+      "file": "manifest.md",
+      "line": "2",
+      "severity": "non-blocking",
+      "text": "non-blocking: orientation_base_sha 5f645391e563bc60ca632d9848ce178ade891 is not an object in this repository (the real base is 5f645391e563bc60ca632d9848cc4e1786ade891), so the record's own base attribution cannot be checked against git."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 2 production call site(s)",
+    "diff": "read commit by commit against 5f645391; 7e2110b3 adds the package, the stream entry point, the console script and the tests, d584e01c adds only the 144-line evidence fragment, and every changed path is inside the declared scope.",
+    "done_when": "the done_when names tests/test_gpu_watch.py and tests/test_node_probe.py plus an on-node row comparison and a ruff check; gate-tests.log records 56 passed EXIT=0 at 7e2110b3, gate-ruff.log records All checks passed EXIT=0, and onnode-compare.log carries both watchers 22 s apart with matching row shapes.",
+    "goal": "the node's goal is a package renderer with a gpu-watch console script drawing cards, host, conditions, jobs and identity-only engine rows per declared server; imas_ambix/agent/gpu_watch/view.py:521-545 is that script and view.py:400-437 draws all five elements per server, plus NodeProbe.stream at imas_ambix/agent/node_probe.py:765.",
+    "manifest": "read; it records commits 7e2110b3 and d584e01c, the gate command, the negative control (1 failed EXIT=1) and the on-node comparison, but its orientation_base_sha 5f645391e563bc60ca632d9848ce178ade891 does not resolve (the base is ...86ade891).",
+    "write_paths": "the declared scope is imas_ambix/agent/gpu_watch, node_probe.py, llm_watch.py, pyproject.toml, the two test files and the evidence fragment; all seven changed paths in the diff sit inside it and llm_watch.py was not touched."
+  },
+  "justifications": {
+    "durability": "tests/test_gpu_watch.py:192 asserts view.NO_JOB against the same constant the renderer emits, and no assertion exists at all for the declared-cap arithmetic at view.py:182.",
+    "evidence": "gate-tests.log ends EXIT=0 with 56 passed and onnode-compare.log shows the new view and the dotfiles script 22 s apart, though the gate ran at 7e2110b3 and no test covers the declared-cap branch it ships.",
+    "fit": "view.py follows the rich-table idiom and naming rules of llm_watch.py, but view.py:43 imports the private registry._short_host and re-derives registry._engine_id's convention at view.py:324.",
+    "goal_fidelity": "view.py:400-437 renders every element the goal names per declared server, but view.py:182-198 computes the declared-cap percentage 1000x wrong.",
+    "reuse": "the renderer extends NodeProbe (the owner of card, host and job reads) and shares watch_style with llm_watch, rather than forking a sampler.",
+    "scope_discipline": "all seven diff paths are inside the declared scope; tests/test_node_probe.py additionally reflows two unrelated fixture strings, which is noise rather than drift."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is a package renderer with a gpu-watch console script drawing cards, host, conditions, jobs and identity-only engine rows per declared server; imas_ambix/agent/gpu_watch/view.py:521-545 is that script and view.py:400-437 draws all five elements per server, plus NodeProbe.stream at imas_ambix/agent/node_probe.py:765.\nVERDICT done_when: the done_when names tests/test_gpu_watch.py and tests/test_node_probe.py plus an on-node row comparison and a ruff check; gate-tests.log records 56 passed EXIT=0 at 7e2110b3, gate-ruff.log records All checks passed EXIT=0, and onnode-compare.log carries both watchers 22 s apart with matching row shapes.\nVERDICT write_paths: the declared scope is imas_ambix/agent/gpu_watch, node_probe.py, llm_watch.py, pyproject.toml, the two test files and the evidence fragment; all seven changed paths in the diff sit inside it and llm_watch.py was not touched.\nVERDICT manifest: read; it records commits 7e2110b3 and d584e01c, the gate command, the negative control (1 failed EXIT=1) and the on-node comparison, but its orientation_base_sha 5f645391e563bc60ca632d9848ce178ade891 does not resolve (the base is ...86ade891).\nVERDICT diff: read commit by commit against 5f645391; 7e2110b3 adds the package, the stream entry point, the console script and the tests, d584e01c adds only the 144-line evidence fragment, and every changed path is inside the declared scope.\nCALL_SITES: pyproject.toml:166 (gpu-watch console script -> imas_ambix.agent.gpu_watch:main), imas_ambix/agent/gpu_watch/view.py:515 (sample_readings -> NodeProbe.stream)\nSCORE goal_fidelity: 16\nJUSTIFICATION goal_fidelity: view.py:400-437 renders every element the goal names per declared server, but view.py:182-198 computes the declared-cap percentage 1000x wrong.\nSCORE evidence: 16\nJUSTIFICATION evidence: gate-tests.log ends EXIT=0 with 56 passed and onnode-compare.log shows the new view and the dotfiles script 22 s apart, though the gate ran at 7e2110b3 and no test covers the declared-cap branch it ships.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: all seven diff paths are inside the declared scope; tests/test_node_probe.py additionally reflows two unrelated fixture strings, which is noise rather than drift.\nSCORE durability: 12\nJUSTIFICATION durability: tests/test_gpu_watch.py:192 asserts view.NO_JOB against the same constant the renderer emits, and no assertion exists at all for the declared-cap arithmetic at view.py:182.\nSCORE fit: 15\nJUSTIFICATION fit: view.py follows the rich-table idiom and naming rules of llm_watch.py, but view.py:43 imports the private registry._short_host and re-derives registry._engine_id's convention at view.py:324.\nSCORE reuse: 17\nJUSTIFICATION reuse: the renderer extends NodeProbe (the owner of card, host and job reads) and shares watch_style with llm_watch, rather than forking a sampler.\nFINDING imas_ambix/agent/gpu_watch/view.py:182 blocking: the declared power cap is in watts (profile.py:577 power_cap_watts, site tests declare 700 W) but conditions() uses it unsplit against a kilowatt figure, so cap_kilowatts and cap_percent are both 1000x wrong whenever a server declares a cap; reproduced against the landed module with a 420 W draw and a declared 700 W cap, which returns cap_kilowatts 700 and cap_percent 0.1 and renders \"0.42 kW / 700.00 kW cap 0% of cap\" where the truth is 0.70 kW and 60%.\nFINDING imas_ambix/agent/gpu_watch/view.py:324 non-blocking: _entry_for matches endpoints on host alone and discards the port, so two engines on one server both render the first endpoint's model, cards and port; reproduced with engines gpu-0003.iter.org:18810 and :18800, which both render \"model deepseek-v4.1-flash cards 4xH200 port 18810\", while the docstring at view.py:320 says the engine id's host:port is what is matched on.\nFINDING tests/test_gpu_watch.py:192 non-blocking: the assertion compares the renderer's own NO_JOB constant against the output rather than against the literal the plan requires (\"no job to sample\"), so changing the constant keeps the test green while breaking the stated done-when; it is the same-variable shape the review contract asks to name.\nFINDING manifest.md:2 non-blocking: orientation_base_sha 5f645391e563bc60ca632d9848ce178ade891 is not an object in this repository (the real base is 5f645391e563bc60ca632d9848cc4e1786ade891), so the record's own base attribution cannot be checked against git.\n",
+  "review_run_id": "r-20261027T132824704995-review-of-gpu-watch-shows-the-machines-d584e01ca132",
+  "reviewed_base_sha": "5f645391e563bc60ca632d9848cc4e1786ade891",
+  "reviewed_head_sha": "d584e01ca13241b1d51ab9462276bc47b71f2745",
+  "reviewed_run_id": "r-20261027T091226504227-gpu-watch-shows-the-machines",
+  "scores": {
+    "durability": 12,
+    "evidence": 16,
+    "fit": 15,
+    "goal_fidelity": 16,
+    "reuse": 17,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T13:48:47.243665+00:00",
+  "total": 94
+}
