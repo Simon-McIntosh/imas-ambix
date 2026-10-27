@@ -1,0 +1,74 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed run records no baseline_suite/after_suite arm (its manifest carries neither key), so no two-arm difference is available. Derived from the head arm it does record: gate.log ends '76 passed in 10.18s' / EXIT=0, so the after arm has zero failing ids and the added-failure count cannot exceed zero. Verified the log is one run (one summary line) and its header names revision 7dc2825a and the same command the manifest's tests line carries.",
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:1724",
+    "imas_ambix/agent/cli.py:1766",
+    "imas_ambix/agent/router.py:1989",
+    "imas_ambix/agent/router.py:2213",
+    "imas_ambix/agent/router.py:2452"
+  ],
+  "completed_at": "2026-10-27T11:02:38.242Z",
+  "dispatched_at": "2026-10-27T10:49:31Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090724077079-one-gate-per-engine/manifest.md",
+      "line": "15",
+      "text": "non-blocking: the artifacts line quotes the gate summary as '76 passed in 9.58s' while the gate.log it cites carries exactly one summary line, '76 passed in 10.18s'; the pass count and exit status reconcile but the quoted duration does not, so the record does not fully reconcile with the log it names."
+    },
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": "906",
+      "text": "non-blocking: _engine_payload raises on a non-mapping engines map and a non-mapping engine entry (router.py:906, :910), and claim_engine raises on a conflicting engine (router.py:728), but no test exercises any of the three; the docstring and the landing fragment both present the malformed-map refusal as behaviour, so the claim is unproven by the suite."
+    },
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": "2138",
+      "text": "non-blocking: a request whose owner is unresolved queues at self._generation_gate, which the first gated engine has already claimed, so a request later admitted to a peer engine waits under another engine's width and is refused naming that other engine (engine=gate.engine_id at router.py:2166) -- the plan's 'a full gate on one engine never delays a request bound for the other' does not hold on this path."
+    },
+    {
+      "file": "tests/test_agent_router_gate.py",
+      "line": "1085",
+      "text": "non-blocking: 'assert key in rows[0][\"reason\"]' compares the receipt reason against key = engine_id_for_origin(origin), the same helper the code under test uses at router.py:2140, so a regression in that helper's spelling leaves the assertion true; it guards that the engine id reaches the reason, not that the id is the documented host:port form."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "imas_ambix/agent/cli.py:1724/1766 (serve_router -> create_router_app -> RouterApp) is the only production construction path, and the changed AdmissionGate surface is reached only from RouterApp.__call__ and _publish_lane.",
+    "diff": "Read 7dc2825a against 21d82c28 commit by commit (the node has one commit): router.py +235/-21 adding engine_id/claim_engine/_engine_payload, engine_id_for_origin, _engine_reason, RouterApp.gate_for, observe_engine and _observe_peer_engines, and threading the admitting gate through _relay and the refusal paths; tests/test_agent_router_gate.py +325/-3 adding five tests; plus the evidence fragment. Nothing outside the goal.",
+    "done_when": "Plan \u00a74's measure; the gate the worker ran is tests/test_agent_router_gate.py plus the four sibling router test files, recorded as '76 passed in 10.18s' EXIT=0 in gate.log. The three positive measures are asserted: six concurrent requests to each of two engines of widths 2 and 4 at tests/test_agent_router_gate.py:980-985 for per-gate admission, :1023/:1038 for one engine's reading moving only its own width, and :1085 for an expiry row naming the engine; the two negative controls are :1119-1125 (top-level pause) and :1130-1170 (engines-map pause).",
+    "goal": "The node goal is one _GenerationGate per engine, each fed only by its own reading; imas_ambix/agent/router.py:1960-1984 (gate_for) keys a gate per engine id and imas_ambix/agent/router.py:2323-2341 (observe_engine) feeds each engine's own LaneCapacity into its own gate's width controller, so a narrow engine no longer caps a peer.",
+    "manifest": "Read /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090724077079-one-gate-per-engine/manifest.md: status complete, one commit 7dc2825a, gate '76 passed', ruff clean, and a negative control log whose failing id is test_a_pause_in_the_engines_map_holds_only_its_own_engine; it records no baseline_suite/after_suite arms.",
+    "write_paths": "The manifest declares imas_ambix/agent/router.py, tests/test_agent_router_gate.py and the two router test files it runs plus the evidence fragment and a figures directory; git show --stat 7dc2825a changes exactly three files (router.py, tests/test_agent_router_gate.py, docs/evidence/fragments/serving-across-servers/one-gate-per-engine.html), all inside those paths."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_router_gate.py:984-985 asserts each fake engine's own peak concurrency (2 and 4) recorded server-side, which a single shared gate cannot produce, and :1023/:1038 assert the peer width stays 16 after one engine's reading; :1085 is weaker because both sides derive from engine_id_for_origin, and router.py:906/910/728 error paths have no test at all.",
+    "evidence": "The gate log's own summary line is '76 passed in 10.18s' with EXIT=0 and the negative-control log fails exactly the discriminating test (tests/test_agent_router_gate.py::test_a_pause_in_the_engines_map_holds_only_its_own_engine) under the stated mutation, but the manifest's artifacts line quotes '76 passed in 9.58s' against the log it cites and the run records no baseline_suite/after_suite arm, so the record cannot be differenced against a base.",
+    "fit": "imas_ambix/agent/router.py:1692-1710 follows the module's idiom (module-level helper, docstring stating the mechanism and the reuse of the registry's spelling) and the tests follow tests/test_agent_router_gate.py's _server/_start_call idiom, though the helper imports the private registry._engine_id across modules at router.py:1702.",
+    "goal_fidelity": "imas_ambix/agent/router.py:1977-1984 gives the first engine the process's original gate and every later engine its own, so a one-engine router queues exactly where it did while a peer engine stops being capped by a narrow one; the only deviation is the unresolved-owner path at router.py:2138-2142, which queues at the default gate whatever engine later admits it.",
+    "reuse": "A search over imas_ambix/agent for an existing origin-to-engine-id conversion (urlsplit/urlparse call sites, engine_id properties) found none, so engine_id_for_origin extends imas_ambix/agent/registry.py:47 _engine_id rather than duplicating it, and _engine_payload has no prior owner of per-engine control-file merging.",
+    "scope_discipline": "git show --stat 7dc2825aa3d87fff826ab587c1dd7c2641d0e4b8 lists only imas_ambix/agent/router.py, tests/test_agent_router_gate.py and docs/evidence/fragments/serving-across-servers/one-gate-per-engine.html, every one inside the manifest's declared write paths, with no plan write and no concurrent node's path touched."
+  },
+  "node": "review-of-one-gate-per-engine-7dc2825aa3d8",
+  "node:reviewed": "one-gate-per-engine",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is one _GenerationGate per engine, each fed only by that engine's reading; imas_ambix/agent/router.py:1977-1984 gives the first engine the process's original gate and every later engine its own, and router.py:2323-2341 feeds each engine's own LaneCapacity into its own gate.\nVERDICT done_when: plan \u00a74's measure; gate.log records '76 passed in 10.18s' EXIT=0 over tests/test_agent_router_gate.py and four sibling router suites, and the three positive measures are asserted at tests/test_agent_router_gate.py:984-985 (per-gate admission at widths 2 and 4), :1023/:1038 (one engine's reading moves only its own width) and :1085 (an expiry row naming the engine), with the two negative controls at :1119-1125 and :1130-1170.\nVERDICT write_paths: the manifest declares imas_ambix/agent/router.py, tests/test_agent_router_gate.py and the sibling router test files plus the evidence fragment; git show --stat 7dc2825a changes exactly those three files and nothing outside them.\nVERDICT manifest: read /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090724077079-one-gate-per-engine/manifest.md; status complete, commit 7dc2825a, gate and ruff both EXIT=0, and a negative control that reddens exactly test_a_pause_in_the_engines_map_holds_only_its_own_engine.\nVERDICT diff: read 7dc2825a against 21d82c28 (one commit); router.py +235/-21 adds engine_id/claim_engine/_engine_payload, engine_id_for_origin, _engine_reason, RouterApp.gate_for, observe_engine and _observe_peer_engines and threads the admitting gate through _relay and the refusal paths, tests/test_agent_router_gate.py +325/-3 adds five tests, and the evidence fragment records the outcome.\nCALL_SITES: imas_ambix/agent/cli.py:1724, imas_ambix/agent/cli.py:1766, imas_ambix/agent/router.py:1989, imas_ambix/agent/router.py:2213, imas_ambix/agent/router.py:2452\nSCORE goal_fidelity: 18\nJUSTIFICATION goal_fidelity: imas_ambix/agent/router.py:1977-1984 keeps a one-engine router on the process's original gate while giving every later engine its own, so a narrow engine no longer caps a peer; the unresolved-owner path at router.py:2138-2142 queues at the default gate whatever engine later admits it.\nSCORE evidence: 15\nJUSTIFICATION evidence: gate.log ends '76 passed in 10.18s' / EXIT=0 and negative_control.log fails exactly tests/test_agent_router_gate.py::test_a_pause_in_the_engines_map_holds_only_its_own_engine, but the manifest's artifacts line quotes '76 passed in 9.58s' against that log and the run records no baseline_suite/after_suite arm to difference.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git show --stat 7dc2825a lists only imas_ambix/agent/router.py, tests/test_agent_router_gate.py and docs/evidence/fragments/serving-across-servers/one-gate-per-engine.html, all inside the manifest's declared write paths.\nSCORE durability: 17\nJUSTIFICATION durability: tests/test_agent_router_gate.py:984-985 asserts each fake engine's own server-side peak concurrency, which a shared gate cannot produce, and :1023/:1038 assert the peer width stays 16; :1085 is self-referential through engine_id_for_origin and router.py:906/910/728 have no test.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/router.py:1692-1710 follows the module and registry idiom and states its mechanism in the docstring, with the one blemish that it imports the private registry._engine_id across modules.\nSCORE reuse: 20\nJUSTIFICATION reuse: a search over imas_ambix/agent for an existing origin-to-engine-id conversion found none, and engine_id_for_origin extends imas_ambix/agent/registry.py:47 _engine_id rather than forking the spelling.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090724077079-one-gate-per-engine/manifest.md:15 non-blocking: the artifacts line quotes '76 passed in 9.58s' while the gate.log it cites carries one summary line, '76 passed in 10.18s'.\nFINDING imas_ambix/agent/router.py:906 non-blocking: the malformed-engines and conflicting-engine refusals at router.py:906, :910 and :728 are presented as behaviour with no test exercising any of them.\nFINDING imas_ambix/agent/router.py:2138 non-blocking: an unresolved request queues at the default gate a peer engine already claimed, so it can wait under another engine's width and be refused naming that engine.\nFINDING tests/test_agent_router_gate.py:1085 non-blocking: 'assert key in rows[0][\"reason\"]' compares against a key computed by the same engine_id_for_origin helper the code under test uses, so a change to that helper's spelling leaves it true.",
+  "review_run_id": "r-20261027T104708741346-review-of-one-gate-per-engine-7dc2825aa3d8",
+  "reviewed_base_sha": "21d82c281ffc13ec9dd7e2d2f2ed08af5791e447",
+  "reviewed_head_sha": "7dc2825aa3d87fff826ab587c1dd7c2641d0e4b8",
+  "reviewed_run_id": "r-20261027T090724077079-one-gate-per-engine",
+  "scores": {
+    "durability": 17,
+    "evidence": 15,
+    "fit": 18,
+    "goal_fidelity": 18,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T11:14:00+00:00",
+  "total": 108
+}

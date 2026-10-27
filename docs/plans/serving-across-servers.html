@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="68">
+<meta name="plan-version" content="69">
 <meta name="plan-modified" content="2026-10-27">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;,&quot;serving-across-servers#s10&quot;],&quot;s15&quot;:[&quot;serving-across-servers#s16&quot;,&quot;serving-across-servers#s5&quot;],&quot;s7&quot;:[&quot;serving-across-servers#s5&quot;],&quot;s4&quot;:[&quot;serving-across-servers#s16&quot;],&quot;s5&quot;:[&quot;serving-across-servers#s4&quot;,&quot;serving-across-servers#s9&quot;],&quot;s6&quot;:[&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -821,7 +821,7 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
     <div class="r-comment-body"><p>The llm-watch console script renders the §8 live serving document for one engine — head line, throughput, capacity and gate bands, the accounts table over the viewer's per-project detail, the history strip, the outcomes line and the period ledger — documented in docs/evidence/fragments/serving-across-servers/llm-watch-view.html.</p></div>
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20261027T095014394905-review-of-agent-watch-points-to-llm-watch-63c68d7a331b" data-who="reckon-build" data-when="2026-10-27T10:03:56.124Z">
-    <div class="r-comment-body"><p>Reviewed r-20261027T090551608204-agent-watch-points-to-llm-watch at head 63c68d7a: the agent watch pointer ships and was reproduced independently (exit 0, one line naming llm-watch, watch.watch_text absent), the llm-watch resolver fix reuses the publisher&#x27;s own default_output_path and holds under a real revert, but the ten-minute memory claim is measured against the uv launcher&#x27;s pid rather than the renderer (blocking), the help test was swallowed by the pointer test, and removing watch_text leaves three call sites broken in tests/test_agent_watch_cost.py</p></div>
+    <div class="r-comment-body"><p>Reviewed r-20261027T090551608204-agent-watch-points-to-llm-watch at head 63c68d7a: the agent watch pointer ships and was reproduced independently (exit 0, one line naming llm-watch, watch.watch_text absent), the llm-watch resolver fix reuses the publisher's own default_output_path and holds under a real revert, but the ten-minute memory claim is measured against the uv launcher's pid rather than the renderer (blocking), the help test was swallowed by the pointer test, and removing watch_text leaves three call sites broken in tests/test_agent_watch_cost.py</p></div>
 </div>
 <div class="r-comment" data-section="_top" data-id="c-wave-order" data-who="reckon-build" data-when="2026-10-27T02:30:00Z">
     <div class="r-comment-body"><p>Waits added so that no two nodes write the same file at once. <code>router.py</code> is written by §16, then §4, §5 and §7, in that order. <code>cli.py</code> is written by §9, then §5, then §15. <code>watch.py</code> is written by §9, then §6. §9 and §16 run first. §11 is operator rollout and is not dispatched to a worker. §15's node builds the placement code and runs the consumer search; the move itself is a lane cycle under §11.</p></div>
@@ -834,6 +834,9 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 </div>
 <div class="r-comment" data-section="s16" data-id="c-run-r-20261027T090408257012-router-shutdown-answers-waiters" data-who="reckon-build" data-when="2026-10-27T09:32:53.116Z">
     <div class="r-comment-body"><p>The router answers every gate waiter with 529 and Retry-After on SIGTERM/SIGINT before uvicorn's shutdown, bounds the relay grace with timeout_graceful_shutdown (30 s default) and records a cut relay's row; measured on 98dci4-clu-2068, startup to first answered /v1/models is 1.30 s warm and 4.34 s cold, and the gate runs 24 tests green (tests/test_agent_router_gate.py + tests/test_agent_router_service.py).</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20261027T104708741346-review-of-one-gate-per-engine-7dc2825aa3d8" data-who="reckon-build" data-when="2026-10-27T11:02:38.242Z">
+    <div class="r-comment-body"><p>Independent review of run r-20261027T090724077079-one-gate-per-engine at 7dc2825aa; the landed change delivers one _GenerationGate per engine with the flat control-file keys as defaults and an engines map per engine, the negative control reddens exactly the engines-map pause test, and the review records scores goal_fidelity 18, evidence 15, scope_discipline 20, durability 17, fit 18, reuse 20 with four non-blocking findings and no blocking defect.</p></div>
 </div>
 </section>
 </main>
