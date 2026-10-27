@@ -1,0 +1,79 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "head-only: the reviewed manifest names no baseline_suite/after_suite arms, so the count is taken from its one gate log (logs/gate-head.log parses as pytest at rev afa37ff4 + working tree with 0 failing ids and EXIT=0) and nothing can be added against a base; the change does however leave three call sites of the removed watch.watch_text failing at head in tests/test_agent_watch_cost.py:305,960,967, which is outside that gate and recorded as a finding and under the node's own outside_scope",
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:3274 the registered `agent watch` command that prints the pointer",
+    "imas_ambix/agent/llm_watch.py:837 main (the llm-watch console script declared at pyproject.toml:165) and its local once() at llm_watch.py:868 calling build_document",
+    "imas_ambix/agent/watch_publish.py:111 calling watch.watch_document for the published ledger"
+  ],
+  "completed_at": "2026-10-27T10:03:56.124Z",
+  "dispatched_at": "2026-10-27T09:52:09Z",
+  "findings": [
+    {
+      "file": "docs/evidence/fragments/serving-across-servers/agent-watch-points-to-llm-watch.html",
+      "line": "45",
+      "severity": "blocking",
+      "text": "blocking: the ten-minute memory figure samples the wrong process. The run's sampler (live-rss-sampler.py in the run directory) reads /proc/<pid>/status for the pid returned by subprocess.Popen([\"uv\", \"run\", \"--no-sync\", \"llm-watch\", \"--live\"]), and uv run forks the command rather than exec-ing it, so that pid is the uv launcher and llm-watch renders in a grandchild: measured on this node, uv run python -c 'sleep 6' gave the Popen pid an RSS of 29512 kB whose child carried a different pid (790), and the recorded plateau of 27472-27604 kB sits in that launcher range. A flat launcher footprint is constant by construction, so any growth in the live view would be invisible and the done_when's 'resident memory stays within 10%' is not asserted; re-measure against the renderer's own pid before this claim is relied on."
+    },
+    {
+      "file": "tests/test_agent_watch_help.py",
+      "line": "53",
+      "severity": "non-blocking",
+      "text": "non-blocking: the pointer test swallows the superseded help test. The edit renames test_watch_help_does_not_name_the_superseded_record_default into test_watch_without_json_points_at_llm_watch and leaves the old body's docstring at line 53 as a bare string expression followed by its STALE_DEFAULT assertion, so the repository loses the named regression test, the pointer test now fails for two unrelated reasons, and the stranded docstring describes a check it no longer introduces; keep the help test as its own function beside the new one."
+    },
+    {
+      "file": "tests/test_agent_watch_cost.py",
+      "line": "305",
+      "severity": "non-blocking",
+      "text": "non-blocking: removing watch.watch_text breaks a file the node could not write. tests/test_agent_watch_cost.py:305, :960 and :967 still call watch.watch_text at head (git grep 63c68d7a), so the whole-tree suite is red at the landed revision even though the four gated files are green; the manifest records this under outside_scope, and it needs a follow-up node that owns that file to convert those call sites to watch_document or drop them, after which render_document/render_rail/render_cards/render_ledger_rows/_plain can also be retired."
+    },
+    {
+      "file": "docs/evidence/fragments/serving-across-servers/agent-watch-points-to-llm-watch.html",
+      "line": "43",
+      "severity": "non-blocking",
+      "text": "non-blocking: the fragment states 119 samples 'once per refresh interval' over 590 s, but logs/llm-watch-live-rss.csv holds a 22.561 s gap between t=200.000 and t=222.561 and four samples sharing t=222.561-222.562 in one burst, so at most 115 distinct instants were sampled; neither the timestamps of the child's refreshes nor a 5 s refresh cadence is recorded anywhere, and logs/llm-watch-live-output.txt carries no per-render stamp from which a cadence could be read."
+    }
+  ],
+  "gate_sources": {
+    "after_suite": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090551608204-agent-watch-points-to-llm-watch/logs/gate-head.log"
+  },
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "Read 63c68d7a against base afa37ff4 commit by commit: d4f2f6cc removes watch_text and its caller and adds the pointer branch, 309ed5f7 replaces watch_publish.DEFAULT_OUTPUT with default_output_path() and adds the regression test and the telemetry-watch rewrites, 63c68d7a adds the landing fragment; seven files, +293/-117.",
+    "done_when": "The done_when names the removal of watch.watch_text and its only caller, one pointer line at exit 0, unchanged --json and --json --live, four named pytest files, a ten-minute live run sampled once per refresh with RSS within 10% of its 60 s value, an unchanged one-engine golden, and a whole-tree ruff gate; gate-head.log records 63 passed EXIT=0, ruff-head.log records All checks passed! EXIT=0, the golden is untouched (test_llm_watch.py gains 29 lines and deletes none), but the RSS arm samples the uv wrapper's pid so it does not assert the measure, and the 10% clause is satisfied only against a value that is the launcher's.",
+    "goal": "The node goal is that imas-ambix agent watch without --json prints a one-line pointer to llm-watch instead of its text renderer, and that llm-watch --live is shown to hold its memory over ten minutes; cli.py:3274-3283 ships the pointer (verified by running the command at 63c68d7a in a scratch tree: exit 0, exactly one line naming llm-watch, watch.watch_text absent), while the memory half is measured against the wrong process.",
+    "manifest": "The manifest reports the three commits d4f2f6cc, 63c68d7a and 309ed5f7, the gate command and its logs, the negative control with its base-arm mutation and the base arm's 17-line failure, the RSS series with 27604 kB at t=60 s and 27472 kB at the end, and it records in outside_scope that tests/test_agent_watch_cost.py still calls watch.watch_text at two sites and will fail; it names no baseline_suite or after_suite arm.",
+    "write_paths": "The declared paths are imas_ambix/agent/{watch,cli,llm_watch}.py, tests/test_{llm_watch,agent_watch_help,agent_watch_live,agent_telemetry_watch}.py, the landing fragment and a figures directory; commit 63c68d7a changes cli.py, llm_watch.py, watch.py, tests/test_agent_watch_help.py, tests/test_agent_telemetry_watch.py, tests/test_llm_watch.py and docs/evidence/fragments/serving-across-servers/agent-watch-points-to-llm-watch.html, all inside the declaration, with tests/test_agent_watch_live.py and the figures directory untouched."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_watch_help.py:36 fails if the pointer is reverted (the negative control at logs/negative-control.log shows the base arm printing 17 lines and failing on assert 17 == 1) and tests/test_llm_watch.py:601 fails if llm_watch.py:773 returns to watch_publish.DEFAULT_OUTPUT because the attribute does not exist, but no test guards the memory claim and the whole-tree suite is red at head through the removed API.",
+    "evidence": "logs/gate-head.log records 63 passed and EXIT=0 for the four named test files and logs/ruff-head.log records All checks passed! EXIT=0, both at rev afa37ff4 + working tree, so the test and lint gates are measured; the ten-minute memory figure in docs/evidence/fragments/serving-across-servers/agent-watch-points-to-llm-watch.html:45 rests on /proc/<uv run pid>/status, which is the launcher and not llm-watch, so the done_when's memory measure has no valid evidence.",
+    "fit": "the additions follow the surrounding idiom and carry no plan, ticket or version identifiers, but tests/test_agent_watch_help.py:53 leaves the old help test's docstring and assertion adrift inside the pointer test, and the named test test_watch_help_does_not_name_the_superseded_record_default is deleted rather than kept beside its replacement.",
+    "goal_fidelity": "imas_ambix/agent/cli.py:3274-3283 prints one line naming llm-watch and exits 0 (verified by invoking the command at 63c68d7a in a scratch tree: EXIT 0, LINES 1), but the second clause of the goal, that llm-watch --live is shown to hold its memory over ten minutes, is not established because the samples in the evidence fragment measure the uv launcher rather than the renderer.",
+    "reuse": "the fix at imas_ambix/agent/llm_watch.py:773 calls watch_publish.default_output_path(), the resolver the publisher already owns at imas_ambix/agent/watch_publish.py:43 and that cli.py:3359,3574 already use, instead of introducing a second path of its own; the text renderer is removed rather than forked.",
+    "scope_discipline": "all seven paths in 63c68d7a (agent cli.py, llm_watch.py, watch.py, three test files and the landing fragment) are inside the declared write paths and no figure or unrelated refactor is carried, but the removal of watch.watch_text leaves tests/test_agent_watch_cost.py:305,960,967 broken at head, which the manifest records under outside_scope rather than repairing."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The node goal is that imas-ambix agent watch without --json prints a one-line pointer to llm-watch instead of its text renderer, and that llm-watch --live is shown to hold its memory over ten minutes; imas_ambix/agent/cli.py:3274-3283 ships the pointer (verified by running the command at 63c68d7a in a scratch tree: exit 0, exactly one line naming llm-watch, watch.watch_text absent), while the memory half is measured against the wrong process.\nVERDICT done_when: The done_when names the removal of watch.watch_text and its only caller, one pointer line at exit 0, unchanged --json and --json --live, four named pytest files, a ten-minute live run sampled once per refresh with RSS within 10% of its 60 s value, an unchanged one-engine golden, and a whole-tree ruff gate; logs/gate-head.log records 63 passed EXIT=0, logs/ruff-head.log records All checks passed! EXIT=0, the golden is untouched (tests/test_llm_watch.py gains 29 lines and deletes none), but the RSS arm samples the uv wrapper's pid so it does not assert the measure.\nVERDICT write_paths: The declared paths are imas_ambix/agent/{watch,cli,llm_watch}.py, tests/test_{llm_watch,agent_watch_help,agent_watch_live,agent_telemetry_watch}.py, the landing fragment and a figures directory; commit 63c68d7a changes cli.py, llm_watch.py, watch.py, tests/test_agent_watch_help.py, tests/test_agent_telemetry_watch.py, tests/test_llm_watch.py and docs/evidence/fragments/serving-across-servers/agent-watch-points-to-llm-watch.html, all inside the declaration, with tests/test_agent_watch_live.py and the figures directory untouched.\nVERDICT manifest: The manifest reports the three commits d4f2f6cc, 309ed5f7 and 63c68d7a, the gate command with its logs, the negative control with its base-arm mutation and the base arm's 17-line failure, the RSS series with 27604 kB at t=60 s and 27472 kB at the end, and it records in outside_scope that tests/test_agent_watch_cost.py still calls watch.watch_text at two sites and will fail; it names no baseline_suite or after_suite arm.\nVERDICT diff: Read 63c68d7a against base afa37ff4 commit by commit: d4f2f6cc removes watch_text and its caller and adds the pointer branch, 309ed5f7 replaces watch_publish.DEFAULT_OUTPUT with default_output_path() and adds the regression test and the telemetry-watch rewrites, 63c68d7a adds the landing fragment; seven files, +293/-117.\nCALL_SITES: imas_ambix/agent/cli.py:3274 the registered `agent watch` command that prints the pointer, imas_ambix/agent/llm_watch.py:837 main (the llm-watch console script declared at pyproject.toml:165) and its local once() at llm_watch.py:868 calling build_document, imas_ambix/agent/watch_publish.py:111 calling watch.watch_document for the published ledger\nSCORE goal_fidelity: 11\nJUSTIFICATION goal_fidelity: imas_ambix/agent/cli.py:3274-3283 prints one line naming llm-watch and exits 0 (verified by invoking the command at 63c68d7a in a scratch tree: EXIT 0, LINES 1), but the second clause of the goal is not established because the samples in the evidence fragment measure the uv launcher rather than the renderer.\nSCORE evidence: 8\nJUSTIFICATION evidence: logs/gate-head.log records 63 passed and EXIT=0 for the four named test files and logs/ruff-head.log records All checks passed! EXIT=0, but the memory figure at docs/evidence/fragments/serving-across-servers/agent-watch-points-to-llm-watch.html:45 rests on the uv launcher's /proc entry, so the done_when's memory measure has no valid evidence.\nSCORE scope_discipline: 13\nJUSTIFICATION scope_discipline: all seven paths in 63c68d7a are inside the declared write paths, but the removal of watch.watch_text leaves tests/test_agent_watch_cost.py:305,960,967 broken at head, recorded under outside_scope rather than repaired.\nSCORE durability: 14\nJUSTIFICATION durability: tests/test_agent_watch_help.py:36 reddens on a revert of the pointer branch (logs/negative-control.log shows the base arm printing 17 lines and failing assert 17 == 1) and tests/test_llm_watch.py:601 reddens on a revert of llm_watch.py:773 to the absent DEFAULT_OUTPUT, but no test guards the memory claim and the whole-tree suite is red at head.\nSCORE fit: 13\nJUSTIFICATION fit: the additions follow the surrounding idiom with no plan or ticket identifiers, but tests/test_agent_watch_help.py:53 leaves the old help test's docstring and assertion adrift inside the pointer test and deletes the named test beside it.\nSCORE reuse: 18\nJUSTIFICATION reuse: imas_ambix/agent/llm_watch.py:773 calls watch_publish.default_output_path(), the resolver the publisher already owns at imas_ambix/agent/watch_publish.py:43 and that cli.py:3359,3574 already use, and the text renderer is removed rather than forked.\nFINDING docs/evidence/fragments/serving-across-servers/agent-watch-points-to-llm-watch.html:45 blocking: the ten-minute memory figure samples the uv launcher's pid, not llm-watch's, so any growth in the live view would be invisible and the done_when's memory measure is not asserted.\nFINDING tests/test_agent_watch_help.py:53 non-blocking: the pointer test swallows the superseded help test, leaving its docstring as a bare string expression and deleting the named regression test.\nFINDING tests/test_agent_watch_cost.py:305 non-blocking: removing watch.watch_text leaves three call sites at :305, :960 and :967 broken at head, so the whole-tree suite is red and a follow-up node owning that file is needed.\nFINDING docs/evidence/fragments/serving-across-servers/agent-watch-points-to-llm-watch.html:43 non-blocking: the fragment claims 119 samples once per refresh interval, but logs/llm-watch-live-rss.csv has a 22.561 s gap and four samples sharing one instant, and no refresh timestamp is recorded anywhere.",
+  "review_run_id": "r-20261027T095014394905-review-of-agent-watch-points-to-llm-watch-63c68d7a331b",
+  "reviewed_base_sha": "afa37ff43102a1d9ecc055781817c33529e88b09",
+  "reviewed_head_sha": "63c68d7a331b0624fd725042ecab3d2283ad5647",
+  "reviewed_run_id": "r-20261027T090551608204-agent-watch-points-to-llm-watch",
+  "scores": {
+    "durability": 14,
+    "evidence": 8,
+    "fit": 13,
+    "goal_fidelity": 11,
+    "reuse": 18,
+    "scope_discipline": 13
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T10:59:00+00:00",
+  "total": 77
+}
