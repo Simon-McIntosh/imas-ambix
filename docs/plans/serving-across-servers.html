@@ -24,9 +24,9 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="62">
-<meta name="plan-modified" content="2026-10-23">
-<meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;],&quot;s15&quot;:[&quot;serving-across-servers#s16&quot;],&quot;s7&quot;:[]}">
+<meta name="plan-version" content="63">
+<meta name="plan-modified" content="2026-10-27">
+<meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;],&quot;s15&quot;:[&quot;serving-across-servers#s16&quot;,&quot;serving-across-servers#s5&quot;],&quot;s7&quot;:[&quot;serving-across-servers#s5&quot;],&quot;s4&quot;:[&quot;serving-across-servers#s16&quot;],&quot;s5&quot;:[&quot;serving-across-servers#s4&quot;,&quot;serving-across-servers#s9&quot;],&quot;s6&quot;:[&quot;serving-across-servers#s9&quot;]}">
 </head>
 <body>
   <main class="plan-doc">
@@ -819,6 +819,9 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 </div>
 <div class="r-comment" data-section="s9" data-id="c-run-r-20261023T043552083898-llm-watch-view" data-who="reckon-build" data-when="2026-10-23T08:03:17Z">
     <div class="r-comment-body"><p>The llm-watch console script renders the §8 live serving document for one engine — head line, throughput, capacity and gate bands, the accounts table over the viewer's per-project detail, the history strip, the outcomes line and the period ledger — documented in docs/evidence/fragments/serving-across-servers/llm-watch-view.html.</p></div>
+</div>
+<div class="r-comment" data-section="_top" data-id="c-wave-order" data-who="reckon-build" data-when="2026-10-27T02:30:00Z">
+    <div class="r-comment-body"><p>Waits added so that no two nodes write the same file at once. <code>router.py</code> is written by §16, then §4, §5 and §7, in that order. <code>cli.py</code> is written by §9, then §5, then §15. <code>watch.py</code> is written by §9, then §6. §9 and §16 run first. §11 is operator rollout and is not dispatched to a worker. §15's node builds the placement code and runs the consumer search; the move itself is a lane cycle under §11.</p></div>
 </div>
 </section>
 </main>
