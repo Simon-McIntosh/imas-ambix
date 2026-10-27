@@ -1,0 +1,80 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 7,
+  "call_sites": [
+    "imas_ambix/agent/live_panel.py:756 live_panel calls live_block",
+    "imas_ambix/agent/watch.py:1432 live_document calls live_panel",
+    "imas_ambix/agent/watch.py:1516 watch_document calls live_document",
+    "imas_ambix/agent/cli.py:3271 the CLI's live path calls live_document",
+    "imas_ambix/agent/cli.py:3285 the CLI's full path calls watch_document",
+    "imas_ambix/agent/llm_watch.py:766 llm-watch calls live_document",
+    "imas_ambix/agent/watch.py:1397 document calls ledger"
+  ],
+  "completed_at": "2026-10-27T13:40:39.382Z",
+  "dispatched_at": "2026-10-27T13:26:05Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "1397",
+      "severity": "blocking",
+      "text": "document() passes model=reading.get('model_id'), so ledger() always takes the present=[model] branch at watch.py:1143 and the per-model rows and 'all models' total this node adds never reach the full document; reproduced on a two-serve index, where watch.document() returns the single row ('1 hour','glm-5.3',24.2) while ledger(model=None) returns deepseek 7.05, glm 24.2 and a 31.25 total. The newest receipt's engine section carries model_id whenever the engine reports it (imas_ambix/agent/engine_metrics.py:529, model_id_of at :428), which is the normal case, so the ledger half of the section goal is unreachable in production."
+    },
+    {
+      "file": "imas_ambix/agent/live_panel.py",
+      "line": "765",
+      "severity": "non-blocking",
+      "text": "published_shelf_life re-reads and re-parses the lane document that lane_block already reads, duplicating the shelf-life decode at live_panel.py:472-475 rather than extending lane_block; live_panel() therefore parses lane.json twice per call and the two readers can drift apart on validation."
+    },
+    {
+      "file": "imas_ambix/agent/live_panel.py",
+      "line": "327",
+      "severity": "non-blocking",
+      "text": "_raw_receipt_files repeats the is_dir/_tier_names/glob enumeration that newest_raw_receipt performs at live_panel.py:225, and newest_raw_receipt was not moved onto the new helper, leaving two copies of the raw-file filter in one module."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090955520848-live-figures-per-engine/manifest.md",
+      "line": "15",
+      "severity": "non-blocking",
+      "text": "the manifest's tests field is a sentence rather than the literal command that ran, and baseline_suite/after_suite at :21-22 are prose rather than the armed-only JSON the contract asks for; the gate-pytest.log '# command:' header is the fallback that keeps the gate receipt readable."
+    }
+  ],
+  "gate_sources": {
+    "after_suite": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090955520848-live-figures-per-engine/logs/after-suite.log",
+    "baseline_suite": "no baseline log exists for this run: manifest.md:21 records the baseline as prose ('115 tests passed'), so no baseline failure id is available to compare against"
+  },
+  "item_verdicts": {
+    "call_sites": "verified 7 production call site(s)",
+    "diff": "Read both commits against 5f645391: 1e240969 adds per-engine receipt selection and per-model ledger grouping with four tests, 83fbbe72 adds the evidence fragment, and no unrelated change rides along.",
+    "done_when": "The brief's measure names tests/test_live_panel.py and tests/test_agent_watch_cost.py; logs/gate-pytest.log records 95 passed EXIT=0 and logs/after-suite.log 119 passed EXIT=0 so both halves are measured, but the two-model item is measured only against ledger() called directly rather than through the document() path that ships it.",
+    "goal": "The node's goal is one live entry per engine plus a ledger row per model at its own rate and a total; imas_ambix/agent/live_panel.py:492 live_entries delivers the first through live_panel.py:756, while the ledger grouping at imas_ambix/agent/watch.py:1143 is unreachable from the production caller at watch.py:1397.",
+    "manifest": "Read; it names commits 1e240969 and 83fbbe72, a 95-test gate, a red negative control and no out-of-scope edits, but its tests, baseline_suite and after_suite fields are prose rather than the literal command and the JSON the contract asks for.",
+    "write_paths": "The brief grants six paths; git diff 5f645391..83fbbe72 changes imas_ambix/agent/live_panel.py, imas_ambix/agent/watch.py, tests/test_live_panel.py, tests/test_agent_watch_cost.py and docs/evidence/fragments/serving-across-servers/live-figures-per-engine.html, every one inside the grant."
+  },
+  "justifications": {
+    "durability": "tests/test_live_personas.py:331 and the torn-tail case at :400 assert independently derived rates, tail_breaks and reasons that redden if per-engine selection or the torn-tail rule regresses, but no assertion drives document() into ledger(), so the production wiring has no test at all.",
+    "evidence": "logs/gate-pytest.log ends 95 passed EXIT=0 and logs/after-suite.log ends 119 passed EXIT=0, yet tests/test_agent_watch_cost.py:1090 asserts the two-model rows through watch.ledger called directly, which is why the unwired production path stayed green.",
+    "fit": "imas_ambix/agent/watch.py:1051 and imas_ambix/agent/live_panel.py:492 follow the module's sparse-row and docstring idiom and introduce no plan label, ticket reference or version suffix.",
+    "goal_fidelity": "imas_ambix/agent/live_panel.py:492 publishes one entry per engine and reaches production through live_panel.py:756, but imas_ambix/agent/watch.py:1397 passes model=reading['model_id'] so ledger takes the single-model branch at watch.py:1143 and never emits the per-model rows or the total.",
+    "reuse": "imas_ambix/agent/live_panel.py:765 published_shelf_life re-implements the shelf-life decode lane_block already performs at live_panel.py:472-475 and re-reads the document read_lane_block opened, while live_panel.py:327 _raw_receipt_files repeats the raw-file enumeration inside newest_raw_receipt at live_panel.py:225.",
+    "scope_discipline": "git diff 5f645391..83fbbe72 touches only the five declared paths, with no edit to the plan and no file outside the grant."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node's goal is one live entry per engine plus a ledger row per model priced at its own rate and a total; imas_ambix/agent/live_panel.py:492 live_entries delivers the first through live_panel.py:756, while the ledger grouping at imas_ambix/agent/watch.py:1143 is unreachable from the production caller at watch.py:1397.\nVERDICT done_when: the brief's measure names tests/test_live_panel.py and tests/test_agent_watch_cost.py; logs/gate-pytest.log records 95 passed EXIT=0 and logs/after-suite.log 119 passed EXIT=0 so both halves are measured, but the two-model item is measured only against ledger() called directly rather than through the document() path that ships it.\nVERDICT write_paths: the brief grants six paths; git diff 5f645391..83fbbe72 changes imas_ambix/agent/live_panel.py, imas_ambix/agent/watch.py, tests/test_live_panel.py, tests/test_agent_watch_cost.py and docs/evidence/fragments/serving-across-servers/live-figures-per-engine.html, every one inside the grant.\nVERDICT manifest: read; it names commits 1e240969 and 83fbbe72, a 95-test gate, a red negative control and no out-of-scope edits, but its tests, baseline_suite and after_suite fields are prose rather than the literal command and the JSON the contract asks for.\nVERDICT diff: read both commits against 5f645391; 1e240969 adds per-engine receipt selection and per-model ledger grouping with four tests, 83fbbe72 adds the evidence fragment, and no unrelated change rides along.\nCALL_SITES: imas_ambix/agent/live_panel.py:756 live_panel calls live_block, imas_ambix/agent/watch.py:1432 live_document calls live_panel, imas_ambix/agent/watch.py:1516 watch_document calls live_document, imas_ambix/agent/cli.py:3271 the CLI's live path calls live_document, imas_ambix/agent/cli.py:3285 the CLI's full path calls watch_document, imas_ambix/agent/llm_watch.py:766 llm-watch calls live_document, imas_ambix/agent/watch.py:1397 document calls ledger\nSCORE goal_fidelity: 10\nJUSTIFICATION goal_fidelity: imas_ambix/agent/live_panel.py:492 publishes one entry per engine and reaches production through live_panel.py:756, but imas_ambix/agent/watch.py:1397 passes model=reading['model_id'] so ledger takes the single-model branch at watch.py:1143 and never emits the per-model rows or the total.\nSCORE evidence: 13\nJUSTIFICATION evidence: logs/gate-pytest.log ends 95 passed EXIT=0 and logs/after-suite.log ends 119 passed EXIT=0, yet tests/test_agent_watch_cost.py:1090 asserts the two-model rows through watch.ledger called directly, which is why the unwired production path stayed green.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: git diff 5f645391..83fbbe72 touches only the five declared paths, with no edit to the plan and no file outside the grant.\nSCORE durability: 13\nJUSTIFICATION durability: tests/test_live_panel.py:331 and the torn-tail case at :400 assert independently derived rates, tail_breaks and reasons that redden if per-engine selection or the torn-tail rule regresses, but no assertion drives document() into ledger(), so the production wiring has no test at all.\nSCORE fit: 18\nJUSTIFICATION fit: imas_ambix/agent/watch.py:1051 and imas_ambix/agent/live_panel.py:492 follow the module's sparse-row and docstring idiom and introduce no plan label, ticket reference or version suffix.\nSCORE reuse: 5\nJUSTIFICATION reuse: imas_ambix/agent/live_panel.py:765 published_shelf_life re-implements the shelf-life decode lane_block already performs at live_panel.py:472-475 and re-reads the document read_lane_block opened, while live_panel.py:327 _raw_receipt_files repeats the raw-file enumeration inside newest_raw_receipt at live_panel.py:225.\nFINDING imas_ambix/agent/watch.py:1397 blocking: document() passes model=reading.get('model_id'), so ledger() always takes the present=[model] branch at watch.py:1143 and the per-model rows and 'all models' total this node adds never reach the full document; reproduced on a two-serve index, where watch.document() returns the single row ('1 hour','glm-5.3',24.2) while ledger(model=None) returns deepseek 7.05, glm 24.2 and a 31.25 total. The newest receipt's engine section carries model_id whenever the engine reports it (imas_ambix/agent/engine_metrics.py:529, model_id_of at :428), which is the normal case, so the ledger half of the section goal is unreachable in production.\nFINDING imas_ambix/agent/live_panel.py:765 non-blocking: published_shelf_life re-reads and re-parses the lane document that lane_block already reads, duplicating the shelf-life decode at live_panel.py:472-475 rather than extending lane_block; live_panel parses lane.json twice per call and the two readers can drift apart on validation.\nFINDING imas_ambix/agent/live_panel.py:327 non-blocking: _raw_receipt_files repeats the is_dir/_tier_names/glob enumeration that newest_raw_receipt performs at live_panel.py:225, and newest_raw_receipt was not moved onto the new helper, leaving two copies of the raw-file filter in one module.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090955520848-live-figures-per-engine/manifest.md:15 non-blocking: the manifest's tests field is a sentence rather than the literal command that ran, and baseline_suite/after_suite at :21-22 are prose rather than the JSON the contract asks for; the gate-pytest.log '# command:' header is the fallback that keeps the gate receipt readable.\n",
+  "review_run_id": "r-20261027T131845775521-review-of-live-figures-per-engine-83fbbe72781e",
+  "reviewed_base_sha": "5f645391e563bc60ca632d9848cc4e1786ade891",
+  "reviewed_head_sha": "83fbbe72781e38c460c89ec5e3f7afdab2e13403",
+  "reviewed_run_id": "r-20261027T090955520848-live-figures-per-engine",
+  "scores": {
+    "durability": 13,
+    "evidence": 13,
+    "fit": 18,
+    "goal_fidelity": 10,
+    "reuse": 5,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T14:40:00.000000+00:00",
+  "total": 78
+}
