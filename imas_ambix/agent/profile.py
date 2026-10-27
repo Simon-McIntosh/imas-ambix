@@ -524,6 +524,30 @@ GATE_CONTROL_PATH_ENV = "AMBIX_AGENT_GATE_CONTROL_PATH"
 # flat site fields above are the whole site.
 SERVERS_ENV = "AMBIX_AGENT_SERVERS"
 
+# The router's own placement, as a JSON object. Unset means the CPU partition
+# this cluster keeps for services with no time limit.
+ROUTER_ENV = "AMBIX_AGENT_ROUTER"
+
+# The partitions this cluster offers, as the scheduler lists them. A placement
+# naming anything else is refused before a script is written, because a job
+# submitted to a partition nobody has pends until somebody notices.
+KNOWN_PARTITIONS = frozenset(
+    {
+        "all",
+        "all_debug",
+        "betelgeuse",
+        "rigel",
+        "rigel_debug",
+        "sirius",
+        "sirius_debug",
+        "sun",
+        "sun_debug",
+        "titan",
+        "vega",
+        "vega_debug",
+    }
+)
+
 
 def _default_gate_control_path(base_dir: str) -> str:
     """Return the group control file path under the project base.
@@ -550,6 +574,24 @@ def _servers_from_env() -> list[SiteServerConfig]:
     if not isinstance(parsed, list):
         raise ValueError(f"{SERVERS_ENV} must be a JSON array of server objects")
     return [SiteServerConfig(**entry) for entry in parsed]
+
+
+def _router_from_env() -> RouterPlacementConfig:
+    """Parse the router's placement, refusing a value that is not an object.
+
+    Like the server list, this is operator input, so a malformed declaration
+    stops the submission instead of falling back to a default the operator did
+    not choose.
+    """
+    raw = os.environ.get(ROUTER_ENV)
+    if raw is None or not raw.strip():
+        return RouterPlacementConfig()
+    parsed = json.loads(raw)
+    if not isinstance(parsed, dict):
+        raise ValueError(
+            f"{ROUTER_ENV} must be a JSON object naming the router's placement"
+        )
+    return RouterPlacementConfig(**parsed)
 
 
 class SiteServerConfig(BaseModel):
@@ -585,6 +627,36 @@ class SiteServerConfig(BaseModel):
         return value.strip()
 
 
+class RouterPlacementConfig(BaseModel):
+    """Where the standing router job runs.
+
+    The router is a CPU-only service, so its placement is deliberately not a
+    server's: both GPU servers are hosts it routes to, and a drain or a failure
+    of either must not end the routing every consumer depends on. It is
+    independent of the reservation those servers share, so it asks for no
+    reservation at all.
+    """
+
+    partition: str = "rigel"
+    account: str = "grpa"
+    cpus: int = Field(default=2, ge=1)
+    memory: str = "8G"
+
+
+def require_known_partition(partition: str) -> str:
+    """Refuse a partition no scheduler here offers, naming it and the ones it does
+    offer.
+
+    The check sits at generation rather than at configuration so that the
+    refusal lands where a job would otherwise be written: a mistyped partition
+    submits cleanly and then pends, looking like contention instead of a typo.
+    """
+    if partition in KNOWN_PARTITIONS:
+        return partition
+    known = ", ".join(sorted(KNOWN_PARTITIONS))
+    raise ValueError(f"unknown partition {partition!r}; this cluster offers: {known}")
+
+
 class SiteConfig(BaseModel):
     """Cluster-specific settings, layered separately from model profiles.
 
@@ -611,6 +683,9 @@ class SiteConfig(BaseModel):
     # reservation and gpu_host above are the single server, which is what keeps
     # a configuration written before sites could hold more than one working.
     servers: list[SiteServerConfig] = Field(default_factory=list)
+    # Where the standing router job runs. It is not one of the servers, because
+    # the service that routes to both of them must not share either one's fate.
+    router: RouterPlacementConfig = Field(default_factory=RouterPlacementConfig)
     preferred_release_id: str | None = None
     # Control lives in the group-owned directory beside the model store, not in
     # the personal public directory the lane document is published from. The
@@ -715,6 +790,7 @@ class SiteConfig(BaseModel):
                 "AMBIX_AGENT_ENDPOINT_DOCUMENT", _default_endpoint_document_path()
             ),
             servers=_servers_from_env(),
+            router=_router_from_env(),
             preferred_release_id=os.environ.get("AMBIX_AGENT_PREFERRED_RELEASE"),
             **gate_override,
         )
