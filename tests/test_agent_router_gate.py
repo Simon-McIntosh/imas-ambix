@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from aiohttp import web
 
 from imas_ambix.agent import router as router_mod
@@ -984,6 +985,14 @@ def test_two_engines_admit_at_their_own_widths(tmp_path: Path) -> None:
                 assert narrow.peak == 2
                 assert wide.peak == 4
 
+                # The admissions are stamped, not just counted: the wide
+                # engine's four arrived as one burst while only two of the
+                # narrow engine's six had been admitted, so the narrow queue
+                # held none of them back at any point in their wait.
+                assert len(wide.arrivals) == 4
+                assert max(wide.arrivals) - min(wide.arrivals) < 1.0
+                assert len(narrow.arrivals) == 2
+
                 narrow.release.set()
                 wide.release.set()
                 for task in narrow_calls + wide_calls:
@@ -1048,6 +1057,10 @@ def test_gate_expiry_names_the_engine_it_waited_at(tmp_path: Path) -> None:
         receipts = tmp_path / "receipts.jsonl"
         async with _server(engine.application()) as origin:
             key = engine_id_for_origin(origin)
+            # Spelled out here rather than borrowed from the helper the router
+            # uses, so a regression in that helper's spelling is caught instead
+            # of being compared against itself. The identity is host:port.
+            host, _, port = origin.removeprefix("http://").partition(":")
             gate_file = tmp_path / "router-gate.json"
             gate_file.write_text(
                 json.dumps(
@@ -1082,7 +1095,7 @@ def test_gate_expiry_names_the_engine_it_waited_at(tmp_path: Path) -> None:
         assert len(rows) == 1
         assert rows[0]["upstream"] == "(router)"
         assert rows[0]["status"] == "failed"
-        assert key in rows[0]["reason"]
+        assert rows[0]["reason"].endswith(f"engine={host}:{port}")
         assert rows[0]["gate_wait_s"] >= 0.25
         assert engine.arrivals == []
 
@@ -1170,3 +1183,143 @@ def test_a_pause_in_the_engines_map_holds_only_its_own_engine(
         await open_gate.release(admission.busy)
 
     asyncio.run(exercise())
+
+
+def test_an_unresolved_owner_never_waits_under_an_engines_width(
+    tmp_path: Path,
+) -> None:
+    """A request whose engine has not appeared is not held to a peer's width.
+
+    The first engine to be gated takes over the gate this process has always
+    had, so a request queueing there while its own engine is unknown would sit
+    behind that engine's width and be refused naming it. It waits at a gate of
+    its own until an engine advertises its model, and is then handed to that
+    engine's gate -- here a width-4 engine answers at once while a width-1
+    engine is full and stays full.
+    """
+
+    async def exercise() -> None:
+        occupied = _HeldEngine("shared-model")
+        arriving = _HeldEngine("shared-model")
+        async with (
+            _server(occupied.application()) as occupied_url,
+            _server(arriving.application()) as arriving_url,
+        ):
+            occupied_key = engine_id_for_origin(occupied_url)
+            arriving_key = engine_id_for_origin(arriving_url)
+            gate_file = tmp_path / "router-gate.json"
+            gate_file.write_text(
+                json.dumps(
+                    {
+                        "width": 1,
+                        "wait_seconds": 2.0,
+                        "engines": {
+                            occupied_key: {"width": 1},
+                            arriving_key: {"width": 4},
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            resolver = Resolver([Upstream(occupied_url)])
+            app = RouterApp(resolver, gate_file=gate_file)
+            try:
+                filler, _, _ = _start_call(
+                    app,
+                    "POST",
+                    "/v1/messages",
+                    json.dumps({"model": "shared-model"}).encode(),
+                )
+                await _await_gate(lambda: occupied.running == 1)
+                occupied_gate = app.gate_for(occupied_key)
+                await _await_gate(lambda: occupied_gate.settings().width == 1)
+                assert occupied_gate.in_flight == 1
+
+                # The model is known but its engine has gone: no owner to key
+                # the request on, so it holds without taking a slot anywhere
+                # for an engine it is not bound to.
+                resolver.upstreams = []
+                held, _, held_sent = _start_call(
+                    app,
+                    "POST",
+                    "/v1/messages",
+                    json.dumps({"model": "shared-model"}).encode(),
+                )
+                await asyncio.sleep(0.3)
+                assert not held.done()
+                assert app.gate_for(occupied_key).in_flight == 1
+
+                # A different, wider engine appears advertising the model.
+                resolver.upstreams = [Upstream(arriving_url)]
+                await _await_gate(lambda: arriving.running == 1, timeout=5.0)
+                assert app.gate_for(arriving_key).in_flight == 1
+                assert app.gate_for(occupied_key).in_flight == 1
+
+                arriving.release.set()
+                await asyncio.wait_for(held, timeout=5.0)
+                assert _status(held_sent) == 200
+
+                occupied.release.set()
+                await _await_gate(lambda: occupied.running == 0)
+                await asyncio.wait_for(filler, timeout=5.0)
+            finally:
+                if app._session is not None:
+                    await app._session.close()
+
+    asyncio.run(exercise())
+
+
+def test_a_malformed_engines_map_is_refused_as_a_whole(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """An engines map the gate cannot read is reported, never partly applied.
+
+    The flat keys stay the defaults for every engine, so an unreadable map is
+    refused as a whole rather than interpreted in part: the read warns and the
+    gate keeps the flat defaults, which is the difference between an operator
+    seeing the refusal and believing a retune took effect.
+    """
+
+    gate_file = tmp_path / "router-gate.json"
+    app = RouterApp(Resolver([]), gate_file=gate_file)
+    key = "gpu-0003:18800"
+    gate = app.gate_for(key)
+
+    gate_file.write_text(
+        json.dumps({"width": 7, "engines": [key]}), encoding="utf-8"
+    )
+    gate._next_config_refresh_at = 0.0
+    with caplog.at_level(logging.WARNING, logger="imas_ambix.agent.router"):
+        settings = gate.settings()
+    assert settings.width == router_mod.DEFAULT_GENERATION_WIDTH
+    assert "engines must be an object" in caplog.text
+
+    caplog.clear()
+    gate_file.write_text(
+        json.dumps({"width": 7, "engines": {key: []}}), encoding="utf-8"
+    )
+    gate._next_config_refresh_at = 0.0
+    with caplog.at_level(logging.WARNING, logger="imas_ambix.agent.router"):
+        settings = gate.settings()
+    assert settings.width == router_mod.DEFAULT_GENERATION_WIDTH
+    assert "each engines entry must be an object" in caplog.text
+
+    # The refusals are errors at their source, not a value the merge invents.
+    with pytest.raises(ValueError):
+        gate._engine_payload({"engines": [key]})
+    with pytest.raises(ValueError):
+        gate._engine_payload({"engines": {key: []}})
+
+
+def test_a_gate_refuses_to_be_claimed_by_a_second_engine(
+    tmp_path: Path,
+) -> None:
+    """The process's original gate belongs to one engine, by construction."""
+
+    app = RouterApp(Resolver([]), gate_file=tmp_path / "router-gate.json")
+    gate = app.gate_for("gpu-0003:18800")
+    gate.claim_engine("gpu-0003:18800")
+    assert gate.engine_id == "gpu-0003:18800"
+    with pytest.raises(ValueError):
+        gate.claim_engine("gpu-0004:18800")
+    assert gate.engine_id == "gpu-0003:18800"
