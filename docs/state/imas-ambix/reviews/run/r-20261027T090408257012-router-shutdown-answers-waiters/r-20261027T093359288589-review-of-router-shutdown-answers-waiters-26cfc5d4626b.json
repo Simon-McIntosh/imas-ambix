@@ -1,0 +1,67 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed manifest records its gate log under test_logs and names no baseline_suite/after_suite arm, so the count is head-only: gate-head.log parses as pytest at rev 26cfc5d4 with 0 failing ids and EXIT=0, so nothing can be added against any base",
+  "call_site_count": 3,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:1766 serve_router from the agent router command",
+    "imas_ambix/agent/router.py:3181-3185 the chained handle_exit calling app.initiate_shutdown",
+    "imas_ambix/agent/router.py:2088-2095 RouterApp.initiate_shutdown delegating to _GenerationGate.initiate_shutdown"
+  ],
+  "completed_at": "2026-10-27T09:53:37.102Z",
+  "dispatched_at": "2026-10-27T09:39:56Z",
+  "findings": [
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090408257012-router-shutdown-answers-waiters/manifest.md",
+      "line": "15",
+      "severity": "non-blocking",
+      "text": "non-blocking: the recorded gate command prepends PYTHONPATH=/tmp/reckon-crew-scratch/.../uvicorn-overlay because uvicorn was absent from the project venv, so replaying the recorded command after that scratch directory is reaped fails at import rather than measuring the change, even though a later commit on main (6bc5db31) declares uvicorn in the dev group and removes the need for the overlay."
+    },
+    {
+      "file": "tests/test_agent_router_service.py",
+      "line": "414",
+      "severity": "non-blocking",
+      "text": "non-blocking: the cut-relay test asserts two substrings of the reason (\"shutdown\" and \"cut\") rather than the module constant the sibling test compares against, so a reason string carrying both words but the wrong claim would pass where the first test's equality would not."
+    }
+  ],
+  "gate_sources": {
+    "after_suite": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090408257012-router-shutdown-answers-waiters/gate-head.log"
+  },
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 3 production call site(s)",
+    "diff": "Read commit 26cfc5d4 against base afa37ff4: five files changed, +567/-24, adding the gate shutdown flag and wake, a shutdown admission outcome and its 529 path, a reason field on receipt rows, a receipt written before the finally's awaits, the chained handle_exit with the launch grace, two subprocess-level tests, the runbook row and the evidence fragment.",
+    "done_when": "The done_when names both router test files, a subprocess router under real uvicorn signalled with SIGTERM holding three waiters, a relay finishing inside the grace, one outlasting it recorded as cut, the launch's timeout_graceful_shutdown, a startup measurement written into ops/lane-cycle/AGENTS.md, and a ruff run; gate-head.log carries the command in its header, reports 24 passed in 10.42s and ends EXIT=0 at rev 26cfc5d4, ruff-head.log reports All checks passed! and EXIT=0, and the runbook row is the measured 1.30s warm / 4.34s cold, but the command as run prepends a PYTHONPATH overlay for uvicorn that the done_when's literal command does not carry.",
+    "goal": "The node's goal is that on SIGTERM/SIGINT the router stops admitting and answers every gate waiter with 529 overloaded_error and Retry-After before uvicorn's own shutdown, under a bounded graceful timeout; router.py:725-756 sets the shutdown flag and wakes the FIFO, router.py:1427-1449 and :1494-1497 refuse admission at every gate entry and wake, router.py:2040-2052 emits the 529 with Retry-After 5 and a shutdown reason, and router.py:3179-3185 chains the release in front of uvicorn's handler with timeout_graceful_shutdown=30.0 at :3135.",
+    "manifest": "The manifest reports status complete, one commit 26cfc5d4, the gate result, the negative control with its declared mutation and its two failing tests, the startup samples 4.34s cold and 1.30s warm, the uvicorn overlay under evidence_inputs, the same venv gap under outside_scope, an empty retry_failures and blockers none.",
+    "write_paths": "The declared paths are imas_ambix/agent/router.py, imas_ambix/agent/request_receipts.py, tests/test_agent_router_gate.py, tests/test_agent_router_service.py, ops/lane-cycle/AGENTS.md and the landing fragment; commit 26cfc5d4 changes router.py, request_receipts.py, tests/test_agent_router_service.py, ops/lane-cycle/AGENTS.md and docs/evidence/fragments/serving-across-servers/router-shutdown-answers-waiters.html, so every changed path is inside the declaration and tests/test_agent_router_gate.py and the figures directory are untouched."
+  },
+  "justifications": {
+    "durability": "negative-control.log applies the declared mutation and reddens exactly the two added tests with EXIT=1, and both tests assert values the tests do not supply themselves.",
+    "evidence": "gate-head.log records 24 passed and EXIT=0 at rev 26cfc5d4 with the module path named, but the recorded command carries a PYTHONPATH overlay at manifest.md:15 for a uvicorn the project venv lacked, so the done_when's literal command did not run as written.",
+    "fit": "the additions follow the module's idiom, commenting the out-of-loop signal at router.py:675-680 and documenting the reason field at request_receipts.py:206-211, with no plan, ticket or version identifiers in names or comments.",
+    "goal_fidelity": "router.py:1427-1449 refuses admission on the flag at gate entry and on every wake, router.py:1494-1497 on the ready() path, and router.py:2040-2052 answers 529 with Retry-After 5 before uvicorn closes connections.",
+    "reuse": "no owner for a signal-driven gate release exists in the repository, the per-worker STOP-flag handlers at imas_ambix/bench/stream_worker.py:73 being batch cancellation rather than an ASGI gate, and the change wraps uvicorn's own handle_exit instead of forking a shutdown mechanism.",
+    "scope_discipline": "every path in 26cfc5d4 lies inside the declared write paths, the fragment is the permitted landing record, and no figure, refactor or unrelated test change is carried."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: The node's goal is that on SIGTERM/SIGINT the router stops admitting and answers every gate waiter with 529 overloaded_error and Retry-After before uvicorn's own shutdown, under a bounded graceful timeout; router.py:725-756 sets the shutdown flag and wakes the FIFO, router.py:1427-1449 and :1494-1497 refuse admission at every gate entry and wake, router.py:2040-2052 emits the 529 with Retry-After 5 and a shutdown reason, and router.py:3179-3185 chains the release in front of uvicorn's handler with timeout_graceful_shutdown=30.0 at :3135.\nVERDICT done_when: The done_when names both router test files, a subprocess router under real uvicorn signalled with SIGTERM holding three waiters, a relay finishing inside the grace, one outlasting it recorded as cut, the launch's timeout_graceful_shutdown, a startup measurement written into ops/lane-cycle/AGENTS.md, and a ruff run; gate-head.log carries the command in its header, reports 24 passed in 10.42s and ends EXIT=0 at rev 26cfc5d4, ruff-head.log reports All checks passed! and EXIT=0, and the runbook row is the measured 1.30s warm / 4.34s cold, but the command as run prepends a PYTHONPATH overlay for uvicorn that the done_when's literal command does not carry.\nVERDICT write_paths: The declared paths are imas_ambix/agent/router.py, imas_ambix/agent/request_receipts.py, tests/test_agent_router_gate.py, tests/test_agent_router_service.py, ops/lane-cycle/AGENTS.md and the landing fragment; commit 26cfc5d4 changes router.py, request_receipts.py, tests/test_agent_router_service.py, ops/lane-cycle/AGENTS.md and docs/evidence/fragments/serving-across-servers/router-shutdown-answers-waiters.html, so every changed path is inside the declaration and tests/test_agent_router_gate.py and the figures directory are untouched.\nVERDICT manifest: The manifest reports status complete, one commit 26cfc5d4, the gate result, the negative control with its declared mutation and its two failing tests, the startup samples 4.34s cold and 1.30s warm, the uvicorn overlay under evidence_inputs, the same venv gap under outside_scope, an empty retry_failures and blockers none.\nVERDICT diff: Read commit 26cfc5d4 against base afa37ff4: five files changed, +567/-24, adding the gate shutdown flag and wake, a shutdown admission outcome and its 529 path, a reason field on receipt rows, a receipt written before the finally's awaits, the chained handle_exit with the launch grace, two subprocess-level tests, the runbook row and the evidence fragment.\nCALL_SITES: imas_ambix/agent/cli.py:1766 serve_router from the agent router command, imas_ambix/agent/router.py:3181-3185 the chained handle_exit calling app.initiate_shutdown, imas_ambix/agent/router.py:2088-2095 RouterApp.initiate_shutdown delegating to _GenerationGate.initiate_shutdown\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: router.py:1427-1449 refuses admission on the flag at gate entry and on every wake, router.py:1494-1497 on the ready() path, and router.py:2040-2052 answers 529 with Retry-After 5 before uvicorn closes connections.\nSCORE evidence: 17\nJUSTIFICATION evidence: gate-head.log records 24 passed and EXIT=0 at rev 26cfc5d4 with the module path named, but the recorded command carries a PYTHONPATH overlay at manifest.md:15 for a uvicorn the project venv lacked, so the done_when's literal command did not run as written.\nSCORE scope_discipline: 19\nJUSTIFICATION scope_discipline: every path in 26cfc5d4 lies inside the declared write paths, the fragment is the permitted landing record, and no figure, refactor or unrelated test change is carried.\nSCORE durability: 18\nJUSTIFICATION durability: negative-control.log applies the declared mutation and reddens exactly the two added tests with EXIT=1, and both tests assert values the tests do not supply themselves.\nSCORE fit: 18\nJUSTIFICATION fit: the additions follow the module's idiom, commenting the out-of-loop signal at router.py:675-680 and documenting the reason field at request_receipts.py:206-211, with no plan, ticket or version identifiers in names or comments.\nSCORE reuse: 19\nJUSTIFICATION reuse: no owner for a signal-driven gate release exists in the repository, the per-worker STOP-flag handlers at imas_ambix/bench/stream_worker.py:73 being batch cancellation rather than an ASGI gate, and the change wraps uvicorn's own handle_exit instead of forking a shutdown mechanism.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090408257012-router-shutdown-answers-waiters/manifest.md:15 non-blocking: the recorded gate command prepends PYTHONPATH=/tmp/reckon-crew-scratch/.../uvicorn-overlay because uvicorn was absent from the project venv, so replaying the recorded command after that scratch directory is reaped fails at import rather than measuring the change, even though a later commit on main (6bc5db31) declares uvicorn in the dev group and removes the need for the overlay.\nFINDING tests/test_agent_router_service.py:414 non-blocking: the cut-relay test asserts two substrings of the reason (\"shutdown\" and \"cut\") rather than the module constant the sibling test compares against, so a reason string carrying both words but the wrong claim would pass where the first test's equality would not.",
+  "review_run_id": "r-20261027T093359288589-review-of-router-shutdown-answers-waiters-26cfc5d4626b",
+  "reviewed_base_sha": "afa37ff43102a1d9ecc055781817c33529e88b09",
+  "reviewed_head_sha": "26cfc5d4626bb2263029cd57b77ad17985826f4f",
+  "reviewed_run_id": "r-20261027T090408257012-router-shutdown-answers-waiters",
+  "scores": {
+    "durability": 18,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 19,
+    "scope_discipline": 19
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T09:49:42.157877+00:00",
+  "total": 110
+}
