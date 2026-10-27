@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="gpu-watch-samples-from-anywhere-launcher">
+      <p>gpu-watch run on a login or fleet node now samples each declared
+      server through one <code>srun --jobid &lt;job&gt; --overlap</code> step
+      into a running job on that server, instead of printing
+      <q>not sampled from this host</q> for every server but the local one. The
+      step runs
+      <code>python -m imas_ambix.agent.gpu_watch.sampler</code>, an entry point
+      that frames <code>node_probe.NodeProbe.stream</code> as JSON lines, so the
+      probe and its physical card numbering keep one owner and nothing is
+      copied onto the server. A step also needs
+      <code>-n1 -c1 --cpu-bind=none</code>: without it SLURM refuses with
+      <q>More processors requested than permitted</q> or
+      <q>CPU binding outside of job step allocation</q> and the step never runs
+      — measured against job <code>1294597</code> while building this.</p>
+    </section>
+    <section id="gpu-watch-samples-from-anywhere-one-shot">
+      <p><strong>One-shot, from fleet node <code>98dci4-clu-2068</code>
+      (job <code>1291586</code>) against <code>98dci4-gpu-0003</code></strong>,
+      <code>gpu-watch --window 5 --interval 1</code>, exit 0. The card table,
+      host row and job rows are drawn from the GPU server's own allocation
+      rather than from this host. Four cards appear because the step shares the
+      DeepSeek job's cgroup, which holds physical cards 4–7; the physical index
+      the probe resolved is what labels them.</p>
+      <pre><code>98dci4-gpu-0003    groups —
+conditions  temperature 64.0°C mean / 66°C max    power 1.15 kW / 2.40 kW cap    48% of cap
+             card   util now   util mean   mem now   mem mean
+─────────────────────────────────────────────────────────────
+4 NVIDIA H200 NVL   ████ 100     ████ 99   ███░ 77    ███░ 77
+5 NVIDIA H200 NVL   ████ 100     ████ 91   ███░ 77    ███░ 77
+6 NVIDIA H200 NVL   ████ 100     ████ 99   ███░ 77    ███░ 77
+7 NVIDIA H200 NVL   ████ 100     ████ 94   ███░ 77    ███░ 77
+host        cpu 7%    memory 379 GiB (25%)
+jobs
+    job   user      name                  state     cpus   gres         elapsed
+──────────────────────────────────────────────────────────────────────────────────
+1291781   murawan   wemm_embed_4b         RUNNING      7   N/A          4:08:25
+1285740   murawan   nemotron_embed_8b     RUNNING      7   N/A          6-09:03:39
+1294597   mcintos   deepseek-v4-1-flash   RUNNING     12   gres/gpu:4   3-18:51:06
+1294603   mcintos   ambix-router          RUNNING      2   N/A          3-18:37:14</code></pre>
+      <p>The published document declares the server twice (bare and
+      <code>.iter.org</code>); both declarations resolve to the same scheduler
+      node, so they share one step and render the same figures.</p>
+    </section>
+    <section id="gpu-watch-samples-from-anywhere-live-steps">
+      <p><strong><code>--live</code> for 30 s leaves no step behind.</strong>
+      The run was made in the background under <code>script</code> and
+      <code>timeout -s TERM 30</code>; <code>squeue -s -j 1294597</code> was
+      read before, during (10 s in) and after. The step
+      <code>1294597.13</code> is this watcher's, present while it ran and gone
+      afterwards — the <q>during</q> row is the positive control that the
+      instrument sees a step at all, and the <q>after</q> set is identical to
+      the <q>before</q> set, so nothing outlived the watcher. The live view
+      rendered rolling means over the 5 s window on every redraw.</p>
+      <table>
+        <thead>
+          <tr><th>snapshot</th><th>steps on job 1294597</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>before</td><td>1294597.1, 1294597.2, 1294597.batch, 1294597.extern</td></tr>
+          <tr><td>during (t+10 s)</td><td>1294597.1, 1294597.2, <strong>1294597.13</strong>, 1294597.batch, 1294597.extern</td></tr>
+          <tr><td>after (t+34 s)</td><td>1294597.1, 1294597.2, 1294597.batch, 1294597.extern</td></tr>
+        </tbody>
+      </table>
+      <p>A live frame, mean columns fed by the step's stream:</p>
+      <pre><code>conditions  temperature 61.2°C mean / 63°C max    power 1.11 kW / 2.40 kW cap    46% of cap
+             card   util now   util mean   mem now   mem mean
+4 NVIDIA H200 NVL   ████ 100     ████ 98   ███░ 77    ███░ 77
+5 NVIDIA H200 NVL   ████ 100    ████ 100   ███░ 77    ███░ 77
+6 NVIDIA H200 NVL   ████ 100     ████ 99   ███░ 77    ███░ 77
+7 NVIDIA H200 NVL   ████ 100    ████ 100   ███░ 77    ███░ 77
+host        cpu 9%    memory 379 GiB (25%)</code></pre>
+    </section>
+    <section id="gpu-watch-samples-from-anywhere-refusals">
+      <p>A server with no running job of ours still renders
+      <code>no job to sample</code>. A step that answers nothing — attached to
+      a running job and producing no sample — renders
+      <code>not sampled: the step produced no samples</code> for that server,
+      never an empty card table and never a hang. That is the negative control:
+      dropping the reason from the empty step was applied, the check failed
+      naming the wrong <q>no job to sample</q> rendering, and the mutation was
+      reverted.</p>
+    </section>
+    <section id="gpu-watch-samples-from-anywhere-step-stderr">
+      <p><strong>A step that writes enough to stderr no longer freezes the
+      view.</strong> The step's stderr is a pipe, and a watcher that never reads
+      it stops the step as soon as the pipe buffer fills: the cards hold their
+      last values while the pool still counts the step as live. The pool now
+      drains stderr on its own thread into a bounded tail, and a step that stops
+      streaming is drawn as <code>not sampled: &lt;its last stderr line&gt;</code>,
+      which tells a job refusing steps apart from a node whose cards are simply
+      not readable. The check drives a fake <code>srun</code> that writes 3000
+      warn lines (well over 128 KiB) to stderr before streaming two samples and
+      asserts the card table renders; disabling the stderr reader makes it fail
+      at <code>EXIT=1</code> on the pipe filling, and the gate is
+      <code>EXIT=0</code> with the reader in place.</p>
+      <p><strong>One machine declared twice is sampled once and drawn
+      twice.</strong> The live loop launched its step under the group's first
+      declaration but looked state up under each declaration's own spelling, so
+      a server declared both bare and fully qualified launched one step and
+      asked about another. The pool is keyed by the machine's scheduler name for
+      <code>ensure</code>, <code>drain</code> and <code>state</code> alike, so
+      both blocks render the same cards; the check asserts one launch and no
+      target under the second spelling.</p>
+    </section>
+  </main>
+</body>
+</html>

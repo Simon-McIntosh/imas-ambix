@@ -34,6 +34,7 @@ import json
 import math
 import sys
 import time
+from collections import deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -76,9 +77,15 @@ class Reading:
 
     A sample is one :meth:`NodeProbe.sample` mapping, so a section's absence
     means that read did not answer and is never drawn as a zero.
+
+    *unavailable* names why a step that was opened produced nothing. It is set
+    only when a sampler ran and answered no sample, so a server whose step
+    failed is told apart from one that is simply not serving, which says
+    :data:`NO_JOB`.
     """
 
     samples: tuple[dict[str, Any], ...] = ()
+    unavailable: str | None = None
 
     @property
     def latest(self) -> dict[str, Any]:
@@ -413,6 +420,11 @@ def server_block(
     engines = [str(engine) for engine in server.get("engines") or []]
     if reading is None:
         parts.append(Text(NO_READING, style="dim"))
+    elif reading.unavailable and not reading.samples:
+        # A step was opened into a running job and answered nothing. Saying so
+        # keeps a failed sample from reading as a server with no cards, and it
+        # names the server it happened on.
+        parts.append(Text(f"not sampled: {reading.unavailable}", style="dim"))
     else:
         declared_cap = server.get("power_cap_watts")
         cap = declared_cap if isinstance(declared_cap, int) else None
@@ -494,6 +506,42 @@ def _is_local(server: Mapping[str, Any], hostname: str) -> bool:
     return node_probe.scheduler_node_name(_short_host(host)) == local
 
 
+def _server_name(server: Mapping[str, Any]) -> str:
+    return str(server.get("name") or server.get("host") or "")
+
+
+def _machine(server: Mapping[str, Any]) -> str:
+    """The scheduler name of the machine a declared server is on.
+
+    Two declarations may name one machine with different spellings; they are
+    the same cards, and sampling them twice would date the same silicon twice
+    and could only disagree with itself. The name the scheduler accepts is kept
+    whole, so it is also the key a sampler pool is held under.
+    """
+    host = server.get("host") or server.get("name") or ""
+    return node_probe.scheduler_node_name(str(host))
+
+
+def _no_job_reading(server: Mapping[str, Any]) -> Reading:
+    """A reading carrying an empty job table, which renders :data:`NO_JOB`.
+
+    A declared server with no running job holds nothing to attach to, and an
+    empty card table would read as a node with no cards rather than as a
+    server nothing is serving on.
+    """
+    return Reading(
+        (
+            {
+                "jobs": {
+                    "hostname": str(server.get("host") or server.get("name") or ""),
+                    "count": 0,
+                    "jobs": [],
+                }
+            },
+        )
+    )
+
+
 def sample_readings(
     document: Mapping[str, Any],
     probe: node_probe.NodeProbe | None = None,
@@ -501,25 +549,188 @@ def sample_readings(
     window_s: float = DEFAULT_WINDOW_S,
     interval_s: float = SAMPLE_INTERVAL_S,
     hostname: str | None = None,
-    sleep: Callable[[float], None] = time.sleep,
+    sleep: Callable[[float], None] | None = time.sleep,
+    remote: Any = None,
 ) -> dict[str, Reading]:
-    """A bounded window of the probe's stream, for every server on this host.
+    """A bounded window for every declared server, in-process or over a step.
 
-    One window serves every local server: they name the same machine, so a
-    second window would date the same cards twice and could only disagree with
-    itself. A server this host is not is absent from the result, which the view
-    renders as :data:`NO_READING` rather than filling in the local node's
-    figures under another name.
+    A server on this host is sampled in-process, as it always was: the one
+    window serves every local declaration because they name the same machine.
+    A server elsewhere is sampled through its own running job, by one step per
+    machine (:mod:`imas_ambix.agent.gpu_watch.launcher`), so a watcher on a
+    login or fleet node reads the cards the allocation actually holds.
+
+    *remote* is the sampler the elsewhere-servers are read with, and defaults
+    to :class:`~imas_ambix.agent.gpu_watch.launcher.RemoteSampler`. It is a
+    parameter so a test drives the view without a scheduler. *sleep* is ``None``
+    where the caller's probe owns its own cadence.
     """
+    from imas_ambix.agent.gpu_watch import launcher
+
     probe = node_probe.NodeProbe() if probe is None else probe
     host = probe.hostname if hostname is None else hostname
-    local = [entry for entry in servers_of(document) if _is_local(entry, host)]
-    if not local:
-        return {}
-    ticks = max(1, int(math.ceil(window_s / interval_s)) + 1) if window_s > 0 else 1
-    samples = tuple(probe.stream(interval_s, count=ticks, sleep=sleep))
-    reading = Reading(samples)
-    return {str(entry.get("name") or entry.get("host")): reading for entry in local}
+    sampler = launcher.RemoteSampler() if remote is None else remote
+    servers = servers_of(document)
+
+    readings: dict[str, Reading] = {}
+    local = [entry for entry in servers if _is_local(entry, host)]
+    if local:
+        ticks = (
+            max(1, int(math.ceil(window_s / interval_s)) + 1) if window_s > 0 else 1
+        )
+        if sleep is None:
+            samples = tuple(probe.stream(interval_s, count=ticks))
+        else:
+            samples = tuple(probe.stream(interval_s, count=ticks, sleep=sleep))
+        reading = Reading(samples)
+        for entry in local:
+            readings[_server_name(entry)] = reading
+
+    remote_groups: dict[str, list[Mapping[str, Any]]] = {}
+    for entry in servers:
+        if _is_local(entry, host):
+            continue
+        remote_groups.setdefault(_machine(entry), []).append(entry)
+    for machine, entries in remote_groups.items():
+        step = sampler.read(machine, window_s=window_s, interval_s=interval_s)
+        for entry in entries:
+            if step.job_id is None:
+                readings[_server_name(entry)] = _no_job_reading(entry)
+            else:
+                readings[_server_name(entry)] = Reading(
+                    step.samples, unavailable=step.reason
+                )
+    return readings
+
+
+def _live_groups(
+    servers: list[Mapping[str, Any]], host: str
+) -> tuple[list[Mapping[str, Any]], dict[str, list[Mapping[str, Any]]]]:
+    """Split the declarations into those on this host and those grouped by machine."""
+    local = [entry for entry in servers if _is_local(entry, host)]
+    remote_groups: dict[str, list[Mapping[str, Any]]] = {}
+    for entry in servers:
+        if not _is_local(entry, host):
+            remote_groups.setdefault(_machine(entry), []).append(entry)
+    return local, remote_groups
+
+
+def _bucket(history: dict[str, deque], name: str, capacity: int) -> deque:
+    bucket = history.get(name)
+    if bucket is None:
+        bucket = history[name] = deque(maxlen=capacity)
+    return bucket
+
+
+def _live_tick(
+    servers: list[Mapping[str, Any]],
+    *,
+    local: list[Mapping[str, Any]],
+    remote_groups: dict[str, list[Mapping[str, Any]]],
+    probe: Any,
+    pool: Any,
+    history: dict[str, deque],
+    capacity: int,
+) -> dict[str, Reading]:
+    """One redraw: take what each machine offers now, and read it per server.
+
+    Everything for a machine is filed under each of that machine's
+    declarations, so two spellings of one machine render the same cards instead
+    of sampling the silicon twice. The pool is keyed by the machine name for
+    ``ensure``, ``drain`` and ``state`` alike -- a key that differs between the
+    three asks one target and drains another, so a block whose step was
+    launched never sees its samples.
+    """
+    if local:
+        tick = probe.sample(time.monotonic())
+        for entry in local:
+            _bucket(history, _server_name(entry), capacity).append(tick)
+    for machine, entries in remote_groups.items():
+        pool.ensure(machine)
+        for sample in pool.drain(machine):
+            for entry in entries:
+                _bucket(history, _server_name(entry), capacity).append(sample)
+
+    readings: dict[str, Reading] = {}
+    for entry in servers:
+        name = _server_name(entry)
+        samples = tuple(_bucket(history, name, capacity))
+        if samples:
+            readings[name] = Reading(samples)
+            continue
+        machine = _machine(entry)
+        if machine not in remote_groups:
+            readings[name] = Reading(())
+            continue
+        job_id, reason = pool.state(machine)
+        if job_id is None:
+            readings[name] = _no_job_reading(entry)
+        else:
+            readings[name] = Reading(
+                (), unavailable=reason or "waiting for the step's first sample"
+            )
+    return readings
+
+
+def _run_live(
+    document: Mapping[str, Any],
+    *,
+    window_s: float,
+    interval_s: float,
+    server: str | None,
+    width: int,
+    probe: node_probe.NodeProbe | None = None,
+    pool: Any = None,
+) -> int:
+    """Redraw every interval from the servers' own step streams.
+
+    Each server is sampled where it lives: a server on this host in-process on
+    each tick, and one elsewhere from the long-lived step, so the whole view
+    costs one step per server rather than one per sample. The mean columns are
+    a rolling window over the samples each block has received over *window_s*.
+    The steps are reaped on the way out, so none outlives the watcher.
+    """
+    import signal
+
+    from rich.live import Live
+
+    from imas_ambix.agent.gpu_watch import launcher
+
+    probe = node_probe.NodeProbe() if probe is None else probe
+    host = probe.hostname
+    sampler_pool = launcher.SamplerPool(interval_s=interval_s) if pool is None else pool
+    servers = servers_of(document)
+    local, remote_groups = _live_groups(servers, host)
+
+    capacity = max(1, int(math.ceil(window_s / interval_s)) + 1) if window_s > 0 else 1
+    history: dict[str, deque] = {}
+
+    def stop(*_args: object) -> None:
+        raise SystemExit(143)
+
+    previous = signal.signal(signal.SIGTERM, stop)
+    console = Console(width=width, highlight=False)
+    try:
+        with Live(console=console, auto_refresh=False, screen=True) as live:
+            while True:
+                started = time.monotonic()
+                readings = _live_tick(
+                    servers,
+                    local=local,
+                    remote_groups=remote_groups,
+                    probe=probe,
+                    pool=sampler_pool,
+                    history=history,
+                    capacity=capacity,
+                )
+                live.update(render(document, readings, server=server), refresh=True)
+                elapsed = time.monotonic() - started
+                if elapsed < interval_s:
+                    time.sleep(max(0.0, interval_s - elapsed))
+    finally:
+        sampler_pool.close()
+        signal.signal(signal.SIGTERM, previous)
+    return 0
 
 
 def _endpoint_document() -> str | None:
@@ -570,6 +781,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--width", dest="width", type=int, default=DEFAULT_WIDTH)
     parser.add_argument(
+        "--live",
+        dest="live",
+        action="store_true",
+        help="redraw every interval from the steps' streams until interrupted",
+    )
+    parser.add_argument(
         "--json",
         dest="as_json",
         action="store_true",
@@ -590,6 +807,14 @@ def main(argv: list[str] | None = None) -> int:
 
     window = args.window_flag if args.window_flag is not None else args.window
     window = DEFAULT_WINDOW_S if window is None else window
+    if args.live:
+        return _run_live(
+            document,
+            window_s=window,
+            interval_s=args.interval,
+            server=args.server,
+            width=args.width,
+        )
     readings = sample_readings(document, window_s=window, interval_s=args.interval)
 
     if args.as_json:
