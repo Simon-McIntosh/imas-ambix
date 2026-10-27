@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="router-placed-on-rigel-placement">
+      <p><code>SiteConfig</code> gains a <code>router</code> entry —
+      partition, account, CPU and memory request — defaulting to the
+      <code>rigel</code> CPU partition. <code>slurm.generate_router_script</code>
+      takes the whole placement from that entry and no longer reads the GPU
+      server's flat <code>partition</code>, <code>account</code> and
+      <code>reservation</code> fields, so the generated script requests no card,
+      carries no node constraint, and inherits no GPU reservation. The router
+      reaches engines over the cluster network as any other consumer does;
+      routing logic is untouched.</p>
+      <ul>
+        <li id="router-placed-on-rigel-generated-headers"><strong>Generated
+        headers.</strong> <code>agent router --dry-run</code> with an
+        unconfigured site prints <code>--partition=rigel</code>,
+        <code>--account=grpa</code>, <code>--cpus-per-task=2</code>,
+        <code>--mem=8G</code>, <code>--time=0</code>, and the submission
+        comment, and prints no <code>--gres</code>,
+        <code>--reservation</code>, <code>--nodelist</code> or
+        <code>--constraint</code>. A test pins exactly that.</li>
+        <li id="router-placed-on-rigel-entry-wins"><strong>The entry governs,
+        a flag overrides.</strong> A site declaring
+        <code>{"partition": "sun_debug", "account": "grpc", "cpus": 6,
+        "memory": "24G"}</code> produces those four values in the script, and
+        an explicit <code>cpus=3, memory="12G"</code> on the call still wins for
+        a single submission, so the one-off sizing the CLI already offered is
+        unchanged.</li>
+        <li id="router-placed-on-rigel-unknown-partition"><strong>An unknown
+        partition refuses at generation.</strong> The placement is checked
+        against the partitions the scheduler lists (<code>sinfo -h -o
+        '%P'</code>, read 2026-10-27: <code>all, all_debug, betelgeuse, rigel,
+        rigel_debug, sirius, sirius_debug, sun, sun_debug, titan, vega,
+        vega_debug</code>). A
+        configuration naming <code>rigel_x</code> raises before a script
+        exists, the message names <code>'rigel_x'</code> and lists the known
+        partitions, and the CLI turns it into a non-zero exit with no call to
+        <code>submit_script</code>.</li>
+        <li id="router-placed-on-rigel-scratch"><strong>Scratch that a CPU node
+        has.</strong> The script previously exported
+        <code>TMPDIR=/scratch_local/$SLURM_JOB_ID</code> unconditionally, and
+        <code>/scratch_local</code> is the GPU node's ephemeral NVMe: measured
+        on <code>98dci4-clu-2068</code> (a rigel node),
+        <code>ls -d /scratch_local</code> reports no such file. Under
+        <code>set -e</code> the following <code>mkdir -p</code> would have
+        ended the job before the router started, so the script now falls back
+        to <code>/tmp/ambix-router-$SLURM_JOB_ID</code> where
+        <code>/scratch_local</code> is absent.</li>
+      </ul>
+    </section>
+
+    <section id="router-placed-on-rigel-gate">
+      <p><strong>Gate.</strong>
+      <code>UV_PROJECT_ENVIRONMENT=/home/ITER/mcintos/Code/imas-ambix/.venv uv
+      run --no-sync pytest -p no:cacheprovider
+      tests/test_agent_router_service.py tests/test_slurm_output_paths.py</code>
+      — 21 passed, <code>EXIT=0</code>, log
+      <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T091511974031-router-placed-on-rigel/logs/gate-704ae170-v2.log</code>. The
+      whole-tree lint gate
+      <code>uv run --no-sync ruff check imas_ambix tests</code> exits 0
+      (<code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T091511974031-router-placed-on-rigel/logs/ruff-whole-tree.log</code>).</p>
+      <p><strong>Negative control.</strong> The declared mutation removes the
+      partition refusal from <code>generate_router_script</code> (the check
+      replaced by a pass-through). With the mutation applied, the same gate
+      reports <code>1 failed, 9 deselected</code>,
+      <code>EXIT=1</code>, failing id
+      <code>tests/test_agent_router_service.py::test_router_refuses_an_unknown_partition</code>
+      — an id the unmutated head arm passes. Log
+      <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T091511974031-router-placed-on-rigel/logs/negative-control-b2fbc446.log</code>. The file was restored
+      from a copy taken before the mutation and the tree verified clean.</p>
+    </section>
+
+    <section id="router-placed-on-rigel-consumers">
+      <p><strong>Consumer search for the router's host and port.</strong>
+      Run over tracked files with <code>git grep</code> (which cannot read a
+      gitignored <code>.env</code> or <code>.venv</code>) in
+      <code>~/Code/imas-ambix</code>, <code>~/Code/reckon</code>,
+      <code>~/Code/imas-codex</code> and <code>~/Code/dotfiles</code>, for
+      <code>98dci4-gpu-0003:18802</code>, <code>gpu-0003:18802</code> and
+      <code>:18802</code>. Log:
+      <code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T091511974031-router-placed-on-rigel/logs/consumer-search.log</code>.</p>
+      <ul>
+        <li id="router-placed-on-rigel-consumer-global-origin"><strong>The
+        launcher's own origin default</strong> —
+        <code>imas_ambix/agent/profile.py:712</code>
+        (<code>SiteConfig.global_origin</code>, env
+        <code>AMBIX_AGENT_GLOBAL_URL</code>). This is the value baked into the
+        generated <code>clive</code> launcher, so it names the router and
+        becomes a rigel address after the move. No fixed rigel host exists —
+        any of <code>98dci4-clu-2001…2076</code> may carry the job — so this
+        cannot be defaulted; the operator names it when generating the
+        launcher.</li>
+        <li id="router-placed-on-rigel-consumer-refresh-script"><strong>A helper
+        script</strong> — <code>scripts/refresh_clive_context_window.py:28</code>,
+        <code>DEFAULT_ORIGIN = "http://98dci4-gpu-0003:18802"</code>.</li>
+        <li id="router-placed-on-rigel-consumer-deployed-launcher"><strong>The
+        deployed launcher artifact</strong> —
+        <code>/work/projects/imas_gpu/agents/clive</code> carries
+        <code>http://98dci4-gpu-0003:18802</code>; it is generated, so
+        <code>agent clive --deploy</code> replaces it.</li>
+        <li id="router-placed-on-rigel-consumer-imas-codex"><strong>imas-codex
+        configures the router address</strong> —
+        <code>pyproject.toml:325</code>
+        <code>api-base = "http://98dci4-gpu-0003:18802/v1"</code>, pinned by
+        <code>tests/test_settings_sn.py:65</code>.</li>
+        <li id="router-placed-on-rigel-consumer-flight"><strong>dotfiles flight
+        config</strong> — <code>reckon/flight.yaml:388</code>,
+        <code>endpoint: 98dci4-gpu-0003:18802</code>.</li>
+        <li id="router-placed-on-rigel-consumer-none"><strong>Not
+        consumers.</strong> <code>tests/test_agent_reload_overlap.py</code> and
+        <code>tests/discovery/test_base_services.py</code> use placeholder
+        hosts (<code>router</code>, <code>test-router</code>);
+        <code>tests/test_agent_serve_registry.py:278</code> and
+        <code>tests/test_agent_site_servers.py:186</code> use
+        <code>gpu-0003:18802</code> as an <em>engine</em> id in an endpoint
+        document fixture, which is a different object from the router.
+        <code>~/Code/reckon</code> holds no reference.</li>
+        <li id="router-placed-on-rigel-consumer-document"><strong>The document
+        itself.</strong> <code>~/public/imas-ambix/endpoints.json</code>
+        publishes <code>routing_origins: [{"host": "98dci4-gpu-0003", "port":
+        18802}]</code> and is rewritten by the router's own publish on the next
+        start, which is the move.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
