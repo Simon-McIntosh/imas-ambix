@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="lane-document-per-pool-composer">
+      <p><code>RouterApp._publish_lane</code> now composes one lane document per
+      pool from each engine's own reading, and is the only writer of any lane
+      document. The default pool's document is <code>lane.json</code> itself,
+      carrying a <code>lanes</code> index that maps each model to its own file;
+      every other pool writes <code>lanes/&lt;model id&gt;.json</code>. The
+      default pool is never written a second time under <code>lanes/</code>, so
+      no two files carry the same fields and the index maps the default model to
+      <code>lane.json</code> instead of a duplicate.</p>
+      <ul>
+        <li id="lane-document-per-pool-one-engine"><strong>One engine.</strong>
+        The document is that engine's own reading, every field keeping its own
+        meaning. The golden test drives the composer through a fixture metrics
+        endpoint and compares the result with the one-engine writer's output for
+        the same reading: the key sets differ by exactly
+        <code>lanes</code> plus the router's gate block
+        (<code>router_generation_gate</code>, <code>admission</code>,
+        <code>engine_headroom</code>, <code>availability_percent</code>), which
+        the base revision also merged into <code>lane.json</code> after writing
+        the reading, and no key it published is missing.</li>
+        <li id="lane-document-per-pool-several-engines"><strong>Several
+        engines.</strong> Counts and capacities sum — running, waiting, pool
+        tokens, the concurrent-request ceiling, headroom, the gate's width, and
+        its in-flight, waiting and worker-slot counts. The aggregate token rate
+        sums. Per-request figures (mean working context, rate per run) are
+        weighted by each engine's running count, so a busy engine's traffic
+        counts for more than an idle one's, and an <code>engines</code> array
+        carries each engine's own reading, gate and engine id. A pool whose
+        engines disagree on whether they can size publishes
+        <code>do-not-size</code> and its withheld estimate rather than a figure
+        only some engines support.</li>
+        <li id="lane-document-per-pool-unavailable"><strong>An unreadable
+        engine.</strong> A pool whose engines all failed to answer has its
+        document replaced by the explicit unavailable state, naming the reason
+        and the model, so a stopped engine cannot leave a plausible reading
+        ageing into a lie while its neighbour's pool stays a measurement.</li>
+      </ul>
+    </section>
+
+    <section id="lane-document-per-pool-caller-search">
+      <p><strong>Caller search, recorded before removal.</strong> Searched
+      <code>~/Code/imas-ambix</code> (source, tests, scripts, ops),
+      <code>~/Code/reckon</code>, <code>~/Code/dotfiles</code>,
+      <code>~/.agents</code>, and the scheduler's running job names.</p>
+      <ul>
+        <li id="lane-document-per-pool-search-code">Code callers, all inside
+        imas-ambix: <code>cli.py</code> (the <code>agent lane</code> command,
+        whose <code>--submit</code> form submitted the refresher),
+        <code>slurm.py</code> (<code>generate_lane_refresher_script</code>), and
+        two test modules (<code>tests/test_slurm_output_paths.py</code>,
+        <code>tests/test_agent_router_service.py</code>).</li>
+        <li id="lane-document-per-pool-search-other-trees">reckon, dotfiles and
+        <code>~/.agents</code>: no callers. Historical plan documents in
+        imas-ambix reference the command in prose, not as callers.</li>
+        <li id="lane-document-per-pool-search-scheduler">Scheduler
+        (<code>squeue -u $USER</code>): job names were
+        <code>deepseek-v4-1-flash</code>, <code>ambix-router</code>,
+        <code>reckon-fleet</code>, <code>suite.sh</code>,
+        <code>codex-neo4j</code>, <code>codex-embed</code>. No
+        <code>ambix-lane</code> refresher job was running and no job name
+        matched the command.</li>
+      </ul>
+      <p>Both the <code>agent lane</code> command and
+      <code>generate_lane_refresher_script</code> are removed. A test walks
+      <code>imas_ambix/</code> and finds no call to
+      <code>lane.write_lane_document</code>,
+      <code>lane.write_unavailable_document</code> or
+      <code>lane.write_document</code> outside the composer, and asserts that
+      every such call in the router sits inside
+      <code>RouterApp._publish_lane</code> — so a guard covering only one of the two
+      functions that can write <code>lane.json</code> cannot pass while the other
+      keeps overwriting it.</p>
+    </section>
+
+    <section id="lane-document-per-pool-measure">
+      <p><strong>Measure.</strong> The gate
+      (<code>tests/test_agent_router_lane_publish.py</code>,
+      <code>tests/test_lane_pool_documents.py</code>,
+      <code>tests/test_lane_availability.py</code>) reported
+      <strong>36 passed, 1 skipped</strong>. The skip is the reckon contract
+      test, which prints its reason on a host where
+      <code>reckon.crew.lane_document</code> is not importable. The whole-tree
+      lint gate <code>ruff check imas_ambix tests</code> exits 0.</p>
+      <p><strong>Negative control.</strong> With the composer mutated to skip
+      writing a pool document whose engines all failed, the stopped-engine test
+      failed (<code>EXIT=1</code>, one failing test id) while the unmutated head
+      passes it: an engine that stops answering must leave its own pool
+      unavailable rather than no document at all.</p>
+    </section>
+  </main>
+</body>
+</html>

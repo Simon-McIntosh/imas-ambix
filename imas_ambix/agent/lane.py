@@ -636,11 +636,7 @@ def write_unavailable_document(
         "reason": reason,
         "model_id": model_id,
     }
-    scratch = target.with_suffix(".tmp")
-    scratch.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
-    scratch.replace(target)
-    target.chmod(0o644)
-    return target
+    return write_document(document, target)
 
 
 def classify_reading(
@@ -780,15 +776,32 @@ def lane_headroom(document: Mapping[str, object]) -> int | float | None:
     return min(engine, gate)
 
 
-def write_lane_document(
+def write_document(document: Mapping[str, object], path: str | Path) -> Path:
+    """Replace one lane document atomically.
+
+    The single write path for every lane document: the composer in the router
+    builds a pool's document and replaces it whole, because a reader that
+    catches a partially written file reads a budget nobody published. Sorted
+    keys and two-space indent are kept so a diff of two documents shows the
+    fields that moved rather than a reordering.
+    """
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    scratch = target.with_suffix(".tmp")
+    scratch.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
+    scratch.replace(target)
+    target.chmod(0o644)
+    return target
+
+
+def build_lane_document(
     capacity: LaneCapacity,
-    path: str | Path,
     *,
     settling: bool | None = None,
     refresh_interval: int = 30,
     window: LaneWindow | None = None,
-) -> Path:
-    """Publish the reading so a session need not probe the engine to size work.
+) -> dict[str, object]:
+    """Compose the reading so a session need not probe the engine to size work.
 
     Published rather than configured, and stamped, because a record carrying no
     observation time cannot be distinguished from a current one -- which is how
@@ -838,8 +851,6 @@ def write_lane_document(
     else:
         sizing_reason = "the working context is steady across this window"
 
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
     document = {
         "observed_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "model_id": capacity.model_id,
@@ -1044,8 +1055,432 @@ def write_lane_document(
         # decision; this is the default it should apply absent its own policy.
         "suggested_shelf_life_seconds": int(refresh_interval * 1.5),
     }
-    scratch = target.with_suffix(".tmp")
-    scratch.write_text(json.dumps(document, indent=2, sort_keys=True), encoding="utf-8")
-    scratch.replace(target)
-    target.chmod(0o644)
-    return target
+    return document
+
+
+def write_lane_document(
+    capacity: LaneCapacity,
+    path: str | Path,
+    *,
+    settling: bool | None = None,
+    refresh_interval: int = 30,
+    window: LaneWindow | None = None,
+    extra: Mapping[str, object] | None = None,
+) -> Path:
+    """Publish one engine's reading as a pool document.
+
+    The one-engine case of the composer: a pool spanning a single engine is
+    that engine's own reading, with every field keeping its own meaning.
+    ``extra`` carries the keys the composer adds on top -- the gate fields and
+    the ``lanes`` index -- so the reading itself is composed by exactly one
+    composer whether or not a caller adds to it.
+    """
+    document = build_lane_document(
+        capacity,
+        settling=settling,
+        refresh_interval=refresh_interval,
+        window=window,
+    )
+    if extra:
+        document.update(extra)
+    return write_document(document, path)
+
+
+def _numeric(value: object) -> float | None:
+    """A finite number the pool arithmetic can add, else ``None``."""
+    return value if _is_finite_number(value) else None
+
+
+def _engine_count(document: dict, name: str) -> int | float | None:
+    """One engine's count, taken from ``withheld`` when it did not commit.
+
+    A lane that refused to size publishes no top-level ``headroom`` but does
+    report the figure it withheld, so the pool sums what the engine said it
+    would have published rather than dropping the engine's capacity.
+    """
+    value = _numeric(document.get(name))
+    if value is not None:
+        return value
+    withheld = document.get("withheld")
+    if isinstance(withheld, dict):
+        return _numeric(withheld.get(name))
+    return None
+
+
+def _sum_counts(documents: list[dict], name: str) -> int | float | None:
+    """Sum one count across a pool's engines, or publish none.
+
+    A count is summed only where every engine answered. An engine that
+    published neither a figure nor a withheld estimate has said it cannot
+    answer, and a total over the engines that did answer understates the pool
+    at exactly the moment one engine could not be measured.
+    """
+    values = [_engine_count(document, name) for document in documents]
+    if any(value is None for value in values):
+        return None
+    return sum(values)
+
+
+def _weighted(
+    documents: list[dict], name: str, *, weight: str = "running"
+) -> float | None:
+    """A per-request figure over the pool, weighted by each engine's running count.
+
+    A mean working context belongs to the requests on one engine, so averaging
+    two engines' means equally would let a busy engine's traffic count no more
+    than an idle one's. An engine publishing no figure, or no running count to
+    weight by abstains.
+    """
+    total = 0.0
+    weight_total = 0.0
+    for document in documents:
+        value = _numeric(document.get(name))
+        share = _numeric(document.get(weight))
+        if value is None or share is None or share <= 0:
+            continue
+        total += value * share
+        weight_total += share
+    return total / weight_total if weight_total > 0 else None
+
+
+def _latest_stamp(documents: list[dict]) -> str | None:
+    stamps = [
+        stamp for d in documents if isinstance(stamp := d.get("observed_at"), str)
+    ]
+    return max(stamps) if stamps else None
+
+
+def _merge_throughput(documents: list[dict]) -> dict[str, object] | None:
+    """Sum the pool's token rate, keeping the rate per run running-weighted.
+
+    The aggregate sums because two engines generating for one model are serving
+    that model's callers together. The per-run figure is the summed aggregate
+    over the summed run count, which is the running-weighted mean rather than
+    an unweighted mean of two rates.
+    """
+    rates: list[float] = []
+    runs = 0.0
+    stamps: list[str] = []
+    for document in documents:
+        block = document.get("throughput")
+        if not isinstance(block, dict):
+            continue
+        aggregate = _numeric(block.get("aggregate_tokens_per_second"))
+        if aggregate is None:
+            continue
+        rates.append(aggregate)
+        runs += _numeric(block.get("runs")) or 0.0
+        if isinstance(block.get("observed_at"), str):
+            stamps.append(block["observed_at"])
+    if not rates:
+        return None
+    total = sum(rates)
+    return {
+        "mean_tokens_per_second": round(total / runs, 3) if runs > 0 else None,
+        "aggregate_tokens_per_second": round(total, 3),
+        "runs": round(runs, 3),
+        "observed_at": max(stamps) if stamps else None,
+    }
+
+
+def _pool_context(documents: list[dict]) -> float | None:
+    """The pool's working context, weighted by each engine's running count."""
+    return _weighted(documents, "mean_context")
+
+
+def _merge_gate(documents: list[dict]) -> dict[str, object]:
+    """Sum the pool's gate counts so the totals describe the whole pool.
+
+    A pool spans engines, each with a gate of its own. The width, the in-flight
+    count and the queue depth sum because together they are the pool's capacity
+    and its demand; a reader sizing work against the pool needs the total
+    rather than one engine's share of it.
+    """
+    snapshots = [
+        document["router_generation_gate"]
+        for document in documents
+        if isinstance(document.get("router_generation_gate"), dict)
+    ]
+    if not snapshots:
+        return {}
+    merged = dict(snapshots[0])
+    for name in ("width", "effective_width", "in_flight", "waiting"):
+        merged[name] = sum(_numeric(snapshot.get(name)) or 0 for snapshot in snapshots)
+    merged["enabled"] = any(snapshot.get("enabled") is True for snapshot in snapshots)
+    merged["paused"] = any(snapshot.get("paused") is True for snapshot in snapshots)
+    merged["context_estimate"] = _pool_context(documents)
+    return merged
+
+
+def _merge_admission(documents: list[dict]) -> dict[str, object]:
+    """Sum the pool's admission figures: its demand, its slots and its headroom."""
+    admissions = [
+        document["admission"]
+        for document in documents
+        if isinstance(document.get("admission"), dict)
+    ]
+    if not admissions:
+        return {}
+    merged = dict(admissions[0])
+    for name in ("headroom", "waiting", "live_runs"):
+        merged[name] = sum(
+            _numeric(admission.get(name)) or 0 for admission in admissions
+        )
+    slots = [_numeric(admission.get("worker_slots")) for admission in admissions]
+    merged["worker_slots"] = (
+        sum(slots) if all(slot is not None for slot in slots) else None
+    )
+    merged["worker_slots_basis"] = (
+        "measured"
+        if all(
+            admission.get("worker_slots_basis") == "measured"
+            for admission in admissions
+        )
+        else "assumed"
+    )
+    ratios = [_numeric(admission.get("requests_per_run")) for admission in admissions]
+    merged["requests_per_run"] = (
+        round(sum(ratios) / len(ratios), 4)
+        if ratios and all(ratio is not None for ratio in ratios)
+        else None
+    )
+    oldest = [
+        _numeric(admission.get("oldest_wait_seconds")) for admission in admissions
+    ]
+    merged["oldest_wait_seconds"] = max(
+        (value for value in oldest if value is not None), default=None
+    )
+    verdicts = {admission.get("verdict") for admission in admissions}
+    if "paused" in verdicts:
+        merged["verdict"] = "paused"
+    elif "congested" in verdicts:
+        merged["verdict"] = "congested"
+    elif verdicts == {"full"}:
+        merged["verdict"] = "full"
+    else:
+        merged["verdict"] = "open"
+    return merged
+
+
+def _offload_hit_rate(documents: list[dict]) -> float | None:
+    """The pool's external hit rate, weighted by each engine's running count."""
+    total = 0.0
+    weight = 0.0
+    for document in documents:
+        block = document.get("offload") or {}
+        value = _numeric(block.get("external_hit_rate"))
+        share = _numeric(document.get("running"))
+        if value is None or not share or share <= 0:
+            continue
+        total += value * share
+        weight += share
+    return round(total / weight, 6) if weight > 0 else None
+
+
+def _merge_offload(documents: list[dict]) -> dict[str, object]:
+    """Sum the pool's offload store, keeping the hit rate running-weighted."""
+    blocks = [
+        document["offload"]
+        for document in documents
+        if isinstance(document.get("offload"), dict)
+    ]
+    if not blocks:
+        return {}
+    written = [_numeric(block.get("written_bytes")) for block in blocks]
+    restored = [_numeric(block.get("restored_bytes")) for block in blocks]
+    return {
+        "external_hit_rate": _offload_hit_rate(documents),
+        "written_bytes": sum(value for value in written if value is not None),
+        "restored_bytes": sum(value for value in restored if value is not None),
+        "resident_fraction": None,
+        "note": (
+            "restored_bytes flat against a climbing written_bytes "
+            "means the store is not serving reads"
+        ),
+    }
+
+
+def _merge_hicache_host(documents: list[dict]) -> dict[str, object] | dict:
+    """Sum the pool's host cache tier, deriving the fraction from the totals."""
+    totals = [
+        document["hicache_host"]
+        for document in documents
+        if isinstance(document.get("hicache_host"), dict)
+    ]
+    if not totals:
+        return {}
+    total = sum(_numeric(block.get("total_tokens")) or 0 for block in totals)
+    used = sum(_numeric(block.get("used_tokens")) or 0 for block in totals)
+    return {
+        "total_tokens": total,
+        "used_tokens": used,
+        "used_fraction": round(used / total, 6) if total else None,
+    }
+
+
+def compose_pool_document(documents: list[dict], *, model_id: str) -> dict[str, object]:
+    """Compose one pool's document from its engines' own readings.
+
+    A pool is one model; an engine is one served process. A pool spanning one
+    engine is that engine's document, because a reader of today's ``lane.json``
+    must see the same keys and values it sees now. A pool spanning several
+    composes to the same shape:
+
+    * counts and capacities sum -- running, waiting, pool tokens, the
+      concurrent-request ceiling, headroom, the gate's width and its in-flight,
+      waiting and worker-slot counts -- because together they are the pool's;
+    * the token rate sums, because two engines generating for one model are
+      serving that model's callers together;
+    * per-request figures are weighted by each engine's running count, so a
+      busy engine's working context counts for more than an idle one's;
+    * ``engines`` carries each engine's own reading and gate, so a reader can
+      still see which engine a figure came from.
+    """
+    if len(documents) == 1:
+        document = dict(documents[0])
+        document["model_id"] = model_id or document.get("model_id")
+        return document
+
+    mean_context = _pool_context(documents)
+    pool_tokens = _sum_counts(documents, "pool_tokens")
+    occupancy: float | None = None
+    if pool_tokens:
+        weighted = sum(
+            (_numeric(d.get("pool_tokens")) or 0.0)
+            * (_numeric(d.get("kv_occupancy")) or 0.0)
+            for d in documents
+        )
+        occupancy = weighted / pool_tokens
+    spread_lows = [
+        d["mean_context_spread"][0]
+        for d in documents
+        if isinstance(d.get("mean_context_spread"), list) and d["mean_context_spread"]
+    ]
+    spread_highs = [
+        d["mean_context_spread"][1]
+        for d in documents
+        if isinstance(d.get("mean_context_spread"), list)
+        and len(d["mean_context_spread"]) > 1
+    ]
+    volatile = any(d.get("volatile") is True for d in documents)
+    settling_values = [d.get("settling") for d in documents]
+    if any(value is True for value in settling_values):
+        settling: bool | None = True
+    elif all(value is False for value in settling_values):
+        settling = False
+    else:
+        settling = None
+    usable = mean_context is not None and not volatile and all(
+        d.get("sizing_verdict") == "usable" for d in documents
+    )
+    if usable:
+        sizing_reason = "the working context is steady across every engine's window"
+    else:
+        blocked = [
+            str(d.get("sizing_reason"))
+            for d in documents
+            if d.get("sizing_verdict") != "usable" and d.get("sizing_reason")
+        ]
+        sizing_reason = (
+            "not every engine could size from its own window: "
+            + "; ".join(blocked)
+            if blocked
+            else "the pool's working context could not be composed"
+        )
+    concurrent = _sum_counts(documents, "concurrent_requests")
+    headroom = _sum_counts(documents, "headroom")
+    shelf_lives = [
+        d["suggested_shelf_life_seconds"]
+        for d in documents
+        if _is_finite_number(d.get("suggested_shelf_life_seconds"))
+    ]
+    document: dict[str, object] = {
+        "observed_at": _latest_stamp(documents),
+        "model_id": model_id,
+        "pool_tokens": pool_tokens,
+        "running": _sum_counts(documents, "running"),
+        "waiting": _sum_counts(documents, "waiting"),
+        "kv_occupancy": round(occupancy, 4) if occupancy is not None else None,
+        "preemptions": _sum_counts(documents, "preemptions"),
+        "mean_context": mean_context,
+        **(
+            {"throughput": throughput}
+            if (throughput := _merge_throughput(documents)) is not None
+            else {}
+        ),
+        **(
+            {"concurrent_requests": concurrent, "headroom": headroom}
+            if usable
+            else {
+                "withheld": {
+                    "concurrent_requests": concurrent,
+                    "headroom": headroom,
+                    "why": sizing_reason,
+                }
+            }
+        ),
+        "binding_observed": (
+            True
+            if any(d.get("binding_observed") is True for d in documents)
+            else False
+            if all(d.get("binding_observed") is False for d in documents)
+            else None
+        ),
+        "prefix_hit_rate": _weighted(documents, "prefix_hit_rate"),
+        **({"offload": offload} if (offload := _merge_offload(documents)) else {}),
+        **({"hicache_host": host} if (host := _merge_hicache_host(documents)) else {}),
+        "mean_context_instant": _weighted(documents, "mean_context_instant"),
+        "concurrent_requests_instant": _sum_counts(
+            documents, "concurrent_requests_instant"
+        ),
+        "headroom_instant": _sum_counts(documents, "headroom_instant"),
+        "mean_context_spread": (
+            [min(spread_lows), max(spread_highs)]
+            if spread_lows and spread_highs
+            else None
+        ),
+        "window_samples": max(
+            (
+                d["window_samples"]
+                for d in documents
+                if _is_finite_number(d.get("window_samples"))
+            ),
+            default=0,
+        ),
+        "window_seconds": max(
+            (
+                d["window_seconds"]
+                for d in documents
+                if _is_finite_number(d.get("window_seconds"))
+            ),
+            default=0,
+        ),
+        "volatile": volatile,
+        "sizing_verdict": "usable" if usable else "do-not-size",
+        "sizing_reason": sizing_reason,
+        "state": "measured",
+        "derived_from": {
+            "pool_tokens": pool_tokens,
+            "mean_context": mean_context,
+            "occupancy_target": LaneCapacity.OCCUPANCY_TARGET,
+            "running_at_observation": _sum_counts(documents, "running"),
+            "formula": (
+                "counts and capacities sum over the pool's engines; "
+                "mean_context is each engine's mean weighted by its running count"
+            ),
+        },
+        "settling": settling,
+        "headroom_is_upper_bound": settling is not False or volatile,
+        "settling_caveat": (
+            "a reading taken within ~60s of a dispatch reports the fleet at its "
+            "lightest; prefer a pre-dispatch reading"
+        ),
+        "engines": documents,
+    }
+    if shelf_lives:
+        document["suggested_shelf_life_seconds"] = int(min(shelf_lives))
+    if gate := _merge_gate(documents):
+        document["router_generation_gate"] = gate
+    if admission := _merge_admission(documents):
+        document["admission"] = admission
+    return document

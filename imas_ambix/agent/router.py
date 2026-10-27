@@ -1708,6 +1708,17 @@ def engine_id_for_origin(origin: str) -> str:
     return _engine_id(host, parts.port)
 
 
+def _pool_document_name(model_id: str) -> str:
+    """A pool's model id as one filename component under ``lanes/``.
+
+    A model id carries dots, which are ordinary in a filename, and may carry a
+    path separator, which is not: a separator is replaced so one pool can never
+    name a file outside the lanes directory.
+    """
+    name = model_id.strip().replace("/", "_").replace("\\", "_")
+    return name or "default"
+
+
 class UpstreamResolver(Protocol):
     """Return the engine endpoints currently eligible for routing."""
 
@@ -2395,19 +2406,29 @@ class RouterApp:
             self.observe_engine(upstream, capacity)
 
     async def _publish_lane(self) -> None:
-        """Republish the shared lane budget for as long as the router runs.
+        """Compose one lane document per pool from each engine's own reading.
 
         Never allowed to disturb routing: every failure publishes an explicit
         unavailable state and the loop continues, because a relay that stopped
         serving requests to keep a metrics file current would have inverted its
         own purpose.
+
+        One composer writes every lane document. The default pool's document is
+        ``lane.json`` itself and carries a ``lanes`` index mapping each model to
+        its own document, so a reader of today's shape is unaffected while a
+        backend for a second model names ``lanes/<model id>.json`` and needs no
+        reckon change. Engines are grouped into pools by the model each serves,
+        and a pool spanning engines composes their readings into one document.
         """
         from collections import deque
 
         from imas_ambix.agent.lane import (
             LaneWindow,
+            build_lane_document,
+            compose_pool_document,
             detect_settling,
             fetch_lane_capacity,
+            write_document,
             write_lane_document,
             write_unavailable_document,
         )
@@ -2418,18 +2439,13 @@ class RouterApp:
         # trade the reader should know about, since a genuine ramp is reported
         # late by up to that span. `settling` and `volatile` both cover that gap
         # by marking the figure an upper bound, which is the safe direction.
-        readings: deque = deque(maxlen=5)
-        previous = None
+        windows: dict[str, deque] = {}
+        previous: dict[str, LaneCapacity] = {}
         while True:
-            target = "unresolved"
             try:
                 upstreams = await self._resolver.resolve()
                 if not upstreams:
                     raise RuntimeError("no upstream is registered")
-                target = f"{upstreams[0].base_url.rstrip('/')}/metrics"
-                capacity = await asyncio.to_thread(
-                    fetch_lane_capacity, upstreams[0].base_url
-                )
             # EOFError and zlib.error are the decode failures a truncated gzip or
             # corrupt deflate metrics body raises in fetch_engine_metrics; they
             # are caught beside the transport and parse failures so a corrupt
@@ -2444,8 +2460,7 @@ class RouterApp:
                 zlib.error,
             ) as error:
                 logger.warning(
-                    "lane publisher unavailable target=%s error=%s: %s",
-                    target,
+                    "lane publisher unavailable error=%s: %s",
                     type(error).__name__,
                     error,
                 )
@@ -2454,34 +2469,215 @@ class RouterApp:
                 # Both histories are dropped, not just the last sample. A window
                 # spanning an outage would average across a gap of unknown
                 # length and publish it as a continuous measurement.
-                readings.clear()
-                previous = None
+                windows.clear()
+                previous.clear()
             except asyncio.CancelledError:
                 raise
             else:
-                readings.append(capacity)
-                # The automatic width mode sizes the gate from the pool the
-                # engine reports and the working context its sessions carry, so
-                # the fresh reading is folded in here while it is known to be a
-                # measurement rather than re-read from the published document
-                # the gate itself is writing. The counters ride along with the
-                # same reading: the decoded-token odometer is what the width
-                # controller differences, the health readings are what its
-                # watches trip on, and the gate's own FIFO depth is the demand
-                # that says whether the width in force is the thing limiting the
-                # lane or merely idle under it.
-                self.observe_engine(upstreams[0], capacity)
-                await self._observe_peer_engines(upstreams[1:])
-                write_lane_document(
-                    capacity,
-                    self._lane_document,
-                    settling=detect_settling(previous, capacity),
-                    refresh_interval=self._lane_interval,
-                    window=LaneWindow(readings=tuple(readings)),
-                )
-                self._publish_gate_snapshot()
-                previous = capacity
+                measured: dict[str, tuple[Upstream, LaneCapacity]] = {}
+                failures: dict[str, str] = {}
+                for upstream in upstreams:
+                    engine_id = engine_id_for_origin(upstream.base_url)
+                    try:
+                        capacity = await asyncio.to_thread(
+                            fetch_lane_capacity, upstream.base_url
+                        )
+                    except (
+                        aiohttp.ClientError,
+                        OSError,
+                        RuntimeError,
+                        ValueError,
+                        EOFError,
+                        zlib.error,
+                    ) as error:
+                        logger.warning(
+                            "lane publisher unavailable target=%s error=%s: %s",
+                            f"{upstream.base_url.rstrip('/')}/metrics",
+                            type(error).__name__,
+                            error,
+                        )
+                        failures[engine_id] = str(error)
+                        windows.pop(engine_id, None)
+                        previous.pop(engine_id, None)
+                        continue
+                    # The automatic width mode sizes the gate from the pool the
+                    # engine reports and the working context its sessions carry,
+                    # so the fresh reading is folded in here while it is known to
+                    # be a measurement rather than re-read from the published
+                    # document the gate itself is writing. The counters ride
+                    # along with the same reading: the decoded-token odometer is
+                    # what the width controller differences, the health readings
+                    # are what its watches trip on, and the gate's own FIFO depth
+                    # is the demand that says whether the width in force is the
+                    # thing limiting the lane or merely idle under it.
+                    self.observe_engine(upstream, capacity)
+                    measured[engine_id] = (upstream, capacity)
+
+                pools = self._pool_engines(upstreams, measured)
+                default_pool = self._default_pool(pools)
+                lanes_index = {
+                    pool: (
+                        "lane.json"
+                        if pool == default_pool
+                        else f"lanes/{_pool_document_name(pool)}.json"
+                    )
+                    for pool in pools
+                }
+                for pool, engine_ids in pools.items():
+                    path = (
+                        self._lane_document
+                        if pool == default_pool
+                        else self._lane_document.with_name("lanes").joinpath(
+                            f"{_pool_document_name(pool)}.json"
+                        )
+                    )
+                    engines = []
+                    for engine_id in engine_ids:
+                        entry = measured.get(engine_id)
+                        if entry is None:
+                            continue
+                        _, capacity = entry
+                        bucket = windows.setdefault(engine_id, deque(maxlen=5))
+                        bucket.append(capacity)
+                        engines.append((engine_id, capacity, bucket))
+                    if not engines:
+                        reason = "; ".join(
+                            failures.get(engine_id, "engine could not be read")
+                            for engine_id in engine_ids
+                        )
+                        write_unavailable_document(
+                            reason or "no engine for this pool could be read",
+                            path,
+                            model_id=pool,
+                        )
+                        continue
+                    if len(engines) == 1:
+                        # One engine: every field is that engine's own, with an
+                        # unchanged meaning, plus the index when it is the
+                        # default pool. No second copy is written under lanes/,
+                        # so two files never carry the same fields.
+                        engine_id, capacity, bucket = engines[0]
+                        settling = detect_settling(previous.get(engine_id), capacity)
+                        window = LaneWindow(readings=tuple(bucket))
+                        extra = self._gate_fields(
+                            build_lane_document(
+                                capacity,
+                                settling=settling,
+                                refresh_interval=self._lane_interval,
+                                window=window,
+                            ),
+                            self.gate_for(engine_id),
+                        )
+                        if pool == default_pool:
+                            extra["lanes"] = lanes_index
+                        write_lane_document(
+                            capacity,
+                            path,
+                            settling=settling,
+                            refresh_interval=self._lane_interval,
+                            window=window,
+                            extra=extra,
+                        )
+                        previous[engine_id] = capacity
+                        continue
+                    documents = []
+                    for engine_id, capacity, bucket in engines:
+                        settling = detect_settling(previous.get(engine_id), capacity)
+                        document = build_lane_document(
+                            capacity,
+                            settling=settling,
+                            refresh_interval=self._lane_interval,
+                            window=LaneWindow(readings=tuple(bucket)),
+                        )
+                        document.update(
+                            self._gate_fields(document, self.gate_for(engine_id))
+                        )
+                        document["engine_id"] = engine_id
+                        documents.append(document)
+                        previous[engine_id] = capacity
+                    document = compose_pool_document(documents, model_id=pool)
+                    if pool == default_pool:
+                        document["lanes"] = lanes_index
+                    write_document(document, path)
             await asyncio.sleep(self._lane_interval)
+
+    @staticmethod
+    def _pool_engines(
+        upstreams: Sequence[Upstream],
+        measured: Mapping[str, tuple[Upstream, LaneCapacity]],
+    ) -> dict[str, list[str]]:
+        """Group this tick's engines by the model each serves.
+
+        The pool key is the served model the engine itself reports, falling
+        back to the model its registration declared, then to the empty pool for
+        an engine that names neither. Grouping on the engine's own reading is
+        what makes several engines serving one model one pool, and it is taken
+        after the reading so a stopped engine still lands in the pool its
+        registration names.
+        """
+        pools: dict[str, list[str]] = {}
+        for upstream in upstreams:
+            engine_id = engine_id_for_origin(upstream.base_url)
+            entry = measured.get(engine_id)
+            pool = (
+                (entry[1].model_id if entry is not None else None)
+                or upstream.model_id
+                or ""
+            )
+            pools.setdefault(pool, []).append(engine_id)
+        return pools
+
+    @staticmethod
+    def _default_pool(pools: Mapping[str, list[str]]) -> str:
+        """The pool whose document is ``lane.json`` itself.
+
+        The preferred release the deployment names, when it is one of the pools
+        this router serves; otherwise the first pool it resolved, which keeps a
+        one-pool router publishing exactly where it always did.
+        """
+        preferred = os.environ.get("AMBIX_AGENT_PREFERRED_RELEASE", "").strip()
+        if preferred and preferred in pools:
+            return preferred
+        return next(iter(pools))
+
+    def _gate_fields(
+        self,
+        document: Mapping[str, object],
+        gate: _GenerationGate,
+    ) -> dict[str, object]:
+        """The gate fields one document carries, including its bounded headroom.
+
+        The top-level headroom is the engine's own figure -- published when it
+        sized, its withheld estimate when it refused to -- bounded by what the
+        gate admits. With no numeric engine figure the gate's figure stands
+        alone. ``engine_headroom`` records whichever engine figure entered the
+        minimum, so a reader can still see that the engine refused to size even
+        while the lane reads as open.
+        """
+        gate_snapshot = gate.snapshot()
+        admission = gate.admission_document()
+        fields: dict[str, object] = {
+            "router_generation_gate": gate_snapshot,
+            "admission": admission,
+        }
+        selected = lane_headroom({**document, **fields})
+        if selected is not None:
+            engine_figure = engine_headroom({**document, **fields})
+            if engine_figure is not None:
+                fields["engine_headroom"] = engine_figure
+            fields["headroom"] = selected
+        # Both inputs are final here: `headroom` is the admission-clamped figure
+        # above, and the gate snapshot carries the width in force and the pause.
+        # Publishing the percentage beside the field it derives from keeps the
+        # two reconcilable by a reader with no router source.
+        availability = availability_percent(
+            selected,
+            gate_snapshot.get("effective_width"),
+            paused=gate_snapshot.get("paused") is True,
+        )
+        if availability is not None:
+            fields["availability_percent"] = availability
+        return fields
 
     def _publish_gate_snapshot(self) -> None:
         """Add router admission counts to the latest atomic lane reading."""
