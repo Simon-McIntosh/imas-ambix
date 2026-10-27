@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="live-figures-per-engine-release">
+      <p>The watch document reports one live entry per engine, and the period
+      ledger prices each model's traffic at that model's own listing.</p>
+      <ul>
+        <li><strong>The live block is per serve.</strong> A raw receipt file is
+        selected for each serve it names, keyed on hostname, served model and
+        job, and each selected file's figures are published under
+        <code>live.engines</code>. The newest serve's figures stay at the top
+        level, so a reader that knows only the flat block sees what it always
+        saw.</li>
+        <li><strong>Shelf life.</strong> A serve whose newest readable row is
+        older than the shelf life yields no entry at all. The shelf life is read
+        from the lane document's <code>suggested_shelf_life_seconds</code> where
+        it publishes one, and defaults to 120 s otherwise.</li>
+        <li><strong>A tail that cannot be read is one engine's loss.</strong>
+        One unparsable trailing line is a file caught mid-append and the rows
+        before it stand. Two or more mean the newest samples were never written,
+        and that engine's entry says so — <code>state: unavailable</code>, with
+        the count and the reason — rather than presenting older rows as its
+        present state.</li>
+        <li><strong>The ledger is per model.</strong> Readings are grouped by
+        the model that wrote them, resolved from the served name stored beside
+        each sample and from the job each reading belongs to, so no sample
+        payload is decoded. A window holding two models emits one row per model
+        plus a total row whose cost is the sum of those rows; a window holding
+        one model keeps exactly the single row it had.</li>
+      </ul>
+      <p><strong>Measured.</strong> Two serves placed at the same instants —
+      <code>deepseek-v4-1-flash</code> on <code>98dci4-gpu-0003</code> job 4811
+      advancing 1,000 generation tokens over 10 s, and <code>glm-5.3</code> on
+      <code>98dci4-gpu-0007</code> advancing 500 — yield two live entries with
+      <code>100.0</code> and <code>50.0</code> tok/s respectively, each carrying
+      its own host, served name and job. A third file whose newest row is 600 s
+      old yields no entry while the fresh serve yields one at
+      <code>age_seconds 0.0</code>. In the ledger, a period carrying
+      <code>deepseek-v4-flash</code> at 1,000,000 prompt / 100,000 generated
+      tokens and <code>glm-5.3</code> at 2,000,000 / 100,000, priced from their
+      two listings at h = 0.55, gives $7.05 and $24.20 and a total of $31.25,
+      which is the sum of the two rather than either rate applied to combined
+      tokens ($14.10 or $28.20), so the total is not a third pricing. The three
+      gated files pass 95 tests, the wider agent-watch set passes 119, and
+      <code>ruff check imas_ambix tests</code> exits 0.</p>
+      <p><strong>Negative control.</strong> Two unparsable lines are appended to
+      one of two fresh receipt files. That engine's entry reads
+      <code>state: unavailable</code> with
+      <code>2 trailing lines of the receipt file do not parse, so its newest
+      samples were never written</code> and <code>tail_breaks: 2</code>, while
+      the other engine's entry stays <code>measured</code> at 100 tok/s. Run
+      against the previous revision's module, the same fixture publishes one
+      block — <code>glm-5.3</code>, <code>state: measured</code>, 50 tok/s, no
+      reason — and the other serve is absent entirely, which is the defect this
+      change removes.</p>
+    </section>
+  </main>
+</body>
+</html>
