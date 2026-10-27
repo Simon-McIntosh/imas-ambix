@@ -299,6 +299,184 @@ def test_live_block_says_what_it_could_not_read_when_the_directory_is_empty(
     assert block["reason"] == "no raw receipt file with a readable row"
 
 
+def _serve_rows(
+    *,
+    hostname: str,
+    served_name: str,
+    job_id: int,
+    generation_step: float,
+    first_offset: float = 0.0,
+) -> list[dict]:
+    """Three rows from one serve, its counters advancing by *generation_step*.
+
+    Generation advances by twice *generation_step* over the ten seconds the
+    rows span, so the engine's aggregate rate is ``generation_step / 5`` tokens
+    per second and two serves carrying different steps are distinguishable by
+    the figure alone.
+    """
+    rows = _one_run_rows()
+    for position, row in enumerate(rows):
+        row["job_id"] = job_id
+        row["served_name"] = served_name
+        row["hostname"] = hostname
+        row["timestamp"] = _stamp(first_offset + position * 5.0)
+        row["engine"]["generation_tokens"] = 1_000_000 + position * generation_step
+        row["engine"]["prompt_tokens"] = 2_000_000 + position * 2 * generation_step
+        row["engine"]["uncached_prompt_tokens"] = (
+            500_000 + position * generation_step
+        )
+    return rows
+
+
+def test_each_serve_in_the_lane_gets_its_own_live_entry(tmp_path: Path):
+    """Two serves are two engines, each with its own counters.
+
+    The two files differ in host, served model and job, which are the three
+    fields that name a serve, and their generation counters advance at
+    different rates so an entry carrying the other file's figures is visible in
+    the figure itself rather than only in the name.
+    """
+    _write(
+        tmp_path,
+        "deepseek-v4-1-flash-4811.jsonl",
+        _serve_rows(
+            hostname="98dci4-gpu-0003",
+            served_name="deepseek-v4-1-flash",
+            job_id=4811,
+            generation_step=500.0,
+        ),
+    )
+    _write(
+        tmp_path,
+        "glm-5-3-5200.jsonl",
+        _serve_rows(
+            hostname="98dci4-gpu-0007",
+            served_name="glm-5.3",
+            job_id=4812,
+            generation_step=250.0,
+        ),
+    )
+
+    block = live_block(tmp_path, now=BASE + timedelta(seconds=10))
+
+    engines = block["engines"]
+    assert len(engines) == 2
+    by_serve = {entry["served_name"]: entry for entry in engines}
+    assert set(by_serve) == {"deepseek-v4-1-flash", "glm-5.3"}
+
+    deepseek = by_serve["deepseek-v4-1-flash"]
+    assert deepseek["hostname"] == "98dci4-gpu-0003"
+    assert deepseek["job_id"] == 4811
+    assert deepseek["file"] == "deepseek-v4-1-flash-4811.jsonl"
+    assert deepseek["state"] == "measured"
+    assert deepseek["generation_toks_per_s"] == pytest.approx(100.0)
+
+    glm = by_serve["glm-5.3"]
+    assert glm["hostname"] == "98dci4-gpu-0007"
+    assert glm["job_id"] == 4812
+    assert glm["file"] == "glm-5-3-5200.jsonl"
+    assert glm["state"] == "measured"
+    assert glm["generation_toks_per_s"] == pytest.approx(50.0)
+
+    # The top-level figures are one engine's own, so a reader that has not
+    # learned about ``engines`` still sees a measured serve rather than a mix.
+    assert block["served_name"] in by_serve
+    assert block["generation_toks_per_s"] == pytest.approx(
+        by_serve[block["served_name"]]["generation_toks_per_s"]
+    )
+
+
+def test_a_serve_silent_past_the_shelf_life_yields_no_live_entry(tmp_path: Path):
+    """A row older than the shelf life describes a serve that may be gone.
+
+    The stale file is the only one naming its engine, so the engine is absent
+    from the list entirely rather than present with old figures: a reading
+    stands for the serve's present state only while it is inside the shelf
+    life.
+    """
+    _write(
+        tmp_path,
+        "deepseek-v4-1-flash-4811.jsonl",
+        _serve_rows(
+            hostname="98dci4-gpu-0003",
+            served_name="deepseek-v4-1-flash",
+            job_id=4811,
+            generation_step=500.0,
+        ),
+    )
+    _write(
+        tmp_path,
+        "glm-5-3-5200.jsonl",
+        _serve_rows(
+            hostname="98dci4-gpu-0007",
+            served_name="glm-5.3",
+            job_id=4812,
+            generation_step=250.0,
+            first_offset=-600.0,
+        ),
+    )
+
+    block = live_block(tmp_path, now=BASE + timedelta(seconds=10))
+
+    engines = block["engines"]
+    assert [entry["served_name"] for entry in engines] == ["deepseek-v4-1-flash"]
+    assert engines[0]["age_seconds"] == pytest.approx(0.0)
+    assert engines[0]["shelf_life_seconds"] == 120.0
+
+
+def test_a_torn_tail_takes_one_engine_out_and_leaves_the_other(tmp_path: Path):
+    """One engine's unreadable tail is its own loss.
+
+    The recorder appends one row per atomic write, so a single torn final line
+    is a file caught mid-write and the rows before it stand. Two unreadable
+    lines are not that: they mean the newest samples were never written, and
+    the engine says so with a reason instead of reporting the older rows as its
+    present state. The other engine's entry is untouched.
+    """
+    assert live_panel.TORN_TAIL_LINES == 1
+    _write(
+        tmp_path,
+        "deepseek-v4-1-flash-4811.jsonl",
+        _serve_rows(
+            hostname="98dci4-gpu-0003",
+            served_name="deepseek-v4-1-flash",
+            job_id=4811,
+            generation_step=500.0,
+        ),
+    )
+    torn = tmp_path / "glm-5-3-5200.jsonl"
+    rows = _serve_rows(
+        hostname="98dci4-gpu-0007",
+        served_name="glm-5.3",
+        job_id=4812,
+        generation_step=250.0,
+    )
+    torn.write_text(
+        "".join(json.dumps(row) + "\n" for row in rows)
+        + '{"timestamp": "2026-09-29T12:00:15Z", "job_\n'
+        + '{"timestamp": "2026-09-29T12:00:20Z", "engi\n',
+        encoding="utf-8",
+    )
+
+    block = live_block(tmp_path, now=BASE + timedelta(seconds=10))
+
+    engines = block["engines"]
+    assert len(engines) == 2
+    by_serve = {entry["served_name"]: entry for entry in engines}
+
+    broken = by_serve["glm-5.3"]
+    assert broken["state"] == "unavailable"
+    assert broken["rows"] == 0
+    assert broken["generation_toks_per_s"] is None
+    assert broken["tail_breaks"] == 2
+    assert "do not parse" in broken["reason"]
+
+    intact = by_serve["deepseek-v4-1-flash"]
+    assert intact["state"] == "measured"
+    assert intact["generation_toks_per_s"] == pytest.approx(100.0)
+    assert "tail_breaks" not in intact
+
+
 def test_lane_block_copies_the_published_fields():
     document = {
         "observed_at": _stamp(0.0),

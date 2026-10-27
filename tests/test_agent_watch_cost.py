@@ -58,6 +58,25 @@ ESTIMATE_RECORD = {
 #:   1e5 * 2e-5       = 2.00  ->  $7.05
 ESTIMATED_COST = 7.05
 
+#: A second serve's listing, at twice the prompt rate and twice the completion
+#: rate of the first, and its fixture period: two million prompt tokens and a
+#: hundred thousand generated.
+SECOND_PRICE_ROW = {
+    "id": "zai/glm-5.3",
+    "pricing": {"prompt": 2e-5, "completion": 4e-5, "input_cache_read": 2e-6},
+}
+SECOND_TOKENS_IN = 2_000_000
+SECOND_TOKENS_OUT = 100_000
+
+#: h * in * cache_read + (1 - h) * in * prompt + out * completion, at h = 0.55:
+#:   0.55 * 2e6 * 2e-6 = 2.20
+#:   0.45 * 2e6 * 2e-5 = 18.00
+#:   1e5 * 4e-5       = 4.00  ->  $24.20
+#: The two serves together are $31.25, and neither figure is the other's rate
+#: applied to its own tokens -- that would give $14.10 or $28.20.
+SECOND_ESTIMATED_COST = 24.2
+TWO_SERVE_COST = 31.25
+
 
 def _iso(epoch: float) -> str:
     return _dt.datetime.fromtimestamp(epoch, _dt.UTC).isoformat()
@@ -975,3 +994,165 @@ def _write_segmented_receipts(
         encoding="utf-8",
     )
     return directory
+
+
+def _serve_row(
+    epoch: float,
+    *,
+    job_id: str,
+    served_name: str,
+    prompt_tokens: int,
+    generation_tokens: int,
+    cached_device: int,
+) -> dict:
+    """One receipt row naming the serve that wrote it.
+
+    The job and the served name are what make two serves two engines in the
+    record, so they are set on the row rather than left at the fixture's single
+    serve.
+    """
+    row = _row(
+        epoch,
+        prompt_tokens=prompt_tokens,
+        generation_tokens=generation_tokens,
+        cached_device=cached_device,
+    )
+    row["job_id"] = job_id
+    row["served_name"] = served_name
+    row["profile_slug"] = served_name
+    row["engine"]["model_id"] = served_name
+    return row
+
+
+def _two_serve_index(tmp_path: Path, now: float) -> TelemetryIndex:
+    """An index over two serves' receipts, both spanning the whole period."""
+    directory = tmp_path / "two-serves"
+    directory.mkdir(parents=True, exist_ok=True)
+    first = [
+        _serve_row(
+            now - 1800,
+            job_id="1234",
+            served_name="deepseek-v4-flash",
+            prompt_tokens=0,
+            generation_tokens=0,
+            cached_device=0,
+        ),
+        _serve_row(
+            now - 100,
+            job_id="1234",
+            served_name="deepseek-v4-flash",
+            prompt_tokens=TOKENS_IN,
+            generation_tokens=TOKENS_OUT,
+            cached_device=TOKENS_CACHED,
+        ),
+    ]
+    second = [
+        _serve_row(
+            now - 1800,
+            job_id="9001",
+            served_name="glm-5.3",
+            prompt_tokens=0,
+            generation_tokens=0,
+            cached_device=0,
+        ),
+        _serve_row(
+            now - 100,
+            job_id="9001",
+            served_name="glm-5.3",
+            prompt_tokens=SECOND_TOKENS_IN,
+            generation_tokens=SECOND_TOKENS_OUT,
+            cached_device=1_000_000,
+        ),
+    ]
+    for name, rows in (("serve-a.jsonl", first), ("serve-b.jsonl", second)):
+        path = directory / name
+        path.write_text(
+            "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+        )
+    index = TelemetryIndex(tmp_path / "two-serves.sqlite3")
+    index.ingest(discover(directory))
+    return index
+
+
+def test_two_serves_are_each_priced_at_their_own_rate_and_totalled(
+    tmp_path: Path,
+) -> None:
+    """A period with two models is two rows and a total above them.
+
+    Each row is totalled over its own serve's readings and priced at that
+    serve's own listing, so the glm row is not the deepseek rate applied to glm
+    tokens. The total is the sum of the two figures rather than a third pricing
+    over combined tokens, because no single rate prices both.
+    """
+    now = _dt.datetime.now(_dt.UTC).timestamp()
+    index = _two_serve_index(tmp_path, now)
+
+    rows = watch.ledger(
+        index,
+        now=now,
+        periods=((HOUR, "1 hour"),),
+        prices=[PRICE_ROW, SECOND_PRICE_ROW],
+        estimate=_estimate(),
+    )
+
+    assert [row.model for row in rows] == [
+        "deepseek-v4-flash",
+        "glm-5.3",
+        None,
+    ]
+    deepseek, glm, total = rows
+
+    assert deepseek.tokens_in == pytest.approx(TOKENS_IN)
+    assert glm.tokens_in == pytest.approx(SECOND_TOKENS_IN)
+    assert glm.tokens_out == pytest.approx(SECOND_TOKENS_OUT)
+
+    assert deepseek.cost == pytest.approx(ESTIMATED_COST)
+    assert glm.cost == pytest.approx(SECOND_ESTIMATED_COST)
+    assert total.cost == pytest.approx(TWO_SERVE_COST)
+    assert total.cost == pytest.approx(deepseek.cost + glm.cost)
+
+    # Each row names the model whose rate it was priced at; the total says it is
+    # a sum rather than a figure taken at one rate.
+    assert deepseek.cost_label.startswith("deepseek-v4-flash: ")
+    assert glm.cost_label.startswith("glm-5.3: ")
+    assert total.label == "1 hour · all models"
+    assert total.cost_label == "sum of 2 models, each at its own rate"
+    assert total.tokens_in == pytest.approx(TOKENS_IN + SECOND_TOKENS_IN)
+    assert total.tokens_out == pytest.approx(TOKENS_OUT + SECOND_TOKENS_OUT)
+    assert total.cached == pytest.approx(TOKENS_CACHED + 1_000_000)
+
+
+def test_the_watch_document_carries_a_row_per_model(tmp_path: Path) -> None:
+    """What the document publishes is what the record supports.
+
+    The newest receipt's engine section names a model id on every row it
+    writes, and the document passes that name down to the ledger. It must not
+    narrow the ledger to one model: a consumer renders the document, so a
+    two-model lane that reached the caller as one row would hide the second
+    serve's traffic and its cost entirely.
+    """
+    now = _dt.datetime.now(_dt.UTC).timestamp()
+    index = _two_serve_index(tmp_path, now)
+
+    doc = watch.document(
+        index,
+        now=now,
+        prices=[PRICE_ROW, SECOND_PRICE_ROW],
+        estimate=_estimate(),
+    )
+
+    assert [row["model"] for row in doc["ledger"]] == [
+        "deepseek-v4-flash",
+        "glm-5.3",
+        None,
+    ]
+    costs = [row["cost"] for row in doc["ledger"]]
+    assert costs[0] == pytest.approx(ESTIMATED_COST)
+    assert costs[1] == pytest.approx(SECOND_ESTIMATED_COST)
+    assert costs[2] == pytest.approx(TWO_SERVE_COST)
+    assert doc["periods"] == ["1 hour", "1 hour", "1 hour · all models"]
+
+    # The record block still names the newest receipt's own model, which is the
+    # figure the live panel shows; it is the ledger that must not be narrowed
+    # to it.
+    assert doc["record"]["model_id"] in {"deepseek-v4-flash", "glm-5.3"}
