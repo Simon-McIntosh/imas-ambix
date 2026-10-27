@@ -11,7 +11,6 @@ from imas_ambix.agent import slurm as slurm_mod
 from imas_ambix.agent.profile import SiteConfig, load_profile
 from imas_ambix.agent.slurm import (
     generate_download_script,
-    generate_lane_refresher_script,
     generate_router_script,
     generate_serve_script,
 )
@@ -31,7 +30,7 @@ def _output_paths(script: str) -> list[Path]:
 
 @pytest.mark.parametrize(
     "script_kind",
-    ("serve", "lane", "router", "download", "runtime-check", "setup", "data"),
+    ("serve", "router", "download", "runtime-check", "setup", "data"),
 )
 def test_generated_scripts_use_absolute_state_log_path(
     script_kind: str, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -41,7 +40,6 @@ def test_generated_scripts_use_absolute_state_log_path(
     profile = load_profile("glm-5-3")
     scripts = {
         "serve": lambda: generate_serve_script(profile, site),
-        "lane": lambda: generate_lane_refresher_script(site, origin="http://localhost"),
         "router": lambda: generate_router_script(site, port=18802),
         "download": lambda: generate_download_script(profile, site),
         "runtime-check": lambda: agent_cli._engine_runtime_check_script(

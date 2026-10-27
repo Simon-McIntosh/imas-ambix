@@ -44,8 +44,8 @@ def test_lane_publish_refusal_names_target_and_exception(tmp_path, monkeypatch, 
         published = asyncio.Event()
         writer = lane.write_unavailable_document
 
-        def record_unavailable(reason, destination):
-            result = writer(reason, destination)
+        def record_unavailable(reason, destination, **kwargs):
+            result = writer(reason, destination, **kwargs)
             published.set()
             return result
 
@@ -163,9 +163,9 @@ def test_lane_publish_survives_a_truncated_gzip_body(tmp_path, monkeypatch):
         unavailable_writer = lane.write_unavailable_document
         measured_writer = lane.write_lane_document
 
-        def record_unavailable(reason, destination):
+        def record_unavailable(reason, destination, **kwargs):
             published.append("unavailable")
-            return unavailable_writer(reason, destination)
+            return unavailable_writer(reason, destination, **kwargs)
 
         def record_measured(capacity, destination, **kwargs):
             published.append("measured")

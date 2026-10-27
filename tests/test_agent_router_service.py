@@ -51,16 +51,21 @@ def test_router_script_is_cpu_only_and_uses_file_backed_admission(tmp_path):
     assert "--max-queued" not in script
 
 
-def test_lane_refresher_script_has_no_time_limit(tmp_path):
+def test_lane_refresher_script_is_retired(tmp_path):
+    """The standing lane refresher is gone, and what remains keeps no limit.
+
+    The refresher rewrote lane.json from outside the router, so it is removed
+    rather than left dormant. The router that now publishes the lane is still a
+    standing supporting service, and a finite limit would end it on a schedule
+    nobody is watching.
+    """
+    assert not hasattr(slurm_mod, "generate_lane_refresher_script")
     site = SiteConfig(
         base_dir=str(tmp_path),
-        engine_env_root=str(tmp_path / "engine-envs"),
+        engine_env_root=str(tmp_path / "engine-env-root"),
     )
 
-    script = slurm_mod.generate_lane_refresher_script(
-        site,
-        origin="http://127.0.0.1:18802",
-    )
+    script = slurm_mod.generate_router_script(site, port=18802)
 
     assert "#SBATCH --time=0" in script
 
