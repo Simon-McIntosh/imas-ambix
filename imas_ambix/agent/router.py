@@ -2227,10 +2227,15 @@ class RouterApp:
                 if key:
                     self._engine_pins.pop(key, None)
                 return None, None
+            chosen_engine = engine_id_for_origin(chosen[0].base_url)
+            if chosen_engine == pin.engine_id:
+                # Placement can land back on the pinned engine when every gate
+                # is paused and its fallback pool holds one candidate. The key
+                # did not move, so the row must not claim a failover.
+                pin.touched = now
+                return chosen, "pinned"
             if key:
-                self._engine_pins[key] = _EnginePin(
-                    engine_id_for_origin(chosen[0].base_url), now
-                )
+                self._engine_pins[key] = _EnginePin(chosen_engine, now)
             return chosen, "failed-over"
         candidates = self._candidate_engines(owners)
         if candidates is None:
@@ -2397,8 +2402,9 @@ class RouterApp:
                 for card in catalog.cards
                 if card["id"] == model_id
             ]
+            nonlocal routing
             if session_key is not None:
-                selected, _ = (
+                selected, reason = (
                     self._select_engine(found, session_key)
                     if found
                     else (
@@ -2408,8 +2414,12 @@ class RouterApp:
                 )
             else:
                 selected = _preferred_owner(found) if found else None
+                reason = None
             if selected is None:
                 return False
+            # The reason travels out of this closure, because the row is written
+            # by the caller and an engine appearing is still a placement.
+            routing = reason
             self._known_models.add(model_id)
             resolved.append(selected)
             return True
@@ -2419,6 +2429,9 @@ class RouterApp:
             if owner is not None
             else self._owner_wait_gate
         )
+        # Time this request spent queued at gates it then left, so a row carries
+        # the whole wait rather than the last queue's share of it.
+        waited = 0.0
         if path in self._GENERATION_PATHS:
             run_id, session, _, _ = self._request_identity(scope)
             # A pinned request is willing to wait only so long for its own
@@ -2452,6 +2465,7 @@ class RouterApp:
             ):
                 # The pinned engine did not free a slot within the bound, so the
                 # pin yields to the alternate placement.
+                waited += admission.gate_wait_s
                 owner = alternate
                 routing = "failed-over"
                 resolved[0] = owner
@@ -2485,9 +2499,18 @@ class RouterApp:
                     disconnect_task.cancel()
                     await asyncio.gather(disconnect_task, return_exceptions=True)
                 gate = self.gate_for(bound_engine)
+                waited += admission.gate_wait_s
                 admission = await gate.acquire(receive, run_id=run_id, session=session)
         else:
             admission = _Admission("bypass")
+        # The engine whose gate admitted the request, which is the one a reader
+        # counting queue cost attributes the wait to. None where the request
+        # bypassed admission or never met an engine's gate.
+        admitted_engine = (
+            (gate.engine_id or None)
+            if path in self._GENERATION_PATHS and admission.outcome == "acquired"
+            else None
+        )
         if admission.outcome == "disconnected":
             self._record_self_answer(
                 scope,
@@ -2495,7 +2518,7 @@ class RouterApp:
                 began,
                 http_status=None,
                 caller_gone=True,
-                gate_wait_s=admission.gate_wait_s,
+                gate_wait_s=waited + admission.gate_wait_s,
             )
             return
         if admission.outcome in ("timed-out", "shutdown"):
@@ -2506,7 +2529,7 @@ class RouterApp:
                 model_id=model_id,
                 began=began,
                 retry_after_seconds=admission.retry_after_seconds,
-                gate_wait_s=admission.gate_wait_s,
+                gate_wait_s=waited + admission.gate_wait_s,
                 message=(
                     "router is shutting down; retry the request"
                     if admission.outcome == "shutdown"
@@ -2543,7 +2566,8 @@ class RouterApp:
                 model_id=model_id,
                 caller_hint=self._caller_hint(scope),
                 started_at=datetime.now(UTC),
-                gate_wait_s=admission.gate_wait_s,
+                gate_wait_s=waited + admission.gate_wait_s,
+                gate_engine=admitted_engine,
                 disconnect_task=admission.disconnect_task,
                 watch_cut=admission.outcome == "acquired",
                 gate=gate,
@@ -3202,6 +3226,7 @@ class RouterApp:
         watch_cut: bool = False,
         gate: _GenerationGate | None = None,
         routing: str | None = None,
+        gate_engine: str | None = None,
     ) -> None:
         # The gate this request was admitted at, so a cut or a shutdown is read
         # from that engine's own control entry rather than from a peer's.
@@ -3389,6 +3414,7 @@ class RouterApp:
                 began=began,
                 gate_wait_s=gate_wait_s,
                 reason=reason,
+                gate_engine=gate_engine,
                 routing=routing,
             )
             disconnected.cancel()

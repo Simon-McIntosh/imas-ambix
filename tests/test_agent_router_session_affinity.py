@@ -23,7 +23,10 @@ from typing import Any
 
 from aiohttp import web
 
-from imas_ambix.agent.request_receipts import COORDINATOR_SESSION_HEADER
+from imas_ambix.agent.request_receipts import (
+    COORDINATOR_SESSION_HEADER,
+    RUN_ID_HEADER,
+)
 from imas_ambix.agent.router import (
     DEFAULT_FAILOVER_WAIT_SECONDS,
     PIN_IDLE_SECONDS,
@@ -73,6 +76,10 @@ class Engine:
                 "checkpoint_precision": "FP8",
             },
         }
+
+    @property
+    def card(self) -> dict[str, Any]:
+        return self._card
 
     def hold(self) -> None:
         """Answer nothing until let_go, so the engine keeps its slot occupied."""
@@ -139,12 +146,16 @@ async def _invoke(
     app: RouterApp,
     *,
     session: str | None = None,
+    run_id: str | None = None,
+    client: tuple[str, int] | None = None,
     body: bytes | None = None,
     path: str = "/v1/messages",
 ) -> list[AsgiMessage]:
     headers = [(b"content-type", b"application/json")]
     if session is not None:
         headers.append((COORDINATOR_SESSION_HEADER.encode(), session.encode()))
+    if run_id is not None:
+        headers.append((RUN_ID_HEADER.encode(), run_id.encode()))
     incoming: asyncio.Queue[AsgiMessage] = asyncio.Queue()
     await incoming.put(
         {
@@ -160,18 +171,17 @@ async def _invoke(
     async def send(message: AsgiMessage) -> None:
         sent.append(message)
 
-    await app(
-        {
-            "type": "http",
-            "method": "POST",
-            "path": path,
-            "raw_path": path.encode(),
-            "query_string": b"",
-            "headers": headers,
-        },
-        receive,
-        send,
-    )
+    scope: dict[str, Any] = {
+        "type": "http",
+        "method": "POST",
+        "path": path,
+        "raw_path": path.encode(),
+        "query_string": b"",
+        "headers": headers,
+    }
+    if client is not None:
+        scope["client"] = client
+    await app(scope, receive, send)
     return sent
 
 
@@ -452,5 +462,199 @@ def test_an_unset_bound_keeps_a_pinned_session_at_its_serving_engine(
         assert rows["waiting"]["routing"] == "pinned"
         assert rows["waiting"]["upstream"] == right_url
         assert rows["waiting"]["gate_wait_s"] > 0
+
+    asyncio.run(exercise())
+
+
+def test_a_request_held_for_its_engine_records_why_it_was_placed(
+    tmp_path: Path,
+) -> None:
+    """A request the router held until an engine appeared still says ``placed``.
+
+    The readiness predicate runs inside the gate, so its decision reaches the
+    row through the caller's own variable rather than its return value. A row
+    that reads null here would say the request reached its engine for no reason
+    the router can name, while llm-watch counts by that column.
+    """
+
+    async def exercise() -> None:
+        engine = Engine("only", accelerators=8)
+        async with _bind(engine, LEFT_HOST) as engine_url:
+            receipts = tmp_path / "receipts.jsonl"
+            resolver = Resolver([])
+            app = RouterApp(
+                resolver,
+                request_receipts_path=receipts,
+                receipt_max_rows_per_s=1e9,
+            )
+            try:
+                held = asyncio.create_task(_invoke(app, session="late"))
+                await asyncio.sleep(0.2)
+                resolver.upstreams = [Upstream(engine_url)]
+                assert _served_by(await asyncio.wait_for(held, 10)) == "only"
+            finally:
+                if app._session is not None:
+                    await app._session.close()
+                if app._receipts is not None:
+                    app._receipts.close()
+
+    asyncio.run(exercise())
+    rows = _rows(tmp_path / "receipts.jsonl")
+    assert [row["routing"] for row in rows] == ["placed"]
+
+
+def test_a_placement_that_stays_on_the_pinned_engine_is_recorded_as_pinned(
+    tmp_path: Path,
+) -> None:
+    """Pausing every gate must not make an unmoved key look like a failover.
+
+    A paused gate holds rather than refusing, so the decision is asserted where
+    it is made: the placement rule's own fallback pool, when every candidate is
+    paused, can return the engine the key is already on, and that is a pin
+    holding rather than a key moving.
+    """
+
+    async def exercise() -> None:
+        engine = Engine("only", accelerators=8)
+        async with _bind(engine, LEFT_HOST) as engine_url:
+            gate_file = tmp_path / "router-gate.json"
+            _write_gate(gate_file, {})
+            async with _router([Upstream(engine_url)], gate_file=gate_file) as app:
+                assert _served_by(await _invoke(app, session="am")) == "only"
+                await _reconfigure(
+                    gate_file,
+                    {"engines": {engine_id_for_origin(engine_url): {"paused": True}}},
+                )
+                pin = app._engine_pins["session:am"]
+                before = pin.touched
+                owners = [(Upstream(engine_url), engine.card)]
+                selected, reason = app._select_engine(owners, "session:am")
+                assert reason == "pinned"
+                assert engine_id_for_origin(selected[0].base_url) == pin.engine_id
+                assert app._engine_pins["session:am"].engine_id == pin.engine_id
+                assert app._engine_pins["session:am"].touched >= before
+
+    asyncio.run(exercise())
+
+
+def test_a_failover_records_the_wait_at_both_gates_and_the_admitting_engine(
+    tmp_path: Path,
+) -> None:
+    """The row owes the whole wait, not the last queue's share of it.
+
+    A keyed request can queue at its own engine, give up on the bound, and be
+    admitted at a peer. Counting only the second admission understates the wait
+    by everything spent at the first, and leaving the engine blank leaves a
+    reader unable to attribute the wait to the queue that charged it.
+    """
+
+    async def exercise() -> None:
+        left = Engine("left", accelerators=4)
+        right = Engine("right", accelerators=8)
+        async with (
+            _bind(left, LEFT_HOST) as left_url,
+            _bind(right, RIGHT_HOST) as right_url,
+        ):
+            gate_file = tmp_path / "router-gate.json"
+            receipts = tmp_path / "receipts.jsonl"
+            _write_gate(gate_file, {})
+            upstreams = [Upstream(right_url)]
+            async with _router(
+                upstreams, gate_file=gate_file, receipts_path=receipts
+            ) as app:
+                right_id = engine_id_for_origin(right_url)
+                assert _served_by(await _invoke(app, session="moved")) == "right"
+                assert _served_by(await _invoke(app, session="blocker")) == "right"
+                upstreams.append(Upstream(left_url))
+                await _reconfigure(
+                    gate_file,
+                    {"engines": {right_id: {"width": 1, "failover_wait_seconds": 0.4}}},
+                )
+                right.hold()
+                blocker = asyncio.create_task(_invoke(app, session="blocker"))
+                await asyncio.wait_for(right.entered.wait(), 5)
+                moved = asyncio.create_task(_invoke(app, session="moved"))
+                served = await asyncio.wait_for(moved, 10)
+                assert _served_by(served) == "left"
+                right.let_go()
+                assert _status(await asyncio.wait_for(blocker, 5)) == 200
+        rows = _rows(receipts)
+        moved_row = next(
+            r
+            for r in rows
+            if r["coordinator_session"] == "moved" and r["upstream"] == left_url
+        )
+        assert moved_row["routing"] == "failed-over"
+        assert moved_row["gate_wait_s"] >= 0.35
+        assert moved_row["gate_engine"] == engine_id_for_origin(left_url)
+
+    asyncio.run(exercise())
+
+
+def test_a_pin_whose_engine_leaves_the_catalog_fails_over(
+    tmp_path: Path,
+) -> None:
+    """An engine that stops answering is the second reason a pin lets go."""
+
+    async def exercise() -> None:
+        left = Engine("left", accelerators=4)
+        right = Engine("right", accelerators=8)
+        async with (
+            _bind(left, LEFT_HOST) as left_url,
+            _bind(right, RIGHT_HOST) as right_url,
+        ):
+            receipts = tmp_path / "receipts.jsonl"
+            resolver = Resolver([Upstream(left_url), Upstream(right_url)])
+            app = RouterApp(
+                resolver,
+                request_receipts_path=receipts,
+                receipt_max_rows_per_s=1e9,
+            )
+            try:
+                assert _served_by(await _invoke(app, session="orphan")) == "right"
+                resolver.upstreams = [Upstream(left_url)]
+                moved = await _invoke(app, session="orphan")
+                assert _served_by(moved) == "left"
+                again = await _invoke(app, session="orphan")
+                assert _served_by(again) == "left"
+            finally:
+                if app._session is not None:
+                    await app._session.close()
+                if app._receipts is not None:
+                    app._receipts.close()
+
+    asyncio.run(exercise())
+    rows = _rows(tmp_path / "receipts.jsonl")
+    assert [row["routing"] for row in rows] == ["placed", "failed-over", "pinned"]
+
+
+def test_the_key_falls_back_from_the_session_to_the_run_to_the_caller_host(
+    tmp_path: Path,
+) -> None:
+    """A caller that names no session is still held to one engine."""
+
+    async def exercise() -> None:
+        left = Engine("left", accelerators=4)
+        right = Engine("right", accelerators=8)
+        async with (
+            _bind(left, LEFT_HOST) as left_url,
+            _bind(right, RIGHT_HOST) as right_url,
+        ):
+            receipts = tmp_path / "receipts.jsonl"
+            async with _router(
+                [Upstream(left_url), Upstream(right_url)], receipts_path=receipts
+            ) as app:
+                await _invoke(app, session="s1", run_id="r1")
+                assert "session:s1" in app._engine_pins
+                assert "run:r1" not in app._engine_pins
+                await _invoke(app, run_id="r2")
+                assert "run:r2" in app._engine_pins
+                assert "host:203.0.113.9" not in app._engine_pins
+                first = await _invoke(app, client=("203.0.113.9", 4000))
+                second = await _invoke(app, client=("203.0.113.9", 4001))
+                assert "host:203.0.113.9" in app._engine_pins
+                assert _served_by(first) == _served_by(second)
+        rows = _rows(receipts)
+        assert rows[-1]["routing"] == "pinned"
 
     asyncio.run(exercise())
