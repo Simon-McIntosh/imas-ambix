@@ -12,6 +12,9 @@ size walk and hash runs on a compute node:
     control negative control for the completeness check: a scratch copy of one
             index naming an absent shard must be reported incomplete, and the
             same copy with every shard reachable must be reported complete
+    shards  hash every file the repository listing names at a pinned revision and
+            compare size and SHA-256 against the listing; the comparison is
+            streamed to JSONL so a long run leaves a usable record at any point
 
 Nothing is written to the store and nothing is deleted.
 """
@@ -26,8 +29,10 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.parse
 import urllib.request
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 STORE = Path("/work/projects/imas_gpu/agents")
@@ -398,6 +403,169 @@ def cmd_control(args: argparse.Namespace) -> int:
     return 0 if ok else 1
 
 
+def verify_one(job: tuple[str, str, int | None, str | None]) -> dict:
+    """One file against its listing entry: size, and SHA-256 where the listing gives one."""
+    rel, abspath, want_size, want_sha = job
+    row: dict = {"path": rel, "size_repo": want_size, "sha_repo": want_sha}
+    p = Path(abspath)
+    try:
+        st = p.stat()
+    except OSError as exc:
+        row.update(
+            state="absent",
+            size_local=None,
+            sha_local=None,
+            size_match=False,
+            sha_match=None,
+            detail=type(exc).__name__,
+        )
+        return row
+    row["size_local"] = st.st_size
+    row["size_match"] = want_size is None or st.st_size == want_size
+    if want_sha is None:
+        # a plain git blob carries no sha256 in the listing; size is the whole check
+        row.update(state="size_only", sha_local=None, sha_match=None)
+    elif not row["size_match"]:
+        # a size difference already decides it; hashing cannot make the pair agree
+        row.update(state="size_mismatch", sha_local=None, sha_match=False,
+                   detail="sha256 not computed: size differs")
+    else:
+        got = sha256_file(p)
+        row["sha_local"] = got
+        row["sha_match"] = got == want_sha
+        row["state"] = "ok" if row["sha_match"] else "sha_mismatch"
+    return row
+
+
+def shard_jobs(
+    target: dict, remote: dict[str, dict], only: str | None, root_override: str | None
+) -> list[tuple[str, str, int | None, str | None]]:
+    """Largest first, so the tail of a long run is small files rather than one giant."""
+    root = Path(root_override or target["root"])
+    jobs = []
+    for f in remote.values():
+        rel = f["path"]
+        if only is not None and rel != only:
+            continue
+        jobs.append(
+            (rel, str(root / rel), f.get("size"), (f.get("lfs") or {}).get("oid"))
+        )
+    jobs.sort(key=lambda j: (j[2] or 0), reverse=True)
+    return jobs
+
+
+def summarise(jsonl: Path, targets: list[dict], trees: Path) -> dict:
+    """Counts and named failures per target, read back from the streamed comparison."""
+    rows: dict[str, dict] = {}
+    if jsonl.exists():
+        for line in jsonl.read_text().splitlines():
+            if line.strip():
+                r = json.loads(line)
+                rows.setdefault(r["name"], []).append(r)
+    out = {"targets": []}
+    for t in targets:
+        name = t["name"]
+        remote = tree_map(trees, name)
+        got = rows.get(name, [])
+        lfs = [f for f in remote.values() if f.get("lfs")]
+        by_path = {r["path"]: r for r in got}
+        absent = sorted(r["path"] for r in got if r["state"] == "absent")
+        unchecked = sorted(p for p in remote if p not in by_path)
+        size_bad = sorted(r["path"] for r in got if not r["size_match"])
+        sha_bad = sorted(
+            r["path"] for r in got if r.get("sha_match") is False and r["size_match"]
+        )
+        ok = sorted(r["path"] for r in got if r["state"] == "ok")
+        out["targets"].append(
+            {
+                "name": name,
+                "repo": t["repo"],
+                "revision": t["revision"],
+                "root": t["root"],
+                "listing_files": len(remote),
+                "listing_lfs_files": len(lfs),
+                "listing_bytes": sum(f.get("size") or 0 for f in remote.values()),
+                "checked": len(got),
+                "unchecked": unchecked,
+                "present": sum(1 for r in got if r["state"] != "absent"),
+                "absent": absent,
+                "size_mismatch": size_bad,
+                "sha256_mismatch": sha_bad,
+                "sha256_verified_ok": len(ok),
+                "bytes_hashed": sum(r.get("size_local") or 0 for r in got if r.get("sha_local")),
+                "verified": not unchecked and not absent and not size_bad and not sha_bad,
+            }
+        )
+    out["verified_all"] = all(t["verified"] for t in out["targets"]) and bool(
+        out["targets"]
+    )
+    return out
+
+
+def cmd_shards(args: argparse.Namespace) -> int:
+    targets = json.loads(Path(args.targets).read_text())
+    trees = Path(args.trees)
+    out_jsonl = Path(args.out)
+    out_jsonl.parent.mkdir(parents=True, exist_ok=True)
+    summary_path = Path(args.report)
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    workers = max(1, min(10, args.workers))
+
+    plan = []
+    for t in targets:
+        remote = tree_map(trees, t["name"])
+        if not remote:
+            print(f"{t['name']}: no listing saved, refusing", flush=True)
+            return 2
+        for job in shard_jobs(t, remote, args.only, args.root_override):
+            plan.append((t["name"], job))
+    print(
+        f"targets={len(targets)} files={len(plan)} "
+        f"bytes={sum(j[2] or 0 for _, j in plan)} workers={workers}",
+        flush=True,
+    )
+
+    done = 0
+    hashed = 0
+    t0 = time.time()
+    with out_jsonl.open("w") as fh, ProcessPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(verify_one, job): name for name, job in plan}
+        try:
+            for fut in as_completed(futures):
+                name = futures[fut]
+                row = fut.result()
+                row["name"] = name
+                fh.write(json.dumps(row) + "\n")
+                fh.flush()
+                done += 1
+                hashed += row.get("size_local") or 0
+                el = time.time() - t0
+                if done % 10 == 0 or done == len(plan):
+                    print(
+                        f"[{done}/{len(plan)}] {el:7.1f}s {hashed / 1e9 / el:5.2f} GB/s "
+                        f"last={name}:{row['path']} {row['state']}",
+                        flush=True,
+                    )
+        except BaseException:
+            fh.flush()
+            summary = summarise(out_jsonl, targets, trees)
+            summary["interrupted"] = True
+            summary_path.write_text(json.dumps(summary, indent=2))
+            raise
+    summary = summarise(out_jsonl, targets, trees)
+    summary_path.write_text(json.dumps(summary, indent=2))
+    for t in summary["targets"]:
+        print(
+            f"{t['name']:24s} listing={t['listing_files']:4d} lfs={t['listing_lfs_files']:4d} "
+            f"checked={t['checked']:4d} present={t['present']:4d} "
+            f"absent={len(t['absent'])} size_mismatch={len(t['size_mismatch'])} "
+            f"sha_mismatch={len(t['sha256_mismatch'])} verified={t['verified']}",
+            flush=True,
+        )
+    print(f"VERIFIED_ALL={summary['verified_all']}")
+    return 0 if summary["verified_all"] else 1
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -414,6 +582,15 @@ def main() -> int:
     p.add_argument("--scratch", required=True)
     p.add_argument("--out", required=True)
     p.set_defaults(fn=cmd_control)
+    p = sub.add_parser("shards")
+    p.add_argument("--targets", required=True)
+    p.add_argument("--trees", required=True)
+    p.add_argument("--out", required=True, help="JSONL comparison, one line per file")
+    p.add_argument("--report", required=True, help="summary JSON, written even if interrupted")
+    p.add_argument("--workers", type=int, default=10)
+    p.add_argument("--only", default=None, help="verify one listing path only")
+    p.add_argument("--root-override", default=None)
+    p.set_defaults(fn=cmd_shards)
     args = ap.parse_args()
     return args.fn(args)
 
