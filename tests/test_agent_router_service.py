@@ -120,6 +120,101 @@ def test_router_submit_uses_shared_submission_adapter(monkeypatch):
     assert "#SBATCH --comment=ambix-router;port=18802" in captured["script"]
 
 
+def _site_with_router(tmp_path: Path, **router: object) -> SiteConfig:
+    settings: dict[str, object] = {
+        "base_dir": str(tmp_path),
+        "engine_env_root": str(tmp_path / "engine-envs"),
+    }
+    if router:
+        settings["router"] = router
+    return SiteConfig(**settings)
+
+
+def test_router_dry_run_requests_the_rigel_partition_without_a_gpu(
+    tmp_path: Path, monkeypatch
+):
+    """The standing router belongs on a CPU node, not on either GPU server.
+
+    A router submitted to the GPU host shares that host's fate: a drain or a
+    failure there stops routing for every engine, including one on another
+    server. So the script must name the CPU partition, request no card and add
+    no node constraint that would tie it back to a GPU host.
+    """
+    from imas_ambix.agent import cli as agent_cli
+
+    site = _site_with_router(tmp_path)
+
+    def refuse_submission(_script: str) -> str:
+        raise AssertionError("dry-run must not submit")
+
+    monkeypatch.setattr(slurm_mod, "submit_script", refuse_submission)
+    monkeypatch.setattr(
+        agent_cli.SiteConfig, "from_env", classmethod(lambda _cls: site)
+    )
+
+    result = CliRunner().invoke(
+        main, ["agent", "router", "--port", "18802", "--dry-run"]
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "#SBATCH --partition=rigel" in result.output
+    assert "#SBATCH --gres=gpu" not in result.output
+    assert "#SBATCH --nodelist" not in result.output
+    assert "#SBATCH --constraint" not in result.output
+
+
+def test_router_script_takes_partition_account_cpus_and_memory_from_the_entry(
+    tmp_path: Path,
+):
+    site = _site_with_router(
+        tmp_path,
+        partition="sun_debug",
+        account="grpc",
+        cpus=6,
+        memory="24G",
+    )
+
+    script = slurm_mod.generate_router_script(site, port=18802)
+
+    assert "#SBATCH --partition=sun_debug" in script
+    assert "#SBATCH --account=grpc" in script
+    assert "#SBATCH --cpus-per-task=6" in script
+    assert "#SBATCH --mem=24G" in script
+    # The entry carries no reservation, because a CPU partition has none.
+    assert "#SBATCH --reservation" not in script
+    # A one-off override still wins, so an operator can size a single launch.
+    overridden = slurm_mod.generate_router_script(
+        site, port=18802, cpus=3, memory="12G"
+    )
+    assert "#SBATCH --cpus-per-task=3" in overridden
+    assert "#SBATCH --mem=12G" in overridden
+
+
+def test_router_refuses_an_unknown_partition(tmp_path: Path, monkeypatch):
+    """A partition nobody offers refuses before a script exists."""
+    from imas_ambix.agent import cli as agent_cli
+
+    site = _site_with_router(tmp_path, partition="rigel_x")
+    submitted: list[str] = []
+
+    def record(script: str) -> str:
+        submitted.append(script)
+        return "77"
+
+    monkeypatch.setattr(slurm_mod, "submit_script", record)
+    monkeypatch.setattr(
+        agent_cli.SiteConfig, "from_env", classmethod(lambda _cls: site)
+    )
+
+    result = CliRunner().invoke(
+        main, ["agent", "router", "--port", "18802", "--submit"]
+    )
+
+    assert result.exit_code != 0
+    assert "rigel_x" in result.output
+    assert submitted == []
+
+
 # --------------------------------------------------------------------------
 # Shutdown release
 #

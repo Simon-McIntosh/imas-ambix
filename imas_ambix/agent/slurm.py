@@ -1043,12 +1043,18 @@ def generate_router_script(
     site: SiteConfig,
     *,
     port: int,
-    cpus: int = 2,
-    memory: str = "8G",
+    cpus: int | None = None,
+    memory: str | None = None,
     prefix_probe: bool = False,
     gate_file: Path | None = None,
 ) -> str:
     """Generate a CPU-only SLURM script for the standing router endpoint.
+
+    The placement comes from the site's ``router`` entry, never from a GPU
+    server's: the router is a CPU-only pass-through that both serving hosts are
+    reached over the cluster network from, so a drain or a failure of either
+    host must not end the routing. *cpus* and *memory* override the entry for a
+    single submission; both fall back to it when unnamed.
 
     ``prefix_probe`` is written into the script rather than inherited from the
     submitting shell, so the running job carries a visible record of whether the
@@ -1070,21 +1076,27 @@ def generate_router_script(
     export. A no-option submission depends only on the generated script, never
     on the environment it was submitted from.
     """
+    from imas_ambix.agent.profile import require_known_partition
+
+    placement = site.router
+    require_known_partition(placement.partition)
+    resolved_cpus = placement.cpus if cpus is None else cpus
+    resolved_memory = placement.memory if memory is None else memory
     if not 1 <= port <= 65535:
         raise ValueError("port must be between 1 and 65535")
-    if cpus < 1:
+    if resolved_cpus < 1:
         raise ValueError("cpus must be positive")
-    if not memory.strip():
+    if not resolved_memory.strip():
         raise ValueError("memory must not be empty")
 
     headers = _sbatch_headers(
         job_name="ambix-router",
-        partition=site.partition,
-        account=site.account,
-        reservation=site.reservation,
+        partition=placement.partition,
+        account=placement.account,
+        reservation=None,
         gpus=0,
-        cpus=cpus,
-        memory=memory,
+        cpus=resolved_cpus,
+        memory=resolved_memory,
         time_limit=_SUPPORTING_SERVICE_TIME_LIMIT,
         output_name="ambix-router-%j.log",
     )
@@ -1111,7 +1123,10 @@ def generate_router_script(
     body_lines = [
         "set -euo pipefail",
         "",
+        # ``/scratch_local`` is the GPU node's ephemeral NVMe and exists on no
+        # CPU node, so the router's scratch has to fall back to ``/tmp``.
         "export TMPDIR=/scratch_local/$SLURM_JOB_ID",
+        "[[ -d /scratch_local ]] || export TMPDIR=/tmp/ambix-router-$SLURM_JOB_ID",
         'mkdir -p "$TMPDIR"',
         f"export PYTHONPATH={shlex.quote(str(repo_root))}:${{PYTHONPATH:-}}",
         probe_export,

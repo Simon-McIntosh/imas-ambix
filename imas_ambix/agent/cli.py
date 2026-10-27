@@ -1683,15 +1683,19 @@ def _resolve_router_upstreams(site: SiteConfig, api_key: str | None) -> list[Ups
 @click.option(
     "--cpus",
     type=click.IntRange(1, 64),
-    default=2,
-    show_default=True,
-    help="Host cores for a submitted router allocation.",
+    default=None,
+    help=(
+        "Host cores for a submitted router allocation. Defaults to the site's "
+        "router entry."
+    ),
 )
 @click.option(
     "--memory",
-    default="8G",
-    show_default=True,
-    help="Host memory for a submitted router allocation.",
+    default=None,
+    help=(
+        "Host memory for a submitted router allocation. Defaults to the site's "
+        "router entry."
+    ),
 )
 @click.option(
     "--prefix-probe",
@@ -1715,8 +1719,8 @@ def router_command(
     api_key: str | None,
     submit: bool,
     dry_run: bool,
-    cpus: int,
-    memory: str,
+    cpus: int | None,
+    memory: str | None,
     prefix_probe: bool,
     gate_file: str | None,
 ) -> None:
@@ -1737,14 +1741,17 @@ def router_command(
                 "--api-key cannot be embedded in a submitted router script; "
                 "use keyless upstreams or run the router in the foreground."
             )
-        script = generate_router_script(
-            site,
-            port=port,
-            cpus=cpus,
-            memory=memory,
-            prefix_probe=prefix_probe,
-            gate_file=gate_path,
-        )
+        try:
+            script = generate_router_script(
+                site,
+                port=port,
+                cpus=cpus,
+                memory=memory,
+                prefix_probe=prefix_probe,
+                gate_file=gate_path,
+            )
+        except ValueError as exc:
+            raise click.ClickException(str(exc)) from exc
         if dry_run:
             console.print(script, markup=False, highlight=False, soft_wrap=True)
             return
@@ -1754,7 +1761,8 @@ def router_command(
             raise click.ClickException(str(exc)) from exc
         console.print(
             f"Submitted keyless router job {job_id} on port {port} "
-            f"({cpus} CPU, {memory})."
+            f"({cpus or site.router.cpus} CPU, {memory or site.router.memory}, "
+            f"partition {site.router.partition})."
         )
         return
 
