@@ -3,15 +3,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from collections.abc import Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from aiohttp import web
 
 from imas_ambix.agent import router as router_mod
-from imas_ambix.agent.router import RouterApp, Upstream
+from imas_ambix.agent.router import RouterApp, Upstream, engine_id_for_origin
+from tests.test_request_receipts import _read_rows
 
 AsgiMessage = dict[str, Any]
 
@@ -847,3 +850,323 @@ def test_lane_snapshot_publishes_the_pause_and_its_reason(tmp_path) -> None:
     assert gate_snapshot["paused"] is True
     assert gate_snapshot["reason"] == "draining for a relaunch"
     assert published["running"] == 3
+
+
+def _model_card(model_id: str) -> dict[str, Any]:
+    return {
+        "id": model_id,
+        "object": "model",
+        "created": 123,
+        "owned_by": "engine",
+        "max_model_len": 4096,
+    }
+
+
+class _HeldEngine:
+    """An engine that holds every generation until released, recording arrivals."""
+
+    def __init__(self, model_id: str) -> None:
+        self.model_id = model_id
+        self.arrivals: list[float] = []
+        self.running = 0
+        self.peak = 0
+        self.release = asyncio.Event()
+
+    def application(self) -> web.Application:
+        app = web.Application()
+
+        async def catalog(_: web.Request) -> web.Response:
+            return web.json_response(
+                {"object": "list", "data": [_model_card(self.model_id)]}
+            )
+
+        async def generate(_: web.Request) -> web.Response:
+            self.arrivals.append(time.monotonic())
+            self.running += 1
+            self.peak = max(self.peak, self.running)
+            try:
+                await self.release.wait()
+            finally:
+                self.running -= 1
+            return web.json_response({"choices": [{"message": {"content": "ok"}}]})
+
+        app.router.add_get("/v1/models", catalog)
+        app.router.add_post("/v1/messages", generate)
+        return app
+
+
+def _idle_receive() -> Callable[[], Awaitable[AsgiMessage]]:
+    """A receive that never delivers, so an acquisition is judged on the gate."""
+    queue: asyncio.Queue[AsgiMessage] = asyncio.Queue()
+
+    async def receive() -> AsgiMessage:
+        return await queue.get()
+
+    return receive
+
+
+def test_two_engines_admit_at_their_own_widths(tmp_path: Path) -> None:
+    """Each gate admits its own engine's width, and a full gate delays nobody else.
+
+    Two engines of different widths receive six concurrent requests each. The
+    narrow gate admits its width and holds the rest; the wide gate fills to its
+    own width *while the narrow gate is already full*, which a single shared
+    queue at either width could not produce. That is the whole point of a gate per
+    engine: capacity is a property of the engine, not of the lane.
+    """
+
+    async def exercise() -> None:
+        narrow = _HeldEngine("narrow-model")
+        wide = _HeldEngine("wide-model")
+        async with (
+            _server(narrow.application()) as narrow_url,
+            _server(wide.application()) as wide_url,
+        ):
+            narrow_key = engine_id_for_origin(narrow_url)
+            wide_key = engine_id_for_origin(wide_url)
+            gate_file = tmp_path / "router-gate.json"
+            gate_file.write_text(
+                json.dumps(
+                    {
+                        "width": 1,
+                        "wait_seconds": 10.0,
+                        "engines": {
+                            narrow_key: {"width": 2},
+                            wide_key: {"width": 4},
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            app = RouterApp(
+                Resolver([Upstream(narrow_url), Upstream(wide_url)]),
+                gate_file=gate_file,
+            )
+            try:
+                narrow_calls = [
+                    _start_call(
+                        app,
+                        "POST",
+                        "/v1/messages",
+                        json.dumps({"model": "narrow-model", "seq": index}).encode(),
+                    )[0]
+                    for index in range(6)
+                ]
+                wide_calls = [
+                    _start_call(
+                        app,
+                        "POST",
+                        "/v1/messages",
+                        json.dumps({"model": "wide-model", "seq": index}).encode(),
+                    )[0]
+                    for index in range(6)
+                ]
+
+                await _await_gate(
+                    lambda: narrow.running
+                    == 2,
+                    timeout=5.0,
+                )
+                await _await_gate(
+                    lambda: wide.running == 4,
+                    timeout=5.0,
+                )
+
+                narrow_gate = app.gate_for(narrow_key)
+                wide_gate = app.gate_for(wide_key)
+                assert narrow_gate is not wide_gate
+                assert narrow_gate.in_flight == 2
+                assert narrow_gate.waiting == 4, narrow_gate.waiting
+                assert wide_gate.in_flight == 4
+                assert wide_gate.waiting == 2, wide_gate.waiting
+
+                # Reached at its own width while the narrow gate was saturated.
+                assert narrow.peak == 2
+                assert wide.peak == 4
+
+                narrow.release.set()
+                wide.release.set()
+                for task in narrow_calls + wide_calls:
+                    await asyncio.wait_for(task, timeout=10)
+            finally:
+                if app._session is not None:
+                    await app._session.close()
+
+    asyncio.run(exercise())
+
+
+def test_a_throughput_reading_from_one_engine_moves_only_its_own_width(
+    tmp_path: Path,
+) -> None:
+    """A reading taken at one engine sizes that engine and no other."""
+
+    async def exercise() -> None:
+        gate_file = tmp_path / "router-gate.json"
+        gate_file.write_text(
+            json.dumps(
+                {
+                    "width": "auto",
+                    "occupancy_target": 0.90,
+                    "width_floor": 16,
+                    "width_cap": 36,
+                    "wait_seconds": 1.0,
+                }
+            ),
+            encoding="utf-8",
+        )
+        app = RouterApp(Resolver([]), gate_file=gate_file)
+        first = Upstream("http://127.0.0.1:21001")
+        second = Upstream("http://127.0.0.1:21002")
+        first_gate = app.gate_for(engine_id_for_origin(first.base_url))
+        second_gate = app.gate_for(engine_id_for_origin(second.base_url))
+        assert first_gate.settings().width == 16
+        assert second_gate.settings().width == 16
+
+        app.observe_engine(
+            first,
+            SimpleNamespace(
+                pool_tokens=1_000_000,
+                mean_context=1000,
+                generation_tokens=None,
+                running=3,
+                prefix_hit_rate=None,
+                kv_occupancy=None,
+            ),
+        )
+
+        await _await_gate(lambda: first_gate.settings().width == 36)
+        assert second_gate.settings().width == 16
+
+    asyncio.run(exercise())
+
+
+def test_gate_expiry_names_the_engine_it_waited_at(tmp_path: Path) -> None:
+    """A refusal row keeps the router sentinel and names the gate's engine."""
+
+    async def exercise() -> None:
+        engine = _HeldEngine("streamer")
+        receipts = tmp_path / "receipts.jsonl"
+        async with _server(engine.application()) as origin:
+            key = engine_id_for_origin(origin)
+            gate_file = tmp_path / "router-gate.json"
+            gate_file.write_text(
+                json.dumps(
+                    {"width": 1, "wait_seconds": 0.3, "engines": {key: {"width": 1}}}
+                ),
+                encoding="utf-8",
+            )
+            app = RouterApp(
+                Resolver([Upstream(origin)]),
+                gate_file=gate_file,
+                request_receipts_path=receipts,
+            )
+            try:
+                gate = app.gate_for(key)
+                held = await gate.acquire(_idle_receive())
+                assert held.outcome == "acquired"
+                sent = await _call(
+                    app,
+                    "POST",
+                    "/v1/messages",
+                    json.dumps({"model": "streamer"}).encode(),
+                )
+                assert _status(sent) == 529
+                await gate.release(held.busy)
+            finally:
+                if app._session is not None:
+                    await app._session.close()
+                if app._receipts is not None:
+                    app._receipts.close()
+
+        rows = _read_rows(receipts)
+        assert len(rows) == 1
+        assert rows[0]["upstream"] == "(router)"
+        assert rows[0]["status"] == "failed"
+        assert key in rows[0]["reason"]
+        assert rows[0]["gate_wait_s"] >= 0.25
+        assert engine.arrivals == []
+
+    asyncio.run(exercise())
+
+
+def test_a_top_level_pause_holds_new_requests_on_every_engine(
+    tmp_path: Path,
+) -> None:
+    """The lane-wide pause the runbook writes still stops every engine's queue."""
+
+    async def exercise() -> None:
+        first = Upstream("http://127.0.0.1:21011")
+        second = Upstream("http://127.0.0.1:21012")
+        gate_file = tmp_path / "router-gate.json"
+        gate_file.write_text(
+            json.dumps(
+                {
+                    "width": 4,
+                    "wait_seconds": 0.2,
+                    "paused": True,
+                    "reason": "draining for a relaunch",
+                    "engines": {
+                        engine_id_for_origin(first.base_url): {"width": 4},
+                        engine_id_for_origin(second.base_url): {"width": 4},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        app = RouterApp(Resolver([]), gate_file=gate_file)
+        first_gate = app.gate_for(engine_id_for_origin(first.base_url))
+        second_gate = app.gate_for(engine_id_for_origin(second.base_url))
+
+        assert first_gate.settings().paused is True
+        assert second_gate.settings().paused is True
+
+        for gate in (first_gate, second_gate):
+            admission = await gate.acquire(_idle_receive())
+            assert admission.outcome == "timed-out"
+
+    asyncio.run(exercise())
+
+
+def test_a_pause_in_the_engines_map_holds_only_its_own_engine(
+    tmp_path: Path,
+) -> None:
+    """An engine's own pause stops that engine and leaves its peer admitting.
+
+    This is the discriminating case for one gate per engine: applying the
+    engine's entry to every queue would hold the peer too, and this test would
+    then see a timeout where it requires an admission.
+    """
+    async def exercise() -> None:
+        first = Upstream("http://127.0.0.1:21021")
+        second = Upstream("http://127.0.0.1:21022")
+        first_key = engine_id_for_origin(first.base_url)
+        second_key = engine_id_for_origin(second.base_url)
+        gate_file = tmp_path / "router-gate.json"
+        gate_file.write_text(
+            json.dumps(
+                {
+                    "width": 4,
+                    "wait_seconds": 0.2,
+                    "engines": {
+                        first_key: {"paused": True, "reason": "retiring this engine"},
+                        second_key: {"width": 4},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        app = RouterApp(Resolver([]), gate_file=gate_file)
+        paused_gate = app.gate_for(first_key)
+        open_gate = app.gate_for(second_key)
+
+        assert paused_gate.settings().paused is True
+        assert open_gate.settings().paused is False
+
+        held = await paused_gate.acquire(_idle_receive())
+        assert held.outcome == "timed-out"
+
+        admission = await open_gate.acquire(_idle_receive())
+        assert admission.outcome == "acquired"
+        await open_gate.release(admission.busy)
+
+    asyncio.run(exercise())
