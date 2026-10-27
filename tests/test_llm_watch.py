@@ -15,7 +15,7 @@ has not written yet.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -741,6 +741,12 @@ def test_live_flag_refreshes_every_five_seconds() -> None:
         pass
     assert len(calls) == 3
     assert ticks == [5.0, 5.0]
+
+
+def test_a_live_refresh_stamps_the_moment_it_rendered() -> None:
+    """Each live pass says when it ran, so the cadence is checkable."""
+    moment = datetime(2026, 10, 27, 10, 20, 5, tzinfo=UTC)
+    assert lw.refresh_stamp(moment) == "# refreshed 2026-10-27T10:20:05Z"
 
 
 def test_console_script_is_declared() -> None:

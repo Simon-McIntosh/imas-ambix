@@ -50,6 +50,9 @@ def test_watch_without_json_points_at_llm_watch() -> None:
     assert "llm-watch" in lines[0]
     # And it is a pointer, not the retired panel: no ledger block is drawn.
     assert "ledger" not in lines[0]
+
+
+def test_watch_help_does_not_name_the_superseded_record_default() -> None:
     """The help must not point the reader at a directory nothing writes."""
     assert STALE_DEFAULT not in _help("watch")
 
