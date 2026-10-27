@@ -73,6 +73,15 @@ GATE_PATH_ENV = "AMBIX_ROUTER_GATE_PATH"
 DEFAULT_GENERATION_WIDTH = 22
 DEFAULT_GENERATION_WAIT_SECONDS = 300.0
 GENERATION_RETRY_AFTER_SECONDS = 5
+# A shutdown signal stops admission and answers the FIFO before uvicorn tears
+# the process down. Without that, requests the gate is holding die as dropped
+# connections -- which a client does not retry -- rather than as the 529 the
+# wait bound already produces. The grace afterwards bounds how long a relay
+# already streaming may take to finish; it is a launch default rather than an
+# invocation argument, because a bound a launch can forget is one that silently
+# becomes "wait forever", which is the state this release exists to end.
+DEFAULT_GRACEFUL_SHUTDOWN_SECONDS = 30.0
+SHUTDOWN_REASON = "router shutdown"
 _GATE_CONFIG_REFRESH_SECONDS = 1.0
 # A pause can end the relays already in flight instead of waiting for the
 # longest turn to finish. The cut is a property of a pause, never a mode on its
@@ -663,6 +672,12 @@ class _GenerationGate:
         self._condition = asyncio.Condition()
         self._waiters: deque[tuple[object, float]] = deque()
         self._in_flight = 0
+        # Set by the shutdown signal, which arrives on the process's main thread
+        # and outside the event loop. The flag is therefore the state, and the
+        # wake is scheduled onto the loop rather than performed from the signal
+        # handler.
+        self._shutdown_requested = False
+        self._loop: asyncio.AbstractEventLoop | None = None
         # The admitted requests the worker-slot figures are computed from,
         # recorded here because acquire/release is the one place that brackets a
         # request's occupancy of the lane exactly.
@@ -702,6 +717,40 @@ class _GenerationGate:
     @property
     def waiting(self) -> int:
         return len(self._waiters)
+
+    @property
+    def shutdown_requested(self) -> bool:
+        return self._shutdown_requested
+
+    def initiate_shutdown(self) -> None:
+        """Stop admitting and wake every waiter, from the shutdown signal.
+
+        Called before uvicorn is allowed to begin its own shutdown, so the
+        requests the gate is holding are answered here rather than cancelled
+        with the connections. The signal handler runs outside the event loop,
+        so the wake is scheduled onto it: setting the flag is the state change,
+        and the condition notification only shortens the wait to the next
+        admission attempt. A gate that has never been acquired from has no loop
+        and needs no wake, because nothing is waiting on it.
+        """
+        self._shutdown_requested = True
+        loop = self._loop
+        if loop is None or loop.is_closed():
+            return
+        loop.call_soon_threadsafe(
+            lambda: asyncio.ensure_future(self._wake_waiters())
+        )
+
+    async def _wake_waiters(self) -> None:
+        async with self._condition:
+            self._condition.notify_all()
+
+    def _shutdown_admission(self, gate_wait_s: float) -> _Admission:
+        return _Admission(
+            "shutdown",
+            retry_after_seconds=GENERATION_RETRY_AFTER_SECONDS,
+            gate_wait_s=max(0.0, gate_wait_s),
+        )
 
     def _queue_snapshot(self) -> tuple[dict[str, object], _GateSettings, str]:
         """Return the queue's demand signal, its settings and its verdict."""
@@ -1370,6 +1419,13 @@ class _GenerationGate:
         holding the lock across that would stall the whole queue.
         """
         arrived_at = time.monotonic()
+        self._loop = asyncio.get_running_loop()
+        # A shutdown outranks every other outcome, including the disabled-width
+        # bypass: a gate whose width is disabled admits everybody, so letting
+        # one through after the signal would relay a request into a process
+        # that is already going away.
+        if self._shutdown_requested:
+            return self._shutdown_admission(time.monotonic() - arrived_at)
         initial = self.settings()
         if initial.width == 0 and not initial.paused:
             return _Admission("bypass")
@@ -1385,6 +1441,10 @@ class _GenerationGate:
             while True:
                 at_head = False
                 async with self._condition:
+                    if self._shutdown_requested:
+                        return self._shutdown_admission(
+                            time.monotonic() - arrived_at
+                        )
                     if disconnect_task.done():
                         return _Admission(
                             "disconnected",
@@ -1431,6 +1491,10 @@ class _GenerationGate:
                     # nothing, and a resolution talks to the engines.
                     if await ready():
                         async with self._condition:
+                            if self._shutdown_requested:
+                                return self._shutdown_admission(
+                                    time.monotonic() - arrived_at
+                                )
                             if (
                                 self._waiters
                                 and self._waiters[0][0] is token
@@ -1967,7 +2031,7 @@ class RouterApp:
                 gate_wait_s=admission.gate_wait_s,
             )
             return
-        if admission.outcome == "timed-out":
+        if admission.outcome in ("timed-out", "shutdown"):
             await self._overloaded_error(
                 scope,
                 receive,
@@ -1976,6 +2040,14 @@ class RouterApp:
                 began=began,
                 retry_after_seconds=admission.retry_after_seconds,
                 gate_wait_s=admission.gate_wait_s,
+                message=(
+                    "router is shutting down; retry the request"
+                    if admission.outcome == "shutdown"
+                    else "router generation queue wait limit exceeded"
+                ),
+                reason=(
+                    SHUTDOWN_REASON if admission.outcome == "shutdown" else None
+                ),
             )
             return
         if not resolved:
@@ -2012,6 +2084,15 @@ class RouterApp:
         finally:
             if admission.outcome == "acquired":
                 await self._generation_gate.release(admission.busy)
+
+    def initiate_shutdown(self) -> None:
+        """Answer every request the gate is holding, before uvicorn closes.
+
+        Idempotent and safe from a signal handler, because that is where it is
+        called from: the handler runs on the main thread while uvicorn's own
+        shutdown signal handler runs immediately after it.
+        """
+        self._generation_gate.initiate_shutdown()
 
     async def _lifespan(self, receive: Receive, send: Send) -> None:
         while True:
@@ -2451,6 +2532,9 @@ class RouterApp:
         # success. The outcome is only rewritten by the two paths that can tell
         # better: a 2xx relay, and a caller that left mid-relay.
         status = STATUS_FAILED
+        # Set only by the paths that can name why a relay ended early. None
+        # means the row's own status already says everything observable.
+        reason: str | None = None
         disconnected = disconnect_task or asyncio.create_task(
             self._wait_for_disconnect(receive)
         )
@@ -2574,13 +2658,21 @@ class RouterApp:
             # caller's answer is incomplete, which is exactly what the row
             # should say.
             status = STATUS_ABORTED
+            # A relay the process cancels at shutdown is a cut, and naming it
+            # here is what distinguishes it from a caller that left: both
+            # record aborted, and only one of them is the router's doing.
+            reason = (
+                "router shutdown cut the relay"
+                if self._generation_gate.shutdown_requested
+                else None
+            )
             raise
         finally:
-            disconnected.cancel()
-            await asyncio.gather(disconnected, return_exceptions=True)
-            if cut_task is not None:
-                cut_task.cancel()
-                await asyncio.gather(cut_task, return_exceptions=True)
+            # The row is written before any await. A relay cancelled from
+            # outside -- which is exactly the shutdown cut this release
+            # exists to record -- has its cancellation re-raised at the first
+            # await in this block, so a record placed after the cleanup would
+            # be skipped in the one case nothing else describes.
             self._record_receipt(
                 accounting=accounting,
                 status=status,
@@ -2591,7 +2683,15 @@ class RouterApp:
                 started_at=started_at,
                 began=began,
                 gate_wait_s=gate_wait_s,
+                reason=reason,
             )
+            disconnected.cancel()
+            with suppress(asyncio.CancelledError):
+                await asyncio.gather(disconnected, return_exceptions=True)
+            if cut_task is not None:
+                cut_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await asyncio.gather(cut_task, return_exceptions=True)
 
     def _receipt_sink(self) -> RequestReceiptSink | None:
         """The process's receipt sink, built on first use.
@@ -2631,6 +2731,7 @@ class RouterApp:
         started_at: datetime,
         began: float,
         gate_wait_s: float = 0.0,
+        reason: str | None = None,
     ) -> None:
         """Append the row for one request, whatever its outcome and whoever answered it.
 
@@ -2676,6 +2777,7 @@ class RouterApp:
                 account=account,
                 project=project,
                 timestamp=started_at,
+                reason=reason,
             )
         except (OSError, TypeError, ValueError) as error:
             logger.warning(
@@ -2694,6 +2796,7 @@ class RouterApp:
         http_status: int | None,
         caller_gone: bool,
         gate_wait_s: float = 0.0,
+        reason: str | None = None,
     ) -> None:
         """Record a request this process answered without relaying it.
 
@@ -2742,6 +2845,7 @@ class RouterApp:
             started_at=datetime.now(UTC),
             began=began,
             gate_wait_s=gate_wait_s,
+            reason=reason,
         )
 
     @staticmethod
@@ -2955,14 +3059,23 @@ class RouterApp:
         began: float,
         retry_after_seconds: int,
         gate_wait_s: float = 0.0,
+        message: str = "router generation queue wait limit exceeded",
+        reason: str | None = None,
     ) -> None:
-        """Return the native overload shape after a generation wait expires."""
+        """Return the native overload shape after a generation wait expires.
+
+        ``reason`` distinguishes the two events that produce this same 529: a
+        wait that outlasted its bound, and the gate answering a held request
+        because the router is shutting down. Both are retried by a client that
+        honours ``Retry-After``; the receipt keeps them apart so a reader can
+        count what a restart cost rather than infer it from a status alone.
+        """
         body = json.dumps(
             {
                 "type": "error",
                 "error": {
                     "type": "overloaded_error",
-                    "message": "router generation queue wait limit exceeded",
+                    "message": message,
                 },
             },
             separators=(",", ":"),
@@ -2985,6 +3098,7 @@ class RouterApp:
             http_status=529,
             caller_gone=caller_gone,
             gate_wait_s=gate_wait_s,
+            reason=reason,
         )
 
 
@@ -3018,6 +3132,7 @@ def serve_router(
     request_receipts_path: Path | None = None,
     receipt_max_rows_per_s: float | None = None,
     receipt_window_s: float | None = None,
+    timeout_graceful_shutdown: float = DEFAULT_GRACEFUL_SHUTDOWN_SECONDS,
 ) -> None:
     """Run the router ASGI application with the serving runtime."""
     import uvicorn
@@ -3036,15 +3151,36 @@ def serve_router(
     logger.setLevel(logging.INFO)
     logger.propagate = False
 
-    uvicorn.run(
-        create_router_app(
-            resolver,
-            lane_document=lane_document,
-            gate_file=gate_file,
-            request_receipts_path=request_receipts_path,
-            receipt_max_rows_per_s=receipt_max_rows_per_s,
-            receipt_window_s=receipt_window_s,
-        ),
-        host=host,
-        port=port,
+    app = create_router_app(
+        resolver,
+        lane_document=lane_document,
+        gate_file=gate_file,
+        request_receipts_path=request_receipts_path,
+        receipt_max_rows_per_s=receipt_max_rows_per_s,
+        receipt_window_s=receipt_window_s,
     )
+    server = uvicorn.Server(
+        uvicorn.Config(
+            app,
+            host=host,
+            port=port,
+            # The grace that bounds a relay already streaming when the signal
+            # arrives. It is named here rather than left unset because unset
+            # means "wait forever", so a shutdown could never complete while a
+            # long generation held its connection.
+            timeout_graceful_shutdown=timeout_graceful_shutdown,
+        )
+    )
+    # uvicorn installs its own handler for SIGTERM and SIGINT, so the release
+    # is chained in front of it rather than installed beside it: uvicorn's
+    # handler is what begins closing connections, and the gate must have
+    # answered its waiters before that happens. Wrapping the bound method on
+    # the server instance works because uvicorn installs `self.handle_exit`.
+    uvicorn_handle_exit = server.handle_exit
+
+    def handle_exit(sig: int, frame: object = None) -> None:
+        app.initiate_shutdown()
+        uvicorn_handle_exit(sig, frame)
+
+    server.handle_exit = handle_exit
+    server.run()

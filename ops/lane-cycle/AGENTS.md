@@ -138,13 +138,22 @@ may run:
 
 | | Engine relaunch | Router restart |
 |---|---|---|
-| What it drops | Nothing. In-flight requests finish; later arrivals wait in the router's FIFO | Every request the router is holding — the FIFO lives in the router's memory, so it dies with the process |
-| What the client sees if a request is caught | A wait, then normal service on resume | A dropped connection, not the 529-with-`Retry-After` path that ends in a clean retry |
-| When it may run | Any time admission can be paused; the engine reaches the quiet state of step 3 first | Inside a pause, **after** step 3 — the engine must already be quiet, because a held request at the swap instant is lost |
+| What it drops | Nothing. In-flight requests finish; later arrivals wait in the router's FIFO | Nothing the router is holding. On SIGTERM or SIGINT the router stops admitting and answers every request waiting at the gate with `529` and `Retry-After` before uvicorn's own shutdown begins; a relay already streaming is given the graceful timeout to finish and is recorded as cut if it outlasts it |
+| What the client sees if a request is caught | A wait, then normal service on resume | A `529` with a five-second `Retry-After` — the same retryable refusal the wait bound produces — or, for a relay already answering, its completed response |
+| When it may run | Any time admission can be paused; the engine reaches the quiet state of step 3 first | Inside a pause, after step 3. The release covers what the router itself holds; the drain still runs first because a request that has not yet reached the router has no gate to be answered from |
 | Does the pause survive it? | Unaffected — an engine relaunch does not touch the gate file | Yes: `paused` is persisted in the gate file, and the new router reads it at start |
-| Time budget | The 40-minute pause ceiling above | The router's own startup, which must finish inside the client's retry budget — measure it before relying on it, since a caught request does not get the retry schedule |
+| Time budget | The 40-minute pause ceiling above | The router's own startup, measured **1.3 s warm and 4.3 s cold** on 2026-10-27 on `98dci4-clu-2068` (8 cores), from process start to the first answered `/v1/models` against a fake upstream on a free port — two samples, one cold at 4.34 s and one warm at 1.30 s |
+
+The graceful timeout is `timeout_graceful_shutdown`, set by the launch and
+defaulting to 30 s: it bounds how long a relay already streaming may take
+before the process cancels it. The 529 answers are not bounded by it — they are
+written at the signal, which is why the release is installed on the signal
+rather than in the lifespan handler: uvicorn reaches the lifespan only after
+that wait, and with the timeout unset it would wait forever.
 
 A router restart that deploys code therefore sequences as: announce, pause,
 drain to a genuine zero, restart the router, confirm the pause survived and
 the new router serves, then resume. The two never run concurrently: one of
-them must leave the lane quiet for the other.
+them must leave the lane quiet for the other. If a request is caught anyway,
+it is answered rather than lost, and the `reason` on its receipt row
+(`router shutdown`) counts it.

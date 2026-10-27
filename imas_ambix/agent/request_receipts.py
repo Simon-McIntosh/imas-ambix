@@ -203,6 +203,12 @@ class RequestReceipt:
     account: str | None
     project: str | None
     status: str
+    # Why a row ended the way it did, when the status alone cannot say. The
+    # shutdown paths set it -- a gate expiry answered by the release and a relay
+    # the process cut -- because both record the same status as an ordinary
+    # refusal and a caller that left, and a reader counting what a restart cost
+    # needs to tell them apart. None for every row whose status is complete.
+    reason: str | None
     sample_fraction: float
     sampling_rate_per_s: float
 
@@ -822,6 +828,7 @@ class RequestReceiptSink:
         coordinator_session: str | None = None,
         account: str | None = None,
         project: str | None = None,
+        reason: str | None = None,
         timestamp: datetime | None = None,
     ) -> RequestReceipt | None:
         """Append one row, or drop it. Returns the row written, or None."""
@@ -848,6 +855,7 @@ class RequestReceiptSink:
             account=account,
             project=project,
             status=status,
+            reason=reason,
             sample_fraction=round(fraction, 6),
             sampling_rate_per_s=round(rate, 3),
         )
