@@ -1,0 +1,59 @@
+{
+  "added_failure_count": 0,
+  "added_failure_derivation": "The reviewed run records after_suite ('93 passed, EXIT=0, ruff check imas_ambix tests EXIT=0') and logs/gate.log confirms 93 passed with a bare EXIT=0 line at rev 95a23e9e, while baseline_suite is recorded as 'not recorded before the change'. An after-set with zero failures admits no added failure whatever the baseline held, so added_failure_count is 0 and added_failure_ids is empty; the baseline field is absent rather than measured, which is recorded here so the zero is not read as a measured baseline comparison.",
+  "added_failure_ids": [],
+  "completed_at": "2026-10-27T17:02:09.847Z",
+  "dispatched_at": "2026-10-27T16:50:36Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": 2401,
+      "severity": "non-blocking",
+      "summary": "In the readiness predicate _owner_ready, _select_engine's second return value is discarded (`selected, _ = ...`), so a request that arrived before its engine was in the catalog and was admitted when the engine appeared records routing null on its row even though _select_engine has just created or followed a pin for its key. The goal states every request row records pinned, placed or failed-over; this path is the one place the column is silently empty on an admitted generation request. It also skips the failover bound, because the bound is armed only when routing == 'pinned' at the main selection site (router.py:2440), so such a request waits the gate's full 300 s at its pinned engine rather than the 30 s bound."
+    },
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": 2463,
+      "severity": "non-blocking",
+      "summary": "The failover arm re-acquires at the alternate engine and then reports only the second admission's gate_wait_s, so the time a pinned request already spent queueing at its own engine (up to the 30 s bound) is dropped from the row: a request that waited 30 s and then failed over reports a near-zero gate wait, and the engine it actually waited at is not named in gate_engine. The re-acquisition at router.py:2488 has the same shape for the unbound-owner path, so this follows an existing pattern in the file rather than introducing a new one, but the failover path is new and its wait is now the one the pin exists to bound."
+    },
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": 2234,
+      "severity": "non-blocking",
+      "summary": "When every candidate engine's gate is paused, _rank_placement falls back to `pool = unpaused or live` (router.py:2173), so it can return the engine the key is already pinned to. _select_engine then returns that same engine with the string 'failed-over', and rewrites the pin to it: the row claims a move that did not happen, and a reader summing failed-over rows counts a failover that never occurred. The plan's rule is that placement skips engines whose gate is paused; the all-paused fallback is a deliberate departure but its label should be 'pinned' when the chosen engine is the pinned one."
+    },
+    {
+      "file": "tests/test_agent_router_session_affinity.py",
+      "line": 412,
+      "severity": "non-blocking",
+      "summary": "Two departures the goal names have no test: loss of the engine (the pin's engine leaving the catalog, router.py:2205-2210, reached only when by_engine has no entry for the pinned id -- untested, though the pause arm covers the same code path's alternate branch), and the session-key fallback chain. Every test passes x-reckon-session, so _session_key's run-id and caller-host branches (router.py:2077-2083) are unexercised; a regression there, such as returning the host key always, would leave the suite green while sessions scattered with no pin at all."
+    }
+  ],
+  "item_verdicts": {
+    "call_sites": "imas_ambix/agent/cli.py:1763 -> _resolve_router_upstreams (lines 1630, 1655) builds the Upstream pool fed to RouterApp; imas_ambix/agent/router.py:2333-2334 RouterApp.__call__ selects the engine and passes routing to _relay; imas_ambix/agent/router.py:3172 RouterApp._record calls RequestReceiptSink.record, whose serialiser is asdict in request_receipts.py:229 and so emits the new column without a schema list to update.",
+    "diff": "Read both commits against base 704ae170: 0b494afa adds _EnginePin, _session_key, _expire_pins, _pin_counts, _candidate_engines, _rank_placement, _select_engine, the failover_wait_seconds control field, max_wait_seconds on _GenerationGate.acquire, and the routing receipt column; 95a23e9e adds only the evidence fragment. The range is 963 insertions / 37 deletions over six files.",
+    "done_when": "Read the done-when against the run's logs: logs/gate.log records exactly the five named files, 93 passed, EXIT=0 at rev 95a23e9e with the tree and command on its header, ruff.log records 'All checks passed!' EXIT=0, and each named figure is asserted by a test that reads the engine that actually answered (fifty-request single-engine, 12:4 split of sixteen, pause to failed-over, idle expiry, default 30 s bound read from the control file, zero-bound failover with a paired unset-bound control at tests/test_agent_router_session_affinity.py:412).",
+    "goal": "Read the node goal (pin each session key to one engine in a session-key priority chain, place a new key on the current engine with the fewest pins per unit of gate width, yield the pin only on pause, engine loss, or a queue wait past a bound, and record pinned/placed/failed-over per row) against imas_ambix/agent/router.py:2069-2240 (_session_key, _expire_pins, _pin_counts, _candidate_engines, _rank_placement, _select_engine) and router.py:2333-2465; all four rules are implemented, with one gap: the late-discovery path at router.py:2401 discards the routing value it computed, so an admitted request that waited for its engine records null.",
+    "manifest": "Read the reviewed run's manifest.md: status complete, two commits (0b494afa code, 95a23e9e evidence), the gate and ruff commands with their log paths, a negative-control log with its declared mutation, an after_suite result of 93 passed, and a baseline recorded honestly as 'not recorded before the change' rather than fabricated.",
+    "write_paths": "Read the manifest's seven declared paths against `git diff --stat 704ae170..95a23e9e`: six files changed -- imas_ambix/agent/router.py, imas_ambix/agent/request_receipts.py, tests/test_agent_router_session_affinity.py, tests/test_agent_router_topology_preference.py, tests/test_request_receipts.py, docs/evidence/fragments/serving-across-servers/one-model-on-two-engines.html -- and every one is inside the declared set; the unused declared path docs/figures/serving-across-servers/one-model-on-two-engines carries no change, as the done-when naming no artifact requires."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: read the goal against imas_ambix/agent/router.py:2069-2240 and router.py:2333-2465; _session_key (x-reckon-session, else run id, else caller host), the per-width placement with Fraction arithmetic, the three departures and the routing column are all present, with one gap at router.py:2401 where the late-discovery path discards the routing value.\nVERDICT done_when: read the done-when and logs/gate.log (93 passed, EXIT=0, rev 95a23e9e, five named files) and logs/ruff.log (All checks passed, EXIT=0); every figure the done-when names is asserted by a test that reads the engine that answered rather than the value it was handed, and the unset-bound arm at tests/test_agent_router_session_affinity.py:412 is the paired control the negative control needs.\nVERDICT write_paths: read the seven declared paths against git diff --stat 704ae170..95a23e9e; six files changed, all inside the declared set, and the declared figure directory is unused.\nVERDICT manifest: read the reviewed run's manifest.md; it names both commits, the gate and ruff commands, four log paths, the negative-control mutation and an after_suite of 93 passed, and it records no baseline arm rather than inventing one.\nVERDICT diff: read 0b494afa and 95a23e9e individually against base 704ae170; the code commit carries the pin, placement, failover and receipt column with about twenty lines of unrelated line-joining in regions it does not otherwise touch, and the evidence commit carries only the fragment.\nCALL_SITES: imas_ambix/agent/cli.py:1763, imas_ambix/agent/router.py:2333, imas_ambix/agent/router.py:3172, imas_ambix/agent/request_receipts.py:229\nSCORE goal_fidelity: 17\nJUSTIFICATION goal_fidelity: router.py:2205-2239 pins, places and fails over exactly as the goal states, but router.py:2401 drops the routing value on the late-discovery path, so that branch's rows record no reason.\nSCORE evidence: 18\nJUSTIFICATION evidence: logs/gate.log records 93 passed EXIT=0 at rev 95a23e9e with the tree and command on its header, and each done-when figure is asserted from the serving engine's own answer in tests/test_agent_router_session_affinity.py:214-460.\nSCORE scope_discipline: 16\nJUSTIFICATION scope_discipline: every changed file is inside the declared write paths, but router.py:780, 1541, 2485, 2512, 3252 and 3369 carry line-joining reformatting of code the change does not otherwise touch, which the manifest discloses.\nSCORE durability: 16\nJUSTIFICATION durability: the zero-bound failover assertion at tests/test_agent_router_session_affinity.py:403 was shown red by the declared negative control (logs/negative-control.log, 1 failed EXIT=1) while its unset-bound pair stayed green, but the engine-loss departure and the run-id/host key fallbacks the goal names have no test.\nSCORE fit: 17\nJUSTIFICATION fit: _EnginePin, _candidate_engines and _rank_placement follow the module's existing dataclass and _preferred_owner idiom at router.py:1785 and carry no plan or ticket identifiers, though the 'pinned'/'placed'/'failed-over' vocabulary is repeated as bare strings in five places.\nSCORE reuse: 18\nJUSTIFICATION reuse: the change extends _preferred_owner (router.py:2188, 2196), engine_id_for_origin and _request_identity rather than forking them, and the only near-duplicate is _origin_host (router.py:1889) re-splitting a URL that engine_id_for_origin already parses for a different purpose; a search of imas_ambix for an existing affinity or sticky-routing owner found none.\nFINDING imas_ambix/agent/router.py:2401 non-blocking: _owner_ready discards _select_engine's routing, so a request admitted when its engine appears records routing null and skips the failover bound armed at router.py:2440.\nFINDING imas_ambix/agent/router.py:2463 non-blocking: the failover arm reports only the alternate admission's gate_wait_s, dropping up to the 30 s bound the request already waited at its pinned engine.\nFINDING imas_ambix/agent/router.py:2234 non-blocking: with every gate paused the placement fallback can return the pinned engine itself and label the row 'failed-over', a move that did not happen.\nFINDING tests/test_agent_router_session_affinity.py:412 non-blocking: no test exercises the engine-loss departure or the run-id and caller-host branches of _session_key, both named in the goal, so a regression there would leave the suite green.",
+  "review_run_id": "r-20261027T162112655513-review-of-one-model-on-two-engines-95a23e9ed346",
+  "reviewed_base_sha": "704ae170a05ae7172574098fc514973b1d4a6dee",
+  "reviewed_head_sha": "95a23e9ed3462d6561b94cad4f8b6aba4d307930",
+  "reviewed_run_id": "r-20261027T091118163151-one-model-on-two-engines",
+  "scores": {
+    "durability": 16,
+    "evidence": 18,
+    "fit": 17,
+    "goal_fidelity": 17,
+    "reuse": 18,
+    "scope_discipline": 16
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T17:04:00.301504+00:00",
+  "total": 102
+}

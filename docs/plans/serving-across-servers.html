@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="95">
+<meta name="plan-version" content="96">
 <meta name="plan-modified" content="2026-10-27">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;,&quot;serving-across-servers#s10&quot;],&quot;s15&quot;:[&quot;serving-across-servers#s16&quot;,&quot;serving-across-servers#s5&quot;],&quot;s7&quot;:[&quot;serving-across-servers#s5&quot;],&quot;s4&quot;:[&quot;serving-across-servers#s16&quot;],&quot;s5&quot;:[&quot;serving-across-servers#s4&quot;,&quot;serving-across-servers#s9&quot;],&quot;s6&quot;:[&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -915,6 +915,14 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 </div>
 <div class="r-comment" data-section="s15" data-id="c-run-r-20261027T160701203743-review-of-router-placed-on-rigel-466fd4bd5bac" data-who="reckon-build" data-when="2026-10-27T17:00:43.168Z">
     <div class="r-comment-body"><p>Independent review of router-placed-on-rigel (704ae170..466fd4bd) stored a parsed record scoring all six dimensions (goal_fidelity 18, evidence 13, scope_discipline 19, durability 15, fit 18, reuse 20) with one blocking finding: the change reddens tests/test_agent_gate_control_path.py::test_generated_script_without_the_option_unsets_the_gate_path (measured 1 failed, 17 passed at 466fd4bd).</p></div>
+</div>
+<div class="r-comment" data-section="s7" data-id="c-run-r-20261027T162112655513-review-of-one-model-on-two-engines-95a23e9ed346" data-who="reckon-build" data-when="2026-10-27T17:02:09.847Z">
+    <div class="r-comment-body"><p>Independent review of one-model-on-two-engines at head 95a23e9e (base 704ae170):
+scores goal_fidelity 17, evidence 18, scope_discipline 16, durability 16, fit 17,
+reuse 18, added failures 0; four non-blocking findings (routing dropped on the
+late-discovery path, gate wait lost across a failover, an all-paused pool can
+label an unmoved request failed-over, and no test for engine loss or the
+run-id/host key fallbacks).</p></div>
 </div>
 </section>
 </main>
