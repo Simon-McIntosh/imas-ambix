@@ -1931,15 +1931,23 @@ class RouterApp:
         # to a peer's narrower width would run below the width it can sustain.
         # Each gate owns its queue, width, width controller and admission
         # ledger, and each is fed only the reading taken from its own engine.
-        # The gate named here is the one a request waits at before its engine
-        # resolves, and the first engine to be gated takes it over, so a
-        # one-engine router queues exactly where it always did.
+        # The first engine to be gated takes this gate over, so a one-engine
+        # router queues exactly where it always did.
         self._gate_path = resolve_gate_path(gate_file, lane_document)
         self._generation_gate = _GenerationGate(
             self._gate_path,
             scrape_interval=lane_interval,
         )
         self._engine_gates: dict[str, _GenerationGate] = {}
+        # A request whose model is known but whose engine has not appeared yet
+        # waits here, at a gate that belongs to no engine. Queueing it at an
+        # engine's gate would hold it to that engine's width and name the wrong
+        # engine in a refusal, so it waits only until its owner resolves and is
+        # then handed to the gate of the engine it is bound for.
+        self._owner_wait_gate = _GenerationGate(
+            self._gate_path,
+            scrape_interval=lane_interval,
+        )
         # Model ids this process has resolved an owner for, so a request whose
         # known model has no reachable engine right now waits instead of being
         # refused as if the id were meaningless. The profile set is deployment
@@ -1966,8 +1974,8 @@ class RouterApp:
         gated takes over the gate this process has always had, which is what
         keeps a one-engine router queueing exactly where it did; every further
         engine gets a gate of its own. An engine that has not resolved yet has
-        no identity to key on, so it waits at that same default gate until its
-        owner appears -- the condition the single gate already expressed.
+        no identity to key on and so has no gate here: such a request waits at
+        the owner-wait gate until one does.
         """
         if not engine_id:
             return self._generation_gate
@@ -2138,7 +2146,7 @@ class RouterApp:
         gate = (
             self.gate_for(engine_id_for_origin(owner[0].base_url))
             if owner is not None
-            else self._generation_gate
+            else self._owner_wait_gate
         )
         if path in self._GENERATION_PATHS:
             run_id, session, _, _ = self._request_identity(scope)
@@ -2148,6 +2156,33 @@ class RouterApp:
                 session=session,
                 ready=None if owner is not None else _owner_ready,
             )
+            # A request held before its engine resolved waited at the default
+            # gate, which the first engine to be gated has already taken over.
+            # That width belongs to a different engine, so the request waits
+            # there only until its owner appears and is then handed to the gate
+            # of the engine it is actually bound for -- otherwise a peer's
+            # narrower width would delay it and the refusal would name the
+            # wrong engine.
+            bound_engine = (
+                engine_id_for_origin(resolved[0][0].base_url) if resolved else None
+            )
+            while (
+                admission.outcome == "acquired"
+                and bound_engine
+                and gate.engine_id != bound_engine
+            ):
+                disconnect_task = admission.disconnect_task
+                await gate.release(admission.busy)
+                if disconnect_task is not None:
+                    # The departure watch belongs to the admission that is
+                    # ending; leaving it running would race the new admission's
+                    # watch for the same receive channel.
+                    disconnect_task.cancel()
+                    await asyncio.gather(disconnect_task, return_exceptions=True)
+                gate = self.gate_for(bound_engine)
+                admission = await gate.acquire(
+                    receive, run_id=run_id, session=session
+                )
         else:
             admission = _Admission("bypass")
         if admission.outcome == "disconnected":
@@ -2226,6 +2261,7 @@ class RouterApp:
         for an admission that can no longer come.
         """
         self._generation_gate.initiate_shutdown()
+        self._owner_wait_gate.initiate_shutdown()
         for gate in self._engine_gates.values():
             gate.initiate_shutdown()
 
