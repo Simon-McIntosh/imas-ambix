@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="83">
+<meta name="plan-version" content="84">
 <meta name="plan-modified" content="2026-10-27">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;,&quot;serving-across-servers#s10&quot;],&quot;s15&quot;:[&quot;serving-across-servers#s16&quot;,&quot;serving-across-servers#s5&quot;],&quot;s7&quot;:[&quot;serving-across-servers#s5&quot;],&quot;s4&quot;:[&quot;serving-across-servers#s16&quot;],&quot;s5&quot;:[&quot;serving-across-servers#s4&quot;,&quot;serving-across-servers#s9&quot;],&quot;s6&quot;:[&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -878,7 +878,10 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
     <div class="r-comment-body"><p>review of gpu-watch-shows-the-machines at d584e01c against base 5f645391; 1 blocking finding (view.py:182 declared power cap compared in watts against a kilowatt figure, reproduced), 3 non-blocking (view.py:324 endpoint match drops the port, tests/test_gpu_watch.py:192 assertion coupled to the NO_JOB constant, reviewed manifest base sha does not resolve); scores goal_fidelity 16, evidence 16, scope_discipline 18, durability 12, fit 15, reuse 17.</p></div>
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20261027T140225444789-review-of-gpu-watch-shows-the-machines-ab1255c531bb" data-who="reckon-build" data-when="2026-10-27T14:20:57.526Z">
-    <div class="r-comment-body"><p>review of gpu-watch-shows-the-machines at ab1255c5 against base d584e01c — the round-2 repair is correct and the declared-cap unit defect is gone: goal_fidelity 19, evidence 17, scope_discipline 20, durability 17, fit 18, reuse 20, no blocking findings, two non-blocking (the render wiring at view.py:420 is untested, and the fragment&#x27;s before/after reproductions use different readings).</p></div>
+    <div class="r-comment-body"><p>review of gpu-watch-shows-the-machines at ab1255c5 against base d584e01c — the round-2 repair is correct and the declared-cap unit defect is gone: goal_fidelity 19, evidence 17, scope_discipline 20, durability 17, fit 18, reuse 20, no blocking findings, two non-blocking (the render wiring at view.py:420 is untested, and the fragment's before/after reproductions use different readings).</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-run-r-20261027T091226504227-gpu-watch-shows-the-machines" data-who="reckon-build" data-when="2026-10-27T14:01:09Z">
+    <div class="r-comment-body"><p>gpu-watch&#x27;s renderer moved into imas_ambix/agent/gpu_watch behind NodeProbe.stream; on 98dci4-gpu-0003 it draws the same 4 card rows, host row and 4 job rows as the dotfiles script 11 s later, a two-server document renders two stacked blocks, and a declared server with no running job prints &quot;no job to sample&quot; instead of an empty card table. Round 2 adds: the declared power cap is read as watts and shown as kilowatts, so a 420 W draw against a declared 700 W cap renders &quot;0.42 kW / 0.70 kW cap  60% of cap&quot;.</p></div>
 </div>
 </section>
 </main>
