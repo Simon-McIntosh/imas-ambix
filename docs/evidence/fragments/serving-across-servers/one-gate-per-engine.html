@@ -21,18 +21,22 @@
         resolved from the model id before it queues, and the engine's identity
         is the registry's own spelling — host short name and port, via
         <code>engine_id_for_origin</code>. A request whose engine is not up yet
-        has no identity to key on, so it waits at the process's original gate
-        until an owner appears; the first engine to be gated takes that same
-        gate over, which is what keeps a one-engine router queueing exactly
-        where it did.</li>
+        has no identity to key on, so it waits at a gate that belongs to no
+        engine; the first engine to be gated takes over the process's original
+        gate instead, which is what keeps a one-engine router queueing exactly
+        where it did. Once an engine advertises the model, the request releases
+        that engine-less wait and is admitted at the gate of the engine it is
+        bound for, so it is never held to a peer's width nor refused naming a
+        peer.</li>
         <li><strong>The control file.</strong> The flat keys remain the defaults
         for every engine. An <code>engines</code> map keyed by engine id
-        overrides width, wait and pause for the engine it names. A top-level
+        overrides width, wait and pause for the map's own engine. A top-level
         <code>paused</code> is applied after the engine's entry and so still
         pauses every engine, which is what keeps the lane-cycle runbook working
-        as written. A malformed <code>engines</code> map is an error rather than
-        a quiet fallback, so a typo cannot leave every engine on the flat
-        defaults while an operator believes one was retuned.</li>
+        as written. A malformed <code>engines</code> map, or an entry that is not
+        an object, is refused as a whole: the read warns and the gate keeps the
+        flat defaults, so a typo never yields a partly applied map the operator
+        would mistake for a completed retune.</li>
         <li><strong>Cut, shutdown and refusals follow the gate.</strong>
         <code>_relay</code> now reads its cut form and shutdown flag from the
         gate the request was admitted at, and every gate is stopped on the
@@ -51,12 +55,19 @@
       <code>in_flight=2, waiting=4</code> while the wide gate reaches
       <code>in_flight=4, waiting=2</code>, so the wide engine runs at its own
       width while the narrow one is saturated — impossible under one shared
-      queue at either width. An automatic-width reading fed to the first engine
+      queue at either width. The arrivals are stamped as well as counted: the wide
+      engine's four land as one burst while only two of the narrow engine's
+      six have been admitted, so the narrow queue held none of them back at
+      any point in their wait. A request whose engine has not appeared yet
+      reaches a width-4 engine that appears later while a width-1 engine is
+      full and stays full, rather than timing out behind that engine's queue.
+      An automatic-width reading fed to the first engine
       moves its width 16 → 36 and leaves the peer at 16. A gate expiry at a
       named engine writes one row with <code>upstream="(router)"</code>,
       <code>status="failed"</code> and that engine id in its reason. The five
       pre-existing gate, admission, width-controller, worker-slot and router
-      tests pass unchanged (71 passed).</p>
+      tests pass unchanged (84 tests across the gate, admission,
+      width-controller, worker-slot, router and absent-upstream files).</p>
       <p><strong>Negative control.</strong> Applying an engine's own
       <code>paused</code> entry to every gate makes
       <code>test_a_pause_in_the_engines_map_holds_only_its_own_engine</code>
