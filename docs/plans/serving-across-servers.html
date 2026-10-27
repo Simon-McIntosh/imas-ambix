@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="72">
+<meta name="plan-version" content="73">
 <meta name="plan-modified" content="2026-10-27">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;,&quot;serving-across-servers#s10&quot;],&quot;s15&quot;:[&quot;serving-across-servers#s16&quot;,&quot;serving-across-servers#s5&quot;],&quot;s7&quot;:[&quot;serving-across-servers#s5&quot;],&quot;s4&quot;:[&quot;serving-across-servers#s16&quot;],&quot;s5&quot;:[&quot;serving-across-servers#s4&quot;,&quot;serving-across-servers#s9&quot;],&quot;s6&quot;:[&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -846,6 +846,9 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261027T104708741346-review-of-one-gate-per-engine-7dc2825aa3d8" data-who="reckon-build" data-when="2026-10-27T11:02:38.242Z">
     <div class="r-comment-body"><p>Independent review of run r-20261027T090724077079-one-gate-per-engine at 7dc2825aa; the landed change delivers one _GenerationGate per engine with the flat control-file keys as defaults and an engines map per engine, the negative control reddens exactly the engines-map pause test, and the review records scores goal_fidelity 18, evidence 15, scope_discipline 20, durability 17, fit 18, reuse 20 with four non-blocking findings and no blocking defect.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20261027T090724077079-one-gate-per-engine" data-who="reckon-build" data-when="2026-10-27T11:25:13Z">
+    <div class="r-comment-body"><p>Each engine now has its own _GenerationGate with its own queue, width, width controller and admission ledger fed only by that engine&#x27;s reading; an engines map in the gate control file overrides width, wait and pause for the engine it names while a top-level paused still pauses every engine, a request whose engine has not appeared waits at a gate belonging to no engine and is then admitted at the gate of the engine that answers, and the gate is 84 passed with two-engine admissions at widths 2 and 4 stamped as separate bursts and an automatic-width reading moving one engine 16 to 36 while its peer stays at 16.</p></div>
 </div>
 </section>
 </main>
