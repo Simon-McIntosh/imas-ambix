@@ -1,0 +1,76 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/agent/registry.py:754 publish_endpoint_document",
+    "imas_ambix/agent/registry.py:517 build_endpoint_document",
+    "imas_ambix/agent/registry.py:569 build_endpoint_document dedup",
+    "imas_ambix/agent/cli.py:1327 _placement_of_running_serve"
+  ],
+  "completed_at": "2026-10-27T14:42:42.398Z",
+  "dispatched_at": "2026-10-27T14:32:22Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/registry.py",
+      "line": 80,
+      "severity": "non-blocking",
+      "text": "The added index key _host_name(server.host) is unreachable through either new test: the declared host there is the already-short 98dci4-gpu-0003, for which _short_host and _host_name return the same string, so deleting line 80 leaves both new tests green and the fully-qualified-declaration case unpinned."
+    },
+    {
+      "file": "imas_ambix/agent/registry.py",
+      "line": 52,
+      "severity": "non-blocking",
+      "text": "_host_name re-implements the domain cut already owned by scheduler_node_name at imas_ambix/agent/node_probe.py:648; node_probe imports only the standard library, so composing it would not create a cycle, and the repository now holds two owners of 'cut a node name at the first dot'."
+    },
+    {
+      "file": "tests/test_agent_site_servers.py",
+      "line": 345,
+      "severity": "non-blocking",
+      "text": "assert server['host'] == '98dci4-gpu-0003' compares the published document against the literal the test itself passed to SiteServerConfig, so it moves with its own input; the independent guards are the two assertions around it, and this one only reddens if the document starts taking the entry's host from the registration."
+    },
+    {
+      "file": "imas_ambix/agent/registry.py",
+      "line": 569,
+      "severity": "non-blocking",
+      "text": "Grouping now places a short-spelled and a fully-qualified-spelled registration of one port under the same server entry, but dedup at registry.py:569 still keys on endpoint.engine_id, which keeps the raw spelling, so the one server entry can show the same port twice as two engines and the docstring's 'a restarted job on the engine constant replaces its predecessor' does not hold across a spelling change."
+    }
+  ],
+  "item_verdicts": {
+    "diff": "Read commit by commit against b477e425: 814675eb adds registry._host_name and routes _server_index and _server_key through it with two new tests, fc023537 adds a 38-line landing fragment; 126 insertions, 7 deletions, nothing outside the goal.",
+    "done_when": "The done_when names both tests, the three gate suites and whole-tree ruff; gate-head.log records all three suites, '61 passed in 62.83s' and EXIT=0 at revision fc023537, ruff-head.log records EXIT=0, and both named tests exist in the landed tree.",
+    "goal": "The goal is that an engine whose registration names a host by its fully qualified name groups under the declared server for that host; registry.py:87-99 does that and tests/test_agent_site_servers.py:343-346 asserts one server entry named 98dci4-gpu-0003 whose engines are ['gpu-0003.iter.org:18810'].",
+    "manifest": "Read; it reports status complete, commits 814675eb and fc023537, the literal gate command with 61 passed and ruff exit 0, and a negative control summarised as one failing test id at EXIT=1, all corroborated by the three logs on disk.",
+    "write_paths": "The declared write paths were imas_ambix/agent/registry.py, tests/test_agent_serve_registry.py, tests/test_agent_site_servers.py, the fragment and the figures directory; the diff writes registry.py, tests/test_agent_site_servers.py and the fragment only."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_site_servers.py:343 reddens under the recorded mutation (negative-control.log: 'Left contains one more item: 98dci4-gpu-0003.iter.org', EXIT=1) and registry.py:80's added index key and the copy-through assertion at tests/test_agent_site_servers.py:345 are pinned by nothing.",
+    "evidence": "gate-head.log carries its own '# revision fc023537...' header, '61 passed in 62.83s (0:01:02)' and a bare EXIT=0 over the three done_when suites; ruff-head.log records 'All checks passed!' with EXIT=0; the reviewed manifest carries neither a baseline_suite nor an after_suite arm, so added_failure_count rests on the after arm alone.",
+    "fit": "registry.py:52 is a private helper with a docstring in the module's existing idiom, composed from _short_host at registry.py:35, and introduces no plan label, ticket reference or forbidden name.",
+    "goal_fidelity": "registry.py:87 _server_key now tests both the raw candidate and registry._host_name(candidate) against the declared-server index, so the fully qualified registration host resolves to the declared server and the new assertion at tests/test_agent_site_servers.py:343 publishes exactly one entry named 98dci4-gpu-0003 holding engine gpu-0003.iter.org:18810.",
+    "reuse": "registry.py:62 re-implements the first-dot cut that imas_ambix/agent/node_probe.py:648 scheduler_node_name already owns, while correctly extending the in-module cluster-strip owner _short_host at registry.py:35.",
+    "scope_discipline": "The diff from b477e425 to fc023537 touches only imas_ambix/agent/registry.py, tests/test_agent_site_servers.py and docs/evidence/fragments/serving-across-servers/one-host-one-server-entry.html, every one inside the node's declared write paths, and leaves the unused declared paths (tests/test_agent_serve_registry.py, docs/figures/...) untouched."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the goal is that an engine whose registration names a host by its fully qualified name groups under the declared server for that host; imas_ambix/agent/registry.py:87-99 compares both spellings through _host_name and tests/test_agent_site_servers.py:343-346 asserts exactly one entry named 98dci4-gpu-0003 holding engine gpu-0003.iter.org:18810.\nVERDICT done_when: the done_when names both new tests, the three gate suites and whole-tree ruff; gate-head.log records '# revision fc023537...', all three suite files, '61 passed in 62.83s' and EXIT=0, ruff-head.log records 'All checks passed!' and EXIT=0 (both logs on disk), and both named tests exist in the landed tree.\nVERDICT write_paths: read the source node's declared write paths; the diff writes registry.py, tests/test_agent_site_servers.py and the landing fragment, all inside them, and leaves tests/test_agent_serve_registry.py and the figures directory untouched.\nVERDICT manifest: read; status complete, commits 814675eb and fc023537, the literal gate command with 61 passed and ruff exit 0, and the negative control recorded as one failing test id at EXIT=1 - every claim corroborated by the three logs on disk.\nVERDICT diff: read commit by commit against b477e425; 814675eb adds registry._host_name (registry.py:52) and routes _server_index (registry.py:80) and _server_key (registry.py:97) through it with two tests, fc023537 adds a 38-line fragment; 126 insertions and 7 deletions, nothing outside the goal.\nCALL_SITES: imas_ambix/agent/registry.py:754 publish_endpoint_document, imas_ambix/agent/registry.py:517 build_endpoint_document, imas_ambix/agent/registry.py:569 build_endpoint_document dedup keyed on _engine_id, imas_ambix/agent/cli.py:1327 _placement_of_running_serve\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/registry.py:87-99 resolves the fully qualified registration host through _host_name and tests/test_agent_site_servers.py:343 publishes one declared entry holding the engine.\nSCORE evidence: 18\nJUSTIFICATION evidence: gate-head.log records 61 passed and a bare EXIT=0 at revision fc023537 over the three done_when suites and ruff-head.log records EXIT=0, though the reviewed manifest arms neither baseline_suite nor after_suite so the added-failure zero rests on the after arm alone.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: every path in the diff against b477e425 is inside the declared write paths, and no unused declared path was touched.\nSCORE durability: 16\nJUSTIFICATION durability: tests/test_agent_site_servers.py:343 fails under the recorded mutation with 'Left contains one more item: 98dci4-gpu-0003.iter.org' at EXIT=1, but the index key added at registry.py:80 and the copy-through assertion at tests/test_agent_site_servers.py:345 are pinned by nothing.\nSCORE fit: 19\nJUSTIFICATION fit: registry.py:52 is a private helper in the module's own docstring idiom composed from registry.py:35 _short_host, adding no plan label or forbidden name.\nSCORE reuse: 10\nJUSTIFICATION reuse: registry.py:62 duplicates the first-dot cut owned by imas_ambix/agent/node_probe.py:648 scheduler_node_name instead of composing it, though it does extend the in-module owner registry.py:35.\nFINDING imas_ambix/agent/registry.py:80 non-blocking: the added index key _host_name(server.host) is unreachable through either new test, whose declared host is already short, so deleting that line leaves both tests green and a fully qualified declaration unpinned.\nFINDING imas_ambix/agent/registry.py:52 non-blocking: _host_name re-implements the domain cut owned by scheduler_node_name at imas_ambix/agent/node_probe.py:648 rather than composing it, leaving two owners of 'cut a node name at the first dot'.\nFINDING tests/test_agent_site_servers.py:345 non-blocking: the assertion compares the published host against the literal the test itself passed to SiteServerConfig, so it moves with its own input rather than an independent source.\nFINDING imas_ambix/agent/registry.py:576 non-blocking: both spellings of one port now group under one server entry, but dedup still keys on the raw-spelling engine id, so the entry can show one port twice as two engines.\n",
+  "review_run_id": "r-20261027T140612336887-review-of-one-host-one-server-entry-fc0235378efa",
+  "reviewed_base_sha": "b477e425f4ca27ccd1bb97d61edb1725b7f894cd",
+  "reviewed_head_sha": "fc0235378efa41cab353e43d8ac17130987ad9c9",
+  "reviewed_run_id": "r-20261027T132804062740-one-host-one-server-entry",
+  "scores": {
+    "durability": 16,
+    "evidence": 18,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 10,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "suite_arms_read": {
+    "after_suite": "gate-head.log: '# revision fc0235378efa41cab353e43d8ac17130987ad9c9', '61 passed in 62.83s (0:01:02)', bare EXIT=0; zero failing ids",
+    "baseline_suite": "absent: the reviewed manifest carries no baseline_suite key and the run directory holds no base-arm log, so the added-failure zero rests on the after arm alone"
+  },
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T14:43:57.127716+00:00",
+  "total": 102
+}

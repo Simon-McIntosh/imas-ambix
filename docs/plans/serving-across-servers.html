@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="85">
+<meta name="plan-version" content="86">
 <meta name="plan-modified" content="2026-10-27">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;,&quot;serving-across-servers#s10&quot;],&quot;s15&quot;:[&quot;serving-across-servers#s16&quot;,&quot;serving-across-servers#s5&quot;],&quot;s7&quot;:[&quot;serving-across-servers#s5&quot;],&quot;s4&quot;:[&quot;serving-across-servers#s16&quot;],&quot;s5&quot;:[&quot;serving-across-servers#s4&quot;,&quot;serving-across-servers#s9&quot;],&quot;s6&quot;:[&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -884,7 +884,10 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
     <div class="r-comment-body"><p>gpu-watch's renderer moved into imas_ambix/agent/gpu_watch behind NodeProbe.stream; on 98dci4-gpu-0003 it draws the same 4 card rows, host row and 4 job rows as the dotfiles script 11 s later, a two-server document renders two stacked blocks, and a declared server with no running job prints "no job to sample" instead of an empty card table. Round 2 adds: the declared power cap is read as watts and shown as kilowatts, so a 420 W draw against a declared 700 W cap renders "0.42 kW / 0.70 kW cap  60% of cap".</p></div>
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20261027T132804062740-one-host-one-server-entry" data-who="reckon-build" data-when="2026-10-27T14:05:26.667Z">
-    <div class="r-comment-body"><p>endpoints.json groups an engine registered on 98dci4-gpu-0003.iter.org under the declared server 98dci4-gpu-0003: registry compares hosts through registry._host_name (domain suffix and cluster component removed) in both the declared-server index and the registration lookup, so one host publishes one server entry (engines [&quot;gpu-0003.iter.org:18810&quot;]) instead of a second undeclared entry; 61 tests pass across the three named suites and whole-tree ruff exits 0.</p></div>
+    <div class="r-comment-body"><p>endpoints.json groups an engine registered on 98dci4-gpu-0003.iter.org under the declared server 98dci4-gpu-0003: registry compares hosts through registry._host_name (domain suffix and cluster component removed) in both the declared-server index and the registration lookup, so one host publishes one server entry (engines ["gpu-0003.iter.org:18810"]) instead of a second undeclared entry; 61 tests pass across the three named suites and whole-tree ruff exits 0.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-run-r-20261027T140612336887-review-of-one-host-one-server-entry-fc0235378efa" data-who="reckon-build" data-when="2026-10-27T14:42:42.398Z">
+    <div class="r-comment-body"><p>review of run r-20261027T132804062740-one-host-one-server-entry at base b477e425 -&gt; head fc0235378; scores goal_fidelity 19, evidence 18, scope_discipline 20, durability 16, fit 19, reuse 10 (total 102); four non-blocking findings (unpinned index key at registry.py:80; duplicated domain cut at registry.py:52 against node_probe.py:648; copy-through assertion at tests/test_agent_site_servers.py:345; one port shown twice under one entry because dedup keys on the raw-spelling engine id at registry.py:569); both record paths validated with ok=true</p></div>
 </div>
 </section>
 </main>
