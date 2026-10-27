@@ -197,6 +197,14 @@ class RequestReceipt:
     time_to_first_token_s: float | None
     duration_s: float
     gate_wait_s: float
+    # The engine whose gate this request queued at, when it queued at one. A
+    # refusal answered because that gate's wait expired says which queue it
+    # expired in, which the upstream column cannot: a self-answered row names
+    # the router there. None for every row that never met an engine's gate --
+    # a relay admitted at once, a request refused before any engine was chosen,
+    # and a request the shutdown release answered while it waited at the
+    # router's own queue rather than a live engine's.
+    gate_engine: str | None
     caller_hint: str
     run_id: str | None
     coordinator_session: str | None
@@ -824,6 +832,7 @@ class RequestReceiptSink:
         duration_s: float,
         accounting: StreamAccounting,
         gate_wait_s: float = 0.0,
+        gate_engine: str | None = None,
         run_id: str | None = None,
         coordinator_session: str | None = None,
         account: str | None = None,
@@ -849,6 +858,7 @@ class RequestReceiptSink:
             time_to_first_token_s=_round_or_none(accounting.time_to_first_token_s),
             duration_s=round(duration_s, 6),
             gate_wait_s=round(max(0.0, gate_wait_s), 6),
+            gate_engine=gate_engine,
             caller_hint=caller_hint,
             run_id=run_id,
             coordinator_session=coordinator_session,

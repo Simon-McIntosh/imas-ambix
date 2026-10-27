@@ -1708,21 +1708,6 @@ def engine_id_for_origin(origin: str) -> str:
     return _engine_id(host, parts.port)
 
 
-def _engine_reason(reason: str | None, engine: str | None) -> str | None:
-    """Name the engine a refusal row waited at, beside the reason for it.
-
-    The receipt's ``reason`` column is the row's only free-text field, so the
-    engine identity rides there as a machine-readable suffix. With one gate per
-    engine, a refusal that named no engine would not say which queue expired,
-    while the upstream sentinel correctly says no engine served the request.
-    """
-    if not engine:
-        return reason
-    if not reason:
-        return f"gate expired; engine={engine}"
-    return f"{reason}; engine={engine}"
-
-
 class UpstreamResolver(Protocol):
     """Return the engine endpoints currently eligible for routing."""
 
@@ -2212,7 +2197,7 @@ class RouterApp:
                 reason=(
                     SHUTDOWN_REASON if admission.outcome == "shutdown" else None
                 ),
-                engine=gate.engine_id or None,
+                gate_engine=gate.engine_id or None,
             )
             return
         if not resolved:
@@ -2955,6 +2940,7 @@ class RouterApp:
         began: float,
         gate_wait_s: float = 0.0,
         reason: str | None = None,
+        gate_engine: str | None = None,
     ) -> None:
         """Append the row for one request, whatever its outcome and whoever answered it.
 
@@ -3001,6 +2987,7 @@ class RouterApp:
                 project=project,
                 timestamp=started_at,
                 reason=reason,
+                gate_engine=gate_engine,
             )
         except (OSError, TypeError, ValueError) as error:
             logger.warning(
@@ -3020,7 +3007,7 @@ class RouterApp:
         caller_gone: bool,
         gate_wait_s: float = 0.0,
         reason: str | None = None,
-        engine: str | None = None,
+        gate_engine: str | None = None,
     ) -> None:
         """Record a request this process answered without relaying it.
 
@@ -3069,7 +3056,8 @@ class RouterApp:
             started_at=datetime.now(UTC),
             began=began,
             gate_wait_s=gate_wait_s,
-            reason=_engine_reason(reason, engine),
+            reason=reason,
+            gate_engine=gate_engine,
         )
 
     @staticmethod
@@ -3285,7 +3273,7 @@ class RouterApp:
         gate_wait_s: float = 0.0,
         message: str = "router generation queue wait limit exceeded",
         reason: str | None = None,
-        engine: str | None = None,
+        gate_engine: str | None = None,
     ) -> None:
         """Return the native overload shape after a generation wait expires.
 
@@ -3295,8 +3283,9 @@ class RouterApp:
         honours ``Retry-After``; the receipt keeps them apart so a reader can
         count what a restart cost rather than infer it from a status alone.
 
-        ``engine`` names the queue the request expired at. With one gate per
-        engine, a refusal says which engine's width was saturated, and the
+        ``gate_engine`` names the queue the request expired at, in the
+        receipt's own field rather than appended to ``reason``. With one gate
+        per engine, a refusal says which engine's width was saturated, and the
         self-answered sentinel still says the router rather than an engine
         produced the row.
         """
@@ -3329,7 +3318,7 @@ class RouterApp:
             caller_gone=caller_gone,
             gate_wait_s=gate_wait_s,
             reason=reason,
-            engine=engine,
+            gate_engine=gate_engine,
         )
 
 

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="gate-engine-has-its-own-field-release">
+      <p>A receipt row now carries the engine whose generation gate it queued
+      at in a column of its own, <code>gate_engine</code>, rather than as a
+      suffix inside <code>reason</code>. The two answer different questions:
+      <code>gate_engine</code> names the queue, and <code>reason</code> names
+      the event that ended the row. Until this change the engine rode in the
+      free-text reason as <code>gate expired; engine=&lt;id&gt;</code>, so a
+      reader counting refusals per engine had to split a prose field, and the
+      reason column could not state anything else without colliding with it.</p>
+      <ul>
+        <li><strong>What the reason column holds now.</strong> Only what the
+        shutdown release puts there: <code>router shutdown</code> for a gate
+        that answered a held request because the process was stopping,
+        <code>router shutdown cut the relay</code> for a relay the grace
+        outlasted, and null everywhere else. The helper that composed the
+        engine into it is gone.</li>
+        <li><strong>Who writes the engine.</strong> <code>RouterApp</code>
+        records it at the one refusal path that knows the queue: the
+        gate-expiry and shutdown release, from the gate's own identity. Rows
+        that never met an engine's gate -- relays admitted at once, requests
+        refused before an owner was chosen, and callers that left mid-upload --
+        carry null rather than a guessed identity.</li>
+        <li><strong>The identity is the registry's spelling.</strong> Host
+        short name and port, so the field keys exactly as an operator reads
+        that engine on an endpoint record or a control file's
+        <code>engines</code> map. Pinned by a test that asserts the literal
+        <code>gpu-0003.iter.org:18810</code> for the origin
+        <code>http://98dci4-gpu-0003.iter.org:18810</code>, written out rather
+        than read back from the helper that composes it, so a regression in the
+        spelling rule is caught instead of compared against itself.</li>
+      </ul>
+      <p><strong>Measure.</strong> The gate command over the router, receipt
+      and telemetry suites ran at this tree and passed,
+      <code>132 passed</code>, <code>EXIT=0</code>; whole-tree
+      <code>ruff check imas_ambix tests</code> passed. At the base revision the
+      same gate fails on
+      <code>test_shutdown_signal_answers_every_gate_waiter_with_overload</code>,
+      because the shutdown row's reason read
+      <code>router shutdown; engine=&lt;id&gt;</code> instead of the release's
+      text alone. The negative control restores that suffix and the same test
+      fails again, together with the gate test that reads the new column.</p>
+    </section>
+  </main>
+</body>
+</html>
