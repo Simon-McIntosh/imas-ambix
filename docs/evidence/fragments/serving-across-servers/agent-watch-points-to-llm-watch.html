@@ -27,12 +27,18 @@ $ echo $?
       the JSON path still falls back to the published watch document when no
       local index resolves.</p>
       <p>The derived text helpers that <code>watch_text</code> reached through
-      (<code>render_document</code>, <code>render_index</code>,
+      are gone with it: <code>render_document</code>, <code>render_index</code>,
       <code>render_rail</code>, <code>render_cards</code>,
-      <code>render_ledger_rows</code>, <code>_plain</code>) remain, because
-      <code>tests/test_agent_watch_cost.py</code> still reads them; that file is
-      outside this node's write scope and its two <code>watch_text</code> call
-      sites need the same retirement in a follow-up.</p>
+      <code>render_ledger_rows</code>, <code>_plain</code> and the private
+      <code>_percent</code> they shared. Nothing outside the text renderer
+      called them, and the figures they formatted are the ones the JSON
+      document already carries. The tests that only exercised those renderers
+      now assert the same behaviour through <code>watch.document</code> and
+      <code>watch.watch_document</code>: the installed estimate still prices
+      the period row, the cost label still names the rate, its source and its
+      citation, an absent record still leaves the cost unset and names the
+      reason, the own-cache and h=0 figures still differ from the reported one,
+      and the refresh still names the slug the served model resolves to.</p>
     </section>
     <section id="agent-watch-points-to-llm-watch-live-memory">
       <p><strong>A ten-minute <code>llm-watch --live</code> run holds its
@@ -196,6 +202,12 @@ $ echo $?
       <code>logs/ruff-head.log</code>. The committed one-engine golden is
       unchanged: no golden fixture or expected text under
       <code>tests/test_llm_watch.py</code> was edited, only one added test.</p>
+      <p>With the text renderers retired and the cost tests converted, the same
+      gate plus <code>tests/test_agent_watch_cost.py</code> passes —
+      <code>100 passed</code>, log <code>logs/gate-followup.log</code>,
+      <code>EXIT=0</code> — and the whole-tree ruff gate still prints
+      <code>All checks passed!</code> at <code>EXIT=0</code>, log
+      <code>logs/ruff-followup.log</code>.</p>
       <p><strong>Negative control.</strong> The declared mutation is the base
       revision's <code>agent watch</code>, whose text renderer still prints:
       with the head arm's help test copied onto a base-revision tree, the pointer
