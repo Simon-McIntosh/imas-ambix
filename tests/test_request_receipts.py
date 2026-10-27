@@ -303,6 +303,44 @@ def _jsonl(rows: Sequence[dict[str, Any]]) -> str:
     return "".join(f"{json.dumps(row)}\n" for row in rows)
 
 
+def test_the_gate_engine_is_its_own_column_and_reason_stays_free_text(
+    tmp_path: Path,
+) -> None:
+    """A row that queued at an engine's gate names it beside the reason.
+
+    The two columns answer different questions -- which queue the request
+    waited in, and what event ended it -- so a reader counting gate expiries
+    per engine never has to split a free-text field to find the engine, and a
+    row that never met a gate carries null rather than a guessed identity.
+    """
+
+    sink = RequestReceiptSink(tmp_path / "requests.jsonl", max_rows_per_s=1e9)
+    for gate_engine, reason in (
+        ("gpu-0003.iter.org:18810", None),
+        ("gpu-0003.iter.org:18810", "router shutdown"),
+        (None, None),
+    ):
+        sink.record(
+            model="streamer",
+            upstream=SELF_ANSWERED_UPSTREAM,
+            caller_hint="local",
+            status=STATUS_FAILED,
+            duration_s=0.1,
+            accounting=_idle_accounting(),
+            gate_engine=gate_engine,
+            reason=reason,
+        )
+    sink.close()
+
+    rows = _read_rows(tmp_path / "requests.jsonl")
+    assert [row["gate_engine"] for row in rows] == [
+        "gpu-0003.iter.org:18810",
+        "gpu-0003.iter.org:18810",
+        None,
+    ]
+    assert [row["reason"] for row in rows] == [None, "router shutdown", None]
+
+
 def test_rows_either_side_of_utc_midnight_land_in_two_day_files(
     tmp_path: Path,
 ) -> None:

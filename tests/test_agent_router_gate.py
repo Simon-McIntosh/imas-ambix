@@ -1049,6 +1049,18 @@ def test_a_throughput_reading_from_one_engine_moves_only_its_own_width(
     asyncio.run(exercise())
 
 
+def test_the_documented_engine_spelling_is_the_short_host_and_port() -> None:
+    """An engine is named the way every endpoint record spells it.
+
+    Written as a literal so a regression in the spelling rule is caught here
+    rather than compared against itself through the helper that applies it.
+    """
+    assert (
+        engine_id_for_origin("http://98dci4-gpu-0003.iter.org:18810")
+        == "gpu-0003.iter.org:18810"
+    )
+
+
 def test_gate_expiry_names_the_engine_it_waited_at(tmp_path: Path) -> None:
     """A refusal row keeps the router sentinel and names the gate's engine."""
 
@@ -1095,7 +1107,12 @@ def test_gate_expiry_names_the_engine_it_waited_at(tmp_path: Path) -> None:
         assert len(rows) == 1
         assert rows[0]["upstream"] == "(router)"
         assert rows[0]["status"] == "failed"
-        assert rows[0]["reason"].endswith(f"engine={host}:{port}")
+        # The engine the request waited at rides in its own field, so the
+        # reason column holds only what the shutdown release wrote. The
+        # expected spelling is host:port written out here rather than read
+        # back from the helper the router composes it with.
+        assert rows[0]["reason"] is None
+        assert rows[0]["gate_engine"] == f"{host}:{port}"
         assert rows[0]["gate_wait_s"] >= 0.25
         assert engine.arrivals == []
 

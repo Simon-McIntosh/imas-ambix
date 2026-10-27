@@ -368,9 +368,13 @@ def test_shutdown_signal_answers_every_gate_waiter_with_overload(tmp_path) -> No
             assert _exited_after_shutdown(process)
 
         rows = _receipt_rows(receipts)
+        expected_engine = upstream_url.removeprefix("http://")
         expired = [row for row in rows if row["status"] == "failed"]
         assert len(expired) == 3, rows
         assert {row["reason"] for row in expired} == {router_mod.SHUTDOWN_REASON}
+        # The engine whose gate the request queued at rides in its own field,
+        # so the reason column holds the release's text alone.
+        assert {row["gate_engine"] for row in expired} == {expected_engine}
         # The readiness probe is itself a completed row answered by the router;
         # the relay that finished inside the grace is the other one.
         finished = [
