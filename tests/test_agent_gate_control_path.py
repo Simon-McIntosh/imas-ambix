@@ -352,6 +352,30 @@ def _normalise_router_output(script: str) -> str:
     return "".join(lines)
 
 
+_PLACEMENT_LINE_PREFIXES = (
+    "#SBATCH --partition=",
+    "#SBATCH --reservation=",
+    "[[ -d /scratch_local ]] || export TMPDIR=",
+)
+
+
+def _without_placement_lines(script: str) -> str:
+    """Drop the lines the router's placement and scratch setup own.
+
+    The reference revision ran the router on the GPU node under that node's
+    reservation and staged its scratch on ``/scratch_local`` unconditionally.
+    Placement now comes from the site's router entry, so the partition and the
+    absence of a reservation differ by design, and the scratch falls back to
+    ``/tmp`` where ``/scratch_local`` is absent. Those headers and lines have
+    their own tests; what remains is compared exactly.
+    """
+    lines = script.splitlines(keepends=True)
+    kept = [line for line in lines if not line.startswith(_PLACEMENT_LINE_PREFIXES)]
+    assert any(line.startswith("#SBATCH --partition=") for line in lines), script
+    assert len(kept) < len(lines), script
+    return "".join(kept)
+
+
 def test_generated_script_without_the_option_unsets_the_gate_path(tmp_path) -> None:
     """A no-option submission reads the lane sibling, whatever the shell exported.
 
@@ -368,10 +392,11 @@ def test_generated_script_without_the_option_unsets_the_gate_path(tmp_path) -> N
     )
     assert f"unset {GATE_PATH_ENV}" in current
     assert f"export {GATE_PATH_ENV}=" not in current
-    # The output destination has its own test; every other line remains exact.
-    assert _normalise_router_output(_without_unset_line(current)) == (
-        _normalise_router_output(base)
-    )
+    # The output destination, the placement headers and the scratch setup have
+    # their own tests; every other line remains exact.
+    assert _without_placement_lines(
+        _normalise_router_output(_without_unset_line(current))
+    ) == _without_placement_lines(_normalise_router_output(base))
 
     probed = slurm_mod.generate_router_script(
         site, port=18802, cpus=3, memory="12G", prefix_probe=True
@@ -384,9 +409,9 @@ def test_generated_script_without_the_option_unsets_the_gate_path(tmp_path) -> N
         memory="12G",
         prefix_probe=True,
     )
-    assert _normalise_router_output(_without_unset_line(probed)) == (
-        _normalise_router_output(probed_base)
-    )
+    assert _without_placement_lines(
+        _normalise_router_output(_without_unset_line(probed))
+    ) == _without_placement_lines(_normalise_router_output(probed_base))
 
 
 def test_named_gate_path_is_embedded_in_the_generated_script(tmp_path) -> None:
