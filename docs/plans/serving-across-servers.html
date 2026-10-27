@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="78">
+<meta name="plan-version" content="79">
 <meta name="plan-modified" content="2026-10-27">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;,&quot;serving-across-servers#s10&quot;],&quot;s15&quot;:[&quot;serving-across-servers#s16&quot;,&quot;serving-across-servers#s5&quot;],&quot;s7&quot;:[&quot;serving-across-servers#s5&quot;],&quot;s4&quot;:[&quot;serving-across-servers#s16&quot;],&quot;s5&quot;:[&quot;serving-across-servers#s4&quot;,&quot;serving-across-servers#s9&quot;],&quot;s6&quot;:[&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -858,6 +858,9 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261027T132247538438-review-of-gate-engine-has-its-own-field-5d2e70d39763" data-who="reckon-build" data-when="2026-10-27T13:45:11.779Z">
     <div class="r-comment-body"><p>Independent review of gate-engine-has-its-own-field, base 5f645391 and head 5d2e70d39763be98f1cc53d1ff51159c05cc6f57; scores goal_fidelity 19, evidence 16, scope_discipline 20, durability 18, fit 19, reuse 20, added_failure_count 0, one non-blocking finding (a stale base-labelled gate log in the reviewed run directory), record stored outside the worktree and accepted by crew check.</p></div>
+</div>
+<div class="r-comment" data-section="s4" data-id="c-run-r-20261027T110717687684-gate-engine-has-its-own-field" data-who="reckon-build" data-when="2026-10-27T13:20:48.920Z">
+    <div class="r-comment-body"><p>RequestReceipt gains gate_engine (null unless the row queued at an engine&#x27;s gate), RouterApp writes it at the gate-expiry/shutdown refusal from the gate&#x27;s own identity, router._engine_reason is deleted so reason holds only the shutdown release&#x27;s text, and the gate tests read gate_engine with the documented host:port spelling pinned as a literal; gate 132 passed at EXIT=0, whole-tree ruff EXIT=0, negative control fails test_shutdown_signal_answers_every_gate_waiter_with_overload at EXIT=1.</p></div>
 </div>
 <div class="r-comment" data-section="s6" data-id="c-run-r-20261027T131845775521-review-of-live-figures-per-engine-83fbbe72781e" data-who="reckon-build" data-when="2026-10-27T13:40:39.382Z">
     <div class="r-comment-body"><p>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090955520848-live-figures-per-engine/review-records/r-20261027T090955520848-live-figures-per-engine.json — parsed review of r-20261027T090955520848-live-figures-per-engine at 83fbbe72, total 78/120, one blocking finding</p></div>
