@@ -1,0 +1,65 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "The reviewed run records no baseline_suite/after_suite arm (its manifest carries neither key), so no two-arm difference is available. Derived from the head arm it does record: gate.log ends '84 passed in 12.58s' / EXIT=0 at revision 8a702f63, so the after arm has zero failing ids and the added-failure count cannot exceed zero; the log carries one summary line and its header names the same command the manifest's tests line carries.",
+  "call_site_count": 4,
+  "call_sites": [
+    "imas_ambix/agent/router.py:3310",
+    "imas_ambix/agent/router.py:2149",
+    "imas_ambix/agent/router.py:2169",
+    "imas_ambix/agent/router.py:2264"
+  ],
+  "completed_at": "2026-10-27T11:58:03.255Z",
+  "dispatched_at": "2026-10-27T11:39:03Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/router.py",
+      "line": "2169",
+      "severity": "non-blocking",
+      "text": "the hand-off releases the owner-wait admission and calls acquire again, which starts a fresh wait_seconds deadline and stamps a fresh arrived_at at imas_ambix/agent/router.py:1485/1504, so the caller can wait nearly twice the configured limit and the reported gate_wait_s omits the owner-wait portion."
+    },
+    {
+      "file": "/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090724077079-one-gate-per-engine/negative_control_repair_ff669.log",
+      "line": "3",
+      "severity": "non-blocking",
+      "text": "the log is truncated to a traceback fragment with no pytest short-test-summary line and no failing test id, so it records that the reverted hand-off reddened with EXIT=1 but not which assertion did."
+    }
+  ],
+  "item_aggregate": 6,
+  "item_verdicts": {
+    "call_sites": "verified 4 production call site(s)",
+    "diff": "read f3736aaa, 6f073ee1 and 8a702f63 against 7dc2825a commit by commit: router.py +42/-6 adds the engine-less owner-wait gate and the release-and-re-acquire hand-off plus its shutdown stop, tests/test_agent_router_gate.py +154/-1 adds three tests and an independent arrival/expiry assertion, and the fragment +21/-10 records the new wait and the malformed-map refusal.",
+    "done_when": "the gate the worker ran is tests/test_agent_router_gate.py plus the five sibling router files, recorded in gate.log as '84 passed in 12.58s' EXIT=0 at revision 8a702f63; the arrivals clause is now measured at tests/test_agent_router_gate.py:992-994, the expiry clause at :1098, and the per-engine width and automatic-width clauses remain covered unchanged, and ruff.log records 'All checks passed!' EXIT=0.",
+    "goal": "the node goal is one gate per engine, each fed only by its own reading, with an engines map overriding width, wait and pause per engine; imas_ambix/agent/router.py:1947 adds _owner_wait_gate and router.py:2169-2184 hands a request whose engine has not appeared to the gate of the engine that answers, so a narrow engine's queue no longer holds it.",
+    "manifest": "read /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090724077079-one-gate-per-engine/manifest.md; status complete, commits 7dc2825a, f3736aaa, 6f073ee1, 8a702f63, gate '84 passed in 12.58s' reconciling with gate.log, ruff EXIT=0, and a declared negative control whose log fails test_a_pause_in_the_engines_map_holds_only_its_own_engine; it records no baseline_suite/after_suite arms.",
+    "write_paths": "the node declared imas_ambix/agent/router.py, tests/test_agent_router_gate.py, tests/test_agent_router_admission.py, tests/test_agent_router_width_controller.py and docs/evidence/fragments/serving-across-servers/one-gate-per-engine.html; git diff --stat 7dc2825a..8a702f63 changes exactly router.py, tests/test_agent_router_gate.py and that fragment, all inside them."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_router_gate.py:1188 fails when f3736aaa is reverted (negative_control_repair_ff669.log EXIT=1) and :992-994 fails if the narrow queue blocks the wide engine's four admissions, though the 1.0 s wall-clock bound at :993 could flake under load.",
+    "evidence": "gate.log records '84 passed in 12.58s' EXIT=0 at revision 8a702f63 and matches the manifest's artifacts line, and ruff.log is EXIT=0, but the run records no baseline arm and the ff669 repair log is truncated to a traceback with no pytest summary line.",
+    "fit": "imas_ambix/agent/router.py:1944-1952 and :2160-2184 follow the module's mechanism-named comment idiom and introduce no plan, ticket or author label.",
+    "goal_fidelity": "imas_ambix/agent/router.py:2169-2184 releases the engine-less wait and re-acquires at the gate of the engine that resolved, closing the peer-width hold the goal forbids while a one-engine router still queues at the original gate.",
+    "reuse": "the hand-off reuses _GenerationGate.acquire/release (imas_ambix/agent/router.py:1450, :1592) and engine_id_for_origin rather than adding a second queue mechanism, and a search over imas_ambix/agent found no other owner-wait queue to extend.",
+    "scope_discipline": "git diff --stat 7dc2825a..8a702f63 lists only imas_ambix/agent/router.py, tests/test_agent_router_gate.py and docs/evidence/fragments/serving-across-servers/one-gate-per-engine.html, all inside the declared write paths."
+  },
+  "node": "review-of-one-gate-per-engine-8a702f6309a6",
+  "node:reviewed": "one-gate-per-engine",
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the node goal is one gate per engine, each fed only by its own reading, with an engines map overriding width, wait and pause per engine; imas_ambix/agent/router.py:1947 adds _owner_wait_gate and router.py:2169-2184 hands a request whose engine has not appeared to the gate of the engine that answers, so a narrow engine's queue no longer holds it.\nVERDICT done_when: the gate the worker ran is tests/test_agent_router_gate.py plus the five sibling router files, recorded in gate.log as \"84 passed in 12.58s\" EXIT=0 at revision 8a702f6309a659fc61af9bb69f41e25d64f4117a; the arrivals clause is now measured at tests/test_agent_router_gate.py:992-994, the expiry clause at :1098, and the arrivals/stamping clause passes; ruff.log records \"All checks passed!\" EXIT=0.\nVERDICT write_paths: the node declared imas_ambix/agent/router.py, tests/test_agent_router_gate.py, tests/test_agent_router_admission.py, tests/test_agent_router_width_controller.py and docs/evidence/fragments/serving-across-servers/one-gate-per-engine.html; git diff --stat 7dc2825a..8a702f63 changes exactly router.py, tests/test_agent_router_gate.py and that fragment, all inside them.\nVERDICT manifest: read /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090724077079-one-gate-per-engine/manifest.md; status complete, commits 7dc2825a, f3736aaa, 6f073ee1, 8a702f63, gate \"84 passed in 12.58s\" reconciling with gate.log, ruff EXIT=0, and a declared negative control whose log fails test_a_pause_in_the_engines_map_holds_only_its_own_engine; it records no baseline_suite/after_suite arms.\nVERDICT diff: read f3736aaa, 6f073ee1 and 8a702f63 against 7dc2825a commit by commit: router.py +42/-6 adds the engine-less owner-wait gate and the release-and-re-acquire hand-off plus its shutdown stop, tests/test_agent_router_gate.py +154/-1 adds three tests and an independent arrival/expiry assertion, and the fragment +21/-10 records the new wait and the malformed-map refusal.\nCALL_SITES: imas_ambix/agent/router.py:3310, imas_ambix/agent/router.py:2149, imas_ambix/agent/router.py:2169, imas_ambix/agent/router.py:2264\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/router.py:2169-2184 releases the engine-less wait and re-acquires at the gate of the engine that resolved, closing the peer-width hold the goal forbids while a one-engine router still queues at the original gate.\nSCORE evidence: 17\nJUSTIFICATION evidence: gate.log records \"84 passed in 12.58s\" EXIT=0 at revision 8a702f6309a659fc61af9bb69f41e25d64f4117a and matches the manifest's artifacts line, and ruff.log is EXIT=0, but the run records no baseline arm and the ff669 repair log is truncated to a traceback with no pytest summary line.\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: git diff --stat 7dc2825a..8a702f63 lists only imas_ambix/agent/router.py, tests/test_agent_router_gate.py and docs/evidence/fragments/serving-across-servers/one-gate-per-engine.html, all inside the declared write paths.\nSCORE durability: 18\nJUSTIFICATION durability: tests/test_agent_router_gate.py:1188 fails when f3736aaa is reverted (negative_control_repair_ff669.log EXIT=1) and :992-994 fails if the narrow queue blocks the wide engine's four admissions, though the 1.0 s wall-clock bound at :993 could flake under load.\nSCORE fit: 19\nJUSTIFICATION fit: imas_ambix/agent/router.py:1944-1952 and :2160-2184 follow the module's mechanism-named comment idiom and introduce no plan, ticket or author label.\nSCORE reuse: 20\nJUSTIFICATION reuse: the hand-off reuses _GenerationGate.acquire/release (imas_ambix/agent/router.py:1450, :1592) and engine_id_for_origin rather than adding a second queue mechanism, and a search over imas_ambix/agent found no other owner-wait queue to extend.\nFINDING imas_ambix/agent/router.py:2169 non-blocking: the hand-off releases the owner-wait admission and calls acquire again, which starts a fresh wait_seconds deadline and stamps a fresh arrived_at at imas_ambix/agent/router.py:1485/1504, so the caller can wait nearly twice the configured limit and the reported gate_wait_s omits the owner-wait portion.\nFINDING /home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T090724077079-one-gate-per-engine/negative_control_repair_ff669.log:3 non-blocking: the log is truncated to a traceback fragment with no pytest short-test-summary line and no failing test id, so it records that the reverted hand-off reddened with EXIT=1 but not which assertion did.",
+  "review_run_id": "r-20261027T113210326845-review-of-one-gate-per-engine-8a702f6309a6",
+  "reviewed_base_sha": "7dc2825aa3d87fff826ab587c1dd7c2641d0e4b8",
+  "reviewed_head_sha": "8a702f6309a659fc61af9bb69f41e25d64f4117a",
+  "reviewed_run_id": "r-20261027T090724077079-one-gate-per-engine",
+  "scores": {
+    "durability": 18,
+    "evidence": 17,
+    "fit": 19,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T12:05:00+00:00",
+  "total": 113
+}
