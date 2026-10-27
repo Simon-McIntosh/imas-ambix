@@ -16,6 +16,7 @@ from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from fractions import Fraction
 from typing import TYPE_CHECKING, Any, Protocol
 
 import aiohttp
@@ -72,6 +73,14 @@ GATE_FILENAME = "router-gate.json"
 GATE_PATH_ENV = "AMBIX_ROUTER_GATE_PATH"
 DEFAULT_GENERATION_WIDTH = 22
 DEFAULT_GENERATION_WAIT_SECONDS = 300.0
+# How long a request pinned to one engine waits at that engine's queue before it
+# is placed elsewhere. The pin exists to keep a session's prompt prefix in one
+# engine's cache, so it is worth a short wait and no more: the projection study
+# measured 96.8% of prompt tokens served from cache, and a turn re-prefilled on
+# the other engine costs about 120,000 tokens instead of about 3,700. Thirty
+# seconds is longer than a busy engine takes to free a slot and far shorter than
+# the queue wait the gate itself allows.
+DEFAULT_FAILOVER_WAIT_SECONDS = 30.0
 GENERATION_RETRY_AFTER_SECONDS = 5
 # A shutdown signal stops admission and answers the FIFO before uvicorn tears
 # the process down. Without that, requests the gate is holding die as dropped
@@ -231,6 +240,13 @@ GATE_CONTROLLER_WIDTH_FLOOR = 4
 class _GateSettings:
     width: int
     wait_seconds: float
+    # How long a request pinned to this engine waits at its queue before it is
+    # routed elsewhere. A session is pinned to one engine so that its prompt
+    # prefix stays in that engine's cache; queueing past this bound spends more
+    # than the recompute would, so the pin yields. Zero means a pinned request
+    # leaves at the first refusal of a slot, which is the ugliest but most
+    # legible form of the bound for an operator who wants no waiting at all.
+    failover_wait_seconds: float = DEFAULT_FAILOVER_WAIT_SECONDS
     auto: bool = False
     occupancy_target: float = DEFAULT_AUTO_OCCUPANCY_TARGET
     width_floor: int = DEFAULT_AUTO_WIDTH_FLOOR
@@ -277,6 +293,11 @@ UNATTRIBUTED_SESSION = "unattributed"
 # working session below its share, so a session that falls behind recovers as
 # the borrower's runs finish.
 BORROW_RESERVE = 2
+# How long a session's engine pin stands after its last request. It is the same
+# horizon the per-session share uses, so a pin and a session's claim on the lane
+# lapse together: a session that has stopped working stops holding an engine,
+# and one that is still working keeps the prefix cache it is paying for.
+PIN_IDLE_SECONDS = WORKING_HORIZON_SECONDS
 
 
 class _BusyInterval:
@@ -759,9 +780,7 @@ class _GenerationGate:
         loop = self._loop
         if loop is None or loop.is_closed():
             return
-        loop.call_soon_threadsafe(
-            lambda: asyncio.ensure_future(self._wake_waiters())
-        )
+        loop.call_soon_threadsafe(lambda: asyncio.ensure_future(self._wake_waiters()))
 
     async def _wake_waiters(self) -> None:
         async with self._condition:
@@ -929,6 +948,18 @@ class _GenerationGate:
             or wait_seconds <= 0
         ):
             raise ValueError("wait_seconds must be a finite positive number")
+        failover_wait_seconds = payload.get(
+            "failover_wait_seconds", self._defaults.failover_wait_seconds
+        )
+        if (
+            isinstance(failover_wait_seconds, bool)
+            or not isinstance(failover_wait_seconds, int | float)
+            or not math.isfinite(failover_wait_seconds)
+            or failover_wait_seconds < 0
+        ):
+            raise ValueError(
+                "failover_wait_seconds must be a finite non-negative number"
+            )
         paused = payload.get("paused", False)
         if type(paused) is not bool:
             raise ValueError("paused must be a boolean")
@@ -962,6 +993,7 @@ class _GenerationGate:
             settings = _GateSettings(
                 width=0,
                 wait_seconds=float(wait_seconds),
+                failover_wait_seconds=float(failover_wait_seconds),
                 auto=True,
                 occupancy_target=float(target),
                 width_floor=floor,
@@ -977,6 +1009,7 @@ class _GenerationGate:
         return _GateSettings(
             raw_width,
             float(wait_seconds),
+            failover_wait_seconds=float(failover_wait_seconds),
             paused=paused,
             cut=cut,
             cut_form=cut_form,
@@ -1454,6 +1487,7 @@ class _GenerationGate:
         run_id: str | None = None,
         session: str | None = None,
         ready: Callable[[], Awaitable[bool]] | None = None,
+        max_wait_seconds: float | None = None,
     ) -> _Admission:
         """Wait in FIFO order, or report timeout/departure without a relay.
 
@@ -1470,6 +1504,13 @@ class _GenerationGate:
         waiting is the one that reaches an engine when one appears. It is awaited
         outside the lock, because resolving an owner talks to the engines and
         holding the lock across that would stall the whole queue.
+
+        ``max_wait_seconds`` shortens this queue's own ``wait_seconds`` for one
+        caller whose placement is worth reconsidering rather than defending: a
+        request already pinned to an engine gives up on that engine once its
+        wait passes the operator's failover bound, and the caller places it
+        afresh. The gate's own timeout still answers a request with nowhere
+        else to go.
         """
         arrived_at = time.monotonic()
         self._loop = asyncio.get_running_loop()
@@ -1485,6 +1526,11 @@ class _GenerationGate:
 
         token = object()
         deadline = asyncio.get_running_loop().time() + initial.wait_seconds
+        if max_wait_seconds is not None:
+            deadline = min(
+                deadline,
+                asyncio.get_running_loop().time() + max(0.0, max_wait_seconds),
+            )
         disconnect_task = asyncio.create_task(RouterApp._wait_for_disconnect(receive))
         carry_disconnect = False
         async with self._condition:
@@ -1495,9 +1541,7 @@ class _GenerationGate:
                 at_head = False
                 async with self._condition:
                     if self._shutdown_requested:
-                        return self._shutdown_admission(
-                            time.monotonic() - arrived_at
-                        )
+                        return self._shutdown_admission(time.monotonic() - arrived_at)
                     if disconnect_task.done():
                         return _Admission(
                             "disconnected",
@@ -1842,6 +1886,19 @@ def _profile_model_ids() -> frozenset[str]:
     return frozenset(names)
 
 
+def _origin_host(origin: str) -> str:
+    """The server an engine origin sits on: its lowercased host, without a port.
+
+    Two engines of one model on one machine differ by port alone, so the host is
+    what makes them a rotation of one server rather than a pool of two. Compared
+    case-insensitively because a hostname is not case-sensitive.
+    """
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(origin)
+    return (parts.hostname or origin).lower()
+
+
 def _by_model_id(owners: Sequence[_Owner]) -> dict[str, list[_Owner]]:
     """Partition reachable engine cards by the native model id they advertise.
 
@@ -1853,6 +1910,20 @@ def _by_model_id(owners: Sequence[_Owner]) -> dict[str, list[_Owner]]:
     for upstream, card in owners:
         grouped.setdefault(card["id"], []).append((upstream, card))
     return grouped
+
+
+@dataclass(slots=True)
+class _EnginePin:
+    """The engine one session key is held to, and when it last used it.
+
+    A pin stands so a session's turns keep arriving at the engine whose prefix
+    cache already holds its prompt -- a turn re-prefilled elsewhere costs about
+    120,000 tokens instead of about 3,700. ``touched`` is the monotonic time of
+    the key's last request, which is what lapses an idle pin.
+    """
+
+    engine_id: str
+    touched: float
 
 
 class RouterApp:
@@ -1950,6 +2021,11 @@ class RouterApp:
         # configuration rather than lane state, so it is read once, lazily.
         self._known_models: set[str] = set()
         self._profile_models: frozenset[str] | None = None
+        # The engine each session key is held to. A key is pinned by its first
+        # placement and follows that pin until the engine is gone, its gate is
+        # paused, the key's queue wait passes the failover bound, or the key has
+        # been idle past the pin horizon.
+        self._engine_pins: dict[str, _EnginePin] = {}
         # Opt-in, because it logs one line per routed request. Hashes only.
         self._prefix_diagnostic = (
             os.environ.get("AMBIX_ROUTER_PREFIX_PROBE", "").strip() == "1"
@@ -1989,6 +2065,184 @@ class RouterApp:
             )
         self._engine_gates[engine_id] = gate
         return gate
+
+    def _session_key(self, scope: Mapping[str, Any]) -> str | None:
+        """The identity a session keeps its engine pin under.
+
+        The caller's own coordinator session is the key when it declares one, so
+        every run behind one session stays on one engine. Failing that, the run
+        id, so a run keeps the prefix cache it paid to build. Failing both, the
+        calling host, which is the finest identity a caller that names nothing
+        of its own offers. Each spelling carries its own prefix, so a session id
+        that happens to equal a host name does not share a pin with it.
+        """
+        run_id, session, _, _ = self._request_identity(scope)
+        if session:
+            return f"session:{session}"
+        if run_id:
+            return f"run:{run_id}"
+        client = scope.get("client")
+        host = client[0] if isinstance(client, Sequence) and client else None
+        return f"host:{host}" if host else None
+
+    def _expire_pins(self, now: float) -> None:
+        """Drop every pin that has gone idle beyond the pin horizon."""
+        cutoff = now - PIN_IDLE_SECONDS
+        stale = [key for key, pin in self._engine_pins.items() if pin.touched < cutoff]
+        for key in stale:
+            del self._engine_pins[key]
+
+    def _engine_width(self, engine_id: str) -> int:
+        """The gate width a pin count is divided by, never zero."""
+        return max(1, self.gate_for(engine_id).settings().width)
+
+    def _pin_counts(self, key: str | None) -> dict[str, int]:
+        """How many live keys are pinned to each engine, this key excluded.
+
+        The requesting key is excluded so a placement is decided by the other
+        sessions on each engine rather than by the key being placed, which has
+        no pin yet at that point.
+        """
+        counts: dict[str, int] = {}
+        for other, pin in self._engine_pins.items():
+            if other == key:
+                continue
+            counts[pin.engine_id] = counts.get(pin.engine_id, 0) + 1
+        return counts
+
+    @staticmethod
+    def _candidate_engines(owners: Sequence[_Owner]) -> list[_Owner] | None:
+        """One engine per server eligible to take a new key.
+
+        Several engines of one model on one machine are a rotation, not a pool:
+        the engine ``_preferred_owner`` ranks first (wider, then newer) is
+        current and the others are draining. A draining engine takes no new keys
+        -- which is what keeps a cutover from scattering fresh sessions across
+        an engine that is about to be retired -- and the keys already pinned to
+        it stay until they expire or fail over.
+
+        None means a server's group cannot be ranked at all, which is the same
+        refusal ``_preferred_owner`` makes for one engine pair: with no ground
+        to choose, choosing anyway would be arbitrary.
+        """
+        by_host: dict[str, list[_Owner]] = {}
+        for upstream, card in owners:
+            by_host.setdefault(_origin_host(upstream.base_url), []).append(
+                (upstream, card)
+            )
+        candidates: list[_Owner] = []
+        for group in by_host.values():
+            current = _preferred_owner(group)
+            if current is None:
+                return None
+            candidates.append(current)
+        return candidates
+
+    def _rank_placement(
+        self,
+        candidates: Sequence[_Owner],
+        *,
+        key: str | None,
+        exclude: str | None = None,
+    ) -> _Owner | None:
+        """The candidate a new key belongs on: fewest pins per unit of gate width.
+
+        Dividing by the gate width rather than comparing counts is what spreads
+        sessions in proportion to what each engine admits, whatever load it
+        happens to be carrying at the moment of placement. A paused gate is
+        skipped, because pausing is how an operator removes an engine from
+        service. A tie goes to the wider engine, then to the newer one, through
+        the same ranking a rotation uses; None when even that cannot separate
+        them, so the caller refuses rather than picking arbitrarily.
+        """
+        live = [
+            owner
+            for owner in candidates
+            if engine_id_for_origin(owner[0].base_url) != exclude
+        ]
+        unpaused = [
+            owner
+            for owner in live
+            if not self.gate_for(engine_id_for_origin(owner[0].base_url))
+            .settings()
+            .paused
+        ]
+        # Every engine paused is not a reason to refuse: the gate itself holds
+        # the request until the pause clears, which is the shape a paused
+        # one-engine lane already has.
+        pool = unpaused or live
+        if not pool:
+            return None
+        counts = self._pin_counts(key)
+
+        def load(owner: _Owner) -> Fraction:
+            engine_id = engine_id_for_origin(owner[0].base_url)
+            return Fraction(counts.get(engine_id, 0), self._engine_width(engine_id))
+
+        lightest = min(load(owner) for owner in pool)
+        tied = [owner for owner in pool if load(owner) == lightest]
+        if len(tied) == 1:
+            return tied[0]
+        return _preferred_owner(tied)
+
+    def _select_engine(
+        self, owners: Sequence[_Owner], key: str | None
+    ) -> tuple[_Owner | None, str | None]:
+        """Pick the engine for one request, and say why it went there.
+
+        A live pin outranks placement: later requests from the same key stay on
+        the engine that holds its prefix cache. The pin yields only when the
+        engine is no longer in the catalog or its gate is paused, and the row
+        then says ``failed-over``. A key with no pin is ``placed`` on the engine
+        the placement rule picks, and a key whose pin has gone idle is placed
+        afresh.
+
+        ``(None, None)`` means no engine could be chosen on the evidence
+        available, which the caller answers as it always has.
+        """
+        now = time.monotonic()
+        self._expire_pins(now)
+        by_engine = {
+            engine_id_for_origin(upstream.base_url): (upstream, card)
+            for upstream, card in owners
+        }
+        pin = self._engine_pins.get(key) if key else None
+        if pin is not None:
+            held = by_engine.get(pin.engine_id)
+            if held is not None and not self.gate_for(pin.engine_id).settings().paused:
+                pin.touched = now
+                return held, "pinned"
+            candidates = self._candidate_engines(owners)
+            chosen = (
+                self._rank_placement(candidates, key=key)
+                if candidates is not None
+                else None
+            )
+            if chosen is None:
+                if held is not None:
+                    # Nowhere better to send it: the pinned engine's own gate
+                    # holds the request until its pause clears.
+                    pin.touched = now
+                    return held, "pinned"
+                if key:
+                    self._engine_pins.pop(key, None)
+                return None, None
+            if key:
+                self._engine_pins[key] = _EnginePin(
+                    engine_id_for_origin(chosen[0].base_url), now
+                )
+            return chosen, "failed-over"
+        candidates = self._candidate_engines(owners)
+        if candidates is None:
+            return None, None
+        chosen = self._rank_placement(candidates, key=key)
+        if chosen is None:
+            return None, None
+        if key:
+            self._engine_pins[key] = _EnginePin(
+                engine_id_for_origin(chosen[0].base_url), now
+            )
+        return chosen, "placed"
 
     async def __call__(
         self, scope: dict[str, Any], receive: Receive, send: Send
@@ -2076,8 +2330,18 @@ class RouterApp:
             if card["id"] == model_id
         ]
         owner: _Owner | None = None
+        # Why this request went where it did: ``pinned`` to the engine its key
+        # already holds, ``placed`` by the placement rule, or ``failed-over``
+        # after the pinned engine could no longer take it. Recorded on the row.
+        routing: str | None = None
+        session_key = (
+            self._session_key(scope) if path in self._GENERATION_PATHS else None
+        )
         if owners:
-            selected = _preferred_owner(owners)
+            if session_key is not None:
+                selected, routing = self._select_engine(owners, session_key)
+            else:
+                selected = _preferred_owner(owners)
             if selected is None:
                 await self._json_error(
                     scope,
@@ -2095,11 +2359,12 @@ class RouterApp:
             if len(owners) > 1:
                 logger.info(
                     "router preference model=%s candidates=%d origin=%s "
-                    "accelerators=%s",
+                    "accelerators=%s routing=%s",
                     model_id,
                     len(owners),
                     upstream.base_url,
                     _reported_width(upstream, card),
+                    routing,
                 )
         elif not (path in self._GENERATION_PATHS and self._model_is_known(model_id)):
             # An id nothing can serve and no profile names is refused as before:
@@ -2132,7 +2397,17 @@ class RouterApp:
                 for card in catalog.cards
                 if card["id"] == model_id
             ]
-            selected = _preferred_owner(found) if found else None
+            if session_key is not None:
+                selected, _ = (
+                    self._select_engine(found, session_key)
+                    if found
+                    else (
+                        None,
+                        None,
+                    )
+                )
+            else:
+                selected = _preferred_owner(found) if found else None
             if selected is None:
                 return False
             self._known_models.add(model_id)
@@ -2146,12 +2421,46 @@ class RouterApp:
         )
         if path in self._GENERATION_PATHS:
             run_id, session, _, _ = self._request_identity(scope)
+            # A pinned request is willing to wait only so long for its own
+            # engine: past the operator's bound it moves, because the turn it
+            # accepts instead costs a re-prefill it was pinned to avoid. The
+            # bound applies only when there is somewhere to move to, so a pool
+            # of one keeps the gate's own wait.
+            max_wait: float | None = None
+            alternate: _Owner | None = None
+            if routing == "pinned" and session_key is not None:
+                candidates = self._candidate_engines(owners)
+                if candidates is not None:
+                    alternate = self._rank_placement(
+                        candidates,
+                        key=session_key,
+                        exclude=engine_id_for_origin(owner[0].base_url),
+                    )
+                    if alternate is not None:
+                        max_wait = gate.settings().failover_wait_seconds
             admission = await gate.acquire(
                 receive,
                 run_id=run_id,
                 session=session,
                 ready=None if owner is not None else _owner_ready,
+                max_wait_seconds=max_wait,
             )
+            if (
+                max_wait is not None
+                and alternate is not None
+                and admission.outcome == "timed-out"
+            ):
+                # The pinned engine did not free a slot within the bound, so the
+                # pin yields to the alternate placement.
+                owner = alternate
+                routing = "failed-over"
+                resolved[0] = owner
+                gate = self.gate_for(engine_id_for_origin(owner[0].base_url))
+                if session_key is not None:
+                    self._engine_pins[session_key] = _EnginePin(
+                        engine_id_for_origin(owner[0].base_url), time.monotonic()
+                    )
+                admission = await gate.acquire(receive, run_id=run_id, session=session)
             # A request held before its engine resolved waited at the default
             # gate, which the first engine to be gated has already taken over.
             # That width belongs to a different engine, so the request waits
@@ -2176,9 +2485,7 @@ class RouterApp:
                     disconnect_task.cancel()
                     await asyncio.gather(disconnect_task, return_exceptions=True)
                 gate = self.gate_for(bound_engine)
-                admission = await gate.acquire(
-                    receive, run_id=run_id, session=session
-                )
+                admission = await gate.acquire(receive, run_id=run_id, session=session)
         else:
             admission = _Admission("bypass")
         if admission.outcome == "disconnected":
@@ -2205,9 +2512,7 @@ class RouterApp:
                     if admission.outcome == "shutdown"
                     else "router generation queue wait limit exceeded"
                 ),
-                reason=(
-                    SHUTDOWN_REASON if admission.outcome == "shutdown" else None
-                ),
+                reason=(SHUTDOWN_REASON if admission.outcome == "shutdown" else None),
                 gate_engine=gate.engine_id or None,
             )
             return
@@ -2242,6 +2547,7 @@ class RouterApp:
                 disconnect_task=admission.disconnect_task,
                 watch_cut=admission.outcome == "acquired",
                 gate=gate,
+                routing=routing,
             )
         finally:
             if admission.outcome == "acquired":
@@ -2895,6 +3201,7 @@ class RouterApp:
         disconnect_task: asyncio.Task[None] | None = None,
         watch_cut: bool = False,
         gate: _GenerationGate | None = None,
+        routing: str | None = None,
     ) -> None:
         # The gate this request was admitted at, so a cut or a shutdown is read
         # from that engine's own control entry rather than from a peer's.
@@ -2945,11 +3252,7 @@ class RouterApp:
         # Armed only for a relay the gate admitted, so the cut reaches exactly
         # the relays holding decode width and never a catalog or token-count
         # request that consumes none.
-        cut_task = (
-            asyncio.create_task(gate.wait_for_cut())
-            if watch_cut
-            else None
-        )
+        cut_task = asyncio.create_task(gate.wait_for_cut()) if watch_cut else None
         try:
             # Opening the upstream is itself a wait the cut has to be able to
             # end, and for some relays it is the only one. A streaming answer
@@ -3066,9 +3369,7 @@ class RouterApp:
             # here is what distinguishes it from a caller that left: both
             # record aborted, and only one of them is the router's doing.
             reason = (
-                "router shutdown cut the relay"
-                if gate.shutdown_requested
-                else None
+                "router shutdown cut the relay" if gate.shutdown_requested else None
             )
             raise
         finally:
@@ -3088,6 +3389,7 @@ class RouterApp:
                 began=began,
                 gate_wait_s=gate_wait_s,
                 reason=reason,
+                routing=routing,
             )
             disconnected.cancel()
             with suppress(asyncio.CancelledError):
@@ -3137,6 +3439,7 @@ class RouterApp:
         gate_wait_s: float = 0.0,
         reason: str | None = None,
         gate_engine: str | None = None,
+        routing: str | None = None,
     ) -> None:
         """Append the row for one request, whatever its outcome and whoever answered it.
 
@@ -3184,6 +3487,7 @@ class RouterApp:
                 timestamp=started_at,
                 reason=reason,
                 gate_engine=gate_engine,
+                routing=routing,
             )
         except (OSError, TypeError, ValueError) as error:
             logger.warning(

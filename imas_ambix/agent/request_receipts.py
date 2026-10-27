@@ -205,6 +205,12 @@ class RequestReceipt:
     # and a request the shutdown release answered while it waited at the
     # router's own queue rather than a live engine's.
     gate_engine: str | None
+    # Why the request reached the engine it did: ``pinned`` when its session key
+    # was already held to that engine, ``placed`` when the placement rule chose
+    # it, and ``failed-over`` when the pin no longer held -- the engine was gone
+    # or its gate was paused. None for every row that was refused before an
+    # engine was chosen, since such a request went nowhere for a reason to name.
+    routing: str | None
     caller_hint: str
     run_id: str | None
     coordinator_session: str | None
@@ -833,6 +839,7 @@ class RequestReceiptSink:
         accounting: StreamAccounting,
         gate_wait_s: float = 0.0,
         gate_engine: str | None = None,
+        routing: str | None = None,
         run_id: str | None = None,
         coordinator_session: str | None = None,
         account: str | None = None,
@@ -859,6 +866,7 @@ class RequestReceiptSink:
             duration_s=round(duration_s, 6),
             gate_wait_s=round(max(0.0, gate_wait_s), 6),
             gate_engine=gate_engine,
+            routing=routing,
             caller_hint=caller_hint,
             run_id=run_id,
             coordinator_session=coordinator_session,
