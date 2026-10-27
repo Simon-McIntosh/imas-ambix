@@ -108,6 +108,19 @@
       failed (<code>EXIT=1</code>, one failing test id) while the unmutated head
       passes it: an engine that stops answering must leave its own pool
       unavailable rather than no document at all.</p>
+      <p id="lane-document-per-pool-reckon-reader">The reckon contract test
+      originally handed a <em>path</em> to
+      <code>read_lane_document</code>, which takes the parsed object or its raw
+      JSON text and reports anything else as malformed — for a path, the detail
+      reads <code>lane document is PosixPath, not a JSON object</code>. Its
+      assertion was therefore false, and the <code>importorskip</code> hid that
+      on this host. It now writes the document and
+      reads it through <code>read_lane_document_file</code>, asserting the
+      resolved fields rather than a bare shape. Run where reckon imports
+      (reckon's own interpreter with the project's site-packages on the path),
+      the repaired test <strong>passes</strong> and the reverted call
+      <strong>fails</strong> with exactly the reader's
+      <code>PosixPath</code> detail.</p>
     </section>
   </main>
 </body>
