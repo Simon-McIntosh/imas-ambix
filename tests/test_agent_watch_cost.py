@@ -143,10 +143,10 @@ def _estimate_record(tmp_path: Path) -> Path:
 def _install_fixture_table(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Wire the fixture record into the readers through the table they resolve.
 
-    ``watch_text`` and ``watch_document`` find both the price table and the
-    estimate record through :func:`provider_prices.table_path`, so pointing
-    that at the fixture table is what makes them read the fixture record
-    without an *estimate* argument being passed in.
+    ``watch_document`` finds both the price table and the estimate record
+    through :func:`provider_prices.table_path`, so pointing that at the
+    fixture table is what makes it read the fixture record without an
+    *estimate* argument being passed in.
     """
     table = _estimate_record(tmp_path)
     monkeypatch.setattr(provider_prices, "table_path", lambda *a, **k: table)
@@ -202,12 +202,12 @@ def test_the_period_is_pinned_to_the_estimate_formula(tmp_path: Path) -> None:
 
 
 def test_the_own_cache_and_no_cache_figures_are_absent(tmp_path: Path) -> None:
-    """Neither what our cache really cost nor the h=0 figure is printed.
+    """Neither what our cache really cost nor the h=0 figure is the cost reported.
 
-    Both are computed here from the same period and asserted absent from the
-    output, so a change that reverted the figure to our own cached split, or
-    priced all input at the prompt tier, reddens a test rather than passing a
-    figure that merely looks like a cost.
+    Both are computed here from the same period and asserted different from the
+    figure the document carries, so a change that reverted the estimate to our
+    own cached split, or priced all input at the prompt tier, reddens a test
+    rather than passing a figure that merely looks like a cost.
     """
     now = _dt.datetime.now(_dt.UTC).timestamp()
     index = _fixture_index(tmp_path, now)
@@ -226,10 +226,11 @@ def test_the_own_cache_and_no_cache_figures_are_absent(tmp_path: Path) -> None:
     )
     no_cache = watch.estimated_cost({"in": TOKENS_IN, "out": TOKENS_OUT}, rate, 0.0)
 
-    text = watch.render_document(index, now=now, prices=prices, estimate=estimate)
-    assert watch.fmt_usd(ESTIMATED_COST) in text
-    assert watch.fmt_usd(own_cache) not in text
-    assert watch.fmt_usd(no_cache) not in text
+    payload = watch.document(index, now=now, prices=prices, estimate=estimate)
+    cost = payload["ledger"][0]["cost"]
+    assert cost == pytest.approx(ESTIMATED_COST)
+    assert cost != pytest.approx(own_cache)
+    assert cost != pytest.approx(no_cache)
     index.close()
 
 
@@ -267,46 +268,28 @@ def test_the_label_gives_the_rate_the_source_and_the_citation(
         source_kind="measured",
         citation=ESTIMATE_RECORD["citation"],
     )
-    text = watch.render_document(index, now=now, prices=[PRICE_ROW], estimate=estimate)
-    assert "55.0%" in text
-    assert "measured" in text
-    assert "https://openrouter.ai/api/v1/chat/completions" in text
-    assert "2026-09-29" in text
+    label = watch.document(
+        index, now=now, prices=[PRICE_ROW], estimate=estimate
+    )["ledger"][0]["cost_label"]
+    assert "55.0%" in label
+    assert "measured" in label
+    assert "https://openrouter.ai/api/v1/chat/completions" in label
+    assert "2026-09-29" in label
     index.close()
 
 
-def test_a_missing_record_prints_a_dash_and_says_so(tmp_path: Path) -> None:
-    """No installed estimate dashes the cost and names the reason."""
+def test_a_missing_record_dashes_the_cost_and_names_the_reason(
+    tmp_path: Path,
+) -> None:
+    """No installed estimate leaves the cost unset and names the reason."""
     now = _dt.datetime.now(_dt.UTC).timestamp()
     index = _fixture_index(tmp_path, now)
-    text = watch.render_document(index, now=now, prices=[PRICE_ROW], estimate=None)
-    assert "no third-party estimate installed" in text
-    # The cost column, and only it, dashes: the token columns remain.
-    assert "$" not in text
+    row = watch.document(index, now=now, prices=[PRICE_ROW], estimate=None)["ledger"][0]
+    assert row["cost"] is None
+    assert "no third-party estimate installed" in row["cost_label"]
+    # The cost, and only it, is absent: the token columns remain.
+    assert row["tokens_in"] > 0
     index.close()
-
-
-def test_watch_text_prices_from_the_installed_record(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The text panel reads the record the table's directory holds.
-
-    No *estimate* is passed, so the figure can only arrive through the reader
-    path: the table the panel resolves holds the fixture row and its directory
-    holds the fixture record. Replacing the installed-record read with ``None``
-    dashes the cost and reddens this test, which is the mutation this wiring
-    exists to catch.
-    """
-    now = _dt.datetime.now(_dt.UTC).timestamp()
-    _install_fixture_table(tmp_path, monkeypatch)
-    directory = _write_receipts(tmp_path, now)
-    index_path = tmp_path / "text.sqlite3"
-    _build_index(directory, index_path)
-    text = watch.watch_text(directory, index_path, now=now)
-    assert watch.fmt_usd(ESTIMATED_COST) in text
-    assert "55.0%" in text
-    assert "measured" in text
-    assert "2026-09-29" in text
 
 
 def test_watch_document_prices_from_the_installed_record(
@@ -326,6 +309,7 @@ def test_watch_document_prices_from_the_installed_record(
     assert row["cost"] == pytest.approx(ESTIMATED_COST)
     assert "55.0%" in row["cost_label"]
     assert "measured" in row["cost_label"]
+    assert "2026-09-29" in row["cost_label"]
 
 
 @pytest.mark.parametrize(
@@ -957,14 +941,14 @@ def test_the_refresh_names_the_served_slug_and_names_none_without_a_table(
     index_path = tmp_path / "slugs.sqlite3"
     _build_index(directory, index_path)
 
-    watch.watch_text(directory, index_path, now=now)
+    watch.watch_document(directory, index_path, now=now)
     assert calls[0]["slugs"] == (SLUG,)
 
     # With no table on disk there is no row to match, so nothing is named and
     # the refresh is not pointed at a listing this render could not resolve.
     missing = tmp_path / "absent" / "openrouter-prices.json"
     monkeypatch.setattr(provider_prices, "table_path", lambda *a, **k: missing)
-    watch.watch_text(directory, index_path, now=now)
+    watch.watch_document(directory, index_path, now=now)
     assert calls[-1]["slugs"] == ()
 
 

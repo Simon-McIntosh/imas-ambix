@@ -1,14 +1,14 @@
-"""``imas-ambix agent watch`` — the serving panels, derived from the record.
+"""``imas-ambix agent watch`` — the serving figures, derived from the record.
 
-The panels moved here from the workstation's ``gpu-watch``, which read a live
-serve over HTTP and carried its own private ledger alongside. A reader
+The derivation moved here from the workstation's ``gpu-watch``, which read a
+live serve over HTTP and carried its own private ledger alongside. A reader
 derives; it does not probe. So the serving figures, the serve's own card
 readings and the whole ledger come from the append-only record the on-node
 recorder writes (:mod:`imas_ambix.agent.serving_receipts`), reached through
 :class:`~imas_ambix.agent.telemetry_index.TelemetryIndex`. The subcommand
 therefore spawns no sampler step for the serve's cards and maintains no ledger
 of its own: the durable record is the store, the index is a disposable query
-layer over it, and this module only renders.
+layer over it, and this module returns figures as data for the renderer.
 
 **Period figures are counter endpoints, not sums.** The engine's token counters
 are cumulative since it started, so a period's tokens are the difference of the
@@ -1011,13 +1011,13 @@ def ledger(
     return rows
 
 
-# ── the panels ───────────────────────────────────────────────────────
+# ── the figures ──────────────────────────────────────────────────────
 
 
 def _latest_reading(
     index: TelemetryIndex, now: float, lookback: float = 3600.0
 ) -> dict:
-    """The newest record row, and the gauges the rail reads from it."""
+    """The newest record row, and the gauges the serving figures read from it."""
     rows = index.rows(now - lookback, now)
     latest = rows[-1] if rows else {}
     engine = latest.get("engine") if isinstance(latest.get("engine"), dict) else {}
@@ -1050,107 +1050,6 @@ def _latest_reading(
     }
 
 
-def render_rail(reading: dict) -> str:
-    """One line: what is served, on what, at what occupancy."""
-    model = reading.get("served_name") or reading.get("model_id") or "?"
-    bits = [f"[bold]{model}[/]"]
-    if reading.get("family"):
-        bits.append(f"[dim]{reading['family']}[/]")
-    if reading.get("gpus"):
-        bits.append(f"[dim]{reading['gpus']}×H200[/]")
-    bits.append(f"[dim]kv[/] {bar(_percent(reading.get('kv')))}")
-    bits.append(
-        f"[dim]running[/] "
-        f"{'—' if reading.get('running') is None else int(reading['running'])}"
-        f"  [dim]queued[/] "
-        f"{'—' if reading.get('queued') is None else int(reading['queued'])}"
-    )
-    hit = reading.get("hit_rate")
-    hit_pct = None if hit is None else hit * 100.0
-    bits.append(f"[dim]hit[/] {bar(_percent(hit_pct))}")
-    return " [dim]·[/] ".join(bits)
-
-
-def _percent(fraction: float | None) -> float | None:
-    """A 0-1 occupancy as a percentage, or ``None`` when unrecorded."""
-    if fraction is None:
-        return None
-    return float(fraction) * 100.0 if fraction <= 1.0 else float(fraction)
-
-
-def render_cards(
-    index: TelemetryIndex, now: float, lookback: float = 3600.0
-) -> list[str]:
-    """One line per card, from the cards the record carries.
-
-    A card is drawn only when the record carries a reading for it: a card the
-    recorder never saw is absent, not idle, and printing an empty bar for it
-    would be the recorded-null defect wearing a glyph, so it is left out.
-    """
-    latest = _latest_reading(index, now, lookback)["row"]
-    section = latest.get("cards")
-    # A record that carried the list without a wrapper is read directly.
-    cards = section.get("cards") if isinstance(section, dict) else section
-    if not isinstance(cards, list):
-        return []
-    lines: list[str] = []
-    for card in cards:
-        if not isinstance(card, dict):
-            continue
-        index_label = card.get("index", card.get("read_index", "?"))
-        util = card.get("utilisation_percent")
-        temp = card.get("temperature_c")
-        power = card.get("power_draw_w")
-        cap = card.get("power_cap_w")
-        power_text = "—" if power is None else f"{power:.0f}W"
-        if cap is not None and power is not None:
-            power_text += f"/{cap:.0f}W"
-        lines.append(
-            f"card {index_label:>2}  {bar(util)}  "
-            f"temp {'—' if temp is None else f'{temp:.0f}'}C "
-            f"[dim](throttle {THROTTLE_C:.0f}C)[/]  power {power_text}"
-        )
-    return lines
-
-
-def render_ledger_rows(
-    rows: Sequence[Period],
-    prices: bool,
-    estimate: CacheRateEstimate | None = None,
-) -> list[str]:
-    """The ledger, one line per period, in one column grid.
-
-    One cost figure is printed per period row and one label beside the ledger:
-    the estimated third-party hit rate as a percentage, its source kind and its
-    citation, or the reason no estimate is installed. The label is stated once
-    because one installed record answers for every row, and repeating its
-    citation on each line would bury the figures it explains.
-    """
-    lines = [
-        "[bold]ledger[/]  "
-        + ("[dim]period · covered · in · cached · out · cards · cost[/]")
-    ]
-    if not rows:
-        lines.append("[dim]no record yet[/]")
-        return lines
-    for row in rows:
-        cached_text = fmt_tokens(row.cached)
-        share = row.cached_share
-        if share is not None:
-            cached_text += f" ({share:.0f}%)"
-        lines.append(
-            f"{row.label:>8}  {fmt_span(row.covered):>5}  "
-            f"{fmt_tokens(row.tokens_in):>7}  {cached_text:>14}  "
-            f"{fmt_tokens(row.tokens_out):>7}  "
-            f"{bar(row.utilisation):>9}  {fmt_usd(row.cost)}"
-        )
-    if not prices:
-        lines.append("[dim]cost: no cached price table[/]")
-    else:
-        lines.append(f"[dim]cost: {cost_label(estimate)}[/]")
-    return lines
-
-
 def index_status(path: str | Path, now: float) -> dict:
     """The index file's presence and last-ingest time, read from its metadata.
 
@@ -1175,53 +1074,6 @@ def index_status(path: str | Path, now: float) -> dict:
         "last_ingest_at": written.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "age_seconds": round(now - info.st_mtime),
     }
-
-
-def render_index(status: dict) -> str:
-    """The index block: where it is, or that it is not there or unreadable."""
-    if not status["exists"]:
-        return (
-            f"[bold]index[/]  [dim]none at[/] {status['path']}\n"
-            "[dim]the fleet's ingest service (imas-ambix agent ingest) "
-            "maintains it[/]"
-        )
-    if status.get("readable") is False:
-        return (
-            f"[bold]index[/]  {status['path']}\n"
-            f"[dim]could not be read:[/] {status['error']}"
-        )
-    return (
-        f"[bold]index[/]  {status['path']}  "
-        f"[dim]last ingest {status['last_ingest_at']} "
-        f"({fmt_span(status['age_seconds'])} ago)[/]"
-    )
-
-
-def render_document(
-    index: TelemetryIndex,
-    *,
-    now: float | None = None,
-    prices: Sequence[dict] | None = None,
-    estimate: CacheRateEstimate | None = None,
-    history: Sequence[dict] | None = None,
-) -> str:
-    """The whole reading as one text document, in rich markup."""
-    when = time.time() if now is None else now
-    reading = _latest_reading(index, when)
-    rows = ledger(
-        index,
-        now=when,
-        prices=prices,
-        model=reading.get("model_id"),
-        estimate=estimate,
-        history=history,
-    )
-    blocks = [render_index(index_status(index.path, when)), render_rail(reading)]
-    cards = render_cards(index, when)
-    if cards:
-        blocks.append("\n".join(cards))
-    blocks.extend(render_ledger_rows(rows, prices is not None, estimate))
-    return "\n".join(blocks)
 
 
 def _served_slugs(model: str | None) -> tuple[str, ...]:
@@ -1283,11 +1135,11 @@ def document(
     estimate: CacheRateEstimate | None = None,
     history: Sequence[dict] | None = None,
 ) -> dict:
-    """The same figures :func:`render_document` prints, as plain data.
+    """The same figures the ledger carries, as plain data.
 
-    The text renderer and this share every query, so a figure a caller reads
-    out of the JSON is the figure the panel showed rather than a second
-    derivation that could drift from it. *price_age* is the age of the price
+    Every figure a caller reads out of the JSON comes from one derivation, so
+    a consumer renders a number that was measured rather than re-deriving it.
+    *price_age* is the age of the price
     table the figures were priced from, in seconds; it is reported here so a
     consumer renders cost from the document rather than reaching for the
     table itself. Each period row carries its ``cost`` figure and the
@@ -1430,19 +1282,6 @@ def watch_document(
     return payload
 
 
-def _plain(markup: str, *, width: int = 110) -> str:
-    """Render rich markup to plain text, so the output is comparable."""
-    import io
-
-    from rich.console import Console
-
-    buffer = io.StringIO()
-    Console(file=buffer, no_color=True, width=width, highlight=False).print(
-        markup, soft_wrap=False
-    )
-    return buffer.getvalue()
-
-
 __all__ = [
     "ESTIMATE_FILENAME",
     "CacheRateEstimate",
@@ -1467,6 +1306,5 @@ __all__ = [
     "observed_fraction",
     "period_row",
     "price_at",
-    "render_document",
     "watch_document",
 ]

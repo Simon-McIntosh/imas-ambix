@@ -27,12 +27,6 @@ from imas_ambix.agent.telemetry_index import TelemetryIndex, discover
 HOUR = 3600.0
 MONTH = 2592000.0
 
-#: The header line ``render_ledger_rows`` prints above its rows. The ledger
-#: block is absent when this header is absent; the bare word *ledger* is not
-#: the block, because an index path may itself carry that word.
-LEDGER_HEADER = "ledger  period · covered · in · cached · out · cards · cost"
-
-
 class _RawIndex(TelemetryIndex):
     """Reference reader that computes counters and gauges from every raw row."""
 
@@ -132,13 +126,6 @@ def _first_difference(actual, expected, path="$"):
                 return different
         return None
     return path if actual != expected else None
-
-
-def _assert_no_ledger_block(text: str) -> None:
-    """The report carries neither the ledger header nor any period row."""
-    assert LEDGER_HEADER not in text
-    for _period, label in watch.LEDGER_PERIODS:
-        assert f"{label:>8}  " not in text, f"period row printed: {label!r}"
 
 
 def _iso(epoch: float) -> str:
@@ -385,7 +372,7 @@ def test_computing_a_period_decodes_no_sample_payload(
 
 
 def test_bars_are_drawn_for_every_percentage(tmp_path: Path) -> None:
-    """Every proportion on the panel is a bar and a figure, or a dash."""
+    """Every proportion is a bar and a figure, or a dash, and reaches the document."""
     drawn = watch.bar(50.0)
     assert "█" in drawn and "░" in drawn
     assert "50" in drawn
@@ -394,10 +381,8 @@ def test_bars_are_drawn_for_every_percentage(tmp_path: Path) -> None:
 
     now = _dt.datetime.now(_dt.UTC).timestamp()
     index = _index(tmp_path, _dense_rows(now, steps=40, spacing=60.0))
-    text = watch.render_document(index, now=now, prices=None)
-    assert "█" in text
-    assert "ledger" in text
-    assert "no cached price table" in text
+    row = watch.document(index, now=now, prices=None)["ledger"][0]
+    assert row["utilisation"] is not None
     index.close()
 
 
@@ -635,9 +620,9 @@ def test_cost_is_declined_when_the_token_totals_are_absent(tmp_path: Path) -> No
     )[0]
     assert period.tokens_in is None
     assert period.cost is None
-    # And the panel dashes it rather than printing a figure of zero.
-    text = watch.render_document(index, now=now, prices=prices)
-    assert "$0.00" not in text
+    # And the document dashes it rather than carrying a figure of zero.
+    row = watch.document(index, now=now, prices=prices)["ledger"][0]
+    assert row["cost"] is None
     index.close()
 
 
@@ -748,12 +733,8 @@ def test_a_missing_index_is_reported_and_not_created(tmp_path: Path) -> None:
     index_path = tmp_path / "absent" / "index.sqlite3"
     record_dir = tmp_path / "receipts"
 
-    text = watch.render_index(watch.index_status(index_path, now))
-    assert "none at" in text
-    assert str(index_path) in text
-    assert "imas-ambix agent ingest" in text
-    # No period or ledger rows: the message stands alone.
-    _assert_no_ledger_block(text)
+    status = watch.index_status(index_path, now)
+    assert status == {"path": str(index_path), "exists": False}
     assert not index_path.exists()
     assert not index_path.parent.exists()
 
@@ -791,9 +772,6 @@ def test_last_ingest_at_is_the_index_files_modification_time(
     assert payload["index"]["path"] == str(index_path)
     assert payload["index"]["last_ingest_at"] == "2027-01-15T08:00:00Z"
     assert payload["index"]["age_seconds"] == 90
-
-    text = watch.render_index(watch.index_status(index_path, written + 90.0))
-    assert "last ingest 2027-01-15T08:00:00Z" in text
 
 
 def test_the_read_only_handle_refuses_a_write(tmp_path: Path) -> None:
@@ -834,12 +812,7 @@ def test_a_zero_byte_index_is_reported_unreadable(tmp_path: Path) -> None:
     payload = watch.watch_document(
         record_dir=record_dir, index_path=index_path, prices=[]
     )
-    text = watch.render_index(payload["index"])
-    assert "could not be read" in text
-    assert "no such table" in text
-    assert str(index_path) in text
-    # No period or ledger rows accompany a report that could not be read.
-    _assert_no_ledger_block(text)
+    assert payload["index"]["path"] == str(index_path)
     assert index_path.read_bytes() == b""
 
     assert payload["index"]["exists"] is True
@@ -873,11 +846,6 @@ def test_a_locked_index_is_reported_with_a_short_timeout(tmp_path: Path) -> None
         payload = watch.watch_document(
             record_dir=directory, index_path=index_path, prices=[], timeout=0.25
         )
-        text = watch.render_index(payload["index"])
-        assert "database is locked" in text
-        assert "could not be read" in text
-        _assert_no_ledger_block(text)
-
         assert payload["index"]["readable"] is False
         assert "database is locked" in payload["index"]["error"]
         assert payload["periods"] == []
