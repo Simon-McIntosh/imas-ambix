@@ -25,7 +25,7 @@
   <title>B300 Bring-up | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="35">
+<meta name="plan-version" content="36">
 <meta name="plan-modified" content="2026-10-27">
 </head>
 <body>
@@ -326,6 +326,9 @@
 </div>
 <div class="r-comment" data-section="s3" data-id="c-run-r-20261026T232837267494-agent-catalogue-tests-green" data-who="reckon-build" data-when="2026-10-26T23:36:30.257Z">
     <div class="r-comment-body"><p>The four baseline failures were stale tests, not serving defects: the serve-help phrase is present but Click-wrapped (compare on collapsed whitespace), the clean-directory sandbox starved the launcher of `id`/`basename`/`dirname`/`grep` (provision them, keep the forbidden CLI/scheduler as recording shims), and the two OpenRouter picker tests still expected the pre-launch banner that commit c75bfd55 deliberately removed (assert the silent hand-over instead); the candidate suite's duplicate distinct-port test is gone so `tests/test_agent.py::test_every_profile_declares_a_distinct_port` is the single assertion site. Gate: 4 failed, 200 passed at base a24125f2 -&gt; 203 passed at head; ruff whole-tree exits 0.</p></div>
+</div>
+<div class="r-comment" data-section="s3" data-id="c-run-r-20261027T002045625287-verify-backup-shards" data-who="reckon-build" data-when="2026-10-27T00:41:41.860Z">
+    <div class="r-comment-body"><p>verified both backup checkpoints shard-for-shard — 274/274 listing files present and 235/235 LFS files matching size and SHA-256 at their pinned revisions (kimi-k3 119 files/98 LFS, mimo-v2-6-pro-mopd 155 files/137 LFS; 2,134,488,498,219 bytes hashed at 2.92 GB/s on 98dci4-clu-2068 job 1291586), with the last-byte-flipped control reporting a mismatch; the comparison is the new `shards`/`control-shards` phase of model-store-audit.py</p></div>
 </div>
 <div class="r-comment" data-section="s4" data-id="c-run-r-20261026T231745023864-review-of-deepseek-launchers-4x-8x-2831967fb2bb" data-who="reckon-build" data-when="2026-10-26T23:31:07.140Z">
     <div class="r-comment-body"><p>review of r-20261026T225015859094-deepseek-launchers-4x-8x at head 2831967f scores goal 16, evidence 13, scope 13, durability 14, fit 17, reuse 20 — one blocking finding (restart --gpus raises AttributeError at imas_ambix/agent/cli.py:2499 when placement resolves to None) and two non-blocking findings (cli.py written outside the declared scope by done-when necessity; the manifest's cited base-arm log does not contain the six failures it attributes).</p></div>
