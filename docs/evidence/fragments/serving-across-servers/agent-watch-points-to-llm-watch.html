@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="docs-project" content="imas-ambix">
+  <meta name="reckon-type" content="evidence">
+  <meta name="plan-slug" content="serving-across-servers">
+</head>
+<body>
+  <main class="plan-doc">
+    <section id="agent-watch-points-to-llm-watch-pointer">
+      <p><strong><code>imas-ambix agent watch</code> without <code>--json</code>
+      is now a pointer.</strong> The command prints one line and exits 0;
+      <code>watch.watch_text</code> and its only caller are removed from
+      <code>imas_ambix/agent/watch.py</code> and <code>imas_ambix/agent/cli.py</code>.
+      Measured on the assigned node:</p>
+      <pre>$ imas-ambix agent watch
+The watch panels are rendered by llm-watch; run 'llm-watch', or 'imas-ambix agent watch --json' for the figures.
+$ echo $?
+0</pre>
+      <p>One line, naming <code>llm-watch</code>, exit 0. The pointer branch sits
+      before the index resolution, so the same single line is what a reader sees
+      whether or not a local index exists. <code>--json</code> and
+      <code>--json --live</code> are untouched: the live path still emits the
+      <code>lane</code>, <code>live</code> and <code>callers</code> blocks, and
+      the JSON path still falls back to the published watch document when no
+      local index resolves.</p>
+      <p>The derived text helpers that <code>watch_text</code> reached through
+      are gone with it: <code>render_document</code>, <code>render_index</code>,
+      <code>render_rail</code>, <code>render_cards</code>,
+      <code>render_ledger_rows</code>, <code>_plain</code> and the private
+      <code>_percent</code> they shared. Nothing outside the text renderer
+      called them, and the figures they formatted are the ones the JSON
+      document already carries. The tests that only exercised those renderers
+      now assert the same behaviour through <code>watch.document</code> and
+      <code>watch.watch_document</code>: the installed estimate still prices
+      the period row, the cost label still names the rate, its source and its
+      citation, an absent record still leaves the cost unset and names the
+      reason, the own-cache and h=0 figures still differ from the reported one,
+      and the refresh still names the slug the served model resolves to.</p>
+    </section>
+    <section id="agent-watch-points-to-llm-watch-live-memory">
+      <p><strong>A ten-minute <code>llm-watch --live</code> run holds its
+      memory.</strong> The console script was launched directly, not through
+      <code>uv run</code>: uv forks, so a pid taken from it is the uv launcher
+      and the view renders in a grandchild that is never the process measured.
+      The process measured here is the interpreter running the script --
+      <code>pid=1028</code>,
+      <code>/home/ITER/mcintos/Code/imas-ambix/.venv/bin/python3
+      /home/ITER/mcintos/Code/imas-ambix/.venv/bin/llm-watch --live</code>,
+      read from <code>/proc/1028/cmdline</code> and kept in
+      <code>logs/llm-watch-pid-cmdline.txt</code> -- with <code>PYTHONPATH</code>
+      at the worktree, so the run executed this worktree's
+      <code>imas_ambix/agent/llm_watch.py</code>.</p>
+      <p>RSS was sampled on a fixed 5 s clock (targets at start + k x 5 s, not
+      "5 s after the last read"): <strong>121 samples over 0-600 s</strong>,
+      child alive at every one. Each refresh's own timestamp was read from the
+      <code># refreshed ...</code> line it printed, so the cadence is shown
+      rather than assumed: <strong>104 distinct refresh stamps</strong>,
+      spanning 589 s -- the same 104 distinct timestamps the CSV carries.</p>
+      <p><strong>Four intervals ran longer than 6 s</strong>, all of them here:
+      10 s ending 10:20:14Z, 20 s ending 10:22:53Z, 8 s ending 10:24:23Z, and
+      7 s ending 10:26:35Z. The remaining 99 gaps are 5 s (50) or 6 s (49); a
+      stamp carries whole seconds, so a 6 s gap is the quantisation of a 5 s
+      cadence rather than a stall. 104 renders over 589 s is a mean 5.72 s,
+      consistent with each pass spending about 0.7 s building the document
+      before its 5 s sleep.</p>
+      <p>Resident set: <strong>71344 kB after the first minute (t = 60 s),
+      72272 kB at the end</strong> -- a change of <strong>+1.30 %</strong>,
+      well inside the 10 % the section allows. Post-first-minute range
+      70476-78528 kB, median 72204 kB. The two readings above 74 MB are
+      transients rather than a trend: 77028 kB at t = 45 s in the window's
+      start-up, and 78528 kB at t = 290 s, coincident with the long render that
+      ended the 20 s interval; ten seconds later the figure is back at
+      72208 kB.</p>
+      <pre>    0.002s     2328 kB  before the first render
+    5.000s    59260 kB  10:18:15
+   10.000s    62140 kB  10:18:21
+   45.000s    77028 kB  10:18:53
+   60.000s    71344 kB  10:19:09
+  120.000s    71032 kB  10:20:04
+  290.000s    78528 kB  10:22:58
+  300.000s    72208 kB  10:23:09
+  420.000s    72248 kB  10:25:12
+  600.000s    72272 kB  10:28:04</pre>
+      <p>Full series and the rendered passes:
+      <code>logs/llm-watch-live-rss.csv</code> and
+      <code>logs/llm-watch-live-output.txt</code> in the run directory.</p>
+    </section>
+    <section id="agent-watch-points-to-llm-watch-published-ledger-fix">
+      <p><strong>The live view could not render at all, and this node carries the
+      fix.</strong> The first measurement attempt died after one refresh with
+      <code>AttributeError: module 'imas_ambix.agent.watch_publish' has no
+      attribute 'DEFAULT_OUTPUT'</code> from
+      <code>llm_watch.py:773</code> — the build names an attribute the publisher
+      never defined. It now calls
+      <code>watch_publish.default_output_path()</code>, and
+      <code>tests/test_llm_watch.py</code> holds the build to that resolver with
+      no <code>--watch</code> argument, which is how the live view is launched.</p>
+      <p>The defect is at the base revision, not introduced here: any
+      <code>llm-watch</code> render without an explicit watch path raised before
+      drawing a line, which is every launch of the live view.</p>
+    </section>
+    <section id="agent-watch-points-to-llm-watch-gates">
+      <p><strong>Gates.</strong> The four named test files pass at the head arm —
+      <code>63 passed</code>, log <code>logs/gate-head.log</code>, last line
+      <code>EXIT=0</code>. The whole-tree ruff gate
+      (<code>uv run --no-sync ruff check imas_ambix tests</code>) prints
+      <code>All checks passed!</code> and <code>EXIT=0</code>, log
+      <code>logs/ruff-head.log</code>. The committed one-engine golden is
+      unchanged: no golden fixture or expected text under
+      <code>tests/test_llm_watch.py</code> was edited, only one added test.</p>
+      <p>With the text renderers retired and the cost tests converted, the same
+      gate plus <code>tests/test_agent_watch_cost.py</code> passes —
+      <code>102 passed</code> (the restore of the split help test and the
+      refresh-stamp test add the other two), log <code>logs/gate-followup.log</code>,
+      <code>EXIT=0</code> — and the whole-tree ruff gate still prints
+      <code>All checks passed!</code> at <code>EXIT=0</code>, log
+      <code>logs/ruff-followup.log</code>.</p>
+      <p><strong>Negative control.</strong> The declared mutation is the base
+      revision's <code>agent watch</code>, whose text renderer still prints:
+      with the head arm's help test copied onto a base-revision tree, the pointer
+      assertion fails with <code>assert 17 == 1</code> — the base prints 17 lines,
+      beginning with the index line and the throughput band — and
+      <code>EXIT=1</code>. The head arm passes the same test id. Log:
+      <code>logs/negative-control.log</code>.</p>
+    </section>
+  </main>
+</body>
+</html>

@@ -43,6 +43,7 @@ says less than the explanation alone.
 
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import os
 import sys
@@ -770,7 +771,7 @@ def build_document(
     ) or {}
     document["engine"] = endpoints
     document["checkpoints"] = endpoints.get("checkpoints") or {}
-    published = _read_json(watch_path or watch_publish.DEFAULT_OUTPUT) or {}
+    published = _read_json(watch_path or watch_publish.default_output_path()) or {}
     document["ledger"] = published.get("ledger") or []
     document["ledger_published_at"] = published.get("published_at")
     return document
@@ -834,6 +835,17 @@ def render_text(
     return buffer.getvalue()
 
 
+def refresh_stamp(moment: _dt.datetime | None = None) -> str:
+    """The line a live pass prints above its view: when that pass was taken.
+
+    A refresh cadence can only be checked against what the view itself says, so
+    the stamp travels with the output rather than being inferred from a
+    reader's clock. *moment* is for a caller that already knows the time.
+    """
+    when = _dt.datetime.now(_dt.UTC) if moment is None else moment
+    return f"# refreshed {when.astimezone(_dt.UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}"
+
+
 def main(argv: list[str] | None = None) -> int:
     """The ``llm-watch`` console script."""
     import argparse
@@ -880,6 +892,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.as_json:
             sys.stdout.write(json.dumps(document, indent=2, default=str) + "\n")
         else:
+            if args.live:
+                sys.stdout.write(refresh_stamp() + "\n")
             sys.stdout.write(
                 render_text(
                     document,

@@ -3244,13 +3244,11 @@ def watch(
 
     The panels are derived from the append-only receipt record, never from a
     live probe: this reads what the recorder already wrote and queries it
-    through a disposable local index, so it neither spawns a sampler for the
-    serve's cards nor keeps a ledger of its own. Running it twice over the
-    same record produces the index-derived figures unchanged.
-
-    \b
-    Read the local record:
-        imas-ambix agent watch
+    through a disposable local index, and it neither spawns a sampler for the
+    serve's cards nor keeps a ledger of its own. The rendered view lives in
+    the ``llm-watch`` console script, so this command without ``--json``
+    prints one line pointing there rather than drawing the panels itself;
+    ``--json`` still emits the figures this command derives.
 
     \b
     Read a specific record, and emit the figures as JSON:
@@ -3273,18 +3271,21 @@ def watch(
             _json.dumps(watch_mod.live_document(record_dir=record_dir), indent=2)
         )
         return
+    if not as_json:
+        click.echo(
+            "The watch panels are rendered by llm-watch; "
+            "run 'llm-watch', or 'imas-ambix agent watch --json' for the figures."
+        )
+        return
     if index_placement.resolve_index_path(index_path) is None:
         click.echo(watch_mod.PUBLISHED_WATCH_PATH.read_text(encoding="utf-8"), nl=False)
         return
-    if as_json:
-        click.echo(
-            _json.dumps(
-                watch_mod.watch_document(record_dir=record_dir, index_path=index_path),
-                indent=2,
-            )
+    click.echo(
+        _json.dumps(
+            watch_mod.watch_document(record_dir=record_dir, index_path=index_path),
+            indent=2,
         )
-        return
-    console.print(watch_mod.watch_text(record_dir=record_dir, index_path=index_path))
+    )
 
 
 @agent.command(name="publish-watch")
