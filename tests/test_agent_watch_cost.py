@@ -1120,3 +1120,39 @@ def test_two_serves_are_each_priced_at_their_own_rate_and_totalled(
     assert total.tokens_in == pytest.approx(TOKENS_IN + SECOND_TOKENS_IN)
     assert total.tokens_out == pytest.approx(TOKENS_OUT + SECOND_TOKENS_OUT)
     assert total.cached == pytest.approx(TOKENS_CACHED + 1_000_000)
+
+
+def test_the_watch_document_carries_a_row_per_model(tmp_path: Path) -> None:
+    """What the document publishes is what the record supports.
+
+    The newest receipt's engine section names a model id on every row it
+    writes, and the document passes that name down to the ledger. It must not
+    narrow the ledger to one model: a consumer renders the document, so a
+    two-model lane that reached the caller as one row would hide the second
+    serve's traffic and its cost entirely.
+    """
+    now = _dt.datetime.now(_dt.UTC).timestamp()
+    index = _two_serve_index(tmp_path, now)
+
+    doc = watch.document(
+        index,
+        now=now,
+        prices=[PRICE_ROW, SECOND_PRICE_ROW],
+        estimate=_estimate(),
+    )
+
+    assert [row["model"] for row in doc["ledger"]] == [
+        "deepseek-v4-flash",
+        "glm-5.3",
+        None,
+    ]
+    costs = [row["cost"] for row in doc["ledger"]]
+    assert costs[0] == pytest.approx(ESTIMATED_COST)
+    assert costs[1] == pytest.approx(SECOND_ESTIMATED_COST)
+    assert costs[2] == pytest.approx(TWO_SERVE_COST)
+    assert doc["periods"] == ["1 hour", "1 hour", "1 hour · all models"]
+
+    # The record block still names the newest receipt's own model, which is the
+    # figure the live panel shows; it is the ledger that must not be narrowed
+    # to it.
+    assert doc["record"]["model_id"] in {"deepseek-v4-flash", "glm-5.3"}

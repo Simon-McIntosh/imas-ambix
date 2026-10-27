@@ -34,7 +34,12 @@
         each sample and from the job each reading belongs to, so no sample
         payload is decoded. A window holding two models emits one row per model
         plus a total row whose cost is the sum of those rows; a window holding
-        one model keeps exactly the single row it had.</li>
+        one model keeps exactly the single row it had. The model a caller names
+        — the published document passes the newest receipt's own model id —
+        prices a one-model window and does not choose which models the window
+        is totalled for, because a receipt's engine section names a model id on
+        every row it writes and a lane serving two models would otherwise be
+        reported as one of them.</li>
       </ul>
       <p><strong>Measured.</strong> Two serves placed at the same instants —
       <code>deepseek-v4-1-flash</code> on <code>98dci4-gpu-0003</code> job 4811
@@ -48,9 +53,12 @@
       tokens and <code>glm-5.3</code> at 2,000,000 / 100,000, priced from their
       two listings at h = 0.55, gives $7.05 and $24.20 and a total of $31.25,
       which is the sum of the two rather than either rate applied to combined
-      tokens ($14.10 or $28.20), so the total is not a third pricing. The three
-      gated files pass 95 tests, the wider agent-watch set passes 119, and
-      <code>ruff check imas_ambix tests</code> exits 0.</p>
+      tokens ($14.10 or $28.20), so the total is not a third pricing. The published
+      document carries the same three rows on that index — the newest receipt
+      names <code>glm-5.3</code> in its engine section and the document still
+      reports both serves and their total — where narrowing the ledger to the
+      caller's model id gives one row of $24.20 alone. The four gated files pass
+      120 tests, and <code>ruff check imas_ambix tests</code> exits 0.</p>
       <p><strong>Negative control.</strong> Two unparsable lines are appended to
       one of two fresh receipt files. That engine's entry reads
       <code>state: unavailable</code> with

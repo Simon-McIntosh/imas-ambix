@@ -1134,17 +1134,20 @@ def ledger(
     *history* is the price history the periods are priced over, already read.
     Every period walks the same rows, so it is read once by the caller rather
     than per row.
+
+    *model* is the model the caller's newest reading named, and it prices a
+    window the record holds one model in. It does not choose which models the
+    window is totalled for: that set comes from the record, because a lane that
+    serves two models must be reported as two rows and a caller that names one
+    of them -- the newest receipt's engine reports a model id on every row it
+    writes -- would otherwise collapse the lane to that model's figures alone.
     """
     when = time.time() if now is None else now
     rows: list[Period] = []
     counters = (PROMPT_TOKENS, GENERATION_TOKENS, PREFIX_CACHE_HITS, *CACHED_TIERS)
     for period, label in periods:
         start, end = when - period, when
-        present = (
-            [model]
-            if model is not None
-            else window_models(index, start, end)
-        )
+        present = window_models(index, start, end)
         if len(present) > 1:
             grouped = model_series(index, counters, start, end)
             period_rows = [
@@ -1184,7 +1187,7 @@ def ledger(
             period=period,
             now=when,
             prices=prices,
-            model=model,
+            model=model if model is not None else (present[0] if present else None),
             estimate=estimate,
             history=history,
         )
