@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="66">
+<meta name="plan-version" content="67">
 <meta name="plan-modified" content="2026-10-27">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;,&quot;serving-across-servers#s10&quot;],&quot;s15&quot;:[&quot;serving-across-servers#s16&quot;,&quot;serving-across-servers#s5&quot;],&quot;s7&quot;:[&quot;serving-across-servers#s5&quot;],&quot;s4&quot;:[&quot;serving-across-servers#s16&quot;],&quot;s5&quot;:[&quot;serving-across-servers#s4&quot;,&quot;serving-across-servers#s9&quot;],&quot;s6&quot;:[&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -828,6 +828,9 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 </div>
 <div class="r-comment" data-section="s16" data-id="c-run-r-20261027T093359288589-review-of-router-shutdown-answers-waiters-26cfc5d4626b" data-who="reckon-build" data-when="2026-10-27T09:53:37.102Z">
     <div class="r-comment-body"><p>Independent review of r-20261027T090408257012-router-shutdown-answers-waiters at reviewed_base_sha afa37ff43102a1d9ecc055781817c33529e88b09 and reviewed_head_sha 26cfc5d4626bb2263029cd57b77ad17985826f4f scores 110/120 (goal_fidelity 19, evidence 17, scope_discipline 19, durability 18, fit 18, reuse 19), with two non-blocking findings and added_failure_count 0 derived from the head gate log (24 passed, EXIT=0, 0 failing ids); no blocking finding.</p></div>
+</div>
+<div class="r-comment" data-section="s16" data-id="c-run-r-20261027T090408257012-router-shutdown-answers-waiters" data-who="reckon-build" data-when="2026-10-27T09:32:53.116Z">
+    <div class="r-comment-body"><p>The router answers every gate waiter with 529 and Retry-After on SIGTERM/SIGINT before uvicorn&#x27;s shutdown, bounds the relay grace with timeout_graceful_shutdown (30 s default) and records a cut relay&#x27;s row; measured on 98dci4-clu-2068, startup to first answered /v1/models is 1.30 s warm and 4.34 s cold, and the gate runs 24 tests green (tests/test_agent_router_gate.py + tests/test_agent_router_service.py).</p></div>
 </div>
 </section>
 </main>
