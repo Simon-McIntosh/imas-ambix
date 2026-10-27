@@ -20,11 +20,11 @@
   <meta name="plan-owner" content="Simon McIntosh">
   <meta name="plan-tags" content="agent-serving,gpu-deployment,telemetry">
   <meta name="plan-after" content="local-lane-admission-control#s14,local-lane-admission-control">
-  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;implementable&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;implementable&quot;,&quot;s15&quot;:&quot;implementable&quot;,&quot;s16&quot;:&quot;done&quot;}">
+  <meta name="plan-section-declarations" content="{&quot;s1&quot;:&quot;done&quot;,&quot;s2&quot;:&quot;done&quot;,&quot;s3&quot;:&quot;done&quot;,&quot;s4&quot;:&quot;done&quot;,&quot;s5&quot;:&quot;done&quot;,&quot;s6&quot;:&quot;done&quot;,&quot;s7&quot;:&quot;implementable&quot;,&quot;s8&quot;:&quot;done&quot;,&quot;s9&quot;:&quot;done&quot;,&quot;s10&quot;:&quot;implementable&quot;,&quot;s11&quot;:&quot;implementable&quot;,&quot;s12&quot;:&quot;done&quot;,&quot;s13&quot;:&quot;done&quot;,&quot;s14&quot;:&quot;implementable&quot;,&quot;s15&quot;:&quot;implementable&quot;,&quot;s16&quot;:&quot;done&quot;}">
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="88">
+<meta name="plan-version" content="90">
 <meta name="plan-modified" content="2026-10-27">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;,&quot;serving-across-servers#s10&quot;],&quot;s15&quot;:[&quot;serving-across-servers#s16&quot;,&quot;serving-across-servers#s5&quot;],&quot;s7&quot;:[&quot;serving-across-servers#s5&quot;],&quot;s4&quot;:[&quot;serving-across-servers#s16&quot;],&quot;s5&quot;:[&quot;serving-across-servers#s4&quot;,&quot;serving-across-servers#s9&quot;],&quot;s6&quot;:[&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -196,7 +196,7 @@
     </ul>
 
     <h2 id="s5">&sect;5 &mdash; One lane document per pool, and lane.json stays the default pool</h2>
-<section data-reckon="section" data-id="s5" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="implementable" data-links=""></section>
+<section data-reckon="section" data-id="s5" data-effort-hours="4.0" data-capability-version="1.0" data-capability-class="general" data-capability-reasoning="deep" data-capability-verification="strict" data-capability-risk="moderate" data-status="done" data-links=""></section>
     <p>Each engine has its own reading loop, which fetches that engine's metrics into that
     engine's own window. One composer runs once per publishing tick, after the readings. The composer is <code>RouterApp._publish_lane</code> itself, rewritten to iterate the engines instead of reading <code>upstreams[0]</code>. Today there is a second writer of <code>lane.json</code>: the <code>imas-ambix agent lane</code> command (<code>cli.py</code>), whose <code>--submit</code> form runs a long-lived refresher job (<code>generate_lane_refresher_script</code>). This section retires that writer. Before it does, the node searches the reckon, dotfiles and imas-ambix trees and the scheduler's running job names for the command and the refresher, and records what it found. After this section, no function but the composer writes a lane document. A test asserts it by searching the package for calls to both functions that write one: <code>lane.write_lane_document</code> and <code>lane.write_unavailable_document</code>. The <code>lane</code> command calls the second on its unavailable path, so a guard covering only the first would pass while the refresher kept overwriting <code>lane.json</code>. The done-when gains a bullet for the retirement: the caller search is recorded, the command and its refresher are removed, and the search test finds no writer outside the composer. It
     writes the default pool's document at <code>lane.json</code> and every other pool's
@@ -844,6 +844,9 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 <div class="r-comment" data-section="_top" data-id="c-close-s6" data-who="reckon-build" data-when="2026-10-27T14:20:00Z">
     <div class="r-comment-body"><p>§6 landed in merge <code>ad9afdcf</code>. The live block gives one entry per engine, and the published ledger has a row per model at its own rate plus a total. A blocked first delivery, which showed only one model's row in the document, was repaired. 135 tests pass at main, and the review scored 17 to 20. <a href="/imas-ambix/evidence/archive/serving-across-servers-landed.html#s6">evidence</a></p></div>
 </div>
+<div class="r-comment" data-section="_top" data-id="c-close-s5" data-who="reckon-build" data-when="2026-10-27T15:10:00Z">
+    <div class="r-comment-body"><p>§5 landed in merge <code>864561be</code>. The router composes one lane document per pool: <code>lane.json</code> for the default pool plus a <code>lanes</code> index, and <code>lanes/&lt;model id&gt;.json</code> for others. The <code>agent lane</code> refresher is retired, and the composer is the only writer. 373 tests pass at main, and the final review scored 18 to 20. It goes live at the next router restart. <a href="/imas-ambix/evidence/archive/serving-across-servers-landed.html#s5">evidence</a></p></div>
+</div>
 <div class="r-comment" data-section="s16" data-id="c-run-r-20261027T093359288589-review-of-router-shutdown-answers-waiters-26cfc5d4626b" data-who="reckon-build" data-when="2026-10-27T09:53:37.102Z">
     <div class="r-comment-body"><p>Independent review of r-20261027T090408257012-router-shutdown-answers-waiters at reviewed_base_sha afa37ff43102a1d9ecc055781817c33529e88b09 and reviewed_head_sha 26cfc5d4626bb2263029cd57b77ad17985826f4f scores 110/120 (goal_fidelity 19, evidence 17, scope_discipline 19, durability 18, fit 18, reuse 19), with two non-blocking findings and added_failure_count 0 derived from the head gate log (24 passed, EXIT=0, 0 failing ids); no blocking finding.</p></div>
 </div>
@@ -894,6 +897,9 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261027T145757088399-review-of-lane-document-per-pool-4e28a538171e" data-who="reckon-build" data-when="2026-10-27T15:05:51.871Z">
     <div class="r-comment-body"><p>review of r-20261027T090839736756-lane-document-per-pool at 4e28a538 covering only the two gained commits: parsed, six scores goal_fidelity 18, evidence 18, scope_discipline 20, durability 18, fit 19, reuse 20; no findings; added_failure_count 0 over f8ce2d6b..4e28a538 (gate logs 54 passed 1 skipped EXIT=0 at head, baseline arm 36 passed 1 skipped EXIT=0).</p></div>
+</div>
+<div class="r-comment" data-section="s5" data-id="c-run-r-20261027T090839736756-lane-document-per-pool" data-who="reckon-build" data-when="2026-10-27T14:54:54Z">
+    <div class="r-comment-body"><p>section landed: RouterApp._publish_lane composes one lane document per pool from each engine&#x27;s own reading (default pool at lane.json with a lanes index, others at lanes/&lt;model id&gt;.json), the agent lane command and its refresher generator are removed, and a search test proves the composer is the only writer; gate 54 passed, 1 skipped (reckon not importable), and the pool document&#x27;s reckon contract passes where reckon imports; nothing outside scope.</p></div>
 </div>
 </section>
 </main>
