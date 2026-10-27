@@ -139,6 +139,28 @@ EXIT=1</pre>
       <p>The full log is <code>negative-control.log</code> in the run
       directory.</p>
     </section>
+
+    <section id="gpu-watch-shows-the-machines-power-cap-units">
+      <h3>Repair: the declared power cap is a watt reading</h3>
+      <p><code>SiteServerConfig.power_cap_watts</code> is watts, while the draw
+      beside it in the conditions line is a kilowatt figure. The line used the
+      declaration unscaled, so a declared cap rendered as a figure a thousand
+      times too large and the share of cap a thousand times too small —
+      reproduced on the landed module with the reported values:</p>
+      <pre>$ python -c '…conditions(reading, 700)…'   # 420 W draw, 700 W declared
+{'kilowatts': 0.42, 'cap_kilowatts': 700, 'cap_percent': 0.1}
+'conditions  temperature — mean / — max    power 0.42 kW / 700.00 kW cap    0% of cap'</pre>
+      <p>The declaration is now divided before it is compared with the draw, and
+      the same call returns what the truth is:</p>
+      <pre>{'temp_mean': 58.0, 'temp_max': 61.0, 'kilowatts': 0.42,
+ 'cap_kilowatts': 0.7, 'cap_percent': 60.0}
+'conditions  temperature 58.0°C mean / 61°C max    power 0.42 kW / 0.70 kW cap    60% of cap'</pre>
+      <p>The regression test pins that arithmetic on the reported values
+      (<code>tests/test_gpu_watch.py::test_a_declared_power_cap_is_a_watt_reading_scaled_to_kilowatts</code>).
+      Reverting only the scaling line makes it fail on <code>assert 700 == 0.7</code>
+      with the same <code>EXIT=1</code> the other controls report; the log is
+      <code>negative-control-repair.log</code> in the run directory.</p>
+    </section>
   </main>
 </body>
 </html>
