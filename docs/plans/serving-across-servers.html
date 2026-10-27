@@ -24,7 +24,7 @@
   <title>Serving Across Servers | imas-ambix</title>
   <link rel="stylesheet" href="/_shared/foundation.css">
   <link rel="stylesheet" href="/_shared/dashboard.css">
-<meta name="plan-version" content="93">
+<meta name="plan-version" content="94">
 <meta name="plan-modified" content="2026-10-27">
 <meta name="plan-section-depends-on" content="{&quot;s9&quot;:[&quot;serving-across-servers#s8&quot;],&quot;s10&quot;:[&quot;serving-across-servers#s3&quot;,&quot;serving-across-servers#s9&quot;],&quot;s14&quot;:[&quot;serving-across-servers#s5&quot;,&quot;serving-across-servers#s6&quot;,&quot;serving-across-servers#s9&quot;,&quot;serving-across-servers#s10&quot;],&quot;s15&quot;:[&quot;serving-across-servers#s16&quot;,&quot;serving-across-servers#s5&quot;],&quot;s7&quot;:[&quot;serving-across-servers#s5&quot;],&quot;s4&quot;:[&quot;serving-across-servers#s16&quot;],&quot;s5&quot;:[&quot;serving-across-servers#s4&quot;,&quot;serving-across-servers#s9&quot;],&quot;s6&quot;:[&quot;serving-across-servers#s9&quot;]}">
 </head>
@@ -900,6 +900,9 @@ history 30m   dsv4.1 gpu-0003   ▁▂▃▅▇█████████▇▆
 </div>
 <div class="r-comment" data-section="s10" data-id="c-run-r-20261027T153850606838-review-of-gpu-watch-samples-from-anywhere-703cf143fd38" data-who="reckon-build" data-when="2026-10-27T16:32:57.613Z">
     <div class="r-comment-body"><p>Independent review of the commits gpu-watch-samples-from-anywhere gained after its previous review (base a380763740e739452c3c75d12bf56af4f254ee62, head 703cf143fd38185ce40f18bf2f5dcbaa5a1a06c9) is stored as a parsed record scoring goal_fidelity 18, evidence 14, scope_discipline 19, durability 13, fit 18, reuse 15, added_failure_count 0, with four non-blocking findings: the state lookup at view.py:665 has no test that reddens if it is reverted to the declaration's own spelling, the one-shot reason at launcher.py:296 is untested, view.py:606 duplicates the grouping loop at view.py:589-593, and the run again records no readable base arm.</p></div>
+</div>
+<div class="r-comment" data-section="s10" data-id="c-run-r-20261027T143736489157-gpu-watch-samples-from-anywhere" data-who="reckon-build" data-when="2026-10-27T15:37:48Z">
+    <div class="r-comment-body"><p>gpu-watch run from a login/fleet node now samples each declared server&#x27;s cards, host and job table through one srun --jobid &lt;job&gt; --overlap step running python -m imas_ambix.agent.gpu_watch.sampler (NodeProbe.stream framed as JSON lines), with --live redrawing from that step and every step terminated and reaped on exit; the step&#x27;s stderr is drained by a reader thread into a bounded tail so a warning cannot fill the pipe and freeze the stream, a step that stops streaming is drawn as &quot;not sampled: &lt;its last stderr line&gt;&quot;, and the live pool is keyed by the machine&#x27;s scheduler name so two spellings of one machine share one step and both render its cards. One-shot against 98dci4-gpu-0003 from fleet job 1291586 rendered 4 physical cards (4-7), the host row and 4 job rows, and a 30 s --live run left step 1294597.13 gone afterwards (65 tests pass, ruff clean).</p></div>
 </div>
 <div class="r-comment" data-section="s5" data-id="c-run-r-20261027T143032275629-review-of-lane-document-per-pool-f8ce2d6b4d5f" data-who="reckon-build" data-when="2026-10-27T14:44:33.672Z">
     <div class="r-comment-body"><p>review of r-20261027T090839736756-lane-document-per-pool at f8ce2d6b: parsed, six scores goal_fidelity 18, evidence 13, scope_discipline 11, durability 13, fit 18, reuse 19; one blocking finding (contract test passes a Path to reckon's read_lane_document and would fail if it ran) and four non-blocking; added_failure_count 0.</p></div>
