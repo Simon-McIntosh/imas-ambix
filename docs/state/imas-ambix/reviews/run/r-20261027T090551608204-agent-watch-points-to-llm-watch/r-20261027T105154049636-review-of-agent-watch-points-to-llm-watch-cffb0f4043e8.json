@@ -1,0 +1,90 @@
+{
+  "absent": [],
+  "absent_items": [],
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failures_note": "the reviewed run records no baseline_suite/after_suite JSON, so the count is derived from its own gate logs: logs/gate-head.log at afa37ff4 (head arm, 63 passed, EXIT=0) and logs/gate-followup.log at the head (102 passed, EXIT=0). Neither log lists a failing test id, so there are no added failure ids; the rise from 63 to 102 is tests/test_agent_watch_cost.py joining the gate plus the two restored/added tests, not new coverage turning red.",
+  "call_site_count": 5,
+  "call_sites": [
+    "imas_ambix/agent/cli.py:3274",
+    "imas_ambix/agent/llm_watch.py:892",
+    "imas_ambix/agent/llm_watch.py:895",
+    "pyproject.toml:162",
+    "imas_ambix/agent/watch_style.py:17"
+  ],
+  "completed_at": "2026-10-27T11:26:30.814Z",
+  "dispatched_at": "2026-10-27T11:13:46Z",
+  "findings": [
+    {
+      "file": "imas_ambix/agent/watch.py",
+      "line": "150",
+      "severity": "non-blocking",
+      "text": "THROTTLE_C is now read by nothing: render_cards was its only consumer and it is not in __all__, so the retirement of the text renderers left a dead module constant behind; delete it in the node that owns watch.py, or it stays as a trap for a future reader who assumes a throttle label is still drawn."
+    },
+    {
+      "file": "imas_ambix/agent/llm_watch.py",
+      "line": "895",
+      "severity": "non-blocking",
+      "text": "the `if args.live:` stamp emission in main() has no test: tests/test_llm_watch.py:746 pins refresh_stamp's format but calls the function directly, so deleting this branch leaves the suite green while every live run silently stops printing the stamp the memory evidence parses its cadence from; assert through main() (or refresh_loop) that a live pass writes one '# refreshed' line and a --json pass writes none."
+    },
+    {
+      "file": "docs/evidence/fragments/serving-across-servers/agent-watch-points-to-llm-watch.html",
+      "line": "117",
+      "severity": "non-blocking",
+      "text": "the head gate this paragraph rests on cannot be tied to the landed revision: logs/gate-followup.log has no '# revision' header at all where logs/gate-head.log:1 carries one, and the log's mtime (11:34:23) precedes the source change it is taken to measure (f7798ba2 at 11:35:05), so the 102-passed result is dated to a working tree no recorded state describes; its count of 102 does show the two tests added in f7798ba2 were present, so the content is very likely the head, but nothing in the log proves it. Give the follow-up log the same revision header gate-head.log carries."
+    },
+    {
+      "file": "docs/evidence/fragments/serving-across-servers/agent-watch-points-to-llm-watch.html",
+      "line": "57",
+      "severity": "non-blocking",
+      "text": "the done_when asks that the RSS samples (one per refresh) and the refresh timestamps be committed in the evidence fragment, and they are not: the committed fragment embeds 10 of the 121 kB readings and points the rest at logs/llm-watch-live-rss.csv inside the run directory, which is durable on GPFS but not in the repository (git ls-files finds no such file), so a reader of the tree cannot re-derive the trend; every headline reconciles with the CSV, which I recomputed myself, so the claim is not in doubt today -- this is traceability, not truth. Embed the full series before the run directory is ever reclaimed; a single RSS-against-refresh figure at docs/figures/serving-across-servers/agent-watch-points-to-llm-watch, a path this node was granted and left unused, would serve this and the graphics mandate at once."
+    },
+    {
+      "file": "tests/test_agent_telemetry_watch.py",
+      "line": "385",
+      "severity": "non-blocking",
+      "text": "the rewritten test's name and docstring overstate what it asserts: test_bars_are_drawn_for_every_percentage now says every proportion 'is a bar and a figure ... and reaches the document' but the document assertion is only row['utilisation'] is not None, so no assertion ties a bar to any rendered or derived figure; bar itself is still covered at :376-379, so retitle this one to what its body checks rather than leaving a coverage claim the body does not make."
+    }
+  ],
+  "gate_sources": [
+    "logs/gate-head.log",
+    "logs/gate-followup.log",
+    "logs/ruff-head.log",
+    "logs/ruff-followup.log",
+    "logs/negative-control.log"
+  ],
+  "item_aggregate": 5,
+  "item_verdicts": {
+    "diff": "Read change by change from afa37ff4 to cffb0f40: d4f2f6cc and 309ed5f7 ship the pointer and the resolver fix, 8dd600f2 retires six text renderers and converts the cost tests, f7798ba2 adds the refresh stamp and restores the split help test, af6584e3 re-measures the live run, and 63c68d7a, 597d8f42 and cffb0f40 record the evidence.",
+    "done_when": "The dispatch done_when names the four test files (plus test_agent_watch_cost.py after the scope extension) and logs/gate-followup.log asserts exactly that command with 102 passed EXIT=0, logs/ruff-followup.log asserts the whole-tree ruff gate at EXIT=0, and the ten-minute memory measure is quantified in logs/llm-watch-live-rss.csv as a +1.30 % change against the 10 % bound, so the gate measures what the done_when asserts.",
+    "goal": "The goal has two clauses and both are now met: imas_ambix/agent/cli.py:3274-3279 prints one line naming llm-watch and returns before index resolution (independently invoked at cffb0f40: exit 0, one line, watch.watch_text absent), and llm-watch --live is shown to hold its memory over ten minutes on the renderer's own pid, 71344 kB at 60 s to 72272 kB at 600 s.",
+    "manifest": "Read; it reports status complete, eight changesets, the five-file gate with 102 passed, the memory series with 71344/72272 kB, the deleted duplicate test and why, and the wrong-process retry under retry_failures, and every claim I checked (RSS endpoints, stamp count, gate counts, pointer behaviour) held.",
+    "write_paths": "Read the declared scope (imas_ambix/agent/{watch,cli,llm_watch}.py, tests/test_llm_watch.py, test_agent_watch_help.py, test_agent_watch_live.py, test_agent_telemetry_watch.py, the evidence fragment and a figures path) plus the coordinator's resume extension of tests/test_agent_watch_cost.py; every changed path in the diff is inside it."
+  },
+  "justifications": {
+    "durability": "tests/test_agent_watch_help.py:36 is proven load-bearing by the base arm at logs/negative-control.log (assert 17 == 1, EXIT=1) and tests/test_llm_watch.py:601 fails if llm_watch.py:774 returns to watch_publish.DEFAULT_OUTPUT because that attribute does not exist, but nothing asserts that main() emits the stamp, so imas_ambix/agent/llm_watch.py:895 could be deleted with the suite still green.",
+    "evidence": "logs/gate-followup.log records 102 passed EXIT=0 for the five named test files and logs/ruff-followup.log records All checks passed! EXIT=0, and I recomputed the memory series from logs/llm-watch-live-rss.csv and the 104 distinct refresh stamps from logs/llm-watch-live-output.txt myself, but the follow-up log names no revision and predates the last source change (mtime 11:34:23 against f7798ba2 at 11:35:05), the done_when's samples are not committed (docs/evidence/fragments/serving-across-servers/agent-watch-points-to-llm-watch.html:57 embeds 10 of 121 rows and the rest live only in the run directory), and four of the 103 refresh intervals ran 7, 8, 10 and 20 s, so the plan's 'refreshes every 5 s' clause is only approximately met although the deviation is disclosed at the fragment's line 62.",
+    "fit": "the additions follow the surrounding module style and carry no plan, ticket or version identifiers, and all eight changesets have conventional subjects with bodies and no attribution, but imas_ambix/agent/watch.py:150 leaves THROTTLE_C defined and read by nothing after render_cards was removed.",
+    "goal_fidelity": "imas_ambix/agent/cli.py:3274-3279 prints the pointer and returns before index resolution, and an independent invocation of the command at cffb0f40 gave exit 0 with exactly one line naming llm-watch (watch.watch_text and render_document absent); the second clause is now measured on the renderer itself, 71344 kB at t=60 s to 72272 kB at t=600 s (+1.30 %), from logs/llm-watch-live-rss.csv against pid 1028 whose /proc/1028/cmdline names the venv console script.",
+    "reuse": "imas_ambix/agent/llm_watch.py:774 reuses watch_publish.default_output_path(), the resolver the publisher already owns at imas_ambix/agent/watch_publish.py:43, and deletes the text renderers rather than forking them, but imas_ambix/agent/llm_watch.py:838's refresh_stamp is a fourth copy of the ISO-8601-UTC formatter already present at imas_ambix/agent/request_receipts.py:496, imas_ambix/agent/lane_callers.py:133 and imas_ambix/agent/watch_publish.py:55, none of which is a shared owner to extend.",
+    "scope_discipline": "every path in afa37ff4..cffb0f40 (imas_ambix/agent/watch.py, cli.py, llm_watch.py, tests/test_llm_watch.py, test_agent_watch_help.py, test_agent_telemetry_watch.py, test_agent_watch_cost.py and the evidence fragment) is inside the declared write paths, with tests/test_agent_watch_cost.py authorised by the coordinator's resume advice, and no unrelated refactor is carried."
+  },
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: imas_ambix/agent/cli.py:3274-3279 ships the pointer (independently invoked at cffb0f40: exit 0, one line naming llm-watch, watch.watch_text absent) and the ten-minute live run now measures the renderer itself, 71344 kB at 60 s to 72272 kB at 600 s (+1.30 %).\nVERDICT done_when: logs/gate-followup.log asserts 102 passed EXIT=0 for the named pytest command, logs/ruff-followup.log asserts All checks passed! EXIT=0, and the memory measure is quantified against the 10 % bound in logs/llm-watch-live-rss.csv.\nVERDICT write_paths: read the declared scope plus the coordinator's resume extension of tests/test_agent_watch_cost.py; every changed path in the diff is inside it.\nVERDICT manifest: read; it states complete with eight changesets, 102 passed, the RSS endpoints, the deleted duplicate test and its replacement, and the wrong-process retry, and every figure I checked held.\nVERDICT diff: read change by change afa37ff4..cffb0f40; the pointer, the default_output_path resolver fix, six text renderers retired, the cost tests converted, the refresh stamp added and the split help test restored, all inside the granted scope.\nCALL_SITES: imas_ambix/agent/cli.py:3274, imas_ambix/agent/llm_watch.py:892, imas_ambix/agent/llm_watch.py:895, pyproject.toml:162, imas_ambix/agent/watch_style.py:17\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/cli.py:3274-3279 prints the pointer and returns before index resolution, and an independent invocation of the command at cffb0f40 gave exit 0 with exactly one line naming llm-watch (watch.watch_text and render_document absent); the second clause is now measured on the renderer itself, 71344 kB at t=60 s to 72272 kB at t=600 s (+1.30 %), from logs/llm-watch-live-rss.csv against pid 1028 whose /proc/1028/cmdline names the venv console script.\nSCORE evidence: 15\nJUSTIFICATION evidence: logs/gate-followup.log records 102 passed EXIT=0 for the five named test files and logs/ruff-followup.log records All checks passed! EXIT=0, and I recomputed the memory series from logs/llm-watch-live-rss.csv and the 104 distinct refresh stamps from logs/llm-watch-live-output.txt myself, but the follow-up log names no revision and predates the last source change (mtime 11:34:23 against f7798ba2 at 11:35:05), the done_when's samples are not committed (docs/evidence/fragments/serving-across-servers/agent-watch-points-to-llm-watch.html:57 embeds 10 of 121 rows and the rest live only in the run directory), and four of the 103 refresh intervals ran 7, 8, 10 and 20 s, so the plan's 'refreshes every 5 s' clause is only approximately met although the deviation is disclosed at the fragment's line 62.\nSCORE scope_discipline: 18\nJUSTIFICATION scope_discipline: every path in afa37ff4..cffb0f40 (imas_ambix/agent/watch.py, cli.py, llm_watch.py, tests/test_llm_watch.py, test_agent_watch_help.py, test_agent_telemetry_watch.py, test_agent_watch_cost.py and the evidence fragment) is inside the declared write paths, with tests/test_agent_watch_cost.py authorised by the coordinator's resume advice, and no unrelated refactor is carried.\nSCORE durability: 16\nJUSTIFICATION durability: tests/test_agent_watch_help.py:36 is proven load-bearing by the base arm at logs/negative-control.log (assert 17 == 1, EXIT=1) and tests/test_llm_watch.py:601 fails if llm_watch.py:774 returns to watch_publish.DEFAULT_OUTPUT because that attribute does not exist, but nothing asserts that main() emits the stamp, so imas_ambix/agent/llm_watch.py:895 could be deleted with the suite still green.\nSCORE fit: 17\nJUSTIFICATION fit: the additions follow the surrounding module style and carry no plan, ticket or version identifiers, and all eight changesets have conventional subjects with bodies and no attribution, but imas_ambix/agent/watch.py:150 leaves THROTTLE_C defined and read by nothing after render_cards was removed.\nSCORE reuse: 16\nJUSTIFICATION reuse: imas_ambix/agent/llm_watch.py:774 reuses watch_publish.default_output_path(), the resolver the publisher already owns at imas_ambix/agent/watch_publish.py:43, and deletes the text renderers rather than forking them, but imas_ambix/agent/llm_watch.py:838's refresh_stamp is a fourth copy of the ISO-8601-UTC formatter already present at imas_ambix/agent/request_receipts.py:496, imas_ambix/agent/lane_callers.py:133 and imas_ambix/agent/watch_publish.py:55, none of which is a shared owner to extend.\nFINDING imas_ambix/agent/watch.py:150 non-blocking: THROTTLE_C is now read by nothing: render_cards was its only consumer and it is not in __all__, so the retirement of the text renderers left a dead module constant behind; delete it in the node that owns watch.py, or it stays as a trap for a future reader who assumes a throttle label is still drawn.\nFINDING imas_ambix/agent/llm_watch.py:895 non-blocking: the `if args.live:` stamp emission in main() has no test: tests/test_llm_watch.py:746 pins refresh_stamp's format but calls the function directly, so deleting this branch leaves the suite green while every live run silently stops printing the stamp the memory evidence parses its cadence from; assert through main() (or refresh_loop) that a live pass writes one '# refreshed' line and a --json pass writes none.\nFINDING docs/evidence/fragments/serving-across-servers/agent-watch-points-to-llm-watch.html:117 non-blocking: the head gate this paragraph rests on cannot be tied to the landed revision: logs/gate-followup.log has no '# revision' header at all where logs/gate-head.log:1 carries one, and the log's mtime (11:34:23) precedes the source change it is taken to measure (f7798ba2 at 11:35:05), so the 102-passed result is dated to a working tree no recorded state describes; its count of 102 does show the two tests added in f7798ba2 were present, so the content is very likely the head, but nothing in the log proves it. Give the follow-up log the same revision header gate-head.log carries.\nFINDING docs/evidence/fragments/serving-across-servers/agent-watch-points-to-llm-watch.html:57 non-blocking: the done_when asks that the RSS samples (one per refresh) and the refresh timestamps be committed in the evidence fragment, and they are not: the committed fragment embeds 10 of the 121 kB readings and points the rest at logs/llm-watch-live-rss.csv inside the run directory, which is durable on GPFS but not in the repository (git ls-files finds no such file), so a reader of the tree cannot re-derive the trend; every headline reconciles with the CSV, which I recomputed myself, so the claim is not in doubt today -- this is traceability, not truth. Embed the full series before the run directory is ever reclaimed; a single RSS-against-refresh figure at docs/figures/serving-across-servers/agent-watch-points-to-llm-watch, a path this node was granted and left unused, would serve this and the graphics mandate at once.\nFINDING tests/test_agent_telemetry_watch.py:385 non-blocking: the rewritten test's name and docstring overstate what it asserts: test_bars_are_drawn_for_every_percentage now says every proportion 'is a bar and a figure ... and reaches the document' but the document assertion is only row['utilisation'] is not None, so no assertion ties a bar to any rendered or derived figure; bar itself is still covered at :376-379, so retitle this one to what its body checks rather than leaving a coverage claim the body does not make.\n",
+  "review_run_id": "r-20261027T105154049636-review-of-agent-watch-points-to-llm-watch-cffb0f4043e8",
+  "reviewed_base_sha": "afa37ff43102a1d9ecc055781817c33529e88b09",
+  "reviewed_head_sha": "cffb0f4043e8bd6cc816d156e603ebee0ac09714",
+  "reviewed_run_id": "r-20261027T090551608204-agent-watch-points-to-llm-watch",
+  "scores": {
+    "durability": 16,
+    "evidence": 15,
+    "fit": 17,
+    "goal_fidelity": 19,
+    "reuse": 16,
+    "scope_discipline": 18
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T11:25:47Z",
+  "total": 101
+}
