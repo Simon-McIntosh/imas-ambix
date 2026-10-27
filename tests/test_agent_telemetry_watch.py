@@ -415,14 +415,14 @@ def test_rendering_never_probes_a_live_endpoint(tmp_path: Path) -> None:
     built = TelemetryIndex(index_path)
     built.ingest(discover(directory))
     built.close()
-    text = watch.watch_text(
+    payload = watch.watch_document(
         record_dir=directory,
         index_path=index_path,
         now=now,
         prices=[],
     )
-    assert "deepseek-v4-flash" in text
-    assert "█" in text
+    assert payload["record"]["model_id"] == "deepseek-v4-flash"
+    assert payload["ledger"][0]["tokens_in"] > 0
 
 
 def test_index_rebuilds_to_the_same_figures(tmp_path: Path) -> None:
@@ -641,12 +641,14 @@ def test_cost_is_declined_when_the_token_totals_are_absent(tmp_path: Path) -> No
     index.close()
 
 
-def test_the_subcommand_renders_the_record_it_is_pointed_at(tmp_path: Path) -> None:
-    """The command the operator runs reaches the renderer over a real record.
+def test_the_subcommand_derives_the_record_it_is_pointed_at(tmp_path: Path) -> None:
+    """The command the operator runs reaches the derivation over a real record.
 
-    The watcher's entry point and the terminal panels are covered above; what
+    The watcher's entry point and the derived figures are covered above; what
     this holds is the registration itself, so a rename on either side of the
     ``imas-ambix agent watch`` boundary fails here rather than at the terminal.
+    ``--json`` is the format that derives figures in this command, so it is the
+    one the record is read through.
     """
     from click.testing import CliRunner
 
@@ -660,20 +662,15 @@ def test_the_subcommand_renders_the_record_it_is_pointed_at(tmp_path: Path) -> N
     built.close()
 
     runner = CliRunner()
-    text = runner.invoke(
-        cli.agent, ["watch", "--record", str(directory), "--index", index_path]
-    )
-    assert text.exit_code == 0, text.output
-    assert "ledger" in text.output
-    assert "deepseek-v4-flash" in text.output
-
-    figures = runner.invoke(
+    output = runner.invoke(
         cli.agent,
         ["watch", "--record", str(directory), "--index", index_path, "--json"],
     )
-    assert figures.exit_code == 0, figures.output
-    document = json.loads(figures.output)
+    assert output.exit_code == 0, output.output
+    document = json.loads(output.output)
     assert {"record", "ledger", "periods"} <= set(document)
+    assert document["record"]["model_id"] == "deepseek-v4-flash"
+    assert document["ledger"][0]["tokens_in"] > 0
 
 
 def test_latest_reading_assembles_the_hit_rate_from_engine_counters(
@@ -736,7 +733,6 @@ def test_a_watch_read_never_ingests_a_source(tmp_path: Path) -> None:
         name="later-serve.jsonl",
     )
 
-    watch.watch_text(record_dir=directory, index_path=index_path, now=now, prices=[])
     watch.watch_document(
         record_dir=directory, index_path=index_path, now=now, prices=[]
     )
@@ -752,9 +748,7 @@ def test_a_missing_index_is_reported_and_not_created(tmp_path: Path) -> None:
     index_path = tmp_path / "absent" / "index.sqlite3"
     record_dir = tmp_path / "receipts"
 
-    text = watch.watch_text(
-        record_dir=record_dir, index_path=index_path, now=now, width=400
-    )
+    text = watch.render_index(watch.index_status(index_path, now))
     assert "none at" in text
     assert str(index_path) in text
     assert "imas-ambix agent ingest" in text
@@ -798,13 +792,7 @@ def test_last_ingest_at_is_the_index_files_modification_time(
     assert payload["index"]["last_ingest_at"] == "2027-01-15T08:00:00Z"
     assert payload["index"]["age_seconds"] == 90
 
-    text = watch.watch_text(
-        record_dir=directory,
-        index_path=index_path,
-        now=written + 90.0,
-        prices=[],
-        width=400,
-    )
+    text = watch.render_index(watch.index_status(index_path, written + 90.0))
     assert "last ingest 2027-01-15T08:00:00Z" in text
 
 
@@ -843,9 +831,10 @@ def test_a_zero_byte_index_is_reported_unreadable(tmp_path: Path) -> None:
     index_path.write_bytes(b"")
     record_dir = tmp_path / "receipts"
 
-    text = watch.watch_text(
-        record_dir=record_dir, index_path=index_path, prices=[], width=400
+    payload = watch.watch_document(
+        record_dir=record_dir, index_path=index_path, prices=[]
     )
+    text = watch.render_index(payload["index"])
     assert "could not be read" in text
     assert "no such table" in text
     assert str(index_path) in text
@@ -853,9 +842,6 @@ def test_a_zero_byte_index_is_reported_unreadable(tmp_path: Path) -> None:
     _assert_no_ledger_block(text)
     assert index_path.read_bytes() == b""
 
-    payload = watch.watch_document(
-        record_dir=record_dir, index_path=index_path, prices=[]
-    )
     assert payload["index"]["exists"] is True
     assert payload["index"]["readable"] is False
     assert "no such table" in payload["index"]["error"]
@@ -884,20 +870,14 @@ def test_a_locked_index_is_reported_with_a_short_timeout(tmp_path: Path) -> None
     lock = sqlite3.connect(str(index_path))
     lock.execute("BEGIN EXCLUSIVE")
     try:
-        text = watch.watch_text(
-            record_dir=directory,
-            index_path=index_path,
-            prices=[],
-            width=400,
-            timeout=0.25,
+        payload = watch.watch_document(
+            record_dir=directory, index_path=index_path, prices=[], timeout=0.25
         )
+        text = watch.render_index(payload["index"])
         assert "database is locked" in text
         assert "could not be read" in text
         _assert_no_ledger_block(text)
 
-        payload = watch.watch_document(
-            record_dir=directory, index_path=index_path, prices=[], timeout=0.25
-        )
         assert payload["index"]["readable"] is False
         assert "database is locked" in payload["index"]["error"]
         assert payload["periods"] == []

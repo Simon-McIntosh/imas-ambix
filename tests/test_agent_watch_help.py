@@ -33,7 +33,23 @@ def _help(*argv: str) -> str:
     return " ".join(result.output.split())
 
 
-def test_watch_help_does_not_name_the_superseded_record_default() -> None:
+def test_watch_without_json_points_at_llm_watch() -> None:
+    """The rendered view moved to ``llm-watch``, so the command says one line.
+
+    Exactly one line, naming the tool that draws the panels, and a successful
+    exit: a pointer is an answer, not a failure. The record and index options
+    are untouched by this -- ``--json`` still derives the figures here -- so
+    the pointer is what a reader sees when they ask for no format at all, and
+    nothing else is printed beside it.
+    """
+    result = CliRunner().invoke(cli.agent, ["watch"])
+    assert result.exit_code == 0, result.output
+    lines = result.output.splitlines()
+
+    assert len(lines) == 1, lines
+    assert "llm-watch" in lines[0]
+    # And it is a pointer, not the retired panel: no ledger block is drawn.
+    assert "ledger" not in lines[0]
     """The help must not point the reader at a directory nothing writes."""
     assert STALE_DEFAULT not in _help("watch")
 

@@ -1274,64 +1274,6 @@ def _installed_estimate() -> CacheRateEstimate | None:
     return load_estimate()
 
 
-def watch_text(
-    record_dir: str | Path | None = None,
-    index_path: str | Path | None = None,
-    *,
-    now: float | None = None,
-    prices: Sequence[dict] | None = None,
-    estimate: CacheRateEstimate | None = None,
-    width: int = 110,
-    timeout: float = 5.0,
-) -> str:
-    """Query the index read-only and return the rendered panels.
-
-    This is the whole subcommand minus argument parsing: it opens the index the
-    fleet's ingest service maintains, through a read-only handle, and asks it
-    for every figure the panels show. It never ingests on a read and never
-    creates an index: with no index file it says so and prints no figures,
-    because the store is current for a reader that has not run yet and this
-    command is not what makes it so. *prices* is passed in for a caller that
-    already holds a table; ``None`` refreshes and reads the table the package
-    owns. *estimate* is passed in the same way; ``None`` reads the record
-    installed beside that table. *timeout* is how long the read waits for the
-    writer's lock before giving up.
-
-    An index file that exists but cannot be read -- a zero-byte file the writer
-    has opened and not yet written, or one whose lock is held past *timeout* --
-    is reported as unreadable with the error it raised, and no period or ledger
-    rows are printed: a traceback would name the reader's internals rather than
-    the store an operator can go and look at.
-    """
-    when = time.time() if now is None else now
-    target = resolve_index_path(index_path)
-    if target is None:
-        return PUBLISHED_WATCH_PATH.read_text(encoding="utf-8")
-    status = index_status(target, when)
-    if not status["exists"]:
-        return _plain(render_index(status), width=width)
-    try:
-        with TelemetryIndex.readonly(target, timeout=timeout) as index:
-            if prices is None:
-                model = _latest_reading(index, when).get("model_id")
-                prices, _ = _owned_prices(model)
-            if estimate is None:
-                estimate = _installed_estimate()
-            document = render_document(
-                index,
-                now=when,
-                prices=prices,
-                estimate=estimate,
-                history=_owned_history(),
-            )
-    except sqlite3.DatabaseError as error:
-        status["readable"] = False
-        status["error"] = str(error)
-        return _plain(render_index(status), width=width)
-    status["readable"] = True
-    return _plain(document, width=width)
-
-
 def document(
     index: TelemetryIndex,
     *,
@@ -1527,5 +1469,4 @@ __all__ = [
     "price_at",
     "render_document",
     "watch_document",
-    "watch_text",
 ]
