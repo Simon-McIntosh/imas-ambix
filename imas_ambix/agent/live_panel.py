@@ -718,6 +718,97 @@ def read_lane_block(path: str | Path, *, now: datetime | None = None) -> dict[st
     return lane_block(document, now=now)
 
 
+def panel_engines(
+    lane_document: dict[str, Any], live_entries: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """One entry per engine, its live reading joined to its own gate figures.
+
+    The live block counts one entry per serve it read. The pool document the
+    router publishes carries, when it spans several engines, an ``engines``
+    array holding each engine's own reading and gate. This joins the two by
+    engine identity -- the registration id's host against the host the receipt
+    row was taken on -- so an entry carries both what the engine did (from the
+    recorder) and what its gate holds (from the router). An engine the pool
+    document names but the recorder has no fresh row for keeps an entry with no
+    live figures, and one the recorder saw but the pool document does not name
+    keeps its live figures with no gate, so neither is silently dropped.
+    """
+    pool = [
+        entry for entry in (lane_document.get("engines") or [])
+        if isinstance(entry, dict)
+    ]
+    used: set[int] = set()
+    entries: list[dict[str, Any]] = []
+    for live in live_entries:
+        host = live.get("hostname")
+        match = None
+        if isinstance(host, str) and host:
+            for index, engine in enumerate(pool):
+                if index in used:
+                    continue
+                engine_id = engine.get("engine_id")
+                if isinstance(engine_id, str) and _engine_host(engine_id) == _host_name(
+                    host
+                ):
+                    match = index
+                    used.add(index)
+                    break
+        entries.append(_engine_entry(pool[match] if match is not None
+                                     else {}, live))
+    for index, engine in enumerate(pool):
+        if index not in used:
+            entries.append(_engine_entry(engine, None))
+    return entries
+
+
+def _host_name(host: str) -> str:
+    """A host reduced to the node name the registry's engine ids carry."""
+    from imas_ambix.agent.registry import _host_name as registry_host_name
+
+    return registry_host_name(host)
+
+
+def _engine_host(engine_id: str) -> str:
+    """The node name out of an engine id, which is ``<host>:<port>``."""
+    return _host_name(engine_id.rsplit(":", 1)[0]) if ":" in engine_id else _host_name(
+        engine_id
+    )
+
+
+def _engine_entry(
+    gate: dict[str, Any], live: dict[str, Any] | None
+) -> dict[str, Any]:
+    """One engine's row: its live figures and the gate reading beside them."""
+    gate_block = gate.get("router_generation_gate")
+    gate_block = gate_block if isinstance(gate_block, dict) else {}
+    reading = live if isinstance(live, dict) else {}
+    engine_id = gate.get("engine_id")
+    host = reading.get("hostname") or (
+        engine_id.rsplit(":", 1)[0] if isinstance(engine_id, str) else None
+    )
+    model = reading.get("served_name") or gate.get("model_id")
+    available = gate.get("availability_percent")
+    return {
+        "engine": engine_id if isinstance(engine_id, str) and engine_id else host,
+        "model": model,
+        "host": host,
+        "engine_id": engine_id,
+        "live": reading,
+        "gate": gate,
+        "running": reading.get("mean_running"),
+        "router_q": gate_block.get("waiting"),
+        "tok_s": reading.get("generation_toks_per_s"),
+        "per_stream": reading.get("per_stream_toks_per_s"),
+        "ttft": reading.get("median_time_to_first_token_s"),
+        "kv_pool": (
+            reading.get("pool_occupancy")
+            if reading.get("pool_occupancy") is not None
+            else gate.get("kv_occupancy")
+        ),
+        "available": available,
+    }
+
+
 def live_panel(
     *,
     receipts_dir: str | Path | None = None,
@@ -751,15 +842,40 @@ def live_panel(
     callers = dict(blocks["callers"])
     callers["history"] = blocks["history"]
     callers["outcomes"] = blocks["outcomes"]
-    return {
-        "lane": read_lane_block(lane_path, now=now),
-        "live": live_block(
-            receipts_dir,
-            now=now,
-            shelf_life_seconds=published_shelf_life(lane_path),
-        ),
+    lane_document = _lane_document(lane_path, now=now)
+    live = live_block(
+        receipts_dir,
+        now=now,
+        shelf_life_seconds=published_shelf_life(lane_path),
+    )
+    document = {
+        "lane": lane_block(lane_document, now=now),
+        "live": live,
         "callers": callers,
     }
+    # The engine dimension appears only when there is more than one engine, so
+    # a one-engine lane's document carries exactly the keys it carried before
+    # it existed. That is what makes the dimension cost a single-engine reader
+    # nothing: its document and its render are unchanged.
+    engines = panel_engines(lane_document, live.get("engines") or [])
+    if len(engines) > 1:
+        document["engines"] = engines
+    return document
+
+
+def _lane_document(path: str | Path, *, now: datetime | None = None) -> dict[str, Any]:
+    """The published lane document, or an empty one when it is unreadable.
+
+    The lane block copies only the fields it publishes; the ``engines`` array
+    the pool document carries is read here, from the same file and the same
+    pass, so the per-engine entries describe the document the lane block was
+    built from.
+    """
+    try:
+        document = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return {"state": "unavailable"}
+    return document if isinstance(document, dict) else {"state": "unavailable"}
 
 
 def published_shelf_life(path: str | Path) -> int:
