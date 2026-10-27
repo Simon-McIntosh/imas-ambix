@@ -131,6 +131,45 @@
         start, which is the move.</li>
       </ul>
     </section>
+
+    <section id="router-placed-on-rigel-repair">
+      <p><strong>The change reddened one pre-existing test, and the test was
+      comparing the wrong thing.</strong>
+      <code>tests/test_agent_gate_control_path.py</code>'s
+      <code>test_generated_script_without_the_option_unsets_the_gate_path</code>
+      compares the generated router script byte-for-byte against the script
+      produced at revision <code>268df346</code>, normalising only the stdout
+      destination and the one <code>unset</code> line it removes. That
+      comparison asserts the gate-path option changed nothing else in the
+      script, but it is sensitive to every later change: the placement moved
+      <code>--partition</code> from <code>betelgeuse</code> to
+      <code>rigel</code>, dropped <code>--reservation</code>, and added the
+      <code>/tmp</code> scratch fallback, so it read
+      <code>1 failed, 17 passed</code> at
+      <code>466fd4bd5bac9b5e50c46a63e7e4fe3676375b94</code>.</p>
+      <p id="router-placed-on-rigel-repair-normalise"><strong>The repair
+      normalises exactly those lines.</strong> Partition, reservation and the
+      scratch fallback are dropped from both sides of the comparison and every
+      other line is still compared exactly, so the test keeps proving its own
+      claim while the placement headers keep their own assertions in
+      <code>tests/test_agent_router_service.py</code>, which pins
+      <code>--partition=rigel</code> with no <code>--gres</code>,
+      <code>--reservation</code>, <code>--nodelist</code> or
+      <code>--constraint</code>.</p>
+      <p><strong>Gate and negative control.</strong>
+      <code>tests/test_agent_gate_control_path.py
+      tests/test_agent_router_service.py tests/test_slurm_output_paths.py</code>
+      — 39 passed, <code>EXIT=0</code> at
+      <code>ffdc16d045433cd82c095179a82fb2030131b306</code>
+      (<code>/home/ITER/mcintos/.config/reckon/crew/runs/r-20261027T091511974031-router-placed-on-rigel/logs/gate-ffdc16d0.log</code>).
+      With the test file restored to its pre-repair content and nothing else
+      changed, the same check fails —
+      <code>1 failed, 17 deselected</code>, <code>EXIT=1</code>, failing id
+      <code>tests/test_agent_gate_control_path.py::test_generated_script_without_the_option_unsets_the_gate_path</code>
+      — which is the id the repaired head passes
+      (<code>…/logs/negative-control-ffdc16d0.log</code>). The whole-tree lint
+      gate exits 0 (<code>…/logs/ruff-whole-tree-repair.log</code>).</p>
+    </section>
   </main>
 </body>
 </html>
