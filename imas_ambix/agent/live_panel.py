@@ -143,6 +143,20 @@ TAIL_LINES = 1024
 #: well inside the read even if a few trailing lines are unreadable.
 SELECTION_TAIL_LINES = 8
 
+#: How many trailing unreadable lines a receipt file may carry before it is
+#: read as a file that stopped writing rows rather than as one caught
+#: mid-write. The recorder appends one row per atomic write, so a single torn
+#: final line is ordinary; two or more mean the newest samples were never
+#: written, and the file speaks for an engine whose recorder is failing rather
+#: than for the shelf the engine is serving now.
+TORN_TAIL_LINES = 1
+
+#: The components that name one serving engine. A recorder writes one file per
+#: serve on the machine it runs on, so the host, the model the serve answers as
+#: and the job holding it separate two serves from each other and a serve from
+#: its own later runs. Every live figure belongs to one of these.
+ENGINE_KEY_FIELDS = ("hostname", "served_name", "job_id")
+
 
 def _now(now: datetime | None) -> datetime:
     return now if now is not None else datetime.now(UTC)
@@ -179,8 +193,13 @@ def _tail_lines(path: Path, limit: int) -> list[str]:
 
 
 def _read_rows(path: Path, limit: int = TAIL_LINES) -> list[dict[str, Any]]:
+    return _parse_rows(_tail_lines(path, limit))
+
+
+def _parse_rows(lines: list[str]) -> list[dict[str, Any]]:
+    """Every line that parses as a JSON object, in the order given."""
     rows: list[dict[str, Any]] = []
-    for line in _tail_lines(path, limit):
+    for line in lines:
         line = line.strip()
         if not line:
             continue
@@ -234,6 +253,83 @@ def newest_raw_receipt(directory: str | Path) -> Path | None:
         if chosen is None or (stamp, candidate.name) > (chosen[0], chosen[1]):
             chosen = (stamp, candidate.name, candidate)
     return chosen[2] if chosen is not None else None
+
+
+def engine_identity(row: dict[str, Any]) -> tuple[Any, Any, Any]:
+    """The serve one receipt row belongs to: host, served model and job.
+
+    A serve is named by all three, because any one of them can move without the
+    others: a second model joins the same host, a serve restarts under a new
+    job, and the distinct names keep each engine's figures its own.
+    """
+    return tuple(row.get(name) for name in ENGINE_KEY_FIELDS)
+
+
+def _trailing_breaks(lines: list[str]) -> int:
+    """Unreadable non-blank lines after the last one that parses."""
+    breaks = 0
+    for line in reversed(lines):
+        if not line.strip():
+            continue
+        try:
+            json.loads(line)
+        except json.JSONDecodeError:
+            breaks += 1
+            continue
+        break
+    return breaks
+
+
+def receipt_serves(
+    directory: str | Path,
+) -> list[tuple[tuple[Any, Any, Any], Path, datetime | None, int]]:
+    """One raw receipt file per engine, newest first.
+
+    Each engine is the ``(hostname, served model, job)`` triple its newest raw
+    row names, and the file chosen for it is the one whose last *parseable* row
+    carries the latest stamp -- a file caught mid-append must not disappear
+    while every row before the torn one is intact. The triple comes from that
+    row rather than from the file's name, because a name carries no host and a
+    restarted serve is a different engine under a new job. Ties break on path
+    name so the choice is deterministic.
+
+    Each entry carries the chosen file, the stamp that chose it, and how many
+    trailing lines of it do not parse, which is what tells a row caught
+    mid-write from a file whose newest samples were never written.
+    """
+    base = Path(directory)
+    chosen: dict[tuple[Any, Any, Any], tuple[datetime, str, Path, int]] = {}
+    for candidate in _raw_receipt_files(base):
+        tail = _tail_lines(candidate, SELECTION_TAIL_LINES)
+        rows = _parse_rows(tail)
+        if not rows:
+            continue
+        stamp = _parse_stamp(rows[-1].get("timestamp"))
+        if stamp is None:
+            continue
+        identity = engine_identity(rows[-1])
+        if all(part in (None, "") for part in identity):
+            # A row that names no serve cannot be attributed to an engine, and
+            # guessing one would publish another engine's counters under it.
+            continue
+        breaks = _trailing_breaks(tail)
+        current = chosen.get(identity)
+        if current is None or (stamp, candidate.name) > (current[0], current[1]):
+            chosen[identity] = (stamp, candidate.name, candidate, breaks)
+    ordered = sorted(
+        chosen.items(), key=lambda item: (item[1][0], item[1][1]), reverse=True
+    )
+    return [
+        (identity, entry[2], entry[0], entry[3]) for identity, entry in ordered
+    ]
+
+
+def _raw_receipt_files(base: Path) -> list[Path]:
+    """Every raw receipt file under *base*, the compacted tiers excluded."""
+    if not base.is_dir():
+        return []
+    tiers = _tier_names(base)
+    return [candidate for candidate in base.glob("*.jsonl") if candidate not in tiers]
 
 
 def _counter(row: dict[str, Any], name: str) -> float | None:
@@ -372,14 +468,84 @@ def _window_rows(rows: list[dict[str, Any]], now: datetime) -> list[dict[str, An
 
 
 def live_block(
-    receipts_dir: str | Path, *, now: datetime | None = None
+    receipts_dir: str | Path,
+    *,
+    now: datetime | None = None,
+    shelf_life_seconds: int = DEFAULT_SHELF_LIFE_SECONDS,
 ) -> dict[str, Any]:
-    """The ``live`` block: per-stream rates over the newest raw receipt tail."""
+    """The ``live`` block: per-stream rates over the newest raw receipt tail.
+
+    The block is the newest engine's entry, with every engine's entry beneath it
+    under ``engines``. A reader of the top-level figures sees the engine that
+    last wrote a row, which is what a single-serve lane has always shown; a
+    reader watching a lane of several serves reads each one's own counters out
+    of the list rather than taking one serve for the whole machine.
+    """
+    entries = live_entries(
+        receipts_dir, now=now, shelf_life_seconds=shelf_life_seconds
+    )
+    block = dict(entries[0]) if entries else _single_block(receipts_dir, now=now)
+    block["engines"] = entries
+    return block
+
+
+def live_entries(
+    receipts_dir: str | Path,
+    *,
+    now: datetime | None = None,
+    shelf_life_seconds: int = DEFAULT_SHELF_LIFE_SECONDS,
+) -> list[dict[str, Any]]:
+    """One live entry per engine, newest first, and none for a silent engine.
+
+    Each engine is the serve its own newest raw receipt names, so a lane of two
+    serves yields two entries with their own counters rather than one entry
+    chosen from whichever file happened to be written last. An engine whose
+    newest readable row is older than the shelf life yields no entry at all: the
+    shelf life is how long a reading stands for the serve's present state, and a
+    row past it describes a serve that may no longer be there.
+
+    An engine whose file has stopped carrying readable rows keeps an entry and
+    reports itself unavailable with the reason. The recorder appends one row per
+    atomic write, so one torn final line is a file caught mid-write; more than
+    that means the newest samples were never written, and silence about the
+    engine would read as a serve that is not running rather than as a recorder
+    that cannot say.
+    """
     moment = _now(now)
-    block: dict[str, Any] = {
+    entries: list[dict[str, Any]] = []
+    for identity, path, stamp, breaks in receipt_serves(receipts_dir):
+        age = max(0.0, (moment - stamp).total_seconds()) if stamp else None
+        if age is not None and age > shelf_life_seconds:
+            continue
+        if breaks > TORN_TAIL_LINES:
+            block = _figures()
+            block.update(
+                {
+                    "file": path.name,
+                    "state": "unavailable",
+                    "reason": (
+                        f"{breaks} trailing lines of the receipt file do not "
+                        "parse, so its newest samples were never written"
+                    ),
+                    "tail_breaks": breaks,
+                }
+            )
+        else:
+            block = _file_block(path, moment)
+        block.update(dict(zip(ENGINE_KEY_FIELDS, identity, strict=True)))
+        block["age_seconds"] = age
+        block["shelf_life_seconds"] = float(shelf_life_seconds)
+        entries.append(block)
+    return entries
+
+
+def _figures() -> dict[str, Any]:
+    """The live block's fields, carrying no measurement."""
+    return {
         "file": None,
         "job_id": None,
         "served_name": None,
+        "hostname": None,
         "window_seconds": WINDOW_SECONDS,
         "rows": 0,
         "state": "unavailable",
@@ -393,18 +559,37 @@ def live_block(
         "median_time_to_first_token_s": None,
         "reason": None,
     }
+
+
+def _single_block(
+    receipts_dir: str | Path, *, now: datetime | None = None
+) -> dict[str, Any]:
+    """The newest raw receipt's figures, whether or not it is inside the shelf life.
+
+    This is the whole block when no engine has written within the shelf life, so
+    a reader is told *why* there is no live entry -- no file at all, no readable
+    row, or no row in the trailing window -- rather than a bare absence.
+    """
     chosen = newest_raw_receipt(receipts_dir)
     if chosen is None:
+        block = _figures()
         block["reason"] = "no raw receipt file with a readable row"
         return block
-    block["file"] = chosen.name
-    all_rows = _read_rows(chosen)
+    return _file_block(chosen, _now(now))
+
+
+def _file_block(path: Path, moment: datetime) -> dict[str, Any]:
+    """The live figures one receipt file supports."""
+    block = _figures()
+    block["file"] = path.name
+    all_rows = _read_rows(path)
     if not all_rows:
         block["reason"] = "the chosen receipt file holds no readable row"
         return block
     last_row = all_rows[-1]
     block["job_id"] = last_row.get("job_id")
     block["served_name"] = last_row.get("served_name")
+    block["hostname"] = last_row.get("hostname")
     rows = _window_rows(all_rows, moment)
     block["rows"] = len(rows)
     if not rows:
@@ -568,6 +753,30 @@ def live_panel(
     callers["outcomes"] = blocks["outcomes"]
     return {
         "lane": read_lane_block(lane_path, now=now),
-        "live": live_block(receipts_dir, now=now),
+        "live": live_block(
+            receipts_dir,
+            now=now,
+            shelf_life_seconds=published_shelf_life(lane_path),
+        ),
         "callers": callers,
     }
+
+
+def published_shelf_life(path: str | Path) -> int:
+    """The shelf life the lane document publishes, or the default.
+
+    The lane document is the one place a deployment declares how long its
+    readings stand for, and the live block answers to the same figure the lane
+    block does -- a receipt file is chosen for an engine by the same rule that
+    decides whether the lane itself is stale.
+    """
+    try:
+        document = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return DEFAULT_SHELF_LIFE_SECONDS
+    published = document.get("suggested_shelf_life_seconds") if isinstance(
+        document, dict
+    ) else None
+    if isinstance(published, int | float) and not isinstance(published, bool):
+        return int(published)
+    return DEFAULT_SHELF_LIFE_SECONDS

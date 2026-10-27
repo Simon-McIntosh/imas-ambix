@@ -69,7 +69,7 @@ from imas_ambix.agent.index_placement import resolve_index_path
 from imas_ambix.agent.telemetry_index import TelemetryIndex
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Mapping, Sequence
 
 
 #: Where the on-node recorder appends its rows. Matches
@@ -190,6 +190,10 @@ class Period:
     price_policy: str | None = None
     #: The date the priced history begins, when the figure came from it.
     price_history_from: str | None = None
+    #: The model this row is priced for. ``None`` on a row that totals several
+    #: models, and on a single-model row that was derived without naming one,
+    #: because a row prices one model's tokens or sums rows that each did.
+    model: str | None = None
 
     @property
     def cached_share(self) -> float | None:
@@ -580,6 +584,119 @@ def _cached_span(index: TelemetryIndex, start: float, end: float) -> float | Non
     return _span(index, PREFIX_CACHE_HITS, start, end)
 
 
+def window_models(index: TelemetryIndex, start: float, end: float) -> list[str]:
+    """The models whose samples fall in the window, from the stored column.
+
+    The served name is written beside every sample when it is ingested, so the
+    set of models a period covers is one grouped read of that column. Reading
+    it from the payloads instead would decode every record in the window, which
+    is the cost a period is computed from columns in order to avoid.
+    """
+    return sorted(
+        str(row[0])
+        for row in index._conn.execute(
+            "SELECT DISTINCT served_name FROM sample "
+            "WHERE ts_epoch >= ? AND ts_epoch < ? "
+            "AND served_name IS NOT NULL AND served_name != ''",
+            (start, end),
+        )
+    )
+
+
+def _names_by_job(
+    index: TelemetryIndex, job_ids: Iterable[object]
+) -> dict[str, str]:
+    """The model each of these jobs served, at the name it recorded most.
+
+    A job is one serving process and a process serves one model, so the name
+    its samples recorded is that job's model for every reading it wrote. Where
+    a job carries more than one name the most-recorded one wins, so a single
+    mislabelled sample cannot rename a serve in the ledger.
+    """
+    ids = sorted({str(job) for job in job_ids if job is not None})
+    if not ids:
+        return {}
+    marks = ", ".join("?" for _ in ids)
+    names: dict[str, str] = {}
+    for job_id, served_name, _ in index._conn.execute(
+        "SELECT job_id, served_name, COUNT(*) AS n FROM sample "
+        f"WHERE job_id IN ({marks}) AND served_name IS NOT NULL "
+        "AND served_name != '' GROUP BY job_id, served_name ORDER BY n DESC",
+        ids,
+    ):
+        names.setdefault(str(job_id), str(served_name))
+    return names
+
+
+def model_series(
+    index: TelemetryIndex, names: Sequence[str], start: float, end: float
+) -> dict[str, dict[str, list[Mapping[str, Any]]]]:
+    """Each counter's window readings, grouped by the model that wrote them.
+
+    The readings are the index's own, so a compacted hour contributes its
+    endpoints exactly as it does to an unrouted total; the model is resolved
+    from the job each reading belongs to, which is a column on the reading and
+    on the sample it came from. A reading whose job recorded no served name is
+    left out rather than collected under a placeholder: there is no rate to
+    price it at, and a bucket named "unknown" would appear in the ledger as a
+    model nobody serves.
+    """
+    readings = {name: index._counter_window_rows(name, start, end) for name in names}
+    by_job = _names_by_job(
+        index, [row["job_id"] for rows in readings.values() for row in rows]
+    )
+    grouped: dict[str, dict[str, list[Mapping[str, Any]]]] = {}
+    for name, rows in readings.items():
+        for row in rows:
+            model = by_job.get(str(row["job_id"]))
+            if model is None:
+                continue
+            grouped.setdefault(model, {}).setdefault(name, []).append(row)
+    return grouped
+
+
+def _series_total(
+    series: Mapping[str, list[Mapping[str, Any]]],
+    name: str,
+    start: float,
+    end: float,
+) -> float | None:
+    """One model's advance of one counter over the window.
+
+    The index's own run partition, applied to the readings that model wrote: a
+    run still ends at a host, boot or job change and at a counter that falls,
+    so a model's figure is the same one the unrouted query would give for a
+    window holding that model alone.
+    """
+    return TelemetryIndex._partitioned_rows(
+        name, start, end, series.get(name, ())
+    ).total
+
+
+def _series_stamps(series: Mapping[str, list[Mapping[str, Any]]]) -> list[float]:
+    """Every epoch this model's readings carry, ascending and distinct."""
+    return sorted(
+        {float(row["ts"]) for rows in series.values() for row in rows}
+    )
+
+
+def _series_cached(
+    series: Mapping[str, list[Mapping[str, Any]]], start: float, end: float
+) -> float | None:
+    """One model's cached prompt tokens, summed over the tiers it recorded.
+
+    The tier counters are the canonical carrier and the flat hit counter is
+    consulted only when this model recorded no tier, so the two spellings are
+    never both counted into one figure.
+    """
+    tiers = [name for name in CACHED_TIERS if series.get(name)]
+    if tiers:
+        parts = [_series_total(series, name, start, end) for name in tiers]
+        present = [part for part in parts if part is not None]
+        return sum(present) if present else None
+    return _series_total(series, PREFIX_CACHE_HITS, start, end)
+
+
 def _timestamps(index: TelemetryIndex, start: float, end: float) -> list[float]:
     """Sample epochs in the window, ascending.
 
@@ -913,6 +1030,7 @@ def period_row(
     model: str | None = None,
     estimate: CacheRateEstimate | None = None,
     history: Sequence[dict] | None = None,
+    series: Mapping[str, list[Mapping[str, Any]]] | None = None,
 ) -> Period | None:
     """One ledger row derived from the record, or ``None`` when unbacked.
 
@@ -922,15 +1040,32 @@ def period_row(
     inside it left part of the window unmeasured: the dashes then say the
     period happened and could not be measured, which is a different statement
     from silence.
-    """
-    stamps = _timestamps(index, start, end)
-    if len(stamps) < 2:
-        return None
 
-    in_partition = index.partitioned_total(PROMPT_TOKENS, start, end)
-    tokens_in = in_partition.total
-    tokens_out = _span(index, GENERATION_TOKENS, start, end)
-    cached = _cached_span(index, start, end)
+    *series* restricts the row to one model's counter readings, which is what
+    prices each model's traffic at its own rate rather than applying one
+    model's rate to the whole machine's tokens. With no *series* the period is
+    totalled over the whole record: the same figure when the window holds one
+    model, and the only figure available to a caller that has not grouped its
+    readings.
+    """
+    if series is None:
+        stamps = _timestamps(index, start, end)
+        if len(stamps) < 2:
+            return None
+        tokens_in = _span(index, PROMPT_TOKENS, start, end)
+        tokens_out = _span(index, GENERATION_TOKENS, start, end)
+        cached = _cached_span(index, start, end)
+        coverage = index.partitioned_total(PROMPT_TOKENS, start, end).coverage
+    else:
+        stamps = _series_stamps(series)
+        if len(stamps) < 2:
+            return None
+        tokens_in = _series_total(series, PROMPT_TOKENS, start, end)
+        tokens_out = _series_total(series, GENERATION_TOKENS, start, end)
+        cached = _series_cached(series, start, end)
+        coverage = TelemetryIndex._partitioned_rows(
+            PROMPT_TOKENS, start, end, series.get(PROMPT_TOKENS, ())
+        ).coverage
 
     cost, walk = None, None
     if prices and estimate is not None:
@@ -950,7 +1085,7 @@ def period_row(
             )
             cost = walk.cost
 
-    covered = min(period, in_partition.coverage)
+    covered = min(period, coverage)
     return Period(
         label=label,
         period=period,
@@ -960,11 +1095,24 @@ def period_row(
         tokens_out=tokens_out,
         utilisation=card_utilisation(index, start, end, stamps=stamps),
         cost=cost,
-        cost_label=_cost_label(estimate, walk),
+        cost_label=_priced_for(model, _cost_label(estimate, walk)),
         price_segments=None if walk is None else walk.segments,
         price_policy=None if walk is None else walk.policy,
         price_history_from=None if walk is None else walk.history_from,
+        model=model,
     )
+
+
+def _priced_for(model: str | None, label: str | None) -> str | None:
+    """The cost label, naming the model whose rate the figure was taken at.
+
+    A row priced at its own model's listing says which one, because a reader
+    comparing two rows needs the rate's owner on each; a row derived over the
+    whole record has no single owner and keeps the label it had.
+    """
+    if label is None or model is None:
+        return label
+    return f"{model}: {label}"
 
 
 def ledger(
@@ -989,8 +1137,45 @@ def ledger(
     """
     when = time.time() if now is None else now
     rows: list[Period] = []
+    counters = (PROMPT_TOKENS, GENERATION_TOKENS, PREFIX_CACHE_HITS, *CACHED_TIERS)
     for period, label in periods:
         start, end = when - period, when
+        present = (
+            [model]
+            if model is not None
+            else window_models(index, start, end)
+        )
+        if len(present) > 1:
+            grouped = model_series(index, counters, start, end)
+            period_rows = [
+                row
+                for name in present
+                if (
+                    row := period_row(
+                        index,
+                        start,
+                        end,
+                        label=label,
+                        period=period,
+                        now=when,
+                        prices=prices,
+                        model=name,
+                        estimate=estimate,
+                        history=history,
+                        series=grouped.get(name, {}),
+                    )
+                )
+                is not None
+            ]
+            if not period_rows:
+                continue
+            if rows and max(row.covered for row in period_rows) < (
+                MIN_PERIOD_COVERAGE * period
+            ):
+                continue
+            rows.extend(period_rows)
+            rows.append(_total_row(index, period_rows, period, label, start, end))
+            continue
         row = period_row(
             index,
             start,
@@ -1009,6 +1194,60 @@ def ledger(
             continue
         rows.append(row)
     return rows
+
+
+def _total_row(
+    index: TelemetryIndex,
+    period_rows: Sequence[Period],
+    period: float,
+    label: str,
+    start: float,
+    end: float,
+) -> Period:
+    """The period across every model, summed from each model's own figures.
+
+    The cost is the sum of the rows' costs and not a price applied to the
+    combined tokens: the models' rates differ, so one rate over the total would
+    price one model's traffic at another's listing. A row whose own cost is
+    unknown leaves the total unknown for the same reason -- adding the known
+    part would publish a figure smaller than the period's and present it as the
+    period's.
+    """
+    costs = [row.cost for row in period_rows]
+    complete = all(value is not None for value in costs)
+    cost = sum(value for value in costs if value is not None) if complete else None
+    return Period(
+        label=f"{label} · all models",
+        period=period,
+        covered=max(row.covered for row in period_rows),
+        tokens_in=_summed(period_rows, "tokens_in"),
+        cached=_summed(period_rows, "cached"),
+        tokens_out=_summed(period_rows, "tokens_out"),
+        utilisation=card_utilisation(index, start, end),
+        cost=cost,
+        cost_label=(
+            f"sum of {len(period_rows)} models, each at its own rate"
+            if cost is not None
+            else None
+        ),
+        price_segments=_summed(period_rows, "price_segments"),
+        price_policy=_uniform(period_rows, "price_policy"),
+        price_history_from=_uniform(period_rows, "price_history_from"),
+    )
+
+
+def _summed(rows: Sequence[Period], name: str) -> Any:
+    """The sum of one numeric field across *rows*, or ``None`` if any is absent."""
+    values = [getattr(row, name) for row in rows]
+    if any(value is None for value in values):
+        return None
+    return sum(values)
+
+
+def _uniform(rows: Sequence[Period], name: str) -> Any:
+    """The value every row shares, or ``None`` when the rows disagree."""
+    values = {getattr(row, name) for row in rows}
+    return values.pop() if len(values) == 1 else None
 
 
 # ── the figures ──────────────────────────────────────────────────────
