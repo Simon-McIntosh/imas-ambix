@@ -1,0 +1,39 @@
+{
+  "added_failure_count": 0,
+  "added_failure_ids": [],
+  "added_failure_note": "The reviewed run records no baseline_suite/after_suite pair, so the delta is read from its gate logs: gate-tests-repair.log reports 57 passed EXIT=0 at 4d6d96e2 and gate-ruff-repair.log reports All checks passed EXIT=0, with negative-control-repair.log the only red run (1 failed, EXIT=1, by design). No failures were added.",
+  "completed_at": "2026-10-27T14:20:57.526Z",
+  "dispatched_at": "2026-10-27T14:09:31Z",
+  "findings": [
+    {
+      "file": "tests/test_gpu_watch.py",
+      "line": "229",
+      "severity": "non-blocking",
+      "text": "non-blocking: the new test calls view.conditions and view.conditions_line directly and never exercises render_text/server_block, so the wiring at view.py:417-420 that reads the server's power_cap_watts and passes it through is untested; replacing `conditions_line(reading, cap)` with `conditions_line(reading, None)` leaves every assertion in this file green."
+    },
+    {
+      "file": "docs/evidence/fragments/serving-across-servers/gpu-watch-shows-the-machines.html",
+      "line": "151",
+      "severity": "non-blocking",
+      "text": "non-blocking: the pre-fix and post-fix reproductions are not the same input -- the before line (line 152) shows 'temperature \u2014 mean / \u2014 max' while the after line (line 157) shows 58.0\u00b0C / 61\u00b0C -- so the pair shows the arithmetic on two different readings rather than one reading before and after the repair."
+    }
+  ],
+  "project": "imas-ambix",
+  "raw_text": "VERDICT goal: the gained commits repair the declared-cap unit error the prior review raised; imas_ambix/agent/gpu_watch/view.py:187 divides the watt declaration before comparing it with the kilowatt draw, so a 420 W draw against a 700 W cap renders 0.42 kW / 0.70 kW cap / 60% of cap as the goal's conditions line requires.\nVERDICT done_when: the done_when names tests/test_gpu_watch.py and tests/test_node_probe.py plus a ruff check; gate-tests-repair.log records 57 passed EXIT=0 at 4d6d96e2, gate-ruff-repair.log records All checks passed EXIT=0, and negative-control-repair.log records 1 failed EXIT=1 with the scaling line reverted.\nVERDICT write_paths: the declared scope covers imas_ambix/agent/gpu_watch, node_probe.py, llm_watch.py, pyproject.toml, both test files and the evidence fragment/figures; all three diff paths (view.py, tests/test_gpu_watch.py, the fragment) sit inside it.\nVERDICT manifest: read; it records commits 4d6d96e2 and ab1255c5, the gate command, negative-control-repair.log and the reproduction, and its artifacts field reconciles with gate-tests-repair.log (57 passed in 0.43s, EXIT=0).\nVERDICT diff: read both gained commits; 4d6d96e2 scales the declared cap at view.py:187, makes the fixture card figures realistic watts and adds test_a_declared_power_cap_is_a_watt_reading_scaled_to_kilowatts, and ab1255c5 adds only a 22-line fragment section.\nCALL_SITES: imas_ambix/agent/gpu_watch/view.py:467 (render_text -> server_block), imas_ambix/agent/gpu_watch/view.py:420 (server_block -> conditions_line), imas_ambix/agent/gpu_watch/view.py:532 (gpu-watch console script main)\nSCORE goal_fidelity: 19\nJUSTIFICATION goal_fidelity: imas_ambix/agent/gpu_watch/view.py:187 now produces cap_kilowatts 0.7 and cap_percent 60.0 for a 700 W declaration, which is what the goal's conditions line asserts.\nSCORE evidence: 17\nJUSTIFICATION evidence: gate-tests-repair.log ends 57 passed EXIT=0 at 4d6d96e2 and gate-ruff-repair.log EXIT=0, though the gate ran at the code commit rather than the docs head and the fragment's before/after pair uses two different readings (line 152 vs 157).\nSCORE scope_discipline: 20\nJUSTIFICATION scope_discipline: the diff touches only imas_ambix/agent/gpu_watch/view.py, tests/test_gpu_watch.py and docs/evidence/fragments/serving-across-servers/gpu-watch-shows-the-machines.html, all declared write paths.\nSCORE durability: 17\nJUSTIFICATION durability: tests/test_gpu_watch.py:233 asserts cap_kilowatts == 0.7 and reddens on the reverted scaling (negative-control-repair.log: assert 700 == 0.7), but the render path at view.py:417-420 that supplies the declaration is not covered.\nSCORE fit: 18\nJUSTIFICATION fit: view.py:187 follows the module's rich-table idiom and adds no renamed or plan-labelled symbol, though the comment at view.py:184-186 restates the docstring sentence at view.py:167-169.\nSCORE reuse: 20\nJUSTIFICATION reuse: a search over imas_ambix/agent for an existing watts-to-kilowatts helper found none, so the one-line scaling at view.py:187 duplicates no owned capability.\nFINDING tests/test_gpu_watch.py:229 non-blocking: the new test calls view.conditions and view.conditions_line directly and never exercises render_text/server_block, so the wiring at view.py:417-420 that reads the server's power_cap_watts and passes it through is untested; replacing `conditions_line(reading, cap)` with `conditions_line(reading, None)` leaves every assertion in this file green.\nFINDING docs/evidence/fragments/serving-across-servers/gpu-watch-shows-the-machines.html:151 non-blocking: the pre-fix and post-fix reproductions are not the same input -- the before line (line 152) shows 'temperature \u2014 mean / \u2014 max' while the after line (line 157) shows 58.0\u00b0C / 61\u00b0C -- so the pair shows the arithmetic on two different readings rather than one reading before and after the repair.\n",
+  "review_run_id": "r-20261027T140225444789-review-of-gpu-watch-shows-the-machines-ab1255c531bb",
+  "reviewed_base_sha": "d584e01ca13241b1d51ab9462276bc47b71f2745",
+  "reviewed_head_sha": "ab1255c531bb2af3664b73b4228263f42cb680ba",
+  "reviewed_run_id": "r-20261027T091226504227-gpu-watch-shows-the-machines",
+  "scores": {
+    "durability": 17,
+    "evidence": 17,
+    "fit": 18,
+    "goal_fidelity": 19,
+    "reuse": 20,
+    "scope_discipline": 20
+  },
+  "status": "parsed",
+  "times_source": "run-record",
+  "timestamp": "2026-10-27T14:23:09.228267+00:00",
+  "total": 111
+}
