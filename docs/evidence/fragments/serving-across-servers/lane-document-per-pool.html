@@ -92,6 +92,17 @@
       test, which prints its reason on a host where
       <code>reckon.crew.lane_document</code> is not importable. The whole-tree
       lint gate <code>ruff check imas_ambix tests</code> exits 0.</p>
+      <p id="lane-document-per-pool-retired-references">The two modules that
+      resolved the removed generator were then brought into scope and repaired:
+      the output-path test lost its import and its <code>"lane"</code> pool
+      case, and the router-service test now asserts the generator is absent
+      while keeping the no-time-limit rule on the router script. The gate
+      extended to both files reports <strong>54 passed, 1 skipped</strong> and
+      the whole tree stays lint-clean. A search for
+      <code>generate_lane_refresher_script</code> across
+      <code>imas_ambix</code> and <code>tests</code> returns only two
+      <code>hasattr</code> assertions that the symbol is <em>absent</em>, so no
+      import and no call survives.</p>
       <p><strong>Negative control.</strong> With the composer mutated to skip
       writing a pool document whose engines all failed, the stopped-engine test
       failed (<code>EXIT=1</code>, one failing test id) while the unmutated head
