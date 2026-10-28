@@ -1,0 +1,83 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-28T05:38:48.909Z",
+  "dispatched_at": "2026-10-28T05:33:46Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-tokamap-from-generated-maps.html:22",
+      "id": "wiring-1",
+      "reason": "the ordering the plan asserts in prose is not what the queue reads, and \u00a714/\u00a720 both name a case where landing out of order breaks `main`'s map load rather than merely wasting work.",
+      "text": "`plan-section-depends-on` declares dependencies for s2\u2013s6 only; s7\u2013s20 declare none, although \u00a714 says \"\u00a712 added an optional `member_aliases` mapping \u2026 The independent review of \u00a712 found the contradiction\" (:366), \u00a717 says \"\u00a715 composed each imported rule's id \u2026 \u00a715's gate ran only the import tests, which is how it slipped through\" (:383), \u00a720 says \"\u00a712 showed that writing a key into it before the schema accepting it has merged leaves `main` unable to load the map\" (:587, :402), and \u00a716 (:377) and \u00a719 (:395) likewise build on \u00a79 and \u00a718 \u2014 the queue orders only what the plan declares, so each of those can be launched ahead of the section it needs.",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-tokamap-from-generated-maps.html:283",
+      "id": "done_when-1",
+      "reason": "a node dispatched from the section text either builds a cancelled artifact or fails a done-when it cannot satisfy, and the section text is what a fresh reader and the dispatch brief are both drawn from.",
+      "text": "\u00a74 still instructs \"Also write a PNG at twice the SVG's size \u2026 Put them in `/work/projects/imas_gpu/jt60sa/presentation/`\" (:283) and measures \"the PNG set is listed with its sizes\" (:297), and \u00a75 measures \"lists the PNG set with its sizes\" (:305), while the plan's own decision of 2026-10-09T04:01Z records the lead stopping PNG production and states \"the presentation PNGs are no longer a done-when anywhere in this plan\" (:473); `scripts/figures_jt60sa_tokamap.py` now carries zero PNG references, so both measures describe an artifact the plan has cancelled and no run produces.",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-tokamap-from-generated-maps.html:402",
+      "id": "single_goal-1",
+      "reason": "one node cannot be opened or closed on one verdict when half of it must merge before the other half may write, and the undeclared second node's write path and evidence path would be applied for on the fly.",
+      "text": "\u00a720 declares one node, `alternate-chains`, whose write paths span the `SignalRule` change, the score, and a write into the shared bundle `maps/jt-60sa/maps/pf_active.json`, with a done-when that includes \"the JT-60SA `pf_active` map loads with the declared alternates\" (:403), yet the section's own ordering comment states \"\u00a720 runs as two nodes in order. `alternate-chains` \u2026 writes no map. `alternate-chains-jt60sa` declares the JT-60SA alternates \u2026 and rescores the coils only after the first has merged\" (:587) \u2014 the second node, its dependency and its evidence fragment (`alternate-chains-jt60sa.html`, which exists on disk) are declared nowhere in the section.",
+      "type": "single_goal",
+      "would_change": true
+    },
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/jt60sa-tokamap-from-generated-maps.html:318",
+      "id": "done_when-2",
+      "reason": "the number is one probe off and the node read the hand-off itself and reported 8 of 14 with the reason, so no work went astray; stating \"8 of the 9, `magPbTC5` carrying no time row\" would only remove the ambiguity.",
+      "text": "\u00a77 measures \"the rerun on the 03:44Z hand-off reports the time rows of the 9 placed probes resolved\", but its own evidence fragment records nine placed values of which only eight carry a time row (\"The ninth, `magPbTC5`, has no time row in the hand-off\") and 8 of 14 time rows resolved with six left unresolved for value partners lacking machine-description identity.",
+      "type": "done_when",
+      "would_change": false
+    }
+  ],
+  "plan_commit": "1c12638a3799fb8141a47216493ad9aededb75a2",
+  "plan_fingerprint": "d2b1dffded9255bdc2f57649c35a43ef0502121bbc264c98d5216da32a235897",
+  "plan_slug": "jt60sa-tokamap-from-generated-maps",
+  "plan_version": 78,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261028T053302477978-plan-review-of-jt60sa-tokamap-from-generated-maps",
+  "reviewed_blob_sha": "41662a4f0deac0c582a76ec48a7e1d947494142d",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every cited module, test, schema file, figure directory, evidence archive anchor, named test and cross-repo plan section and commit resolves.",
+    "done_when": "a finding \u2014 \u00a74 and \u00a75 still measure a PNG deliverable the plan's own decision removed.",
+    "evidence_paths": "pass \u2014 every evidence path a section declares sits under `docs/evidence/fragments/jt60sa-tokamap-from-generated-maps/` or `/work/projects/imas_gpu/jt60sa/`, both durable, and each declared fragment exists.",
+    "naming": "pass \u2014 every symbol the plan adds (`withheld`, `alternate_sources`, `chain_differs`, `cross_structure`, `by_structure`, `sign_unscored`, `handoff_signal_id`, `member_aliases`) is named by the mechanism it expresses, with no plan label, section number or ticket in a symbol, comment or filename.",
+    "reasoning": "pass \u2014 each section's stated cause is the one its cited evidence shows (\u00a71's `_leaf_mappings` key collapse, \u00a715's reused `semantic_id`, \u00a716's `KeyError` on an undefined DD path, \u00a717's `_handoff_label` comparing a composed id against `signal_id`, \u00a719's cross-structure blindness), each mechanism can produce its done-when, and every mechanism names its production caller (`maps tokamap`, `maps tokamap --draft-signals`, `maps score-handoff`, `SensorIdentityRule.from_dict`, the printed score table) rather than existing unreached.",
+    "single_goal": "a finding \u2014 \u00a720 declares one node that both changes `SignalRule` and writes the shared map tree, against its own two-node ordering decision.",
+    "wiring": "a finding \u2014 the `plan-section-depends-on` meta declares only s2\u2013s6, while \u00a714, \u00a717 and \u00a720 each state in prose a hard dependency the plan never declares."
+  },
+  "section_digests": {
+    "_document": "6431360f836d227ab17ec9b7308eb2b1ff21073e3668482c6f09fed492516ec3",
+    "s1": "befb1e286b9998affc46db083b126e77095c03c021a2947dfc7e6a74f45c6269",
+    "s10": "360b9ee8db2023f7bc15a2f469159490a624c817bca11029cb0bdec4101edd6a",
+    "s11": "07d799a26224b3259f84e095b0a462cc49a469feb5fbe641421a930cba8005e5",
+    "s12": "317fc5806c3276a20fa9d963be82fe4bec802a5119ecec03dc986cf432157694",
+    "s13": "2a5b1530f5f4ca2b3b15ba61f864007afe35627b5f519404d96569b30344ccb7",
+    "s14": "5c56042c6934c7b2f95b2e2bd75b3966a43a6294a2323ba296e680c5956d4ea2",
+    "s15": "1da0b8f7757f9d92ab6823e8253575483fb8144b8e2c12bed38750a7f63a91d8",
+    "s16": "699acb933d6a4028fb0107e266faf7ec977efb27078880da938bb47b61bf3e1a",
+    "s17": "dfb3e29e3d0148c50371bed352a277aeed95e3d126da2094ef66ca7e37ca4ce8",
+    "s18": "cb75067c709d474e855228078436dc106b08f0d2e4bb80f29fb7866a465e941b",
+    "s19": "64890c492160be34e5a2d0656646cf93a8f0307c499141a023c56e0e1fc7e6f7",
+    "s2": "170fb1ab26609dc96af6595bff659471aa20fe88ba5bb7805a215ed078a71854",
+    "s20": "feaf1fa96f9df7a8d39ff4491e1e9832dc6a493846b3a55f415546b8fe912e97",
+    "s3": "cb31face6fb883fd73b2da2b26c68738d541443db534b9b3b03b0725ee031560",
+    "s4": "5595edac4857641dd8c9c0feccc536254393cb4ffd998e4160436c3e6f0d85f8",
+    "s5": "40f494b8b0fbdf869c890ac501ccf399df7346fa04bee999acb326b65a311ed4",
+    "s6": "28d47ed02e56a896602bc8aac2dab26910e4197786fb140cd26d81077d1649af",
+    "s7": "e00cb8f5ceca5cf90782b054bd100ee8311bc787b53e9054f3f6c2fb07526814",
+    "s8": "6f8e4246677c23415f2f871eb3a78550a2e85c162cad252592841059b8a28ad3",
+    "s9": "7101e7734daf7cfa86b175207e8832f6c48d97e4162fcaf3195b40425da648b0"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-28T05:40:22.962075+00:00"
+}
