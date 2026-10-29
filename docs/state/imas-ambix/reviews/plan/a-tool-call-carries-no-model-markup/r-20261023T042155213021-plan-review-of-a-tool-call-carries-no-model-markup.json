@@ -1,0 +1,45 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-23T04:33:47.414Z",
+  "dispatched_at": "2026-10-23T04:23:20Z",
+  "findings": [
+    {
+      "anchor": "/home/ITER/mcintos/Code/imas-ambix/docs/plans/a-tool-call-carries-no-model-markup.html:48",
+      "id": "reasoning-1",
+      "reason": "the s5 node cannot compute the failure-of-key result it is asked to report, so the plan should name a stable identity the router already holds (the run id read by `_request_identity`, router.py:1951/2075, or the run id header `identity_from_headers` returns) on the firing line, or drop the clause.",
+      "text": "the firing line names `the caller hint` as the only caller identity, and s5:57 decides the key's failure by \"another firing from the same caller under a different key\", but `RouterApp._caller_hint` builds that hint from `scope[\"client\"]` as `f\"{host}:{port}|{agent[:32]}\"` (router.py:2100\u20132103) where the port is the client's ephemeral source port, and the retry the guard is designed to provoke arrives on a new connection because the guard takes the close form, which \"deliberately sends no terminal chunk\" so \"the server drop[s] the connection\" (router.py:2551\u20132556) \u2014 the firing and its retry therefore carry different hints and no second firing is ever attributed to the same caller",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_commit": "",
+  "plan_fingerprint": "8baaadae7ed6d3fcba7ac2967b08ad9fcc122e855d53e1aa0f820c6b3bb6da5d",
+  "plan_slug": "a-tool-call-carries-no-model-markup",
+  "plan_version": 20,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261023T042155213021-plan-review-of-a-tool-call-carries-no-model-markup",
+  "reviewed_blob_sha": "d7eb8d9c790e76bcb2e27400792ec9857ad2acc1",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 every target named in the changed text resolves in the repository at fa2a79b0: `tool-input-markup.jsonl` is new and deliberately so, the receipt-sink directory is real (router.py:2596), the retry memory key is the `messages` digest the same paragraph defines, and `the caller hint` resolves to `RouterApp._caller_hint` (router.py:2092\u20132103) \u2014 which exists, and whose *semantics* are the subject of the finding below rather than its resolution.",
+    "done_when": "pass \u2014 the changed lines leave s3's measures falsifiable (unit matcher cases, the relay tests that must show no `content_block_stop`/`message_stop`, the population pass's \"exactly the twenty leaked calls\") with its declared negative control (\"with the watch's verdict ignored by the relay, every leaked-stream test fails\"), and s5's declared negative control (\"the same census over the 300 clive runs launched before the restart finds at least one leaked call\") is a real pre-guard arm at a rate where ~4.3 leaks are expected in 300 runs.",
+    "evidence_paths": "pass \u2014 the changed line puts the guard's JSONL \"beside the request receipts, in the directory the router's receipt sink writes\" (`RouterApp._receipt_sink`, router.py:2596, defaulting to the lane document's directory, router.py:1747\u20131752), the fixtures and population-pass log sit under `~/.config/reckon/crew/reports/imas-ambix/a-tool-call-carries-no-model-markup/`, and s5's logs are \"recorded beside the baseline\"; none is a node-local temporary path or a session scratchpad.",
+    "naming": "pass \u2014 `tool_input_markup.py`, `tool-input-markup.jsonl`, `turn key` and `caller hint` name what they do; no plan label, stage name, ticket number or version tag reaches a symbol, filename or comment in the changed text.",
+    "reasoning": "a finding \u2014 the log line the commit added carries `the caller hint` as the caller's identity, and s5's key-failure clause pairs firings \"from the same caller\", but `_caller_hint` is `host:ephemeral-port|user-agent[:32]` (router.py:2100\u20132103) while the guard's own close form drops the connection (router.py:2551\u20132556), so the mechanism cannot produce the measure it is attached to.",
+    "single_goal": "pass \u2014 s3 carries one deliverable (the router guard, with the population pass as its measure and the `census.py` walk extraction as its means), and s5 carries one (confirm the guard is running on the serving router and count it), so neither gate carries two verdicts.",
+    "wiring": "pass \u2014 s3's `depends-on` (`#s2`) and s5's (`#s3`) resolve to sections that exist, `plan-blocks` names `reckon:a-review-can-see-the-figure`, and the artifacts the changed lines consume are on disk (the receipt-sink directory the guard's JSONL follows, `RouterApp._caller_hint` at router.py:2092, the census the population pass imports); the s3\u2192s1 edge is implicit but \u00a71 is `done` and its script is present."
+  },
+  "section_digests": {
+    "_document": "403da21a79cbe327f0935fd41d2a294ae9f63b57b37ed27f5ac61e33601230ae",
+    "s1": "5f8c49e3d7e51c0174a76ddfea229d085b20b6e290dcf0a017c94c993156cdda",
+    "s2": "f22bd920ddbf54ebe86243b05d2d8c24bd970608d7794349574f97d6eaea2201",
+    "s3": "e1349d56a3e4e72ca2325c123454c3562459854db8a2d1a29ce8ce48836f7e80",
+    "s4": "73433c178790d5f6f90c5a57799d16eb9d4fcf7a0039fc4044d9886609d0e472",
+    "s5": "423200dfac7039e9dad1d097eb3b05b0ab290763918ca2270f5a91b4642750ee",
+    "s6": "0629f0c30cab8733b2150eadf81ec757fe59a4a2742e8c7c636580d856b53d9a"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-29T07:43:32.354660+00:00"
+}
