@@ -1,0 +1,82 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-28T05:32:05.932Z",
+  "dispatched_at": "2026-10-28T05:28:35Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/iter-first-plasma-rehearsal.html:18",
+      "id": "wiring-1",
+      "reason": "as wired, the node starts with no input artifact and no declared producer of one, so its first act is a blocked lookup rather than the rehearsal.",
+      "text": "the plan depends on three plans that each concern modelling, gating and the Nova consumer, but nothing in the constellation produces an ITER machine description, coil set or sensor geometry: maps/ contains only jt-60sa, and the map-minting machinery (machine-map-transform-engine, jt60sa-machine-map) is not declared although the rehearsal must mint an ITER map through it",
+      "type": "wiring",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/iter-first-plasma-rehearsal.html:31",
+      "id": "reasoning-1",
+      "reason": "the plan needs a section or dependency that mints the ITER machine description (and a named loader as caller), otherwise every downstream product in the list is unbuildable.",
+      "text": "\"place the validated machine-portable estimator on ITER geometry, feed proposed coil and actuator trajectories\" names no code entry point, and the input it presumes \u2014 an ITER bundle under maps/ \u2014 does not exist (maps/ holds only jt-60sa), so the mechanism described cannot run on any real code path; the plan hedges only the camera stream as conditional while the equilibrium coil set and magnetics geometry its first two products require are stated unconditionally",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/iter-first-plasma-rehearsal.html:48",
+      "id": "reasoning-2",
+      "reason": "a node closing on five evidenced gates cannot close gate 5 at all, so the closure condition is unmeetable as written; gate 5 needs either a measurable form (what parity, measured how) or to move out of the gate list.",
+      "text": "transfer gate 5 (\"the direct learned generative challenger may propose or distil trajectories, but the Nova-led ensemble remains the reference until parity is earned\") is a policy statement, not an assertion that can be evidenced, yet the done-when requires \"the required products and five transfer gates carry evidence\"",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/iter-first-plasma-rehearsal.html:69",
+      "id": "done_when-1",
+      "reason": "an unfalsifiable clause and an absent control are exactly the measure that passes on the unfixed behaviour, so the node's central claim to honesty is untested.",
+      "text": "the done-when asserts \"Uncertainties do not claim unsupported ITER closure knowledge\" with no instrument, threshold or reviewer test, and the plan declares no negative control anywhere, so nothing shows the guard fires; a bundle that silently published an unsupported burning-plasma closure claim with tight error bars would satisfy every other clause",
+      "type": "done_when",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/iter-first-plasma-rehearsal.html:58",
+      "id": "single_goal-1",
+      "reason": "a reviewer cannot close one verdict over eleven independent acceptance conditions, and a partial delivery would be recorded as a whole-node outcome; the work needs splitting into a geometry-bind node, an ensemble node and a playbook node.",
+      "text": "f-ifpr-001 bundles three deliverables (bind ITER geometry, diagnostic descriptions and actuator trajectories; generate scenario ensembles; author the first-shot update playbook) and closes against five products and five gates, in one XL node",
+      "type": "single_goal",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/iter-first-plasma-rehearsal.html:68",
+      "id": "evidence_paths-1",
+      "reason": "docs/evidence/ is the established convention in this repo and /reckon-build fixes the bundle path, so naming it would add no new mechanism and change no node's behaviour.",
+      "text": "the done-when requires evidence (\"carry evidence\", \"reproducible from exact machine-description and Nova identities\") without naming where the bundle or its gate logs must sit",
+      "type": "evidence_paths",
+      "would_change": false
+    }
+  ],
+  "plan_commit": "3147354bc50122f6168616cb960995cf4692845e",
+  "plan_fingerprint": "82a3513a7d79a2cb81b83cb76396b596ddd0d2f84aa467f862b3ba6c7524a755",
+  "plan_slug": "iter-first-plasma-rehearsal",
+  "plan_version": 1,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261028T052757903471-plan-review-of-iter-first-plasma-rehearsal",
+  "reviewed_blob_sha": "7376062755cc34f01e77f07dfee7b5f2b3f9d7dc",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 the research href /imas-ambix/research/hybrid-generative-state-estimation.html resolves to docs/research/hybrid-generative-state-estimation.html, all four relationship slugs resolve to docs/<slug>.html (not docs/plans/, but the house layout), and the reviewed snapshot is byte-identical to the live plan.",
+    "done_when": "a finding \u2014 the single followup's done-when (<plan>#f-ifpr-001) declares no negative control, and its third clause (\"Uncertainties do not claim unsupported ITER closure knowledge\") names no instrument by which it could fail.",
+    "evidence_paths": "pass \u2014 the plan names no evidence path, but the house convention (docs/evidence/, cited by nova-physics-consumer-integration and other plans) supplies one and the build skill fixes the bundle location, so no mechanism changes. See FINDING for why this is not a plan defect.",
+    "naming": "pass \u2014 the plan introduces no code symbols, filenames or comments, and its prose carries no ticket numbers or version tags; the \"H200\"/\"S20\"/\"M5\" strings are roadmap and hardware names in metadata, not stage labels in code.",
+    "reasoning": "a finding \u2014 of the five items the done-when requires to \"carry evidence\", transfer gate 5 states a permission rather than a testable condition, so the gates section cannot produce the measure the same plan counts.",
+    "single_goal": "a finding \u2014 f-ifpr-001 carries three separable deliverables (bind ITER geometry/diagnostics/actuators, generate scenario ensembles, author a first-shot update playbook) plus the closure of five products against five gates, so one node cannot be closed on one verdict.",
+    "wiring": "a finding \u2014 the four declared relationships (depends-on controllable-forecast-and-gate, joint-multimodal-plasma-wm, nova-physics-consumer-integration; informs physics-world-model-strategy) all resolve at docs/<slug>.html, but no declared relationship, and no plan in the constellation, supplies the ITER machine description the plan's whole mechanism consumes."
+  },
+  "section_digests": {
+    "_document": "df86502b01c3b47a8922abfe5f2030359a717f976fdb41c923de79b698f6acd2",
+    "gates": "b5684b1ec9d0dba4d15e3ec7c47b68802d0c139e5cc44fe84cdfd20c0eadb042",
+    "h200": "f09973c210eda9b84b4ada14499e5ade3d7388e7f7f3c6763d574f6666eed3ce",
+    "products": "a94d22b3498ad2376b6bb9e78506f24d7c1dd05241bd452f5070ccdfc562f976"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-29T07:44:40.805074+00:00"
+}
