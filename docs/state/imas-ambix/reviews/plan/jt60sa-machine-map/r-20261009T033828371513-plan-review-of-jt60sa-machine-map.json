@@ -1,0 +1,55 @@
+{
+  "absent_items": [],
+  "completed_at": "2026-10-09T03:47:11.703Z",
+  "dispatched_at": "2026-10-09T03:39:20Z",
+  "findings": [
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:243",
+      "id": "reasoning-1",
+      "reason": "the node would implement a round-trip assertion whose expected value is the production resolver's own output, producing a green suite under the exact mutation the section names as its control; the expected factor must come from a source independent of the engine resolver (as the landed `_transformation` helper in tests/data/test_tokamap_export.py:48 does today), and the plan must say so.",
+      "text": "the round-trip test is said to assert each exported `scale` as the product of the engine resolver's COCOS factor, the binding's sign and the exporter's unit factor, so after the split the exporter's output and the test's expectation are taken from the same engine resolver and a mutation of that resolver moves both together \u2014 the must-fail control declared at :203-204 (\"mutating the engine resolver so that path reads as one_like must move that binding's exported scale from \u22121 to 1\") can then never make a test fail, and \"neither half can drift unseen\" is untrue for the COCOS half",
+      "type": "reasoning",
+      "would_change": true
+    },
+    {
+      "anchor": "docs/plans/jt60sa-machine-map.html:195",
+      "id": "reasoning-2",
+      "reason": "the node's whole job is to decide which call sites keep the resolver, and :195 tells it the signal-rule check does while :207 (and the DD 4.x rationale at :208-211, which only works if the path lookup is dropped) tells it the check does not.",
+      "text": "the section says \"The resolver reaches only catalogue bindings, in `_catalogue_entry` and the two withhold checks\", while the changed text at :205-207 says the binding withhold check calls the resolver and \"the signal-rule check stays keyed on the rule's own transformation label, not on the resolver\" \u2014 so the two statements disagree about whether the signal-rule check still performs the lookup that the node retires",
+      "type": "reasoning",
+      "would_change": true
+    }
+  ],
+  "plan_commit": "",
+  "plan_fingerprint": "87c815c2a54c1b3f8d281c4385f901582015dda6fa4af7a43f482bfa74e33523",
+  "plan_slug": "jt60sa-machine-map",
+  "plan_version": 456,
+  "project": "imas-ambix",
+  "responses": {},
+  "review_run_id": "r-20261009T033828371513-plan-review-of-jt60sa-machine-map",
+  "reviewed_blob_sha": "228c1a0a141469599aebd98653408816a0bdd75f",
+  "rubric": "content",
+  "rubric_items": {
+    "anchors_resolve": "pass \u2014 `packages/imas-alambic/src/imas_alambic/transform_engine.py` (resolver `_target_cocos_transformation`, entry points `get_transform_engine`/`transform_machine_description`), `imas_ambix/data/tokamap_export.py`, `cocos.canonical_factor`, merge `4bf5bf2f` and plan `jt60sa-tokamap-from-generated-maps.html` all resolve; the only external hrefs in \u00a72 are the UKAEA tokamap repositories.",
+    "done_when": "pass \u2014 \u00a72 names a must-fail control (:203-204) and each \u00a77 check names its own: the loop-7 `channel_factor` flip (:695-696), the psi sign flip (:704), and MAST's default vessel box marking JT-60SA X-points unavailable (:707-708).",
+    "evidence_paths": "pass \u2014 gate evidence resolves under `docs/evidence/` (`docs/evidence/fragments/jt60sa-machine-map/\u2026`, `imas-codex docs/evidence/receipts/\u2026`) and \u00a77's stamp records its machine/env block; no evidence path lands in a session or node-local scratch directory.",
+    "naming": "pass \u2014 the changed text names modules and symbols by capability (`_catalogue_entry`, `_leaf_mappings`, `_cocos\u2026`, `canonical_factor`); node and plan identifiers (`jtmm-tokamap-jt60sa`, `jt60sa-tokamap-from-generated-maps`) appear only in plan prose, not in a code name.",
+    "reasoning": "a finding \u2014 the section's stated round-trip assertion derives its expected COCOS factor from the same engine resolver the section's must-fail control mutates, and :195 contradicts :205-207 about which withhold checks call the resolver.",
+    "single_goal": "pass \u2014 \u00a72's node keeps only the resolver split (:255-256), and each \u00a77 node carries one deliverable.",
+    "wiring": "pass \u2014 \u00a72 places `jtmm-tokamap-jt60sa` after `jt60sa-tokamap-from-generated-maps` \u00a71 so the two never edit `tokamap_export.py` at once (:255-257), which matches \u00a78 item 7 (:737-740), and both declared gates resolve to sections that exist."
+  },
+  "section_digests": {
+    "_document": "aeae9043f53534ca2bc015344ff6611bcb0f8f1fd2d90c733ffbe2bbfb65ca84",
+    "s1": "384005925680f19ca2508db1003ecb6c8a0d20128dfd40a1ddd7846695bee2b9",
+    "s2": "11170dbc8bae332895fdfb2db1c97d0b8e9cc68f9d17fa70fdcd20ee15a656bd",
+    "s3": "8b1d20a726fa86049c198c7fc17c4bdc92cf5e6e85e4345dc7f7ca829a063f79",
+    "s4": "54b390858c0d74f7bd0beb6f837bc8a812ede4809ae9fde5ceabe4ae5c11b10d",
+    "s5": "eb6aa2961a6e43f97ff7a620938faf7d5409f0b02bcab24e42f85f281e291b8a",
+    "s6": "658fa2a2519ebf37f1c3effba74e8b7adf8e86d43c3a064ef17f103f915c8c7c",
+    "s7": "08a72f0218880469fee6aa3ee829fb19c1063e931927357b4d10a6b45b692266",
+    "s8": "f2783c135c52eeca31e8457eaf39e60a5ac9e214c2f5d2daabca9fbbf9411211"
+  },
+  "status": "ready",
+  "times_source": "run-record",
+  "timestamp": "2026-10-29T07:46:02.797536+00:00"
+}
