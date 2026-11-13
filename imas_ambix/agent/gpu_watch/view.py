@@ -1138,18 +1138,55 @@ def _caller_owner(caller: dict) -> tuple[str, str]:
     return label, users[0] if len(users) == 1 else f"{users[0]}+{len(users) - 1}"
 
 
-def callers_table(block: dict | None) -> object | None:
-    """Whose requests fill the gate: one row per caller, heaviest first.
+def _user_rows(callers: list[dict]) -> list[dict]:
+    """The callers folded to one row per user, heaviest first.
 
-    ``in use`` is the caller's time-averaged requests occupying the gate,
+    The router keys a caller by coordinator session; a reader asks who is
+    filling the lane, so every session an account owns is summed into that
+    account's row. A caller whose account cannot be shown joins ``unknown``.
+    """
+    users: dict[str, dict] = {}
+    for caller in callers:
+        _label, owner = _caller_owner(caller)
+        name = "unknown" if owner == "?" else owner
+        row = users.setdefault(
+            name,
+            {
+                "user": name,
+                "sessions": 0,
+                "runs": 0,
+                "held": 0.0,
+                "wait_sum": 0.0,
+                "wait_weight": 0.0,
+            },
+        )
+        row["sessions"] += 1
+        row["runs"] += caller.get("runs") or 0
+        row["held"] += caller.get("held") or 0.0
+        wait = caller.get("mean_gate_wait_s")
+        if isinstance(wait, (int, float)):
+            # Weighted by the requests admitted, so a session with one slow
+            # request does not outvote one with a hundred fast ones.
+            weight = caller.get("requests") or 1.0
+            row["wait_sum"] += wait * weight
+            row["wait_weight"] += weight
+    return sorted(users.values(), key=lambda row: (-row["held"], row["user"]))
+
+
+def callers_table(block: dict | None, in_flight: object = None) -> object | None:
+    """Whose requests fill the gate: one row per user, heaviest first.
+
+    ``in use`` is the user's time-averaged requests occupying the gate,
     waiting or generating, over the block's window: the unit the gate's width
-    is counted in, and capacity the caller is using, not work held back. The
-    router publishes it as ``held``; the header names what it measures, because
-    "held" reads as queued. ``per run`` is the fan-out a run-counted share
-    cannot see: a worker running parallel subagents occupies several requests
-    while counting as one run, so anything above 1 is coloured. ``wait s`` is
-    the mean time a caller's requests spent queued at the gate, and the only
-    column that measures waiting.
+    is counted in. ``per run`` is the fan-out a run count cannot see: a worker
+    running parallel subagents occupies several requests while counting as one
+    run, so anything above 1 is coloured. ``wait s`` is the mean time the
+    user's requests spent queued at the gate.
+
+    An empty window on an idle lane draws nothing. An empty window while the
+    gate holds requests is stated, because the block is built from the
+    router's record of finished requests and that is how a record that has
+    stopped being written looks.
     """
     if not isinstance(block, dict):
         return None
@@ -1161,10 +1198,14 @@ def callers_table(block: dict | None) -> object | None:
     head = (
         f"callers {window / 60:.0f}m" if isinstance(window, (int, float)) else "callers"
     )
-    if not callers and block.get("covered") is not False:
-        # The block counts finished requests only, so an empty one is stated in
-        # those words: the gate may still hold requests that have not ended.
-        return Text.from_markup(f"[dim]{head}   no request finished in the window[/]")
+    cut = block.get("covered") is False
+    if not callers and not cut:
+        if isinstance(in_flight, (int, float)) and in_flight > 0:
+            return Text.from_markup(
+                f"[yellow]{head}   no finished request recorded[/]"
+                f"[dim] — {in_flight:.0f} in flight[/]"
+            )
+        return None
     t = Table(
         box=box.SIMPLE_HEAD,
         padding=(0, 1),
@@ -1172,71 +1213,40 @@ def callers_table(block: dict | None) -> object | None:
         pad_edge=False,
         header_style="dim",
     )
-    for i, name in enumerate(
-        (head, "user", "host", "runs", "in use", "per run", "wait s")
-    ):
+    for i, name in enumerate((head, "sessions", "runs", "in use", "per run", "wait s")):
         t.add_column(
             name,
-            justify="left" if i < 3 else "right",
+            justify="left" if i == 0 else "right",
             width=13 if i == 0 else 12,
             no_wrap=True,
         )
-    names = _names()
     dash = "—"
-    shown, folded = callers[:CALLER_ROWS], callers[CALLER_ROWS:]
-    owners = [_caller_owner(caller) for caller in shown]
-    # Two sessions in one project would read as one caller listed twice, so a
-    # repeated session label carries the session's first characters.
-    repeats = {
-        label
-        for label, _ in owners
-        if sum(1 for other, _ in owners if other == label) > 1
-    }
-    for caller, (label, owner) in zip(shown, owners, strict=False):
-        session = caller.get("session")
-        if session and label in repeats:
-            label = f"{label[:8]} {session[:4]}"
-        hosts = caller.get("hosts") or []
-        node = (
-            names.get("node", hosts[0], hit_ttl=None, miss_ttl=OWNER_RETRY)
-            if hosts
-            else None
-        )
-        # The site prefix is on every node name, so it carries nothing in a
-        # 12-character column; the SLURM lookups above keep the full name.
-        host_s = (
-            str(node).removeprefix("98dci4-") if node else (hosts[0] if hosts else dash)
-        )
-        if len(hosts) > 1:
-            host_s = f"{host_s}+{len(hosts) - 1}"
-        per = caller.get("held_per_run")
-        wait = caller.get("mean_gate_wait_s")
-        held = caller.get("held")
+    rows = _user_rows(callers)
+    shown, folded = rows[:CALLER_ROWS], rows[CALLER_ROWS:]
+    for row in shown:
+        user, runs, held = row["user"], row["runs"], row["held"]
+        per = held / runs if runs else None
+        wait = row["wait_sum"] / row["wait_weight"] if row["wait_weight"] else None
         t.add_row(
-            label,
-            owner if owner == USER else f"[yellow]{owner}[/]",
-            host_s,
-            f"{caller.get('runs') or 0}" if caller.get("session") else dash,
-            f"{held:.1f}" if isinstance(held, (int, float)) else dash,
+            user if user == USER else f"[yellow]{user}[/]",
+            f"{row['sessions']}",
+            f"{runs}" if runs else dash,
+            f"{held:.1f}",
             (
                 f"[{_ramp(per, 1.0, 2.0, inverted=True)}]{per:.1f}[/]"
-                if isinstance(per, (int, float))
+                if per is not None
                 else dash
             ),
             (
                 f"[{_ramp(wait, 5.0, 30.0, inverted=True)}]{wait:.0f}[/]"
-                if isinstance(wait, (int, float))
+                if wait is not None
                 else dash
             ),
         )
     if folded:
-        held = sum(c.get("held") or 0.0 for c in folded)
-        t.add_row(
-            f"+{len(folded)} more", "", "", "", f"{held:.1f}", "", "", style="dim"
-        )
-    if not callers:
-        t.add_row("[dim]idle[/]", "", "", "", "", "", "")
-    if block.get("covered") is False:
+        held = sum(row["held"] for row in folded)
+        t.add_row(f"+{len(folded)} more", "", "", f"{held:.1f}", "", "", style="dim")
+    if cut:
         return Group(
             t,
             Text.from_markup(
@@ -1402,7 +1412,8 @@ def serve_table(
         serve_head(lane, live, gpu_count),
         serve_grid(lane, live, env, env_idx, tight),
     ]
-    callers = callers_table(live_doc.get("callers"))
+    gate = lane.get("router_generation_gate") or {}
+    callers = callers_table(live_doc.get("callers"), gate.get("in_flight"))
     if callers is not None:
         parts.append(callers)
     ledger = serve_ledger_table()
