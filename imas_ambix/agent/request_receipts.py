@@ -109,6 +109,10 @@ RECENT_TAIL_MAX_BYTES = 32 << 20
 # it, the kept fraction is this rate over the offered one.
 DEFAULT_MAX_ROWS_PER_S = 20.0
 DEFAULT_WINDOW_S = 1.0
+# Seconds a sink that failed to write waits before it tries again. A full disk
+# or an exhausted quota clears without the router being told, so the sink asks
+# again at this interval and keeps dropping rows in between.
+WRITE_RETRY_S = 60.0
 
 # Outcome labels. ``completed`` is an answer the router sent whole -- relayed
 # from the owning engine, or composed by the router itself where it answered
@@ -766,7 +770,10 @@ class RequestReceiptSink:
     row flushed as it is written so the record is durable if the router is
     killed mid-service. Writing never disturbs routing: a sink that cannot write
     logs once and discards, because a relay that stopped serving requests to
-    keep a metrics file current would have inverted its own purpose.
+    keep a metrics file current would have inverted its own purpose. The fault
+    is not taken as permanent: the sink tries again every ``retry_s`` seconds
+    and says so when it is writing again, so a quota that filled for an hour
+    costs an hour of rows and not the rest of the process's life.
 
     A rolling sink writes each row to a day file beside the name it was given,
     so the record is a rolled set rather than one file that grows without
@@ -784,6 +791,7 @@ class RequestReceiptSink:
         roll_daily: bool = True,
         max_rows_per_s: float = DEFAULT_MAX_ROWS_PER_S,
         window_s: float = DEFAULT_WINDOW_S,
+        retry_s: float = WRITE_RETRY_S,
         random_float: Callable[[], float] = random.random,
         monotonic: Callable[[], float] = time.monotonic,
         now: Callable[[], datetime] = lambda: datetime.now(UTC),
@@ -802,9 +810,11 @@ class RequestReceiptSink:
         self._arrivals: deque[float] = deque()
         self._handle: Any = None
         self._handle_day: date | None = None
-        self._write_failed = False
+        self.retry_s = retry_s
+        self._failed_at: float | None = None
         self.rows_written = 0
         self.rows_sampled_out = 0
+        self.rows_dropped = 0
 
     def sample_decision(self) -> tuple[float, float]:
         """Record an arrival and return ``(keep_fraction, offered_rate_per_s)``.
@@ -883,21 +893,37 @@ class RequestReceiptSink:
         return None
 
     def _write(self, receipt: RequestReceipt, moment: datetime) -> bool:
-        if self._write_failed:
+        failed_at = self._failed_at
+        if failed_at is not None and self._monotonic() - failed_at < self.retry_s:
+            self.rows_dropped += 1
             return False
         try:
             self._ensure_handle(moment)
             self._handle.write(receipt.to_json() + "\n")
             self._handle.flush()
         except OSError as error:
-            self._write_failed = True
-            logger.warning(
-                "request receipts disabled path=%s error=%s: %s",
-                self.path,
-                type(error).__name__,
-                error,
-            )
+            # The handle may hold a half-written line or a dead descriptor, so
+            # the next attempt opens the file afresh.
+            self.close()
+            self._failed_at = self._monotonic()
+            self.rows_dropped += 1
+            if failed_at is None:
+                logger.warning(
+                    "request receipts disabled path=%s error=%s: %s; "
+                    "retrying every %ss",
+                    self.path,
+                    type(error).__name__,
+                    error,
+                    self.retry_s,
+                )
             return False
+        if failed_at is not None:
+            self._failed_at = None
+            logger.warning(
+                "request receipts writing again path=%s rows_dropped=%s",
+                self.path,
+                self.rows_dropped,
+            )
         return True
 
     def _ensure_handle(self, moment: datetime) -> None:

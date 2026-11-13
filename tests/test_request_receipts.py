@@ -1529,3 +1529,48 @@ def test_the_gate_timeout_receipt_also_carries_the_session_identity(
         assert rows[0]["coordinator_session"] == "s-timeout"
 
     asyncio.run(exercise())
+
+
+def test_a_sink_that_failed_to_write_tries_again_and_recovers(
+    tmp_path: Path, caplog
+) -> None:
+    """A write fault costs the rows of its own duration, not every later row.
+
+    The destination's parent starts as a regular file, so the first write
+    raises. Rows inside the retry interval are dropped without touching the
+    disk; once the interval has passed and the parent is a directory, the next
+    row is written and the sink says it is writing again.
+    """
+    clock = [0.0]
+    blocker = tmp_path / "public"
+    blocker.write_text("", encoding="utf-8")
+    sink = RequestReceiptSink(
+        blocker / "requests.jsonl",
+        roll_daily=False,
+        retry_s=60.0,
+        monotonic=lambda: clock[0],
+    )
+
+    def record() -> object:
+        return sink.record(
+            model="served-model",
+            upstream="engine",
+            caller_hint="host|client",
+            status=STATUS_COMPLETED,
+            duration_s=1.0,
+            accounting=StreamAccounting(),
+        )
+
+    with caplog.at_level("WARNING"):
+        assert record() is None
+        blocker.unlink()
+        clock[0] = 30.0
+        assert record() is None
+        assert not blocker.exists()
+        clock[0] = 61.0
+        assert record() is not None
+    assert sink.rows_dropped == 2
+    assert sink.rows_written == 1
+    assert len(read_receipt_rows(blocker / "requests.jsonl")) == 1
+    assert caplog.text.count("request receipts disabled") == 1
+    assert "request receipts writing again" in caplog.text
