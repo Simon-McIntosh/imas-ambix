@@ -147,65 +147,9 @@ def test_unreadable_cards_share_one_row(published):
     assert "gpu 0 1 3" in text
 
 
-def _caller(session: str, runs: int, held: float, wait: float) -> dict:
-    return {
-        "session": session,
-        "hosts": [],
-        "runs": runs,
-        "requests": 10.0,
-        "held": held,
-        "held_per_run": held / runs,
-        "mean_gate_wait_s": wait,
-    }
-
-
-def _callers_lines(lines: list[str]) -> list[str]:
-    return [line for line in lines if line.startswith("callers")]
-
-
-def test_an_empty_callers_window_on_an_idle_lane_draws_nothing(published):
-    published["live"]["lane"]["router_generation_gate"]["in_flight"] = 0
-    lines = _lines(_data(), None)
-    assert _callers_lines(lines) == []
-    assert not any(line.strip() == "idle" for line in lines)
-
-
-def test_an_empty_callers_window_under_load_is_stated(published):
-    assert _callers_lines(_lines(_data(), None)) == [
-        "callers 5m   no finished request recorded — 6 in flight"
-    ]
-
-
-def test_callers_are_one_row_per_user(published, monkeypatch):
-    published["live"]["callers"]["callers"] = [
-        _caller("s-one", 2, 3.0, 4.0),
-        _caller("s-two", 1, 1.0, 8.0),
-        _caller("s-other", 1, 0.5, 0.0),
-    ]
-    owners = {"s-one": view.USER, "s-two": view.USER, "s-other": "?"}
-    monkeypatch.setattr(
-        view, "_caller_owner", lambda caller: ("a-project", owners[caller["session"]])
-    )
-    lines = _lines(_data(), None)
-    head = next(i for i, line in enumerate(lines) if "sessions" in line)
-    assert lines[head].split() == [
-        "callers",
-        "5m",
-        "sessions",
-        "runs",
-        "in",
-        "use",
-        "per",
-        "run",
-        "wait",
-        "s",
-    ]
-    rows = [line.split() for line in lines[head + 2 : head + 4]]
-    assert rows == [
-        [view.USER, "2", "3", "4.0", "1.3", "6"],
-        ["unknown", "1", "1", "0.5", "0.5", "0"],
-    ]
-    assert "a-project" not in "\n".join(lines)
+def test_the_callers_block_is_not_drawn(published):
+    published["live"]["callers"]["callers"] = [{"session": "s", "held": 2.0}]
+    assert not any("callers" in line for line in _lines(_data(), None))
 
 
 def test_the_ledger_states_coverage_only_for_a_short_record(published):

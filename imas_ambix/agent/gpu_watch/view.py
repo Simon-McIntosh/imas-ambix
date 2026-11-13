@@ -30,16 +30,6 @@ it stops answering at all once the engine binds loopback. The period ledger
 under the serve grid is a different read -- the document the fleet publishes
 every 300 s -- and this process computes none of it.
 
-The callers table under the serve grid says whose requests fill the gate. Its
-figures are the live document's `callers` block, built from the router's
-per-request record; the only thing this process adds is a name for each row,
-looked up off the render thread: the project a coordinator session's transcript
-lives under in this account's ~/.claude/projects, or a reckon session named
-after one of this account's reckon projects. Either makes the row this user's.
-A row with no session is named by its host, and its user column lists the
-other accounts holding jobs on that node -- the router sees an address, never
-an account, so a row whose owner cannot be shown is marked `?`.
-
 Layout. The queue is what a reader scrolls for, so the panels above it are
 kept to what changes: one row per readable card, one row for the cards that
 cannot be read, a single line when no caller finished a request, and a ledger
@@ -60,7 +50,6 @@ import argparse
 import contextlib
 import getpass
 import os
-import re
 import subprocess
 import sys
 import time
@@ -991,284 +980,6 @@ def serve_grid(
     return t
 
 
-CALLER_ROWS = 8  # callers listed; the rest fold into one row
-OWNER_RETRY = 600.0  # seconds before an unmatched session is looked up again
-HOST_USERS_TTL = 60.0  # seconds a node's job owners are trusted
-CLAUDE_PROJECTS = os.path.expanduser("~/.claude/projects")
-RECKON_MOUNTS = os.path.expanduser("~/.config/reckon/mounts.json")
-_DATED_SESSION = re.compile(r"^(?P<project>.+)-\d{8}$")
-
-
-class _Resolver:
-    """Names for the callers table, looked up on a worker thread.
-
-    Every lookup here can stall: a reverse DNS query, a glob over the
-    transcript directory on GPFS (about 2 s), an squeue round trip. The render
-    loop asks for a name and gets whatever is already known -- None the first
-    time -- while the worker fills it in, so a slow lookup costs one refresh of
-    a placeholder rather than a frozen screen.
-    """
-
-    def __init__(self) -> None:
-        import queue
-        import threading
-
-        self._lock = threading.Lock()
-        self._known: dict[tuple[str, str], tuple[float, object]] = {}
-        self._pending: set[tuple[str, str]] = set()
-        self._queue: queue.Queue = queue.Queue()
-        threading.Thread(target=self._work, daemon=True).start()
-
-    def get(
-        self, kind: str, key: str, *, hit_ttl: float | None, miss_ttl: float
-    ) -> object:
-        """The known value, queuing a lookup when it is absent or expired."""
-        now = time.monotonic()
-        with self._lock:
-            entry = self._known.get((kind, key))
-            if entry is not None:
-                at, value = entry
-                ttl = hit_ttl if value is not None else miss_ttl
-                if ttl is None or now - at < ttl:
-                    return value
-            if (kind, key) not in self._pending:
-                self._pending.add((kind, key))
-                self._queue.put((kind, key))
-            return entry[1] if entry is not None else None
-
-    def _work(self) -> None:
-        while True:
-            kind, key = self._queue.get()
-            try:
-                value = getattr(self, f"_lookup_{kind}")(key)
-            except Exception:
-                value = None
-            with self._lock:
-                self._known[(kind, key)] = (time.monotonic(), value)
-                self._pending.discard((kind, key))
-
-    @staticmethod
-    def _lookup_node(address: str) -> str | None:
-        """The SLURM node name behind an address, which keeps its site prefix."""
-        import socket
-
-        return socket.gethostbyaddr(address)[0].split(".")[0] or None
-
-    @staticmethod
-    def _lookup_session(session: str) -> dict | None:
-        """This account's project for a coordinator session, or None.
-
-        A transcript under ~/.claude/projects is the session itself, so its
-        directory names the project and proves the session ran in this
-        account. A reckon session named ``<project>-<YYYYMMDD>`` is matched
-        against this account's reckon mounts instead, which is how a
-        coordinator running on another machine names itself.
-        """
-        import glob
-        import json
-
-        pattern = os.path.join(CLAUDE_PROJECTS, "*", glob.escape(session) + ".jsonl")
-        found = glob.glob(pattern)
-        if found:
-            folder = os.path.basename(os.path.dirname(found[0]))
-            home = os.path.expanduser("~").replace("/", "-")
-            rest = folder.removeprefix(home).lstrip("-").removeprefix("Code-")
-            return {"project": rest.split("--")[0] or "~", "basis": "transcript"}
-        dated = _DATED_SESSION.match(session)
-        if dated:
-            with open(RECKON_MOUNTS, encoding="utf-8") as fh:
-                mounts = json.load(fh)
-            if dated["project"] in mounts:
-                return {"project": dated["project"], "basis": "reckon project"}
-        return None
-
-    @staticmethod
-    def _lookup_users(node: str) -> tuple[str, ...] | None:
-        """Accounts holding jobs on *node*; None when it is not a SLURM node."""
-        proc = subprocess.run(
-            ["squeue", "-w", node, "-h", "-o", "%u"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        if proc.returncode != 0:
-            return None
-        return tuple(sorted({u.strip() for u in proc.stdout.split() if u.strip()}))
-
-
-_resolver: _Resolver | None = None
-
-
-def _names() -> _Resolver:
-    global _resolver
-    if _resolver is None:
-        _resolver = _Resolver()
-    return _resolver
-
-
-def _short_session(session: str) -> str:
-    dated = _DATED_SESSION.match(session)
-    return dated["project"] if dated else session[:8]
-
-
-def _caller_owner(caller: dict) -> tuple[str, str]:
-    """The row's label and the account it belongs to, as far as can be shown."""
-    names = _names()
-    session = caller.get("session")
-    if session:
-        match = names.get("session", session, hit_ttl=None, miss_ttl=OWNER_RETRY)
-        if isinstance(match, dict):
-            return str(match["project"]), USER
-        return _short_session(session), "?"
-    hosts = caller.get("hosts") or []
-    address = hosts[0] if hosts else ""
-    node = names.get("node", address, hit_ttl=None, miss_ttl=OWNER_RETRY)
-    users = (
-        names.get("users", str(node), hit_ttl=HOST_USERS_TTL, miss_ttl=HOST_USERS_TTL)
-        if node
-        else None
-    )
-    label = "no session"
-    if not isinstance(users, tuple) or not users:
-        return label, "?"
-    if users == (USER,):
-        return label, USER
-    if USER in users:
-        return label, "?"
-    return label, users[0] if len(users) == 1 else f"{users[0]}+{len(users) - 1}"
-
-
-def _user_rows(callers: list[dict]) -> list[dict]:
-    """The callers folded to one row per user, heaviest first.
-
-    The router keys a caller by coordinator session; a reader asks who is
-    filling the lane, so every session an account owns is summed into that
-    account's row. A caller whose account cannot be shown joins ``unknown``.
-    """
-    users: dict[str, dict] = {}
-    for caller in callers:
-        _label, owner = _caller_owner(caller)
-        name = "unknown" if owner == "?" else owner
-        row = users.setdefault(
-            name,
-            {
-                "user": name,
-                "sessions": 0,
-                "runs": 0,
-                "held": 0.0,
-                "wait_sum": 0.0,
-                "wait_weight": 0.0,
-            },
-        )
-        row["sessions"] += 1
-        row["runs"] += caller.get("runs") or 0
-        row["held"] += caller.get("held") or 0.0
-        wait = caller.get("mean_gate_wait_s")
-        if isinstance(wait, (int, float)):
-            # Weighted by the requests admitted, so a session with one slow
-            # request does not outvote one with a hundred fast ones.
-            weight = caller.get("requests") or 1.0
-            row["wait_sum"] += wait * weight
-            row["wait_weight"] += weight
-    return sorted(users.values(), key=lambda row: (-row["held"], row["user"]))
-
-
-def callers_table(block: dict | None, in_flight: object = None) -> object | None:
-    """Whose requests fill the gate: one row per user, heaviest first.
-
-    ``in use`` is the user's time-averaged requests occupying the gate,
-    waiting or generating, over the block's window: the unit the gate's width
-    is counted in. ``per run`` is the fan-out a run count cannot see: a worker
-    running parallel subagents occupies several requests while counting as one
-    run, so anything above 1 is coloured. ``wait s`` is the mean time the
-    user's requests spent queued at the gate.
-
-    An empty window on an idle lane draws nothing. An empty window while the
-    gate holds requests is stated, because the block is built from the
-    router's record of finished requests and that is how a record that has
-    stopped being written looks.
-    """
-    if not isinstance(block, dict):
-        return None
-    if block.get("state") != "measured":
-        detail = block.get("detail") or "no reading"
-        return Text.from_markup(f"[yellow]callers unavailable[/][dim] — {detail}[/]")
-    callers = block.get("callers") or []
-    window = block.get("window_seconds")
-    head = (
-        f"callers {window / 60:.0f}m" if isinstance(window, (int, float)) else "callers"
-    )
-    cut = block.get("covered") is False
-    if not callers and not cut:
-        if isinstance(in_flight, (int, float)) and in_flight > 0:
-            return Text.from_markup(
-                f"[yellow]{head}   no finished request recorded[/]"
-                f"[dim] — {in_flight:.0f} in flight[/]"
-            )
-        return None
-    t = Table(
-        box=box.SIMPLE_HEAD,
-        padding=(0, 1),
-        expand=False,
-        pad_edge=False,
-        header_style="dim",
-    )
-    for i, name in enumerate((head, "sessions", "runs", "in use", "per run", "wait s")):
-        t.add_column(
-            name,
-            justify="left" if i == 0 else "right",
-            width=13 if i == 0 else 12,
-            no_wrap=True,
-        )
-    dash = "—"
-    rows = _user_rows(callers)
-    shown, folded = rows[:CALLER_ROWS], rows[CALLER_ROWS:]
-    for row in shown:
-        user, runs, held = row["user"], row["runs"], row["held"]
-        per = held / runs if runs else None
-        wait = row["wait_sum"] / row["wait_weight"] if row["wait_weight"] else None
-        t.add_row(
-            user if user == USER else f"[yellow]{user}[/]",
-            f"{row['sessions']}",
-            f"{runs}" if runs else dash,
-            f"{held:.1f}",
-            (
-                f"[{_ramp(per, 1.0, 2.0, inverted=True)}]{per:.1f}[/]"
-                if per is not None
-                else dash
-            ),
-            (
-                f"[{_ramp(wait, 5.0, 30.0, inverted=True)}]{wait:.0f}[/]"
-                if wait is not None
-                else dash
-            ),
-        )
-    if folded:
-        held = sum(row["held"] for row in folded)
-        t.add_row(f"+{len(folded)} more", "", "", f"{held:.1f}", "", "", style="dim")
-    if cut:
-        return Group(
-            t,
-            Text.from_markup(
-                "[yellow]window cut short[/][dim] — the record tail reached its "
-                "read bound before the window's start[/]"
-            ),
-        )
-    return t
-
-
-def prime_callers() -> None:
-    """Queue every caller's name lookups now, so a one-shot frame has them.
-
-    The one-shot reading spends its whole window sampling the cards before it
-    renders, which is ample time for the lookups to finish behind it; queued at
-    render time instead, every row of the single frame would be a placeholder.
-    """
-    doc = _watch_live() or {}
-    for caller in (doc.get("callers") or {}).get("callers") or []:
-        _caller_owner(caller)
-
-
 def _document_age(published_at: object) -> float | None:
     """Age in seconds of the published document, from its own UTC stamp.
 
@@ -1412,10 +1123,6 @@ def serve_table(
         serve_head(lane, live, gpu_count),
         serve_grid(lane, live, env, env_idx, tight),
     ]
-    gate = lane.get("router_generation_gate") or {}
-    callers = callers_table(live_doc.get("callers"), gate.get("in_flight"))
-    if callers is not None:
-        parts.append(callers)
     ledger = serve_ledger_table()
     if ledger is not None:
         parts.append(ledger)
@@ -2191,7 +1898,6 @@ def main() -> int:
     # first frame. The sample() call below already spends the window on the
     # cards; this costs one extra scrape.
     serve_state()
-    prime_callers()
     data = sample(args.window)
     serve_state()
     Console().print(render(data, args.window))
