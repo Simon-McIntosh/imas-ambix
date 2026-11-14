@@ -22,6 +22,38 @@ Node: 98dci4-gpu-0003 on the `betelgeuse` SLURM partition.
 | CUDA | 13.2.1 system-wide at `/usr/local/cuda/` |
 | OS | RHEL 10.1, Linux 6.12, Python 3.12.12 |
 
+### The P100 server: size each job to two cores per card (binding)
+
+Node 98dci4-gpu-0002, partition `titan`: 8× Tesla P100 (16 GB each), 20 cores,
+250 GB. It has no reservation and no group split, so the whole server is open
+to any account. **Its cores run out before its cards do.** Twenty cores over
+eight cards is two and a half per card, so a job that asks for four or six
+cores with one card takes two or three cards' worth of the node.
+
+Measured 2026-11-14: 4 of 8 cards allocated and every further submission
+pending, with `AllocTRES=cpu=20,mem=176G,gres/gpu=4`. Three one-card jobs held
+6, 4 and 4 cores; the embedding server held 2 with its card; the graph database
+held 4 with no card.
+
+| Request per card on `titan` | Value |
+|---|---|
+| `--cpus-per-task` | 2 |
+| `--mem` | 24G at most |
+| `--gres` | `gpu:1` |
+
+At that size seven one-card jobs fit beside the embedding server and the graph
+database (2 + 4 + 7 × 2 = 20 cores). A job that needs more cores than that for
+one card belongs on the H200 or a CPU partition. A service that uses no card
+takes cores the cards need, so it belongs on a CPU partition unless it must sit
+beside the cards. Read the binding figure before concluding the server is
+full:
+
+```bash
+scontrol show node 98dci4-gpu-0002
+```
+
+`AllocTRES` against `CfgTRES` shows which of cores, memory and cards ran out.
+
 ## 2. Access via SLURM
 
 The node is split between groups via reservations + QoS:
