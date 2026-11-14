@@ -205,7 +205,14 @@ def test_a_card_row_is_utilisation_now_its_mean_and_memory():
         "memory",
     ]
     assert _figures(_row(lines, "gpu 4")) == ["gpu", "4", "100%", "94%", "78%"]
-    assert _figures(_row(lines, "gpu 4-7")) == ["gpu", "4-7", "100%", "96%", "78%"]
+    assert _figures(_row(lines, "gpu 4-7")) == [
+        "gpu",
+        "4-7",
+        "served-model",
+        "100%",
+        "96%",
+        "78%",
+    ]
 
 
 def test_temperature_and_power_are_the_server_s_and_not_each_card_s():
@@ -250,7 +257,8 @@ def test_a_lane_leads_with_requests_in_use_and_its_rates():
         "SERVING",
         "in",
         "use",
-        "queue",
+        "gate",
+        "q",
         "tok/s",
         "per",
         "stream",
@@ -306,7 +314,14 @@ def test_a_short_screen_folds_the_cards_then_drops_the_ledger():
     assert any(line.startswith("gpu 4 ") for line in roomy)
     folded = _page([_h200(jobs=30)], height=36)
     assert not any(line.startswith("gpu 4 ") for line in folded)
-    assert _figures(_row(folded, "gpu 4-7")) == ["gpu", "4-7", "100%", "96%", "78%"]
+    assert _figures(_row(folded, "gpu 4-7")) == [
+        "gpu",
+        "4-7",
+        "served-model",
+        "100%",
+        "96%",
+        "78%",
+    ]
     assert "LEDGER" in folded
     short = _page([_h200(jobs=30)], height=30)
     assert "LEDGER" not in short
@@ -467,7 +482,26 @@ def test_cards_are_averaged_within_a_job_and_never_across_jobs():
     reading.allocated = set(range(8))
     reading.cards.insert(0, Card(2, 10.0, 20.0, 30.0))
     folded = _page([reading], height=20)
-    assert _figures(_row(folded, "gpu 2 ")) == ["gpu", "2", "10%", "20%", "30%"]
-    assert _figures(_row(folded, "gpu 4-7")) == ["gpu", "4-7", "100%", "96%", "78%"]
+    reading.jobs.append(
+        _job("102", fleet.USER, "iter", "solver", "RUNNING", "gpu-0003", "gres/gpu:1")
+    )
+    folded = _page([reading], height=20)
+    assert _figures(_row(folded, "gpu 2 ")) == [
+        "gpu",
+        "2",
+        "solver",
+        "10%",
+        "20%",
+        "30%",
+    ]
+    assert "solver" in _row(_page([reading]), "gpu 2 ")
+    assert _figures(_row(folded, "gpu 4-7")) == [
+        "gpu",
+        "4-7",
+        "served-model",
+        "100%",
+        "96%",
+        "78%",
+    ]
     assert not any(line.startswith("gpu 2 4-7") for line in folded)
     assert not any(line.startswith("mean") for line in _page([reading]))

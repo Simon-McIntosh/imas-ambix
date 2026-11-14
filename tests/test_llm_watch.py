@@ -708,7 +708,7 @@ def test_the_lane_leads_with_requests_in_use_and_its_rates() -> None:
     lines = render(one_engine_fixture()).splitlines()
     at = next(i for i, line in enumerate(lines) if line.startswith("SERVING"))
     assert lines[at].split()[1:] == [
-        "in", "use", "queue", "tok/s", "per", "stream", "prefill/s",
+        "in", "use", "gate", "q", "tok/s", "per", "stream", "prefill/s",
         "verdict",
     ]
 

@@ -31,6 +31,7 @@ from imas_ambix.agent import llm_watch
 from imas_ambix.agent.watch_style import (
     DASH,
     DEFAULT_WIDTH,
+    NARROW_WIDTH,
     fmt_ctx,
     head,
     line_count,
@@ -54,9 +55,6 @@ THROTTLE_C = 84.0
 
 #: Lines the queue spends on its title and its row of labels.
 QUEUE_HEAD_LINES = 2
-
-#: The width of the column that names a card.
-CARD_NAME_WIDTH = 12
 
 #: The longest a card's bar is drawn, in cells.
 MAX_BAR_CELLS = 40
@@ -125,11 +123,16 @@ def server_title(reading: Reading) -> str:
     return " [dim]·[/] ".join(bits)
 
 
-def _card_table() -> Table:
+def name_cells(width: int) -> int:
+    """Cells the card column takes: a card range and the job that holds it."""
+    return 28 if width >= NARROW_WIDTH else 20
+
+
+def _card_table(width: int) -> Table:
     table = Table(
         box=None, padding=(0, 0, 0, 2), pad_edge=False, show_header=False, expand=True
     )
-    table.add_column("", width=CARD_NAME_WIDTH, no_wrap=True, overflow="ellipsis")
+    table.add_column("", width=name_cells(width), no_wrap=True, overflow="ellipsis")
     for _ in range(3):
         table.add_column("", ratio=1, no_wrap=True, overflow="ellipsis")
     return table
@@ -137,27 +140,38 @@ def _card_table() -> Table:
 
 def bar_cells(width: int) -> int:
     """Cells a card's bar takes on a page ``width`` wide: most of its column."""
-    column = (width - CARD_NAME_WIDTH) // 3
+    column = (width - name_cells(width)) // 3
     return max(6, min(MAX_BAR_CELLS, column - 10))
 
 
-def job_groups(reading: Reading) -> list[list[Card]]:
-    """The readable cards, one list per job that holds them, in card order.
+def job_groups(reading: Reading) -> list[tuple[str, list[Card]]]:
+    """The readable cards as ``(job name, cards)``, one per job, in card order.
 
     Cards of different jobs carry unrelated loads, so a mean is only taken
-    within one job. Readable cards no job holds form a last group.
+    within one job. Readable cards no job holds form a last, unnamed group.
     """
-    groups: list[list[Card]] = []
+    names = {job.id: job.name for job in reading.jobs}
+    groups: list[tuple[str, list[Card]]] = []
     placed: set[int] = set()
-    for held in sorted(reading.job_cards.values(), key=lambda c: min(c, default=0)):
-        group = [c for c in reading.cards if c.index in held and c.index not in placed]
+    held = sorted(reading.job_cards.items(), key=lambda item: min(item[1], default=0))
+    for job, indices in held:
+        group = [
+            c for c in reading.cards if c.index in indices and c.index not in placed
+        ]
         if group:
-            groups.append(group)
+            groups.append((names.get(job, ""), group))
             placed.update(c.index for c in group)
     rest = [c for c in reading.cards if c.index not in placed]
     if rest:
-        groups.append(rest)
+        groups.append(("", rest))
     return groups
+
+
+def _card_name(indices: list[int], job: str = "", bold: bool = False) -> str:
+    """A card range, then the name of the job holding those cards."""
+    cards = f"gpu {ranges(indices)}"
+    label = f"[bold]{cards}[/]" if bold else cards
+    return f"{label}  [dim]{escape(job)}[/]" if job else label
 
 
 def server_section(
@@ -169,19 +183,22 @@ def server_section(
     the window, and memory. Utilisation is green when busy and red when idle,
     because an idle card is the waste. Cards another account's job holds
     cannot be read, so they are named together on one row. A mean row follows
-    for each job holding more than one card, never across jobs, and the
+    for each job holding more than one card, never across jobs, and names the
+    job beside its cards; a job with one card is named on that card's row. The
     host's own load closes the table. With ``cards`` false the per-card rows
     are left out and one mean row per job stands for them. ``note`` is set at
     the right of the title.
     """
     cells = bar_cells(width)
-    table = _card_table()
+    table = _card_table(width)
+    groups = job_groups(reading)
+    alone = {g[0].index: job for job, g in groups if len(g) == 1}
     head(table, ["card", "util now", f"util {window}s", "memory"])
     read = reading.cards
     if cards:
         for card in read:
             table.add_row(
-                f"gpu {card.index}",
+                _card_name([card.index], alone.get(card.index, "")),
                 meter(card.util, "good", cells),
                 meter(card.util_mean, "good", cells),
                 meter(card.mem, "fill", cells),
@@ -194,11 +211,11 @@ def server_section(
             "[dim]not readable[/]",
             "",
         )
-    for group in job_groups(reading):
+    for job, group in groups:
         if cards and len(group) < 2:
             continue
         table.add_row(
-            f"[bold]gpu {ranges([c.index for c in group])}[/]",
+            _card_name([c.index for c in group], job, bold=True),
             meter(_mean([c.util for c in group]), "good", cells),
             meter(_mean([c.util_mean for c in group]), "good", cells),
             meter(_mean([c.mem for c in group]), "fill", cells),

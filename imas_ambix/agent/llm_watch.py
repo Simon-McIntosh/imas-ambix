@@ -409,7 +409,7 @@ def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
     prefill = _number(live, "prefill_toks_per_s")
     return _band(
         "SERVING",
-        ["in use", "queue", "tok/s", "per stream", "prefill/s", "verdict"],
+        ["in use", "gate q", "tok/s", "per stream", "prefill/s", "verdict"],
         [
             f"[bold yellow]{in_use}[/]" if full and held else f"[bold]{in_use}[/]",
             alarm_count(_number(gate, "waiting")),
