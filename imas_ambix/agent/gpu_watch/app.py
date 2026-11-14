@@ -37,6 +37,7 @@ from rich.text import Text
 from imas_ambix.agent.gpu_watch import panels
 from imas_ambix.agent.gpu_watch.fleet import Fleet, Reading
 from imas_ambix.agent.gpu_watch.lane import Lane, lanes
+from imas_ambix.agent.watch_style import page_width
 
 OVERVIEW = "overview"
 LANES = "lanes"
@@ -141,6 +142,7 @@ def render(
 
     ``reason`` is why there is no document, shown where the lanes would be.
     """
+    width = page_width(size[0] if size else None)
     served: list[Lane] = lanes(document)
     ledger = (document or {}).get("ledger")
     published_at = (document or {}).get("ledger_published_at")
@@ -153,6 +155,7 @@ def render(
             published_at,
             foot,
             reason="" if document else reason,
+            width=width,
         )
     for reading in readings:
         if reading.server.name != page:
@@ -167,6 +170,7 @@ def render(
             published_at=published_at,
             size=size,
             footer=foot,
+            width=width,
         )
     return panels.overview_page(
         readings,
@@ -175,6 +179,7 @@ def render(
         published_at,
         foot,
         reason="" if document else reason,
+        width=width,
     )
 
 
@@ -308,12 +313,14 @@ def run_once(window: int, page: str | None) -> int:
                 break
             time.sleep(1.0)
         document.built.wait(10)
-        Console().print(
+        console = Console()
+        console.print(
             render(
                 resolve_page(page, readings),
                 readings,
                 document.get(),
                 window,
+                (console.size.width, 0),
                 reason=document.reason,
             )
         )

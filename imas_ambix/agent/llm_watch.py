@@ -7,21 +7,26 @@ the period ledger -- every figure the serve panel draws is already published
 somewhere, so nothing here probes the engine, opens the telemetry index or
 fetches a price.
 
-Three bands carry the readings, then the tables and the strips below them:
+The view is a column of titled boxes as wide as the terminal, in the order a
+reader asks about a lane:
 
 ===========  ==========================================================
-band         carries
+box          answers
 ===========  ==========================================================
-throughput   the engine's own rates, differenced over the receipt window
-capacity     the pool the engine holds and the context it serves
-gate         the router's generation gate and the room to dispatch into
+LANE         can work be dispatched, how fast is it answered, and is
+             memory the limit: three bands, GATE, ENGINE and MEMORY
+ACCOUNTS     who is using the lane
+PROJECTS     what one account is running on it
+ACTIVITY     how the last half hour went, and how requests ended
+LEDGER       what the lane has cost
 ===========  ==========================================================
 
-The throughput and gate bands are the serve panel's own, on the same column
-grid and with the same figures, so a reader moving between the two tools reads
-one set of numbers. The capacity band is what replaces the card conditions
-there: temperature, power and percentage of capable draw belong to the machine
-panel, and their slot here holds the engine's capacity instead.
+The boxes and the tables inside them are ``ambix-watch``'s own, and that tool
+draws its lanes with the LANE box from here, so a reader moving between the
+two reads one set of figures laid out one way. Each band holds six figures. A
+figure that is the same in every healthy reading is not given a column: the
+engine's own queue is a line that appears when it holds work, and the
+ledger's coverage is a column only when a period is short of its record.
 
 **The running-workers view has two levels.** ``accounts`` is one row per
 ``account`` that held the gate, heaviest first, with its share drawn as a bar.
@@ -37,8 +42,8 @@ hold the gate.
 not a measurement, and a band of zeros reads as an idle lane when the truth is
 that nothing was read. The one exception is deliberate and marked: when the
 live entry itself is unavailable the view prints one line naming the reason in
-place of the throughput band, because a band of dashes under an explanation
-says less than the explanation alone.
+place of the engine band, because a band of dashes under an explanation says
+less than the explanation alone.
 """
 
 from __future__ import annotations
@@ -51,32 +56,40 @@ import time as _time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from rich import box
 from rich.console import Console, Group
-from rich.table import Table
+from rich.markup import escape
 from rich.text import Text
 
 from imas_ambix.agent import watch as watch_mod
 from imas_ambix.agent import watch_publish
 from imas_ambix.agent.registry import _engine_id
 from imas_ambix.agent.watch_style import (
-    CELL_WIDTH,
-    COLUMNS,
     DASH,
-    LABEL_WIDTH,
+    DEFAULT_WIDTH,
+    boxed,
     cell,
+    flex_table,
+    fmt_count,
     fmt_ctx,
     fmt_rate,
     fmt_span,
     fmt_tokens,
     fmt_usd,
+    head,
+    inner_width,
+    page_width,
+    pair,
     pct,
     ramp,
     spark,
+    split_line,
 )
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
+
+    from rich.panel import Panel
+    from rich.table import Table
 
 #: How long the ``--live`` view waits between refreshes.
 LIVE_REFRESH_SECONDS = 5.0
@@ -87,20 +100,27 @@ UNATTRIBUTED = "unattributed"
 #: Projects listed in the detail table before the rest fold into one row.
 DETAIL_ROWS = 6
 
-#: The widths of the engines table's columns: a model and an engine id, then one
-#: figure column each. The two names are sized so a model id survives whole and
-#: two engines on one node are told apart by their ports, which a single column
-#: carrying both did not.
-ENGINE_WIDTHS = (20, 17) + (9,) * 7
+#: The naming columns of the engines table: a model id and an engine id, each
+#: sized to survive whole, so two engines on one node are told apart by port.
+ENGINE_NAME_WIDTHS = (20, 16)
 
-#: The width of the detail table's engine column: a node name and a port.
-ENGINE_CELL_WIDTH = 20
-
-#: The width of an engine's name on its own history line. The strips are thirty
-#: bins wide, so an engine's name is a column the total line does not spend: it
-#: is sized to what a node name and a port need, no wider, so the line still
-#: fits a hundred-column terminal.
+#: The width of an engine's name wherever one labels a row: a node and a port.
+ENGINE_CELL_WIDTH = 16
 ENGINE_STRIP_WIDTH = 16
+
+#: The naming columns of the other tables.
+BAND_NAME_WIDTH = 8
+ACCOUNT_NAME_WIDTH = 14
+PROJECT_NAME_WIDTH = 20
+PERIOD_WIDTH = 8
+MODEL_WIDTH = 20
+
+#: Figures in one band. Three bands of six share their columns.
+BAND_FIGURES = 6
+
+#: Seconds after which the published ledger is labelled with its age: twice
+#: the publisher's cadence.
+LEDGER_STALE_SECONDS = 600.0
 
 #: Per-worker decode reference, tok/s: the best single-stream rate measured on
 #: this deployment. The per-worker cell is coloured against this rather than
@@ -109,9 +129,8 @@ ENGINE_STRIP_WIDTH = 16
 #: panel's own, so the same rate takes the same colour on both.
 PER_WORKER_REF = 40.0
 
-#: The width a golden is rendered at. The narrow width is the tighter of the
-#: two terminals an operator may be reading in, and no line may exceed either.
-GOLDEN_WIDTH = 120
+#: The width a golden is rendered at.
+GOLDEN_WIDTH = DEFAULT_WIDTH
 
 #: The exit status for an ``--engine`` id this document cannot show. It is a
 #: refusal rather than a failure of the render, so it is separable from the
@@ -271,13 +290,12 @@ def checkpoint_label(document: dict[str, Any]) -> str | None:
     return f"{name}@{short}" if short else name
 
 
-def head_line(document: dict[str, Any]) -> str:
-    """The engine in one line: what is served, on what, and at what context.
+def _lane_title(document: dict[str, Any]) -> tuple[str, str]:
+    """The lane box's title and note: what is served, and from what weights.
 
     Everything here is constant for the life of the deployment, which is why it
-    sits above the bands rather than in them: a figure that cannot change
-    during a session is not a reading, and repeating it every refresh costs ink
-    that never says anything new.
+    sits above the bands and not in them: a figure that cannot change during a
+    session is not a reading.
     """
     lane = document.get("lane") or {}
     live = document.get("live") or {}
@@ -286,211 +304,246 @@ def head_line(document: dict[str, Any]) -> str:
         document.get("engine") or {}, lane.get("model_id")
     )
     host = str(endpoint.get("host") or "").split(".", 1)[0]
-    bits = [f"[bold]{model}[/]"]
-    checkpoint = checkpoint_label(document)
-    bits.append(f"[cyan]{checkpoint}[/]" if checkpoint
-                else f"[yellow]{CHECKPOINT_UNRECORDED}[/]")
+    bits = []
     count = endpoint.get("accelerator_count")
     family = endpoint.get("accelerator_family")
     if count and family:
-        bits.append(f"[dim]{count}×{family}[/]")
+        bits.append(f"{count}×{family}")
     elif family:
-        bits.append(f"[dim]{family}[/]")
+        bits.append(str(family))
     if host:
-        bits.append(f"[dim]{host.removeprefix('98dci4-')}[/]")
+        bits.append(host.removeprefix("98dci4-"))
     ceiling = context_ceiling(lane, endpoint)
     if ceiling is not None:
-        bits.append(f"[dim]{fmt_ctx(ceiling)} ctx[/]")
-    return " [dim]·[/] ".join(bits)
+        bits.append(f"{fmt_ctx(ceiling)} ctx")
+    checkpoint = checkpoint_label(document)
+    return lane_title(str(model), bits), checkpoint_note(checkpoint)
+
+
+def lane_title(model: str, facts: list[str]) -> str:
+    """A lane box's title: the served name, then what it is served on."""
+    detail = f" [dim]· {' · '.join(facts)}[/]" if facts else ""
+    return f"[bold]LANE[/]  [bold]{escape(model)}[/]{detail}"
+
+
+def checkpoint_note(checkpoint: str | None) -> str:
+    """The checkpoint as a lane box's note, or that none is recorded."""
+    if checkpoint:
+        return f"[cyan]{escape(checkpoint)}[/]"
+    return f"[yellow]{CHECKPOINT_UNRECORDED}[/]"
+
+
+def head_line(document: dict[str, Any]) -> str:
+    """The lane's heading as one string: the served engine, then its checkpoint."""
+    title, note = _lane_title(document)
+    return f"{title} [dim]·[/] {note}"
 
 
 # ── the three bands ──────────────────────────────────────────────────
 
 
-def _grid() -> Table:
-    """The shared column grid: a label column and six figure columns.
+def _band(name: str, labels: list[str], values: list[str]) -> Table:
+    """One named band: a row of labels over a row of figures.
 
-    The padding and the box are the ledger's own, so the bands and the ledger
-    share one column pitch and a reader scanning down never has to re-find the
-    columns. ``show_header`` is off because the bands label their own rows.
+    Every band holds :data:`BAND_FIGURES` figures, so the three bands of a
+    lane share their columns and a reader's eye drops straight down them.
     """
-    table = Table(box=box.SIMPLE_HEAD, padding=(0, 1), expand=False,
-                  pad_edge=False, show_header=False)
-    for index in range(COLUMNS):
-        table.add_column(
-            "",
-            justify="right",
-            width=LABEL_WIDTH if index == 0 else CELL_WIDTH,
-            no_wrap=True,
-        )
+    table = flex_table((BAND_NAME_WIDTH,), BAND_FIGURES)
+    pad = [""] * (BAND_FIGURES - len(labels))
+    table.add_row(f"[bold]{name}[/]", *pad, *[f"[dim]{label}[/]" for label in labels])
+    table.add_row("", *pad, *values)
     return table
 
 
-def _band(table: Table, labels: list[str], values: list[str], style: str) -> None:
-    """Label row over value row, with a blank line between bands only."""
-    if table.row_count:
-        table.add_row(*[""] * COLUMNS)
-    pad = [""] * (COLUMNS - len(labels))
-    table.add_row(*(labels + pad), style="dim")
-    table.add_row(*(values + pad), style=style)
+def alarm_count(value: float | None) -> str:
+    """A count that is ordinary at zero and worth seeing above it."""
+    if value is None:
+        return DASH
+    return f"[red]{value:.0f}[/]" if value >= 1 else f"[dim]{value:.0f}[/]"
+
+
+#: The colour each admission verdict is drawn in. A verdict the table does not
+#: name is drawn bold and uncoloured, so a new word is seen and not guessed at.
+_VERDICT_COLOURS = {
+    "open": "green", "admit": "green", "light": "green",
+    "congested": "yellow", "busy": "yellow",
+    "full": "red", "paused": "red", "closed": "red", "hold": "red",
+}
+
+
+def verdict_cell(verdict: object) -> str:
+    """An admission verdict in its colour, or a dash when none was published."""
+    if not verdict:
+        return DASH
+    colour = _VERDICT_COLOURS.get(str(verdict).lower())
+    style = f"bold {colour}" if colour else "bold"
+    return f"[{style}]{escape(str(verdict))}[/]"
+
+
+def gate_band(lane: dict[str, Any]) -> Table:
+    """Whether work can be dispatched: the router's gate, and the room behind it.
+
+    A request held here never reaches the engine, so the engine's own queue
+    reads zero while the gate is holding work. In flight is shown over the
+    width in force, ``runs`` is the workers the lane is carrying and ``slots``
+    is how many more it will admit, which is the figure a dispatch spends.
+    """
+    gate = lane.get("router_generation_gate") or {}
+    admission = lane.get("admission") or {}
+    slots = lane.get("worker_slots") or {}
+    width = _number(gate, "effective_width")
+    in_flight = _number(gate, "in_flight")
+    oldest = _number(admission, "oldest_wait_seconds")
+    verdict = admission.get("verdict")
+    worker_slots = _number(slots, "worker_slots")
+    full = in_flight is not None and width is not None and in_flight >= width
+    in_flight_s = (
+        (f"{in_flight:.0f}" if in_flight is not None else DASH)
+        + "/"
+        + (f"{width:.0f}" if width is not None else DASH)
+    )
+    return _band(
+        "GATE",
+        ["in flight", "waiting", "oldest", "runs", "slots", "verdict"],
+        [
+            f"[yellow]{in_flight_s}[/]" if full else in_flight_s,
+            alarm_count(_number(gate, "waiting")),
+            fmt_span(oldest) if oldest is not None else DASH,
+            fmt_count(_number(slots, "live_runs")),
+            (f"[yellow]{worker_slots:.0f}[/]" if worker_slots is not None
+             and worker_slots < 1 else fmt_count(worker_slots)),
+            verdict_cell(verdict),
+        ],
+    )
 
 
 def throughput_band(live: dict[str, Any]) -> Table:
-    """The engine's own rates, from the receipt block.
+    """How fast the engine is answering, from the receipt block.
 
-    The figures are the serve panel's, read from the same block by the same
-    names: ``running`` is the count of requests the engine holds, a measured
-    quantity, and ``prefill/s`` is shortened from ``prefill tok/s`` because it
-    is a character wider than the grid's figure columns. Every rate is shown
-    only while the block says it measured one -- a window that could not be
-    differenced carries a reason rather than a rate, and a rate drawn from it
-    would be a claim the record does not support.
+    ``running`` is the count of requests the engine holds, a measured
+    quantity. Every rate is shown only while the block says it measured one: a
+    window that could not be differenced carries a reason and not a rate, and
+    a rate drawn from it would be a claim the record does not support.
     """
-    table = _grid()
     running = _number(live, "mean_running")
-    queued = _number(live, "engine_queue")
     aggregate = _number(live, "generation_toks_per_s")
     per_stream = _number(live, "per_stream_toks_per_s")
     prefill = _number(live, "prefill_toks_per_s")
     ttft = _number(live, "median_time_to_first_token_s")
     hit = _number(live, "cache_hit_rate")
     measured = live.get("state") == "measured"
-    queued_s = (
-        f"[red]{queued:.0f}[/]" if queued is not None and queued >= 1
-        else f"[dim]{queued:.0f}[/]" if queued is not None else DASH
-    )
-    _band(
-        table,
-        ["running", "queued", "tok/s out", "tok/s each", "prefill/s",
-         "ttft s", "cache %"],
+    return _band(
+        "ENGINE",
+        ["running", "tok/s", "per stream", "prefill/s", "ttft s", "cache %"],
         [
             f"[cyan]{running:.1f}[/]" if running is not None else DASH,
-            queued_s,
-            fmt_rate(aggregate) if measured and aggregate else DASH,
+            (f"[bold]{fmt_rate(aggregate)}[/]" if measured and aggregate
+             else DASH),
             (f"[{ramp(100.0 * per_stream / PER_WORKER_REF, 60.0, 30.0)}]"
              f"{per_stream:.1f}[/]"
              if measured and per_stream else DASH),
             fmt_rate(prefill) if measured and prefill is not None else DASH,
             f"{ttft:.1f}" if measured and ttft is not None else DASH,
-            pct(100.0 * hit, "good") if measured and hit is not None else DASH,
+            (pct(100.0 * hit, "good")
+             if measured and hit is not None else DASH),
         ],
-        "bold",
     )
-    return table
 
 
 def capacity_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
-    """The pool the engine holds and the context it is serving.
+    """Whether memory is the limit: the pool the engine holds, and what fits.
 
-    The card conditions the serve panel drew here -- temperature, power and
-    draw against cap -- belong to the machine panel, so this band holds the
-    engine's capacity instead. Each figure is read under the name the lane
-    document publishes it by, and a figure the document does not carry is a
-    dash: the band is drawn whether or not the deployment has published the
-    reading yet, so a reader sees the column and knows whether it is filled.
+    ``max reqs`` is how many requests of the mean working context the pool
+    holds and ``reqs free`` is how many of those are unused. Each figure is
+    read under the name the lane document publishes it by, and one the
+    document does not carry is a dash.
     """
-    table = _grid()
-    # Pool occupancy is the one capacity figure the live block already carries,
-    # because it is read from the engine's own counters rather than from the
-    # lane document's window.
+    # Pool occupancy is the one capacity figure the live block carries, because
+    # it is read from the engine's own counters and not from the lane window.
     pool = _number(live, "pool_occupancy")
     host_tier = _nested(lane, "hicache_host", "used_fraction")
-    host_tier_pct = host_tier * 100.0 if host_tier is not None else None
     mean_ctx = _number(lane, "mean_context") or _number(lane, "mean_context_instant")
-    ceiling = _number(lane, "concurrent_requests")
-    headroom = _number(lane, "engine_headroom")
-    preemptions = _number(lane, "preemptions")
-    _band(
-        table,
-        ["kv pool %", "host tier %", "mean ctx", "ceiling", "eng headrm",
-         "preemptions"],
+    return _band(
+        "MEMORY",
+        ["kv pool %", "host kv %", "mean ctx", "max reqs", "reqs free",
+         "preempted"],
         [
-            pct(pool * 100.0 if pool is not None and pool <= 1.0 else pool)
-            if pool is not None else DASH,
-            pct(host_tier_pct) if host_tier_pct is not None else DASH,
+            (pct(pool * 100.0 if pool <= 1.0 else pool)
+             if pool is not None else DASH),
+            pct(host_tier * 100.0) if host_tier is not None else DASH,
             fmt_ctx(mean_ctx),
-            cell(ceiling, 1.0, 1.0),
-            cell(headroom, 1.0, 0.0, digits=0),
-            cell(preemptions, 0.0, 0.0, inverted=True),
+            cell(_number(lane, "concurrent_requests"), 1.0, 1.0),
+            cell(_number(lane, "engine_headroom"), 1.0, 0.0, digits=0),
+            cell(_number(lane, "preemptions"), 0.0, 0.0, inverted=True),
         ],
-        "",
     )
-    return table
 
 
-def gate_band(lane: dict[str, Any]) -> Table:
-    """The router's generation gate, and the room left to dispatch into.
+def engine_queue_line(live: dict[str, Any]) -> Text | None:
+    """A line for requests the engine holds and has not scheduled, when any.
 
-    A request held here never reaches the engine, so the engine's queue reads
-    zero while the gate is holding work: reading only the engine's queue cannot
-    tell a drained lane from a full one. In flight is shown over the width in
-    force rather than the configured width the gate may be shrinking from, and
-    the available percentage is the lane's own published figure -- the view
-    computes nothing from headroom or width itself, so its figure and the lane
-    document's can never disagree.
+    The engine's own queue is zero in ordinary running, where a column of
+    zeros says nothing; above zero it is the first sign the engine, and not
+    the gate, is the limit.
     """
-    table = _grid()
-    gate = lane.get("router_generation_gate") or {}
-    admission = lane.get("admission") or {}
-    slots = lane.get("worker_slots") or {}
-    width = _number(gate, "effective_width")
-    in_flight = _number(gate, "in_flight")
-    held = _number(gate, "waiting")
-    oldest = _number(admission, "oldest_wait_seconds")
-    verdict = admission.get("verdict")
-    headroom = _number(lane, "headroom")
-    worker_slots = _number(slots, "worker_slots")
-    availability = _number(lane, "availability_percent")
-    in_flight_s = (
-        (f"{in_flight:.0f}" if in_flight is not None else DASH)
-        + "/"
-        + (f"{width:.0f}" if width is not None else DASH)
+    queued = _number(live, "engine_queue")
+    if queued is None or queued < 1:
+        return None
+    return Text.from_markup(
+        f"[red]engine queue {queued:.0f}[/][dim] — admitted by the gate and "
+        f"not yet scheduled by the engine[/]"
     )
-    held_s = (
-        f"[red]{held:.0f}[/]" if held is not None and held >= 1
-        else f"[dim]{held:.0f}[/]" if held is not None else DASH
-    )
-    _band(
-        table,
-        ["in flight", "router q", "oldest wait", "verdict", "headroom",
-         "slots", "available %"],
-        [
-            in_flight_s,
-            held_s,
-            fmt_span(oldest) if oldest is not None else DASH,
-            f"[bold]{verdict}[/]" if verdict else DASH,
-            f"[bold]{headroom:.0f}[/]" if headroom is not None else DASH,
-            f"{worker_slots:.0f}" if worker_slots is not None else DASH,
-            pct(availability, "good") if availability is not None else DASH,
-        ],
-        "",
-    )
-    return table
 
 
-def bands(document: dict[str, Any]) -> list[object]:
-    """The three bands, or the one line that stands in for an unread engine's.
+def bands(document: dict[str, Any], *, capacity: bool = True) -> list[object]:
+    """The bands in reading order: gate, engine, then memory.
 
-    When the live entry is unavailable the throughput band is replaced by one
-    line naming the reason. It is not drawn as a row of dashes or of zeros:
-    a zero is a measurement the record never made, and a band of them under a
-    heading reads as an idle engine rather than as a failed read. The capacity
-    and gate bands are read from the lane document, a different published
-    source, so those still appear when the receipt tail cannot be read.
+    When the live entry is unavailable the engine band is replaced by one line
+    naming the reason. It is not drawn as a row of dashes or of zeros: a zero
+    is a measurement the record never made. The gate and memory bands are read
+    from the lane document, a different published source, so those still
+    appear when the receipt tail cannot be read.
     """
     live = document.get("live") or {}
     lane = document.get("lane") or {}
-    parts: list[object] = []
+    parts: list[object] = [gate_band(lane), Text("")]
     if live.get("state") == "measured":
         parts.append(throughput_band(live))
+        alarm = engine_queue_line(live)
+        if alarm is not None:
+            parts.append(alarm)
     else:
         reason = live.get("reason") or "no reading"
         parts.append(Text.from_markup(
-            f"[yellow]live entry unavailable[/][dim] — {reason}[/]"
+            f"[bold]ENGINE[/]  [yellow]live entry unavailable[/]"
+            f"[dim] — {escape(str(reason))}[/]"
         ))
-    parts.append(capacity_band(lane, live))
-    parts.append(gate_band(lane))
+    if capacity:
+        parts += [Text(""), capacity_band(lane, live)]
     return parts
+
+
+def lane_box(
+    document: dict[str, Any],
+    width: int,
+    *,
+    capacity: bool = True,
+    title: str | None = None,
+    note: str | None = None,
+) -> Panel:
+    """One lane as a box: named in the title, its checkpoint in the note.
+
+    ``title`` and ``note`` replace the ones read from the document, for a
+    caller that knows more about where the lane runs than the document says.
+    """
+    own_title, own_note = _lane_title(document)
+    return boxed(
+        title or own_title,
+        bands(document, capacity=capacity),
+        width,
+        note=note or own_note,
+    )
+
 
 
 # ── several engines ──────────────────────────────────────────────────
@@ -599,8 +652,8 @@ def _count(total: int, noun: str) -> str:
     return f"{total} {noun}" if total == 1 else f"{total} {noun}s"
 
 
-def router_line(document: dict[str, Any]) -> str:
-    """One line naming the router, when the reading was taken, and its engines.
+def router_line(document: dict[str, Any], width: int = DEFAULT_WIDTH) -> object:
+    """One line naming the router, how much it spans, and when it was read.
 
     The engine tables below are all of one document, so the line states how
     much that document spans -- servers, engines and models -- before a reader
@@ -611,17 +664,18 @@ def router_line(document: dict[str, Any]) -> str:
     servers = {
         name for entry in engines if (name := server_name(entry)) is not None
     }
-    bits = ["[bold]router[/]"]
+    bits = []
     address = document.get("router")
     if isinstance(address, str) and address:
-        bits.append(f"[cyan]{address}[/]")
-    stamp = (document.get("lane") or {}).get("observed_at")
-    if isinstance(stamp, str) and len(stamp) >= 19:
-        bits.append(stamp[11:19])
+        bits.append(f"[cyan]{_engine_display(address)}[/]")
     bits.append(_count(len(servers), "server"))
     bits.append(_count(len(engines), "engine"))
     bits.append(_count(len(models), "model"))
-    return " [dim]·[/] ".join(bits)
+    stamp = (document.get("lane") or {}).get("observed_at")
+    when = stamp[11:19] if isinstance(stamp, str) and len(stamp) >= 19 else ""
+    return split_line(
+        "[bold]ROUTER[/]  " + " [dim]·[/] ".join(bits), f"[dim]{when}[/]", width
+    )
 
 
 def server_name(entry: dict[str, Any]) -> str | None:
@@ -638,38 +692,32 @@ def server_name(entry: dict[str, Any]) -> str | None:
 def engines_table(
     document: dict[str, Any], *, engine: str | None = None
 ) -> Table:
-    """One row per engine: its throughput and its gate's room, on one grid.
+    """One row per engine: its load, its rate and the room its gate has left.
 
-    The figures are the engines table's own: the rate and the time to first
-    token are the recorder's, the router queue and the available percentage are
-    the router's, and the KV pool is the engine's own counter. A figure a
-    source did not publish is a dash, never a zero.
+    The rate and the time to first token are the recorder's, the queue and the
+    room are the router's, and the KV pool is the engine's own counter. A
+    figure a source did not publish is a dash, never a zero. The row whose
+    bands are drawn below is bold.
     """
-    table = _table(
-        ("model", "engine", "running", "router q", "tok/s", "each",
-         "ttft s", "kv pool %", "avail %"),
-        widths=ENGINE_WIDTHS,
-        left=(0, 1),
-    )
+    table = flex_table(ENGINE_NAME_WIDTHS, 7)
+    head(table, ["model", "engine", "running", "waiting", "tok/s", "per stream",
+                 "ttft s", "kv pool %", "room %"])
     chosen = selected_engine(document, engine)
     for entry in document_engines(document):
-        queue = _number(entry, "router_q")
         kv_pool = _number(entry, "kv_pool")
-        available = _number(entry, "available")
+        running = _number(entry, "running")
+        per_stream = _number(entry, "per_stream")
+        ttft = _number(entry, "ttft")
         table.add_row(
-            str(entry.get("model") or DASH),
+            escape(str(entry.get("model") or DASH)),
             _engine_display(entry.get("engine") or entry.get("engine_id")),
-            f"[cyan]{_number(entry, 'running'):.1f}[/]"
-            if _number(entry, "running") is not None else DASH,
-            f"[red]{queue:.0f}[/]" if queue is not None and queue >= 1
-            else f"[dim]{queue:.0f}[/]" if queue is not None else DASH,
+            f"[cyan]{running:.1f}[/]" if running is not None else DASH,
+            alarm_count(_number(entry, "router_q")),
             fmt_rate(_number(entry, "tok_s")),
-            f"{_number(entry, 'per_stream'):.1f}"
-            if _number(entry, "per_stream") is not None else DASH,
-            f"{_number(entry, 'ttft'):.1f}"
-            if _number(entry, "ttft") is not None else DASH,
-            pct(100.0 * kv_pool) if kv_pool is not None else DASH,
-            pct(available, "good") if available is not None else DASH,
+            f"{per_stream:.1f}" if per_stream is not None else DASH,
+            f"{ttft:.1f}" if ttft is not None else DASH,
+            f"{100.0 * kv_pool:.0f}" if kv_pool is not None else DASH,
+            cell(_number(entry, "available"), 40.0, 10.0),
             style="bold" if entry is chosen else "",
         )
     return table
@@ -679,36 +727,12 @@ def engines_table(
 
 
 def _heading(label: str, window_seconds: object) -> str:
-    """A table's first column heading, carrying the window it measured."""
+    """A panel's name, carrying the window it measured."""
     if isinstance(window_seconds, (int, float)) and not isinstance(
         window_seconds, bool
     ):
         return f"{label} {window_seconds / 60:.0f}m"
     return label
-
-
-def _table(
-    heads: Iterable[str],
-    *,
-    label_width: int = LABEL_WIDTH,
-    cell_width: int = CELL_WIDTH,
-    widths: tuple[int, ...] | None = None,
-    left: tuple[int, ...] = (0,),
-) -> Table:
-    table = Table(box=box.SIMPLE_HEAD, padding=(0, 1), expand=False,
-                  pad_edge=False, header_style="dim")
-    for index, name in enumerate(heads):
-        if widths is not None:
-            width = widths[index]
-        else:
-            width = label_width if index == 0 else cell_width
-        table.add_column(
-            name,
-            justify="left" if index in left else "right",
-            width=width,
-            no_wrap=True,
-        )
-    return table
 
 
 def _held(value: object) -> str:
@@ -722,6 +746,12 @@ def _per_run(value: object) -> str:
     # ordinary case; above it a run is issuing several at once and is marked,
     # because the share divides capacity in runs and cannot see it.
     return f"[{ramp(float(value), 1.0, 2.0, inverted=True)}]{float(value):.1f}[/]"
+
+
+def _wait(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return DASH
+    return f"[{ramp(float(value), 5.0, 30.0, inverted=True)}]{float(value):.0f}[/]"
 
 
 def accounts_table(callers: dict[str, Any], *, account: str | None = None) -> object:
@@ -738,28 +768,25 @@ def accounts_table(callers: dict[str, Any], *, account: str | None = None) -> ob
     if callers.get("state") != "measured":
         detail = callers.get("detail") or "no reading"
         return Text.from_markup(
-            f"[yellow]accounts unavailable[/][dim] — {detail}[/]"
+            f"[yellow]unavailable[/][dim] — {escape(str(detail))}[/]"
         )
     rows = [row for row in (callers.get("accounts") or []) if isinstance(row, dict)]
-    table = _table((_heading("accounts", callers.get("window_seconds")),
-                    "sessions", "runs", "in use", "per run",
-                    "wait s", "share %"))
+    table = flex_table((ACCOUNT_NAME_WIDTH,), 6)
+    head(table, ["account", "sessions", "runs", "in use", "per run", "wait s",
+                 "share %"])
     for row in rows:
         name = str(row.get("account") or UNATTRIBUTED)
-        style = "bold" if account and name == account else ""
         share = row.get("share")
-        wait = row.get("mean_gate_wait_s")
         table.add_row(
-            name,
+            escape(name),
             f"{row.get('sessions') or 0}",
             f"{row.get('runs') or 0}",
             _held(row.get("held")),
             _per_run(row.get("held_per_run")),
-            (f"[{ramp(float(wait), 5.0, 30.0, inverted=True)}]{float(wait):.0f}[/]"
-             if isinstance(wait, (int, float)) else DASH),
+            _wait(row.get("mean_gate_wait_s")),
             (pct(100.0 * float(share), "good")
              if isinstance(share, (int, float)) else DASH),
-            style=style,
+            style="bold" if account and name == account else "",
         )
     return table
 
@@ -779,7 +806,7 @@ def _detail_rows(
 
     A project row aggregates that account's ``projects`` entries; a session row
     is one entry of the per-session list, labelled by the project it named
-    rather than by the session, which is an opaque identifier. Both are sorted
+    and not by the session, which is an opaque identifier. Both are sorted
     heaviest first, so the fold below drops the smallest.
     """
     if sessions:
@@ -828,215 +855,302 @@ def detail_table(
     ``+N more`` row carrying their summed in-use, so the table says the same
     thing about an account with thirty projects as about one with three while
     keeping the folded share visible in the column the reader is comparing. An
-    account that held nothing in the window gets one dim line rather than an
-    empty table: an empty table is indistinguishable from a table that failed
-    to build.
+    account that held nothing in the window gets one dim line and no table: an
+    empty table is indistinguishable from a table that failed to build.
     """
     if callers.get("state") != "measured":
         detail = callers.get("detail") or "no reading"
         return Text.from_markup(
-            f"[yellow]account detail unavailable[/][dim] — {detail}[/]"
+            f"[yellow]unavailable[/][dim] — {escape(str(detail))}[/]"
         )
     name = account or _viewer()
     rows = _detail_rows(callers, name, sessions)
     if not rows:
         return Text.from_markup(
-            f"[dim]{name} holds nothing in the window — no finished request "
-            f"in the record named it[/]"
+            f"[dim]{escape(name)} holds nothing in the window — no finished "
+            f"request named it[/]"
         )
-    head = [_heading(name, callers.get("window_seconds"))]
-    if engines:
-        head.append("engine")
-    head.extend(("session" if sessions else "sessions",
-                 "runs", "in use", "per run", "wait s"))
-    table = _table(
-        head,
-        label_width=LABEL_WIDTH,
-        cell_width=ENGINE_CELL_WIDTH if engines else CELL_WIDTH,
-    )
-    blank = DASH if engines else ""
+    labels = ["project", *(("engine",) if engines else ()),
+              "session" if sessions else "sessions", "runs", "in use",
+              "per run", "wait s"]
+    names = (PROJECT_NAME_WIDTH, ENGINE_CELL_WIDTH) if engines else (
+        PROJECT_NAME_WIDTH,)
+    table = flex_table(names, 5)
+    head(table, labels)
     for row in rows[:DETAIL_ROWS]:
-        wait = row.get("mean_gate_wait_s")
         table.add_row(
-            row["label"],
+            escape(row["label"]),
             *((_engine_display(row.get("engine")),) if engines else ()),
             (row.get("session") or DASH) if sessions
             else f"{row.get('sessions') or 0}",
             f"{row.get('runs') or 0}" if row.get("runs") is not None else DASH,
             _held(row.get("held")),
             _per_run(row.get("held_per_run")),
-            (f"[{ramp(float(wait), 5.0, 30.0, inverted=True)}]{float(wait):.0f}[/]"
-             if isinstance(wait, (int, float)) else DASH),
+            _wait(row.get("mean_gate_wait_s")),
         )
     folded = rows[DETAIL_ROWS:]
     if folded:
         held = sum(float(row.get("held") or 0.0) for row in folded)
         table.add_row(f"+{len(folded)} more",
-                      *((blank,) if engines else ()),
+                      *((DASH,) if engines else ()),
                       "", "", f"{held:.1f}", "", "", style="dim")
     return table
 
 
-def history_strip(callers: dict[str, Any], lane: dict[str, Any]) -> object:
-    """Occupancy and gate wait, minute by minute over the last half hour.
+#: The width of a history strip's column: one character per bin.
+STRIP_WIDTH = 30
+
+#: The narrowest an outcome count's column may be beside the strips.
+COUNT_WIDTH = 8
+
+
+def _history_rows(
+    callers: dict[str, Any], lane: dict[str, Any]
+) -> list[tuple[str, str, str]] | str:
+    """Occupancy and gate wait strips per row, or the reason there are none.
 
     In flight is drawn against the gate's own width when the lane publishes
     one, so a strip read beside the bands means the same thing on every
     document: a full strip is a full gate, not merely the busiest minute of a
     quiet half hour. The wait strip carries the median wait of the requests
-    admitted in each bin, which is the half of the distribution a reader acts
-    on; a bin that admitted nobody takes the bottom level, because a gap would
-    read as a missing bin rather than a quiet one.
+    admitted in each bin; a bin that admitted nobody takes the bottom level,
+    because a gap would read as a missing bin and not a quiet one. With
+    several engines each has its own row under the total's, so a reader sees
+    which engine is filling and not only that the lane is.
     """
     history = callers.get("history") or {}
     bins = [bin_ for bin_ in (history.get("bins") or []) if isinstance(bin_, dict)]
     if history.get("state") != "measured" or not bins:
-        reason = history.get("reason") or "no reading"
-        return Text.from_markup(
-            f"[yellow]history unavailable[/][dim] — {reason}[/]"
-        )
-    occupancy = [float(bin_.get("occupancy") or 0.0) for bin_ in bins]
-    waits = [float(bin_.get("gate_wait_p50_s") or 0.0) for bin_ in bins]
-    gate = lane.get("router_generation_gate") or {}
-    width = _number(gate, "effective_width")
-    window = history.get("window_seconds")
-    label = _heading("history", window)
-    lines = [
-        f"{label}   in flight [bold]{spark(occupancy, width)}[/]"
-        f"   wait [cyan]{spark(waits)}[/]"
-    ]
-    # One line per engine, on the same two strips, so a reader of a lane of
-    # several engines can see which one is filling rather than only that the
-    # lane is. The engine's own bins are the same quantity as the total's, so
-    # two draws are comparable; the label column is matched to the total's.
+        return str(history.get("reason") or "no reading")
+    width = _number(lane.get("router_generation_gate") or {}, "effective_width")
+
+    def strips(who: str, bins: list[dict[str, Any]]) -> tuple[str, str, str]:
+        occupancy = [float(bin_.get("occupancy") or 0.0) for bin_ in bins]
+        waits = [float(bin_.get("gate_wait_p50_s") or 0.0) for bin_ in bins]
+        return (who, f"[bold]{spark(occupancy, width)}[/]",
+                f"[cyan]{spark(waits)}[/]")
+
+    rows = [strips("", bins)]
     for entry in history.get("engines") or []:
         if not isinstance(entry, dict):
             continue
         engine_bins = [
             bin_ for bin_ in (entry.get("bins") or []) if isinstance(bin_, dict)
         ]
-        if not engine_bins:
-            continue
-        name = _engine_display(entry.get("engine"))
-        engine_occupancy = [float(b.get("occupancy") or 0.0) for b in engine_bins]
-        engine_waits = [float(b.get("gate_wait_p50_s") or 0.0) for b in engine_bins]
-        lines.append(
-            f"{' ' * len(label)}   {name:<{ENGINE_STRIP_WIDTH}}"
-            f" [bold]{spark(engine_occupancy, width)}[/]"
-            f"   wait [cyan]{spark(engine_waits)}[/]"
-        )
-    if len(lines) == 1:
-        return Text.from_markup(lines[0])
-    return Group(*(Text.from_markup(line) for line in lines))
+        if engine_bins:
+            rows.append(strips(_engine_display(entry.get("engine")), engine_bins))
+    return rows
 
 
-def outcomes_line(callers: dict[str, Any]) -> object:
-    """How the window's requests ended, in one line.
+def _outcome_rows(callers: dict[str, Any]) -> list[tuple[str, ...]] | str:
+    """How the window's requests ended per row, or the reason nothing is known.
 
     The four figures partition the window: a request the router answered itself
     after its gate wait ran out is an expiry and not also a failure, so the
-    counts never double-count one request. A window in which nothing ended says
-    so rather than printing four zeros, which would read as a window nobody
-    used.
+    counts never double-count one request. With several engines each has its
+    own row under the total, because a lane in which one engine failed every
+    request it accepted and another completed them all reads as healthy in
+    the total alone.
     """
     outcomes = callers.get("outcomes") or {}
     if outcomes.get("state") != "measured":
-        reason = outcomes.get("reason") or "no reading"
-        return Text.from_markup(
-            f"[yellow]outcomes unavailable[/][dim] — {reason}[/]"
-        )
-    label = _heading("outcomes", outcomes.get("window_seconds"))
+        return str(outcomes.get("reason") or "no reading")
 
-    def _line(completed: int, aborted: int, failed: int, expired: int) -> str:
-        failed_s = f"[red]{failed:.0f} failed[/]" if failed else "0 failed"
+    def row(who: str, entry: dict[str, Any]) -> tuple[str, ...]:
+        failed = entry.get("failed") or 0
+        expired = entry.get("gate_expired") or 0
         return (
-            f"{completed:.0f} completed · {aborted:.0f} aborted · "
-            f"{failed_s} · {expired:.0f} expired at the end"
+            who,
+            f"{entry.get('completed') or 0:.0f}",
+            f"{entry.get('aborted') or 0:.0f}",
+            f"[red]{failed:.0f}[/]" if failed else "[dim]0[/]",
+            f"[red]{expired:.0f}[/]" if expired else "[dim]0[/]",
         )
 
-    lines = [
-        f"{label}   " + _line(
-            outcomes.get("completed") or 0,
-            outcomes.get("aborted") or 0,
-            outcomes.get("failed") or 0,
-            outcomes.get("gate_expired") or 0,
-        )
-    ]
-    # One line per engine under the total, for the same reason the history
-    # carries one per engine: a lane in which one engine failed every request it
-    # accepted and another completed them all reads as a healthy lane in the
-    # total alone.
+    rows = [row("", outcomes)]
     for entry in outcomes.get("by_engine") or []:
-        name = _engine_display(entry.get("engine"))
-        lines.append(
-            f"{' ' * len(label)}   {name:<{ENGINE_STRIP_WIDTH}} "
-            + _line(
-                entry.get("completed") or 0,
-                entry.get("aborted") or 0,
-                entry.get("failed") or 0,
-                entry.get("gate_expired") or 0,
-            )
+        if isinstance(entry, dict):
+            rows.append(row(_engine_display(entry.get("engine")), entry))
+    return rows
+
+
+def _named(rows: list[tuple[str, ...]]) -> list[tuple[str, ...]]:
+    """Rows with the first one named, when engine rows follow it."""
+    if len(rows) > 1:
+        return [("[dim]all engines[/]", *rows[0][1:]), *rows[1:]]
+    return rows
+
+
+def _strip_table(counts: int, width: int) -> Table:
+    """A name column, two strip columns, then ``counts`` figure columns.
+
+    The strips are never cut: on a body ``width`` columns wide too narrow for
+    a whole engine name beside them, the name column gives way.
+    """
+    name = max(1, min(ENGINE_STRIP_WIDTH, width - 2 * (STRIP_WIDTH + 1)))
+    table = flex_table((name, STRIP_WIDTH, STRIP_WIDTH), counts)
+    if not counts:
+        table.expand = False
+    return table
+
+
+def history_strip(
+    callers: dict[str, Any], lane: dict[str, Any], width: int = DEFAULT_WIDTH
+) -> object:
+    """The half hour's occupancy and gate wait, one row and one per engine."""
+    rows = _history_rows(callers, lane)
+    if isinstance(rows, str):
+        return Text.from_markup(
+            f"[yellow]history unavailable[/][dim] — {escape(rows)}[/]"
         )
-    if len(lines) == 1:
-        return Text.from_markup(lines[0])
-    return Group(*(Text.from_markup(line) for line in lines))
+    table = _strip_table(0, width)
+    head(table, ["", "in flight", "gate wait"])
+    for row in _named(rows):
+        table.add_row(*row)
+    return table
+
+
+def outcomes_line(callers: dict[str, Any]) -> object:
+    """How the window's requests ended, one row and one per engine."""
+    rows = _outcome_rows(callers)
+    if isinstance(rows, str):
+        return Text.from_markup(
+            f"[yellow]outcomes unavailable[/][dim] — {escape(rows)}[/]"
+        )
+    table = flex_table((ENGINE_STRIP_WIDTH,), 4)
+    head(table, ["", *_outcome_labels(callers)])
+    for row in _named(rows):
+        table.add_row(*row)
+    return table
+
+
+def _history_window(callers: dict[str, Any]) -> object:
+    return (callers.get("history") or {}).get("window_seconds")
+
+
+def _outcome_labels(_callers: dict[str, Any]) -> list[str]:
+    return ["done", "aborted", "failed", "expired"]
+
+
+def activity_title(callers: dict[str, Any]) -> str:
+    """The activity box's title, naming the window each half covers."""
+    spans = [
+        _heading(name, (callers.get(key) or {}).get("window_seconds"))
+        for name, key in (("strips", "history"), ("counts", "outcomes"))
+    ]
+    return f"[bold]ACTIVITY[/]  [dim]{' · '.join(spans)}[/]"
+
+
+def activity(
+    callers: dict[str, Any], lane: dict[str, Any], width: int
+) -> list[object]:
+    """What the lane has been doing: the half hour's strips and how requests ended.
+
+    On a body ``width`` columns wide enough, each row is one line: the two
+    strips, then the four outcome counts beside them. Narrower, or when the
+    two are not known for the same rows, the strips sit above the counts.
+    """
+    history, outcomes = _history_rows(callers, lane), _outcome_rows(callers)
+    needed = ENGINE_STRIP_WIDTH + 2 * (STRIP_WIDTH + 1) + 4 * COUNT_WIDTH
+    joined = (
+        not isinstance(history, str)
+        and not isinstance(outcomes, str)
+        and [row[0] for row in history] == [row[0] for row in outcomes]
+        and width >= needed
+    )
+    if not joined:
+        return [history_strip(callers, lane, width), Text(""),
+                outcomes_line(callers)]
+    table = _strip_table(4, width)
+    head(table, ["", "in flight", "gate wait", *_outcome_labels(callers)])
+    for strips, counts in zip(_named(history), _named(outcomes), strict=True):
+        table.add_row(*strips, *counts[1:])
+    return [table]
+
+
+def _published_age(stamp: object) -> float | None:
+    """Seconds since a ``YYYY-MM-DDTHH:MM:SSZ`` stamp, or None when unreadable."""
+    import calendar
+
+    if not isinstance(stamp, str):
+        return None
+    try:
+        moment = _time.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return None
+    return max(0.0, _time.time() - calendar.timegm(moment))
 
 
 def ledger_table(
-    ledger: list[dict[str, Any]] | None, note: str | None = None
+    ledger: list[dict[str, Any]] | None,
+    note: str | None = None,
+    published_at: object = None,
 ) -> object:
     """Tokens and their cost, one row per published period.
 
     Every figure comes from the published watch document, which the recorder
     derives from the lane's own receipts, so a period's tokens and cost cannot
-    disagree with the document the rest of the fleet reads. The ``window``
-    column is not decoration: a day's row backed by six hours of record is a
-    real answer to a different question, and without that column it is
-    indistinguishable from a quiet day.
+    disagree with the document the rest of the fleet reads. A ``covered``
+    column is drawn only when some period is backed by less than its whole
+    record: a day's row backed by six hours answers a different question, and
+    a column that reads ``full`` on every row says nothing. A ledger of
+    several models is one table with a model column, because stacking one
+    model's periods under another's would put two rows of one period together
+    with nothing saying which model priced either.
     """
     rows = [row for row in (ledger or []) if isinstance(row, dict)
             and row.get("label")]
     if not rows:
         return Text.from_markup(
-            "[yellow]ledger unavailable[/][dim] — the published watch "
-            "document carries no period rows[/]"
+            "[yellow]unavailable[/][dim] — the published watch document "
+            "carries no period rows[/]"
         )
-    # A ledger of several models is one table with a model column rather than
-    # several tables: the rows are the same periods, and stacking one model's
-    # periods under another's would put two rows labelled "3d" in one table with
-    # nothing between them saying which model priced either.
-    models = {str(row.get("model")) for row in rows if row.get("model")}
-    grouped = len(models) > 1
-    head = ("ledger", "model", "tok in", "cached %", "tok out", "util %",
-            "cost $", "window") if grouped else (
-        "ledger", "tok in", "cached %", "tok out", "util %", "cost $", "window")
-    widths = ((LABEL_WIDTH, 20) + (CELL_WIDTH,) * 6) if grouped else None
-    table = _table(head, widths=widths)
+
+    def covered(row: dict[str, Any]) -> bool:
+        period = float(row.get("period") or 0.0)
+        return bool(period) and float(row.get("covered") or 0.0) >= 0.98 * period
+
+    grouped = len({str(row.get("model")) for row in rows if row.get("model")}) > 1
+    partial = not all(covered(row) for row in rows)
+    labels = ["period", *(("model",) if grouped else ()),
+              "tok in", "cached %", "tok out", "util %", "cost $",
+              *(("covered",) if partial else ())]
+    names = (PERIOD_WIDTH, MODEL_WIDTH) if grouped else (PERIOD_WIDTH,)
+    table = flex_table(names, len(labels) - len(names))
+    head(table, labels)
     for row in rows:
         tokens_in = float(row.get("tokens_in") or 0.0)
         cached = float(row.get("cached") or 0.0)
-        tokens_out = float(row.get("tokens_out") or 0.0)
-        utilisation = row.get("utilisation")
-        period = float(row.get("period") or 0.0)
-        covered = float(row.get("covered") or 0.0)
-        share = 100.0 * cached / tokens_in if tokens_in > 0 else None
+        utilisation = _number(row, "utilisation")
         cost = row.get("cost")
-        table.add_row(
+        cells = [
             str(row.get("label")),
-            *((str(row.get("model") or DASH),) if grouped else ()),
+            *((escape(str(row.get("model") or DASH)),) if grouped else ()),
             fmt_tokens(tokens_in),
-            pct(share, "good") if share is not None else DASH,
-            fmt_tokens(tokens_out),
-            (pct(float(utilisation))
-             if isinstance(utilisation, (int, float))
-             and not isinstance(utilisation, bool) else DASH),
+            (pct(100.0 * cached / tokens_in, "good")
+             if tokens_in > 0 else DASH),
+            fmt_tokens(float(row.get("tokens_out") or 0.0)),
+            # A lane is paid for whether or not it is used, so a full period is
+            # the healthy one.
+            pct(utilisation, "good") if utilisation is not None else DASH,
             fmt_usd(cost).lstrip("$") if isinstance(cost, (int, float)) else DASH,
-            "full" if period and covered >= 0.98 * period else fmt_span(covered),
-            style="dim",
-        )
+        ]
+        if partial:
+            cells.append(
+                "full" if covered(row)
+                else f"[yellow]{fmt_span(float(row.get('covered') or 0.0))}[/]"
+            )
+        table.add_row(*cells)
+    parts: list[object] = [table]
+    age = _published_age(published_at)
+    if age is not None and age > LEDGER_STALE_SECONDS:
+        parts.append(Text.from_markup(
+            f"[yellow]ledger published {fmt_span(age)} ago[/]"
+        ))
     if note:
-        return Group(table, Text.from_markup(note))
-    return table
+        parts.append(Text.from_markup(note))
+    return parts[0] if len(parts) == 1 else Group(*parts)
+
 
 
 # ── the document, and the text ───────────────────────────────────────
@@ -1103,34 +1217,53 @@ def render(
     account: str | None = None,
     sessions: bool = False,
     engine: str | None = None,
+    width: int | None = None,
 ) -> Group:
-    """The whole view as one group of rich renderables.
+    """The whole view as one group of boxes, ``width`` columns wide.
 
-    With one engine this is the view as it has always been drawn. With several,
-    two things are added above it and one inside it: the router line and the
-    engines table, which say how much the document spans, and the engine column
-    in the account detail. The bands stay one engine's, because three bands per
-    engine do not fit a terminal -- the table above them carries every engine's
-    figures, and ``--engine`` chooses whose bands are drawn.
+    In reading order: the lane and whether it can take work, who is using it,
+    how the last half hour went, and what it has cost. With several engines
+    the router line and the engines table come first, saying how much the
+    document spans, and the lane box below is one engine's: every engine's
+    bands do not fit a terminal, the table carries every engine's figures, and
+    ``--engine`` chooses whose bands are drawn. On a page wide enough the
+    accounts sit beside the viewer's projects.
     """
+    width = page_width(width)
     callers = document.get("callers") or {}
     parts: list[object] = []
     multi = multi_engine(document)
     scoped = document
     if multi:
-        parts.append(Text.from_markup(router_line(document)))
-        parts.append(engines_table(document, engine=engine))
+        parts.append(router_line(document, width))
+        parts.append(boxed("[bold]ENGINES[/]",
+                           [engines_table(document, engine=engine)], width))
         entry = selected_engine(document, engine)
         if entry is not None:
             scoped = engine_document(document, entry)
-    parts.append(Text.from_markup(head_line(scoped)))
-    parts.extend(bands(scoped))
-    parts.append(accounts_table(callers, account=account))
-    parts.append(detail_table(callers, account=account, sessions=sessions,
-                              engines=multi))
-    parts.append(history_strip(callers, scoped.get("lane") or {}))
-    parts.append(outcomes_line(callers))
-    parts.append(ledger_table(document.get("ledger")))
+    parts.append(lane_box(scoped, width))
+
+    window = callers.get("window_seconds")
+    name = account or _viewer()
+    parts.extend(pair(
+        (f"[bold]{_heading('ACCOUNTS', window)}[/]",
+         [accounts_table(callers, account=account)]),
+        (f"[bold]{_heading('PROJECTS', window)}[/]  [dim]{escape(name)}[/]",
+         [detail_table(callers, account=account, sessions=sessions,
+                       engines=multi)]),
+        width,
+    ))
+    parts.append(boxed(
+        activity_title(callers),
+        activity(callers, scoped.get("lane") or {}, inner_width(width)),
+        width,
+    ))
+    parts.append(boxed(
+        "[bold]LEDGER[/]",
+        [ledger_table(document.get("ledger"),
+                      published_at=document.get("ledger_published_at"))],
+        width,
+    ))
     return Group(*parts)
 
 
@@ -1147,7 +1280,8 @@ def render_text(
 
     buffer = io.StringIO()
     Console(file=buffer, no_color=True, width=width, highlight=False).print(
-        render(document, account=account, sessions=sessions, engine=engine),
+        render(document, account=account, sessions=sessions, engine=engine,
+               width=width),
         soft_wrap=False,
     )
     return buffer.getvalue()
@@ -1193,8 +1327,12 @@ def main(argv: list[str] | None = None) -> int:
                         help="emit the document as JSON")
     parser.add_argument("--live", action="store_true",
                         help=f"refresh every {int(LIVE_REFRESH_SECONDS)}s")
-    parser.add_argument("--width", type=int, default=GOLDEN_WIDTH)
+    parser.add_argument("--width", type=int, default=None,
+                        help="page width; the terminal's own by default")
     args = parser.parse_args(argv)
+    import shutil
+
+    width = page_width(args.width or shutil.get_terminal_size((0, 0)).columns)
 
     def once() -> None:
         document = build_document(
@@ -1220,7 +1358,7 @@ def main(argv: list[str] | None = None) -> int:
                     account=args.account,
                     sessions=args.sessions,
                     engine=args.engine_id,
-                    width=args.width,
+                    width=width,
                 )
             )
         sys.stdout.flush()

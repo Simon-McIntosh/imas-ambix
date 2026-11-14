@@ -1,15 +1,16 @@
-"""The pages, drawn on one ruled grid.
+"""The pages, built from titled boxes as wide as the terminal.
 
-Every panel is a borderless table whose columns add up to :data:`WIDTH`, with
-its last column right-aligned, and panels are separated by a rule of that same
-width. That is the whole layout rule: nothing is sized to its own content, so
-every panel ends on the same column whatever it holds.
+Every panel is a box from :mod:`imas_ambix.agent.watch_style`: a title on its
+top edge, naming columns on the left and figure columns sharing the rest of
+its width. A lane's box is ``llm-watch``'s own, so a lane on these pages and
+the same lane there are one set of figures drawn one way.
 
-Two pages are built from the panels. The overview is one row per server and
+Three pages are built from the boxes. The overview is one row per server and
 one row per lane, each with a total, then the period ledger. A server page is
-that server's cards with their own temperature and power and a totals row, the
-lanes served from it, and its queue, which takes every line the screen has
-left.
+that server's cards with their own temperature and power and a totals row,
+its queue, and the lanes served from it; on a terminal wide enough the cards
+and the queue stand beside the lanes and the ledger. The lanes page is every
+lane in full.
 
 A figure nothing measured is a dash, never a zero.
 """
@@ -19,88 +20,49 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from rich.console import Console, Group
+from rich.console import Group
 from rich.markup import escape
 from rich.table import Table
 from rich.text import Text
 
+from imas_ambix.agent import llm_watch
 from imas_ambix.agent.watch_style import (
     DASH,
+    DEFAULT_WIDTH,
+    TWO_COLUMN_WIDTH,
+    boxed,
+    column_widths,
+    flex_table,
     fmt_ctx,
-    fmt_span,
     fmt_tokens,
-    fmt_usd,
-    pct,
+    head,
+    line_count,
     ramp,
+    side_by_side,
+    split_line,
 )
 
 if TYPE_CHECKING:
+    from rich.panel import Panel
+
     from imas_ambix.agent.gpu_watch.fleet import Job, Reading
     from imas_ambix.agent.gpu_watch.lane import Lane
-
-#: Columns every panel is drawn to.
-WIDTH = 80
 
 #: Queue rows a server page keeps whenever there are that many jobs to show.
 MIN_QUEUE_ROWS = 10
 
-#: Per-stream decode reference, tok/s; the per-stream cell is coloured against
-#: it so the figure says whether each stream gets a fair share of one stream's
-#: best rate. The value is the one ``llm-watch`` colours against.
-PER_STREAM_REF = 40.0
-
 #: Die temperature at which the cards start to throttle, °C.
 THROTTLE_C = 84.0
 
-#: Seconds after which the published ledger is labelled with its age: twice
-#: the publisher's cadence.
-LEDGER_STALE_SECONDS = 600.0
-
-MACHINE_WIDTHS = (14, 11, 11, 11, 11, 11, 11)
-BAND_WIDTHS = (10,) * 8
-SERVER_WIDTHS = (14, 10, 8, 11, 11, 9, 8, 9)
-LANES_WIDTHS = (19, 10, 9, 8, 10, 6, 10, 8)
-QUEUE_WIDTHS = (9, 10, 6, 29, 9, 12, 5)
-
-
-# ── the grid ─────────────────────────────────────────────────────────
-
-
-def grid(widths: tuple[int, ...], left: int = 1) -> Table:
-    """A borderless table of fixed columns, the first ``left`` left-aligned."""
-    table = Table(box=None, padding=0, pad_edge=False, show_header=False, expand=False)
-    for index, width in enumerate(widths):
-        table.add_column(
-            "",
-            width=width,
-            no_wrap=True,
-            overflow="ellipsis",
-            justify="left" if index < left else "right",
-        )
-    return table
-
-
-def rule() -> Text:
-    return Text("─" * WIDTH, style="dim")
-
-
-def head(table: Table, name: str, labels: list[str]) -> None:
-    """The panel's name over its first column, and a label over each figure."""
-    table.add_row(f"[bold]{name}[/]", *[f"[dim]{label}[/]" for label in labels])
-
-
-def split_line(left: str, right: str, right_width: int) -> Table:
-    """One line with text at each edge, so it too ends on the last column."""
-    table = grid((WIDTH - right_width, right_width))
-    table.add_row(left, right)
-    return table
+#: Lines a queue box spends on its two edges and its row of labels.
+QUEUE_FRAME_LINES = 3
 
 
 def bar(value: float, kind: str) -> str:
-    """A four-cell bar and its percentage, nine characters wide.
+    """A four-cell bar and its percentage.
 
-    ``util`` is green when busy and red when idle; ``mem`` is an occupancy,
-    coloured by how full it is.
+    ``util`` is green when busy and red when idle, because an idle card is
+    the waste; ``mem`` is an occupancy, coloured by how full it is.
     """
     value = max(0.0, min(100.0, value))
     fill = round(value / 100 * 4)
@@ -132,13 +94,8 @@ def _number(source: object, key: str) -> float | None:
     return float(value)
 
 
-def _count(value: float | None, alarm: bool = False) -> str:
-    """A count that is ordinary at zero and worth seeing above it."""
-    if value is None:
-        return DASH
-    if alarm and value >= 1:
-        return f"[red]{value:.0f}[/]"
-    return f"[dim]{value:.0f}[/]" if alarm else f"{value:.0f}"
+def _clock() -> str:
+    return f"[dim]{time.strftime('%H:%M:%S')}[/]"
 
 
 # ── machine ──────────────────────────────────────────────────────────
@@ -162,13 +119,17 @@ def _temp(value: float | None, suffix: str = "") -> str:
     return f"[{ramp(value, 75.0, THROTTLE_C, inverted=True)}]{value:.0f}[/]{suffix}"
 
 
-def server_title(reading: Reading) -> list[object]:
+def _down(reading: Reading) -> bool:
+    low = (reading.state or "").lower()
+    return "drain" in low or "down" in low
+
+
+def server_title(reading: Reading, width: int) -> list[object]:
     """The server in one line: what it is, its state, and the cards held."""
     server = reading.server
     word = (reading.state or "unknown").split()[0]
     low = word.lower()
-    down = "drain" in low or "down" in low
-    if down:
+    if _down(reading):
         state = f"[bold red]{word.upper()}[/]"
     elif "alloc" in low or "mix" in low:
         state = f"[green]{word}[/]"
@@ -178,13 +139,11 @@ def server_title(reading: Reading) -> list[object]:
     if reading.group:
         bits.append(f"Group {reading.group}")
     if server.cards:
-        bits.append(f"{reading.allocated_count}/{server.cards} alloc")
+        bits.append(f"{reading.allocated_count}/{server.cards} cards allocated")
     elif reading.allocated_count:
-        bits.append(f"{reading.allocated_count} alloc")
-    out: list[object] = [
-        split_line(" · ".join(bits), f"[dim]{time.strftime('%H:%M:%S')}[/]", 8)
-    ]
-    if down:
+        bits.append(f"{reading.allocated_count} cards allocated")
+    out: list[object] = [split_line(" [dim]·[/] ".join(bits), _clock(), width)]
+    if _down(reading):
         # A drained or down node is the usual reason there are no card rows.
         detail = f" — {escape(reading.reason)}" if reading.reason else ""
         out.append(
@@ -196,7 +155,7 @@ def server_title(reading: Reading) -> list[object]:
     return out
 
 
-def machine_panel(reading: Reading, window: int) -> list[object]:
+def machine_box(reading: Reading, window: int, width: int) -> Panel:
     """One row per readable card, one for the unreadable ones, then totals.
 
     Temperature and power are each card's own. The totals row is the mean
@@ -204,12 +163,8 @@ def machine_panel(reading: Reading, window: int) -> list[object]:
     cards that were read: a card another job holds reports nothing here, so it
     is named on its own row and left out of every total.
     """
-    table = grid(MACHINE_WIDTHS)
-    head(
-        table,
-        "MACHINE",
-        ["util now", f"util {window}s", "mem", "°C", "kW", "% cap"],
-    )
+    table = flex_table((10,), 6)
+    head(table, ["card", "util now", f"util {window}s", "mem", "°C", "kW", "% cap"])
     cards = reading.cards
     for card in cards:
         share = (
@@ -261,214 +216,45 @@ def machine_panel(reading: Reading, window: int) -> list[object]:
             "",
             "",
         )
-    out: list[object] = [table]
+    body: list[object] = [table]
     if not cards and not hidden:
-        out.append(
+        body.append(
             Text.from_markup(
                 "[dim]no card readings — cards are read through a running "
                 "job of this account[/]"
             )
         )
-    return out
+    return boxed("[bold]MACHINE[/]", body, width)
 
 
-# ── lane ─────────────────────────────────────────────────────────────
+# ── lane and ledger ──────────────────────────────────────────────────
 
 
-def _stale(lane: dict) -> str:
-    """A mark for a lane document past the shelf life the router gave it."""
-    age = _number(lane, "age_seconds")
-    shelf = _number(lane, "suggested_shelf_life_seconds")
-    if lane.get("stale") is True or (age is not None and shelf and age > shelf):
-        when = f"{age:,.0f}s" if age is not None else "age unknown"
-        return f" · [bold yellow]stale {when}[/]"
-    return ""
+def lane_box(lane: Lane, width: int, where: str = "", capacity: bool = True) -> Panel:
+    """One lane as ``llm-watch`` draws it, titled with where it is served.
 
-
-def _heading(left: str, right: str) -> list[object]:
-    """A lane's heading on one line, or on two when both ends do not fit.
-
-    Neither end is cut: the model and where it runs, and the checkpoint it
-    serves, are each the whole point of the line.
+    ``where`` is the server or the cards the lane runs on, when the page
+    knows them; without it the lane's own hardware stands there.
     """
-    left_width = Text.from_markup(left).cell_len
-    right_width = Text.from_markup(right).cell_len
-    if left_width + right_width + 1 <= WIDTH:
-        return [split_line(left, right, right_width)]
-    return [Text.from_markup(left), split_line("", right, right_width)]
-
-
-def lane_panel(lane: Lane, cards: str = "") -> list[object]:
-    """One lane: a line saying what is served, then two bands of readings.
-
-    The first band is the engine's own rates and the pool it holds; the second
-    is the router's gate and the room left to dispatch into. A request held at
-    the gate never reaches the engine, so the engine's ``queued`` reads zero
-    while ``rt queue`` holds work, and both are shown.
-    """
-    bits = [f"[bold]LANE[/]  [bold]{escape(lane.model)}[/]"]
-    if cards:
-        bits.append(cards)
-    elif lane.hardware:
-        bits.append(lane.hardware)
+    facts = [where or lane.hardware or ""]
     if lane.context is not None:
-        bits.append(f"{fmt_ctx(lane.context)} ctx")
-    left = " · ".join(bits) + _stale(lane.lane)
-    right = (
-        f"[cyan]{escape(lane.checkpoint)}[/]"
-        if lane.checkpoint
-        else "[yellow]checkpoint unrecorded[/]"
+        facts.append(f"{fmt_ctx(lane.context)} ctx")
+    return llm_watch.lane_box(
+        {"lane": lane.lane, "live": lane.live},
+        width,
+        capacity=capacity,
+        title=llm_watch.lane_title(lane.model, [fact for fact in facts if fact]),
+        note=llm_watch.checkpoint_note(lane.checkpoint),
     )
-    live, doc = lane.live, lane.lane
-    measured = live.get("state") == "measured"
 
-    def rate(key: str) -> str:
-        value = _number(live, key)
-        return fmt_tokens(value) if measured and value is not None else DASH
 
-    running = _number(live, "mean_running")
-    each = _number(live, "per_stream_toks_per_s")
-    ttft = _number(live, "median_time_to_first_token_s")
-    hit = _number(live, "cache_hit_rate")
-    pool = _number(live, "pool_occupancy")
-    table = grid(BAND_WIDTHS, left=0)
-    table.add_row(
-        *[
-            f"[dim]{label}[/]"
-            for label in (
-                "running",
-                "queued",
-                "tok/s",
-                "each",
-                "prefill",
-                "ttft s",
-                "cache %",
-                "kv pool %",
-            )
-        ]
+def ledger_box(ledger: list | None, published_at: object, width: int) -> Panel:
+    """Tokens and their cost per period, as ``llm-watch`` draws them."""
+    return boxed(
+        "[bold]LEDGER[/]",
+        [llm_watch.ledger_table(ledger, published_at=published_at)],
+        width,
     )
-    table.add_row(
-        f"[cyan]{running:.1f}[/]" if running is not None else DASH,
-        _count(_number(live, "engine_queue"), alarm=True),
-        rate("generation_toks_per_s"),
-        (
-            f"[{ramp(100.0 * each / PER_STREAM_REF, 60.0, 30.0)}]{each:.1f}[/]"
-            if measured and each
-            else DASH
-        ),
-        rate("prefill_toks_per_s"),
-        f"{ttft:.1f}" if measured and ttft is not None else DASH,
-        pct(100.0 * hit, "good", width=4) if measured and hit is not None else DASH,
-        pct(100.0 * pool if pool <= 1.0 else pool, width=4)
-        if pool is not None
-        else DASH,
-        style="bold",
-    )
-    gate = doc.get("router_generation_gate") or {}
-    admission = doc.get("admission") or {}
-    slots = doc.get("worker_slots") or {}
-    in_flight, width = _number(gate, "in_flight"), _number(gate, "effective_width")
-    oldest = _number(admission, "oldest_wait_seconds")
-    verdict = admission.get("verdict")
-    headroom = _number(doc, "headroom")
-    availability = _number(doc, "availability_percent")
-    table.add_row(
-        *[
-            f"[dim]{label}[/]"
-            for label in (
-                "in flight",
-                "rt queue",
-                "wait",
-                "verdict",
-                "headroom",
-                "runs",
-                "slots",
-                "avail %",
-            )
-        ]
-    )
-    table.add_row(
-        (f"{in_flight:.0f}" if in_flight is not None else DASH)
-        + "/"
-        + (f"{width:.0f}" if width is not None else DASH),
-        _count(_number(gate, "waiting"), alarm=True),
-        fmt_span(oldest) if oldest is not None else DASH,
-        f"[bold]{escape(str(verdict))}[/]" if verdict else DASH,
-        f"[bold]{headroom:.0f}[/]" if headroom is not None else DASH,
-        _count(_number(slots, "live_runs")),
-        _count(_number(slots, "worker_slots")),
-        pct(availability, "good", width=4) if availability is not None else DASH,
-    )
-    return [*_heading(left, right), table]
-
-
-# ── ledger ───────────────────────────────────────────────────────────
-
-
-def ledger_panel(ledger: list | None, published_at: object = None) -> list[object]:
-    """Tokens and their cost, one row per published period.
-
-    A coverage column is drawn only when some period is backed by less than
-    its whole record: a day's row backed by six hours answers a different
-    question, and a column of ``full`` says nothing.
-    """
-    rows = [row for row in (ledger or []) if isinstance(row, dict) and row.get("label")]
-    if not rows:
-        return [
-            Text.from_markup(
-                "[bold]LEDGER[/]  [yellow]unavailable[/][dim] — the published "
-                "watch document carries no period rows[/]"
-            )
-        ]
-
-    def covered(row: dict) -> bool:
-        period = float(row.get("period") or 0.0)
-        return bool(period) and float(row.get("covered") or 0.0) >= 0.98 * period
-
-    partial = not all(covered(row) for row in rows)
-    labels = ["tok in", "cached %", "tok out", "util %", "cost $"]
-    widths = (15, 13, 13, 13, 13, 13)
-    if partial:
-        labels.append("covered")
-        widths = (14, 11, 11, 11, 11, 11, 11)
-    table = grid(widths)
-    head(table, "LEDGER", labels)
-    for row in rows:
-        tokens_in = float(row.get("tokens_in") or 0.0)
-        cached = float(row.get("cached") or 0.0)
-        utilisation = _number(row, "utilisation")
-        cost = _number(row, "cost")
-        cells = [
-            str(row["label"]),
-            fmt_tokens(tokens_in),
-            pct(100.0 * cached / tokens_in, "good", width=4) if tokens_in > 0 else DASH,
-            fmt_tokens(float(row.get("tokens_out") or 0.0)),
-            pct(utilisation, width=4) if utilisation is not None else DASH,
-            fmt_usd(cost).lstrip("$") if cost is not None else DASH,
-        ]
-        if partial:
-            cells.append(
-                "full" if covered(row) else fmt_span(float(row.get("covered") or 0.0))
-            )
-        table.add_row(*cells)
-    out: list[object] = [table]
-    age = _published_age(published_at)
-    if age is not None and age > LEDGER_STALE_SECONDS:
-        out.append(Text.from_markup(f"[yellow]ledger published {fmt_span(age)} ago[/]"))
-    return out
-
-
-def _published_age(stamp: object) -> float | None:
-    """Seconds since a ``YYYY-MM-DDTHH:MM:SSZ`` stamp, or None when unreadable."""
-    import calendar
-
-    if not isinstance(stamp, str):
-        return None
-    try:
-        moment = time.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ")
-    except ValueError:
-        return None
-    return max(0.0, time.time() - calendar.timegm(moment))
 
 
 # ── queue ────────────────────────────────────────────────────────────
@@ -482,21 +268,36 @@ def ordered_jobs(jobs: list[Job]) -> list[Job]:
     )
 
 
-def queue_panel(
-    jobs: list[Job], rows: int | None = None, gpus: dict[str, int] | None = None
-) -> list[object]:
+def queue_box(
+    jobs: list[Job],
+    width: int,
+    rows: int | None = None,
+    gpus: dict[str, int] | None = None,
+) -> Panel:
     """The server's queue, any user: running jobs, then pending ones.
 
     This is where another group's load shows, since its cards cannot be read.
     ``rows`` bounds the table to the lines the screen has left; jobs that do
     not fit are counted on a last line, never cut silently. ``gpus`` is the
-    cards each job holds or asked for, by job id.
+    cards each job holds or asked for, by job id. The title counts the jobs,
+    so the totals are read without counting rows.
     """
-    table = grid(QUEUE_WIDTHS, left=5)
-    head(table, "QUEUE", ["user", "acct", "name", "state", "elapsed", "gpu"])
+    table = Table(
+        box=None, padding=(0, 0, 0, 1), pad_edge=False, show_header=False, expand=True
+    )
+    for name_width in (8, 9, 5):
+        table.add_column("", width=name_width, no_wrap=True, overflow="ellipsis")
+    table.add_column("", ratio=1, no_wrap=True, overflow="ellipsis")
+    table.add_column("", width=8, no_wrap=True)
+    table.add_column("", width=11, justify="right", no_wrap=True)
+    table.add_column("", width=5, justify="right", no_wrap=True)
+    head(table, ["job", "user", "acct", "name", "state", "elapsed", "cards"])
+    running = sum(1 for job in jobs if job.running)
+    waiting = sum(1 for job in jobs if job.pending)
+    title = f"[bold]QUEUE[/]  [dim]{running} running · {waiting} pending[/]"
     if not jobs:
         table.add_row("[dim]idle[/]", "", "", "", "", "", "")
-        return [table]
+        return boxed(title, [table], width)
     ordered = ordered_jobs(jobs)
     shown = ordered
     if rows is not None and len(ordered) > rows:
@@ -507,29 +308,30 @@ def queue_panel(
             if job.pending
             else {"A": "green", "B": "cyan"}.get(job.group or "", "default")
         )
+        held = (gpus or {}).get(job.id, job.gpus)
         cells = (
             job.id,
             job.user,
             job.account,
             job.name,
-            job.state,
+            job.state.lower(),
             job.elapsed,
-            f"{held}" if (held := (gpus or {}).get(job.id, job.gpus)) else DASH,
+            f"{held}" if held else DASH,
         )
         table.add_row(*[f"[{colour}]{escape(cell)}[/]" for cell in cells])
     rest = ordered[len(shown) :]
     if rest:
-        waiting = sum(1 for job in rest if job.pending)
+        pending = sum(1 for job in rest if job.pending)
         table.add_row(
             f"[dim]+{len(rest)} more[/]",
             "",
             "",
+            f"[dim]{pending} of them pending[/]",
             "",
-            f"[dim]{waiting} pend[/]",
             "",
             "",
         )
-    return [table]
+    return boxed(title, [table], width)
 
 
 # ── overview ─────────────────────────────────────────────────────────
@@ -543,18 +345,17 @@ def _percent(value: float | None) -> str:
     return f"{value:.0f}%" if value is not None else DASH
 
 
-def servers_panel(readings: list[Reading]) -> list[object]:
+def servers_box(readings: list[Reading], width: int) -> Panel:
     """One row per server and a total: cards held, load, heat, power, queue.
 
     Utilisation, memory, temperature and power describe the cards that were
-    read, which may be fewer than the server holds; ``queue`` is running jobs
+    read, which may be fewer than the server holds; ``jobs`` is running jobs
     then pending ones.
     """
-    table = grid(SERVER_WIDTHS)
+    table = flex_table((9, 6), 6)
     head(
         table,
-        "SERVERS",
-        ["cards", "alloc", "util", "mem", "°C max", "kW", "queue"],
+        ["server", "cards", "alloc", "util", "mem", "°C max", "kW", "jobs"],
     )
     every: list = []
     pending: set[str] = set()
@@ -566,14 +367,13 @@ def servers_panel(readings: list[Reading]) -> list[object]:
         temps = [card.temp for card in cards if card.temp is not None]
         util = _mean([card.util_mean for card in cards])
         mem = _mean([card.mem for card in cards])
-        low = reading.state.lower()
-        down = "drain" in low or "down" in low
         running += len(reading.running)
         allocated += reading.allocated_count
         total_cards += server.cards or 0
         pending |= {job.id for job in reading.pending}
+        name = f"[bold red]{server.name}[/]" if _down(reading) else server.name
         table.add_row(
-            f"[bold red]{server.name}[/]" if down else f"[bold]{server.name}[/]",
+            f"[bold]{name}[/]",
             server.hardware,
             f"{reading.allocated_count}/{server.cards or DASH}",
             bar(util, "util") if util is not None else DASH,
@@ -595,9 +395,10 @@ def servers_panel(readings: list[Reading]) -> list[object]:
             f"[bold]{draw / 1000.0:.2f}[/]" if draw is not None else DASH,
             f"[bold]{running}+{len(pending)}[/]",
         )
+    body: list[object] = [table]
     if not readings:
-        return [table, Text.from_markup("[yellow]no server found[/]")]
-    return [table]
+        body.append(Text.from_markup("[yellow]no server found[/]"))
+    return boxed("[bold]SERVERS[/]", body, width)
 
 
 def no_document(reason: str = "") -> Text:
@@ -606,30 +407,36 @@ def no_document(reason: str = "") -> Text:
     return Text.from_markup(f"[yellow]no lane document read[/]{detail}")
 
 
-def lanes_panel(lanes: list[Lane], reason: str = "") -> list[object]:
-    """One row per lane and a total: load, rate, and the gate's room."""
-    table = grid(LANES_WIDTHS)
+def lanes_box(lanes: list[Lane], width: int, reason: str = "") -> Panel:
+    """One row per lane and a total: load, the gate, the rate and the verdict.
+
+    The verdict has a column of its own width, since it is a word and the
+    figures beside it are not; how many more workers a lane admits is in the
+    lane's own box.
+    """
+    table = flex_table((19, 8), 4)
+    table.add_column("", width=9, justify="right", no_wrap=True)
     head(
         table,
-        "LANES",
-        ["server", "running", "tok/s", "in flight", "queue", "verdict", "avail %"],
+        ["lane", "server", "running", "in flight", "tok/s", "waiting", "verdict"],
     )
-    totals = {"running": 0.0, "rate": 0.0, "in_flight": 0.0, "width": 0.0, "queue": 0.0}
+    totals = {key: 0.0 for key in ("running", "rate", "in_flight", "width", "queue")}
     for lane in lanes:
         live, doc = lane.live, lane.lane
         measured = live.get("state") == "measured"
         gate = doc.get("router_generation_gate") or {}
         running = _number(live, "mean_running")
         rate = _number(live, "generation_toks_per_s") if measured else None
-        in_flight, width = _number(gate, "in_flight"), _number(gate, "effective_width")
+        in_flight, gate_width = (
+            _number(gate, "in_flight"),
+            _number(gate, "effective_width"),
+        )
         queue = _number(gate, "waiting")
-        verdict = (doc.get("admission") or {}).get("verdict")
-        availability = _number(doc, "availability_percent")
         for key, value in (
             ("running", running),
             ("rate", rate),
             ("in_flight", in_flight),
-            ("width", width),
+            ("width", gate_width),
             ("queue", queue),
         ):
             totals[key] += value or 0.0
@@ -637,51 +444,34 @@ def lanes_panel(lanes: list[Lane], reason: str = "") -> list[object]:
             f"[bold]{escape(lane.model)}[/]",
             lane.server or DASH,
             f"[cyan]{running:.1f}[/]" if running is not None else DASH,
-            fmt_tokens(rate) if rate is not None else DASH,
             (f"{in_flight:.0f}" if in_flight is not None else DASH)
             + "/"
-            + (f"{width:.0f}" if width is not None else DASH),
-            _count(queue, alarm=True),
-            escape(str(verdict)) if verdict else DASH,
-            pct(availability, "good", width=4) if availability is not None else DASH,
+            + (f"{gate_width:.0f}" if gate_width is not None else DASH),
+            fmt_tokens(rate) if rate is not None else DASH,
+            llm_watch.alarm_count(queue),
+            llm_watch.verdict_cell((doc.get("admission") or {}).get("verdict")),
         )
     if len(lanes) > 1:
         table.add_row(
             "[bold]total[/]",
             "",
             f"[bold]{totals['running']:.1f}[/]",
-            f"[bold]{fmt_tokens(totals['rate'])}[/]",
             f"[bold]{totals['in_flight']:.0f}/{totals['width']:.0f}[/]",
-            _count(totals["queue"], alarm=True),
-            "",
+            f"[bold]{fmt_tokens(totals['rate'])}[/]",
+            llm_watch.alarm_count(totals["queue"]),
             "",
         )
+    body: list[object] = [table]
     if not lanes:
-        return [table, no_document(reason)]
-    return [table]
+        body.append(no_document(reason))
+    return boxed("[bold]LANES[/]", body, width)
 
 
 # ── pages ────────────────────────────────────────────────────────────
 
 
-def _join(sections: list[list[object]]) -> list[object]:
-    """Sections one after another with a rule between each pair."""
-    out: list[object] = []
-    for section in sections:
-        if out:
-            out.append(rule())
-        out += section
-    return out
-
-
-def line_count(parts: list[object], width: int) -> int:
-    """Lines ``parts`` take when drawn ``width`` columns wide."""
-    import io
-
-    probe = Console(
-        width=width, file=io.StringIO(), force_terminal=False, color_system=None
-    )
-    return len(probe.render_lines(Group(*parts), probe.options, pad=False))
+def _foot(footer: str) -> list[object]:
+    return [Text.from_markup(footer)] if footer else []
 
 
 def overview_page(
@@ -691,26 +481,23 @@ def overview_page(
     published_at: object = None,
     footer: str = "",
     reason: str = "",
+    width: int = DEFAULT_WIDTH,
 ) -> Group:
     """Every server, every lane, and what the lanes have cost."""
     count = len(readings)
     title = split_line(
-        f"[bold]overview[/] · {count} server{'s' if count != 1 else ''}"
-        f" · {len(lanes)} lane{'s' if len(lanes) != 1 else ''}",
-        f"[dim]{time.strftime('%H:%M:%S')}[/]",
-        8,
+        f"[bold]overview[/] [dim]·[/] {count} server{'s' if count != 1 else ''}"
+        f" [dim]·[/] {len(lanes)} lane{'s' if len(lanes) != 1 else ''}",
+        _clock(),
+        width,
     )
-    parts = _join(
-        [
-            [title],
-            servers_panel(readings),
-            lanes_panel(lanes, reason),
-            ledger_panel(ledger, published_at),
-        ]
+    return Group(
+        title,
+        servers_box(readings, width),
+        lanes_box(lanes, width, reason),
+        ledger_box(ledger, published_at, width),
+        *_foot(footer),
     )
-    if footer:
-        parts += [rule(), Text.from_markup(footer)]
-    return Group(*parts)
 
 
 def lanes_page(
@@ -720,25 +507,26 @@ def lanes_page(
     published_at: object = None,
     footer: str = "",
     reason: str = "",
+    width: int = DEFAULT_WIDTH,
 ) -> Group:
-    """Every lane in full: the totals, then each lane's own readings.
+    """Every lane in full: the totals, then each lane's own box.
 
-    Each lane is headed by the server and the cards it is served from, read
+    Each lane is titled with the server and the cards it is served from, read
     from the server's job that holds it, so a lane and the cards under it can
     be matched across pages.
     """
     count = len(lanes)
     title = split_line(
-        f"[bold]lanes[/] · {count} lane{'s' if count != 1 else ''}",
-        f"[dim]{time.strftime('%H:%M:%S')}[/]",
-        8,
+        f"[bold]lanes[/] [dim]·[/] {count} lane{'s' if count != 1 else ''}",
+        _clock(),
+        width,
     )
     held = {
         job_id: (reading.server.name, cards)
         for reading in readings
         for job_id, cards in reading.job_cards.items()
     }
-    sections: list[list[object]] = [[title], lanes_panel(lanes, reason)]
+    parts: list[object] = [title, lanes_box(lanes, width, reason)]
     for lane in lanes:
         server, cards = held.get(lane.job_id or "", (lane.server, set()))
         where = " ".join(
@@ -746,12 +534,9 @@ def lanes_page(
             for bit in (server, f"gpu {ranges(sorted(cards))}" if cards else "")
             if bit
         )
-        sections.append(lane_panel(lane, where))
-    sections.append(ledger_panel(ledger, published_at))
-    parts = _join(sections)
-    if footer:
-        parts += [rule(), Text.from_markup(footer)]
-    return Group(*parts)
+        parts.append(lane_box(lane, width, where))
+    parts.append(ledger_box(ledger, published_at, width))
+    return Group(*parts, *_foot(footer))
 
 
 def server_page(
@@ -763,34 +548,53 @@ def server_page(
     published_at: object = None,
     size: tuple[int, int] | None = None,
     footer: str = "",
+    width: int = DEFAULT_WIDTH,
 ) -> Group:
-    """One server: its cards, the lanes served from it, and its queue.
+    """One server: its cards, its queue, and the lanes served from it.
 
-    ``ledger`` is passed when this is the only server, so the single-server
-    screen carries the ledger the overview would otherwise hold. ``size`` is
-    the screen as ``(columns, lines)``; with it the queue takes every line the
-    panels above leave, and when that is fewer than :data:`MIN_QUEUE_ROWS` the
-    ledger gives up its lines, since the overview still holds it.
+    On a page wide enough the cards and the queue stand on the left and the
+    lanes, with the ledger under them, on the right; narrower, the boxes are
+    stacked with the queue last. ``ledger`` is passed when this is the only
+    server, so the single-server screen carries the ledger the overview would
+    otherwise hold. ``size`` is the screen as ``(columns, lines)``, with zero
+    lines for a page that is printed and not fitted; fitted, the queue takes
+    every line left to it, and when a stacked page leaves it
+    fewer than :data:`MIN_QUEUE_ROWS` the ledger gives up its lines, since the
+    overview still holds it.
     """
-    sections = [server_title(reading), machine_panel(reading, window)]
-    for lane in lanes:
-        held = reading.job_cards.get(lane.job_id or "")
-        sections.append(lane_panel(lane, f"gpu {ranges(sorted(held))}" if held else ""))
-    if ledger is not None:
-        sections.append(ledger_panel(ledger, published_at))
-    tail: list[object] = [rule(), Text.from_markup(footer)] if footer else []
-
-    def fit(sections: list[list[object]]) -> tuple[list[object], int]:
-        parts = _join(sections)
-        # The rule above the queue and its header are the queue's own two lines.
-        return parts, size[1] - line_count(parts + tail, size[0]) - 2
-
-    parts, rows = _join(sections), None
-    if size is not None:
-        wanted = min(MIN_QUEUE_ROWS, len(reading.jobs))
-        parts, rows = fit(sections)
-        if rows < wanted and ledger is not None:
-            parts, rows = fit(sections[:-1])
-        rows = max(1, rows)
+    title = server_title(reading, width)
+    tail = _foot(footer)
     gpus = {job.id: reading.gpus(job) for job in reading.jobs}
-    return Group(*parts, rule(), *queue_panel(reading.jobs, rows, gpus), *tail)
+    wide = width >= TWO_COLUMN_WIDTH and bool(lanes or ledger is not None)
+    left_width, right_width = column_widths(width) if wide else (width, width)
+
+    def lane_boxes(box_width: int) -> list[object]:
+        boxes: list[object] = []
+        for lane in lanes:
+            held = reading.job_cards.get(lane.job_id or "")
+            where = f"gpu {ranges(sorted(held))}" if held else ""
+            boxes.append(lane_box(lane, box_width, where, capacity=wide))
+        return boxes
+
+    def rows_left(above: list[object]) -> int | None:
+        if size is None or not size[1]:
+            return None
+        return size[1] - line_count(above + tail, width) - QUEUE_FRAME_LINES
+
+    machine = machine_box(reading, window, left_width)
+    if wide:
+        right = lane_boxes(right_width)
+        if ledger is not None:
+            right.append(ledger_box(ledger, published_at, right_width))
+        rows = rows_left([*title, machine])
+        queue = queue_box(
+            reading.jobs, left_width, None if rows is None else max(1, rows), gpus
+        )
+        return Group(*title, side_by_side([machine, queue], right, width), *tail)
+    above = [*title, machine, *lane_boxes(width)]
+    extra = [ledger_box(ledger, published_at, width)] if ledger is not None else []
+    rows = rows_left(above + extra)
+    if rows is not None and extra and rows < min(MIN_QUEUE_ROWS, len(reading.jobs)):
+        extra, rows = [], rows_left(above)
+    queue = queue_box(reading.jobs, width, None if rows is None else max(1, rows), gpus)
+    return Group(*above, *extra, queue, *tail)

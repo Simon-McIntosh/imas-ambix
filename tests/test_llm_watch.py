@@ -433,9 +433,14 @@ def render(document: dict[str, Any], **kwargs: Any) -> str:
 _ACCOUNT_NAMES = {VIEWER, "llealsa", lw.UNATTRIBUTED}
 
 
+def _cells(line: str) -> list[str]:
+    """The figures on one row of a box, without the box's own edges."""
+    return line.strip("│ ").split()
+
+
 def _accounts_region(text: str) -> str:
-    """The accounts table alone: its heading up to the detail table's."""
-    return text.split("accounts ", 1)[1].split(f"{VIEWER} 5m", 1)[0]
+    """The accounts box alone: its title up to the projects box's."""
+    return text.split("ACCOUNTS ", 1)[1].split("PROJECTS ", 1)[0]
 
 
 def _coloured(renderable: Any) -> str:
@@ -516,13 +521,13 @@ def test_a_published_lane_document_fills_the_capacity_band() -> None:
     row = render(document).split("kv pool %", 1)[1].splitlines()[1]
     # kv pool is the engine's own counter; the three beside it are the lane
     # document's, and the palette never showed values for any of them before.
-    assert row.split() == ["█░░░░", "21", "█████", "100", "130k", "27", "23", "—"]
+    assert _cells(row) == ["█░░░", "21", "████", "100", "130k", "27", "23", "—"]
     # The same render with the copy removed is the state this test exists to
     # catch: every figure the block fails to carry reads as a dash, not a zero.
     for key in ("hicache_host", "mean_context", "concurrent_requests"):
         del lane[key]
     bare = render(document).split("kv pool %", 1)[1].splitlines()[1]
-    assert bare.split() == ["█░░░░", "21", "—", "—", "—", "23", "—"]
+    assert _cells(bare) == ["█░░░", "21", "—", "—", "—", "23", "—"]
 
 
 def test_head_line_names_the_checkpoint_the_served_engine_loaded() -> None:
@@ -662,6 +667,40 @@ def test_no_line_exceeds_the_terminal_width() -> None:
             assert not over, f"line over {width} columns:\n" + "\n".join(over)
 
 
+def test_every_box_is_as_wide_as_the_page() -> None:
+    """Boxes fill the page at each width, so they share both edges."""
+    for width in WIDTHS:
+        text = lw.render_text(eight_project_fixture(), width=width)
+        tops = [line for line in text.splitlines() if line.startswith("╭")]
+        assert tops
+        assert {len(line.rstrip()) for line in tops} == {width}
+    # From the two-column width the accounts stand beside the projects.
+    wide = lw.render_text(eight_project_fixture(), width=150)
+    assert any("ACCOUNTS" in line and "PROJECTS" in line
+               for line in wide.splitlines())
+    narrow = lw.render_text(eight_project_fixture(), width=120)
+    assert not any("ACCOUNTS" in line and "PROJECTS" in line
+                   for line in narrow.splitlines())
+
+
+def test_a_full_ledger_period_is_drawn_as_healthy() -> None:
+    """A lane is paid for whether or not it is used, so full use is green."""
+    full = _coloured(lw.ledger_table([dict(LEDGER[0], utilisation=100.0)]))
+    assert "32" in _cell_colour(full, "████").split(";")
+    idle = _coloured(lw.ledger_table(
+        [dict(LEDGER[0], utilisation=10.0, cached=0.0)]
+    ))
+    assert "31" in _cell_colour(idle, "░░░░").split(";")
+
+
+def test_the_engine_queue_is_a_line_only_when_it_holds_work() -> None:
+    quiet = render(one_engine_fixture())
+    assert "engine queue" not in quiet
+    document = one_engine_fixture()
+    document["live"]["engine_queue"] = 3.0
+    assert "engine queue 3" in render(document)
+
+
 def test_accounts_table_reads_the_account_level() -> None:
     """The accounts table totals accounts, not one row per session.
 
@@ -677,15 +716,15 @@ def test_accounts_table_reads_the_account_level() -> None:
     # from the sessions would carry the viewer's account once per session --
     # the fixture holds two -- and would lose the unattributed row, whose
     # requests named no session at all.
-    rows = [line.split()[0] for line in _accounts_region(text).splitlines()
-            if line.strip() and line.split()[0] in _ACCOUNT_NAMES]
+    rows = [_cells(line)[0] for line in _accounts_region(text).splitlines()
+            if _cells(line) and _cells(line)[0] in _ACCOUNT_NAMES]
     assert rows == ["mcintos", "llealsa", "unattributed"]
     # The heading is the document's own window rather than a label the view
     # restates, so a document with a different window heads itself differently.
     wider = eight_project_fixture()
     wider["callers"]["window_seconds"] = 1800.0
-    assert "accounts 5m" in text
-    assert "accounts 30m" in render(wider)
+    assert "ACCOUNTS 5m" in text
+    assert "ACCOUNTS 30m" in render(wider)
 
 
 def test_eight_project_fixture_folds_two_rows() -> None:
@@ -698,12 +737,12 @@ def test_eight_project_fixture_folds_two_rows() -> None:
     """
     text = render(eight_project_fixture())
     folds = [line for line in text.splitlines()
-             if line.strip().startswith("+2 more")]
+             if _cells(line)[:2] == ["+2", "more"]]
     assert len(folds) == 1
     # The row reads ``+2 more`` and the summed in-use, and nothing else: a
     # sum of per-run rates would not be a rate of anything, so the fold
     # carries no sessions, runs or per-run figure.
-    assert folds[0].split() == ["+2", "more", "0.3"]
+    assert _cells(folds[0]) == ["+2", "more", "0.3"]
 
 
 def test_three_project_fixture_has_no_fold_row() -> None:
@@ -721,7 +760,7 @@ def test_unavailable_live_entry_renders_one_line_and_no_band() -> None:
     text = render(unavailable_live_fixture())
     assert "live entry unavailable" in text
     assert "no raw receipt file with a readable row" in text
-    assert "tok/s out" not in text
+    assert "per stream" not in text
     assert "11.3" not in text
 
 
@@ -867,7 +906,7 @@ def test_a_three_engine_document_is_drawn_with_its_router_and_table() -> None:
     lines = text.splitlines()
 
     router = lines[0]
-    assert router.startswith("router")
+    assert router.startswith("ROUTER")
     assert "18802" in router
     assert "3 servers" in router and "3 engines" in router and "2 models" in router
     # One row per engine, naming the model it serves and the id it answers on.
@@ -890,10 +929,10 @@ def test_the_account_detail_engine_column_names_the_dominant_engine() -> None:
         if "sessions" in line and "engine" in line
     )
     body = []
-    for line in lines[head + 2:]:
-        if not line.strip():
+    for line in lines[head + 1:]:
+        if line.startswith("╰"):
             break
-        body.append(line.split())
+        body.append(_cells(line))
     engines = [row[1] for row in body if len(row) > 3]
     assert engines[0] == "gpu-0003:18810"
     assert set(engines) == {"gpu-0003:18810", "b300-0001:18814"}
@@ -903,19 +942,18 @@ def test_each_engine_carries_its_own_history_and_outcomes_line() -> None:
     text = render(three_engine_fixture())
     lines = text.splitlines()
 
-    total = next(index for index, line in enumerate(lines)
-                 if line.startswith("history 30m"))
-    assert "in flight" in lines[total]
-    assert "gpu-0003:18810" in lines[total + 1]
-    assert "b300-0001:18814" in lines[total + 2]
-
-    outcomes = next(index for index, line in enumerate(lines)
-                    if line.startswith("outcomes 5m"))
-    assert "412 completed" in lines[outcomes]
-    assert "gpu-0003:18810" in lines[outcomes + 1]
-    assert "380 completed" in lines[outcomes + 1]
-    assert "b300-0001:18814" in lines[outcomes + 2]
-    assert "32 completed" in lines[outcomes + 2]
+    title = next(index for index, line in enumerate(lines)
+                 if "ACTIVITY" in line)
+    assert "strips 30m" in lines[title] and "counts 5m" in lines[title]
+    labels = _cells(lines[title + 1])
+    assert labels[:4] == ["in", "flight", "gate", "wait"]
+    assert labels[4:] == ["done", "aborted", "failed", "expired"]
+    # Each row is its two strips, then how its requests ended.
+    total, first, second = (_cells(line) for line in lines[title + 2:title + 5])
+    assert total[:2] == ["all", "engines"] and total[-4:] == ["412", "3", "0", "0"]
+    assert first[0] == "gpu-0003:18810" and first[-4:] == ["380", "3", "0", "0"]
+    assert second[0] == "b300-0001:18814" and second[-4:] == ["32", "0", "0", "0"]
+    assert len(first[1]) == len(first[2]) == 30
 
 
 def test_the_ledger_is_grouped_by_model_when_it_prices_more_than_one() -> None:
@@ -924,7 +962,7 @@ def test_the_ledger_is_grouped_by_model_when_it_prices_more_than_one() -> None:
     assert "model" in head
     priced = [
         line for line in text.splitlines()
-        if line.strip().startswith(("1 hour", "1 day"))
+        if line.strip("│ ").startswith(("1 hour", "1 day"))
     ]
     assert len(priced) == 4
     for model in ("deepseek-v4.1-flash", "glm-5.3"):

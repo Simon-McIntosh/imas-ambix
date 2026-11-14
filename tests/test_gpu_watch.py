@@ -1,4 +1,4 @@
-"""The watch pages: one right edge, per-card readings, totals, and paging."""
+"""The watch pages: boxes as wide as the page, card readings, totals, paging."""
 
 from __future__ import annotations
 
@@ -146,48 +146,84 @@ def _document(engines: int = 1, partial: bool = False) -> dict:
     return document
 
 
-def _lines(renderable: object) -> list[str]:
-    console = Console(width=120, force_terminal=False)
+NARROW, WIDE = 120, 150
+
+
+def _lines(renderable: object, width: int = NARROW) -> list[str]:
+    console = Console(width=width, force_terminal=False)
     with console.capture() as capture:
         console.print(renderable)
     return capture.get().rstrip("\n").splitlines()
 
 
 def _page(
-    page: str, readings: list[Reading], engines: int = 1, height: int | None = None
+    page: str,
+    readings: list[Reading],
+    engines: int = 1,
+    height: int | None = None,
+    width: int = NARROW,
 ) -> list[str]:
-    size = (120, height) if height else None
+    size = (width, height or 0)
     return _lines(
-        app.render(page, readings, _document(engines), WINDOW, size, keys=bool(height))
+        app.render(page, readings, _document(engines), WINDOW, size, keys=bool(height)),
+        width,
     )
 
 
+def _rows(lines: list[str]) -> list[str]:
+    """Each line of a stacked page without the box's own edges."""
+    return [line.strip("│").strip() for line in lines]
+
+
 def _figures(line: str) -> list[str]:
-    return line.replace("█", " ").replace("░", " ").split()
+    return line.replace("█", " ").replace("░", " ").replace("│", " ").split()
 
 
+def _titles(lines: list[str]) -> list[str]:
+    """The title of every box on a stacked page, in order."""
+    return [line.strip("╭─╮ ") for line in lines if line.startswith("╭")]
+
+
+@pytest.mark.parametrize("width", [80, NARROW, WIDE])
 @pytest.mark.parametrize("page", ["overview", "gpu-0003", "gpu-0004", "lanes"])
-def test_every_table_row_ends_on_the_same_column(page):
-    lines = _page(page, [_h200(), _b300()], engines=2)
-    rules = [line for line in lines if set(line) == {"─"}]
-    assert rules and {len(line) for line in rules} == {panels.WIDTH}
-    assert max(len(line) for line in lines) == panels.WIDTH
-    # Every header row, and every row of figures under it, reaches the edge.
-    for name in ("MACHINE", "SERVERS", "LANES", "LEDGER", "QUEUE"):
-        for line in lines:
-            if line.startswith(name):
-                assert len(line) == panels.WIDTH, line
+def test_every_box_is_as_wide_as_the_page(page, width):
+    lines = _page(page, [_h200(), _b300()], engines=2, width=width)
+    assert max(len(line) for line in lines) == width
+    # A line holding one box is that box's edge; two boxes side by side
+    # together span the page.
+    edges = [line.rstrip() for line in lines if line.startswith(("╭", "╰"))]
+    assert edges and {len(line) for line in edges if line.count("╮") < 2} <= {
+        width,
+        (width - 1) // 2,
+    }
+    assert not any("…" in line for line in lines)
+
+
+def test_a_wide_server_page_stands_the_cards_and_queue_beside_the_lanes():
+    wide = _page("gpu-0003", [_h200()], width=WIDE)
+    assert any("MACHINE" in line and "LANE" in line for line in wide)
+    assert any("QUEUE" in line and "LEDGER" in line for line in wide)
+    # Beside the cards there is room for the lane's memory band as well.
+    assert any("kv pool %" in line for line in wide)
+    stacked = _page("gpu-0003", [_h200()])
+    assert [title.split()[0] for title in _titles(stacked)] == [
+        "MACHINE",
+        "LANE",
+        "LEDGER",
+        "QUEUE",
+    ]
+    assert not any("kv pool %" in line for line in stacked)
 
 
 def test_each_card_carries_its_own_temperature_and_power():
-    lines = _page("gpu-0003", [_h200()])
-    card = next(line for line in lines if line.startswith("gpu 5"))
+    rows = _rows(_page("gpu-0003", [_h200()]))
+    card = next(row for row in rows if row.startswith("gpu 5"))
     assert _figures(card)[-3:] == ["55", "0.30", "51"]
 
 
 def test_the_totals_row_is_mean_load_hottest_card_and_summed_power():
-    lines = _page("gpu-0003", [_h200()])
-    total = next(line for line in lines if line.startswith("4 cards"))
+    rows = _rows(_page("gpu-0003", [_h200()]))
+    total = next(row for row in rows if row.startswith("4 cards"))
     # Mean of 94..97, memory 78, hottest 57, 4 x ~0.3 kW at half the cap.
     assert _figures(total) == [
         "4",
@@ -203,17 +239,17 @@ def test_the_totals_row_is_mean_load_hottest_card_and_summed_power():
 
 
 def test_unreadable_cards_share_one_row_and_stay_out_of_the_totals():
-    lines = _page("gpu-0003", [_h200()])
-    hidden = next(line for line in lines if "unsampled" in line)
+    rows = _rows(_page("gpu-0003", [_h200()]))
+    hidden = next(row for row in rows if "unsampled" in row)
     assert hidden.startswith("gpu 0-1 3") and "allocated" in hidden
-    assert sum(1 for line in lines if "unsampled" in line) == 1
+    assert sum(1 for row in rows if "unsampled" in row) == 1
 
 
 def test_a_card_whose_sensor_is_silent_shows_a_dash_not_a_zero():
-    lines = _page("gpu-0004", [_h200(), _b300()], engines=2)
-    card = next(line for line in lines if line.startswith("gpu 1"))
+    rows = _rows(_page("gpu-0004", [_h200(), _b300()], engines=2))
+    card = next(row for row in rows if row.startswith("gpu 1"))
     assert _figures(card)[-2:] == ["—", "—"]
-    total = next(line for line in lines if line.startswith("2 cards"))
+    total = next(row for row in rows if row.startswith("2 cards"))
     # Power is summed over the one card that reported it.
     assert _figures(total)[-2:] == ["0.90", "75"]
 
@@ -221,57 +257,60 @@ def test_a_card_whose_sensor_is_silent_shows_a_dash_not_a_zero():
 def test_the_only_server_opens_on_its_own_page_and_carries_the_ledger():
     readings = [_h200()]
     assert app.resolve_page(None, readings) == "gpu-0003"
-    lines = _page("gpu-0003", readings)
-    assert any(line.startswith("LEDGER") for line in lines)
-    assert any(line.startswith("LANE  served-model · gpu 4-7") for line in lines)
+    titles = _titles(_page("gpu-0003", readings))
+    assert "LEDGER" in titles
+    assert any(t.startswith("LANE  served-model · gpu 4-7") for t in titles)
 
 
 def test_two_servers_open_on_the_overview_with_totals():
     readings = [_h200(), _b300()]
     assert app.resolve_page(None, readings) == "overview"
-    lines = _page("overview", readings, engines=2)
-    servers = [line for line in lines if line.startswith(("gpu-000", "total"))]
-    servers = servers[:3]
-    assert [line.split()[0] for line in servers] == ["gpu-0003", "gpu-0004", "total"]
+    rows = _rows(_page("overview", readings, engines=2))
+    servers = [row for row in rows if row.startswith(("gpu-000", "total"))][:3]
+    assert [row.split()[0] for row in servers] == ["gpu-0003", "gpu-0004", "total"]
     assert _figures(servers[2])[1:3] == ["16", "9/16"]
     assert _figures(servers[2])[-1] == "3+0"
-    lanes = [line for line in lines if line.startswith(("served-", "other-"))]
-    assert [line.split()[1] for line in lanes] == ["gpu-0003", "gpu-0004"]
-    assert any(line.split()[:2] == ["total", "7.5"] for line in lines)
+    lanes = [row for row in rows if row.startswith(("served-", "other-"))]
+    assert [row.split()[1] for row in lanes] == ["gpu-0003", "gpu-0004"]
+    assert any(row.split()[:2] == ["total", "7.5"] for row in rows)
 
 
 def test_a_server_page_lists_only_the_lanes_served_from_it():
-    lines = _page("gpu-0004", [_h200(), _b300()], engines=2)
-    heads = [line for line in lines if line.startswith("LANE")]
-    assert len(heads) == 1 and "other-model" in heads[0]
+    titles = _titles(_page("gpu-0004", [_h200(), _b300()], engines=2))
+    lanes = [title for title in titles if title.startswith("LANE")]
+    assert len(lanes) == 1 and "other-model" in lanes[0]
     # With more than one server the ledger lives on the overview.
-    assert not any(line.startswith("LEDGER") for line in lines)
+    assert "LEDGER" not in titles
 
 
-def test_the_queue_takes_the_lines_left_and_counts_what_does_not_fit():
+@pytest.mark.parametrize("width", [NARROW, WIDE])
+def test_the_queue_takes_the_lines_left_and_counts_what_does_not_fit(width):
     readings = [_h200(jobs=40)]
-    lines = _page("gpu-0003", readings, height=40)
-    assert len(lines) == 40
-    head = next(i for i, line in enumerate(lines) if line.startswith("QUEUE"))
-    rows = lines[head + 1 : -2]
+    lines = _page("gpu-0003", readings, height=44, width=width)
+    assert len(lines) == 44
+    cut = (width - 1) // 2 if width == WIDE else width
+    column = [line[:cut] for line in lines]
+    top = next(i for i, line in enumerate(column) if "QUEUE" in line)
+    assert "2 running · 38 pending" in column[top]
+    rows = _rows(column[top + 2 : -2])
     assert len(rows) >= panels.MIN_QUEUE_ROWS
     assert rows[-1].split()[:2] == [f"+{40 - len(rows) + 1}", "more"]
-    assert "RUNNING" in rows[0] and "PENDING" in rows[-2]
+    assert "running" in rows[0] and "pending" in rows[-2]
 
 
 def test_the_ledger_states_coverage_only_for_a_short_record():
-    full = _lines(panels.Group(*panels.ledger_panel(_ledger())))
-    short = _lines(panels.Group(*panels.ledger_panel(_ledger(partial=True))))
-    assert "covered" not in full[0] and "covered" in short[0]
-    assert {len(line) for line in full + short} == {panels.WIDTH}
+    full = _lines(panels.ledger_box(_ledger(), None, NARROW))
+    short = _lines(panels.ledger_box(_ledger(partial=True), None, NARROW))
+    assert "covered" not in full[1] and "covered" in short[1]
+    assert {len(line) for line in full + short} == {NARROW}
 
 
-def test_the_lanes_page_heads_each_lane_with_its_server_and_cards():
-    lines = _page("lanes", [_h200(), _b300()], engines=2)
-    heads = [line for line in lines if line.startswith("LANE ")]
-    assert len(heads) == 2
-    assert "gpu-0003 gpu 4-7" in heads[0] and "gpu-0004 gpu 0-1" in heads[1]
-    assert any(line.startswith("LEDGER") for line in lines)
+def test_the_lanes_page_titles_each_lane_with_its_server_and_cards():
+    titles = _titles(_page("lanes", [_h200(), _b300()], engines=2))
+    lanes = [title for title in titles if title.startswith("LANE ")]
+    assert len(lanes) == 2
+    assert "gpu-0003 gpu 4-7" in lanes[0] and "gpu-0004 gpu 0-1" in lanes[1]
+    assert titles[0] == "LANES" and titles[-1] == "LEDGER"
 
 
 def test_a_long_verdict_and_a_long_checkpoint_are_neither_joined_nor_cut():
@@ -279,17 +318,15 @@ def test_a_long_verdict_and_a_long_checkpoint_are_neither_joined_nor_cut():
     document["lane"]["admission"]["verdict"] = "congested"
     document["lane"]["router_generation_gate"]["waiting"] = 1
     lane = app.lanes(document)[0]
-    lane.model, lane.checkpoint = (
-        "deepseek-v4.1-flash",
-        "DeepSeek-V4.1-Flash-1017@1bae0e10",
-    )
-    lane.context = 262144
-    lines = _lines(panels.lanes_page([_h200()], [lane], None))
-    row = next(line for line in lines if line.startswith("deepseek"))
-    assert " 1 congested " in row
-    assert not any("…" in line for line in lines)
-    assert any(line.rstrip().endswith("@1bae0e10") for line in lines)
-    assert max(len(line) for line in lines) == panels.WIDTH
+    lane.model, lane.context = "deepseek-v4.1-flash", 262144
+    lane.checkpoint = "DeepSeek-V4.1-Flash-1017@1bae0e10"
+    for width in (80, NARROW):
+        lines = _lines(panels.lanes_page([_h200()], [lane], None, width=width), width)
+        row = next(r for r in _rows(lines) if r.startswith("deepseek"))
+        assert row.split()[-2:] == ["1", "congested"]
+        assert not any("…" in line for line in lines)
+        assert any("DeepSeek-V4.1-Flash-1017@1bae0e10" in line for line in lines)
+        assert any("262k ctx" in line for line in lines)
 
 
 def test_keys_move_between_pages():
@@ -374,9 +411,11 @@ def test_cards_asked_for_per_job_are_counted_from_the_job_detail():
     assert reading.allocated_count == 7
     waiting = next(job for job in jobs if job.pending)
     assert reading.gpus(waiting) == 2
-    queue = _lines(panels.server_page(reading, [], WINDOW))
+    queue = _rows(_lines(panels.server_page(reading, [], WINDOW)))
     row = next(line for line in queue if line.startswith("1308599"))
-    assert row.rstrip().endswith("2")
+    assert row.endswith("2")
+    title = next(line for line in queue if "QUEUE" in line)
+    assert "4 running · 1 pending" in title
 
 
 def test_a_sampler_joins_each_job_with_cards_and_one_job_on_a_bare_server(
@@ -402,18 +441,18 @@ def test_a_missing_lane_document_says_why():
     page = _lines(
         app.render("overview", [_h200()], None, WINDOW, reason="OSError: no record")
     )
-    assert "no lane document read — OSError: no record" in page
+    assert any("no lane document read — OSError: no record" in line for line in page)
 
 
 def test_a_short_screen_keeps_ten_queue_rows_by_dropping_the_ledger():
     readings = [_h200(jobs=40)]
-    tall = _page("gpu-0003", readings, height=40)
-    short = _page("gpu-0003", readings, height=30)
-    assert any(line.startswith("LEDGER") for line in tall)
-    assert not any(line.startswith("LEDGER") for line in short)
-    head = next(i for i, line in enumerate(short) if line.startswith("QUEUE"))
-    assert len(short) == 30
-    assert len(short[head + 1 : -2]) >= panels.MIN_QUEUE_ROWS
+    roomy = _titles(_page("gpu-0003", readings, height=60))
+    assert "LEDGER" in roomy
+    short = _page("gpu-0003", readings, height=34)
+    assert len(short) == 34
+    assert "LEDGER" not in _titles(short)
+    top = next(i for i, line in enumerate(short) if "QUEUE" in line)
+    assert len(short[top + 2 : -2]) >= panels.MIN_QUEUE_ROWS
 
 
 def test_sampler_lines_become_cards_with_a_rolling_mean():

@@ -1,48 +1,165 @@
-"""Geometry, colour and figure formatting shared by the llm-watch view.
+"""Layout, colour and figure formatting shared by the watch views.
 
-One module owns the column grid, the terminal widths the view is rendered at,
-and the two formatters that turn a proportion or a count into text. The bands,
-the three tables and the ledger all read them from here, so a change to the
-pitch or to a colour is one edit rather than a search for every call site.
-
-The grid is the ledger's own, as the serve panel it replaces had it: a 13
-character label column followed by 12 character figure columns, right
-justified, one space of padding, no vertical rules. A reader scanning down the
-document re-finds every column, and a figure that moves between bands does not
-change columns under it.
+``llm-watch`` and ``ambix-watch`` are drawn from the same parts, so a reader
+moving between them finds one layout. Every panel is a titled box as wide as
+the page. Inside a box, a table has fixed-width naming columns on the left and
+figure columns that share the remaining width evenly, right-aligned, so the
+last figure always sits against the box's right edge and a wider terminal
+gives the figures more room without changing where they are. Where the page is
+wide enough, two stacks of boxes sit side by side.
 """
 
 from __future__ import annotations
 
-from imas_ambix.agent.watch import bar, fmt_span, fmt_tokens, fmt_usd
+from rich import box as _box
+from rich.console import Group
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+
+from imas_ambix.agent.watch import fmt_span, fmt_tokens, fmt_usd
 
 __all__ = [
-    "CELL_WIDTH", "COLUMNS", "DASH", "GRID_WIDTH", "LABEL_WIDTH", "WIDTHS",
-    "bar", "cell", "fmt_count", "fmt_ctx", "fmt_rate", "fmt_span", "fmt_tokens",
-    "fmt_usd", "pct", "ramp", "spark",
+    "DASH", "DEFAULT_WIDTH", "MAX_WIDTH", "TWO_COLUMN_WIDTH", "WIDTHS",
+    "blank", "boxed", "cell", "column_widths", "flex_table", "fmt_count",
+    "fmt_ctx", "fmt_rate", "fmt_span", "fmt_tokens", "fmt_usd", "head",
+    "inner_width", "line_count", "page_width", "pair", "pct", "ramp",
+    "side_by_side", "spark", "split_line",
 ]
 
-#: The label column's width, and every figure column's width beside it. These
-#: are one character narrower than the serve panel's, with one character of
-#: padding either side of each column: seven columns at the panel's own pitch
-#: render 105 characters wide, which does not fit the 100-column terminal the
-#: view is read in, so the pitch is set to the widest grid that does.
-LABEL_WIDTH = 12
-CELL_WIDTH = 11
+#: The page width when nothing says how wide the terminal is.
+DEFAULT_WIDTH = 120
 
-#: How many columns the grid holds. A band with fewer figures pads the rest,
-#: so every band in the document shares one label column and one figure pitch.
-COLUMNS = 7
+#: The narrowest and the widest a page is drawn. Below the first the figure
+#: columns no longer hold their figures; above the second the eye has too far
+#: to travel between a row's name and its last figure.
+MIN_WIDTH = 80
+MAX_WIDTH = 160
 
-#: The plain-text width of one grid row: the label column, the padding after
-#: each column, and the figure columns. The view measures its own output
-#: against the terminal width, and this is the figure that must fit.
-GRID_WIDTH = LABEL_WIDTH + COLUMNS * CELL_WIDTH + COLUMNS
+#: The page width from which two stacks of boxes sit side by side.
+TWO_COLUMN_WIDTH = 132
 
-#: The two terminal widths the view is checked at. The wide one is the width a
-#: golden is rendered at; the narrow one is the tighter of the two an operator
-#: may be reading in, and every line must fit both.
-WIDTHS = (100, 120)
+#: The widths the views are checked at: the narrowest page, the default, and
+#: one wide enough for two columns.
+WIDTHS = (80, 120, 150)
+
+
+def page_width(columns: int | None = None) -> int:
+    """The width a page is drawn at for a terminal ``columns`` wide."""
+    if not columns:
+        return DEFAULT_WIDTH
+    return max(MIN_WIDTH, min(MAX_WIDTH, int(columns)))
+
+
+def inner_width(width: int) -> int:
+    """The columns a box ``width`` wide leaves for its body."""
+    return width - 4
+
+
+def flex_table(names: tuple[int, ...], figures: int) -> Table:
+    """A borderless table: naming columns of fixed width, then figure columns.
+
+    The naming columns are left-aligned and as wide as ``names`` says. The
+    ``figures`` columns are right-aligned and share what is left evenly. Every
+    column after the first keeps one blank column to its left, so a figure
+    that fills its column is cut and never run into its neighbour.
+    """
+    table = Table(box=None, padding=(0, 0, 0, 1), pad_edge=False,
+                  show_header=False, expand=True)
+    for width in names:
+        table.add_column("", width=width, no_wrap=True, overflow="ellipsis")
+    for _ in range(figures):
+        table.add_column("", ratio=1, justify="right", no_wrap=True,
+                         overflow="ellipsis")
+    return table
+
+
+def head(table: Table, labels: list[str]) -> None:
+    """The dim row of labels over a table's columns."""
+    table.add_row(*[f"[dim]{label}[/]" for label in labels])
+
+
+def split_line(left: str, right: str, width: int | None = None) -> Table:
+    """One line with text at each edge of a page ``width`` wide."""
+    table = Table.grid(expand=True)
+    table.width = width
+    table.add_column(ratio=1, no_wrap=True, overflow="ellipsis")
+    table.add_column(justify="right", no_wrap=True)
+    table.add_row(left, right)
+    return table
+
+
+def boxed(
+    title: str, body: list[object], width: int, *, note: str = ""
+) -> Panel:
+    """A box ``width`` wide holding ``body``, titled with ``title`` as markup.
+
+    ``note`` is set into the bottom edge on the right: the place for a fact
+    about the whole box that is not one of its readings.
+    """
+    return Panel(
+        Group(*body),
+        title=title,
+        title_align="left",
+        subtitle=note or None,
+        subtitle_align="right",
+        box=_box.ROUNDED,
+        border_style="dim",
+        padding=(0, 1),
+        width=width,
+    )
+
+
+def column_widths(width: int) -> tuple[int, int]:
+    """The widths of the two stacks a page ``width`` wide divides into."""
+    left = (width - 1) // 2
+    return left, width - 1 - left
+
+
+def side_by_side(left: list[object], right: list[object], width: int) -> Table:
+    """Two stacks of boxes next to each other, one column apart."""
+    left_width, right_width = column_widths(width)
+    table = Table.grid(padding=0)
+    table.add_column(width=left_width)
+    table.add_column(width=1)
+    table.add_column(width=right_width)
+    table.add_row(Group(*left), "", Group(*right))
+    return table
+
+
+def line_count(parts: list[object], width: int) -> int:
+    """Lines ``parts`` take when drawn ``width`` columns wide."""
+    import io
+
+    from rich.console import Console
+
+    probe = Console(width=width, file=io.StringIO(), force_terminal=False,
+                    color_system=None)
+    return len(probe.render_lines(Group(*parts), probe.options, pad=False))
+
+
+def pair(
+    left: tuple[str, list[object]], right: tuple[str, list[object]], width: int
+) -> list[object]:
+    """Two boxes, each a ``(title, body)``: side by side where the page allows.
+
+    Side by side they are drawn the same height, so the row they form ends on
+    one line; on a narrower page they are stacked at full width.
+    """
+    if width < TWO_COLUMN_WIDTH:
+        return [boxed(left[0], left[1], width), boxed(right[0], right[1], width)]
+    widths = column_widths(width)
+    boxes = [boxed(title, body, w) for (title, body), w in
+             zip((left, right), widths, strict=True)]
+    height = max(line_count([box], w) for box, w in zip(boxes, widths, strict=True))
+    for box in boxes:
+        box.height = height
+    return [side_by_side([boxes[0]], [boxes[1]], width)]
+
+
+def blank() -> Text:
+    return Text("")
+
 
 #: What a figure the document did not carry renders as. A dash is a statement
 #: that nothing was measured; a zero is a statement that zero was measured.
@@ -69,7 +186,7 @@ def ramp(value: float | None, good: float, fair: float,
 
 
 def pct(value: float | None, mode: str = "fill", places: int = 0,
-        width: int = 5) -> str:
+        width: int = 4) -> str:
     """A proportion as a filled bar and its figure, the same way every time.
 
     ``mode`` sets what the colour means. ``good`` is high-is-healthy, ``warn``
