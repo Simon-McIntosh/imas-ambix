@@ -43,7 +43,7 @@ from imas_ambix.agent.watch_style import (
 if TYPE_CHECKING:
     from rich.constrain import Constrain
 
-    from imas_ambix.agent.gpu_watch.fleet import Job, Reading
+    from imas_ambix.agent.gpu_watch.fleet import Card, Job, Reading
     from imas_ambix.agent.gpu_watch.lane import Lane
 
 #: Queue rows the page keeps whenever there are that many jobs to show.
@@ -141,6 +141,25 @@ def bar_cells(width: int) -> int:
     return max(6, min(MAX_BAR_CELLS, column - 10))
 
 
+def job_groups(reading: Reading) -> list[list[Card]]:
+    """The readable cards, one list per job that holds them, in card order.
+
+    Cards of different jobs carry unrelated loads, so a mean is only taken
+    within one job. Readable cards no job holds form a last group.
+    """
+    groups: list[list[Card]] = []
+    placed: set[int] = set()
+    for held in sorted(reading.job_cards.values(), key=lambda c: min(c, default=0)):
+        group = [c for c in reading.cards if c.index in held and c.index not in placed]
+        if group:
+            groups.append(group)
+            placed.update(c.index for c in group)
+    rest = [c for c in reading.cards if c.index not in placed]
+    if rest:
+        groups.append(rest)
+    return groups
+
+
 def server_section(
     reading: Reading, window: int, width: int, cards: bool = True, note: str = ""
 ) -> list[object]:
@@ -149,10 +168,11 @@ def server_section(
     Each readable card is a row of three bars: utilisation now, its mean over
     the window, and memory. Utilisation is green when busy and red when idle,
     because an idle card is the waste. Cards another account's job holds
-    cannot be read, so they are named together on one row; a mean row follows
-    when there is more than one card to average, and the host's own load
-    closes the table. With ``cards`` false the per-card rows are left out and
-    the mean row stands for them. ``note`` is set at the right of the title.
+    cannot be read, so they are named together on one row. A mean row follows
+    for each job holding more than one card, never across jobs, and the
+    host's own load closes the table. With ``cards`` false the per-card rows
+    are left out and one mean row per job stands for them. ``note`` is set at
+    the right of the title.
     """
     cells = bar_cells(width)
     table = _card_table()
@@ -174,13 +194,14 @@ def server_section(
             "[dim]not readable[/]",
             "",
         )
-    if len(read) > 1 or (read and not cards):
-        name = "mean" if cards else f"gpu {ranges([c.index for c in read])}"
+    for group in job_groups(reading):
+        if cards and len(group) < 2:
+            continue
         table.add_row(
-            f"[bold]{name}[/]",
-            meter(_mean([c.util for c in read]), "good", cells),
-            meter(_mean([c.util_mean for c in read]), "good", cells),
-            meter(_mean([c.mem for c in read]), "fill", cells),
+            f"[bold]gpu {ranges([c.index for c in group])}[/]",
+            meter(_mean([c.util for c in group]), "good", cells),
+            meter(_mean([c.util_mean for c in group]), "good", cells),
+            meter(_mean([c.mem for c in group]), "fill", cells),
         )
     if reading.host is not None:
         cpu, cpu_mean, ram = reading.host

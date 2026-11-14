@@ -205,7 +205,7 @@ def test_a_card_row_is_utilisation_now_its_mean_and_memory():
         "memory",
     ]
     assert _figures(_row(lines, "gpu 4")) == ["gpu", "4", "100%", "94%", "78%"]
-    assert _figures(_row(lines, "mean")) == ["mean", "100%", "96%", "78%"]
+    assert _figures(_row(lines, "gpu 4-7")) == ["gpu", "4-7", "100%", "96%", "78%"]
 
 
 def test_temperature_and_power_are_the_server_s_and_not_each_card_s():
@@ -459,3 +459,15 @@ def test_the_view_is_live_in_a_terminal_and_one_reading_elsewhere():
     assert not live_by_default(False, True, True)
     assert not live_by_default(False, False, False)
     assert live_by_default(True, False, False)
+
+
+def test_cards_are_averaged_within_a_job_and_never_across_jobs():
+    reading = _h200()
+    reading.job_cards = {"100": {4, 5, 6, 7}, "102": {2}, "101": {0, 1, 3}}
+    reading.allocated = set(range(8))
+    reading.cards.insert(0, Card(2, 10.0, 20.0, 30.0))
+    folded = _page([reading], height=20)
+    assert _figures(_row(folded, "gpu 2 ")) == ["gpu", "2", "10%", "20%", "30%"]
+    assert _figures(_row(folded, "gpu 4-7")) == ["gpu", "4-7", "100%", "96%", "78%"]
+    assert not any(line.startswith("gpu 2 4-7") for line in folded)
+    assert not any(line.startswith("mean") for line in _page([reading]))
