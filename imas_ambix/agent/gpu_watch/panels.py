@@ -705,7 +705,8 @@ def server_page(
     ``ledger`` is passed when this is the only server, so the single-server
     screen carries the ledger the overview would otherwise hold. ``size`` is
     the screen as ``(columns, lines)``; with it the queue takes every line the
-    panels above leave.
+    panels above leave, and when that is fewer than :data:`MIN_QUEUE_ROWS` the
+    ledger gives up its lines, since the overview still holds it.
     """
     sections = [server_title(reading), machine_panel(reading, window)]
     for lane in lanes:
@@ -713,11 +714,18 @@ def server_page(
         sections.append(lane_panel(lane, f"gpu {ranges(sorted(held))}" if held else ""))
     if ledger is not None:
         sections.append(ledger_panel(ledger, published_at))
-    parts = _join(sections)
     tail: list[object] = [rule(), Text.from_markup(footer)] if footer else []
-    rows = None
-    if size is not None:
-        width, height = size
+
+    def fit(sections: list[list[object]]) -> tuple[list[object], int]:
+        parts = _join(sections)
         # The rule above the queue and its header are the queue's own two lines.
-        rows = max(1, height - line_count(parts + tail, width) - 2)
+        return parts, size[1] - line_count(parts + tail, size[0]) - 2
+
+    parts, rows = _join(sections), None
+    if size is not None:
+        wanted = min(MIN_QUEUE_ROWS, len(reading.jobs))
+        parts, rows = fit(sections)
+        if rows < wanted and ledger is not None:
+            parts, rows = fit(sections[:-1])
+        rows = max(1, rows)
     return Group(*parts, rule(), *queue_panel(reading.jobs, rows), *tail)

@@ -223,9 +223,6 @@ class Keys:
 def run_live(window: int, page: str | None) -> int:
     console = Console()
     fleet, document = Fleet(window), Document()
-    # A terminal signal must end the samplers too, and Python does not unwind
-    # for one by default.
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     fleet.start()
     document.start()
     try:
@@ -319,6 +316,9 @@ def main(argv: list[str] | None = None) -> int:
         help="page to open: overview, lanes, or a server name such as gpu-0003",
     )
     args = parser.parse_args(argv)
+    # A terminal signal must end the samplers too, and Python does not unwind
+    # for one by default.
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     try:
         if args.live:
             return run_live(args.window, args.page)

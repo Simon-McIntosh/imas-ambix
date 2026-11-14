@@ -300,3 +300,35 @@ def test_the_scheduler_output_is_read_as_servers_jobs_and_cards():
         "GRES=gpu:h200:6(IDX:0-3,6-7)\n"
     )
     assert held == {"98dci4-gpu-0003": {0, 1, 2, 3, 6, 7}}
+
+
+def test_a_short_screen_keeps_ten_queue_rows_by_dropping_the_ledger():
+    readings = [_h200(jobs=40)]
+    tall = _page("gpu-0003", readings, height=40)
+    short = _page("gpu-0003", readings, height=30)
+    assert any(line.startswith("LEDGER") for line in tall)
+    assert not any(line.startswith("LEDGER") for line in short)
+    head = next(i for i, line in enumerate(short) if line.startswith("QUEUE"))
+    assert len(short) == 30
+    assert len(short[head + 1 : -2]) >= panels.MIN_QUEUE_ROWS
+
+
+def test_sampler_lines_become_cards_with_a_rolling_mean():
+    node = "98dci4-gpu-0003"
+    watch = fleet.Fleet(window=2)
+    watch._servers = [Server(node, "betelgeuse", "H200", 8)]
+    watch._jobs = [_job("100", fleet.USER, "grpa", "served", "RUNNING", node)]
+    watch._samplers["100"] = object()
+    owned: set = set()
+    means = []
+    for util in (20.0, 40.0, 90.0):
+        watch._take_line(node, f"GPU\t4\tuuid\t{util}\t78\t60\t\t600\n", owned)
+        watch._take_line(node, "NODE\t10\t100\t400\n", owned)
+        (reading,) = watch.tick()
+        means.append(reading.cards[0].util_mean)
+    card = reading.cards[0]
+    # The window holds two samples, so the first reading has left the mean.
+    assert means == [20.0, 30.0, 65.0]
+    assert (card.index, card.temp, card.watts, card.cap_watts) == (4, 60.0, None, 600.0)
+    assert reading.host == (10.0, 10.0, 25.0)
+    assert owned == {(node, 4)}

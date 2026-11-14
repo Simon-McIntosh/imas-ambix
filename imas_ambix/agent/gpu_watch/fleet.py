@@ -371,7 +371,15 @@ class Fleet:
         except OSError:
             return
         with self._lock:
-            self._samplers[job_id] = process
+            # A poll can still be running when the watcher stops; a step
+            # started after that would have nothing left to end it.
+            stopped = self._stop.is_set()
+            if not stopped:
+                self._samplers[job_id] = process
+        if stopped:
+            with contextlib.suppress(Exception):
+                process.terminate()
+            return
         threading.Thread(
             target=self._read_sampler, args=(job_id, node, process), daemon=True
         ).start()
@@ -404,8 +412,8 @@ class Fleet:
 
     def stop(self) -> None:
         """End the poll and every sampler this object started."""
-        self._stop.set()
         with self._lock:
+            self._stop.set()
             doomed = list(self._samplers.values())
             self._samplers.clear()
         for process in doomed:
