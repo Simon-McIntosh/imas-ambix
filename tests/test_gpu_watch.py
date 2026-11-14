@@ -274,6 +274,24 @@ def test_the_lanes_page_heads_each_lane_with_its_server_and_cards():
     assert any(line.startswith("LEDGER") for line in lines)
 
 
+def test_a_long_verdict_and_a_long_checkpoint_are_neither_joined_nor_cut():
+    document = _document(1)
+    document["lane"]["admission"]["verdict"] = "congested"
+    document["lane"]["router_generation_gate"]["waiting"] = 1
+    lane = app.lanes(document)[0]
+    lane.model, lane.checkpoint = (
+        "deepseek-v4.1-flash",
+        "DeepSeek-V4.1-Flash-1017@1bae0e10",
+    )
+    lane.context = 262144
+    lines = _lines(panels.lanes_page([_h200()], [lane], None))
+    row = next(line for line in lines if line.startswith("deepseek"))
+    assert " 1 congested " in row
+    assert not any("…" in line for line in lines)
+    assert any(line.rstrip().endswith("@1bae0e10") for line in lines)
+    assert max(len(line) for line in lines) == panels.WIDTH
+
+
 def test_keys_move_between_pages():
     readings = [_h200(), _b300()]
     assert app.step("overview", "2", readings) == "gpu-0004"

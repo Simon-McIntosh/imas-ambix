@@ -59,7 +59,7 @@ LEDGER_STALE_SECONDS = 600.0
 MACHINE_WIDTHS = (14, 11, 11, 11, 11, 11, 11)
 BAND_WIDTHS = (10,) * 8
 SERVER_WIDTHS = (14, 10, 8, 11, 11, 9, 8, 9)
-LANES_WIDTHS = (20, 10, 9, 8, 10, 6, 9, 8)
+LANES_WIDTHS = (19, 10, 9, 8, 10, 6, 10, 8)
 QUEUE_WIDTHS = (9, 10, 6, 29, 9, 12, 5)
 
 
@@ -285,6 +285,19 @@ def _stale(lane: dict) -> str:
     return ""
 
 
+def _heading(left: str, right: str) -> list[object]:
+    """A lane's heading on one line, or on two when both ends do not fit.
+
+    Neither end is cut: the model and where it runs, and the checkpoint it
+    serves, are each the whole point of the line.
+    """
+    left_width = Text.from_markup(left).cell_len
+    right_width = Text.from_markup(right).cell_len
+    if left_width + right_width + 1 <= WIDTH:
+        return [split_line(left, right, right_width)]
+    return [Text.from_markup(left), split_line("", right, right_width)]
+
+
 def lane_panel(lane: Lane, cards: str = "") -> list[object]:
     """One lane: a line saying what is served, then two bands of readings.
 
@@ -386,7 +399,7 @@ def lane_panel(lane: Lane, cards: str = "") -> list[object]:
         _count(_number(slots, "worker_slots")),
         pct(availability, "good", width=4) if availability is not None else DASH,
     )
-    return [split_line(left, right, 34), table]
+    return [*_heading(left, right), table]
 
 
 # ── ledger ───────────────────────────────────────────────────────────
