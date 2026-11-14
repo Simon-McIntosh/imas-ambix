@@ -503,3 +503,18 @@ def test_cards_are_averaged_within_a_job_and_never_across_jobs():
     ]
     assert not any(line.startswith("gpu 2 4-7") for line in folded)
     assert not any(line.startswith("mean") for line in _page([reading]))
+
+
+def test_a_job_submitted_without_a_name_is_named_by_its_working_directory():
+    jobs = fleet.parse_jobs(
+        "1315842|mcintos|iter|wrap|titan|RUNNING|1:29:31|gres/gpu:1||98dci4-gpu-0002|"
+        "/home/user/worktrees/nova/diiid-external-current-propagation\n"
+        "1294597|mcintos|grpa|served-model|betelgeuse|RUNNING|1:00|gres/gpu:4||"
+        "98dci4-gpu-0003|/home/user/Code/imas-ambix\n"
+        "1309674|buskirj|grpb|wrap|betelgeuse|PENDING|0:00|N/A||\n"
+    )
+    assert [job.label for job in jobs] == [
+        "diiid-external-current-propagation",
+        "served-model",
+        "wrap",
+    ]

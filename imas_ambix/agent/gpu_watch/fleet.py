@@ -58,7 +58,10 @@ OTHER_PARTITIONS = ("titan",)
 _GRES = re.compile(r"gpu:(?:([^:(,]+):)?(\d+)")
 _GROUP = re.compile(r"grp([a-z])$", re.IGNORECASE)
 _ASKED = re.compile(r"ReqTRES=\S*gres/gpu=(\d+)")
-_JOB_FORMAT = "%i|%u|%a|%j|%P|%T|%M|%b|%v|%N"
+#: The name the scheduler gives a wrapped job submitted without one.
+UNNAMED = "wrap"
+
+_JOB_FORMAT = "%i|%u|%a|%j|%P|%T|%M|%b|%v|%N|%Z"
 _NODE_FORMAT = "%N|%P|%G|%t|%E"
 
 
@@ -104,6 +107,19 @@ class Job:
     gres: str
     reservation: str
     node: str
+    workdir: str = ""
+
+    @property
+    def label(self) -> str:
+        """The name to show: a job left unnamed is named by where it runs.
+
+        ``sbatch --wrap`` calls every job it is given no name for ``wrap``, so
+        several unrelated jobs share it; the last part of the working
+        directory tells them apart.
+        """
+        if self.name == UNNAMED and self.workdir:
+            return self.workdir.rstrip("/").rsplit("/", 1)[-1] or self.name
+        return self.name
 
     @property
     def running(self) -> bool:
@@ -214,7 +230,7 @@ def parse_jobs(text: str) -> list[Job]:
         parts = [part.strip() for part in line.split("|")]
         if len(parts) < 10 or not parts[0]:
             continue
-        jobs.append(Job(*parts[:10]))
+        jobs.append(Job(*parts[:10], workdir="|".join(parts[10:])))
     return jobs
 
 

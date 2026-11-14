@@ -150,7 +150,7 @@ def job_groups(reading: Reading) -> list[tuple[str, list[Card]]]:
     Cards of different jobs carry unrelated loads, so a mean is only taken
     within one job. Readable cards no job holds form a last, unnamed group.
     """
-    names = {job.id: job.name for job in reading.jobs}
+    names = {job.id: job.label for job in reading.jobs}
     groups: list[tuple[str, list[Card]]] = []
     placed: set[int] = set()
     held = sorted(reading.job_cards.items(), key=lambda item: min(item[1], default=0))
@@ -387,7 +387,7 @@ def queue_section(
             job.id,
             job.user,
             job.account,
-            job.name,
+            job.label,
             *([where or DASH] if several else []),
             job.state.lower(),
             job.elapsed,
