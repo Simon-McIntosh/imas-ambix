@@ -204,7 +204,7 @@ def test_a_card_row_is_utilisation_now_its_mean_and_memory():
         "30s",
         "memory",
     ]
-    assert _figures(_row(lines, "gpu 4")) == ["gpu", "4", "100%", "94%", "78%"]
+    assert not any(line.startswith("gpu 4 ") for line in lines)
     assert _figures(_row(lines, "gpu 4-7")) == [
         "gpu",
         "4-7",
@@ -293,20 +293,9 @@ def test_the_queue_takes_the_lines_left_and_counts_what_does_not_fit(width):
     assert shown >= panels.MIN_QUEUE_ROWS - 1
 
 
-def test_a_short_screen_folds_the_cards_then_drops_the_ledger():
-    roomy = _page([_h200(jobs=30)], height=37)
-    assert any(line.startswith("gpu 4 ") for line in roomy)
-    folded = _page([_h200(jobs=30)], height=33)
-    assert not any(line.startswith("gpu 4 ") for line in folded)
-    assert _figures(_row(folded, "gpu 4-7")) == [
-        "gpu",
-        "4-7",
-        "served-model",
-        "100%",
-        "96%",
-        "78%",
-    ]
-    assert "LEDGER" in folded
+def test_a_short_screen_drops_the_ledger_to_keep_the_queue():
+    roomy = _page([_h200(jobs=30)], height=33)
+    assert "LEDGER" in roomy
     short = _page([_h200(jobs=30)], height=27)
     assert "LEDGER" not in short
     assert sum(1 for line in short if line[:3].isdigit()) >= panels.MIN_QUEUE_ROWS - 1
@@ -478,7 +467,6 @@ def test_cards_are_averaged_within_a_job_and_never_across_jobs():
         "20%",
         "30%",
     ]
-    assert "solver" in _row(_page([reading]), "gpu 2 ")
     assert _figures(_row(folded, "gpu 4-7")) == [
         "gpu",
         "4-7",
@@ -488,7 +476,7 @@ def test_cards_are_averaged_within_a_job_and_never_across_jobs():
         "78%",
     ]
     assert not any(line.startswith("gpu 2 4-7") for line in folded)
-    assert not any(line.startswith("mean") for line in _page([reading]))
+    assert not any(line.startswith(("mean", "gpu 4 ")) for line in _page([reading]))
 
 
 def test_a_job_submitted_without_a_name_is_named_by_its_working_directory():

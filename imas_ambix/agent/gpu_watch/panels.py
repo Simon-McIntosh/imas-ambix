@@ -167,42 +167,30 @@ def job_groups(reading: Reading) -> list[tuple[str, list[Card]]]:
     return groups
 
 
-def _card_name(indices: list[int], job: str = "", bold: bool = False) -> str:
+def _card_name(indices: list[int], job: str = "") -> str:
     """A card range, then the name of the job holding those cards."""
-    cards = f"gpu {ranges(indices)}"
-    label = f"[bold]{cards}[/]" if bold else cards
+    label = f"gpu {ranges(indices)}"
     return f"{label}  [dim]{escape(job)}[/]" if job else label
 
 
 def server_section(
-    reading: Reading, window: int, width: int, cards: bool = True, note: str = ""
+    reading: Reading, window: int, width: int, note: str = ""
 ) -> list[object]:
-    """One server: its title line, then its cards.
+    """One server: its title line, then one row for each job's cards.
 
-    Each readable card is a row of three bars: utilisation now, its mean over
-    the window, and memory. Utilisation is green when busy and red when idle,
-    because an idle card is the waste. Cards another account's job holds
-    cannot be read, so they are named together on one row. A mean row follows
-    for each job holding more than one card, never across jobs, and names the
-    job beside its cards; a job with one card is named on that card's row. The
-    host's own load closes the table. With ``cards`` false the per-card rows
-    are left out and one mean row per job stands for them. ``note`` is set at
-    the right of the title.
+    A row is three bars: utilisation now, its mean over the window, and
+    memory, each averaged over the cards one job holds and never across jobs,
+    with the job named beside its cards. Utilisation is green when busy and
+    red when idle, because an idle card is the waste. Cards another account's
+    job holds cannot be read, so they are named together on one row, and the
+    host's own load closes the table. ``note`` is set at the right of the
+    title.
     """
     cells = bar_cells(width)
     table = _card_table(width)
     groups = job_groups(reading)
-    alone = {g[0].index: job for job, g in groups if len(g) == 1}
     head(table, ["card", "util now", f"util {window}s", "memory"])
     read = reading.cards
-    if cards:
-        for card in read:
-            table.add_row(
-                _card_name([card.index], alone.get(card.index, "")),
-                meter(card.util, "good", cells),
-                meter(card.util_mean, "good", cells),
-                meter(card.mem, "fill", cells),
-            )
     hidden = reading.unreadable
     if hidden:
         table.add_row(
@@ -212,10 +200,8 @@ def server_section(
             "",
         )
     for job, group in groups:
-        if cards and len(group) < 2:
-            continue
         table.add_row(
-            _card_name([c.index for c in group], job, bold=True),
+            _card_name([c.index for c in group], job),
             meter(_mean([c.util for c in group]), "good", cells),
             meter(_mean([c.util_mean for c in group]), "good", cells),
             meter(_mean([c.mem for c in group]), "fill", cells),
@@ -430,8 +416,7 @@ def view(
     ``size`` is the screen as ``(columns, lines)``, with zero lines for a
     page that is printed and not fitted. Fitted, the queue takes every line
     left to it. When that is fewer than :data:`MIN_QUEUE_ROWS` for the jobs
-    there are, the page gives lines back in the order it can best spare them:
-    each server's card rows fold into its mean row, then the ledger goes.
+    there are, the ledger is left out.
     ``reason`` is why there is no lane document, shown where the lanes would
     be.
     """
@@ -440,12 +425,10 @@ def view(
     wanted = min(MIN_QUEUE_ROWS, jobs)
     fitted = bool(size and size[1])
 
-    def above(cards: bool, with_ledger: bool) -> list[object]:
+    def above(with_ledger: bool) -> list[object]:
         parts: list[object] = []
         for at, reading in enumerate(readings):
-            parts += server_section(
-                reading, window, width, cards, note="" if at else clock()
-            )
+            parts += server_section(reading, window, width, note="" if at else clock())
         if not readings:
             parts += section(
                 "[bold]SERVERS[/]",
@@ -464,12 +447,10 @@ def view(
         foot = line_count(tail, width) + 1 if tail else 0
         return size[1] - line_count(parts, width) - QUEUE_HEAD_LINES - foot
 
-    parts = above(True, True)
+    parts = above(True)
     rows = rows_left(parts)
-    for cards, with_ledger in ((False, True), (False, False)):
-        if rows is None or rows >= wanted:
-            break
-        parts = above(cards, with_ledger)
+    if rows is not None and rows < wanted:
+        parts = above(False)
         rows = rows_left(parts)
     queue = queue_section(readings, width, None if rows is None else max(1, rows))
     if tail:
