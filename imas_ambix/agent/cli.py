@@ -1698,6 +1698,14 @@ def _resolve_router_upstreams(site: SiteConfig, api_key: str | None) -> list[Ups
     ),
 )
 @click.option(
+    "--any-node",
+    is_flag=True,
+    help=(
+        "Submit even when the router would not start on the host and port "
+        "consumers dial."
+    ),
+)
+@click.option(
     "--prefix-probe",
     is_flag=True,
     help="Log where each caller's prompt stops matching its previous turn.",
@@ -1721,6 +1729,7 @@ def router_command(
     dry_run: bool,
     cpus: int | None,
     memory: str | None,
+    any_node: bool,
     prefix_probe: bool,
     gate_file: str | None,
 ) -> None:
@@ -1734,7 +1743,11 @@ def router_command(
     # value a reader audits from the job is then the file in force.
     gate_path = Path(gate_file).expanduser().resolve() if gate_file else None
     if submit or dry_run:
-        from imas_ambix.agent.slurm import generate_router_script, submit_script
+        from imas_ambix.agent.slurm import (
+            generate_router_script,
+            router_address_gap,
+            submit_script,
+        )
 
         if api_key is not None:
             raise click.ClickException(
@@ -1752,9 +1765,16 @@ def router_command(
             )
         except ValueError as exc:
             raise click.ClickException(str(exc)) from exc
+        gap = router_address_gap(site, port)
         if dry_run:
             console.print(script, markup=False, highlight=False, soft_wrap=True)
+            if gap:
+                click.echo(f"Not submittable as placed: {gap}.", err=True)
             return
+        if gap and not any_node:
+            raise click.ClickException(
+                f"{gap}. Pass --any-node to submit it where it is placed."
+            )
         try:
             job_id = submit_script(script)
         except RuntimeError as exc:
@@ -1762,7 +1782,9 @@ def router_command(
         console.print(
             f"Submitted keyless router job {job_id} on port {port} "
             f"({cpus or site.router.cpus} CPU, {memory or site.router.memory}, "
-            f"partition {site.router.partition})."
+            f"partition {site.router.partition}"
+            + (f", node {site.router.node}" if site.router.node else "")
+            + ")."
         )
         return
 

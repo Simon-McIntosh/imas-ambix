@@ -1039,6 +1039,43 @@ def generate_serve_script(
     return "\n".join([*headers, "", script_body, ""])
 
 
+def router_address_gap(site: SiteConfig, port: int) -> str | None:
+    """Why a router placed by the site's entry would not answer where consumers dial.
+
+    Consumers hold ``site.global_origin``, a fixed host and port. A router
+    submitted on another port, or to a partition without that host pinned,
+    starts cleanly and serves nobody, while every consumer keeps dialling an
+    address nothing listens on. None when the placement and the address agree.
+    """
+    from urllib.parse import urlsplit
+
+    from imas_ambix.agent.registry import host_name
+
+    origin = urlsplit(site.global_origin)
+    if not origin.hostname:
+        return None
+    if origin.port is not None and origin.port != port:
+        return (
+            f"consumers dial {site.global_origin}, and this router would "
+            f"listen on port {port}"
+        )
+    node = site.router.node.strip()
+    if node and host_name(node) == host_name(origin.hostname):
+        return None
+    where = (
+        f"node {node}"
+        if node
+        else f"whichever {site.router.partition} node is free"
+    )
+    return (
+        f"consumers dial {site.global_origin}, and this router would start on "
+        f"{where}. Pin it with AMBIX_AGENT_ROUTER, for example "
+        f'\'{{"partition": "{site.partition}", "reservation": '
+        f'"{site.reservation}", "node": "{origin.hostname}"}}\', or point '
+        f"AMBIX_AGENT_GLOBAL_URL at the node the router will run on"
+    )
+
+
 def generate_router_script(
     site: SiteConfig,
     *,
@@ -1093,13 +1130,15 @@ def generate_router_script(
         job_name="ambix-router",
         partition=placement.partition,
         account=placement.account,
-        reservation=None,
+        reservation=placement.reservation.strip() or None,
         gpus=0,
         cpus=resolved_cpus,
         memory=resolved_memory,
         time_limit=_SUPPORTING_SERVICE_TIME_LIMIT,
         output_name="ambix-router-%j.log",
     )
+    if placement.node.strip():
+        headers.append(f"#SBATCH --nodelist={placement.node.strip()}")
     headers.append(f"#SBATCH --comment=ambix-router;port={port}")
     repo_root = Path(__file__).resolve().parents[2]
     command = shlex.join(

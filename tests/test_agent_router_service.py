@@ -112,7 +112,7 @@ def test_router_submit_uses_shared_submission_adapter(monkeypatch):
     monkeypatch.setattr(slurm_mod, "submit_script", submit)
     result = CliRunner().invoke(
         main,
-        ["agent", "router", "--port", "18802", "--submit"],
+        ["agent", "router", "--port", "18802", "--submit", "--any-node"],
     )
 
     assert result.exit_code == 0
@@ -188,6 +188,64 @@ def test_router_script_takes_partition_account_cpus_and_memory_from_the_entry(
     )
     assert "#SBATCH --cpus-per-task=3" in overridden
     assert "#SBATCH --mem=12G" in overridden
+
+
+def test_router_submit_refuses_a_placement_consumers_do_not_dial(
+    tmp_path: Path, monkeypatch
+):
+    """A router started off the consumers' address serves nobody.
+
+    The site's consumers hold one host and port. A placement that pins no
+    node, pins another node, or listens on another port is refused before a
+    job exists; the pinned placement and the stated override both submit.
+    """
+    from imas_ambix.agent import cli as agent_cli
+
+    submitted: list[str] = []
+
+    def record(script: str) -> str:
+        submitted.append(script)
+        return "77"
+
+    monkeypatch.setattr(slurm_mod, "submit_script", record)
+
+    def submit(site: SiteConfig, *extra: str, port: str = "18802"):
+        monkeypatch.setattr(
+            agent_cli.SiteConfig, "from_env", classmethod(lambda _cls: site)
+        )
+        return CliRunner().invoke(
+            main, ["agent", "router", "--port", port, "--submit", *extra]
+        )
+
+    origin = {"global_origin": "http://98dci4-gpu-0003:18802"}
+    floating = _site_with_router(tmp_path).model_copy(update=origin)
+    result = submit(floating)
+    assert result.exit_code != 0
+    assert "98dci4-gpu-0003:18802" in result.output
+    assert "whichever rigel node is free" in result.output
+
+    elsewhere = _site_with_router(tmp_path, node="98dci4-clu-2001").model_copy(
+        update=origin
+    )
+    assert submit(elsewhere).exit_code != 0
+
+    pinned = _site_with_router(
+        tmp_path,
+        partition="betelgeuse",
+        reservation="gpu_0003_grpA",
+        node="98dci4-gpu-0003",
+    ).model_copy(update=origin)
+    assert submit(pinned, port="18803").exit_code != 0
+    assert submitted == []
+
+    result = submit(pinned)
+    assert result.exit_code == 0, result.output
+    assert "#SBATCH --nodelist=98dci4-gpu-0003" in submitted[-1]
+    assert "#SBATCH --reservation=gpu_0003_grpA" in submitted[-1]
+    assert "#SBATCH --partition=betelgeuse" in submitted[-1]
+
+    assert submit(floating, "--any-node").exit_code == 0
+    assert len(submitted) == 2
 
 
 def test_router_refuses_an_unknown_partition(tmp_path: Path, monkeypatch):

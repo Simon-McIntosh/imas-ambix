@@ -157,3 +157,22 @@ the new router serves, then resume. The two never run concurrently: one of
 them must leave the lane quiet for the other. If a request is caught anyway,
 it is answered rather than lost, and the `reason` on its receipt row
 (`router shutdown`) counts it.
+
+**Start the new router where consumers dial.** Every consumer holds one host
+and port (`AMBIX_AGENT_GLOBAL_URL`, by default `http://98dci4-gpu-0003:18802`),
+while the site's router entry defaults to a `rigel` job with no node pinned,
+which starts on whichever node is free and serves nobody. `agent router
+--submit` refuses that pairing. Name the placement in the submitting shell:
+
+```bash
+export AMBIX_AGENT_ROUTER='{"partition": "betelgeuse", "reservation": "gpu_0003_grpA", "node": "98dci4-gpu-0003"}'
+imas-ambix agent router --port 18802 --submit --dry-run   # read the header first
+imas-ambix agent router --port 18802 --submit
+```
+
+Submit the new router and see it answer `/v1/models` on that address before
+the old job is cancelled by id; a second router on the same node cannot bind
+the port while the first holds it, so on one node the order is cancel, then
+submit, inside the pause. Measured 2026-11-13: a restart submitted with the
+default entry started on `rigel`, and the consumers' address went unanswered
+for about two and a half minutes until a pinned job replaced it.

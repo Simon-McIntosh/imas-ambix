@@ -635,12 +635,19 @@ class RouterPlacementConfig(BaseModel):
     of either must not end the routing every consumer depends on. It is
     independent of the reservation those servers share, so it asks for no
     reservation at all.
+
+    A job placed by partition alone starts on whichever node is free, which is
+    an address no consumer holds in advance. ``node`` pins the job to one node,
+    and ``reservation`` names the reservation that node needs, so a site whose
+    consumers dial a fixed host can place the router there.
     """
 
     partition: str = "rigel"
     account: str = "grpa"
     cpus: int = Field(default=2, ge=1)
     memory: str = "8G"
+    reservation: str = ""
+    node: str = ""
 
 
 def require_known_partition(partition: str) -> str:

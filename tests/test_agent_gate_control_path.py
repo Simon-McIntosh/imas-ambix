@@ -493,6 +493,7 @@ def test_router_submit_carries_the_gate_path_into_the_submitted_script(
             "--port",
             "18802",
             "--submit",
+            "--any-node",
             "--gate-file",
             str(control),
         ],

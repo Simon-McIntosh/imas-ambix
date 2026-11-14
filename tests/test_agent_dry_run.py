@@ -101,6 +101,12 @@ def scene(tmp_path, monkeypatch):
     )
     monkeypatch.setattr("imas_ambix.agent.cli.subprocess", recorder)
     monkeypatch.setattr("imas_ambix.agent.slurm.subprocess", recorder)
+    # The scene holds no checkpoint, and a restart reports missing weights
+    # before it names the job it would replace. These tests are about what a
+    # dry run reaches, so the weights are taken as present.
+    monkeypatch.setattr(
+        "imas_ambix.agent.cli.weights_preflight", lambda _profile, _site: []
+    )
 
     return SimpleNamespace(
         root=tmp_path,
