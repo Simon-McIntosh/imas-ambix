@@ -13,10 +13,10 @@ order a reader asks about a lane:
 ===========  ==========================================================
 section      answers
 ===========  ==========================================================
-LANE         three bands. SERVING: requests in use on the cards, the
-             queue held back from them, the aggregate and per-stream
-             rates and the prefill rate. LOAD: how the admitted work
-             is going. MEMORY: whether memory is the limit
+LANE         two bands. LIVE: requests in use on the cards, the queue
+             held back from them, the aggregate and per-stream rates,
+             the prefill rate and the time to a first token. MEMORY:
+             whether memory is the limit
 ACCOUNTS     who is using the lane
 PROJECTS     what one account is running on it
 ACTIVITY     how the last half hour went, and how requests ended
@@ -69,7 +69,6 @@ from imas_ambix.agent.watch_style import (
     bar_width,
     cell,
     flex_table,
-    fmt_count,
     fmt_ctx,
     fmt_rate,
     fmt_span,
@@ -114,9 +113,6 @@ ACCOUNT_NAME_WIDTH = 14
 PROJECT_NAME_WIDTH = 20
 PERIOD_WIDTH = 8
 MODEL_WIDTH = 20
-
-#: Figures in one band. Three bands of six share their columns.
-BAND_FIGURES = 6
 
 #: Seconds after which the published ledger is labelled with its age: twice
 #: the publisher's cadence.
@@ -339,19 +335,18 @@ def head_line(document: dict[str, Any]) -> str:
     return f"{title} [dim]·[/] {note}"
 
 
-# ── the three bands ──────────────────────────────────────────────────
+# ── the lane's bands ──────────────────────────────────────────────────
 
 
 def _band(name: str, labels: list[str], values: list[str]) -> Table:
     """One named band: a row of labels over a row of figures.
 
-    Every band holds :data:`BAND_FIGURES` figures, so the three bands of a
-    lane share their columns and a reader's eye drops straight down them.
+    A band's columns are its own: the live row carries one figure more than
+    the memory row, and each is spread over the page's whole width.
     """
-    table = flex_table((BAND_NAME_WIDTH,), BAND_FIGURES)
-    pad = [""] * (BAND_FIGURES - len(labels))
-    table.add_row(f"[bold]{name}[/]", *pad, *[f"[dim]{label}[/]" for label in labels])
-    table.add_row("", *pad, *values)
+    table = flex_table((BAND_NAME_WIDTH,), len(labels))
+    table.add_row(f"[bold]{name}[/]", *[f"[dim]{label}[/]" for label in labels])
+    table.add_row("", *values)
     return table
 
 
@@ -362,36 +357,20 @@ def alarm_count(value: float | None) -> str:
     return f"[red]{value:.0f}[/]" if value >= 1 else f"[dim]{value:.0f}[/]"
 
 
-#: The colour each admission verdict is drawn in. A verdict the table does not
-#: name is drawn bold and uncoloured, so a new word is seen and not guessed at.
-_VERDICT_COLOURS = {
-    "open": "green", "admit": "green", "light": "green",
-    "congested": "yellow", "busy": "yellow",
-    "full": "red", "paused": "red", "closed": "red", "hold": "red",
-}
-
-
-def verdict_cell(verdict: object) -> str:
-    """An admission verdict in its colour, or a dash when none was published."""
-    if not verdict:
-        return DASH
-    colour = _VERDICT_COLOURS.get(str(verdict).lower())
-    style = f"bold {colour}" if colour else "bold"
-    return f"[{style}]{escape(str(verdict))}[/]"
-
-
 def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
-    """The figures read first: the room left, and how fast the lane is going.
+    """The lane's one row of live figures: its use, its queues and its rates.
 
     ``in use`` is the requests generating now over the gate's width in force:
     what the lane is carrying, never below zero and never above the width.
     ``queue`` is the requests the gate is holding back, which have reached no
-    card: the two are separate figures, so a queue never reads as load. The
-    lane document's ``headroom`` is drawn in neither place, because it
-    subtracts the queue from the room and so goes negative whenever requests
-    wait. ``tok/s`` is every stream together, ``per stream`` is what
-    one request sees, and ``prefill/s`` is prompt tokens read per second. A
-    rate the receipt record did not measure is a dash.
+    card, and ``held`` the requests the gate admitted that the engine has not
+    scheduled, which is zero in ordinary running and the first sign the
+    engine, and not the gate, is the limit. The lane document's ``headroom``
+    is drawn nowhere, because it subtracts the queue from the room and so
+    goes negative whenever requests wait. ``tok/s`` is every stream together,
+    ``/stream`` is what one request sees, ``prefill/s`` is prompt tokens
+    read per second and ``ttft s`` the median time to a first token. A figure
+    the receipt record did not measure is a dash.
     """
     gate = lane.get("router_generation_gate") or {}
     width = _number(gate, "effective_width")
@@ -402,17 +381,19 @@ def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
         + (f"{width:.0f}" if width is not None else DASH)
     )
     full = in_flight is not None and width is not None and in_flight >= width
-    held = (_number(gate, "waiting") or 0.0) >= 1
+    waiting = (_number(gate, "waiting") or 0.0) >= 1
     measured = live.get("state") == "measured"
     aggregate = _number(live, "generation_toks_per_s")
     per_stream = _number(live, "per_stream_toks_per_s")
     prefill = _number(live, "prefill_toks_per_s")
+    ttft = _number(live, "median_time_to_first_token_s")
     return _band(
-        "SERVING",
-        ["in use", "queue", "tok/s", "per stream", "prefill/s", "verdict"],
+        "LIVE",
+        ["in use", "queue", "held", "tok/s", "/stream", "prefill/s", "ttft s"],
         [
-            f"[bold yellow]{in_use}[/]" if full and held else f"[bold]{in_use}[/]",
+            f"[bold yellow]{in_use}[/]" if full and waiting else f"[bold]{in_use}[/]",
             alarm_count(_number(gate, "waiting")),
+            alarm_count(_number(live, "engine_queue")),
             (f"[bold]{fmt_rate(aggregate)}[/]" if measured and aggregate
              else DASH),
             (f"[bold {ramp(100.0 * per_stream / PER_WORKER_REF, 60.0, 30.0)}]"
@@ -420,43 +401,7 @@ def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
              if measured and per_stream else DASH),
             (f"[bold]{fmt_rate(prefill)}[/]"
              if measured and prefill is not None else DASH),
-            verdict_cell((lane.get("admission") or {}).get("verdict")),
-        ],
-    )
-
-
-def load_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
-    """How the admitted work is going, and how much more will be admitted.
-
-    ``running`` is the mean number of requests generating. ``engine q`` is
-    the engine's own queue: requests the gate admitted that the engine has
-    not scheduled, which is zero in ordinary running and the first sign the
-    engine, and not the gate, is the limit. ``oldest`` is how long the first
-    request in the gate's queue has waited and ``ttft s`` the median time to
-    a first token. ``runs`` is the workers the lane is carrying and ``slots``
-    how many more it will admit, which is the figure a dispatch spends.
-    """
-    gate = lane.get("router_generation_gate") or {}
-    admission = lane.get("admission") or {}
-    slots = lane.get("worker_slots") or {}
-    running = _number(live, "mean_running")
-    if running is None:
-        running = _number(gate, "in_flight")
-    oldest = _number(admission, "oldest_wait_seconds")
-    worker_slots = _number(slots, "worker_slots")
-    ttft = _number(live, "median_time_to_first_token_s")
-    measured = live.get("state") == "measured"
-    return _band(
-        "LOAD",
-        ["running", "held", "oldest", "ttft s", "runs", "slots"],
-        [
-            f"[cyan]{running:.1f}[/]" if running is not None else DASH,
-            alarm_count(_number(live, "engine_queue")),
-            fmt_span(oldest) if oldest is not None else DASH,
             f"{ttft:.1f}" if measured and ttft is not None else DASH,
-            fmt_count(_number(slots, "live_runs")),
-            (f"[yellow]{worker_slots:.0f}[/]" if worker_slots is not None
-             and worker_slots < 1 else fmt_count(worker_slots)),
         ],
     )
 
@@ -504,7 +449,7 @@ def bands(
     document: dict[str, Any], *, capacity: bool = True,
     width: int = DEFAULT_WIDTH,
 ) -> list[object]:
-    """The bands in reading order: the load, what is served, then memory.
+    """The bands in reading order: the live figures, then memory.
 
     When the live entry is unavailable its figures are dashes and one line
     names the reason: a zero is a measurement the record never made. The
@@ -514,7 +459,7 @@ def bands(
     """
     live = document.get("live") or {}
     lane = document.get("lane") or {}
-    parts: list[object] = [load_band(lane, live), Text(""), serving_band(lane, live)]
+    parts: list[object] = [serving_band(lane, live)]
     if live.get("state") != "measured":
         reason = live.get("reason") or "no reading"
         parts.append(Text.from_markup(
@@ -604,7 +549,7 @@ def selected_engine(
 ) -> dict[str, Any] | None:
     """The engine whose bands are drawn: the named one, else the busiest.
 
-    With several engines the terminal cannot hold every engine's three bands,
+    With several engines the terminal cannot hold every engine's bands,
     so one engine's are drawn. ``--engine`` chooses; with no choice, the engine
     under most pressure is the one a reader needs first.
     """

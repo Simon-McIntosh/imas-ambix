@@ -250,36 +250,22 @@ def test_each_lane_is_titled_with_its_server_and_cards():
     assert "other-model" in lanes[1] and "gpu-0004 gpu 0-1" in lanes[1]
 
 
-def test_a_lane_leads_with_requests_in_use_and_its_rates():
+def test_a_lane_is_one_row_of_use_queues_and_rates():
     lines = _page([_h200()])
-    at = next(i for i, line in enumerate(lines) if line.startswith("SERVING"))
-    assert lines[at].split() == [
-        "SERVING",
+    at = next(i for i, line in enumerate(lines) if line.startswith("LIVE"))
+    assert lines[at].split()[1:] == [
         "in",
         "use",
         "queue",
-        "tok/s",
-        "per",
-        "stream",
-        "prefill/s",
-        "verdict",
-    ]
-    assert lines[at + 1].split() == ["7/16", "0", "300", "50.0", "900", "open"]
-
-
-def test_the_engine_queue_is_a_column_of_the_load_band():
-    lines = _page([_h200()])
-    at = next(i for i, line in enumerate(lines) if line.startswith("LOAD"))
-    assert lines[at].split()[1:] == [
-        "running",
         "held",
-        "oldest",
+        "tok/s",
+        "/stream",
+        "prefill/s",
         "ttft",
         "s",
-        "runs",
-        "slots",
     ]
-    assert lines[at + 1].split() == ["5.5", "0", "—", "0.6", "12", "74"]
+    assert lines[at + 1].split() == ["7/16", "0", "0", "300", "50.0", "900", "0.6"]
+    assert not any(line.startswith(("SERVING", "LOAD")) for line in lines)
 
 
 def test_a_terminal_wider_than_the_page_does_not_stretch_it():
@@ -308,9 +294,9 @@ def test_the_queue_takes_the_lines_left_and_counts_what_does_not_fit(width):
 
 
 def test_a_short_screen_folds_the_cards_then_drops_the_ledger():
-    roomy = _page([_h200(jobs=30)], height=40)
+    roomy = _page([_h200(jobs=30)], height=37)
     assert any(line.startswith("gpu 4 ") for line in roomy)
-    folded = _page([_h200(jobs=30)], height=36)
+    folded = _page([_h200(jobs=30)], height=33)
     assert not any(line.startswith("gpu 4 ") for line in folded)
     assert _figures(_row(folded, "gpu 4-7")) == [
         "gpu",
@@ -321,7 +307,7 @@ def test_a_short_screen_folds_the_cards_then_drops_the_ledger():
         "78%",
     ]
     assert "LEDGER" in folded
-    short = _page([_h200(jobs=30)], height=30)
+    short = _page([_h200(jobs=30)], height=27)
     assert "LEDGER" not in short
     assert sum(1 for line in short if line[:3].isdigit()) >= panels.MIN_QUEUE_ROWS - 1
 

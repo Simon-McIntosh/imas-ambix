@@ -706,10 +706,9 @@ def test_a_full_ledger_period_is_drawn_as_healthy() -> None:
 
 def test_the_lane_leads_with_requests_in_use_and_its_rates() -> None:
     lines = render(one_engine_fixture()).splitlines()
-    at = next(i for i, line in enumerate(lines) if line.startswith("SERVING"))
+    at = next(i for i, line in enumerate(lines) if line.startswith("LIVE"))
     assert lines[at].split()[1:] == [
-        "in", "use", "queue", "tok/s", "per", "stream", "prefill/s",
-        "verdict",
+        "in", "use", "queue", "held", "tok/s", "/stream", "prefill/s", "ttft", "s",
     ]
 
 
@@ -726,18 +725,18 @@ def test_in_use_is_requests_generating_and_never_the_queue() -> None:
         in_flight=16, effective_width=16, waiting=85
     )
     lines = render(document).splitlines()
-    at = next(i for i, line in enumerate(lines) if line.startswith("SERVING"))
+    at = next(i for i, line in enumerate(lines) if line.startswith("LIVE"))
     assert lines[at + 1].split()[0] == "16/16"
     assert lines[at + 1].split()[1] == "85"
     assert "-85" not in "\n".join(lines)
 
 
-def test_the_engine_queue_is_a_column_of_the_load_band() -> None:
+def test_requests_the_engine_holds_are_a_column_beside_the_queue() -> None:
     def queued(document: dict[str, Any]) -> str:
         lines = render(document).splitlines()
-        at = next(i for i, line in enumerate(lines) if line.startswith("LOAD"))
-        assert lines[at].split()[2] == "held"
-        return lines[at + 1].split()[1]
+        at = next(i for i, line in enumerate(lines) if line.startswith("LIVE"))
+        assert lines[at].split()[4] == "held"
+        return lines[at + 1].split()[2]
 
     document = one_engine_fixture()
     document["live"]["engine_queue"] = 0.0
@@ -814,8 +813,8 @@ def test_unavailable_live_entry_renders_one_line_and_no_figures() -> None:
     assert "live entry unavailable" in text
     assert "no raw receipt file with a readable row" in text
     lines = text.splitlines()
-    at = next(i for i, line in enumerate(lines) if line.startswith("SERVING"))
-    assert lines[at + 1].split()[2:5] == ["—", "—", "—"]
+    at = next(i for i, line in enumerate(lines) if line.startswith("LIVE"))
+    assert lines[at + 1].split()[3:7] == ["—", "—", "—", "—"]
     assert "11.3" not in text
 
 
@@ -898,7 +897,8 @@ def _engine_entry(engine: str, model: str, *, running: float,
         "ttft": ttft,
         "kv_pool": kv_pool,
         "available": available,
-        "live": _live(mean_running=running),
+        "live": _live(mean_running=running, generation_toks_per_s=tok_s,
+                      per_stream_toks_per_s=per_stream),
         "gate": {
             "model_id": model,
             "observed_at": "2026-10-23T07:44:34Z",
