@@ -808,6 +808,19 @@ class SiteConfig(BaseModel):
         return Path(self.endpoint_document_path).expanduser()
 
     @property
+    def router_origin(self) -> str:
+        """Where the router answers now: its published address, else the fixed one.
+
+        The published address is read from the endpoint document, which the
+        router's job rewrites as it starts and stops, so it is right wherever
+        the router was placed. ``global_origin`` stands in when the document
+        names no single router.
+        """
+        from imas_ambix.agent.registry import published_router_origin
+
+        return published_router_origin(self.endpoint_document) or self.global_origin
+
+    @property
     def declared_servers(self) -> tuple[SiteServerConfig, ...]:
         """The site's servers; the flat fields stand in when none is declared.
 

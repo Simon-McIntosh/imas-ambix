@@ -769,6 +769,31 @@ def publish_endpoint_document(
     )
 
 
+def published_router_origin(path: str | Path) -> str | None:
+    """The router's address as the endpoint document at ``path`` publishes it.
+
+    This is how a consumer finds the router: the router's job republishes the
+    document when it starts answering and when it exits, so the address
+    follows the router to whichever node the scheduler placed it on. None
+    when the document is unreadable or names no router, or names several, in
+    which case there is no single address to hand back.
+    """
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    origins = payload.get("routing_origins") if isinstance(payload, dict) else None
+    if not isinstance(origins, list) or len(origins) != 1:
+        return None
+    entry = origins[0]
+    if not isinstance(entry, dict):
+        return None
+    host, port = entry.get("host"), entry.get("port")
+    if not isinstance(host, str) or not host or not isinstance(port, int):
+        return None
+    return f"http://{host}:{port}"
+
+
 def discover_routing_origins(
     endpoints: Sequence[PublishedEndpoint], jobs: Sequence[dict[str, str]]
 ) -> tuple[PublishedOrigin, ...]:

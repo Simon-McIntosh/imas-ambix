@@ -341,6 +341,15 @@ support therefore requires one router restart under the
 `shutdown <profile>` refuses to cancel two matching jobs unless `--all` is
 supplied, which deliberately cancels all Ambix jobs.
 
+**Read the router's address from the endpoint document; do not hard-code it.**
+The router's job writes its own host and port into `routing_origins` in
+`~/public/imas-ambix/endpoints.json` when it starts answering and when it
+exits, and `imas_ambix.agent.registry.published_router_origin(path)` returns it
+as an origin. The address in the table above is where the router runs today,
+pinned to the GPU server; it moves to a `rigel` node once every consumer
+follows the published entry ([lane-cycle runbook](../../ops/lane-cycle/AGENTS.md)).
+A consumer holding the literal address breaks on that move.
+
 **Never configure a consumer against a serve port. Use the router, always.**
 A serve port belongs to one profile at one topology, and **the deployment is
 rotated deliberately** — four cards to two and back within a day is normal, and

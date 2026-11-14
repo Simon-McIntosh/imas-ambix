@@ -1042,10 +1042,11 @@ def generate_serve_script(
 def router_address_gap(site: SiteConfig, port: int) -> str | None:
     """Why a router placed by the site's entry would not answer where consumers dial.
 
-    Consumers hold ``site.global_origin``, a fixed host and port. A router
-    submitted on another port, or to a partition without that host pinned,
-    starts cleanly and serves nobody, while every consumer keeps dialling an
-    address nothing listens on. None when the placement and the address agree.
+    A consumer either reads the router's address from the endpoint document,
+    which the router's job republishes, or holds ``site.global_origin``, a
+    fixed host and port. For the second kind a router submitted on another
+    port, or to a partition without that host pinned, starts cleanly and
+    serves nobody. None when the placement and the fixed address agree.
     """
     from urllib.parse import urlsplit
 
@@ -1068,11 +1069,12 @@ def router_address_gap(site: SiteConfig, port: int) -> str | None:
         else f"whichever {site.router.partition} node is free"
     )
     return (
-        f"consumers dial {site.global_origin}, and this router would start on "
-        f"{where}. Pin it with AMBIX_AGENT_ROUTER, for example "
+        f"consumers holding the fixed address dial {site.global_origin}, and "
+        f"this router would start on {where}. Once every consumer reads "
+        f"routing_origins from {site.endpoint_document}, submit it there; "
+        f"until then pin it with AMBIX_AGENT_ROUTER, for example "
         f'\'{{"partition": "{site.partition}", "reservation": '
-        f'"{site.reservation}", "node": "{origin.hostname}"}}\', or point '
-        f"AMBIX_AGENT_GLOBAL_URL at the node the router will run on"
+        f'"{site.reservation}", "node": "{origin.hostname}"}}\''
     )
 
 
@@ -1186,7 +1188,38 @@ def generate_router_script(
     body_lines.append(
         f'echo "[$(date)] Starting keyless Ambix router on $(hostname):{port}"'
     )
-    body_lines.append(f"exec {command}")
+    registry_python = shlex.quote(str(site.python_path("vllm")))
+    body_lines += [
+        "",
+        "# The router's address is published, not fixed: consumers read it from",
+        "# the endpoint document, so it is republished when this router answers",
+        "# and again when it exits, wherever the scheduler placed the job.",
+        "publish_address() {",
+        f"    {registry_python} -m imas_ambix.agent.registry publish || true",
+        "}",
+        "",
+        f"{command} &",
+        "ROUTER_PID=$!",
+        """trap 'kill -TERM "$ROUTER_PID" 2>/dev/null || true' TERM INT""",
+        "for _attempt in $(seq 1 60); do",
+        '    kill -0 "$ROUTER_PID" 2>/dev/null || break',
+        f'    if curl -fsS -m 5 "http://$(hostname):{port}/v1/models"'
+        " >/dev/null 2>&1; then",
+        "        publish_address",
+        "        break",
+        "    fi",
+        "    sleep 5",
+        "done",
+        "_STATUS=0",
+        'wait "$ROUTER_PID" || _STATUS=$?',
+        "# A trapped signal ends the wait early; wait again for the router itself.",
+        'if kill -0 "$ROUTER_PID" 2>/dev/null; then',
+        "    _STATUS=0",
+        '    wait "$ROUTER_PID" || _STATUS=$?',
+        "fi",
+        "publish_address",
+        'exit "$_STATUS"',
+    ]
     script_body = "\n".join(body_lines)
     return "\n".join([*headers, "", script_body, ""])
 

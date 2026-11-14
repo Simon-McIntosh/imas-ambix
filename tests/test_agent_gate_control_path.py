@@ -352,6 +352,20 @@ def _normalise_router_output(script: str) -> str:
     return "".join(lines)
 
 
+def _as_foreground(script: str) -> str:
+    """The script with its address publishing folded back into one exec line.
+
+    The reference revision replaced the shell with the router. The router now
+    runs under the shell, which publishes its address around it; that block
+    has its own test, so the comparison keeps only the command it wraps.
+    """
+    head, block = script.split("\n# The router's address is published", 1)
+    command = next(
+        line for line in block.splitlines() if line.endswith(" &")
+    ).removesuffix(" &")
+    return f"{head}exec {command}\n"
+
+
 _PLACEMENT_LINE_PREFIXES = (
     "#SBATCH --partition=",
     "#SBATCH --reservation=",
@@ -395,7 +409,7 @@ def test_generated_script_without_the_option_unsets_the_gate_path(tmp_path) -> N
     # The output destination, the placement headers and the scratch setup have
     # their own tests; every other line remains exact.
     assert _without_placement_lines(
-        _normalise_router_output(_without_unset_line(current))
+        _normalise_router_output(_without_unset_line(_as_foreground(current)))
     ) == _without_placement_lines(_normalise_router_output(base))
 
     probed = slurm_mod.generate_router_script(
@@ -410,7 +424,7 @@ def test_generated_script_without_the_option_unsets_the_gate_path(tmp_path) -> N
         prefix_probe=True,
     )
     assert _without_placement_lines(
-        _normalise_router_output(_without_unset_line(probed))
+        _normalise_router_output(_without_unset_line(_as_foreground(probed)))
     ) == _without_placement_lines(_normalise_router_output(probed_base))
 
 
@@ -422,7 +436,7 @@ def test_named_gate_path_is_embedded_in_the_generated_script(tmp_path) -> None:
 
     assert f"export {GATE_PATH_ENV}={control}" in script
     # The path is a value the running job carries, not one inferred later.
-    assert str(control) in script.split("exec ", 1)[0]
+    assert str(control) in script.split("publish_address()", 1)[0]
 
 
 def test_submitted_job_environment_inheritance_is_read_from_the_header(

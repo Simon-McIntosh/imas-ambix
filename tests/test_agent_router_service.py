@@ -577,3 +577,51 @@ def test_relay_outlasting_the_grace_is_recorded_as_cut(tmp_path) -> None:
         assert "cut" in (cut[0]["reason"] or ""), cut
 
     asyncio.run(exercise())
+
+
+def test_the_router_job_publishes_its_address_when_it_answers_and_when_it_exits(
+    tmp_path: Path,
+):
+    """A router placed on any node is found through the endpoint document.
+
+    The job runs the router under its shell, republishes the document once
+    the router answers on its own host and port, and republishes again after
+    the router has gone, so the document never keeps an address nothing
+    answers on.
+    """
+    site = SiteConfig(
+        base_dir=str(tmp_path), engine_env_root=str(tmp_path / "engine-envs")
+    )
+    lines = slurm_mod.generate_router_script(site, port=18802).splitlines()
+
+    publish = f"{site.python_path('vllm')} -m imas_ambix.agent.registry publish"
+    assert any(publish in line for line in lines)
+    start = next(i for i, line in enumerate(lines) if line.endswith("--port 18802 &"))
+    url = "http://$(hostname):18802/v1/models"
+    probe = next(i for i, line in enumerate(lines) if url in line)
+    calls = [i for i, line in enumerate(lines) if line.strip() == "publish_address"]
+    waits = [i for i, line in enumerate(lines) if 'wait "$ROUTER_PID"' in line]
+    assert start < probe < calls[0] < waits[0] < waits[-1] < calls[-1]
+    assert lines[-1] == 'exit "$_STATUS"'
+    assert not any(line.startswith("exec ") for line in lines)
+
+
+def test_the_published_router_address_is_read_from_the_endpoint_document(
+    tmp_path: Path,
+):
+    from imas_ambix.agent.registry import published_router_origin
+
+    document = tmp_path / "endpoints.json"
+    assert published_router_origin(document) is None
+    document.write_text(
+        '{"routing_origins": [{"host": "98dci4-clu-2040", "port": 18802}]}'
+    )
+    assert published_router_origin(document) == "http://98dci4-clu-2040:18802"
+    site = SiteConfig(
+        base_dir=str(tmp_path),
+        engine_env_root=str(tmp_path / "engine-envs"),
+        endpoint_document_path=str(document),
+    )
+    assert site.router_origin == "http://98dci4-clu-2040:18802"
+    document.write_text('{"routing_origins": []}')
+    assert site.router_origin == site.global_origin

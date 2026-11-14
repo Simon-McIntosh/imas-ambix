@@ -158,11 +158,21 @@ them must leave the lane quiet for the other. If a request is caught anyway,
 it is answered rather than lost, and the `reason` on its receipt row
 (`router shutdown`) counts it.
 
-**Start the new router where consumers dial.** Every consumer holds one host
-and port (`AMBIX_AGENT_GLOBAL_URL`, by default `http://98dci4-gpu-0003:18802`),
-while the site's router entry defaults to a `rigel` job with no node pinned,
-which starts on whichever node is free and serves nobody. `agent router
---submit` refuses that pairing. Name the placement in the submitting shell:
+**The router belongs on `rigel`, and it moves there once consumers follow its
+published address (lead decision 2026-11-14).** A router on a CPU node shares
+no server's fate, which matters once a second GPU server serves. The router's
+job publishes its address: it rewrites `routing_origins` in
+`~/public/imas-ambix/endpoints.json` when it starts answering and again when it
+exits. A consumer that reads that entry follows the router to any node; in
+Python, `imas_ambix.agent.registry.published_router_origin(path)` returns it.
+`clive` and this repository's own callers already read it.
+
+Until every consumer does, the router stays pinned. Consumers that still hold
+the fixed address (`AMBIX_AGENT_GLOBAL_URL`, by default
+`http://98dci4-gpu-0003:18802`) are served only by a router on that host and
+port, and the site's default entry is a `rigel` job with no node pinned, so
+`agent router --submit` refuses the default. Name the pinned placement in the
+submitting shell:
 
 ```bash
 export AMBIX_AGENT_ROUTER='{"partition": "betelgeuse", "reservation": "gpu_0003_grpA", "node": "98dci4-gpu-0003"}'
@@ -176,3 +186,11 @@ the port while the first holds it, so on one node the order is cancel, then
 submit, inside the pause. Measured 2026-11-13: a restart submitted with the
 default entry started on `rigel`, and the consumers' address went unanswered
 for about two and a half minutes until a pinned job replaced it.
+
+**Moving to `rigel`.** First confirm each consumer outside this repository
+resolves the published address: reckon's local backend and imas-codex's
+generation endpoint are the two known to hold the fixed one. Then, inside a
+pause, cancel the pinned job by id and submit the default entry with
+`imas-ambix agent router --port 18802 --submit --any-node`. Read
+`routing_origins` afterwards: it must name the `rigel` node the job started on
+before admission resumes.

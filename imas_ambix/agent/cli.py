@@ -2665,7 +2665,7 @@ def _restart_mode(
         and (node := _job_node(job))
         and (port := _router_port(job.get("comment", "")))
     }
-    origin = next(iter(origins)) if len(origins) == 1 else site.global_origin
+    origin = next(iter(origins)) if len(origins) == 1 else site.router_origin
     supported = False
     try:
         request = urllib.request.Request(

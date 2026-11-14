@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 def generate_litellm_config(site: SiteConfig, native_release: str) -> str:
     """Render the proxy YAML for one native release and OpenRouter."""
-    global_url = f"{site.global_origin}/v1"
+    global_url = f"{site.router_origin}/v1"
     return f"""# Generated LiteLLM routing config for the per-user clive proxy.
 # Keys are loaded from the service environment; this file contains no secrets.
 
