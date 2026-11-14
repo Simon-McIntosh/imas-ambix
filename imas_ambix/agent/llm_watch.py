@@ -409,7 +409,7 @@ def serving_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
     prefill = _number(live, "prefill_toks_per_s")
     return _band(
         "SERVING",
-        ["in use", "gate q", "tok/s", "per stream", "prefill/s", "verdict"],
+        ["in use", "queue", "tok/s", "per stream", "prefill/s", "verdict"],
         [
             f"[bold yellow]{in_use}[/]" if full and held else f"[bold]{in_use}[/]",
             alarm_count(_number(gate, "waiting")),
@@ -448,7 +448,7 @@ def load_band(lane: dict[str, Any], live: dict[str, Any]) -> Table:
     measured = live.get("state") == "measured"
     return _band(
         "LOAD",
-        ["running", "engine q", "oldest", "ttft s", "runs", "slots"],
+        ["running", "held", "oldest", "ttft s", "runs", "slots"],
         [
             f"[cyan]{running:.1f}[/]" if running is not None else DASH,
             alarm_count(_number(live, "engine_queue")),
@@ -504,7 +504,7 @@ def bands(
     document: dict[str, Any], *, capacity: bool = True,
     width: int = DEFAULT_WIDTH,
 ) -> list[object]:
-    """The bands in reading order: what is served, its load, then memory.
+    """The bands in reading order: the load, what is served, then memory.
 
     When the live entry is unavailable its figures are dashes and one line
     names the reason: a zero is a measurement the record never made. The
@@ -514,14 +514,13 @@ def bands(
     """
     live = document.get("live") or {}
     lane = document.get("lane") or {}
-    parts: list[object] = [serving_band(lane, live)]
+    parts: list[object] = [load_band(lane, live), Text(""), serving_band(lane, live)]
     if live.get("state") != "measured":
         reason = live.get("reason") or "no reading"
         parts.append(Text.from_markup(
             f"[yellow]live entry unavailable[/]"
             f"[dim] — {escape(str(reason))}[/]"
         ))
-    parts += [Text(""), load_band(lane, live)]
     if capacity:
         parts += [Text(""), memory_band(lane, live, width)]
     return parts

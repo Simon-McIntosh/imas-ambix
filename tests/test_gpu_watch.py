@@ -257,8 +257,7 @@ def test_a_lane_leads_with_requests_in_use_and_its_rates():
         "SERVING",
         "in",
         "use",
-        "gate",
-        "q",
+        "queue",
         "tok/s",
         "per",
         "stream",
@@ -273,8 +272,7 @@ def test_the_engine_queue_is_a_column_of_the_load_band():
     at = next(i for i, line in enumerate(lines) if line.startswith("LOAD"))
     assert lines[at].split()[1:] == [
         "running",
-        "engine",
-        "q",
+        "held",
         "oldest",
         "ttft",
         "s",

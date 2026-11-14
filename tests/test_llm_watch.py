@@ -708,7 +708,7 @@ def test_the_lane_leads_with_requests_in_use_and_its_rates() -> None:
     lines = render(one_engine_fixture()).splitlines()
     at = next(i for i, line in enumerate(lines) if line.startswith("SERVING"))
     assert lines[at].split()[1:] == [
-        "in", "use", "gate", "q", "tok/s", "per", "stream", "prefill/s",
+        "in", "use", "queue", "tok/s", "per", "stream", "prefill/s",
         "verdict",
     ]
 
@@ -736,7 +736,7 @@ def test_the_engine_queue_is_a_column_of_the_load_band() -> None:
     def queued(document: dict[str, Any]) -> str:
         lines = render(document).splitlines()
         at = next(i for i, line in enumerate(lines) if line.startswith("LOAD"))
-        assert lines[at].split()[2:4] == ["engine", "q"]
+        assert lines[at].split()[2] == "held"
         return lines[at + 1].split()[1]
 
     document = one_engine_fixture()
