@@ -148,26 +148,35 @@ def test_request_opened_before_the_window_contributes_only_its_in_window_time() 
     )
 
 
-def test_congested_verdict_clamps_worker_slots_to_zero() -> None:
+def test_a_queueing_gate_still_offers_its_capacity_and_a_paused_one_none() -> None:
+    """A congested or full gate holds its backlog; only a pause stops dispatch.
+
+    Requests past the width wait at the gate rather than on the engine, so the
+    slots stay the capacity less the live runs. A pause is the one verdict that
+    admits nothing new.
+    """
     ledger = _fleet(_NOW)
+    open_slots = ledger.snapshot(now=_NOW, effective_width=16, verdict="open")[
+        "worker_slots"
+    ]
     snapshot = ledger.snapshot(now=_NOW, effective_width=16, verdict="congested")
     assert snapshot["requests_per_run"] == 0.471
-    assert snapshot["worker_slots"] == 0
-    for verdict in ("full", "paused"):
-        assert (
-            ledger.snapshot(now=_NOW, effective_width=16, verdict=verdict)[
-                "worker_slots"
-            ]
-            == 0
-        )
+    assert snapshot["worker_slots"] == max(
+        0, math.floor(16 / 0.471) - snapshot["live_runs"]
+    )
+    assert snapshot["worker_slots"] == open_slots > 0
+    full = ledger.snapshot(now=_NOW, effective_width=16, verdict="full")
+    assert full["worker_slots"] == open_slots
+    paused = ledger.snapshot(now=_NOW, effective_width=16, verdict="paused")
+    assert paused["worker_slots"] == 0
 
 
-def test_two_live_runs_assume_the_ratio_and_clamp_to_zero_when_congested() -> None:
-    """Below the ratio floor the slots are assumed, and a congested gate is 0.
+def test_two_live_runs_assume_the_ratio_and_keep_it_when_congested() -> None:
+    """Below the ratio floor the slots are assumed, and a congested gate keeps them.
 
     Two runs are fewer than the ratio rests on, so no measured ratio is formed,
-    but the slots are still published from the assumed one request per run --
-    and a congested verdict clamps them to zero whatever the assumed capacity.
+    but the slots are still published from the assumed one request per run, and
+    a congested gate offers that capacity less the live runs, as an open one does.
     """
     now = _NOW
     ledger = _AdmissionLedger()
@@ -178,7 +187,7 @@ def test_two_live_runs_assume_the_ratio_and_clamp_to_zero_when_congested() -> No
     assert snapshot["live_runs"] == 2
     assert snapshot["requests_per_run"] is None
     assert snapshot["worker_slots_basis"] == "assumed"
-    assert snapshot["worker_slots"] == 0
+    assert snapshot["worker_slots"] == 16 - 2
 
 
 def test_request_before_window_contributes_only_its_in_window_time() -> None:
@@ -461,9 +470,10 @@ def test_session_idle_past_the_horizon_stops_claiming_a_share() -> None:
     assert snapshot["sessions"]["B"]["worker_slots"] == snapshot["worker_slots"]
 
     live = _session_ledger(_NOW, workers={"B": 4}, idle=100.0)
-    assert live.snapshot(now=_NOW, effective_width=12, verdict="open")[
-        "active_sessions"
-    ] == 2
+    assert (
+        live.snapshot(now=_NOW, effective_width=12, verdict="open")["active_sessions"]
+        == 2
+    )
 
 
 def test_session_less_runs_form_one_unattributed_session() -> None:
@@ -483,10 +493,10 @@ def test_session_less_runs_form_one_unattributed_session() -> None:
     assert snapshot["worker_slots"] == 21
 
 
-def test_congested_verdict_zeroes_every_per_session_figure() -> None:
-    """A congested verdict clamps the global figure, and each share with it."""
+def test_paused_verdict_zeroes_every_per_session_figure() -> None:
+    """A paused verdict clamps the global figure, and each share with it."""
     ledger = _session_ledger(_NOW, workers={"A": 2, "B": 12})
-    snapshot = ledger.snapshot(now=_NOW, effective_width=12, verdict="congested")
+    snapshot = ledger.snapshot(now=_NOW, effective_width=12, verdict="paused")
     assert snapshot["worker_slots"] == 0
     for session in snapshot["sessions"].values():
         assert session["worker_slots"] == 0

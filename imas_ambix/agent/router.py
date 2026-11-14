@@ -494,12 +494,18 @@ class _AdmissionLedger:
 
     @staticmethod
     def _slot_count(*, verdict: str, capacity: int, live_runs: int) -> int:
-        """The remaining global slots: capacity less the runs, or 0 when clamped.
+        """The remaining global slots: capacity less the runs, or 0 when paused.
 
-        A congested, full or paused verdict admits nothing new whatever the
-        capacity, so every slot figure derived from it is zero.
+        A congested or full gate is the gate doing its job: the requests beyond
+        its width wait here rather than on the engine, so a backlog costs the
+        cards nothing and keeps them fed between one worker's turns. The
+        capacity is already the bound, because it is the number of runs whose
+        average demand fills the width. Only a paused gate admits nothing new.
+        Zeroing the slots whenever a request waited would stop dispatchers at
+        the first queued request, so the queue could never hold the work that
+        keeps the lane busy after its coordinators stop.
         """
-        if verdict in ("congested", "full", "paused"):
+        if verdict == "paused":
             return 0
         return max(0, capacity - live_runs)
 
