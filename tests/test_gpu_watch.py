@@ -474,3 +474,12 @@ def test_sampler_lines_become_cards_with_a_rolling_mean():
     assert (card.index, card.temp, card.watts, card.cap_watts) == (4, 60.0, None, 600.0)
     assert reading.host == (10.0, 10.0, 25.0)
     assert owned == {(node, 4)}
+
+
+def test_the_view_is_live_in_a_terminal_and_one_reading_elsewhere():
+    from imas_ambix.agent.gpu_watch.app import live_by_default
+
+    assert live_by_default(False, False, True)
+    assert not live_by_default(False, True, True)
+    assert not live_by_default(False, False, False)
+    assert live_by_default(True, False, False)

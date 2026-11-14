@@ -6,7 +6,8 @@ Pages::
     <server>     one server: cards, lanes served from it, queue
     lanes        every lane in full: totals, each lane's readings, the ledger
 
-In ``--live`` the keys switch page without restarting: ``0`` is the overview,
+In a terminal the view is live, and the keys switch page without restarting:
+``0`` is the overview,
 ``1``-``9`` a server in the order the overview lists them, ``l`` the lanes
 page, the arrow keys step through all of them, and ``q`` quits. With one
 server the view opens on that server, and its page carries the ledger; with
@@ -14,10 +15,10 @@ more it opens on the overview.
 
 Usage::
 
-    ambix-watch --live              # 1 s refresh, 30 s rolling mean
-    ambix-watch 10 --live           # 10 s rolling mean
-    ambix-watch --live --page gpu-0003
-    ambix-watch                     # one reading after a 30 s window
+    ambix-watch                     # live: 1 s refresh, 30 s rolling mean
+    ambix-watch 10                  # live, 10 s rolling mean
+    ambix-watch --page gpu-0003
+    ambix-watch --once              # one reading after a 30 s window
 """
 
 from __future__ import annotations
@@ -330,6 +331,16 @@ def run_once(window: int, page: str | None) -> int:
     return 0
 
 
+def live_by_default(live: bool, once: bool, terminal: bool) -> bool:
+    """Whether the view keeps refreshing.
+
+    A reader at a terminal is watching, so the view refreshes unless ``--once``
+    asks for a single reading; output to a pipe or a file is one reading
+    unless ``--live`` asks otherwise.
+    """
+    return not once and (live or terminal)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="GPU servers and the lanes they serve")
     parser.add_argument(
@@ -342,7 +353,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--live",
         action="store_true",
-        help="refresh every second; the mean columns roll over the window",
+        help="refresh every second; the mean columns roll over the window. "
+        "The default in a terminal",
+    )
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help="print one reading after the window and exit; the default when "
+        "the output is not a terminal",
     )
     parser.add_argument(
         "--page",
@@ -353,7 +371,7 @@ def main(argv: list[str] | None = None) -> int:
     # for one by default.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     try:
-        if args.live:
+        if live_by_default(args.live, args.once, sys.stdout.isatty()):
             return run_live(args.window, args.page)
         return run_once(args.window, args.page)
     except KeyboardInterrupt:

@@ -1326,7 +1326,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", dest="as_json", action="store_true",
                         help="emit the document as JSON")
     parser.add_argument("--live", action="store_true",
-                        help=f"refresh every {int(LIVE_REFRESH_SECONDS)}s")
+                        help=f"refresh every {int(LIVE_REFRESH_SECONDS)}s; the "
+                             "default in a terminal")
+    parser.add_argument("--once", action="store_true",
+                        help="print one reading and exit; the default when "
+                             "the output is not a terminal")
     parser.add_argument("--width", type=int, default=None,
                         help="page width; the terminal's own by default")
     args = parser.parse_args(argv)
@@ -1334,7 +1338,7 @@ def main(argv: list[str] | None = None) -> int:
 
     width = page_width(args.width or shutil.get_terminal_size((0, 0)).columns)
 
-    def once() -> None:
+    def read() -> dict[str, Any]:
         document = build_document(
             record_dir=args.record_dir,
             lane_path=args.lane_path,
@@ -1347,10 +1351,17 @@ def main(argv: list[str] | None = None) -> int:
                 sys.stderr.write(refusal + "\n")
                 raise SystemExit(REFUSED_ENGINE_STATUS)
             document["selected_engine"] = args.engine_id
+        return document
+
+    terminal = sys.stdout.isatty()
+    live = live_by_default(args.live, args.once, args.as_json, terminal)
+
+    def once() -> None:
+        document = read()
         if args.as_json:
             sys.stdout.write(json.dumps(document, indent=2, default=str) + "\n")
         else:
-            if args.live:
+            if live:
                 sys.stdout.write(refresh_stamp() + "\n")
             sys.stdout.write(
                 render_text(
@@ -1363,11 +1374,52 @@ def main(argv: list[str] | None = None) -> int:
             )
         sys.stdout.flush()
 
-    if not args.live:
+    if not live:
         once()
         return 0
-    for _ in refresh_loop(once):
-        pass
+    try:
+        if terminal and not args.as_json:
+            return _redraw_in_place(read, args)
+        for _ in refresh_loop(once):
+            pass
+    except KeyboardInterrupt:
+        return 130
+    return 0
+
+
+def live_by_default(live: bool, once: bool, as_json: bool, terminal: bool) -> bool:
+    """Whether the view keeps refreshing.
+
+    A reader at a terminal is watching, so the view refreshes unless ``--once``
+    asks for a single reading. Output that goes to a pipe or a file is one
+    reading unless ``--live`` asks for a stream, and so is JSON.
+    """
+    if once:
+        return False
+    return live or (terminal and not as_json)
+
+
+def _redraw_in_place(read: Callable[[], dict[str, Any]], args: Any) -> int:
+    """Redraw the view in place, in colour, until interrupted.
+
+    The page takes the terminal's width on every pass, so resizing the window
+    reflows it at the next refresh.
+    """
+    from rich.live import Live
+
+    console = Console(highlight=False)
+
+    def page() -> Group:
+        width = page_width(args.width or console.size.width)
+        return Group(
+            Text(refresh_stamp(), style="dim"),
+            render(read(), account=args.account, sessions=args.sessions,
+                   engine=args.engine_id, width=width),
+        )
+
+    with Live(console=console, auto_refresh=False, screen=True) as view:
+        for _ in refresh_loop(lambda: view.update(page(), refresh=True)):
+            pass
     return 0
 
 

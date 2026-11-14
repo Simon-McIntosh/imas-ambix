@@ -783,6 +783,17 @@ def test_live_flag_refreshes_every_five_seconds() -> None:
     assert ticks == [5.0, 5.0]
 
 
+def test_the_view_is_live_in_a_terminal_and_one_reading_elsewhere() -> None:
+    """A terminal refreshes unless told ``--once``; a pipe prints one reading."""
+    live = lw.live_by_default
+    assert live(False, False, False, True)
+    assert not live(False, True, False, True)
+    assert not live(False, False, False, False)
+    assert live(True, False, False, False)
+    assert not live(False, False, True, True)
+    assert live(True, False, True, True)
+
+
 def test_a_live_refresh_stamps_the_moment_it_rendered() -> None:
     """Each live pass says when it ran, so the cadence is checkable."""
     moment = datetime(2026, 10, 27, 10, 20, 5, tzinfo=UTC)
