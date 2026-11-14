@@ -1,23 +1,12 @@
-"""ambix-watch: the GPU servers and the lanes they serve, one page at a time.
+"""ambix-watch: the GPU servers and the lanes they serve, on one page.
 
-Pages::
-
-    overview     every server, every lane, the period ledger
-    <server>     one server: cards, lanes served from it, queue
-    lanes        every lane in full: totals, each lane's readings, the ledger
-
-In a terminal the view is live, and the keys switch page without restarting:
-``0`` is the overview,
-``1``-``9`` a server in the order the overview lists them, ``l`` the lanes
-page, the arrow keys step through all of them, and ``q`` quits. With one
-server the view opens on that server, and its page carries the ledger; with
-more it opens on the overview.
+The page is a single column: each server's cards, each lane, the period
+ledger, then the queue. In a terminal the view is live and ``q`` quits.
 
 Usage::
 
     ambix-watch                     # live: 1 s refresh, 30 s rolling mean
     ambix-watch 10                  # live, 10 s rolling mean
-    ambix-watch --page gpu-0003
     ambix-watch --once              # one reading after a 30 s window
 """
 
@@ -37,11 +26,8 @@ from rich.text import Text
 
 from imas_ambix.agent.gpu_watch import panels
 from imas_ambix.agent.gpu_watch.fleet import Fleet, Reading
-from imas_ambix.agent.gpu_watch.lane import Lane, lanes
+from imas_ambix.agent.gpu_watch.lane import lanes
 from imas_ambix.agent.watch_style import page_width
-
-OVERVIEW = "overview"
-LANES = "lanes"
 
 #: Seconds between reads of the live serving document.
 DOCUMENT_SECONDS = 5.0
@@ -93,45 +79,7 @@ class Document:
             return self._reason
 
 
-def page_names(readings: list[Reading]) -> list[str]:
-    """Every page, in the order the keys step through them."""
-    return [OVERVIEW, *(reading.server.name for reading in readings), LANES]
-
-
-def default_page(readings: list[Reading]) -> str:
-    return readings[0].server.name if len(readings) == 1 else OVERVIEW
-
-
-def resolve_page(name: str | None, readings: list[Reading]) -> str:
-    """The page a name selects: exact, then any page the name is part of."""
-    names = page_names(readings)
-    if not name:
-        return default_page(readings)
-    wanted = name.lower()
-    for candidate in names:
-        if candidate.lower() == wanted:
-            return candidate
-    for candidate in names:
-        if wanted in candidate.lower():
-            return candidate
-    return default_page(readings)
-
-
-def footer(page: str, readings: list[Reading]) -> str:
-    """The keys, with the page on screen in bold."""
-
-    def mark(key: str, name: str) -> str:
-        text = f"{key} {name}"
-        return f"[bold]{text}[/]" if name == page else f"[dim]{text}[/]"
-
-    bits = [mark("0", OVERVIEW)]
-    bits += [mark(str(i), r.server.name) for i, r in enumerate(readings[:9], 1)]
-    bits += [mark("l", LANES), "[dim]q quit[/]"]
-    return " [dim]·[/] ".join(bits)
-
-
 def render(
-    page: str,
     readings: list[Reading],
     document: dict | None,
     window: int,
@@ -139,64 +87,21 @@ def render(
     keys: bool = False,
     reason: str = "",
 ) -> Group:
-    """One page from the readings and the serving document.
+    """The page from the readings and the serving document.
 
     ``reason`` is why there is no document, shown where the lanes would be.
     """
-    width = page_width(size[0] if size else None)
-    served: list[Lane] = lanes(document)
-    ledger = (document or {}).get("ledger")
-    published_at = (document or {}).get("ledger_published_at")
-    foot = footer(page, readings) if keys else ""
-    if page == LANES:
-        return panels.lanes_page(
-            readings,
-            served,
-            ledger,
-            published_at,
-            foot,
-            reason="" if document else reason,
-            width=width,
-        )
-    for reading in readings:
-        if reading.server.name != page:
-            continue
-        here = [lane for lane in served if lane.server == reading.server.name]
-        alone = len(readings) == 1
-        return panels.server_page(
-            reading,
-            here,
-            window,
-            ledger=ledger if alone else None,
-            published_at=published_at,
-            size=size,
-            footer=foot,
-            width=width,
-        )
-    return panels.overview_page(
+    return panels.view(
         readings,
-        served,
-        ledger,
-        published_at,
-        foot,
+        lanes(document),
+        (document or {}).get("ledger"),
+        window,
+        published_at=(document or {}).get("ledger_published_at"),
+        size=size,
+        footer="[dim]q quit[/]" if keys else "",
         reason="" if document else reason,
-        width=width,
+        width=page_width(size[0] if size else None),
     )
-
-
-def step(page: str, key: str, readings: list[Reading]) -> str:
-    """The page a key press leads to; the same page for a key that means nothing."""
-    names = page_names(readings)
-    if key == "0":
-        return OVERVIEW
-    if key in ("l", "L"):
-        return LANES
-    if key.isdigit() and 1 <= int(key) <= len(readings):
-        return readings[int(key) - 1].server.name
-    if key in ("right", "left") and page in names:
-        move = 1 if key == "right" else -1
-        return names[(names.index(page) + move) % len(names)]
-    return page
 
 
 class Keys:
@@ -239,12 +144,10 @@ class Keys:
         if not ready:
             return None
         data = os.read(self._fd, 8).decode("utf-8", "replace")
-        if data.startswith("\x1b["):
-            return {"C": "right", "D": "left"}.get(data[2:3])
-        return data[:1] or None
+        return None if data.startswith("\x1b") else data[:1] or None
 
 
-def run_live(window: int, page: str | None) -> int:
+def run_live(window: int) -> int:
     console = Console()
     fleet, document = Fleet(window), Document()
     fleet.start()
@@ -256,16 +159,11 @@ def run_live(window: int, page: str | None) -> int:
         ):
             live.update(Text("reading the scheduler…", style="dim"), refresh=True)
             fleet.polled.wait(30)
-            current: str | None = None
             while True:
                 began = time.monotonic()
-                readings = fleet.tick()
-                if current is None or current not in page_names(readings):
-                    current = resolve_page(page, readings)
                 live.update(
                     render(
-                        current,
-                        readings,
+                        fleet.tick(),
                         document.get(),
                         window,
                         console.size,
@@ -275,31 +173,14 @@ def run_live(window: int, page: str | None) -> int:
                     refresh=True,
                 )
                 while (left := 1.0 - (time.monotonic() - began)) > 0:
-                    key = keys.read(left)
-                    if key in ("q", "Q"):
+                    if keys.read(left) in ("q", "Q"):
                         return 0
-                    if key:
-                        moved = step(current, key, readings)
-                        if moved != current:
-                            current = moved
-                            live.update(
-                                render(
-                                    current,
-                                    readings,
-                                    document.get(),
-                                    window,
-                                    console.size,
-                                    keys=True,
-                                    reason=document.reason,
-                                ),
-                                refresh=True,
-                            )
     finally:
         document.stop()
         fleet.stop()
 
 
-def run_once(window: int, page: str | None) -> int:
+def run_once(window: int) -> int:
     """Sample for ``window`` seconds, then print one page."""
     fleet, document = Fleet(window), Document()
     fleet.start()
@@ -317,7 +198,6 @@ def run_once(window: int, page: str | None) -> int:
         console = Console()
         console.print(
             render(
-                resolve_page(page, readings),
                 readings,
                 document.get(),
                 window,
@@ -362,18 +242,14 @@ def main(argv: list[str] | None = None) -> int:
         help="print one reading after the window and exit; the default when "
         "the output is not a terminal",
     )
-    parser.add_argument(
-        "--page",
-        help="page to open: overview, lanes, or a server name such as gpu-0003",
-    )
     args = parser.parse_args(argv)
     # A terminal signal must end the samplers too, and Python does not unwind
     # for one by default.
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     try:
         if live_by_default(args.live, args.once, sys.stdout.isatty()):
-            return run_live(args.window, args.page)
-        return run_once(args.window, args.page)
+            return run_live(args.window)
+        return run_once(args.window)
     except KeyboardInterrupt:
         return 130
 

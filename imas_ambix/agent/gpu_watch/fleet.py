@@ -47,8 +47,13 @@ POLL_SECONDS = 5.0
 #: failing is retried at this pace and not once a tick.
 RELAUNCH_SECONDS = 20.0
 
-#: Comma-separated partitions to watch besides the site's own.
+#: Comma-separated partitions to watch besides the site's own. Set, it
+#: replaces :data:`OTHER_PARTITIONS`; set empty, only the site's are watched.
 PARTITIONS_ENV = "AMBIX_WATCH_PARTITIONS"
+
+#: The partitions watched besides the site's own when the environment names
+#: none: the other GPU servers of the cluster.
+OTHER_PARTITIONS = ("titan",)
 
 _GRES = re.compile(r"gpu:(?:([^:(,]+):)?(\d+)")
 _GROUP = re.compile(r"grp([a-z])$", re.IGNORECASE)
@@ -289,7 +294,12 @@ def watched_partitions() -> tuple[tuple[str, ...], list[Server]]:
         )
         for entry in site.servers
     ]
-    extra = [p.strip() for p in os.environ.get(PARTITIONS_ENV, "").split(",")]
+    named = os.environ.get(PARTITIONS_ENV)
+    extra = (
+        list(OTHER_PARTITIONS)
+        if named is None
+        else [p.strip() for p in named.split(",")]
+    )
     names = [site.partition, *(server.partition for server in declared), *extra]
     return tuple(dict.fromkeys(name for name in names if name)), declared
 

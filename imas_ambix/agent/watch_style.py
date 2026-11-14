@@ -1,30 +1,28 @@
 """Layout, colour and figure formatting shared by the watch views.
 
 ``llm-watch`` and ``ambix-watch`` are drawn from the same parts, so a reader
-moving between them finds one layout. Every panel is a titled box as wide as
-the page. Inside a box, a table has fixed-width naming columns on the left and
-figure columns that share the remaining width evenly, right-aligned, so the
-last figure always sits against the box's right edge and a wider terminal
-gives the figures more room without changing where they are. Where the page is
-wide enough, two stacks of boxes sit side by side.
+moving between them finds one layout: a single column as wide as the page,
+made of sections. A section is a bold title on a line of its own, its table
+beneath, and a blank line after it; nothing is framed or ruled. A table has
+fixed-width naming columns on the left and figure columns that share the
+remaining width evenly, right-aligned, so the last figure always sits against
+the page's right edge and a wider terminal gives the figures more room without
+changing where they are.
 """
 
 from __future__ import annotations
 
-from rich import box as _box
 from rich.console import Group
-from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
 from imas_ambix.agent.watch import fmt_span, fmt_tokens, fmt_usd
 
 __all__ = [
-    "DASH", "DEFAULT_WIDTH", "MAX_WIDTH", "TWO_COLUMN_WIDTH", "WIDTHS",
-    "blank", "boxed", "cell", "column_widths", "flex_table", "fmt_count",
-    "fmt_ctx", "fmt_rate", "fmt_span", "fmt_tokens", "fmt_usd", "head",
-    "inner_width", "line_count", "page_width", "pair", "pct", "ramp",
-    "side_by_side", "spark", "split_line",
+    "DASH", "DEFAULT_WIDTH", "MAX_WIDTH", "NARROW_WIDTH", "WIDTHS",
+    "blank", "cell", "flex_table", "fmt_count", "fmt_ctx", "fmt_rate",
+    "fmt_span", "fmt_tokens", "fmt_usd", "head", "line_count", "meter",
+    "page_width", "pct", "bar_width", "ramp", "section", "spark", "split_line",
 ]
 
 #: The page width when nothing says how wide the terminal is.
@@ -36,11 +34,12 @@ DEFAULT_WIDTH = 120
 MIN_WIDTH = 80
 MAX_WIDTH = 160
 
-#: The page width from which two stacks of boxes sit side by side.
-TWO_COLUMN_WIDTH = 132
+#: The page width below which a table drops its least important columns, so
+#: the ones it keeps are never cut.
+NARROW_WIDTH = 100
 
 #: The widths the views are checked at: the narrowest page, the default, and
-#: one wide enough for two columns.
+#: a wide one.
 WIDTHS = (80, 120, 150)
 
 
@@ -51,9 +50,9 @@ def page_width(columns: int | None = None) -> int:
     return max(MIN_WIDTH, min(MAX_WIDTH, int(columns)))
 
 
-def inner_width(width: int) -> int:
-    """The columns a box ``width`` wide leaves for its body."""
-    return width - 4
+def bar_width(width: int) -> int:
+    """Cells a percentage's bar takes in a figure column of a page ``width`` wide."""
+    return 4 if width < NARROW_WIDTH else 8
 
 
 def flex_table(names: tuple[int, ...], figures: int) -> Table:
@@ -89,42 +88,15 @@ def split_line(left: str, right: str, width: int | None = None) -> Table:
     return table
 
 
-def boxed(
-    title: str, body: list[object], width: int, *, note: str = ""
-) -> Panel:
-    """A box ``width`` wide holding ``body``, titled with ``title`` as markup.
+def section(
+    title: str, body: list[object], width: int | None = None, *, note: str = ""
+) -> list[object]:
+    """A titled section: ``title`` as markup, the body, then a blank line.
 
-    ``note`` is set into the bottom edge on the right: the place for a fact
-    about the whole box that is not one of its readings.
+    ``note`` is set at the right end of the title line: the place for a fact
+    about the whole section that is not one of its readings.
     """
-    return Panel(
-        Group(*body),
-        title=title,
-        title_align="left",
-        subtitle=note or None,
-        subtitle_align="right",
-        box=_box.ROUNDED,
-        border_style="dim",
-        padding=(0, 1),
-        width=width,
-    )
-
-
-def column_widths(width: int) -> tuple[int, int]:
-    """The widths of the two stacks a page ``width`` wide divides into."""
-    left = (width - 1) // 2
-    return left, width - 1 - left
-
-
-def side_by_side(left: list[object], right: list[object], width: int) -> Table:
-    """Two stacks of boxes next to each other, one column apart."""
-    left_width, right_width = column_widths(width)
-    table = Table.grid(padding=0)
-    table.add_column(width=left_width)
-    table.add_column(width=1)
-    table.add_column(width=right_width)
-    table.add_row(Group(*left), "", Group(*right))
-    return table
+    return [split_line(title, note, width), *body, Text("")]
 
 
 def line_count(parts: list[object], width: int) -> int:
@@ -136,25 +108,6 @@ def line_count(parts: list[object], width: int) -> int:
     probe = Console(width=width, file=io.StringIO(), force_terminal=False,
                     color_system=None)
     return len(probe.render_lines(Group(*parts), probe.options, pad=False))
-
-
-def pair(
-    left: tuple[str, list[object]], right: tuple[str, list[object]], width: int
-) -> list[object]:
-    """Two boxes, each a ``(title, body)``: side by side where the page allows.
-
-    Side by side they are drawn the same height, so the row they form ends on
-    one line; on a narrower page they are stacked at full width.
-    """
-    if width < TWO_COLUMN_WIDTH:
-        return [boxed(left[0], left[1], width), boxed(right[0], right[1], width)]
-    widths = column_widths(width)
-    boxes = [boxed(title, body, w) for (title, body), w in
-             zip((left, right), widths, strict=True)]
-    height = max(line_count([box], w) for box, w in zip(boxes, widths, strict=True))
-    for box in boxes:
-        box.height = height
-    return [side_by_side([boxes[0]], [boxes[1]], width)]
 
 
 def blank() -> Text:
@@ -186,12 +139,13 @@ def ramp(value: float | None, good: float, fair: float,
 
 
 def pct(value: float | None, mode: str = "fill", places: int = 0,
-        width: int = 4) -> str:
+        width: int = 8) -> str:
     """A proportion as a filled bar and its figure, the same way every time.
 
     ``mode`` sets what the colour means. ``good`` is high-is-healthy, ``warn``
-    is high-is-trouble, and ``fill`` is neither -- an occupancy that is merely
-    a fact, coloured by how full it is rather than by whether it should be.
+    is high-is-trouble, ``fill`` is an occupancy coloured by how close to full
+    it is, and ``plain`` is a level that carries no judgement at all -- a
+    cache, which is meant to sit full.
     """
     if value is None:
         return DASH
@@ -201,10 +155,24 @@ def pct(value: float | None, mode: str = "fill", places: int = 0,
         colour = ramp(v, 80, 40)
     elif mode == "warn":
         colour = ramp(v, 80, 95, inverted=True)
+    elif mode == "plain":
+        colour = "cyan"
     else:
         colour = "red" if v >= 90 else "magenta" if v >= 70 else "cyan"
     bars = "█" * fill + "░" * (width - fill)
     return f"[{colour}]{bars}[/] {v:.{places}f}"
+
+
+def meter(value: float | None, mode: str, width: int) -> str:
+    """A bar ``width`` cells long with its percentage after it, left-aligned.
+
+    The long form of :func:`pct`, for a column whose whole point is the level:
+    the figure is padded so a stack of meters ends on one column.
+    """
+    if value is None:
+        return DASH
+    bar, _, figure = pct(value, mode, width=width).rpartition(" ")
+    return f"{bar} {figure:>3}%"
 
 
 def fmt_count(value: object) -> str:

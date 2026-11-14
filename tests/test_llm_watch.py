@@ -434,12 +434,12 @@ _ACCOUNT_NAMES = {VIEWER, "llealsa", lw.UNATTRIBUTED}
 
 
 def _cells(line: str) -> list[str]:
-    """The figures on one row of a box, without the box's own edges."""
-    return line.strip("│ ").split()
+    """The figures on one row."""
+    return line.split()
 
 
 def _accounts_region(text: str) -> str:
-    """The accounts box alone: its title up to the projects box's."""
+    """The accounts section alone: its title up to the projects title."""
     return text.split("ACCOUNTS ", 1)[1].split("PROJECTS ", 1)[0]
 
 
@@ -498,16 +498,18 @@ def test_per_worker_cell_takes_the_serve_panels_colour() -> None:
     the best a single stream does on this deployment -- yellow.
     """
     assert lw.PER_WORKER_REF == 40.0
-    at_reference = _coloured(lw.throughput_band(_live(per_stream_toks_per_s=40.0)))
+    at_reference = _coloured(
+        lw.serving_band({}, _live(per_stream_toks_per_s=40.0))
+    )
     assert "32" in _cell_colour(at_reference, "40.0").split(";")
     # Half the reference is 50 percent of it, under the 60 the ramp calls
     # healthy and over the 30 it calls poor.
-    at_half = _coloured(lw.throughput_band(_live(per_stream_toks_per_s=20.0)))
+    at_half = _coloured(lw.serving_band({}, _live(per_stream_toks_per_s=20.0)))
     assert "33" in _cell_colour(at_half, "20.0").split(";")
 
 
-def test_a_published_lane_document_fills_the_capacity_band() -> None:
-    """The four capacity figures reach the band through the lane block.
+def test_a_published_lane_document_fills_the_memory_band() -> None:
+    """The capacity figures reach the band through the lane block.
 
     The fixture is a copy of the lane document the router published today,
     keys and values unchanged, so the test exercises the copy the live render
@@ -521,13 +523,15 @@ def test_a_published_lane_document_fills_the_capacity_band() -> None:
     row = render(document).split("kv pool %", 1)[1].splitlines()[1]
     # kv pool is the engine's own counter; the three beside it are the lane
     # document's, and the palette never showed values for any of them before.
-    assert _cells(row) == ["█░░░", "21", "████", "100", "130k", "27", "23", "—"]
+    assert _cells(row) == [
+        "██░░░░░░", "21", "████████", "100", "████████", "95", "130k", "27", "—",
+    ]
     # The same render with the copy removed is the state this test exists to
     # catch: every figure the block fails to carry reads as a dash, not a zero.
     for key in ("hicache_host", "mean_context", "concurrent_requests"):
         del lane[key]
     bare = render(document).split("kv pool %", 1)[1].splitlines()[1]
-    assert _cells(bare) == ["█░░░", "21", "—", "—", "—", "23", "—"]
+    assert _cells(bare) == ["██░░░░░░", "21", "—", "████████", "95", "—", "—", "—"]
 
 
 def test_head_line_names_the_checkpoint_the_served_engine_loaded() -> None:
@@ -667,20 +671,27 @@ def test_no_line_exceeds_the_terminal_width() -> None:
             assert not over, f"line over {width} columns:\n" + "\n".join(over)
 
 
-def test_every_box_is_as_wide_as_the_page() -> None:
-    """Boxes fill the page at each width, so they share both edges."""
+def test_the_page_is_one_unframed_column_that_fits_every_width() -> None:
+    """No line is framed or cut, and the sections come in reading order."""
     for width in WIDTHS:
-        text = lw.render_text(eight_project_fixture(), width=width)
-        tops = [line for line in text.splitlines() if line.startswith("╭")]
-        assert tops
-        assert {len(line.rstrip()) for line in tops} == {width}
-    # From the two-column width the accounts stand beside the projects.
-    wide = lw.render_text(eight_project_fixture(), width=150)
-    assert any("ACCOUNTS" in line and "PROJECTS" in line
-               for line in wide.splitlines())
-    narrow = lw.render_text(eight_project_fixture(), width=120)
-    assert not any("ACCOUNTS" in line and "PROJECTS" in line
-                   for line in narrow.splitlines())
+        lines = lw.render_text(eight_project_fixture(), width=width).splitlines()
+        assert all(len(line) <= width for line in lines)
+        assert not any(mark in line for line in lines for mark in "│╭╰")
+        titles = [line.split()[0] for line in lines
+                  if line[:1].isupper() and line.split()[0].isupper()]
+        assert [t for t in titles if t in
+                ("LANE", "ACCOUNTS", "PROJECTS", "ACTIVITY", "LEDGER")] == [
+            "LANE", "ACCOUNTS", "PROJECTS", "ACTIVITY", "LEDGER"]
+
+
+def test_no_label_is_cut_at_the_narrowest_page() -> None:
+    """At 80 columns a table drops columns before it cuts one."""
+    for factory in (one_engine_fixture, three_engine_fixture):
+        text = lw.render_text(factory(), width=80)
+        labels = [line for line in text.splitlines()
+                  if "tok/s" in line or "tok in" in line or "kv pool" in line]
+        assert labels
+        assert not any("…" in line for line in labels)
 
 
 def test_a_full_ledger_period_is_drawn_as_healthy() -> None:
@@ -693,12 +704,36 @@ def test_a_full_ledger_period_is_drawn_as_healthy() -> None:
     assert "31" in _cell_colour(idle, "░░░░").split(";")
 
 
-def test_the_engine_queue_is_a_line_only_when_it_holds_work() -> None:
-    quiet = render(one_engine_fixture())
-    assert "engine queue" not in quiet
+def test_the_lane_leads_with_the_room_left_and_its_rates() -> None:
+    lines = render(one_engine_fixture()).splitlines()
+    at = next(i for i, line in enumerate(lines) if line.startswith("SERVING"))
+    assert lines[at].split()[1:] == [
+        "available", "tok/s", "per", "stream", "prefill/s", "ttft", "s",
+        "verdict",
+    ]
+    assert lines[at + 1].split()[0].count("/") == 1
+
+
+def test_the_engine_queue_is_a_column_of_the_gate_band() -> None:
+    def queued(document: dict[str, Any]) -> str:
+        lines = render(document).splitlines()
+        at = next(i for i, line in enumerate(lines) if line.startswith("GATE"))
+        assert lines[at].split()[4] == "queued"
+        return lines[at + 1].split()[3]
+
     document = one_engine_fixture()
+    document["live"]["engine_queue"] = 0.0
+    assert queued(document) == "0"
     document["live"]["engine_queue"] = 3.0
-    assert "engine queue 3" in render(document)
+    assert queued(document) == "3"
+
+
+def test_a_full_host_tier_is_not_drawn_as_an_alarm() -> None:
+    """The host tier is a cache: full is its steady state, so it is never red."""
+    lane = {"hicache_host": {"used_fraction": 0.9995}}
+    band = _coloured(lw.memory_band(lane, _live()))
+    assert "100" in band
+    assert "\x1b[31m" not in band
 
 
 def test_accounts_table_reads_the_account_level() -> None:
@@ -750,17 +785,19 @@ def test_three_project_fixture_has_no_fold_row() -> None:
     assert "more" not in text
 
 
-def test_unavailable_live_entry_renders_one_line_and_no_band() -> None:
+def test_unavailable_live_entry_renders_one_line_and_no_figures() -> None:
     """A missing receipt file is a stated reason, never a row of zeros.
 
-    The refusal is the whole check: the throughput band must be absent, not
-    the band's figures zeroed. A zero is a measurement, and this document
-    makes none.
+    The rates are dashes under a line naming the reason, never zeroed: a zero
+    is a measurement, and this document makes none. The room left is the lane
+    document's and still stands.
     """
     text = render(unavailable_live_fixture())
     assert "live entry unavailable" in text
     assert "no raw receipt file with a readable row" in text
-    assert "per stream" not in text
+    lines = text.splitlines()
+    at = next(i for i, line in enumerate(lines) if line.startswith("SERVING"))
+    assert lines[at + 1].split()[1:5] == ["—", "—", "—", "—"]
     assert "11.3" not in text
 
 
@@ -941,7 +978,7 @@ def test_the_account_detail_engine_column_names_the_dominant_engine() -> None:
     )
     body = []
     for line in lines[head + 1:]:
-        if line.startswith("╰"):
+        if not line.strip():
             break
         body.append(_cells(line))
     engines = [row[1] for row in body if len(row) > 3]
